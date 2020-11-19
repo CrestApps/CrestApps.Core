@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="5.0.0" />
+    <PackageReference Include="OrchardCore.Abstractions" Version="1.0.0-rc2-13450" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CrestApps.Data.Abstraction\CrestApps.Data.Abstraction.csproj" />
+    <ProjectReference Include="..\CrestApps.Data.Entity\CrestApps.Data.Entity.csproj" />
+    <ProjectReference Include="..\CrestApps.Data.Models\CrestApps.Data.Models.csproj" />
+  </ItemGroup>
+
+</Project>

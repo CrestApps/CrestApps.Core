@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="7.0.0" />
+    <PackageReference Include="MailKit" Version="2.9.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="5.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="5.0.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="5.0.0" />
+    <PackageReference Include="MimeKit" Version="2.9.2" />
+    <PackageReference Include="NLog.Web.AspNetCore" Version="4.9.3" />
+    <PackageReference Include="OrchardCore.Application.Mvc.Targets" Version="1.0.0-rc2-13450" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CrestApps.AutoMapping\CrestApps.AutoMapping.csproj" />
+    <ProjectReference Include="..\CrestApps.Common.Helpers\CrestApps.Common.Helpers.csproj" />
+    <ProjectReference Include="..\CrestApps.Core.Service\CrestApps.Core.Service.csproj" />
+    <ProjectReference Include="..\CrestApps.Core.WebPresentation\CrestApps.Core.WebPresentation.csproj" />
+    <ProjectReference Include="..\CrestApps.Data.Entity\CrestApps.Data.Entity.csproj" />
+    <ProjectReference Include="..\CrestApps.Data.Models\CrestApps.Data.Models.csproj" />
+    <ProjectReference Include="..\CrestApps.Events.Abstraction\CrestApps.Events.Abstraction.csproj" />
+    <ProjectReference Include="..\CrestApps.Security\CrestApps.Security.csproj" />
+  </ItemGroup>
+
+</Project>

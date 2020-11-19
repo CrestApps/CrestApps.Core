@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CrestApps.Data.Core.Abstraction\CrestApps.Data.Core.Abstraction.csproj" />
+    <ProjectReference Include="..\CrestApps.Data.Models\CrestApps.Data.Models.csproj" />
+  </ItemGroup>
+
+</Project>
