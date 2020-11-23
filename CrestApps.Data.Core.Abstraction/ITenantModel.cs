@@ -1,7 +1,9 @@
-﻿namespace CrestApps.Data.Core.Abstraction
+﻿using System;
+
+namespace CrestApps.Data.Core.Abstraction
 {
     public interface ITenantModel
     {
-        string TenantId { get; set; }
+        Guid TenantId { get; set; }
     }
 }

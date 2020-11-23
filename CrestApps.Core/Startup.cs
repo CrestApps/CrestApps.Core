@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Localization;
-using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,7 +60,7 @@ namespace CrestApps.Core
 
             services.AddIdentity<User, Role>()
                     .AddEntityFrameworkStores<ApplicationContext>()
-                    .AddDefaultTokenProviders();
+                    .AddTokenProvider<DataProtectorTokenProvider<User>>(TokenOptions.DefaultProvider);
 
             services.AddOptions<ExtendedIdentityOptions>()
                     .Configure(options =>
@@ -156,10 +155,10 @@ namespace CrestApps.Core
 
                     tenantServices.AddSecureIdentity(new PasswordHistoryValidationOptions()
                     {
-                        // prevent the use of password within 90 days
+                        // Prevent the use of the same password within 90 days
                         TotalDays = 90,
                     });
-     
+
                     tenantServices.AddScoped<IUnitOfWork, UnitOfWork>();
                     tenantServices.AddScoped(typeof(IRepository<>), typeof(TenantEntityRepository<>));
                     tenantServices.AddScoped<IDateTimeConverter, DateTimeConverter>();
@@ -223,11 +222,10 @@ namespace CrestApps.Core
 
             app.UseEndpoints(endpoints =>
             {
-                /*
                 endpoints.MapControllerRoute(
                     name: "default",
                     pattern: "{controller=Home}/{action=Index}/{id?}");
-                */
+
                 endpoints.MapRazorPages();
             });
         }

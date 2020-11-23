@@ -34,7 +34,7 @@ namespace CrestApps.Core.WebPresentation
         }
 
 
-        public string UserId
+        public Guid UserId
         {
             get
             {
@@ -46,7 +46,7 @@ namespace CrestApps.Core.WebPresentation
                 }
 
 
-                return userId;
+                return new Guid(userId);
             }
         }
 

@@ -22,9 +22,20 @@ namespace CrestApps.Core.Controllers
 
         public async Task<IActionResult> Test()
         {
+            /*
+            var role = new Data.Models.Role()
+            {
+                Name = "Some name",
+                NormalizedName = "Some Name",
+            };
+
+            _unitOfWork.Roles.Add(role);
+            await _unitOfWork.SaveAsync();
+            */
+
             var roles = await _unitOfWork.Roles.GetAllAsync();
 
-            return Content("boo");
+            return Content("worked!");
         }
 
         public IActionResult Index()

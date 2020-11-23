@@ -70,7 +70,7 @@ namespace CrestApps.Foundation
         //
         // Summary:
         //     Gets or sets the primary key for this user.
-        string Id { get; set; }
+        Guid Id { get; set; }
         //
         // Summary:
         //     Gets or sets a flag indicating if the user could be locked out.

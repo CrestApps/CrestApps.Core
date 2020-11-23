@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -14,7 +15,7 @@ namespace CrestApps.Foundation
 
         IEnumerable<Claim> Claims { get; }
         bool IsAuthenticated { get; }
-        string UserId { get; }
+        Guid UserId { get; }
 
         string TimeZoneName { get; }
         Claim GetClaimByType(string claimType);

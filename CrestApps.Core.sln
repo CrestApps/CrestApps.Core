@@ -25,15 +25,26 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CrestApps.Foundation", "Cre
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CrestApps.Core.Service", "CrestApps.Core.Service\CrestApps.Core.Service.csproj", "{39C613F9-F510-4F71-B395-82762EEC8F9F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrestApps.Security", "CrestApps.Security\CrestApps.Security.csproj", "{FB541F5A-3CD4-49BA-8186-0C98E1D958A8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CrestApps.Security", "CrestApps.Security\CrestApps.Security.csproj", "{FB541F5A-3CD4-49BA-8186-0C98E1D958A8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrestApps.Events.Abstraction", "CrestApps.Events.Abstraction\CrestApps.Events.Abstraction.csproj", "{C58A4397-BB09-43A0-84E8-DF16D54FEE50}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CrestApps.Events.Abstraction", "CrestApps.Events.Abstraction\CrestApps.Events.Abstraction.csproj", "{C58A4397-BB09-43A0-84E8-DF16D54FEE50}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrestApps.AutoMapping", "CrestApps.AutoMapping\CrestApps.AutoMapping.csproj", "{C2231891-BF69-442C-8B28-4A5489F72D5D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CrestApps.AutoMapping", "CrestApps.AutoMapping\CrestApps.AutoMapping.csproj", "{C2231891-BF69-442C-8B28-4A5489F72D5D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrestApps.Core.WebPresentation", "CrestApps.Core.WebPresentation\CrestApps.Core.WebPresentation.csproj", "{447BDB96-2890-42F3-A9EE-E2FB9A714E8F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CrestApps.Core.WebPresentation", "CrestApps.Core.WebPresentation\CrestApps.Core.WebPresentation.csproj", "{447BDB96-2890-42F3-A9EE-E2FB9A714E8F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrestApps.Data.Core.Abstraction", "CrestApps.Data.Core.Abstraction\CrestApps.Data.Core.Abstraction.csproj", "{84D37E56-9AFA-47B8-9664-C6BF3C66FC32}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CrestApps.Data.Core.Abstraction", "CrestApps.Data.Core.Abstraction\CrestApps.Data.Core.Abstraction.csproj", "{84D37E56-9AFA-47B8-9664-C6BF3C66FC32}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Pomelo", "Pomelo", "{CEFE7BF4-85ED-4292-8DFD-0D819A307D5E}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\..\Users\malhayek\Downloads\Pomelo.EntityFrameworkCore.MySql-master\Pomelo.EntityFrameworkCore.MySql-master\src\EFCore.MySql.Json.Newtonsoft\EFCore.MySql.Json.Newtonsoft.csproj = ..\..\..\Users\malhayek\Downloads\Pomelo.EntityFrameworkCore.MySql-master\Pomelo.EntityFrameworkCore.MySql-master\src\EFCore.MySql.Json.Newtonsoft\EFCore.MySql.Json.Newtonsoft.csproj
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EFCore.MySql", "..\..\..\Users\malhayek\Downloads\Pomelo.EntityFrameworkCore.MySql-master\Pomelo.EntityFrameworkCore.MySql-master\src\EFCore.MySql\EFCore.MySql.csproj", "{5EE58B7D-8B34-436C-974E-3919742E5387}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EFCore.MySql.Json.Microsoft", "..\..\..\Users\malhayek\Downloads\Pomelo.EntityFrameworkCore.MySql-master\Pomelo.EntityFrameworkCore.MySql-master\src\EFCore.MySql.Json.Microsoft\EFCore.MySql.Json.Microsoft.csproj", "{CB0612DA-572E-4145-B4C3-F738C62CC7E9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EFCore.MySql.NTS", "..\..\..\Users\malhayek\Downloads\Pomelo.EntityFrameworkCore.MySql-master\Pomelo.EntityFrameworkCore.MySql-master\src\EFCore.MySql.NTS\EFCore.MySql.NTS.csproj", "{51EC66DB-D8AF-4FD3-AFF0-AD208F537856}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -89,6 +100,18 @@ Global
 		{84D37E56-9AFA-47B8-9664-C6BF3C66FC32}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{84D37E56-9AFA-47B8-9664-C6BF3C66FC32}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{84D37E56-9AFA-47B8-9664-C6BF3C66FC32}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5EE58B7D-8B34-436C-974E-3919742E5387}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5EE58B7D-8B34-436C-974E-3919742E5387}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5EE58B7D-8B34-436C-974E-3919742E5387}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5EE58B7D-8B34-436C-974E-3919742E5387}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CB0612DA-572E-4145-B4C3-F738C62CC7E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CB0612DA-572E-4145-B4C3-F738C62CC7E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CB0612DA-572E-4145-B4C3-F738C62CC7E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CB0612DA-572E-4145-B4C3-F738C62CC7E9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51EC66DB-D8AF-4FD3-AFF0-AD208F537856}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51EC66DB-D8AF-4FD3-AFF0-AD208F537856}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51EC66DB-D8AF-4FD3-AFF0-AD208F537856}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51EC66DB-D8AF-4FD3-AFF0-AD208F537856}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -106,6 +129,9 @@ Global
 		{C2231891-BF69-442C-8B28-4A5489F72D5D} = {F896A9EC-97E6-4001-B6BB-6ED0A231C8D5}
 		{447BDB96-2890-42F3-A9EE-E2FB9A714E8F} = {E1B6A63C-799C-4B73-AB65-14210B9C7A75}
 		{84D37E56-9AFA-47B8-9664-C6BF3C66FC32} = {432E5EEF-15A9-443B-85BF-940E1922BBCF}
+		{5EE58B7D-8B34-436C-974E-3919742E5387} = {CEFE7BF4-85ED-4292-8DFD-0D819A307D5E}
+		{CB0612DA-572E-4145-B4C3-F738C62CC7E9} = {CEFE7BF4-85ED-4292-8DFD-0D819A307D5E}
+		{51EC66DB-D8AF-4FD3-AFF0-AD208F537856} = {CEFE7BF4-85ED-4292-8DFD-0D819A307D5E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {34A2677C-92E6-4D73-8C4F-10CEC2BA219A}

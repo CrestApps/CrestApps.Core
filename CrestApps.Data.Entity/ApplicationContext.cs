@@ -7,7 +7,7 @@ using System;
 
 namespace CrestApps.Data.Entity
 {
-    public class ApplicationContext : IdentityDbContext<User, Role, string, UserClaim, UserRole, UserLogin, RoleClaim, UserToken>
+    public class ApplicationContext : IdentityDbContext<User, Role, Guid, UserClaim, UserRole, UserLogin, RoleClaim, UserToken>
     {
         private readonly IDatabaseContextBuilderConfigurator Configurator;
 

@@ -19,7 +19,7 @@ namespace CrestApps.Security
     /// <summary>
     /// https://github.com/dotnet/aspnetcore/blob/e7b55df6c5bf40121f339c435b1d5cdbbb9a8e73/src/Identity/EntityFrameworkCore/src/UserStore.cs
     /// </summary>
-    public class IdentityUserStore : UserStore<User, Role, ApplicationContext, string, UserClaim, UserRole, UserLogin, UserToken, RoleClaim>, IUserLockoutCounterStore<User>
+    public class IdentityUserStore : UserStore<User, Role, ApplicationContext, Guid, UserClaim, UserRole, UserLogin, UserToken, RoleClaim>, IUserLockoutCounterStore<User>
     {
         private readonly ShellSettings ShellSettings;
         private readonly IUnitOfWork UnitOfWork;
@@ -129,7 +129,7 @@ namespace CrestApps.Security
         {
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfDisposed();
-            string id = ConvertIdFromString(userId);
+            Guid id = ConvertIdFromString(userId);
 
             return Users.Where(x => x.Id == id).AsFirstOrDefaultAsync(cancellationToken);
         }
@@ -175,7 +175,7 @@ namespace CrestApps.Security
         /// <param name="roleId">The role's id.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>The user role if it exists.</returns>
-        protected override Task<UserRole> FindUserRoleAsync(string userId, string roleId, CancellationToken cancellationToken)
+        protected override Task<UserRole> FindUserRoleAsync(Guid userId, Guid roleId, CancellationToken cancellationToken)
         {
             return UnitOfWork.UserRoles.Query().Where(x => x.UserId == userId && x.RoleId == roleId).AsFirstOrDefaultAsync(cancellationToken);
         }
@@ -188,7 +188,7 @@ namespace CrestApps.Security
         /// <param name="providerKey">The key provided by the <paramref name="loginProvider"/> to identify a user.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>The user login if it exists.</returns>
-        protected override Task<UserLogin> FindUserLoginAsync(string userId, string loginProvider, string providerKey, CancellationToken cancellationToken)
+        protected override Task<UserLogin> FindUserLoginAsync(Guid userId, string loginProvider, string providerKey, CancellationToken cancellationToken)
         {
             return UnitOfWork.UserLogins.Query().Where(userLogin => userLogin.UserId.Equals(userId) && userLogin.LoginProvider == loginProvider && userLogin.ProviderKey == providerKey)
                                         .AsFirstOrDefaultAsync(cancellationToken);

@@ -28,7 +28,7 @@ namespace CrestApps.Core.WebPresentation
             Accessor = accessor ?? throw new ArgumentNullException(nameof(accessor));
             UnitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         }
-        public async Task LoginAsync(LogType type, SignInResult result, int? userId, CancellationToken cancellationToken = default)
+        public async Task LoginAsync(LogType type, SignInResult result, Guid? userId, CancellationToken cancellationToken = default)
         {
             Log log = Make(type, GetResult(result), null, null, userId);
 
@@ -116,7 +116,7 @@ namespace CrestApps.Core.WebPresentation
             return null;
         }
 
-        protected virtual Log Make(LogType type, string result, string message, string info, int? userId)
+        protected virtual Log Make(LogType type, string result, string message, string info, Guid? userId)
         {
             var log = new Log()
             {

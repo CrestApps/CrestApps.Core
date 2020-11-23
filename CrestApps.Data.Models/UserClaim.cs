@@ -1,12 +1,11 @@
 ﻿using CrestApps.Data.Core.Abstraction;
 using Microsoft.AspNetCore.Identity;
-using System.ComponentModel.DataAnnotations;
+using System;
 
 namespace CrestApps.Data.Models
 {
-    public class UserClaim : IdentityUserClaim<string>, IWriteModel, ITenantModel
+    public class UserClaim : IdentityUserClaim<Guid>, IWriteModel, ITenantModel
     {
-        [MaxLength(36)]
-        public string TenantId { get; set; }
+        public Guid TenantId { get; set; }
     }
 }

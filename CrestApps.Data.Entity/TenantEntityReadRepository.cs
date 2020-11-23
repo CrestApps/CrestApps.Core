@@ -32,7 +32,7 @@ namespace CrestApps.Data.Entity
 
         public virtual async Task<TEntity> GetAsync(TKeyType id, CancellationToken cancellationToken = default)
         {
-            string tenantId = CurrentTenantId();
+            Guid tenantId = CurrentTenantId();
 
             TEntity entity = await DbSet.FindAsync(id, cancellationToken);
 
@@ -63,7 +63,7 @@ namespace CrestApps.Data.Entity
 
         public virtual TEntity Get(TKeyType id)
         {
-            string tenantId = CurrentTenantId();
+            Guid tenantId = CurrentTenantId();
 
             TEntity entity = DbSet.Find(id);
 
@@ -95,9 +95,9 @@ namespace CrestApps.Data.Entity
             return Query().Where(predicate);
         }
 
-        protected string CurrentTenantId()
+        protected Guid CurrentTenantId()
         {
-            return ShellSettings["Identifier"] ?? ShellSettings.Name;
+            return new Guid(ShellSettings["Identifier"] ?? ShellSettings.Name);
         }
 
         public virtual TEntity SingleOrDefault(Expression<Func<TEntity, bool>> predicate)
@@ -107,7 +107,7 @@ namespace CrestApps.Data.Entity
 
         public virtual IQueryable<TEntity> Query(QueryOptions options = null)
         {
-            string tenantId = CurrentTenantId();
+            Guid tenantId = CurrentTenantId();
 
             var query = DbSet.Where(x => x.TenantId == tenantId);
 
