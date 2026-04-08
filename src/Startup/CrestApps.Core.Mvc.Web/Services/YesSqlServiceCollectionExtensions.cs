@@ -36,6 +36,7 @@ using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.Indexes;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Data.Sqlite;
 using YesSql;
 using YesSql.Provider.Sqlite;
 using YesSql.Sql;
@@ -53,10 +54,20 @@ internal static class YesSqlServiceCollectionExtensions
     public static IServiceCollection AddCoreYesSqlDataStore(this IServiceCollection services, string appDataPath)
     {
         var dbPath = Path.Combine(appDataPath, "crestapps.db");
-        Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration.UseSqLite($"Data Source={dbPath};Cache=Shared").SetTablePrefix("CA_"));
+        var connectionStringBuilder = new SqliteConnectionStringBuilder
+        {
+            DataSource = dbPath,
+            Cache = SqliteCacheMode.Private,
+            DefaultTimeout = 30,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Pooling = true,
+        };
+
+        Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration.UseSqLite(connectionStringBuilder.ToString()).SetTablePrefix("CA_"));
         // YesSql-backed catalogs and managers.
         services.AddNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>().AddNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>().AddDocumentCatalog<A2AConnection, A2AConnectionIndex>().AddSourceDocumentCatalog<McpConnection, McpConnectionIndex>().AddNamedDocumentCatalog<McpPrompt, McpPromptIndex>().AddSourceDocumentCatalog<McpResource, McpResourceIndex>().AddNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>().AddScoped<DefaultAIProfileTemplateManager>().AddScoped<IAIProfileTemplateManager>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>()).AddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>()).AddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>()).AddScoped<DefaultAIDeploymentManager>().AddScoped<IAIDeploymentManager>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>()).AddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>()).AddScoped<IAIProfileManager, SimpleAIProfileManager>().AddScoped<AIProfileDocumentService>().AddScoped<AIProfileTemplateDocumentService>().AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>().AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>().AddScoped<MvcAIChatSessionEventService>().AddScoped<MvcAICompletionUsageService>().AddScoped<MvcAIChatSessionEventPostCloseObserver>().AddScoped<MvcAIChatSessionExtractedDataService>().AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<MvcAICompletionUsageService>()).AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>()).AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>()).AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionExtractedDataService>()).AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>().AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>().AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>().AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>().AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>().AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>()).AddScoped<ICatalogManager<AIDataSource>, CatalogManager<AIDataSource>>().AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>().AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryIndexingHandler>().AddScoped<MvcAIDocumentIndexingService>().AddScoped<ISearchIndexProfileManager, SearchIndexProfileManager>().AddScoped<IAuthorizationHandler, MvcChatInteractionDocumentAuthorizationHandler>().AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthorizationHandler>().AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>().AddDocumentCatalog<ChatInteraction, ChatInteractionIndex>().AddScoped<ICatalogManager<ChatInteraction>, CatalogManager<ChatInteraction>>().AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>().AddDocumentCatalog<Article, ArticleIndex>().AddScoped<ICatalogManager<Article>, CatalogManager<Article>>().AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>().AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>().AddScoped<ArticleIndexingService>();
         services.AddScoped<YesSqlAIDeploymentStore>().AddScoped<IAIDeploymentStore>(sp => sp.GetRequiredService<YesSqlAIDeploymentStore>()).AddScoped<ConfigurationAIDeploymentCatalog>().AddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<ConfigurationAIDeploymentCatalog>()).AddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<ConfigurationAIDeploymentCatalog>()).AddScoped<INamedSourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<ConfigurationAIDeploymentCatalog>());
+
         return services;
     }
 
@@ -77,6 +88,7 @@ internal static class YesSqlServiceCollectionExtensions
         RegisterIndexes(store);
         await using var connection = store.Configuration.ConnectionFactory.CreateConnection();
         await connection.OpenAsync();
+        await ConfigureSqliteConnectionAsync(connection);
         await using var transaction = await connection.BeginTransactionAsync();
         var schemaBuilder = new SchemaBuilder(store.Configuration, transaction);
         await NormalizeLegacyDocumentTypeNamesAsync(store, connection, transaction, logger);
@@ -102,6 +114,17 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync);
         await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<ArticleIndex>(t => t.Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26)).Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));
         await transaction.CommitAsync();
+    }
+
+    private static async Task ConfigureSqliteConnectionAsync(DbConnection connection)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode=WAL;";
+        _ = await command.ExecuteScalarAsync();
+        command.CommandText = "PRAGMA synchronous=NORMAL;";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "PRAGMA busy_timeout=30000;";
+        await command.ExecuteNonQueryAsync();
     }
 
     private static async Task NormalizeLegacyDocumentTypeNamesAsync(IStore store, DbConnection connection, DbTransaction transaction, ILogger logger)

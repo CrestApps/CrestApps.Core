@@ -1,4 +1,34 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+{
+    Console.Error.WriteLine("[AppHost] Unhandled exception terminated the process.");
+
+    if (eventArgs.ExceptionObject is Exception exception)
+    {
+        Console.Error.WriteLine(exception);
+    }
+};
+
+TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
+{
+    Console.Error.WriteLine("[AppHost] Unobserved task exception.");
+    Console.Error.WriteLine(eventArgs.Exception);
+};
+
+AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+{
+    Console.Error.WriteLine("[AppHost] Process exit signaled.");
+};
+
 var builder = DistributedApplication.CreateBuilder(args);
+
+builder.Services.Configure<HostOptions>(options =>
+{
+    // Keep the development orchestrator alive when the dashboard loses a watch stream.
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
 
 const string ollamaModelName = "deepseek-v2:16b";
 
@@ -40,4 +70,13 @@ builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_A2AClient>("MvcA2AClientS
 
 var app = builder.Build();
 
-await app.RunAsync();
+try
+{
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine("[AppHost] Distributed application terminated unexpectedly.");
+    Console.Error.WriteLine(ex);
+    throw;
+}

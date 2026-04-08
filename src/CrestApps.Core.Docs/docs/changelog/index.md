@@ -11,5 +11,4 @@ This section tracks `CrestApps.Core` releases and notable repository-level chang
 
 | Version | Highlights |
 | --- | --- |
-| [Unreleased](unreleased) | Shared YesSql bootstrap, host-owned unit-of-work commits, and extracted AI chat session metrics index/schema helpers |
 | [1.0.0](v1.0.0) | Initial standalone release of the `CrestApps.Core` framework repository |

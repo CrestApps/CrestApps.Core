@@ -77,7 +77,6 @@ const sidebars = {
       label: 'Changelog',
       items: [
         'changelog/index',
-        'changelog/unreleased',
         'changelog/v1.0.0',
       ],
     },
