@@ -118,7 +118,7 @@ public static class AIChatDocumentEndpoints
         var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
         if (logger.IsEnabled(LogLevel.Information))
         {
-            logger.LogInformation("Chat interaction document upload started for interaction '{InteractionId}' with {FileCount} file(s).", interactionId, files.Count);
+            logger.LogInformation("Chat interaction document upload started with {FileCount} file(s).", files.Count);
         }
 
         if (string.IsNullOrWhiteSpace(interactionId))

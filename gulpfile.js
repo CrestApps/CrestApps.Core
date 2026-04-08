@@ -1,7 +1,6 @@
 var fs = require("graceful-fs"),
     glob = require("glob"),
     path = require("path-posix"),
-    merge = require("merge-stream"),
     gulp = require("gulp"),
     gulpif = require("gulp-if"),
     newer = require("gulp-newer"),
@@ -20,6 +19,7 @@ var fs = require("graceful-fs"),
     postcss = require('gulp-postcss'),
     rtl = require('postcss-rtl'),
     babel = require('gulp-babel');
+const { finished } = require("stream/promises");
 
 // For compat with older versions of Node.js.
 require("es6-promise").polyfill();
@@ -40,7 +40,7 @@ gulp.task("build-assets", function () {
         var doRebuild = false;
         return createAssetGroupTask(assetGroup, doRebuild);
     });
-    return merge(assetGroupTasks);
+    return Promise.all(assetGroupTasks.map(waitForTaskCompletion));
 });
 
 // Full rebuild (all assets groups are built regardless of timestamps).
@@ -49,7 +49,7 @@ gulp.task("rebuild-assets", function () {
         var doRebuild = true;
         return createAssetGroupTask(assetGroup, doRebuild);
     });
-    return merge(assetGroupTasks);
+    return Promise.all(assetGroupTasks.map(waitForTaskCompletion));
 });
 
 // Continuous watch (each asset group is built whenever one of its inputs changes).
@@ -99,7 +99,7 @@ gulp.task('default', gulp.series(['build']));
 */
 
 function getAssetGroups() {
-    var assetManifestPaths = glob.sync("./src/{OrchardCore/Modules,OrchardCore/Themes,Framework/*,Themes}/*/Assets.json", {});
+    var assetManifestPaths = glob.sync("./src/{Primitives,Resources}/*/Assets.json", {});
     var assetGroups = [];
     assetManifestPaths.forEach(function (assetManifestPath) {
         var assetManifest = require("./" + assetManifestPath);
@@ -166,6 +166,14 @@ function resolveAssetGroupPaths(assetGroup, assetManifestPath) {
     assetGroup.outputFileName = path.basename(assetGroup.output);
     // Uncomment to copy assets to wwwroot
     //assetGroup.webroot = path.join("./src/OrchardCore.Cms.Web/wwwroot/", path.basename(assetGroup.basePath), path.dirname(assetGroup.output));
+}
+
+function waitForTaskCompletion(task) {
+    if (!task) {
+        return Promise.resolve();
+    }
+
+    return typeof task.then === "function" ? task : finished(task);
 }
 
 function createAssetGroupTask(assetGroup, doRebuild) {
@@ -268,7 +276,7 @@ function buildCssPipeline(assetGroup, doConcat, doRebuild) {
         .pipe(gulp.dest(assetGroup.outputDir));
     // Uncomment to copy assets to wwwroot
     //.pipe(gulp.dest(assetGroup.webroot));
-    return merge([minifiedStream, devStream]);
+    return Promise.all([finished(minifiedStream), finished(devStream)]);
 }
 
 function buildJsPipeline(assetGroup, doConcat, doRebuild) {
@@ -336,7 +344,7 @@ function buildJsPipeline(assetGroup, doConcat, doRebuild) {
     // Uncomment to copy assets to wwwroot
     //.pipe(gulp.dest(assetGroup.webroot));
 
-    return merge([devStream, minifiedStream]);
+    return Promise.all([finished(devStream), finished(minifiedStream)]);
 }
 
 function buildCopyPipeline(assetGroup, doRebuild) {

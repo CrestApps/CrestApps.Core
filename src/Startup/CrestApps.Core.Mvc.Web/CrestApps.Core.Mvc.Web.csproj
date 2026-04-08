@@ -3,6 +3,7 @@
   <PropertyGroup>
     <RootNamespace>CrestApps.Core.Mvc.Web</RootNamespace>
     <UserSecretsId>CrestApps-Mvc-Web</UserSecretsId>
+    <IsPackable>false</IsPackable>
     <DefaultItemExcludes>$(DefaultItemExcludes);**\App_Data\**</DefaultItemExcludes>
   </PropertyGroup>
 

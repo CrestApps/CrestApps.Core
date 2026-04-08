@@ -4,9 +4,20 @@ namespace CrestApps.Core.AI.Services;
 
 public static class SpeechLanguageHelper
 {
+    private static readonly HashSet<string> _knownCultureNames = CultureInfo.GetCultures(CultureTypes.AllCultures)
+        .Select(culture => culture.Name)
+        .Where(name => !string.IsNullOrWhiteSpace(name))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     public static string NormalizeOrDefault(string language, string fallbackLanguage = "en-US")
     {
         if (string.IsNullOrWhiteSpace(language))
+        {
+            return fallbackLanguage;
+        }
+
+        language = language.Trim();
+        if (!_knownCultureNames.Contains(language))
         {
             return fallbackLanguage;
         }

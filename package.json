@@ -4,13 +4,7 @@
   "scripts": {
     "build": "gulp build",
     "rebuild": "gulp rebuild",
-    "watch": "gulp watch",
-    "postinstall": "node .scripts/install.js",
-    "install-projects": "node .scripts/install.js",
-    "update-projects": "node .scripts/update.js",
-    "install-project": "node .scripts/project.js install",
-    "update-project": "node .scripts/project.js update",
-    "cleanup": "node .scripts/cleanup.js"
+    "watch": "gulp watch"
   },
   "devDependencies": {
     "@babel/core": "^7.22.11",
