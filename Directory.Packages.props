@@ -1,0 +1,79 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <ModelContextProtocolVersion>1.1.0</ModelContextProtocolVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Miscellaneous Packages -->
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageVersion Include="Elastic.Clients.Elasticsearch" Version="8.19.18" />
+    <PackageVersion Include="Fluid.Core" Version="2.31.0" />
+    <PackageVersion Include="FluentFTP" Version="54.0.2" />
+    <PackageVersion Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017" />
+    <PackageVersion Include="Markdig" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.Extensions.DataIngestion" Version="10.4.0-preview.1.26160.2" />
+    <PackageVersion Include="Microsoft.Extensions.DataIngestion.Markdig" Version="10.4.0-preview.1.26160.2" />
+    <PackageVersion Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.4.0" />
+    <PackageVersion Include="NLog" Version="6.1.1" />
+    <PackageVersion Include="NLog.Web.AspNetCore" Version="6.1.2" />
+    <PackageVersion Include="OllamaSharp" Version="5.4.25" />
+    <PackageVersion Include="SSH.NET" Version="2025.1.0" />
+    <PackageVersion Include="ZString" Version="2.6.0" />
+    <PackageVersion Include="YesSql.Abstractions" Version="5.4.7" />
+    <PackageVersion Include="YesSql.Core" Version="5.4.7" />
+    <PackageVersion Include="YesSql.Provider.Sqlite" Version="5.4.7" />
+    <PackageVersion Include="A2A" Version="0.3.4-preview" />
+    <PackageVersion Include="A2A.AspNetCore" Version="0.3.4-preview" />
+    <PackageVersion Include="ModelContextProtocol" Version="$(ModelContextProtocolVersion)" />
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="$(ModelContextProtocolVersion)" />
+    <PackageVersion Include="ModelContextProtocol.Core" Version="$(ModelContextProtocolVersion)" />
+    <PackageVersion Include="PdfPig" Version="0.1.14" />
+    <PackageVersion Include="GitHub.Copilot.SDK" Version="0.2.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Microsoft Packages -->
+    <PackageVersion Include="Azure.AI.OpenAI" Version="2.8.0-beta.1" />
+    <PackageVersion Include="Azure.Identity" Version="1.19.0" />
+    <PackageVersion Include="Microsoft.CognitiveServices.Speech" Version="1.48.2" />
+    <PackageVersion Include="Azure.Search.Documents" Version="11.7.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.4.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.4.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.4.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI.AzureAIInference" Version="10.0.0-preview.1.25559.3" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.4.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Testing Packages -->
+    <PackageVersion Include="Moq" Version="4.20.72" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.analyzers" Version="1.27.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.runner.inproc" Version="3.2.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Benchmark Packages -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Aspire Packages -->
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.0" />
+    <PackageVersion Include="Aspire.Hosting.Elasticsearch" Version="13.2.0" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.2.0" />
+    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="13.1.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Transitive Packages -->
+    <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.4" />
+  </ItemGroup>
+</Project>
