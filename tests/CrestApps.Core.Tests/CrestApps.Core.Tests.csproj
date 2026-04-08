@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CA1852</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Stores/CrestApps.Core.Data.EntityCore/CrestApps.Core.Data.EntityCore.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.OpenXml/CrestApps.Core.AI.OpenXml.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Pdf/CrestApps.Core.AI.Pdf.csproj" />
+    <ProjectReference Include="../../src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\Prompts\*.md" />
+  </ItemGroup>
+
+</Project>

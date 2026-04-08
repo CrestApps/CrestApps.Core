@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    # Disable version update PRs; only Dependabot security updates create PRs.
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "OrchardCore.*"
+      - dependency-name: "SafeMode"
+      - dependency-name: "TheAdmin"
+      - dependency-name: "TheAgencyTheme"
+      - dependency-name: "TheBlogTheme"
+      - dependency-name: "TheComingSoonTheme"
+      - dependency-name: "TheTheme"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 0

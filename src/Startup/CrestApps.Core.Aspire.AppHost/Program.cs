@@ -1,0 +1,43 @@
+var builder = DistributedApplication.CreateBuilder(args);
+
+const string ollamaModelName = "deepseek-v2:16b";
+
+var ollama = builder.AddOllama("Ollama")
+    .WithDataVolume()
+    .WithGPUSupport()
+    .WithHttpEndpoint(port: 11434, targetPort: 11434, name: "HttpOllama");
+
+ollama.AddModel(ollamaModelName);
+
+var redis = builder.AddRedis("Redis");
+
+var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
+    .WithReference(redis)
+    .WithReference(ollama)
+    .WaitFor(redis)
+    .WithHttpsEndpoint(5001, name: "HttpsMvcWeb")
+    .WithEnvironment((options) =>
+    {
+        options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__DefaultDeploymentName", ollamaModelName);
+        options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
+        options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
+        options.EnvironmentVariables.Add("CrestApps__MvcApp__MCP__Server__AuthenticationType", "None");
+        options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__AuthenticationType", "None");
+        options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__ExposeAgentsAsSkill", "true");
+    });
+
+builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_McpClient>("MvcMcpClientSample")
+    .WithReference(mvcWeb)
+    .WaitFor(mvcWeb)
+    .WithHttpsEndpoint(5002, name: "HttpsMvcMcpClient")
+    .WithEnvironment("Mcp__Endpoint", "https://localhost:5001/mcp/sse");
+
+builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_A2AClient>("MvcA2AClientSample")
+    .WithReference(mvcWeb)
+    .WaitFor(mvcWeb)
+    .WithHttpsEndpoint(5003, name: "HttpsMvcA2AClient")
+    .WithEnvironment("A2A__Endpoint", "https://localhost:5001");
+
+var app = builder.Build();
+
+await app.RunAsync();

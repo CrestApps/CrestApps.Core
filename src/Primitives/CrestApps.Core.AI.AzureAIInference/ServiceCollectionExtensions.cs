@@ -1,0 +1,39 @@
+using CrestApps.Core.AI.AzureAIInference.Services;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.Builders;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Localization;
+
+namespace CrestApps.Core.AI.AzureAIInference;
+
+public static class ServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers the Azure AI Inference (GitHub Models) client provider.
+    /// </summary>
+    public static IServiceCollection AddCoreAIAzureAIInference(this IServiceCollection services)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureAIInferenceClientProvider>());
+
+        services.AddCoreAIProfile<AzureAIInferenceCompletionClient>(AzureAIInferenceConstants.ImplementationName, AzureAIInferenceConstants.ProviderName, o =>
+        {
+            o.DisplayName = new LocalizedString("Azure AI Inference", "Azure AI Inference / GitHub Models");
+            o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI completion.");
+        });
+
+        services.AddCoreAIConnectionSource(AzureAIInferenceConstants.ProviderName, o =>
+        {
+            o.DisplayName = new LocalizedString("Azure AI Inference", "Azure AI Inference / GitHub Models");
+            o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI completion.");
+        });
+
+        return services;
+    }
+
+    public static CrestAppsAISuiteBuilder AddAzureAIInference(this CrestAppsAISuiteBuilder builder)
+    {
+        builder.Services.AddCoreAIAzureAIInference();
+        return builder;
+    }
+}
