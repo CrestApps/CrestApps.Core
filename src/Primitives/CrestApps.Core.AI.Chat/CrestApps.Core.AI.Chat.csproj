@@ -9,7 +9,7 @@
 			Chat services, SignalR hub contracts, and document processing tools for CrestApps AI.
 			Framework-independent, usable in any ASP.NET Core application.
 		</Description>
-    <PackageTags>$(PackageTags) AI Chat SignalR</PackageTags>
+    <PackageTags>$(PackageTags) ai chat signalr sessions interactions</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

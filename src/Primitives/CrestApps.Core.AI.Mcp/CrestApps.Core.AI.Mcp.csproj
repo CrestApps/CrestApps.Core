@@ -8,7 +8,7 @@ $(CrestAppsDescription)
 
 Model Context Protocol (MCP) implementation for CrestApps AI services.
 </Description>
-<PackageTags>$(PackageTags) AI MCP</PackageTags>
+<PackageTags>$(PackageTags) ai mcp model-context-protocol client server</PackageTags>
 </PropertyGroup>
 
 <ItemGroup>

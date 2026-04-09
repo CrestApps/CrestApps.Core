@@ -5,99 +5,45 @@ sidebar_position: 2
 
 # Architecture & Dependency Diagram
 
-This page describes the project architecture and how the various layers depend on each other.
+This page describes the project architecture and how the major layers depend on each other.
 
 ## Dependency Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Application Layer                            │
-│                                                                     │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │  .Web (MVC App)  │  │  Modules         │  │  (Future)        │  │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
-│           │                     │                      │            │
-└───────────┼─────────────────────┼──────────────────────┼────────────┘
-            │                     │                      │
-            ▼                     ▼                      ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Optional Middle Layer                             │
-│                                                                     │
-│  ┌──────────────────────────┐  ┌──────────────────────────────┐    │
-│  │  (Document Store)        │  │  (Shape-based UI)             │    │
-│  └────────────┬─────────────┘  └──────────────┬───────────────┘    │
-│               │                                │                    │
-└───────────────┼────────────────────────────────┼────────────────────┘
-                │                                │
-                ▼                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                       Framework Layer                               │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                        Core Projects                         │   │
-│  │                                                              │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │   │
-│  │  │ CrestApps    │  │ CrestApps    │  │ CrestApps.Core.AI     │  │   │
-│  │  │ .AI.Core     │  │ .AI.Chat     │  │ .OpenAI.Core     │  │   │
-│  │  │              │  │ .Core        │  │                   │  │   │
-│  │  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │   │
-│  │         │                 │                    │             │   │
-│  │  ┌──────┴───────┐  ┌─────┴────────┐  ┌───────┴─────────┐  │   │
-│  │  │ CrestApps    │  │ CrestApps    │  │ CrestApps.Core.AI    │  │   │
-│  │  │ .Core        │  │ .SignalR     │  │ .OpenAI.Azure   │  │   │
-│  │  │              │  │ .Core        │  │ .Core           │  │   │
-│  │  └──────┬───────┘  └──────┬───────┘  └────────┬────────┘  │   │
-│  │         │                 │                    │            │   │
-│  │  ┌──────┴───────┐  ┌─────┴────────┐  ┌───────┴─────────┐  │   │
-│  │  │ CrestApps.Core.AI │  │ CrestApps.Core.AI │  │ CrestApps.Core.AI    │  │   │
-│  │  │ .Ollama.Core │  │ .AzureAI     │  │ .Mcp.Core       │  │   │
-│  │  │              │  │ Inference    │  │                   │  │   │
-│  │  │              │  │ .Core        │  │                   │  │   │
-│  │  └──────┬───────┘  └──────┬───────┘  └────────┬────────┘  │   │
-│  │         │                 │                    │            │   │
-│  │  ┌──────┴───────┐  ┌─────┴────────┐  ┌───────┴─────────┐  │   │
-│  │  │ CrestApps.Core.AI │  │ CrestApps.Core.AI │  │ CrestApps.Core.AI    │  │   │
-│  │  │ .Chat        │  │ .DataSources │  │ .DataSources    │  │   │
-│  │  │ .Copilot     │  │ .AzureAI     │  │ .Elasticsearch  │  │   │
-│  │  └──────────────┘  └──────────────┘  └─────────────────┘  │   │
-│  │                                                              │   │
-│  └─────────┼─────────────────┼────────────────────┼────────────┘   │
-│            │                 │                    │                 │
-│  ┌─────────┴─────────────────┴────────────────────┴────────────┐   │
-│  │                    Abstractions                               │   │
-│  │                                                              │   │
-│  │  ┌──────────────────┐  ┌────────────────────────────────┐   │   │
-│  │  │ CrestApps        │  │ CrestApps.Core.AI.Abstractions      │   │   │
-│  │  │ .Abstractions    │  │ (IAICompletionService,          │   │   │
-│  │  │ (ICatalog,       │  │  IAIProfileManager,             │   │   │
-│  │  │  INamedEntity)   │  │  IOrchestrator, etc.)           │   │   │
-│  │  └──────────────────┘  └────────────────────────────────┘   │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                      Resources                                │   │
-│  │  ┌──────────────────────────────────────────────────────┐     │   │
-│  │  │ CrestApps.Core.AI.Resources (shared JS: ai-chat,          │     │   │
-│  │  │  chat-interaction)                                    │     │   │
-│  │  └──────────────────────────────────────────────────────┘     │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                      Utilities                                │   │
-│  │  ┌────────────────┐  ┌──────────────────────┐                │   │
-│  │  │ CrestApps      │  │ CrestApps.Core.AI         │                │   │
-│  │  │ .Support       │  │ .Prompting           │                │   │
-│  │  └────────────────┘  └──────────────────────┘                │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Application hosts                                                            │
+│                                                                              │
+│  CrestApps.Core.Mvc.Web   Aspire AppHost   Custom MVC / Razor / Blazor app  │
+└───────────────────────────────┬──────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Core foundation                                                              │
+│                                                                              │
+│  CrestApps.Core                 CrestApps.Core.Abstractions                  │
+│  CrestApps.Core.Infrastructure  CrestApps.Core.Infrastructure.Abstractions   │
+└───────────────────────────────┬──────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ AI runtime and feature packages                                              │
+│                                                                              │
+│  AI runtime   Chat   A2A   MCP   SignalR   Templates   Copilot   Markdown   │
+│  Azure utilities                                                            │
+└───────────────────────────────┬──────────────────────────────────────────────┘
+                                │
+                ┌───────────────┴────────────────┬─────────────────────────────┐
+                ▼                                ▼                             ▼
+┌──────────────────────────────┐  ┌──────────────────────────────┐  ┌──────────────────────────────┐
+│ Provider integrations        │  │ Search and data sources      │  │ Storage implementations      │
+│                              │  │                              │  │                              │
+│ OpenAI / Azure OpenAI        │  │ Azure AI Search              │  │ Entity Framework Core        │
+│ Ollama / Azure AI Inference  │  │ Elasticsearch                │  │ YesSql                       │
+│ PDF / OpenXml / FTP / SFTP   │  │                              │  │                              │
+└──────────────────────────────┘  └──────────────────────────────┘  └──────────────────────────────┘
 ```
 
 ## Layer Descriptions
-
-### Framework Layer (Top Level)
-
 
 | Project | Role |
 |---------|------|
@@ -119,13 +65,14 @@ This page describes the project architecture and how the various layers depend o
 | `CrestApps.Core.Support` | General utility classes |
 | `CrestApps.Core.Templates` | Prompt template engine |
 
-### Optional Middle Layer
+### Storage layer
 
 | Project | Role |
 |---------|------|
+| `CrestApps.Core.Data.EntityCore` | Entity Framework Core-based catalog and store implementation |
 | `CrestApps.Core.Data.YesSql` | YesSql-based document catalog implementation (SQLite, PostgreSQL, SQL Server) |
 
-### Application Layer
+### Application layer
 
 | Project | Role |
 |---------|------|

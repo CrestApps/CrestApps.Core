@@ -8,7 +8,7 @@
 
       Framework-independent Agent-to-Agent (A2A) client support for CrestApps AI services.
     </Description>
-    <PackageTags>$(PackageTags) AI A2A AgentToAgent</PackageTags>
+    <PackageTags>$(PackageTags) ai agents a2a agent-to-agent protocol</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

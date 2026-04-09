@@ -8,7 +8,7 @@
 
       Azure AI Search integration services for search index management, document indexing, vector search, and data source access.
     </Description>
-    <PackageTags>$(PackageTags) AzureAI AzureAISearch Search</PackageTags>
+    <PackageTags>$(PackageTags) azure-ai-search vector-search indexing rag</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

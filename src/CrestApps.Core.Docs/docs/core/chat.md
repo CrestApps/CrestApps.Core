@@ -9,15 +9,18 @@ description: Chat session management, interaction handlers, and response routing
 
 > Manages chat sessions, routes responses through pluggable handlers, and tracks interaction history.
 
+If you want the easiest playground-style UI for a new host, start here after you have one provider connection, one deployment, and one AI profile configured.
+
 ## Quick Start
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-    .AddCoreAIChatInteractions()
-    .AddCoreAIOpenAI();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddChatInteractions()));
 ```
+
+By default, connections are discovered from `CrestApps:AI:Connections` and standalone deployments are discovered from `CrestApps:AI:Deployments`.
 
 ## Problem & Solution
 

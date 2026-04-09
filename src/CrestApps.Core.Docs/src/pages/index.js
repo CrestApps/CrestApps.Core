@@ -11,23 +11,36 @@ function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
   return (
     <header className={clsx('hero hero--primary', styles.heroBanner)}>
-      <div className="container">
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
-        <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <div className={styles.buttons}>
-          <Link
-            className="button button--secondary button--lg"
-            to="/docs/intro">
-            Get Started
-          </Link>
-          <Link
-            className="button button--outline button--secondary button--lg"
-            to="/docs/getting-started"
-            style={{marginLeft: '1rem'}}>
-            Quick Start Guide
-          </Link>
+      <div className={clsx('container', styles.heroContent)}>
+        <div className={styles.heroText}>
+          <Heading as="h1" className="hero__title">
+            Build AI chat, agents, and automation into your .NET app
+          </Heading>
+          <p className="hero__subtitle">{siteConfig.tagline}</p>
+          <p className={styles.heroLead}>
+            Start with connections, deployments, and Chat Interactions, then grow into
+            documents, RAG, MCP, A2A, reporting, and custom AI tooling without
+            reworking your architecture.
+          </p>
+          <div className={styles.buttons}>
+            <Link
+              className="button button--secondary button--lg"
+              to="/docs/getting-started">
+              Quick Start Guide
+            </Link>
+            <Link
+              className="button button--outline button--secondary button--lg"
+              to="/docs/core/getting-started-aspnet">
+              ASP.NET Core Setup
+            </Link>
+          </div>
+        </div>
+        <div className={styles.heroVisual}>
+          <img
+            className={styles.heroImage}
+            src="/img/docs/crestapps.core-dotnet-project.png"
+            alt="CrestApps.Core feature overview"
+          />
         </div>
       </div>
     </header>
@@ -35,11 +48,10 @@ function HomepageHeader() {
 }
 
 export default function Home() {
-  const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
       title="Documentation"
-      description="CrestApps.Core is the AI application framework for .NET with orchestration, chat, RAG, agents, MCP, A2A, reporting, and extensibility.">
+      description="CrestApps.Core is the composable AI management and application framework for .NET with orchestration, chat, RAG, agents, MCP, A2A, reporting, and extensibility.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

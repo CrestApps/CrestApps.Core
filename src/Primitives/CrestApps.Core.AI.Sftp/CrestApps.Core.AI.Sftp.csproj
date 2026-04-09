@@ -8,7 +8,7 @@
 
       SFTP resource support for CrestApps AI MCP server integrations.
     </Description>
-    <PackageTags>$(PackageTags) AI MCP SFTP SSH</PackageTags>
+    <PackageTags>$(PackageTags) ai mcp sftp ssh resources</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

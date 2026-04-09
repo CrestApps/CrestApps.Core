@@ -8,7 +8,7 @@
 
       GitHub Copilot SDK-based orchestrator for AI chat sessions.
     </Description>
-    <PackageTags>$(PackageTags) AI Copilot</PackageTags>
+    <PackageTags>$(PackageTags) ai copilot github-copilot orchestration oauth</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

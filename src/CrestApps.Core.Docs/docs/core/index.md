@@ -21,8 +21,8 @@ description: The package layout and feature map for the standalone CrestApps.Cor
 
 | Capability | What it enables |
 | --- | --- |
-| AI management | Profiles, connections, deployments, data sources, templates, and runtime configuration |
-| Reusable AI profiles | Predefined behavior, prompts, model settings, tools, and retrieval rules for every session |
+| AI management | Connections, deployments, agent profiles, data sources, templates, and runtime configuration |
+| Reusable AI agent profiles | Predefined behavior, prompts, model settings, tools, and retrieval rules for every session |
 | Chat interactions | Provider-agnostic chat playgrounds and production chat experiences |
 | Documents and knowledge | Upload files for summarization, extraction, tabulation, Q&A, and retrieval |
 | RAG | Blend attached documents, data sources, and user memory with configurable preemptive retrieval |
@@ -37,13 +37,18 @@ description: The package layout and feature map for the standalone CrestApps.Cor
 ```csharp
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
-        .AddMarkdown()
-        .AddChatInteractions()
-        .AddDocumentProcessing()
-        .AddOpenAI()));
+        .AddOpenAI()
+        .AddChatInteractions()));
 ```
 
 That is enough to start resolving `IAICompletionService`, `IAIClientFactory`, or `IOrchestrator` from DI and composing your own AI experience.
+
+By default:
+
+- connections are loaded from `CrestApps:AI:Connections`
+- deployments are loaded from `CrestApps:AI:Deployments`
+
+The quickest way to validate the setup is to create an AI profile and use **Chat Interactions** as your first playground-style UI.
 
 ## Package map
 

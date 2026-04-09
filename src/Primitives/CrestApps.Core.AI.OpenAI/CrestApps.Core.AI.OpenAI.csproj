@@ -8,7 +8,7 @@ $(CrestAppsDescription)
 
 OpenAI provider implementation for CrestApps AI services.
 </Description>
-<PackageTags>$(PackageTags) AI OpenAI</PackageTags>
+<PackageTags>$(PackageTags) ai openai chat embeddings</PackageTags>
 </PropertyGroup>
 
 <ItemGroup>

@@ -9,7 +9,7 @@ $(CrestAppsDescription)
 Entity Framework Core-based store implementations for CrestApps services.
 Optional - consumers can provide their own store implementations.
     </Description>
-    <PackageTags>$(PackageTags) EntityFrameworkCore Store</PackageTags>
+    <PackageTags>$(PackageTags) efcore entity-framework-core persistence store</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

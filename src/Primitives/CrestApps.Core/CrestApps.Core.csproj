@@ -7,7 +7,7 @@
 
 			Core service implementations for CrestApps.Core. Framework-independent, usable in any ASP.NET Core application.
 		</Description>
-		<PackageTags>$(PackageTags) Core</PackageTags>
+		<PackageTags>$(PackageTags) foundation dependency-injection catalogs utilities</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>

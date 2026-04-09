@@ -8,7 +8,7 @@
 
 			Core infrastructure abstractions for indexing, search, and data source services. Framework-independent and reusable outside the AI layer.
 		</Description>
-		<PackageTags>$(PackageTags) Infrastructure Abstractions Indexing Search</PackageTags>
+		<PackageTags>$(PackageTags) infrastructure abstractions indexing search</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>

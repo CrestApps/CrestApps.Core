@@ -9,7 +9,7 @@ $(CrestAppsDescription)
 YesSql-based document store implementations for CrestApps services.
 Optional - consumers can provide their own store implementations.
 </Description>
-<PackageTags>$(PackageTags) YesSql Store</PackageTags>
+<PackageTags>$(PackageTags) yessql persistence store catalogs</PackageTags>
 </PropertyGroup>
 
 <ItemGroup>

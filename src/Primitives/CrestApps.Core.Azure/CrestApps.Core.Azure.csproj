@@ -7,7 +7,7 @@
 
       Core services project for Azure project.
     </Description>
-    <PackageTags>$(PackageTags) Azure</PackageTags>
+    <PackageTags>$(PackageTags) azure cloud utilities</PackageTags>
   </PropertyGroup>
 
 </Project>

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>$(CommonTargetFrameworks)</TargetFrameworks>
     <IsPackable>false</IsPackable>
+    <PackageTags>$(PackageTags) docs documentation docusaurus website</PackageTags>
   </PropertyGroup>
 
   <!-- Hide generated folders from Solution Explorer -->

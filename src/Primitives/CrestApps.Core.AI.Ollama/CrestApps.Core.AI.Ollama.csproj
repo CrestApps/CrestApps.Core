@@ -8,7 +8,7 @@
 
       Ollama provider implementation for CrestApps AI services.
     </Description>
-    <PackageTags>$(PackageTags) AI Ollama</PackageTags>
+    <PackageTags>$(PackageTags) ai ollama local-llm self-hosted</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

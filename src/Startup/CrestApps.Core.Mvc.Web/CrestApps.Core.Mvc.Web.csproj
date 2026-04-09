@@ -4,6 +4,7 @@
     <RootNamespace>CrestApps.Core.Mvc.Web</RootNamespace>
     <UserSecretsId>CrestApps-Mvc-Web</UserSecretsId>
     <IsPackable>false</IsPackable>
+    <PackageTags>$(PackageTags) mvc sample host admin-ui signalr</PackageTags>
     <DefaultItemExcludes>$(DefaultItemExcludes);**\App_Data\**</DefaultItemExcludes>
   </PropertyGroup>
 

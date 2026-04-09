@@ -3,6 +3,7 @@
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <PackageTags>$(PackageTags) mvc sample mcp client</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

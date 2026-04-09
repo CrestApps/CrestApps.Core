@@ -7,6 +7,17 @@ description: Build, run, and explore the standalone CrestApps.Core repository.
 
 # Getting Started
 
+## Fastest path to a working AI experience
+
+If you want the least-effort path, use this sequence:
+
+1. Register `AddCrestAppsCore(...).AddAISuite(...)`
+2. Add one provider plus `AddChatInteractions()`
+3. Configure `CrestApps:AI:Connections` and `CrestApps:AI:Deployments`
+4. Create an AI profile and chat against it through Chat Interactions
+
+Chat Interactions are the easiest playground-style UI for validating that your connection, deployment, prompts, and profile wiring are all correct before you build a custom experience.
+
 
 ## Prerequisites
 
@@ -46,18 +57,58 @@ dotnet run --project .\src\Startup\CrestApps.Core.Aspire.AppHost\CrestApps.Core.
 
 Use the Aspire host when you want to boot the MVC sample and related sample clients together.
 
-## Learn the registration model
+## Smallest useful app integration
 
-The recommended registration surface is the `AddCrestAppsCore(...)` builder, which groups framework features into higher-level suites:
+Use the `AddCrestAppsCore(...)` builder as the main entry point:
 
 ```csharp
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
-        .AddMarkdown()
-        .AddChatInteractions()
-        .AddDocumentProcessing()
         .AddOpenAI()));
 ```
+
+Then add the first interactive feature:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddChatInteractions()));
+```
+
+By default:
+
+- connections are read from `CrestApps:AI:Connections`
+- deployments are read from `CrestApps:AI:Deployments`
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "Connections": [
+        {
+          "Name": "primary-openai",
+          "ClientName": "OpenAI",
+          "ApiKey": "YOUR_API_KEY"
+        }
+      ],
+      "Deployments": [
+        {
+          "Name": "gpt-4.1",
+          "ClientName": "OpenAI",
+          "ModelName": "gpt-4.1",
+          "Type": "Chat",
+          "IsDefault": true
+        }
+      ]
+    }
+  }
+}
+```
+
+Create an AI profile that uses your chat deployment, then use Chat Interactions to test it end to end.
+
+## Learn the registration model
 
 Under the hood, each builder step still maps to the corresponding `AddCrestApps...` `IServiceCollection` extension, so hosts can still opt into the lower-level registration methods when they want that control.
 
@@ -68,7 +119,7 @@ Under the hood, each builder step still maps to the corresponding `AddCrestApps.
 ## Build the docs site
 
 ```bash
-cd src/CrestApps.Core.Docs
+cd src\CrestApps.Core.Docs
 npm install
 npm run build
 ```

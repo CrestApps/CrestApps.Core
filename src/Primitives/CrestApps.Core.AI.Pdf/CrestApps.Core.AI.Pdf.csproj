@@ -8,7 +8,7 @@
 
 			PDF document ingestion services for CrestApps AI.
 		</Description>
-    <PackageTags>$(PackageTags) AI PDF</PackageTags>
+    <PackageTags>$(PackageTags) ai pdf documents extraction</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

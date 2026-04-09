@@ -5,7 +5,6 @@
 
 .heroBanner {
   padding: 4rem 0;
-  text-align: center;
   position: relative;
   overflow: hidden;
 }
@@ -16,8 +15,52 @@
   }
 }
 
+.heroContent {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+}
+
+.heroText {
+  text-align: left;
+}
+
+.heroLead {
+  font-size: 1.1rem;
+  margin: 1.5rem 0;
+  max-width: 44rem;
+}
+
 .buttons {
   display: flex;
   align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.heroVisual {
+  display: flex;
   justify-content: center;
+}
+
+.heroImage {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 1rem;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.18);
+}
+
+@media screen and (max-width: 996px) {
+  .heroContent {
+    grid-template-columns: 1fr;
+  }
+
+  .heroText {
+    text-align: center;
+  }
+
+  .buttons {
+    justify-content: center;
+  }
 }
