@@ -10,7 +10,11 @@ namespace CrestApps.Core.AI.Indexing;
 
 public sealed class DataSourceSearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
-    public DataSourceSearchIndexProfileHandler(ICatalog<AIDeployment> deploymentCatalog, IAIClientFactory aiClientFactory, ILogger<DataSourceSearchIndexProfileHandler> logger) : base(IndexProfileTypes.DataSource, deploymentCatalog, aiClientFactory, logger)
+    public DataSourceSearchIndexProfileHandler(
+        ICatalog<AIDeployment> deploymentCatalog,
+        IAIClientFactory aiClientFactory,
+        ILogger<DataSourceSearchIndexProfileHandler> logger)
+        : base(IndexProfileTypes.DataSource, deploymentCatalog, aiClientFactory, logger)
     {
     }
 
