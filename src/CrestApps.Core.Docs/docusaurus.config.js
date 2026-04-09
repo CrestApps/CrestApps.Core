@@ -5,7 +5,7 @@ import { themes as prismThemes } from 'prism-react-renderer';
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'CrestApps Core',
-  tagline: 'The AI application framework for .NET',
+  tagline: 'Composable AI management and application framework for .NET',
   favicon: 'img/favicon.ico',
   titleDelimiter: '|',
 

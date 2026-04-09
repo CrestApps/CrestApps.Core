@@ -8,7 +8,7 @@
 
       Elasticsearch integration services for search index management, document indexing, vector search, and data source access.
     </Description>
-    <PackageTags>$(PackageTags) Elasticsearch Search</PackageTags>
+    <PackageTags>$(PackageTags) elasticsearch vector-search indexing rag</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

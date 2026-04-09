@@ -8,7 +8,7 @@
 
       Azure AI Inference (GitHub Models) provider implementation for CrestApps AI services.
     </Description>
-    <PackageTags>$(PackageTags) AI Azure AzureAIInference</PackageTags>
+    <PackageTags>$(PackageTags) ai azure-ai-inference github-models inference</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

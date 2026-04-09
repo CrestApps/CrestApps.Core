@@ -3,6 +3,7 @@
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <PackageTags>$(PackageTags) mvc sample a2a client</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

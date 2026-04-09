@@ -8,7 +8,7 @@
 
 			OpenXml document ingestion services for CrestApps AI.
 		</Description>
-    <PackageTags>$(PackageTags) AI OpenXml</PackageTags>
+    <PackageTags>$(PackageTags) ai openxml documents office docx xlsx pptx</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

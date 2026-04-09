@@ -7,7 +7,7 @@
 
 			Core abstractions for CrestApps services. Framework-independent, usable in any ASP.NET Core application.
 		</Description>
-		<PackageTags>$(PackageTags) Abstractions</PackageTags>
+		<PackageTags>$(PackageTags) abstractions contracts catalogs validation</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>

@@ -8,7 +8,7 @@
 
       Shared non-AI infrastructure helpers and constants used by the CrestApps framework.
     </Description>
-    <PackageTags>$(PackageTags) Infrastructure</PackageTags>
+    <PackageTags>$(PackageTags) infrastructure indexing search</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

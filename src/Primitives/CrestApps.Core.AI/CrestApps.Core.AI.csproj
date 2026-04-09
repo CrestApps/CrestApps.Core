@@ -9,7 +9,7 @@
       Core AI service implementations including orchestration, tool registry, and completion services.
       Framework-independent, usable in any ASP.NET Core application.
     </Description>
-    <PackageTags>$(PackageTags) AI Core</PackageTags>
+    <PackageTags>$(PackageTags) ai orchestration completions deployments profiles</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

@@ -30,7 +30,7 @@
     <RepositoryUrl>https://github.com/CrestApps/CrestApps.Core</RepositoryUrl>
     <CompanyUrl>https://crestapps.com</CompanyUrl>
     <CrestAppsDescription>CrestApps.Core provides the shared, framework-agnostic CrestApps libraries for AI, orchestration, chat, templating, document processing, storage, and MVC sample applications built on ASP.NET Core.</CrestAppsDescription>
-    <PackageTags>CrestApps Core AI ASP.NET</PackageTags>
+    <PackageTags>CrestApps-Core</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

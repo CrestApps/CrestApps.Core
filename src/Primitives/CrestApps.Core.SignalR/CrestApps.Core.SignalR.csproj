@@ -8,7 +8,7 @@
 
 			SignalR hub route management for CrestApps services.
 		</Description>
-		<PackageTags>$(PackageTags) SignalR</PackageTags>
+		<PackageTags>$(PackageTags) signalr realtime chat hubs</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>

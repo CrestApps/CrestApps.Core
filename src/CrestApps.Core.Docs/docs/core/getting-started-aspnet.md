@@ -17,20 +17,20 @@ Start with the smallest set that matches your scenario.
   <PackageReference Include="CrestApps.Core" />
   <PackageReference Include="CrestApps.Core.AI" />
 
-  <!-- Optional but common -->
   <PackageReference Include="CrestApps.Core.AI.Chat" />
-  <PackageReference Include="CrestApps.Core.AI.Markdown" />
-  <PackageReference Include="CrestApps.Core.Templates" />
-  <PackageReference Include="CrestApps.Core.SignalR" />
-  <!-- Pick a persistence flavor if you need durable catalogs/stores -->
-  <PackageReference Include="CrestApps.Core.Data.YesSql" />
-  <!-- or CrestApps.Core.Data.EntityCore -->
 
   <!-- Pick at least one provider -->
   <PackageReference Include="CrestApps.Core.AI.OpenAI" />
   <!-- or CrestApps.Core.AI.OpenAI.Azure -->
   <!-- or CrestApps.Core.AI.Ollama -->
   <!-- or CrestApps.Core.AI.AzureAIInference -->
+
+  <!-- Optional but common -->
+  <PackageReference Include="CrestApps.Core.AI.Markdown" />
+  <PackageReference Include="CrestApps.Core.Templates" />
+  <PackageReference Include="CrestApps.Core.SignalR" />
+  <PackageReference Include="CrestApps.Core.Data.YesSql" />
+  <!-- or CrestApps.Core.Data.EntityCore -->
 </ItemGroup>
 ```
 
@@ -41,10 +41,8 @@ In `Program.cs`, compose the framework through the `AddCrestAppsCore(...)` build
 ```csharp
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
-        .AddMarkdown()
-        .AddChatInteractions()
-        .AddDocumentProcessing()
-        .AddOpenAI()));
+        .AddOpenAI()
+        .AddChatInteractions()));
 ```
 
 `AddAISuite(...)` adds the shared CrestApps core services, the AI runtime, and orchestration together. If you prefer the lower-level registrations, the same features are still available as raw `IServiceCollection` extensions such as `AddCoreAIServices()` and `AddCoreAIOrchestration()`.
@@ -84,7 +82,26 @@ At minimum, provide a connection and a deployment through configuration or your 
 }
 ```
 
-The MVC sample demonstrates the full runtime options pattern, including configuration-backed connections, UI-managed overrides, and merged deployment catalogs. Keep connection credentials under `Connections` and define model/deployment choices under `Deployments`.
+The default configuration sections are:
+
+- `CrestApps:AI:Connections` for provider connections and credentials
+- `CrestApps:AI:Deployments` for standalone deployments and deployment metadata
+
+Keep connection credentials under `Connections` and define model/deployment choices under `Deployments`.
+
+## Fastest path to a first prompt
+
+For the smallest useful setup:
+
+1. Register `AddAISuite(...)`
+2. Add one provider like `AddOpenAI()`
+3. Add `AddChatInteractions()`
+4. Configure one connection in `CrestApps:AI:Connections`
+5. Configure one chat deployment in `CrestApps:AI:Deployments`
+6. Create an AI profile that points at that deployment
+7. Use Chat Interactions as the first playground-style UI
+
+That path gets you to a working chat experience with the fewest moving parts.
 
 ## 4. Pick the application model
 
@@ -92,7 +109,12 @@ The service registrations stay the same; only the UI or endpoint layer changes.
 
 ### MVC
 
-Use MVC when you want server-rendered admin pages, controllers, and SignalR chat hubs. The reference implementation is **`CrestApps.Core.Mvc.Web`**.
+Use MVC when you want server-rendered admin pages, controllers, and SignalR chat hubs. The reference implementation is **`src\Startup\CrestApps.Core.Mvc.Web`**.
+
+Use these files as the primary sample:
+
+- `src\Startup\CrestApps.Core.Mvc.Web\Program.cs` for service registration and feature composition
+- `src\Startup\CrestApps.Core.Mvc.Web\appsettings.json` for connection and deployment examples
 
 ### Razor Pages
 
@@ -160,7 +182,7 @@ That layering keeps small apps lightweight while letting larger apps grow into a
 
 ## 7. Use the MVC sample as the reference host
 
-`src/Startup/CrestApps.Core.Mvc.Web/Program.cs` is the canonical example for:
+`src\Startup\CrestApps.Core.Mvc.Web\Program.cs` is the canonical example for:
 
 - configuration layering
 - service registration order

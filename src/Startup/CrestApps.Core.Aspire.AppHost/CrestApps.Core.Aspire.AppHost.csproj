@@ -6,6 +6,7 @@
     <OutputType>Exe</OutputType>
     <IsAspireHost>true</IsAspireHost>
     <IsPackable>false</IsPackable>
+    <PackageTags>$(PackageTags) aspire apphost sample orchestration</PackageTags>
     <UserSecretsId>0e4ae8bf-0fbf-43e7-b88a-91a70740841c</UserSecretsId>
   </PropertyGroup>
 

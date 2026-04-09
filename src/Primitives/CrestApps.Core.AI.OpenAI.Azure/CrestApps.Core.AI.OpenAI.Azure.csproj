@@ -8,7 +8,7 @@ $(CrestAppsDescription)
 
 Azure OpenAI provider implementation for CrestApps AI services.
 </Description>
-<PackageTags>$(PackageTags) AI Azure OpenAI</PackageTags>
+<PackageTags>$(PackageTags) ai azure-openai azure-speech openai</PackageTags>
 </PropertyGroup>
 
 <ItemGroup>

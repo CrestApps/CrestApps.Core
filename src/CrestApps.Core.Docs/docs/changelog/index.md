@@ -11,4 +11,4 @@ This section tracks `CrestApps.Core` releases and notable repository-level chang
 
 | Version | Highlights |
 | --- | --- |
-| [1.0.0](v1.0.0) | Initial standalone release of the `CrestApps.Core` framework repository |
+| [1.0.0](v1.0.0) | Initial standalone release plus merged configuration catalogs, clearer quick-start guidance, and deployment configuration diagnostics |

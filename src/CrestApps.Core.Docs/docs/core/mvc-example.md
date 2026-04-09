@@ -134,14 +134,12 @@ The MVC sample explicitly calls `AddMarkdown()` inside `AddAISuite(...)`. That k
 Registers all supported AI providers:
 
 ```csharp
-
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddOpenAI()
         .AddAzureOpenAI()
         .AddOllama()
         .AddAzureAIInference()));
-
 ```
 
 The MVC sample still binds static provider metadata from `CrestApps:AI:Providers`, but mutable AI connections and deployments now come from first-class merged catalogs instead of rebuilding `AIProviderOptions` after admin edits.
@@ -156,17 +154,17 @@ Both merged catalogs also expose configurable section lists through `AIProviderC
 {
   "CrestApps": {
     "AI": {
-        "Connections": [
-          {
-            "Name": "WinnerWare",
-            "ClientName": "AzureOpenAI",
-            "Endpoint": "https://winnerwareai.openai.azure.com/",
-            "AuthenticationType": "ApiKey",
-            "ApiKey": "YOUR_API_KEY",
-            "DisplayText": "WinnerWare Azure OpenAI"
-          }
-        ]
-      }
+      "Connections": [
+        {
+          "Name": "WinnerWare",
+          "ClientName": "AzureOpenAI",
+          "Endpoint": "https://winnerwareai.openai.azure.com/",
+          "AuthenticationType": "ApiKey",
+          "ApiKey": "YOUR_API_KEY",
+          "DisplayText": "WinnerWare Azure OpenAI"
+        }
+      ]
+    }
   }
 }
 ```
@@ -178,27 +176,27 @@ Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:C
 {
   "CrestApps": {
     "AI": {
-        "Deployments": [
-          {
-            "ProviderName": "AzureSpeech",
-            "Name": "whisper",
-            "Type": "SpeechToText",
-            "IsDefault": true,
-            "Endpoint": "https://eastus.stt.speech.microsoft.com",
-            "AuthenticationType": "ApiKey",
-            "ApiKey": "YOUR_API_KEY"
-          },
-          {
-            "ProviderName": "AzureSpeech",
-            "Name": "AzureTextToSpeech",
-            "Type": "TextToSpeech",
-            "IsDefault": true,
-            "Endpoint": "https://eastus.tts.speech.microsoft.com",
-            "AuthenticationType": "ApiKey",
-            "ApiKey": "YOUR_API_KEY"
-          }
-        ]
-      }
+      "Deployments": [
+        {
+          "ProviderName": "AzureSpeech",
+          "Name": "whisper",
+          "Type": "SpeechToText",
+          "IsDefault": true,
+          "Endpoint": "https://eastus.stt.speech.microsoft.com",
+          "AuthenticationType": "ApiKey",
+          "ApiKey": "YOUR_API_KEY"
+        },
+        {
+          "ProviderName": "AzureSpeech",
+          "Name": "AzureTextToSpeech",
+          "Type": "TextToSpeech",
+          "IsDefault": true,
+          "Endpoint": "https://eastus.tts.speech.microsoft.com",
+          "AuthenticationType": "ApiKey",
+          "ApiKey": "YOUR_API_KEY"
+        }
+      ]
+    }
   }
 }
 ```

@@ -8,7 +8,7 @@
 
       Markdown-based text normalization helpers for CrestApps AI RAG and document-processing flows.
     </Description>
-    <PackageTags>$(PackageTags) AI Markdown</PackageTags>
+    <PackageTags>$(PackageTags) ai markdown documents markdig</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

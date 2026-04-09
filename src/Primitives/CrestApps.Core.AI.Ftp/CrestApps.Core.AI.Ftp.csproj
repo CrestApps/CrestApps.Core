@@ -8,7 +8,7 @@
 
       FTP/FTPS resource support for CrestApps AI MCP server integrations.
     </Description>
-    <PackageTags>$(PackageTags) AI MCP FTP FTPS</PackageTags>
+    <PackageTags>$(PackageTags) ai mcp ftp ftps resources</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

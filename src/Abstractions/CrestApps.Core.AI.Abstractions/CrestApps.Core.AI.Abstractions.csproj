@@ -8,7 +8,7 @@
 
       Core AI abstractions for CrestApps services. Framework-independent, usable in any ASP.NET Core application.
     </Description>
-    <PackageTags>$(PackageTags) AI Abstractions</PackageTags>
+    <PackageTags>$(PackageTags) ai abstractions contracts orchestration chat</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

@@ -135,5 +135,21 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return await FindByNameAsync(selector);
     }
 
-    protected abstract ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentType type);
+    private async ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentType type)
+    {
+        var settings = await GetDefaultAIDeploymentSettingsAsync();
+
+        return type switch
+        {
+            AIDeploymentType.Chat => settings.DefaultChatDeploymentName,
+            AIDeploymentType.Utility => settings.DefaultUtilityDeploymentName,
+            AIDeploymentType.Embedding => settings.DefaultEmbeddingDeploymentName,
+            AIDeploymentType.Image => settings.DefaultImageDeploymentName,
+            AIDeploymentType.SpeechToText => settings.DefaultSpeechToTextDeploymentName,
+            AIDeploymentType.TextToSpeech => settings.DefaultTextToSpeechDeploymentName,
+            _ => null,
+        };
+    }
+
+    protected abstract ValueTask<DefaultAIDeploymentSettings> GetDefaultAIDeploymentSettingsAsync();
 }

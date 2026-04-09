@@ -152,6 +152,14 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
             .Where(static deployment => !string.IsNullOrWhiteSpace(deployment.Name))
             .ToDictionary(static deployment => deployment.Name, static deployment => deployment.ItemId, StringComparer.OrdinalIgnoreCase);
 
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Evaluating AI deployment configuration. Stored deployments: {StoredDeploymentCount}. Deployment sections: [{DeploymentSections}]",
+                storedDeployments.Count,
+                string.Join(", ", _catalogOptions.DeploymentSections));
+        }
+
         try
         {
             ReadStandaloneDeployments(deployments, names);
@@ -159,6 +167,13 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading AI deployment configuration.");
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Finished evaluating AI deployment configuration. Config-backed deployments discovered: {ConfiguredDeploymentCount}.",
+                deployments.Count);
         }
 
         return deployments.Values.ToArray();
@@ -169,12 +184,33 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
         foreach (var sectionPath in _catalogOptions.DeploymentSections)
         {
             var section = _configuration.GetSection(sectionPath);
+            var children = section.GetChildren().ToArray();
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Inspecting AI deployment section '{SectionPath}'. Exists: {SectionExists}. Child count: {ChildCount}. Child keys: [{ChildKeys}].",
+                    sectionPath,
+                    section.Exists(),
+                    children.Length,
+                    string.Join(", ", children.Select(static child => child.Key)));
+            }
+
             if (!section.Exists())
             {
                 continue;
             }
 
             var deploymentsNode = ReadConfigurationNode(section);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Resolved AI deployment section '{SectionPath}' as {NodeType}.",
+                    sectionPath,
+                    GetNodeTypeName(deploymentsNode));
+            }
+
             switch (deploymentsNode)
             {
                 case JsonArray deploymentArray:
@@ -194,6 +230,14 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     private void ReadStandaloneDeploymentsFromArray(JsonArray deploymentArray, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
     {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Reading {DeploymentCount} deployment entries from array section '{SectionPath}'.",
+                deploymentArray.Count,
+                sectionPath);
+        }
+
         foreach (var deploymentNode in deploymentArray)
         {
             if (deploymentNode is not JsonObject deploymentObject)
@@ -209,6 +253,14 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     private void ReadStandaloneDeploymentsFromObject(JsonObject deploymentObject, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
     {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Reading provider-grouped deployment entries from section '{SectionPath}'. Providers: [{ProviderNames}].",
+                sectionPath,
+                string.Join(", ", deploymentObject.Select(static pair => pair.Key)));
+        }
+
         foreach (var (providerName, providerDeploymentsNode) in deploymentObject)
         {
             if (providerDeploymentsNode is not JsonArray providerDeployments)
@@ -251,6 +303,17 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     private AIDeployment CreateStandaloneDeployment(AIDeploymentConfigurationEntry entry)
     {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Parsed AI deployment configuration entry. Provider: {ProviderName}. Name: {DeploymentName}. Model: {ModelName}. Type: {DeploymentType}. Property count: {PropertyCount}.",
+                entry.ProviderName,
+                entry.Name,
+                entry.ModelName,
+                entry.Type,
+                entry.Properties?.Count ?? 0);
+        }
+
         if (string.IsNullOrWhiteSpace(entry.ProviderName))
         {
             _logger.LogWarning("A standalone AI deployment entry is missing a ClientName. Skipping.");
@@ -463,6 +526,28 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
         names[deployment.Name] = deployment.ItemId;
         deployments[deployment.ItemId] = deployment;
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Registered configuration-backed AI deployment '{DeploymentName}' from '{SourceDescription}' with item id '{DeploymentId}' and source '{DeploymentSource}'.",
+                deployment.Name,
+                sourceDescription,
+                deployment.ItemId,
+                deployment.Source);
+        }
+    }
+
+    private static string GetNodeTypeName(JsonNode node)
+    {
+        return node switch
+        {
+            null => "null",
+            JsonArray => "array",
+            JsonObject => "object",
+            JsonValue => "scalar",
+            _ => node.GetType().Name,
+        };
     }
 
     private static List<AIDeployment> Merge(IReadOnlyCollection<AIDeployment> primary, IReadOnlyCollection<AIDeployment> secondary)
