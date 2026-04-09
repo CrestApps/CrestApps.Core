@@ -13,7 +13,7 @@ This page describes the project architecture and how the major layers depend on 
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ Application hosts                                                            │
 │                                                                              │
-│  CrestApps.Core.Mvc.Web   Aspire AppHost   Custom MVC / Razor / Blazor app  │
+│  CrestApps.Core.Mvc.Web   Aspire AppHost   Custom MVC / Razor / Blazor app   │
 └───────────────────────────────┬──────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -28,8 +28,8 @@ This page describes the project architecture and how the major layers depend on 
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ AI runtime and feature packages                                              │
 │                                                                              │
-│  AI runtime   Chat   A2A   MCP   SignalR   Templates   Copilot   Markdown   │
-│  Azure utilities                                                            │
+│  AI runtime   Chat   A2A   MCP   SignalR   Templates   Copilot   Markdown    │
+│  Azure utilities                                                             │
 └───────────────────────────────┬──────────────────────────────────────────────┘
                                 │
                 ┌───────────────┴────────────────┬─────────────────────────────┐
