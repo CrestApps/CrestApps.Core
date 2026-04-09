@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using ModelContextProtocol.Protocol;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Mcp.Controllers;
+
 [Area("Mcp")]
 [Authorize(Policy = "Admin")]
 public sealed class McpPromptController : Controller
@@ -110,7 +111,7 @@ public sealed class McpPromptController : Controller
 
         if (string.IsNullOrWhiteSpace(model.Arguments))
         {
-            return[];
+            return [];
         }
 
         try
@@ -129,7 +130,7 @@ public sealed class McpPromptController : Controller
         catch (JsonException)
         {
             ModelState.AddModelError(nameof(model.Arguments), "Arguments must be valid JSON.");
-            return[];
+            return [];
         }
     }
 

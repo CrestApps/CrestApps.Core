@@ -10,6 +10,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.A2A.Services;
+
 internal sealed class DefaultA2AConnectionAuthService : IA2AConnectionAuthService
 {
     private const int ExpirationBufferSeconds = 60;

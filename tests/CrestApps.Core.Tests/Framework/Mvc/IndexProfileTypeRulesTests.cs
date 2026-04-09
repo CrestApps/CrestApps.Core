@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.OrchardCore.Tests.Framework.Mvc;
+
 public sealed class IndexProfileTypeRulesTests
 {
     [Theory]

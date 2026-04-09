@@ -2,10 +2,10 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CrestApps.Core.Data.EntityCore;
+
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreEntityCoreDataStore(this IServiceCollection services, Action<DbContextOptionsBuilder> configure, Action<EntityCoreDataStoreOptions> configureStore = null)
@@ -45,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped(typeof(INamedCatalog<>), typeof(NamedDocumentCatalog<>));
         services.TryAddScoped(typeof(ISourceCatalog<>), typeof(SourceDocumentCatalog<>));
         services.TryAddScoped(typeof(INamedSourceCatalog<>), typeof(NamedSourceDocumentCatalog<>));
+
         return services;
     }
 
@@ -90,8 +92,68 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem
+        where T : class, ICatalog<TModel>
+    {
+        _ = collection;
+
+        services.RemoveAll<ICatalog<TModel>>();
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        return services;
+    }
+
+    public static IServiceCollection AddNamedDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem, INameAwareModel
+        where T : class, INamedCatalog<TModel>
+    {
+        _ = collection;
+
+        services.RemoveAll<ICatalog<TModel>>();
+        services.RemoveAll<INamedCatalog<TModel>>();
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        return services;
+    }
+
+    public static IServiceCollection AddSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem, ISourceAwareModel
+        where T : class, ISourceCatalog<TModel>
+    {
+        _ = collection;
+
+        services.RemoveAll<ICatalog<TModel>>();
+        services.RemoveAll<ISourceCatalog<TModel>>();
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        return services;
+    }
+
+    public static IServiceCollection AddNamedSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
+        where T : class, INamedSourceCatalog<TModel>
+    {
+        _ = collection;
+
+        services.RemoveAll<ICatalog<TModel>>();
+        services.RemoveAll<INamedCatalog<TModel>>();
+        services.RemoveAll<ISourceCatalog<TModel>>();
+        services.RemoveAll<INamedSourceCatalog<TModel>>();
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        return services;
+    }
+
     public static IServiceCollection AddCoreEntityCoreStores(this IServiceCollection services)
     {
+        services.AddCatalogManagers();
+
         // Catalog registrations
         services.AddNamedSourceDocumentCatalog<AIProfile>();
         services.AddNamedSourceDocumentCatalog<AIProviderConnection>();
@@ -127,12 +189,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatInteractionPromptStore, EntityCoreChatInteractionPromptStore>();
         services.AddScoped<ICatalog<ChatInteractionPrompt>>(sp => sp.GetRequiredService<IChatInteractionPromptStore>());
 
-        // Deployment store (implements named + source catalog interfaces)
-        services.AddScoped<IAIDeploymentStore, EntityCoreAIDeploymentStore>();
-        services.AddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<ISourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<INamedSourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, Services.NamedSourceDocumentCatalog<AIProviderConnection>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey);
+        services.AddNamedSourceDocumentCatalog<AIProviderConnection, object, ConfigurationAIProviderConnectionCatalog>();
+
+        services.AddKeyedScoped<INamedSourceCatalog<AIDeployment>, Services.NamedSourceDocumentCatalog<AIDeployment>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey);
+        services.AddNamedSourceDocumentCatalog<AIDeployment, object, ConfigurationAIDeploymentCatalog>();
 
         return services;
     }

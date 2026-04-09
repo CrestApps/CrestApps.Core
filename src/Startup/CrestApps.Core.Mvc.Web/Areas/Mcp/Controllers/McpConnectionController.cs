@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Mcp.Controllers;
+
 [Area("Mcp")]
 [Authorize(Policy = "Admin")]
 public sealed class McpConnectionController : Controller

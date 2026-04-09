@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
+
 [Area("AIChat")]
 [Authorize(Policy = "Admin")]
 public sealed class UsageAnalyticsController : Controller

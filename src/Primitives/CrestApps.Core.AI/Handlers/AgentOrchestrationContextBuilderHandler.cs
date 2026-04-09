@@ -5,6 +5,7 @@ using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Handlers;
+
 internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationContextBuilderHandler
 {
     private readonly IAIProfileManager _profileManager;

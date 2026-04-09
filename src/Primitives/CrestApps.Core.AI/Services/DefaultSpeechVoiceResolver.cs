@@ -1,25 +1,25 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Speech;
+using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
 public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
 {
     private readonly IEnumerable<IAIClientProvider> _clientProviders;
-    private readonly AIProviderOptions _options;
+    private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
 
     public DefaultSpeechVoiceResolver(
         IEnumerable<IAIClientProvider> clientProviders,
         IDataProtectionProvider dataProtectionProvider,
-        IOptions<AIProviderOptions> options)
+        INamedSourceCatalog<AIProviderConnection> connectionCatalog)
     {
         _clientProviders = clientProviders;
         _dataProtectionProvider = dataProtectionProvider;
-        _options = options.Value;
+        _connectionCatalog = connectionCatalog;
     }
 
     public async Task<SpeechVoice[]> GetSpeechVoicesAsync(AIDeployment deployment)
@@ -27,7 +27,7 @@ public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
         ArgumentNullException.ThrowIfNull(deployment);
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
-        var connectionEntry = GetConnectionEntry(deployment);
+        var connectionEntry = await GetConnectionEntryAsync(deployment);
 
         foreach (var clientProvider in _clientProviders)
         {
@@ -42,14 +42,14 @@ public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
         return [];
     }
 
-    private AIProviderConnectionEntry GetConnectionEntry(AIDeployment deployment)
+    private async ValueTask<AIProviderConnectionEntry> GetConnectionEntryAsync(AIDeployment deployment)
     {
         if (!string.IsNullOrEmpty(deployment.ConnectionName))
         {
-            if (_options.Providers.TryGetValue(deployment.ClientName, out var provider)
-                && provider.Connections.TryGetValue(deployment.ConnectionName, out var connection))
+            var connection = await _connectionCatalog.GetAsync(deployment.ConnectionName, deployment.ClientName);
+            if (connection != null)
             {
-                return connection;
+                return AIProviderConnectionEntryFactory.Create(connection);
             }
 
             throw new InvalidOperationException(

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.OrchardCore.Tests.AI.Prompting;
+
 public sealed class RenderAITemplateTagTests
 {
     [Fact]

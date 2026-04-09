@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using UglyToad.PdfPig.Writer;
 
 namespace CrestApps.OrchardCore.Tests.Helpers.DocumentReaders;
+
 public sealed class PdfIngestionDocumentReaderTests
 {
     private readonly PdfIngestionDocumentReader _reader = new();
@@ -82,7 +83,7 @@ public sealed class PdfIngestionDocumentReaderTests
         Assert.Contains("FormFile PDF", allText);
     }
 
-#region Helpers
+    #region Helpers
     private static MemoryStream CreatePdfWithText(string text)
     {
         var builder = new PdfDocumentBuilder();
@@ -145,5 +146,5 @@ public sealed class PdfIngestionDocumentReaderTests
             return _inner.CopyToAsync(destination, bufferSize, cancellationToken);
         }
     }
-#endregion
+    #endregion
 }

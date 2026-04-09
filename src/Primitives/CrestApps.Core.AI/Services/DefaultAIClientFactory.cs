@@ -1,15 +1,15 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
 public sealed class DefaultAIClientFactory : IAIClientFactory
 {
-    private readonly AIProviderOptions _options;
+    private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
     private readonly IEnumerable<IAIClientProvider> _clientProviders;
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
@@ -21,9 +21,9 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         IDataProtectionProvider dataProtectionProvider,
         IServiceProvider serviceProvider,
         ILogger<DefaultAIClientFactory> logger,
-        IOptions<AIProviderOptions> options)
+        INamedSourceCatalog<AIProviderConnection> connectionCatalog)
     {
-        _options = options.Value;
+        _connectionCatalog = connectionCatalog;
         _clientProviders = clientProviders;
         _dataProtectionProvider = dataProtectionProvider;
         _serviceProvider = serviceProvider;
@@ -36,17 +36,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         ArgumentException.ThrowIfNullOrEmpty(connectionName);
 
-        if (!_options.Providers.TryGetValue(providerName, out var provider))
-        {
-            throw new ArgumentException($"Provider '{providerName}' not found.");
-
-        }
-
-        if (!provider.Connections.TryGetValue(connectionName, out var connection))
-        {
-            throw new ArgumentException($"Connection '{connectionName}' not found with in the provider '{providerName}'.");
-
-        }
+        var connection = await GetConnectionEntryAsync(providerName, connectionName);
 
         foreach (var clientProvider in _clientProviders)
         {
@@ -72,23 +62,13 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
     }
 
-    public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
+    public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(providerName);
 
         ArgumentException.ThrowIfNullOrEmpty(connectionName);
 
-        if (!_options.Providers.TryGetValue(providerName, out var provider))
-        {
-            throw new ArgumentException($"Provider '{providerName}' not found.");
-
-        }
-
-        if (!provider.Connections.TryGetValue(connectionName, out var connection))
-        {
-            throw new ArgumentException($"Connection '{connectionName}' not found with in the provider '{providerName}'.");
-
-        }
+        var connection = await GetConnectionEntryAsync(providerName, connectionName);
 
         foreach (var clientProvider in _clientProviders)
         {
@@ -98,7 +78,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
             }
 
-            return clientProvider.GetEmbeddingGeneratorAsync(connection, deploymentName);
+            return await clientProvider.GetEmbeddingGeneratorAsync(connection, deploymentName);
 
         }
 
@@ -107,24 +87,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    public ValueTask<IImageGenerator> CreateImageGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
+    public async ValueTask<IImageGenerator> CreateImageGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
         ArgumentException.ThrowIfNullOrEmpty(providerName);
 
         ArgumentException.ThrowIfNullOrEmpty(connectionName);
 
-        if (!_options.Providers.TryGetValue(providerName, out var provider))
-        {
-            throw new ArgumentException($"Provider '{providerName}' not found.");
-
-        }
-
-        if (!provider.Connections.TryGetValue(connectionName, out var connection))
-        {
-            throw new ArgumentException($"Connection '{connectionName}' not found with in the provider '{providerName}'.");
-
-        }
+        var connection = await GetConnectionEntryAsync(providerName, connectionName);
 
         foreach (var clientProvider in _clientProviders)
         {
@@ -134,7 +104,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
             }
 
-            return clientProvider.GetImageGeneratorAsync(connection, deploymentName);
+            return await clientProvider.GetImageGeneratorAsync(connection, deploymentName);
 
         }
 
@@ -143,24 +113,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(string providerName, string connectionName, string deploymentName = null)
+    public async ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(string providerName, string connectionName, string deploymentName = null)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
         ArgumentException.ThrowIfNullOrEmpty(providerName);
 
         ArgumentException.ThrowIfNullOrEmpty(connectionName);
 
-        if (!_options.Providers.TryGetValue(providerName, out var provider))
-        {
-            throw new ArgumentException($"Provider '{providerName}' not found.");
-
-        }
-
-        if (!provider.Connections.TryGetValue(connectionName, out var connection))
-        {
-            throw new ArgumentException($"Connection '{connectionName}' not found with in the provider '{providerName}'.");
-
-        }
+        var connection = await GetConnectionEntryAsync(providerName, connectionName);
 
         foreach (var clientProvider in _clientProviders)
         {
@@ -170,7 +130,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
             }
 
-            return clientProvider.GetSpeechToTextClientAsync(connection, deploymentName);
+            return await clientProvider.GetSpeechToTextClientAsync(connection, deploymentName);
 
         }
 
@@ -214,23 +174,13 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    public ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(string providerName, string connectionName, string deploymentName = null)
+    public async ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(string providerName, string connectionName, string deploymentName = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(providerName);
 
         ArgumentException.ThrowIfNullOrEmpty(connectionName);
 
-        if (!_options.Providers.TryGetValue(providerName, out var provider))
-        {
-            throw new ArgumentException($"Provider '{providerName}' not found.");
-
-        }
-
-        if (!provider.Connections.TryGetValue(connectionName, out var connection))
-        {
-            throw new ArgumentException($"Connection '{connectionName}' not found with in the provider '{providerName}'.");
-
-        }
+        var connection = await GetConnectionEntryAsync(providerName, connectionName);
 
         foreach (var clientProvider in _clientProviders)
         {
@@ -240,7 +190,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
             }
 
-            return clientProvider.GetTextToSpeechClientAsync(connection, deploymentName);
+            return await clientProvider.GetTextToSpeechClientAsync(connection, deploymentName);
 
         }
 
@@ -281,4 +231,16 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     }
 
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+    private async ValueTask<AIProviderConnectionEntry> GetConnectionEntryAsync(string providerName, string connectionName)
+    {
+        var connection = await _connectionCatalog.GetAsync(connectionName, providerName);
+
+        if (connection == null)
+        {
+            throw new ArgumentException($"Connection '{connectionName}' not found with in the provider '{providerName}'.");
+        }
+
+        return AIProviderConnectionEntryFactory.Create(connection);
+    }
 }

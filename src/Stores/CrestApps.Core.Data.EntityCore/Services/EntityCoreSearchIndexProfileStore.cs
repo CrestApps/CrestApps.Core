@@ -3,6 +3,7 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
+
 public sealed class EntityCoreSearchIndexProfileStore : NamedDocumentCatalog<SearchIndexProfile>, ISearchIndexProfileStore
 {
     public EntityCoreSearchIndexProfileStore(CrestAppsEntityDbContext dbContext) : base(dbContext)

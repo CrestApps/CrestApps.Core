@@ -196,7 +196,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
     /// </summary>
     protected virtual void CollectStreamingReferences(IServiceProvider services, ChatResponseHandlerContext handlerContext, Dictionary<string, AICompletionReference> references, HashSet<string> contentItemIds)
     {
-    // No-op. OC overrides to use CitationReferenceCollector.
+        // No-op. OC overrides to use CitationReferenceCollector.
     }
 
     // ───────────────── Session title generation ─────────────────
@@ -270,7 +270,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
             return null;
         }
 
-        var titleResponse = await completionService.CompleteAsync(chatDeployment, [new(ChatRole.User, userPrompt), ], context);
+        var titleResponse = await completionService.CompleteAsync(chatDeployment, [new(ChatRole.User, userPrompt),], context);
         return titleResponse.Messages.Count > 0 ? Truncate(titleResponse.Messages.First().Text, 255) : null;
     }
 
@@ -508,7 +508,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 }
                 catch
                 {
-                // Best-effort error reporting.
+                    // Best-effort error reporting.
                 }
             }
         });
@@ -873,7 +873,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
         var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
         var handlerResolver = services.GetRequiredService<IChatResponseHandlerResolver>();
         var sessionHandlers = services.GetRequiredService<IEnumerable<IAIChatSessionHandler>>();
-        var(chatSession, isNew) = await GetOrCreateSessionAsync(services, sessionId, profile, prompt);
+        var (chatSession, isNew) = await GetOrCreateSessionAsync(services, sessionId, profile, prompt);
         await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
         var utcNow = GetUtcNow();
         if (chatSession.Status == ChatSessionStatus.Closed)
@@ -1116,7 +1116,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
     /// <summary>
     /// Synthesizes the given text as speech and streams audio chunks to the caller.
     /// </summary>
-    
+
 #pragma warning disable MEAI001
     protected async Task StreamSpeechAsync(ITextToSpeechClient textToSpeechClient, string identifier, string text, string voiceName, CancellationToken cancellationToken)
     {
@@ -1214,9 +1214,9 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 }
             }
         }
-        catch (OperationCanceledException)when (errorCts.IsCancellationRequested)
+        catch (OperationCanceledException) when (errorCts.IsCancellationRequested)
         {
-        // Transcription error or connection aborted.
+            // Transcription error or connection aborted.
         }
 
         await pipe.Writer.CompleteAsync();
@@ -1272,7 +1272,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                             {
                                 effectiveSessionId = await currentResponseTask;
                             }
-                            catch (OperationCanceledException)when (!cancellationToken.IsCancellationRequested)
+                            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                             {
                                 Logger.LogDebug("AI response was interrupted by new user speech.");
                             }
@@ -1310,9 +1310,9 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 {
                     effectiveSessionId = await currentResponseTask;
                 }
-                catch (OperationCanceledException)when (!cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                // Interrupted.
+                    // Interrupted.
                 }
 
                 currentResponseCts?.Dispose();
@@ -1328,9 +1328,9 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 {
                     await ProcessConversationPromptAsync(profile, effectiveSessionId, remainingText, textToSpeechClient, voiceName, services, cancellationToken);
                 }
-                catch (OperationCanceledException)when (!cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                // Interrupted.
+                    // Interrupted.
                 }
             }
         }
@@ -1419,7 +1419,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 }
                 catch
                 {
-                // Best-effort — the client may have disconnected.
+                    // Best-effort — the client may have disconnected.
                 }
             }
         }
@@ -1450,9 +1450,9 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 }
             }
         }
-        catch (OperationCanceledException)when (errorCts.IsCancellationRequested)
+        catch (OperationCanceledException) when (errorCts.IsCancellationRequested)
         {
-        // Transcription failed or connection aborted.
+            // Transcription failed or connection aborted.
         }
 
         await pipe.Writer.CompleteAsync();

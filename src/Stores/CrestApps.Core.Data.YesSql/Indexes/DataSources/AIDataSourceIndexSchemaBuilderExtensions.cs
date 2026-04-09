@@ -1,6 +1,7 @@
 using YesSql.Sql;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.DataSources;
+
 public static class AIDataSourceIndexSchemaBuilderExtensions
 {
     public static Task CreateAIDataSourceIndexSchemaAsync(this ISchemaBuilder schemaBuilder)

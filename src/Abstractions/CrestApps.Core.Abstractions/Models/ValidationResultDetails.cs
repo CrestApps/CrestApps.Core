@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 
 namespace CrestApps.Core.Models;
+
 public class ValidationResultDetails
 {
     private List<ValidationResult> _errors;

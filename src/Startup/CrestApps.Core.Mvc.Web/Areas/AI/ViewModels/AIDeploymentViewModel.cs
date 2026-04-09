@@ -69,7 +69,6 @@ public sealed class AIDeploymentViewModel
         deployment.Type = GetDeploymentType();
         deployment.ConnectionName = ConnectionName;
         deployment.ClientName = AIProviderNameNormalizer.Normalize(ClientName);
-        deployment.IsDefault = false;
 
         deployment.Properties ??= new Dictionary<string, object>();
 

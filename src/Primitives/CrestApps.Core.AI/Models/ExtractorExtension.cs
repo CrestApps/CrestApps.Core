@@ -1,4 +1,5 @@
 namespace CrestApps.Core.AI.Models;
+
 public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquatable<string>
 {
     public string Extension { get; }
@@ -53,7 +54,7 @@ public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquata
         return !Equals(left, right);
     }
 
-    public static implicit operator string (ExtractorExtension ext)
+    public static implicit operator string(ExtractorExtension ext)
     {
         return ext.Extension;
     }

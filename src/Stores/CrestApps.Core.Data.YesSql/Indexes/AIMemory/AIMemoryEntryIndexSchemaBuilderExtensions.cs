@@ -1,6 +1,7 @@
 using YesSql.Sql;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AIMemory;
+
 public static class AIMemoryEntryIndexSchemaBuilderExtensions
 {
     public static Task CreateAIMemoryEntryIndexSchemaAsync(this ISchemaBuilder schemaBuilder)

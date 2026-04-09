@@ -19,9 +19,9 @@ public sealed class AIDataSourceOptions
             DefaultStrictness = DefaultStrictness,
             DefaultTopNDocuments = DefaultTopNDocuments,
         };
-        foreach (var(providerName, providerMappings)in _fieldMappings)
+        foreach (var (providerName, providerMappings) in _fieldMappings)
         {
-            foreach (var(indexProfileType, mapping)in providerMappings)
+            foreach (var (indexProfileType, mapping) in providerMappings)
             {
                 clone.AddFieldMapping(providerName, indexProfileType, target =>
                 {

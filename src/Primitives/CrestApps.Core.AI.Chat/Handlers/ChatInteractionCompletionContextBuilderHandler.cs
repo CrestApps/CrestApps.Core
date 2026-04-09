@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
+
 internal sealed class ChatInteractionCompletionContextBuilderHandler : IAICompletionContextBuilderHandler
 {
     private readonly ITemplateService _aiTemplateService;

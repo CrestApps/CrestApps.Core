@@ -6,6 +6,7 @@ using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.OrchardCore.Tests.Core.Chat;
+
 public sealed class ExtractedDataOrchestrationHandlerTests
 {
     [Fact]

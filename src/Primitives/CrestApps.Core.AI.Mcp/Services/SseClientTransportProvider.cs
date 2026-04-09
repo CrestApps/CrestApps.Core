@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
 
 namespace CrestApps.Core.AI.Mcp.Services;
+
 public sealed class SseClientTransportProvider : IMcpClientTransportProvider
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;

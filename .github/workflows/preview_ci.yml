@@ -5,6 +5,7 @@ on:
     # 4:19 AM UTC every day. A random time to avoid peak times of GitHub Actions.
     - cron: '19 4 * * *'
 permissions:
+  actions: read
   contents: read
   packages: write
 env:
@@ -19,10 +20,44 @@ jobs:
     - name: Check if should publish
       id: check-publish
       shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        $hasCommitFromLastDay = ![string]::IsNullOrEmpty((git log --oneline --since '24 hours ago'))
-        Write-Output "Commits found in the last 24 hours: $hasCommitFromLastDay."
-        $shouldPublish = ($hasCommitFromLastDay -and '${{ github.event_name }}' -eq 'schedule') -or ('${{ github.event_name }}' -eq 'workflow_dispatch')
+        $eventName = '${{ github.event_name }}'
+
+        if ($eventName -eq 'workflow_dispatch')
+        {
+          Write-Output 'Manual preview release requested. Publishing unconditionally.'
+          "should-publish=true" >> $Env:GITHUB_OUTPUT
+          exit 0
+        }
+
+        $headers = @{
+          Authorization = "Bearer $Env:GITHUB_TOKEN"
+          Accept = 'application/vnd.github+json'
+          'X-GitHub-Api-Version' = '2022-11-28'
+        }
+
+        $workflowRunsUrl = 'https://api.github.com/repos/${{ github.repository }}/actions/workflows/preview_ci.yml/runs?status=success&branch=${{ github.ref_name }}&per_page=20'
+        $response = Invoke-RestMethod -Uri $workflowRunsUrl -Headers $headers -Method Get
+        $previousRun = $response.workflow_runs |
+          Where-Object { $_.id -ne [int64]'${{ github.run_id }}' } |
+          Sort-Object created_at -Descending |
+          Select-Object -First 1
+
+        if ($null -eq $previousRun)
+        {
+          Write-Output 'No previous successful preview publish run found. Publishing.'
+          "should-publish=true" >> $Env:GITHUB_OUTPUT
+          exit 0
+        }
+
+        $hasNewCommitSinceLastRelease = $previousRun.head_sha -ne '${{ github.sha }}'
+        Write-Output "Last successful preview publish SHA: $($previousRun.head_sha)"
+        Write-Output "Current SHA: ${{ github.sha }}"
+        Write-Output "New commits since last preview publish: $hasNewCommitSinceLastRelease"
+
+        $shouldPublish = $eventName -eq 'schedule' -and $hasNewCommitSinceLastRelease
         "should-publish=$($shouldPublish ? 'true' : 'false')" >> $Env:GITHUB_OUTPUT
     - uses: actions/setup-node@v6
       if: steps.check-publish.outputs.should-publish == 'true'

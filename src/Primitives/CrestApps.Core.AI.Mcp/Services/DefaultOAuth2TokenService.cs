@@ -7,6 +7,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Mcp.Services;
+
 public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 {
     private const int ExpirationBufferSeconds = 60;

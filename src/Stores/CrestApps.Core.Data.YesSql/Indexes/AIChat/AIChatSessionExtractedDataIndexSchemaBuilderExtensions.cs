@@ -1,6 +1,7 @@
 using YesSql.Sql;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
+
 public static class AIChatSessionExtractedDataIndexSchemaBuilderExtensions
 {
     public static Task CreateAIChatSessionExtractedDataIndexSchemaAsync(this ISchemaBuilder schemaBuilder)

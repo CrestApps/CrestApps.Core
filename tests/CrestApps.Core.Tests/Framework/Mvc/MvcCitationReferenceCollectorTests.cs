@@ -7,6 +7,7 @@ using CrestApps.Core.Mvc.Web.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.OrchardCore.Tests.Framework.Mvc;
+
 public sealed class MvcCitationReferenceCollectorTests
 {
     [Fact]

@@ -1,4 +1,5 @@
 namespace CrestApps.Core.AI.Models;
+
 public static class AIDeploymentTypeExtensions
 {
     private static readonly AIDeploymentType _allSupportedTypes = Enum.GetValues<AIDeploymentType>().Where(type => type != AIDeploymentType.None).Aggregate(AIDeploymentType.None, static (current, type) => current | type);

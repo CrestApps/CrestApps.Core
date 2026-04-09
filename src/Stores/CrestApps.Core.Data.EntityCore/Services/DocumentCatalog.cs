@@ -4,6 +4,7 @@ using CrestApps.Core.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
+
 public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
 {
     protected readonly CrestAppsEntityDbContext DbContext;
@@ -40,7 +41,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         var itemIds = ids.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToArray();
         if (itemIds.Length == 0)
         {
-            return[];
+            return [];
         }
 
         var records = await GetReadQuery().Where(x => itemIds.Contains(x.ItemId)).ToListAsync();

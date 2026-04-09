@@ -4,6 +4,7 @@ using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
+
 public sealed class SearchIndexProfileManager : CatalogManager<SearchIndexProfile>, ISearchIndexProfileManager
 {
     private readonly ISearchIndexProfileStore _store;

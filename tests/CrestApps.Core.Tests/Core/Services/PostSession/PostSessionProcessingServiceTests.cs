@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace CrestApps.OrchardCore.Tests.Core.Services.PostSession;
+
 public sealed class PostSessionProcessingServiceTests
 {
     private const string TestProviderName = "TestProvider";
@@ -348,7 +349,7 @@ public sealed class PostSessionProcessingServiceTests
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-#region Helpers
+    #region Helpers
     private static AIProfile CreateProfile()
     {
         var profile = new AIProfile
@@ -372,7 +373,7 @@ public sealed class PostSessionProcessingServiceTests
 
     private static List<AIChatSessionPrompt> CreatePrompts()
     {
-        return[new AIChatSessionPrompt
+        return [new AIChatSessionPrompt
         {
             Role = ChatRole.User,
             Content = "Hello, I need help with my order.",
@@ -675,5 +676,5 @@ public sealed class PostSessionProcessingServiceTests
         Assert.Equal(PostSessionTaskResultStatus.Failed, result["summary"].Status);
         Assert.NotNull(result["summary"].ErrorMessage);
     }
-#endregion
+    #endregion
 }

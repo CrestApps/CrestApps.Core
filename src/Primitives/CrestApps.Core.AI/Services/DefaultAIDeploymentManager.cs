@@ -24,8 +24,7 @@ public class DefaultAIDeploymentManager : NamedSourceCatalogManager<AIDeployment
     {
         var deployments = (await Catalog.GetAllAsync())
             .Where(x => string.Equals(x.ClientName, clientName, StringComparison.OrdinalIgnoreCase) &&
-                (string.Equals(x.ConnectionName ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(x.ConnectionNameAlias ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase)));
+                string.Equals(x.ConnectionName ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase));
 
         foreach (var deployment in deployments)
         {
@@ -54,8 +53,7 @@ public class DefaultAIDeploymentManager : NamedSourceCatalogManager<AIDeployment
 
         var candidates = deployments.Where(d => d.SupportsType(type));
 
-        return candidates.FirstOrDefault(d => d.IsDefault)
-            ?? candidates.FirstOrDefault();
+        return candidates.FirstOrDefault();
     }
 
     public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, string connectionName = null)
@@ -126,8 +124,7 @@ public class DefaultAIDeploymentManager : NamedSourceCatalogManager<AIDeployment
                 return true;
             }
 
-            return string.Equals(deployment.ConnectionName ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(deployment.ConnectionNameAlias ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(deployment.ConnectionName ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase);
         });
     }
 

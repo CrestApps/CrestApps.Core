@@ -1,6 +1,7 @@
 using YesSql.Sql;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AI;
+
 public static class AIDeploymentIndexSchemaBuilderExtensions
 {
     public static Task CreateAIDeploymentIndexSchemaAsync(this ISchemaBuilder schemaBuilder)

@@ -128,6 +128,8 @@ public static class ServiceCollectionExtensions
         services
             .AddCoreAITemplating()
             .AddCoreServices()
+            .AddOptions<AIProviderConnectionCatalogOptions>().Services
+            .AddOptions<AIDeploymentCatalogOptions>().Services
             .AddScoped<IAIClientFactory, DefaultAIClientFactory>()
             .AddScoped<ISpeechVoiceResolver, DefaultSpeechVoiceResolver>();
 
@@ -250,6 +252,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAIMemory(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
+        services.AddCatalogManagers();
         services.AddOptions<AIMemoryOptions>();
         services.AddOptions<GeneralAIOptions>();
         services.AddOptions<ChatInteractionMemoryOptions>();
@@ -257,7 +260,6 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAIMemorySafetyService, DefaultAIMemorySafetyService>();
         services.TryAddScoped<IAIMemorySearchService, AIMemorySearchService>();
         services.TryAdd(ServiceDescriptor.Scoped<ICatalog<AIMemoryEntry>>(sp => sp.GetRequiredService<IAIMemoryStore>()));
-        services.TryAddScoped<ICatalogManager<AIMemoryEntry>, CatalogManager<AIMemoryEntry>>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AIMemoryOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, AIMemoryPreemptiveRagHandler>());
 

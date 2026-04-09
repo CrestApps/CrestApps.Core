@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Mcp.Models;
+
 public sealed class McpClientAIOptions
 {
     private readonly Dictionary<string, McpClientTransportEntry> _transportTypes = new(StringComparer.OrdinalIgnoreCase);

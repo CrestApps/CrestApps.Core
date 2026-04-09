@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace CrestApps.OrchardCore.Tests.Framework.AI;
+
 public sealed class DataExtractionServiceTests
 {
     [Fact]
@@ -100,7 +101,7 @@ public sealed class DataExtractionServiceTests
         templateService.Setup(service => service.RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>())).Callback<string, IDictionary<string, object>>((_, arguments) => promptArguments = arguments).ReturnsAsync("rendered prompt");
         chatClient.Setup(client => client.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"fields\":[],\"sessionEnded\":false}")));
         var service = new DataExtractionService(clientFactory.Object, templateService.Object, TimeProvider.System, NullLogger<DataExtractionService>.Instance, deploymentManager.Object);
-        await service.ProcessAsync(profile, new AIChatSession(), [new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your email?" }, new AIChatSessionPrompt { Role = ChatRole.User, Content = "My email is test@example.com" }, ], TestContext.Current.CancellationToken);
+        await service.ProcessAsync(profile, new AIChatSession(), [new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your email?" }, new AIChatSessionPrompt { Role = ChatRole.User, Content = "My email is test@example.com" },], TestContext.Current.CancellationToken);
         templateService.Verify(service => service.RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>()), Times.Once);
         Assert.NotNull(promptArguments);
         Assert.Equal("My email is test@example.com", promptArguments["lastUserMessage"]);

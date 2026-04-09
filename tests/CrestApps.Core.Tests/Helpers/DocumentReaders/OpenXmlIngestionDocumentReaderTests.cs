@@ -11,10 +11,11 @@ using WpRun = DocumentFormat.OpenXml.Wordprocessing.Run;
 using WpText = DocumentFormat.OpenXml.Wordprocessing.Text;
 
 namespace CrestApps.OrchardCore.Tests.Helpers.DocumentReaders;
+
 public sealed class OpenXmlIngestionDocumentReaderTests
 {
     private readonly OpenXmlIngestionDocumentReader _reader = new();
-#region Word (.docx)
+    #region Word (.docx)
     [Fact]
     public async Task ReadAsync_WordDocument_ExtractsParagraphs()
     {
@@ -43,12 +44,12 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         Assert.Empty(result.Sections);
     }
 
-#endregion
-#region Excel (.xlsx) - Shared Strings
+    #endregion
+    #region Excel (.xlsx) - Shared Strings
     [Fact]
     public async Task ReadAsync_ExcelWithSharedStrings_ExtractsRows()
     {
-        using var stream = CreateExcelWithSharedStrings([["Title", "Question", "Answer"], ["Thor Weapon", "What is Thor's weapon?", "Mjolnir"], ]);
+        using var stream = CreateExcelWithSharedStrings([["Title", "Question", "Answer"], ["Thor Weapon", "What is Thor's weapon?", "Mjolnir"],]);
         var result = await _reader.ReadAsync(stream, "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TestContext.Current.CancellationToken);
         Assert.Single(result.Sections);
         Assert.Equal(2, result.Sections[0].Elements.Count);
@@ -59,7 +60,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
     [Fact]
     public async Task ReadAsync_ExcelWithInlineStrings_ExtractsRows()
     {
-        using var stream = CreateExcelWithInlineStrings([["Name", "Value"], ["Key1", "Data1"], ]);
+        using var stream = CreateExcelWithInlineStrings([["Name", "Value"], ["Key1", "Data1"],]);
         var result = await _reader.ReadAsync(stream, "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TestContext.Current.CancellationToken);
         Assert.Single(result.Sections);
         Assert.Equal(2, result.Sections[0].Elements.Count);
@@ -70,7 +71,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
     [Fact]
     public async Task ReadAsync_ExcelWithNumericValues_ExtractsRows()
     {
-        using var stream = CreateExcelWithNumericValues([[1.0, 2.5, 3.7], [10.0, 20.0, 30.0], ]);
+        using var stream = CreateExcelWithNumericValues([[1.0, 2.5, 3.7], [10.0, 20.0, 30.0],]);
         var result = await _reader.ReadAsync(stream, "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TestContext.Current.CancellationToken);
         Assert.Single(result.Sections);
         Assert.Equal(2, result.Sections[0].Elements.Count);
@@ -115,8 +116,8 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         Assert.True(result.Sections[0].Elements.Count > 0);
     }
 
-#endregion
-#region PowerPoint (.pptx)
+    #endregion
+    #region PowerPoint (.pptx)
     [Fact]
     public async Task ReadAsync_PowerPoint_ExtractsSlideText()
     {
@@ -134,8 +135,8 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         Assert.Empty(result.Sections);
     }
 
-#endregion
-#region Unsupported Media Types
+    #endregion
+    #region Unsupported Media Types
     [Fact]
     public async Task ReadAsync_UnsupportedMediaType_ThrowsNotSupportedException()
     {
@@ -143,8 +144,8 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         await Assert.ThrowsAsync<NotSupportedException>(() => _reader.ReadAsync(stream, "test.txt", "text/plain", TestContext.Current.CancellationToken));
     }
 
-#endregion
-#region Non-Seekable Stream
+    #endregion
+    #region Non-Seekable Stream
     [Fact]
     public async Task ReadAsync_NonSeekableStream_ExtractsCorrectly()
     {
@@ -174,8 +175,8 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         Assert.Equal("FormFile content", result.Sections[0].Elements[0].Text);
     }
 
-#endregion
-#region Helpers
+    #endregion
+    #region Helpers
     private static MemoryStream CreateWordDocument(params string[] paragraphs)
     {
         var stream = new MemoryStream();
@@ -510,5 +511,5 @@ public sealed class OpenXmlIngestionDocumentReaderTests
             return _inner.CopyToAsync(destination, bufferSize, cancellationToken);
         }
     }
-#endregion
+    #endregion
 }

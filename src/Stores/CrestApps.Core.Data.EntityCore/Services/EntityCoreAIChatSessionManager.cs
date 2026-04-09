@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
@@ -9,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
+
 public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 {
     private readonly IHttpContextAccessor _httpContextAccessor;

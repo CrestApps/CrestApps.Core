@@ -1,9 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -12,20 +13,27 @@ namespace CrestApps.Core.AI.Services;
 /// Decorates a persisted AI deployment store with configuration-backed deployments from appsettings.json.
 /// Read operations return the merged result while write operations continue to target the persisted store only.
 /// </summary>
-public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
+public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDeployment>
 {
-    private readonly IAIDeploymentStore _inner;
+    public const string PersistedCatalogKey = "PersistedCatalog";
+
+    private readonly INamedSourceCatalog<AIDeployment> _inner;
     private readonly IConfiguration _configuration;
-    private readonly AIProviderOptions _providerOptions;
     private readonly AIOptions _aiOptions;
+    private readonly AIDeploymentCatalogOptions _catalogOptions;
     private readonly ILogger _logger;
-    private IReadOnlyCollection<AIDeployment> _configDeployments;
-    public ConfigurationAIDeploymentCatalog(IAIDeploymentStore inner, IConfiguration configuration, IOptions<AIProviderOptions> providerOptions, IOptions<AIOptions> aiOptions, ILogger<ConfigurationAIDeploymentCatalog> logger)
+
+    public ConfigurationAIDeploymentCatalog(
+        [FromKeyedServices(PersistedCatalogKey)] INamedSourceCatalog<AIDeployment> inner,
+        IConfiguration configuration,
+        IOptions<AIOptions> aiOptions,
+        IOptions<AIDeploymentCatalogOptions> catalogOptions,
+        ILogger<ConfigurationAIDeploymentCatalog> logger)
     {
         _inner = inner;
         _configuration = configuration;
-        _providerOptions = providerOptions.Value;
         _aiOptions = aiOptions.Value;
+        _catalogOptions = catalogOptions.Value;
         _logger = logger;
     }
 
@@ -37,13 +45,15 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
             return result;
         }
 
-        return FindConfigDeployment(deployment => string.Equals(deployment.ItemId, id, StringComparison.OrdinalIgnoreCase));
+        return (await GetConfigDeploymentsAsync(await _inner.GetAllAsync()))
+            .FirstOrDefault(deployment => string.Equals(deployment.ItemId, id, StringComparison.OrdinalIgnoreCase))
+            ?.Clone();
     }
 
     public async ValueTask<IReadOnlyCollection<AIDeployment>> GetAllAsync()
     {
         var dbRecords = await _inner.GetAllAsync();
-        var configRecords = GetConfigDeployments();
+        var configRecords = await GetConfigDeploymentsAsync(dbRecords);
         if (configRecords.Count == 0)
         {
             return dbRecords;
@@ -63,7 +73,7 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
             return dbRecords;
         }
 
-        var configMatches = GetConfigDeployments().Where(deployment => missingIds.Contains(deployment.ItemId)).ToList();
+        var configMatches = (await GetConfigDeploymentsAsync(dbRecords)).Where(deployment => missingIds.Contains(deployment.ItemId)).ToList();
         if (configMatches.Count == 0)
         {
             return dbRecords;
@@ -75,7 +85,7 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
     public async ValueTask<PageResult<AIDeployment>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
         where TQuery : QueryContext
     {
-        var configRecords = GetConfigDeployments();
+        var configRecords = await GetConfigDeploymentsAsync(await _inner.GetAllAsync());
         if (configRecords.Count == 0)
         {
             return await _inner.PageAsync(page, pageSize, context);
@@ -99,13 +109,15 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
             return result;
         }
 
-        return FindConfigDeployment(deployment => string.Equals(deployment.Name, name, StringComparison.OrdinalIgnoreCase));
+        return (await GetConfigDeploymentsAsync(await _inner.GetAllAsync()))
+            .FirstOrDefault(deployment => string.Equals(deployment.Name, name, StringComparison.OrdinalIgnoreCase))
+            ?.Clone();
     }
 
     public async ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(string source)
     {
         var dbRecords = await _inner.GetAsync(source);
-        var configMatches = GetConfigDeployments().Where(deployment => string.Equals(deployment.Source, source, StringComparison.OrdinalIgnoreCase)).ToList();
+        var configMatches = (await GetConfigDeploymentsAsync(dbRecords)).Where(deployment => string.Equals(deployment.Source, source, StringComparison.OrdinalIgnoreCase)).ToList();
         if (configMatches.Count == 0)
         {
             return dbRecords;
@@ -122,116 +134,65 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
             return result;
         }
 
-        return FindConfigDeployment(deployment => string.Equals(deployment.Name, name, StringComparison.OrdinalIgnoreCase) && string.Equals(deployment.Source, source, StringComparison.OrdinalIgnoreCase));
+        return (await GetConfigDeploymentsAsync(await _inner.GetAllAsync()))
+            .FirstOrDefault(deployment =>
+                string.Equals(deployment.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(deployment.Source, source, StringComparison.OrdinalIgnoreCase))
+            ?.Clone();
     }
 
     public ValueTask<bool> DeleteAsync(AIDeployment entry) => _inner.DeleteAsync(entry);
     public ValueTask CreateAsync(AIDeployment entry) => _inner.CreateAsync(entry);
     public ValueTask UpdateAsync(AIDeployment entry) => _inner.UpdateAsync(entry);
-    private AIDeployment FindConfigDeployment(Func<AIDeployment, bool> predicate)
-    {
-        return GetConfigDeployments().FirstOrDefault(predicate)?.Clone();
-    }
 
-    private IReadOnlyCollection<AIDeployment> GetConfigDeployments()
+    private async Task<IReadOnlyCollection<AIDeployment>> GetConfigDeploymentsAsync(IReadOnlyCollection<AIDeployment> storedDeployments)
     {
-        if (_configDeployments != null)
-        {
-            return _configDeployments;
-        }
+        var deployments = new Dictionary<string, AIDeployment>(StringComparer.OrdinalIgnoreCase);
+        var names = storedDeployments
+            .Where(static deployment => !string.IsNullOrWhiteSpace(deployment.Name))
+            .ToDictionary(static deployment => deployment.Name, static deployment => deployment.ItemId, StringComparer.OrdinalIgnoreCase);
 
-        var deployments = new List<AIDeployment>();
         try
         {
-            ReadConnectionDeployments(deployments);
-            ReadStandaloneDeployments(deployments);
+            ReadStandaloneDeployments(deployments, names);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading AI deployment configuration.");
         }
 
-        _configDeployments = deployments;
-        return _configDeployments;
+        return deployments.Values.ToArray();
     }
 
-    private void ReadConnectionDeployments(List<AIDeployment> deployments)
+    private void ReadStandaloneDeployments(Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names)
     {
-        foreach (var(providerName, provider)in _providerOptions.Providers)
+        foreach (var sectionPath in _catalogOptions.DeploymentSections)
         {
-            if (provider.Connections is null)
+            var section = _configuration.GetSection(sectionPath);
+            if (!section.Exists())
             {
                 continue;
             }
 
-            foreach (var(connectionId, connectionEntry)in provider.Connections)
+            var deploymentsNode = ReadConfigurationNode(section);
+            switch (deploymentsNode)
             {
-                if (!connectionEntry.TryGetValue("Deployments", out var deploymentsObject))
-                {
-                    continue;
-                }
-
-                var deploymentArray = ConvertToJsonArray(deploymentsObject);
-                if (deploymentArray is null)
-                {
-                    continue;
-                }
-
-                foreach (var deploymentNode in deploymentArray)
-                {
-                    if (deploymentNode is not JsonObject deploymentObject)
-                    {
-                        continue;
-                    }
-
-                    var deployment = ParseConnectionDeploymentEntry(deploymentObject, providerName, connectionId, connectionEntry);
-                    if (deployment != null)
-                    {
-                        deployments.Add(deployment);
-                    }
-                }
+                case JsonArray deploymentArray:
+                    ReadStandaloneDeploymentsFromArray(deploymentArray, deployments, names, sectionPath);
+                    break;
+                case JsonObject deploymentObject:
+                    ReadStandaloneDeploymentsFromObject(deploymentObject, deployments, names, sectionPath);
+                    break;
+                case null:
+                    break;
+                default:
+                    _logger.LogWarning("The AI deployments configuration at '{SectionPath}' must be either an array or an object.", sectionPath);
+                    break;
             }
         }
     }
 
-    private void ReadStandaloneDeployments(List<AIDeployment> deployments)
-    {
-        var section = GetDeploymentsSection();
-        if (section is null)
-        {
-            return;
-        }
-
-        var deploymentsNode = ReadConfigurationNode(section);
-        switch (deploymentsNode)
-        {
-            case JsonArray deploymentArray:
-                ReadStandaloneDeploymentsFromArray(deploymentArray, deployments);
-                break;
-            case JsonObject deploymentObject:
-                ReadStandaloneDeploymentsFromObject(deploymentObject, deployments);
-                break;
-            case null:
-                break;
-            default:
-                _logger.LogWarning("The AI deployments configuration must be either an array or an object.");
-                break;
-        }
-    }
-
-    private IConfigurationSection GetDeploymentsSection()
-    {
-        var section = _configuration.GetSection("CrestApps:AI:Deployments");
-        if (section.Exists())
-        {
-            return section;
-        }
-
-        section = _configuration.GetSection("CrestApps_AI:Deployments");
-        return section.Exists() ? section : null;
-    }
-
-    private void ReadStandaloneDeploymentsFromArray(JsonArray deploymentArray, List<AIDeployment> deployments)
+    private void ReadStandaloneDeploymentsFromArray(JsonArray deploymentArray, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
     {
         foreach (var deploymentNode in deploymentArray)
         {
@@ -242,16 +203,13 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
             }
 
             var deployment = CreateStandaloneDeployment(ParseStandaloneDeploymentEntry(deploymentObject));
-            if (deployment != null)
-            {
-                deployments.Add(deployment);
-            }
+            AddDeployment(deployments, names, deployment, sectionPath);
         }
     }
 
-    private void ReadStandaloneDeploymentsFromObject(JsonObject deploymentObject, List<AIDeployment> deployments)
+    private void ReadStandaloneDeploymentsFromObject(JsonObject deploymentObject, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
     {
-        foreach (var(providerName, providerDeploymentsNode)in deploymentObject)
+        foreach (var (providerName, providerDeploymentsNode) in deploymentObject)
         {
             if (providerDeploymentsNode is not JsonArray providerDeployments)
             {
@@ -268,42 +226,9 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
                 }
 
                 var deployment = CreateStandaloneDeployment(ParseStandaloneDeploymentEntry(standaloneDeploymentObject, providerName));
-                if (deployment != null)
-                {
-                    deployments.Add(deployment);
-                }
+                AddDeployment(deployments, names, deployment, $"{sectionPath}:{providerName}");
             }
         }
-    }
-
-    private AIDeployment ParseConnectionDeploymentEntry(JsonObject deploymentObject, string providerName, string connectionId, AIProviderConnectionEntry connectionEntry)
-    {
-        var name = GetStringValue(deploymentObject["Name"]);
-        var modelName = GetStringValue(deploymentObject["ModelName"]) ?? name;
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            _logger.LogWarning("A deployment entry in connection '{ConnectionId}' of provider '{ProviderName}' is missing a Name. Skipping.", connectionId, providerName);
-            return null;
-        }
-
-        if (!TryGetDeploymentType(deploymentObject["Type"], out var type))
-        {
-            _logger.LogWarning("Deployment entry '{Name}' in connection '{ConnectionId}' of provider '{ProviderName}' has an invalid or missing Type. Skipping.", name, connectionId, providerName);
-            return null;
-        }
-
-        var connectionNameAlias = connectionEntry.TryGetValue("ConnectionNameAlias", out var aliasValue) ? aliasValue?.ToString() : null;
-        return new AIDeployment
-        {
-            ItemId = AIConfigurationRecordIds.CreateDeploymentId(providerName, connectionId, name),
-            Name = name,
-            ModelName = modelName,
-            Source = providerName,
-            ConnectionName = connectionId,
-            ConnectionNameAlias = connectionNameAlias,
-            Type = type,
-            IsDefault = GetBooleanValue(deploymentObject["IsDefault"]),
-        };
     }
 
     private static AIDeploymentConfigurationEntry ParseStandaloneDeploymentEntry(JsonObject deploymentObject, string providerName = null)
@@ -363,7 +288,6 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
             ModelName = entry.ModelName,
             Source = entry.ProviderName,
             Type = entry.Type,
-            IsDefault = entry.IsDefault,
             Properties = entry.Properties?.Count > 0 ? JsonSerializer.Deserialize<Dictionary<string, object>>(entry.Properties.DeepClone()) : null,
         };
     }
@@ -469,7 +393,7 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
             properties = (JsonObject)explicitProperties.DeepClone();
         }
 
-        foreach (var(key, value)in deploymentObject)
+        foreach (var (key, value) in deploymentObject)
         {
             if (IsStandaloneDeploymentMetadataKey(key))
             {
@@ -514,6 +438,31 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
         }
 
         return false;
+    }
+
+    private void AddDeployment(
+        Dictionary<string, AIDeployment> deployments,
+        Dictionary<string, string> names,
+        AIDeployment deployment,
+        string sourceDescription)
+    {
+        if (deployment == null)
+        {
+            return;
+        }
+
+        if (names.TryGetValue(deployment.Name, out var existingItemId) &&
+            !string.Equals(existingItemId, deployment.ItemId, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Skipping AI deployment '{DeploymentName}' from {SourceDescription} because another deployment with the same name is already defined.",
+                deployment.Name,
+                sourceDescription);
+            return;
+        }
+
+        names[deployment.Name] = deployment.ItemId;
+        deployments[deployment.ItemId] = deployment;
     }
 
     private static List<AIDeployment> Merge(IReadOnlyCollection<AIDeployment> primary, IReadOnlyCollection<AIDeployment> secondary)

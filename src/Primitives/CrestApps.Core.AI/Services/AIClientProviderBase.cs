@@ -4,6 +4,7 @@ using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Services;
+
 public abstract class AIClientProviderBase : IAIClientProvider
 {
     private readonly IServiceProvider _serviceProvider;

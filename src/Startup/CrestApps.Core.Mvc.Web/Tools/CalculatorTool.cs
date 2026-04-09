@@ -66,7 +66,7 @@ public sealed class CalculatorTool : AIFunction
             return ValueTask.FromResult<object>("""{"error":"Parameters 'a' and 'b' must be numbers."}""");
         }
 
-        var(result, error) = operation.ToLowerInvariant() switch
+        var (result, error) = operation.ToLowerInvariant() switch
         {
             "add" => (a + b, (string)null),
             "subtract" => (a - b, null),

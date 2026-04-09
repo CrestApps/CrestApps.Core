@@ -38,6 +38,16 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddCatalogManagers(this IServiceCollection services)
+    {
+        services.TryAddScoped(typeof(ICatalogManager<>), typeof(CatalogManager<>));
+        services.TryAddScoped(typeof(INamedCatalogManager<>), typeof(NamedCatalogManager<>));
+        services.TryAddScoped(typeof(ISourceCatalogManager<>), typeof(SourceCatalogManager<>));
+        services.TryAddScoped(typeof(INamedSourceCatalogManager<>), typeof(NamedSourceCatalogManager<>));
+
+        return services;
+    }
+
     /// <summary>
     /// Registers <see cref="StoreCommitterActionFilter"/> as a global MVC action filter.
     /// The filter commits all staged store writes after each controller action completes

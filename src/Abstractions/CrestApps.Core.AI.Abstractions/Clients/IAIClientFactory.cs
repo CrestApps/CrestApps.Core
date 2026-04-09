@@ -37,7 +37,7 @@ public interface IAIClientFactory
     /// <returns>
     /// A <see cref = "ValueTask{TResult}"/> representing the asynchronous operation, with the created <see cref = "IImageGenerator"/>.
     /// </returns>
-    
+
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     ValueTask<IImageGenerator> CreateImageGeneratorAsync(string providerName, string connectionName, string deploymentName = null);
@@ -52,7 +52,7 @@ public interface IAIClientFactory
     /// <returns>
     /// A <see cref = "ValueTask{TResult}"/> representing the asynchronous operation, with the created <see cref = "ISpeechToTextClient"/>.
     /// </returns>
-    
+
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(string providerName, string connectionName, string deploymentName = null);
@@ -66,7 +66,7 @@ public interface IAIClientFactory
     /// <returns>
     /// A <see cref = "ValueTask{TResult}"/> representing the asynchronous operation, with the created <see cref = "ISpeechToTextClient"/>.
     /// </returns>
-    
+
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment);
@@ -81,7 +81,7 @@ public interface IAIClientFactory
     /// <returns>
     /// A <see cref = "ValueTask{TResult}"/> representing the asynchronous operation, with the created <see cref = "ITextToSpeechClient"/>.
     /// </returns>
-    
+
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(string providerName, string connectionName, string deploymentName = null);
@@ -95,7 +95,7 @@ public interface IAIClientFactory
     /// <returns>
     /// A <see cref = "ValueTask{TResult}"/> representing the asynchronous operation, with the created <see cref = "ITextToSpeechClient"/>.
     /// </returns>
-    
+
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment);

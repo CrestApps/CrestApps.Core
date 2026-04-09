@@ -1,6 +1,7 @@
 using YesSql.Sql;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.Indexing;
+
 public static class AIDocumentChunkIndexSchemaBuilderExtensions
 {
     public static Task CreateAIDocumentChunkIndexSchemaAsync(this ISchemaBuilder schemaBuilder)

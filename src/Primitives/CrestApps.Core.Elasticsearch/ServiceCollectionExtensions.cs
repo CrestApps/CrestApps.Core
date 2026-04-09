@@ -2,8 +2,8 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.Builders;
-using CrestApps.Core.Elasticsearch.Services;
 using CrestApps.Core.Elasticsearch.Builders;
+using CrestApps.Core.Elasticsearch.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using Elastic.Clients.Elasticsearch;
@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Elasticsearch;
+
 public static class ServiceCollectionExtensions
 {
     public const string ProviderName = "Elasticsearch";

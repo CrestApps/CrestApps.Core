@@ -3,6 +3,7 @@ using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.OrchardCore.Tests.AI.Prompting;
+
 public sealed class AITemplateBuilderTests
 {
     [Fact]

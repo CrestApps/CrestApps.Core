@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Mvc.Web.Tools;
+
 public sealed class SendEmailTool : AIFunction
 {
     public const string TheName = "sendEmail";

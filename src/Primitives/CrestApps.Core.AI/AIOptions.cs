@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Clients;
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI;
+
 public sealed class AIOptions
 {
     private readonly Dictionary<string, Type> _clients = new(StringComparer.OrdinalIgnoreCase);

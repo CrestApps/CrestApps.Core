@@ -31,7 +31,7 @@ public static partial class RagTextNormalizer
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            return[];
+            return [];
         }
 
         var document = await ParseDocumentAsync(StripHtml(text), cancellationToken);

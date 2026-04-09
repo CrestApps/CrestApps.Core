@@ -1,12 +1,10 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 
@@ -14,8 +12,8 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class AIDeploymentController : Controller
 {
-    private readonly ICatalog<AIDeployment> _deploymentCatalog;
-    private readonly AIProviderOptions _providerOptions;
+    private readonly INamedSourceCatalog<AIDeployment> _deploymentCatalog;
+    private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
 
     private static readonly List<SelectListItem> _providers =
     [
@@ -40,11 +38,11 @@ public sealed class AIDeploymentController : Controller
     };
 
     public AIDeploymentController(
-        ICatalog<AIDeployment> deploymentCatalog,
-        IOptionsSnapshot<AIProviderOptions> providerOptions)
+        INamedSourceCatalog<AIDeployment> deploymentCatalog,
+        INamedSourceCatalog<AIProviderConnection> connectionCatalog)
     {
         _deploymentCatalog = deploymentCatalog;
-        _providerOptions = providerOptions.Value;
+        _connectionCatalog = connectionCatalog;
     }
 
     public async Task<IActionResult> Index()
@@ -89,6 +87,8 @@ public sealed class AIDeploymentController : Controller
         {
             ModelState.AddModelError(nameof(model.SelectedTypes), "At least one deployment type is required.");
         }
+
+        await ValidateUniqueNameAsync(model.TechnicalName);
 
         if (!ModelState.IsValid)
         {
@@ -163,6 +163,8 @@ public sealed class AIDeploymentController : Controller
             ModelState.AddModelError(nameof(model.SelectedTypes), "At least one deployment type is required.");
         }
 
+        await ValidateUniqueNameAsync(model.TechnicalName, model.ItemId);
+
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
@@ -219,27 +221,27 @@ public sealed class AIDeploymentController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    private Task PopulateDropdownsAsync(AIDeploymentViewModel model)
+    private async Task PopulateDropdownsAsync(AIDeploymentViewModel model)
     {
         var selectedProvider = string.IsNullOrWhiteSpace(model.ClientName)
             ? null
             : model.ClientName;
 
-        model.Connections = _providerOptions.Providers
-            .Where(provider => selectedProvider is null || provider.Key.Equals(selectedProvider, StringComparison.OrdinalIgnoreCase))
-            .Where(static provider => provider.Value.Connections is not null)
-            .OrderBy(provider => provider.Key, StringComparer.OrdinalIgnoreCase)
-            .SelectMany(provider => provider.Value.Connections
-                .OrderBy(connection => connection.Value.GetStringValue("ConnectionNameAlias", false) ?? connection.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(connection =>
-                {
-                    var connectionAlias = connection.Value.GetStringValue("ConnectionNameAlias", false) ?? connection.Key;
-                    var displayName = selectedProvider is null
-                        ? $"{connectionAlias} ({provider.Key})"
-                        : connectionAlias;
+        var connections = await _connectionCatalog.GetAllAsync();
 
-                    return new SelectListItem(displayName, connection.Key);
-                }))
+        model.Connections = connections
+            .Where(connection => selectedProvider is null || string.Equals(connection.ClientName, selectedProvider, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(connection => connection.ClientName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(connection => connection.DisplayText ?? connection.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(connection =>
+            {
+                var connectionAlias = connection.DisplayText ?? connection.Name;
+                var displayName = selectedProvider is null
+                    ? $"{connectionAlias} ({connection.ClientName})"
+                    : connectionAlias;
+
+                return new SelectListItem(displayName, connection.Name);
+            })
             .ToList();
         model.Providers = _providers;
         model.AuthenticationTypes = _authTypes;
@@ -247,7 +249,19 @@ public sealed class AIDeploymentController : Controller
             .Where(static type => type != AIDeploymentType.None)
             .Select(static t => new SelectListItem(t.ToString(), t.ToString()))
             .ToList();
+    }
 
-        return Task.CompletedTask;
+    private async Task ValidateUniqueNameAsync(string technicalName, string currentItemId = null)
+    {
+        if (string.IsNullOrWhiteSpace(technicalName))
+        {
+            return;
+        }
+
+        var existing = await _deploymentCatalog.FindByNameAsync(technicalName);
+        if (existing != null && !string.Equals(existing.ItemId, currentItemId, StringComparison.OrdinalIgnoreCase))
+        {
+            ModelState.AddModelError(nameof(AIDeploymentViewModel.TechnicalName), "Technical name must be unique across appsettings and UI deployments.");
+        }
     }
 }

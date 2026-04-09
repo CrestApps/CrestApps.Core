@@ -55,13 +55,13 @@ public sealed class AppDataConfigurationFileService
     {
         if (!File.Exists(FilePath))
         {
-            return[];
+            return [];
         }
 
         var json = await File.ReadAllTextAsync(FilePath);
         if (string.IsNullOrWhiteSpace(json))
         {
-            return[];
+            return [];
         }
 
         return JsonNode.Parse(json) as JsonObject ?? [];

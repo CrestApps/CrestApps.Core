@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace CrestApps.Core.Support.Json;
+
 public class BidirectionalJsonStringEnumConverterFactory : JsonConverterFactory
 {
     private readonly JsonStringEnumConverter _converter;

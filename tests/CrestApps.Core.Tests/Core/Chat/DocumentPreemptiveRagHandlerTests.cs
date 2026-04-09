@@ -16,6 +16,7 @@ using Moq;
 
 #pragma warning disable MEAI001
 namespace CrestApps.OrchardCore.Tests.Core.Chat;
+
 public sealed class DocumentPreemptiveRagHandlerTests
 {
     [Fact]
@@ -32,7 +33,7 @@ public sealed class DocumentPreemptiveRagHandlerTests
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager.Setup(manager => manager.FindByIdAsync("embedding-id")).ReturnsAsync(new AIDeployment { ItemId = "embedding-id", Name = "embedding", ModelName = "embedding", ClientName = "OpenAI", ConnectionName = "Default", Type = AIDeploymentType.Embedding, });
         var vectorSearchService = new Mock<IVectorSearchService>();
-        vectorSearchService.Setup(service => service.SearchAsync(indexProfile, It.IsAny<float[]>(), "profile-1", AIReferenceTypes.Document.Profile, 3, It.IsAny<CancellationToken>())).ReturnsAsync([new DocumentChunkSearchResult { DocumentKey = "doc-1", FileName = "race.pdf", Score = 0.95f, Chunk = new ChatInteractionDocumentChunk { Index = 0, Text = "Carla and Mark race their go carts, and Carla wins the race.", }, }, ]);
+        vectorSearchService.Setup(service => service.SearchAsync(indexProfile, It.IsAny<float[]>(), "profile-1", AIReferenceTypes.Document.Profile, 3, It.IsAny<CancellationToken>())).ReturnsAsync([new DocumentChunkSearchResult { DocumentKey = "doc-1", FileName = "race.pdf", Score = 0.95f, Chunk = new ChatInteractionDocumentChunk { Index = 0, Text = "Carla and Mark race their go carts, and Carla wins the race.", }, },]);
         var services = new ServiceCollection().AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f, 0.2f]))).AddSingleton<IAIDeploymentManager>(deploymentManager.Object).AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object).AddSingleton<ITemplateService, FakeTemplateService>().AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions { IndexProfileName = "docs-index", TopN = 3, })).AddLogging().AddKeyedSingleton<IVectorSearchService>("test-provider", vectorSearchService.Object).AddCoreAIDocumentProcessing().BuildServiceProvider();
         var handler = services.GetServices<IPreemptiveRagHandler>().Single();
         var profile = new AIProfile

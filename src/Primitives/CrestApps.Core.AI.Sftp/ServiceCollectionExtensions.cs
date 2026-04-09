@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Sftp;
+
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAISftpMcpResources(this IServiceCollection services, Action<McpResourceTypeEntry> configure = null)

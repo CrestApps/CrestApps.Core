@@ -4,6 +4,7 @@ using YesSql;
 using ISession = YesSql.ISession;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+
 public sealed class MvcAIChatSessionEventService
 {
     private readonly ISession _session;

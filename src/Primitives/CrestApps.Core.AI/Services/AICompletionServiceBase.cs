@@ -42,13 +42,11 @@ public abstract class AICompletionServiceBase
             }
         }
 
-#pragma warning disable CS0618 // Obsolete deployment name fields retained for backward compatibility
-        return provider.DefaultChatDeploymentName;
-#pragma warning restore CS0618
+        return null;
     }
     /// <summary>
     /// Resolves a deployment name and connection name using the <see cref="IAIDeploymentManager"/>
-    /// with fallback to the legacy dictionary-based resolution.
+    /// with fallback to legacy connection entry values when they are still present.
     /// </summary>
     protected virtual async ValueTask<(string DeploymentName, string ConnectionName)> ResolveDeploymentAsync(
         AIDeploymentType type,

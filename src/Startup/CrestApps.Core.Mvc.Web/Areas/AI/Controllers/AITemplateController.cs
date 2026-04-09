@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
+
 [Area("AI")]
 [Authorize(Policy = "Admin")]
 public sealed class AITemplateController : Controller

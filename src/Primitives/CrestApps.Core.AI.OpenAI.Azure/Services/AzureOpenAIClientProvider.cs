@@ -11,6 +11,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
+
 public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 {
     private readonly ILoggerFactory _loggerFactory;
@@ -69,7 +70,8 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
             AzureAuthenticationType.ApiKey => new AzureOpenAIClient(endpoint, new ApiKeyCredential(connection.GetApiKey()), options),
             AzureAuthenticationType.ManagedIdentity => new AzureOpenAIClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId)), options),
             AzureAuthenticationType.Default => new AzureOpenAIClient(endpoint, new DefaultAzureCredential(), options),
-            _ => throw new NotSupportedException("The provided authentication type is not supported.")};
+            _ => throw new NotSupportedException("The provided authentication type is not supported.")
+        };
         return azureClient;
     }
 }

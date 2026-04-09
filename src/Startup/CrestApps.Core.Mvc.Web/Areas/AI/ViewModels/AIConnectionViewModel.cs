@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
+
 public sealed class AIConnectionViewModel
 {
     public string ItemId { get; set; }

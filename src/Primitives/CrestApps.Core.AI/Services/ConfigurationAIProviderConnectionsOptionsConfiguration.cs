@@ -71,10 +71,11 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
     {
         var values = ReadObject(section);
 
-        if (!values.ContainsKey("ConnectionNameAlias"))
-        {
-            values["ConnectionNameAlias"] = values.GetStringValue("Name", false) ?? section.Key;
-        }
+        var displayText = values.GetStringValue("DisplayText", false) ??
+            values.GetStringValue("Name", false) ??
+            section.Key;
+
+        values["DisplayText"] = displayText;
 
         return new AIProviderConnectionEntry(values);
     }

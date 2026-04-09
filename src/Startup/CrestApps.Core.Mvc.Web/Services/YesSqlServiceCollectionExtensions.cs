@@ -65,8 +65,57 @@ internal static class YesSqlServiceCollectionExtensions
 
         Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration.UseSqLite(connectionStringBuilder.ToString()).SetTablePrefix("CA_"));
         // YesSql-backed catalogs and managers.
-        services.AddNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>().AddNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>().AddDocumentCatalog<A2AConnection, A2AConnectionIndex>().AddSourceDocumentCatalog<McpConnection, McpConnectionIndex>().AddNamedDocumentCatalog<McpPrompt, McpPromptIndex>().AddSourceDocumentCatalog<McpResource, McpResourceIndex>().AddNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>().AddScoped<DefaultAIProfileTemplateManager>().AddScoped<IAIProfileTemplateManager>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>()).AddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>()).AddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>()).AddScoped<DefaultAIDeploymentManager>().AddScoped<IAIDeploymentManager>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>()).AddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>()).AddScoped<IAIProfileManager, SimpleAIProfileManager>().AddScoped<AIProfileDocumentService>().AddScoped<AIProfileTemplateDocumentService>().AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>().AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>().AddScoped<MvcAIChatSessionEventService>().AddScoped<MvcAICompletionUsageService>().AddScoped<MvcAIChatSessionEventPostCloseObserver>().AddScoped<MvcAIChatSessionExtractedDataService>().AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<MvcAICompletionUsageService>()).AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>()).AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>()).AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionExtractedDataService>()).AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>().AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>().AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>().AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>().AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>().AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>()).AddScoped<ICatalogManager<AIDataSource>, CatalogManager<AIDataSource>>().AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>().AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryIndexingHandler>().AddScoped<MvcAIDocumentIndexingService>().AddScoped<ISearchIndexProfileManager, SearchIndexProfileManager>().AddScoped<IAuthorizationHandler, MvcChatInteractionDocumentAuthorizationHandler>().AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthorizationHandler>().AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>().AddDocumentCatalog<ChatInteraction, ChatInteractionIndex>().AddScoped<ICatalogManager<ChatInteraction>, CatalogManager<ChatInteraction>>().AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>().AddDocumentCatalog<Article, ArticleIndex>().AddScoped<ICatalogManager<Article>, CatalogManager<Article>>().AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>().AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>().AddScoped<ArticleIndexingService>();
-        services.AddScoped<YesSqlAIDeploymentStore>().AddScoped<IAIDeploymentStore>(sp => sp.GetRequiredService<YesSqlAIDeploymentStore>()).AddScoped<ConfigurationAIDeploymentCatalog>().AddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<ConfigurationAIDeploymentCatalog>()).AddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<ConfigurationAIDeploymentCatalog>()).AddScoped<INamedSourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<ConfigurationAIDeploymentCatalog>());
+        services.AddNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()
+            .AddNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>()
+            .AddDocumentCatalog<A2AConnection, A2AConnectionIndex>()
+            .AddSourceDocumentCatalog<McpConnection, McpConnectionIndex>()
+            .AddNamedDocumentCatalog<McpPrompt, McpPromptIndex>()
+            .AddSourceDocumentCatalog<McpResource, McpResourceIndex>()
+            .AddNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>()
+            .AddScoped<DefaultAIProfileTemplateManager>()
+            .AddScoped<IAIProfileTemplateManager>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
+            .AddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
+            .AddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
+            .AddScoped<DefaultAIDeploymentManager>()
+            .AddScoped<IAIDeploymentManager>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>())
+            .AddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>())
+            .AddScoped<IAIProfileManager, SimpleAIProfileManager>()
+            .AddScoped<AIProfileDocumentService>()
+            .AddScoped<AIProfileTemplateDocumentService>()
+            .AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>()
+            .AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>()
+            .AddScoped<MvcAIChatSessionEventService>()
+            .AddScoped<MvcAICompletionUsageService>()
+            .AddScoped<MvcAIChatSessionEventPostCloseObserver>()
+            .AddScoped<MvcAIChatSessionExtractedDataService>()
+            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<MvcAICompletionUsageService>())
+            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>())
+            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>())
+            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionExtractedDataService>())
+            .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>().AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>()
+            .AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>()
+            .AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>()
+            .AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>()
+            .AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>())
+            .AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>()
+            .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryIndexingHandler>()
+            .AddScoped<MvcAIDocumentIndexingService>()
+            .AddScoped<ISearchIndexProfileManager, SearchIndexProfileManager>()
+            .AddScoped<IAuthorizationHandler, MvcChatInteractionDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthorizationHandler>()
+            .AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>()
+            .AddDocumentCatalog<ChatInteraction, ChatInteractionIndex>()
+            .AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>()
+            .AddDocumentCatalog<Article, ArticleIndex>()
+            .AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>()
+            .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
+            .AddScoped<ArticleIndexingService>();
+
+        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, CrestApps.Core.Data.YesSql.Services.NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey)
+            .AddNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex, ConfigurationAIProviderConnectionCatalog>();
+
+        services.AddKeyedScoped<INamedSourceCatalog<AIDeployment>, CrestApps.Core.Data.YesSql.Services.NamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey)
+            .AddNamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex, ConfigurationAIDeploymentCatalog>();
 
         return services;
     }
