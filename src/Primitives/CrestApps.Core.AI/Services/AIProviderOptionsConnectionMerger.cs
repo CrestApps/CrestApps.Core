@@ -58,7 +58,6 @@ public static class AIProviderOptionsConnectionMerger
 
         var normalizedConnection = NormalizeConnection(connectionName, connection);
         provider.Connections[connectionName] = normalizedConnection;
-        ApplyMissingDefaults(provider, normalizedConnection);
 
         return true;
     }
@@ -67,21 +66,17 @@ public static class AIProviderOptionsConnectionMerger
     {
         var values = new Dictionary<string, object>(connection, StringComparer.OrdinalIgnoreCase);
 
-        if (string.IsNullOrWhiteSpace(values.GetStringValue("ConnectionNameAlias", false)))
+        var displayText = values.GetStringValue("DisplayText", false);
+
+        if (string.IsNullOrWhiteSpace(displayText))
         {
-            values["ConnectionNameAlias"] = connectionName;
+            values["DisplayText"] = connectionName;
+        }
+        else
+        {
+            values["DisplayText"] = displayText;
         }
 
         return new AIProviderConnectionEntry(values);
-    }
-
-    private static void ApplyMissingDefaults(AIProvider provider, AIProviderConnectionEntry connection)
-    {
-#pragma warning disable CS0618 // Obsolete deployment name fields retained for backward compatibility
-        provider.DefaultChatDeploymentName ??= connection.GetChatDeploymentOrDefaultName(false);
-        provider.DefaultEmbeddingDeploymentName ??= connection.GetEmbeddingDeploymentOrDefaultName(false);
-        provider.DefaultImagesDeploymentName ??= connection.GetImagesDeploymentOrDefaultName(false);
-        provider.DefaultUtilityDeploymentName ??= connection.GetUtilityDeploymentOrDefaultName(false);
-#pragma warning restore CS0618
     }
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
+
 public sealed class PromptTemplateChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
     public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings)
@@ -22,7 +23,7 @@ public sealed class PromptTemplateChatInteractionSettingsHandler : IChatInteract
     {
         if (!settings.TryGetProperty("promptTemplates", out var promptTemplates) || promptTemplates.ValueKind != JsonValueKind.Array)
         {
-            return[];
+            return [];
         }
 
         var selections = new List<PromptTemplateSelectionEntry>();

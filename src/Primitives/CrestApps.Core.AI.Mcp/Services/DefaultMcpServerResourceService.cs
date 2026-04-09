@@ -6,6 +6,7 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CrestApps.Core.AI.Mcp.Services;
+
 public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
 {
     private readonly ISourceCatalog<McpResource> _catalog;

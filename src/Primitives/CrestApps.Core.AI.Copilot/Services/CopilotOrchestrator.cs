@@ -153,7 +153,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             _logger.LogError(ex, "CopilotOrchestrator: CLI process error. The Copilot CLI may have crashed or failed to start.");
             responseText = "The Copilot service encountered an error and could not process your request. Please try again.";
         }
-        catch (Exception ex)when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "CopilotOrchestrator: Unexpected error during Copilot session.");
             responseText = "An unexpected error occurred while communicating with Copilot. Please try again.";

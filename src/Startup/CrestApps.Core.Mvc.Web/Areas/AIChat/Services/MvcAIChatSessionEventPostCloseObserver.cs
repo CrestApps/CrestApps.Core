@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+
 public sealed class MvcAIChatSessionEventPostCloseObserver : IAIChatSessionAnalyticsRecorder, IAIChatSessionConversionGoalRecorder
 {
     private readonly MvcAIChatSessionEventService _eventService;

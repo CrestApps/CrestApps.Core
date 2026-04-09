@@ -5,6 +5,7 @@ using Microsoft.Extensions.AI;
 using OllamaSharp;
 
 namespace CrestApps.Core.AI.Ollama.Services;
+
 public sealed class OllamaAIClientProvider : AIClientProviderBase
 {
     public OllamaAIClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)

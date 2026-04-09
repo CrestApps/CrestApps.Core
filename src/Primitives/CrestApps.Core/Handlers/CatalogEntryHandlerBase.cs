@@ -2,6 +2,7 @@ using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 
 namespace CrestApps.Core.Handlers;
+
 public abstract class CatalogEntryHandlerBase<T> : ICatalogEntryHandler<T>
 {
     public virtual Task DeletedAsync(DeletedContext<T> context)

@@ -116,7 +116,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
                 var keysToDelete = new List<string>();
                 await foreach (var result in response.Value.GetResultsAsync())
                 {
-                    if (result.Document.TryGetValue(keyFieldName, out var keyObj) && keyObj?.ToString()is string key && !string.IsNullOrEmpty(key))
+                    if (result.Document.TryGetValue(keyFieldName, out var keyObj) && keyObj?.ToString() is string key && !string.IsNullOrEmpty(key))
                     {
                         keysToDelete.Add(key);
                     }

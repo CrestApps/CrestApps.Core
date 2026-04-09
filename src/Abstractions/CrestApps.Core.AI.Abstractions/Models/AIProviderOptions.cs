@@ -11,18 +11,6 @@ public class AIProviderOptions
 
 public sealed class AIProvider
 {
-    [Obsolete("Use typed AIDeployment records with IsDefault instead. Retained for backward compatibility.")]
-    public string DefaultChatDeploymentName { get; set; }
-
-    [Obsolete("Use typed AIDeployment records with IsDefault instead. Retained for backward compatibility.")]
-    public string DefaultEmbeddingDeploymentName { get; set; }
-
-    [Obsolete("Use typed AIDeployment records with IsDefault instead. Retained for backward compatibility.")]
-    public string DefaultImagesDeploymentName { get; set; }
-
-    [Obsolete("Use typed AIDeployment records with IsDefault instead. Retained for backward compatibility.")]
-    public string DefaultUtilityDeploymentName { get; set; }
-
     public IDictionary<string, AIProviderConnectionEntry> Connections { get; set; }
 }
 

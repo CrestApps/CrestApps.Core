@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Mcp.Models;
+
 public sealed class McpOptions
 {
     private readonly Dictionary<string, McpResourceTypeEntry> _resourceTypes = new(StringComparer.OrdinalIgnoreCase);

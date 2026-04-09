@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Handlers;
+
 internal static class AIMemoryOrchestrationContextHelper
 {
     public static string GetAuthenticatedUserId(IHttpContextAccessor httpContextAccessor)

@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.A2A.Handlers;
+
 internal sealed class A2AAICompletionContextBuilderHandler : IAICompletionContextBuilderHandler
 {
     public Task BuildingAsync(AICompletionContextBuildingContext context)

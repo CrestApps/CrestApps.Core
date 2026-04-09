@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
+
 [Area("AIChat")]
 [Authorize(Policy = "Admin")]
 public sealed class ChatExtractedDataController : Controller
@@ -68,7 +69,7 @@ public sealed class ChatExtractedDataController : Controller
     private async Task<ChatExtractedDataIndexViewModel> BuildViewModelAsync(ChatExtractedDataIndexViewModel model, bool showReport)
     {
         var profiles = await _profileManager.GetAsync(AIProfileType.Chat);
-        model.Profiles = [new SelectListItem("Select a profile", string.Empty, string.IsNullOrEmpty(model.ProfileId)), ..profiles.OrderBy(profile => profile.DisplayText ?? profile.Name, StringComparer.OrdinalIgnoreCase).Select(profile => new SelectListItem(profile.DisplayText ?? profile.Name, profile.ItemId, profile.ItemId == model.ProfileId)), ];
+        model.Profiles = [new SelectListItem("Select a profile", string.Empty, string.IsNullOrEmpty(model.ProfileId)), .. profiles.OrderBy(profile => profile.DisplayText ?? profile.Name, StringComparer.OrdinalIgnoreCase).Select(profile => new SelectListItem(profile.DisplayText ?? profile.Name, profile.ItemId, profile.ItemId == model.ProfileId)),];
         model.ShowReport = showReport;
         return model;
     }

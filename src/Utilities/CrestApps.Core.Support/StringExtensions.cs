@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.Support;
+
 public static class StringExtensions
 {
     /// <summary>

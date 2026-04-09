@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
+
 public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingService
 {
     private const int BatchSize = 250;
@@ -45,7 +46,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             {
                 await SyncDataSourceAsync(dataSource, cancellationToken);
             }
-            catch (OperationCanceledException)when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }

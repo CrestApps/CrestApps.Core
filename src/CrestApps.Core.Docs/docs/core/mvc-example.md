@@ -144,53 +144,66 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 
 ```
 
-The MVC sample configures `AIProviderOptions` inside `AddAISuite(...)` from `CrestApps:AI:Providers`, then layers the UI-managed connection projection through `MvcAIProviderOptionsStore` so admin changes refresh the same options object without querying YesSql from the options pipeline.
+The MVC sample still binds static provider metadata from `CrestApps:AI:Providers`, but mutable AI connections and deployments now come from first-class merged catalogs instead of rebuilding `AIProviderOptions` after admin edits.
 
 `AddCoreAIAzureOpenAI()` also registers the `AzureSpeech` deployment provider used by MVC speech-to-text and text-to-speech selectors, so standalone Azure AI Services deployments from `CrestApps:AI:Deployments` participate in the same merged deployment catalog as UI-managed deployments.
 
-The shared AI options pipeline now also reads connection definitions from `CrestApps:AI:Connections`, merges them with any UI-managed MVC connections, and exposes the combined set everywhere the runtime resolves provider connections. Each configured connection must provide a `Name` plus `ClientName`, and the MVC AI Deployment editor now uses that merged options source too, so appsettings-defined connections appear alongside admin-created connections when creating or editing deployments.
+The MVC runtime now reads connection definitions from `CrestApps:AI:Connections`, provider-grouped connections under `CrestApps:Providers:{ProviderName}:Connections:{ConnectionName}` or `CrestApps:AI:Providers:{ProviderName}:Connections:{ConnectionName}`, and UI-managed connection records from the store into one merged connection catalog. The deployment catalog layers together UI-managed typed deployments and standalone `CrestApps:AI:Deployments` entries. That means dropdowns, deployment resolution, and connection resolution all see the same unified set without an app restart.
+
+Both merged catalogs also expose configurable section lists through `AIProviderConnectionCatalogOptions` and `AIDeploymentCatalogOptions`, so a host can append additional configuration paths without replacing the MVC/UI store integration. By default, connection discovery reads `CrestApps:AI:Connections`, `CrestApps:Providers`, and `CrestApps:AI:Providers`, while deployment discovery reads `CrestApps:AI:Deployments`.
 
 ```json
 {
   "CrestApps": {
     "AI": {
-      "Connections": [
-        {
-          "Name": "primary",
-          "ClientName": "OpenAI",
-          "ApiKey": "YOUR_API_KEY",
-          "DefaultDeploymentName": "gpt-4.1"
-        }
-      ]
-    }
+        "Connections": [
+          {
+            "Name": "WinnerWare",
+            "ClientName": "AzureOpenAI",
+            "Endpoint": "https://winnerwareai.openai.azure.com/",
+            "AuthenticationType": "ApiKey",
+            "ApiKey": "YOUR_API_KEY",
+            "DisplayText": "WinnerWare Azure OpenAI"
+          }
+        ]
+      }
   }
 }
 ```
 
-Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:Connections:{ConnectionName}` still work too. The framework now keeps those provider-defined connections and the `CrestApps:AI:Connections` array in the same runtime options graph, then merges UI-managed MVC connections on top without duplicating host-specific merge code.
+Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:Connections:{ConnectionName}` and `CrestApps:AI:Providers:{ProviderName}:Connections:{ConnectionName}` still work too. The merged connection catalog keeps those provider-defined records and the `CrestApps:AI:Connections` array visible alongside UI-managed MVC connections, and the MVC AI Deployment editor reads that catalog directly when it builds the connection dropdown. Connection settings only describe the provider connection itself; deployment names and types belong in `CrestApps:AI:Deployments` or in the UI deployment editor.
 
 
 ```json
 {
   "CrestApps": {
     "AI": {
-      "Deployments": [
-        {
-          "ClientName": "AzureSpeech",
-          "Name": "whisper",
-          "Type": "SpeechToText",
-          "IsDefault": true,
-          "Endpoint": "https://eastus.stt.speech.microsoft.com",
-          "AuthenticationType": "ApiKey",
-          "ApiKey": "YOUR_API_KEY"
-        }
-      ]
-    }
+        "Deployments": [
+          {
+            "ProviderName": "AzureSpeech",
+            "Name": "whisper",
+            "Type": "SpeechToText",
+            "IsDefault": true,
+            "Endpoint": "https://eastus.stt.speech.microsoft.com",
+            "AuthenticationType": "ApiKey",
+            "ApiKey": "YOUR_API_KEY"
+          },
+          {
+            "ProviderName": "AzureSpeech",
+            "Name": "AzureTextToSpeech",
+            "Type": "TextToSpeech",
+            "IsDefault": true,
+            "Endpoint": "https://eastus.tts.speech.microsoft.com",
+            "AuthenticationType": "ApiKey",
+            "ApiKey": "YOUR_API_KEY"
+          }
+        ]
+      }
   }
 }
 ```
 
-When a connection or deployment comes from system configuration, the MVC admin keeps it visible in separate read-only cards below the user-defined records and blocks edit/delete actions. Only records created through the UI remain editable there.
+When a connection or deployment comes from system configuration, the MVC admin keeps it visible in the same listing as user-defined records, marks it read-only, and blocks edit/delete actions. Only records created through the UI remain editable there. Names are also enforced across both sources: MVC rejects duplicate UI names, and if appsettings and the store define the same connection or deployment name, the UI/store record wins and the conflicting configuration record is skipped.
 
 ### Section 7 — Elasticsearch Services
 

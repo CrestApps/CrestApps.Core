@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Handlers;
+
 internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
     private readonly ITemplateService _templateService;

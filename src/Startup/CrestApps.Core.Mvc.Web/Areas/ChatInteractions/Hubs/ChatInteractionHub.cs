@@ -18,6 +18,7 @@ using Microsoft.Extensions.AI;
 #pragma warning disable MEAI001 // Speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
 namespace CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
+
 [Authorize]
 public sealed class ChatInteractionHub : ChatInteractionHubBase
 {
@@ -250,7 +251,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
                 }
             }
         }
-        catch (OperationCanceledException)when (errorCts.IsCancellationRequested)
+        catch (OperationCanceledException) when (errorCts.IsCancellationRequested)
         {
         }
 
@@ -300,7 +301,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
                         {
                             await currentResponseTask;
                         }
-                        catch (OperationCanceledException)when (!cancellationToken.IsCancellationRequested)
+                        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                         {
                         }
                     }
@@ -330,7 +331,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
                 {
                     await currentResponseTask;
                 }
-                catch (OperationCanceledException)when (!cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
                 }
 
@@ -425,7 +426,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
                 }
             }
         }
-        catch (OperationCanceledException)when (errorCts.IsCancellationRequested)
+        catch (OperationCanceledException) when (errorCts.IsCancellationRequested)
         {
         }
 

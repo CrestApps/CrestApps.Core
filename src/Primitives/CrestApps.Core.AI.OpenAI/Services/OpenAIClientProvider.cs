@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using OpenAI;
 
 namespace CrestApps.Core.AI.OpenAI.Services;
+
 public sealed class OpenAIClientProvider : AIClientProviderBase
 {
     public OpenAIClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)

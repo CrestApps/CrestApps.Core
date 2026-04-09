@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Mvc.Web.Areas.DataSources.Services;
+
 public sealed class MvcAIDataSourceIndexingQueue : IMvcAIDataSourceIndexingQueue
 {
     private readonly Channel<MvcAIDataSourceIndexingWorkItem> _channel = Channel.CreateUnbounded<MvcAIDataSourceIndexingWorkItem>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false, });

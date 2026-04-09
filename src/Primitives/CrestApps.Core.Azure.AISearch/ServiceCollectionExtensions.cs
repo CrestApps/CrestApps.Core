@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Azure.AISearch;
+
 public static class ServiceCollectionExtensions
 {
     public const string ProviderName = "AzureAISearch";

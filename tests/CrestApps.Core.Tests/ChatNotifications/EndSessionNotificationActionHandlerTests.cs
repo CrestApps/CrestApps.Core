@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace CrestApps.OrchardCore.Tests.ChatNotifications;
+
 public sealed class EndSessionNotificationActionHandlerTests
 {
     // ───────────────────────────────────────────────────────────────
@@ -138,7 +139,7 @@ public sealed class EndSessionNotificationActionHandlerTests
 
         public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures)
         {
-            return[];
+            return [];
         }
     }
 }

@@ -4,6 +4,7 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
+
 internal static class CatalogRecordFactory
 {
     public static string GetEntityType<T>()

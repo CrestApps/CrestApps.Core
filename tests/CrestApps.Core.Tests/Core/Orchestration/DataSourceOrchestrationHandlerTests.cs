@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+
 public sealed class DataSourceOrchestrationHandlerTests
 {
     [Fact]

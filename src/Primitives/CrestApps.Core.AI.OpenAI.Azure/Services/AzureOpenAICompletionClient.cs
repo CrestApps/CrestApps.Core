@@ -20,6 +20,7 @@ using Microsoft.Extensions.Options;
 using OpenAI.Chat;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
+
 public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICompletionClient
 {
     private readonly IServiceProvider _serviceProvider;
@@ -56,7 +57,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
 
         var connectionName = context.ConnectionName;
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var(deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
+        var (deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
         connectionName = resolvedConnectionName;
         if (string.IsNullOrEmpty(connectionName))
         {
@@ -170,7 +171,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
 
         var connectionName = context.ConnectionName;
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var(deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
+        var (deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
         connectionName = resolvedConnectionName;
         if (string.IsNullOrEmpty(connectionName) || !provider.Connections.TryGetValue(connectionName, out var connection))
         {
@@ -403,7 +404,8 @@ omit optional fields, or split the operation into multiple smaller calls.
             AzureAuthenticationType.ApiKey => new AzureOpenAIClient(endpoint, new ApiKeyCredential(connection.GetApiKey()), _clientOptions),
             AzureAuthenticationType.ManagedIdentity => new AzureOpenAIClient(endpoint, new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned), _clientOptions),
             AzureAuthenticationType.Default => new AzureOpenAIClient(endpoint, new DefaultAzureCredential(), _clientOptions),
-            _ => throw new NotSupportedException("The specified authentication type is not supported.")};
+            _ => throw new NotSupportedException("The specified authentication type is not supported.")
+        };
         return azureClient;
     }
 
@@ -456,7 +458,7 @@ omit optional fields, or split the operation into multiple smaller calls.
     {
         if (context.DisableTools)
         {
-            return[];
+            return [];
         }
 
         // Use the same handler pipeline as NamedAICompletionClient to resolve tools.
@@ -476,7 +478,7 @@ omit optional fields, or split the operation into multiple smaller calls.
 
         if (chatOptions.Tools is null || chatOptions.Tools.Count == 0)
         {
-            return[];
+            return [];
         }
 
         return chatOptions.Tools.OfType<Microsoft.Extensions.AI.AIFunction>().ToList();

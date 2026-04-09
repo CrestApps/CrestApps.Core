@@ -9,6 +9,7 @@ using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.AzureAIInference.Services;
+
 public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
 {
     public AzureAIInferenceClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)

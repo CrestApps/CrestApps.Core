@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 namespace CrestApps.Core.Infrastructure;
+
 public static class DictionaryExtensions
 {
     public static string GetApiKey(this IDictionary<string, object> entry, bool throwException = true)

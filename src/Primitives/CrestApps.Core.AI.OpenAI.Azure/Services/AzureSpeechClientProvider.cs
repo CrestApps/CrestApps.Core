@@ -46,7 +46,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
 
     public ValueTask<ISpeechToTextClient> GetSpeechToTextClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
     {
-        var(endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
+        var (endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
         var logger = _loggerFactory.CreateLogger<AzureSpeechServiceSpeechToTextClient>();
         var client = new AzureSpeechServiceSpeechToTextClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
         return ValueTask.FromResult<ISpeechToTextClient>(client);
@@ -57,7 +57,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
 
     public ValueTask<ITextToSpeechClient> GetTextToSpeechClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
     {
-        var(endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
+        var (endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
         var logger = _loggerFactory.CreateLogger<AzureSpeechServiceTextToSpeechClient>();
         var client = new AzureSpeechServiceTextToSpeechClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
         return ValueTask.FromResult<ITextToSpeechClient>(client);
@@ -67,7 +67,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
 
     public async Task<SpeechVoice[]> GetSpeechVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
     {
-        var(endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
+        var (endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
         var logger = _loggerFactory.CreateLogger<AzureSpeechServiceTextToSpeechClient>();
         using var client = new AzureSpeechServiceTextToSpeechClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
         return await client.GetVoicesAsync();

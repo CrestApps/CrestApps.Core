@@ -1,6 +1,7 @@
 using YesSql.Sql;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
+
 public static class ChatInteractionPromptIndexSchemaBuilderExtensions
 {
     public static Task CreateChatInteractionPromptIndexSchemaAsync(this ISchemaBuilder schemaBuilder)

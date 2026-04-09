@@ -1,6 +1,7 @@
 using YesSql.Sql;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.Indexing;
+
 public static class SearchIndexProfileIndexSchemaBuilderExtensions
 {
     public static Task CreateSearchIndexProfileIndexSchemaAsync(this ISchemaBuilder schemaBuilder)

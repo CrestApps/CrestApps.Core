@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CrestApps.Core.Mvc.Web.Areas.A2A.Controllers;
+
 [Area("A2A")]
 [Authorize(Policy = "Admin")]
 public sealed class A2AConnectionController : Controller

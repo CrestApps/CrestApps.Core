@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
+
 public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
     private readonly IServiceProvider _serviceProvider;

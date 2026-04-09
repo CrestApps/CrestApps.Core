@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Extensions;
+
 public static class AIFunctionArgumentsExtensions
 {
     public static bool TryGetFirst(this AIFunctionArguments arguments, string key, out object value)

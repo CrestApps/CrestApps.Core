@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.A2A.Services;
+
 internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheService
 {
     private static readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(15);

@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+
 public sealed class DefaultOrchestratorResolverTests
 {
     [Fact]

@@ -54,7 +54,7 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
             await _searchIndexClient.GetIndexAsync(indexFullName, cancellationToken);
             return true;
         }
-        catch (RequestFailedException ex)when (ex.Status == 404)
+        catch (RequestFailedException ex) when (ex.Status == 404)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -142,9 +142,9 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         {
             await _searchIndexClient.DeleteIndexAsync(indexFullName, cancellationToken);
         }
-        catch (RequestFailedException ex)when (ex.Status == 404)
+        catch (RequestFailedException ex) when (ex.Status == 404)
         {
-        // Index already deleted, nothing to do.
+            // Index already deleted, nothing to do.
         }
         catch (Exception ex)
         {

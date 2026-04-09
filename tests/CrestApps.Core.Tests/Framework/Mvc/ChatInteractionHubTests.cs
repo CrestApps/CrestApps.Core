@@ -19,6 +19,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace CrestApps.OrchardCore.Tests.Framework.Mvc;
+
 public sealed class ChatInteractionHubTests
 {
     [Fact]

@@ -1,4 +1,5 @@
 namespace CrestApps.Core.AI.Models;
+
 public sealed class GeneralAIOptions
 {
     public bool EnableAIUsageTracking { get; set; }

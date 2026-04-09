@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Mcp.Controllers;
+
 [Area("Mcp")]
 [Authorize(Policy = "Admin")]
 public sealed class McpResourceController : Controller

@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Services;
+
 public static class AICompletionUsageRecordFactory
 {
     public static AICompletionUsageRecord Create(AICompletionContext completionContext, string providerName, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)

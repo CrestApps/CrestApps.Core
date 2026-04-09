@@ -1,4 +1,5 @@
 namespace CrestApps.Core.AI.Models;
+
 public static class ChatDocumentsOptionsExtensions
 {
     public static string GetAllowedFileExtensionsAcceptValue(this ChatDocumentsOptions options)

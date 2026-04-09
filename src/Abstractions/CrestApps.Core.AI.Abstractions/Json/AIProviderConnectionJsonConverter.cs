@@ -24,27 +24,27 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
             ?? GetString(node, "ProviderName"),
             Name = GetString(node, nameof(AIProviderConnection.Name)),
             DisplayText = GetString(node, nameof(AIProviderConnection.DisplayText)),
-#pragma warning disable CS0618 // Obsolete deployment name fields retained for backward compatibility
-            ChatDeploymentName = GetString(node, nameof(AIProviderConnection.ChatDeploymentName))
-            ?? GetString(node, "DefaultDeploymentName"),
-            EmbeddingDeploymentName = GetString(node, nameof(AIProviderConnection.EmbeddingDeploymentName))
-            ?? GetString(node, "DefaultEmbeddingDeploymentName"),
-            ImagesDeploymentName = GetString(node, nameof(AIProviderConnection.ImagesDeploymentName))
-            ?? GetString(node, "DefaultImagesDeploymentName"),
-            UtilityDeploymentName = GetString(node, nameof(AIProviderConnection.UtilityDeploymentName))
-            ?? GetString(node, "DefaultUtilityDeploymentName"),
-#pragma warning restore CS0618
             CreatedUtc = GetDateTime(node, nameof(AIProviderConnection.CreatedUtc)),
             Author = GetString(node, nameof(AIProviderConnection.Author)),
             OwnerId = GetString(node, nameof(AIProviderConnection.OwnerId)),
         };
 
+        var propertyValues = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
         if (node.TryGetPropertyValue(nameof(AIProviderConnection.Properties), out var propertiesNode)
-            && propertiesNode is JsonObject properties)
+            && propertiesNode is JsonObject propertiesObject)
         {
             // Detach from parent before deserializing.
             node.Remove(nameof(AIProviderConnection.Properties));
-            connection.Properties = properties.Deserialize<Dictionary<string, object>>() ?? new Dictionary<string, object>();
+            foreach (var property in propertiesObject.Deserialize<Dictionary<string, object>>() ?? new Dictionary<string, object>())
+            {
+                propertyValues[property.Key] = property.Value;
+            }
+        }
+
+        if (propertyValues.Count > 0)
+        {
+            connection.Properties = propertyValues;
         }
 
         return connection;
@@ -58,12 +58,6 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
         WriteString(writer, nameof(AIProviderConnection.ClientName), value.ClientName);
         WriteString(writer, nameof(AIProviderConnection.Name), value.Name);
         WriteString(writer, nameof(AIProviderConnection.DisplayText), value.DisplayText);
-#pragma warning disable CS0618 // Obsolete deployment name fields retained for backward compatibility
-        WriteString(writer, nameof(AIProviderConnection.ChatDeploymentName), value.ChatDeploymentName);
-        WriteString(writer, nameof(AIProviderConnection.EmbeddingDeploymentName), value.EmbeddingDeploymentName);
-        WriteString(writer, nameof(AIProviderConnection.ImagesDeploymentName), value.ImagesDeploymentName);
-        WriteString(writer, nameof(AIProviderConnection.UtilityDeploymentName), value.UtilityDeploymentName);
-#pragma warning restore CS0618
         writer.WriteString(nameof(AIProviderConnection.CreatedUtc), value.CreatedUtc);
         WriteString(writer, nameof(AIProviderConnection.Author), value.Author);
         WriteString(writer, nameof(AIProviderConnection.OwnerId), value.OwnerId);

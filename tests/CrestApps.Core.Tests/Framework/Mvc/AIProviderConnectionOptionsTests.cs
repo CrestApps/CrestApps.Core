@@ -3,13 +3,14 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
+using CrestApps.Core.Models;
 using CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
-using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -26,7 +27,6 @@ public sealed class AIProviderConnectionOptionsTests
                 ["CrestApps:AI:Connections:0:Name"] = "config-primary",
                 ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
                 ["CrestApps:AI:Connections:0:ApiKey"] = "secret",
-                ["CrestApps:AI:Connections:0:DefaultDeploymentName"] = "gpt-4.1-mini",
                 ["CrestApps:AI:Connections:0:EnableLogging"] = "true",
             })
             .Build();
@@ -42,7 +42,7 @@ public sealed class AIProviderConnectionOptionsTests
         Assert.True(options.Providers.ContainsKey("OpenAI"));
         var provider = options.Providers["OpenAI"];
         Assert.Contains("config-primary", provider.Connections.Keys);
-        Assert.Equal("config-primary", provider.Connections["config-primary"].GetStringValue("ConnectionNameAlias", false));
+        Assert.Equal("config-primary", provider.Connections["config-primary"].GetStringValue("DisplayText", false));
         Assert.True(provider.Connections["config-primary"].GetBooleanOrFalseValue("EnableLogging"));
     }
 
@@ -96,67 +96,92 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
-    public void MvcAIProviderOptionsStore_ApplyTo_ShouldKeepConfiguredConnectionsAndAddUiConnections()
+    public async Task ConfigurationAIProviderConnectionCatalog_GetAllAsync_ShouldMergeStoredAndConfiguredConnections()
     {
-        var options = new AIProviderOptions();
-        options.Providers["OpenAI"] = new AIProvider
-        {
-            Connections = new Dictionary<string, AIProviderConnectionEntry>(StringComparer.OrdinalIgnoreCase)
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
             {
-                ["config-primary"] = new(new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["ApiKey"] = "config-secret",
-                    ["ConnectionNameAlias"] = "Config primary",
-                    ["DefaultDeploymentName"] = "gpt-4.1",
-                }),
-            },
-        };
+                ["CrestApps:AI:Connections:0:Name"] = "config-primary",
+                ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+                ["CrestApps:AI:Connections:0:DisplayText"] = "Config primary",
+                ["CrestApps:AI:Connections:0:ApiKey"] = "config-secret",
+            })
+            .Build();
 
-        var store = new MvcAIProviderOptionsStore();
-        store.Replace(
-        [
-            new AIProviderConnection
-            {
-                ClientName = "OpenAI",
-                Name = "ui-secondary",
-                Properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        var catalog = new ConfigurationAIProviderConnectionCatalog(
+            new TestAIProviderConnectionStore(
+            [
+                new AIProviderConnection
                 {
-                    ["ApiKey"] = "ui-secret",
+                    ItemId = "ui-connection",
+                    ClientName = "OpenAI",
+                    Name = "ui-secondary",
+                    DisplayText = "UI secondary",
+                    Properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["ApiKey"] = "ui-secret",
+                    },
                 },
-            },
-        ]);
+            ]),
+            configuration,
+            Options.Create(new AIProviderConnectionCatalogOptions()),
+            NullLogger<ConfigurationAIProviderConnectionCatalog>.Instance);
 
-        store.ApplyTo(options);
+        var connections = await catalog.GetAllAsync();
 
-        Assert.Contains("config-primary", options.Providers["OpenAI"].Connections.Keys);
-        Assert.Contains("ui-secondary", options.Providers["OpenAI"].Connections.Keys);
-        Assert.Equal("Config primary", options.Providers["OpenAI"].Connections["config-primary"].GetStringValue("ConnectionNameAlias", false));
-        Assert.Equal("ui-secondary", options.Providers["OpenAI"].Connections["ui-secondary"].GetStringValue("ConnectionNameAlias", false));
+        Assert.Contains(connections, connection => connection.Name == "config-primary" && AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId));
+        Assert.Contains(connections, connection => connection.Name == "ui-secondary" && connection.ItemId == "ui-connection");
     }
 
     [Fact]
-    public async Task AIDeploymentController_Create_ShouldPopulateConnectionsFromMergedProviderOptions()
+    public void AddCrestAppsAI_WhenDisplayTextConfigured_ShouldKeepDisplayText()
     {
-        var deploymentCatalog = new Mock<ICatalog<AIDeployment>>();
-        var providerOptions = new AIProviderOptions();
-        providerOptions.Providers["OpenAI"] = new AIProvider
-        {
-            Connections = new Dictionary<string, AIProviderConnectionEntry>(StringComparer.OrdinalIgnoreCase)
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
             {
-                ["config-primary"] = new(new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["ConnectionNameAlias"] = "Config primary",
-                }),
-                ["ui-secondary"] = new(new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["ConnectionNameAlias"] = "UI secondary",
-                }),
+                ["CrestApps:AI:Connections:0:Name"] = "config-primary",
+                ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+                ["CrestApps:AI:Connections:0:DisplayText"] = "Config primary",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddLogging();
+        services.AddCoreAIServices();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var options = serviceProvider.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+
+        Assert.Equal("Config primary", options.Providers["OpenAI"].Connections["config-primary"].GetStringValue("DisplayText", false));
+    }
+
+    [Fact]
+    public async Task AIDeploymentController_Create_ShouldPopulateConnectionsFromMergedCatalog()
+    {
+        var deploymentCatalog = new Mock<INamedSourceCatalog<AIDeployment>>();
+        var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
+        connectionCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
+        [
+            new AIProviderConnection
+            {
+                ItemId = AIConfigurationRecordIds.CreateConnectionId("OpenAI", "config-primary"),
+                Name = "config-primary",
+                DisplayText = "Config primary",
+                ClientName = "OpenAI",
             },
-        };
+            new AIProviderConnection
+            {
+                ItemId = "ui-secondary-id",
+                Name = "ui-secondary",
+                DisplayText = "UI secondary",
+                ClientName = "OpenAI",
+            },
+        ]);
 
         var controller = new AIDeploymentController(
             deploymentCatalog.Object,
-            new TestOptionsSnapshot<AIProviderOptions>(providerOptions));
+            connectionCatalog.Object);
 
         var result = await controller.Create();
 
@@ -168,11 +193,18 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
-    public async Task AIConnectionController_Index_ShouldIncludeConfiguredConnectionsAsReadOnly()
+    public async Task AIConnectionController_Index_ShouldIncludeMergedConnectionsAndMarkConfiguredOnesReadOnly()
     {
-        var connectionCatalog = new Mock<ICatalog<AIProviderConnection>>();
+        var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
         connectionCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
         [
+            new AIProviderConnection
+            {
+                ItemId = AIConfigurationRecordIds.CreateConnectionId("OpenAI", "config-primary"),
+                Name = "config-primary",
+                DisplayText = "Config primary",
+                Source = "OpenAI",
+            },
             new AIProviderConnection
             {
                 ItemId = "ui-connection",
@@ -182,20 +214,7 @@ public sealed class AIProviderConnectionOptionsTests
             },
         ]);
 
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string>
-            {
-                ["CrestApps:AI:Connections:0:Name"] = "config-primary",
-                ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
-                ["CrestApps:AI:Connections:0:ConnectionNameAlias"] = "Config primary",
-            })
-            .Build();
-
-        var controller = new AIConnectionController(
-            connectionCatalog.Object,
-            configuration,
-            new MvcAIProviderOptionsStore(),
-            new OptionsCache<AIProviderOptions>());
+        var controller = new AIConnectionController(connectionCatalog.Object);
 
         var result = await controller.Index();
 
@@ -209,7 +228,7 @@ public sealed class AIProviderConnectionOptionsTests
     [Fact]
     public async Task AIDeploymentController_Index_ShouldMarkConfiguredDeploymentsAsReadOnly()
     {
-        var deploymentCatalog = new Mock<ICatalog<AIDeployment>>();
+        var deploymentCatalog = new Mock<INamedSourceCatalog<AIDeployment>>();
         deploymentCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
         [
             new AIDeployment
@@ -222,9 +241,10 @@ public sealed class AIProviderConnectionOptionsTests
             },
         ]);
 
+        var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
         var controller = new AIDeploymentController(
             deploymentCatalog.Object,
-            new TestOptionsSnapshot<AIProviderOptions>(new AIProviderOptions()));
+            connectionCatalog.Object);
 
         var result = await controller.Index();
 
@@ -264,13 +284,87 @@ public sealed class AIProviderConnectionOptionsTests
         Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechProviderName].SupportsContainedConnection);
     }
 
-    private sealed class TestOptionsSnapshot<TOptions> : IOptionsSnapshot<TOptions>
-        where TOptions : class
+    [Fact]
+    public async Task ConfigurationAIProviderConnectionCatalog_ShouldSkipConfiguredConflictsByName()
     {
-        public TestOptionsSnapshot(TOptions value) => Value = value;
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:Connections:0:Name"] = "shared-name",
+                ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            })
+            .Build();
 
-        public TOptions Value { get; }
+        var catalog = new ConfigurationAIProviderConnectionCatalog(
+            new TestAIProviderConnectionStore(
+            [
+                new AIProviderConnection
+                {
+                    ItemId = "ui-connection",
+                    ClientName = "OpenAI",
+                    Name = "shared-name",
+                },
+            ]),
+            configuration,
+            Options.Create(new AIProviderConnectionCatalogOptions()),
+            NullLogger<ConfigurationAIProviderConnectionCatalog>.Instance);
 
-        public TOptions Get(string name) => Value;
+        var connections = await catalog.GetAllAsync();
+
+        Assert.Single(connections);
+        Assert.Equal("ui-connection", connections.Single().ItemId);
+    }
+
+    private sealed class TestAIProviderConnectionStore(List<AIProviderConnection> connections) : INamedSourceCatalog<AIProviderConnection>
+    {
+        public ValueTask CreateAsync(AIProviderConnection entry)
+        {
+            connections.Add(entry);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<bool> DeleteAsync(AIProviderConnection entry)
+        {
+            connections.Remove(entry);
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<AIProviderConnection> FindByIdAsync(string id)
+        {
+            return ValueTask.FromResult(connections.FirstOrDefault(connection => connection.ItemId == id));
+        }
+
+        public ValueTask<AIProviderConnection> FindByNameAsync(string name)
+        {
+            return ValueTask.FromResult(connections.FirstOrDefault(connection => connection.Name == name));
+        }
+
+        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAllAsync()
+        {
+            return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.ToArray());
+        }
+
+        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAsync(IEnumerable<string> ids)
+        {
+            return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.Where(connection => ids.Contains(connection.ItemId)).ToArray());
+        }
+
+        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAsync(string source)
+        {
+            return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.Where(connection => connection.Source == source).ToArray());
+        }
+
+        public ValueTask<AIProviderConnection> GetAsync(string name, string source)
+        {
+            return ValueTask.FromResult(connections.FirstOrDefault(connection => connection.Name == name && connection.Source == source));
+        }
+
+        public ValueTask<PageResult<AIProviderConnection>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+            where TQuery : QueryContext
+        {
+            return ValueTask.FromResult(new PageResult<AIProviderConnection> { Count = connections.Count, Entries = connections.ToArray(), });
+        }
+
+        public ValueTask UpdateAsync(AIProviderConnection entry) => ValueTask.CompletedTask;
     }
 }

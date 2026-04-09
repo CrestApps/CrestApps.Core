@@ -67,8 +67,7 @@ At minimum, provide a connection and a deployment through configuration or your 
         {
           "Name": "primary-openai",
           "ClientName": "OpenAI",
-          "ApiKey": "YOUR_API_KEY",
-          "DefaultDeploymentName": "gpt-4.1"
+          "ApiKey": "YOUR_API_KEY"
         }
       ],
       "Deployments": [
@@ -76,7 +75,7 @@ At minimum, provide a connection and a deployment through configuration or your 
           "Name": "gpt-4.1",
           "ClientName": "OpenAI",
           "Type": "Chat",
-          "Model": "gpt-4.1",
+          "ModelName": "gpt-4.1",
           "IsDefault": true
         }
       ]
@@ -85,7 +84,7 @@ At minimum, provide a connection and a deployment through configuration or your 
 }
 ```
 
-The MVC sample demonstrates the full runtime options pattern, including configuration-backed connections, UI-managed overrides, and merged deployment catalogs.
+The MVC sample demonstrates the full runtime options pattern, including configuration-backed connections, UI-managed overrides, and merged deployment catalogs. Keep connection credentials under `Connections` and define model/deployment choices under `Deployments`.
 
 ## 4. Pick the application model
 

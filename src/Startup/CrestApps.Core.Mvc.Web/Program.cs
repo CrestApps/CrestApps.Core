@@ -9,7 +9,6 @@ using CrestApps.Core.AI.Ftp;
 using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
@@ -32,12 +31,10 @@ using CrestApps.Core.Mvc.Web.Areas.DataSources.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.DataSources.Services;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Mvc.Web.Tools;
-using CrestApps.Core.Services;
 using CrestApps.Core.SignalR;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using NLog.Web;
 
 // =============================================================================
@@ -128,7 +125,6 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
-        .AddMvcProviderOptions()
         // Optional AI features layered on top of the core AI + orchestration runtime.
         .AddMarkdown()
         .AddCopilotOrchestrator()
@@ -288,14 +284,6 @@ await app.Services.InitializeYesSqlSchemaAsync();
 // Seed sample articles on first run.
 await app.Services.SeedArticlesAsync();
 
-using (var scope = app.Services.CreateScope())
-{
-    var providerConnections = await scope.ServiceProvider.GetRequiredService<ICatalog<AIProviderConnection>>().GetAllAsync();
-    app.Services.GetRequiredService<MvcAIProviderOptionsStore>().Replace(providerConnections);
-}
-
-app.Services.GetRequiredService<IOptionsMonitorCache<AIProviderOptions>>().TryRemove(Options.DefaultName);
-_ = app.Services.GetRequiredService<IOptions<AIProviderOptions>>().Value;
 // =============================================================================
 // 13. MIDDLEWARE PIPELINE
 // =============================================================================

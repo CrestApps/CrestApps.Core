@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace CrestApps.Core.AI.Models;
+
 public static class MemoryMetadataExtensions
 {
     public const string LegacyAIProfileSettingsKey = "AIProfileMemorySettings";

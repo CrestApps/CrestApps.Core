@@ -7,6 +7,7 @@ using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
+
 public sealed class DataSourceSearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
     public DataSourceSearchIndexProfileHandler(ICatalog<AIDeployment> deploymentCatalog, IAIClientFactory aiClientFactory, ILogger<DataSourceSearchIndexProfileHandler> logger) : base(IndexProfileTypes.DataSource, deploymentCatalog, aiClientFactory, logger)
@@ -15,7 +16,7 @@ public sealed class DataSourceSearchIndexProfileHandler : EmbeddingSearchIndexPr
 
     protected override IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions)
     {
-        return[new SearchIndexField
+        return [new SearchIndexField
         {
             Name = DataSourceConstants.ColumnNames.ChunkId,
             FieldType = SearchFieldType.Keyword,

@@ -1,6 +1,6 @@
+using CrestApps.Core.Builders;
 using CrestApps.Core.Data.YesSql.Indexes;
 using CrestApps.Core.Data.YesSql.Services;
-using CrestApps.Core.Builders;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,12 +14,11 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreYesSqlDataStore(this IServiceCollection services, Func<Configuration, IConfiguration> configure)
     {
-        services.AddSingleton<IStore>(_ => StoreFactory.CreateAndInitializeAsync(configure(new Configuration()))
-            .GetAwaiter()
-            .GetResult());
+        services.AddSingleton<IStore>(_ => StoreFactory.CreateAndInitializeAsync(configure(new Configuration())).GetAwaiter().GetResult());
 
         services.AddScoped(sp => sp.GetRequiredService<IStore>().CreateSession());
         services.AddScoped<IStoreCommitter, YesSqlStoreCommitter>();
+        services.AddCatalogManagers();
 
         return services;
     }
@@ -69,8 +68,7 @@ public static class ServiceCollectionExtensions
             return new NamedDocumentCatalog<TModel, TIndex>(session, collection);
         });
 
-        services.AddScoped<INamedCatalog<TModel>>(sp =>
-        (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
+        services.AddScoped<INamedCatalog<TModel>>(sp => (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
         return services;
     }
@@ -89,8 +87,7 @@ public static class ServiceCollectionExtensions
             return new SourceDocumentCatalog<TModel, TIndex>(session, collection);
         });
 
-        services.AddScoped<ISourceCatalog<TModel>>(sp =>
-        (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
+        services.AddScoped<ISourceCatalog<TModel>>(sp => (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
         return services;
     }
@@ -111,14 +108,71 @@ public static class ServiceCollectionExtensions
             return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collection);
         });
 
-        services.AddScoped<INamedCatalog<TModel>>(sp =>
-        (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
+        services.AddScoped<INamedCatalog<TModel>>(sp => (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
+        services.AddScoped<ISourceCatalog<TModel>>(sp => (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
+        services.AddScoped<INamedSourceCatalog<TModel>>(sp => (INamedSourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
-        services.AddScoped<ISourceCatalog<TModel>>(sp =>
-        (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
+        return services;
+    }
 
-        services.AddScoped<INamedSourceCatalog<TModel>>(sp =>
-        (INamedSourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
+    public static IServiceCollection AddDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem
+        where TIndex : CatalogItemIndex
+        where T : class, ICatalog<TModel>
+    {
+        services.RemoveAll<ICatalog<TModel>>();
+
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+
+        return services;
+    }
+
+    public static IServiceCollection AddNamedDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem, INameAwareModel
+        where TIndex : CatalogItemIndex, INameAwareIndex
+        where T : class, INamedCatalog<TModel>
+    {
+        services.RemoveAll<ICatalog<TModel>>();
+        services.RemoveAll<INamedCatalog<TModel>>();
+
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+
+        return services;
+    }
+
+    public static IServiceCollection AddSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem, ISourceAwareModel
+        where TIndex : CatalogItemIndex, ISourceAwareIndex
+        where T : class, ISourceCatalog<TModel>
+    {
+        services.RemoveAll<ICatalog<TModel>>();
+        services.RemoveAll<ISourceCatalog<TModel>>();
+
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+
+        return services;
+    }
+
+    public static IServiceCollection AddNamedSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+        where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
+        where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
+        where T : class, INamedSourceCatalog<TModel>
+    {
+        services.RemoveAll<ICatalog<TModel>>();
+        services.RemoveAll<INamedCatalog<TModel>>();
+        services.RemoveAll<ISourceCatalog<TModel>>();
+        services.RemoveAll<INamedSourceCatalog<TModel>>();
+
+        services.AddScoped<T>();
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
 
         return services;
     }

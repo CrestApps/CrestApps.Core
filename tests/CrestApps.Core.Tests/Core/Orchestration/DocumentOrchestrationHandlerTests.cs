@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+
 public sealed class DocumentOrchestrationHandlerTests
 {
     private static DocumentOrchestrationHandler CreateHandler(AIToolDefinitionOptions toolOptions = null)
@@ -170,7 +171,7 @@ public sealed class DocumentOrchestrationHandlerTests
         };
         var profile = new AIProfile();
         profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
-        profile.Put(new DocumentsMetadata { Documents = [new ChatDocumentInfo { DocumentId = "doc1", FileName = "report.pdf", ContentType = "application/pdf", FileSize = 2048, }, ], });
+        profile.Put(new DocumentsMetadata { Documents = [new ChatDocumentInfo { DocumentId = "doc1", FileName = "report.pdf", ContentType = "application/pdf", FileSize = 2048, },], });
         await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
         var systemMessage = context.SystemMessageBuilder.ToString();
         Assert.Contains("Background knowledge is available for this profile.", systemMessage);

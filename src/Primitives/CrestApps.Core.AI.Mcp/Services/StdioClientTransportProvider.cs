@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Mcp.Models;
 using ModelContextProtocol.Client;
 
 namespace CrestApps.Core.AI.Mcp.Services;
+
 public sealed class StdioClientTransportProvider : IMcpClientTransportProvider
 {
     public bool CanHandle(McpConnection connection)

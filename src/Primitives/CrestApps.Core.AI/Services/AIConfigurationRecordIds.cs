@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 namespace CrestApps.Core.AI.Services;
+
 public static class AIConfigurationRecordIds
 {
     private const string _connectionPrefix = "cfgc";

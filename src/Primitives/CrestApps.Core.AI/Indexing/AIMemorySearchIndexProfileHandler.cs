@@ -6,6 +6,7 @@ using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
+
 public sealed class AIMemorySearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
     private const string _memoryIdFieldName = "memoryId";
@@ -21,7 +22,7 @@ public sealed class AIMemorySearchIndexProfileHandler : EmbeddingSearchIndexProf
 
     protected override IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions)
     {
-        return[new SearchIndexField
+        return [new SearchIndexField
         {
             Name = _memoryIdFieldName,
             FieldType = SearchFieldType.Keyword,

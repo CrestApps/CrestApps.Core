@@ -28,7 +28,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
 #pragma warning restore MEAI001
 {
     private const string CognitiveServicesScope = "https://cognitiveservices.azure.com/.default";
-    private static readonly string[] _regionSuffixes = [".api.cognitive.microsoft.com", ".tts.speech.microsoft.com", ".stt.speech.microsoft.com", ];
+    private static readonly string[] _regionSuffixes = [".api.cognitive.microsoft.com", ".tts.speech.microsoft.com", ".stt.speech.microsoft.com",];
     private readonly Uri _endpoint;
     private readonly AzureAuthenticationType _authType;
     private readonly string _apiKey;
@@ -254,7 +254,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         }
         catch (OperationCanceledException)
         {
-        // Expected when the connection is closed or recognition is stopped.
+            // Expected when the connection is closed or recognition is stopped.
         }
 
         try
@@ -303,7 +303,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
                 _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms PushAudioToStream DONE. Chunks={ChunkCount}, TotalBytes={TotalBytes}", traceId, sw.ElapsedMilliseconds, chunkCount, totalBytes);
             }
         }
-        catch (OperationCanceledException)when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             if (_logger.IsEnabled(LogLevel.Trace))
             {
@@ -479,7 +479,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     /// <see cref = "AudioStreamContainerFormat.ANY"/> when the value is missing or unrecognized,
     /// which lets the SDK auto-detect the container format.
     /// </summary>
-    
+
 #pragma warning disable MEAI001
     private AudioStreamContainerFormat ResolveContainerFormat(SpeechToTextOptions options)
 #pragma warning restore MEAI001
@@ -545,7 +545,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         {
             return new SpeechRecognizer(speechConfig, audioConfig);
         }
-        catch (ApplicationException ex)when (IsGStreamerError(ex))
+        catch (ApplicationException ex) when (IsGStreamerError(ex))
         {
             throw new InvalidOperationException("Azure Speech SDK requires GStreamer to decode compressed audio. " + "Install GStreamer from https://gstreamer.freedesktop.org/download/ and ensure " + "the binaries are in the system PATH. " + "See: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/how-to-use-codec-compressed-audio-input-streams", ex);
         }
