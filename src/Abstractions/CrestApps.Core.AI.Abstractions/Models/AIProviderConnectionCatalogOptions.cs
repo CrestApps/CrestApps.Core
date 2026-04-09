@@ -10,6 +10,5 @@ public sealed class AIProviderConnectionCatalogOptions
     public IList<string> ProviderSections { get; } =
     [
         "CrestApps:Providers",
-        "CrestApps:AI:Providers",
     ];
 }
