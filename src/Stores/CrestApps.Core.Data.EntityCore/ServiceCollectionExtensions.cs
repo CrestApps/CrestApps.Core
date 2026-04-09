@@ -147,6 +147,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
         services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
         services.AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+
         return services;
     }
 
@@ -189,10 +190,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatInteractionPromptStore, EntityCoreChatInteractionPromptStore>();
         services.AddScoped<ICatalog<ChatInteractionPrompt>>(sp => sp.GetRequiredService<IChatInteractionPromptStore>());
 
-        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, Services.NamedSourceDocumentCatalog<AIProviderConnection>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey);
+        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, NamedSourceDocumentCatalog<AIProviderConnection>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey);
         services.AddNamedSourceDocumentCatalog<AIProviderConnection, object, ConfigurationAIProviderConnectionCatalog>();
 
-        services.AddKeyedScoped<INamedSourceCatalog<AIDeployment>, Services.NamedSourceDocumentCatalog<AIDeployment>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey);
+        services.AddKeyedScoped<INamedSourceCatalog<AIDeployment>, NamedSourceDocumentCatalog<AIDeployment>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey);
         services.AddNamedSourceDocumentCatalog<AIDeployment, object, ConfigurationAIDeploymentCatalog>();
 
         return services;
@@ -201,12 +202,14 @@ public static class ServiceCollectionExtensions
     public static CrestAppsCoreBuilder AddEntityCoreDataStore(this CrestAppsCoreBuilder builder, Action<DbContextOptionsBuilder> configure, Action<EntityCoreDataStoreOptions> configureStore = null)
     {
         builder.Services.AddCoreEntityCoreDataStore(configure, configureStore);
+
         return builder;
     }
 
     public static CrestAppsCoreBuilder AddEntityCoreSqliteDataStore(this CrestAppsCoreBuilder builder, string connectionString, string tablePrefix = "CA_")
     {
         builder.Services.AddCoreEntityCoreSqliteDataStore(connectionString, tablePrefix);
+
         return builder;
     }
 
@@ -215,6 +218,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         using var scope = services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<CrestAppsEntityDbContext>();
+
         await dbContext.Database.EnsureCreatedAsync();
     }
 }

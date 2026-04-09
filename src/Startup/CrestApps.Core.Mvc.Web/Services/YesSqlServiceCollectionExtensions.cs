@@ -19,6 +19,7 @@ using CrestApps.Core.Data.YesSql.Indexes.AIMemory;
 using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
+using CrestApps.Core.Data.YesSql.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.A2A.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
@@ -111,10 +112,10 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
             .AddScoped<ArticleIndexingService>();
 
-        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, CrestApps.Core.Data.YesSql.Services.NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey)
+        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey)
             .AddNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex, ConfigurationAIProviderConnectionCatalog>();
 
-        services.AddKeyedScoped<INamedSourceCatalog<AIDeployment>, CrestApps.Core.Data.YesSql.Services.NamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey)
+        services.AddKeyedScoped<INamedSourceCatalog<AIDeployment>, NamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey)
             .AddNamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex, ConfigurationAIDeploymentCatalog>();
 
         return services;
