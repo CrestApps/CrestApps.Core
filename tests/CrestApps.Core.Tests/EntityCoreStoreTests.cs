@@ -211,7 +211,7 @@ public sealed class EntityCoreStoreTests
             services.AddHttpContextAccessor();
             services.AddSingleton(TimeProvider.System);
             services.AddCoreEntityCoreSqliteDataStore($"Data Source={databasePath}");
-            services.AddCoreEntityCoreStores();
+            services.AddEntityCoreStores();
 
             var provider = services.BuildServiceProvider();
             await provider.InitializeEntityCoreSchemaAsync();
