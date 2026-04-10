@@ -22,10 +22,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-#pragma warning disable CS0618 // Obsolete deployment name methods retained for backward compatibility
-
-            deploymentName = connection.GetChatDeploymentOrDefaultName(false);
-#pragma warning restore CS0618
+            deploymentName = connection.GetLegacyChatDeploymentName();
         }
 
         if (string.IsNullOrEmpty(deploymentName))
@@ -42,10 +39,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-#pragma warning disable CS0618 // Obsolete deployment name methods retained for backward compatibility
-
-            deploymentName = connection.GetEmbeddingDeploymentOrDefaultName(false);
-#pragma warning restore CS0618
+            deploymentName = connection.GetLegacyEmbeddingDeploymentName();
         }
 
         if (string.IsNullOrEmpty(deploymentName))
@@ -66,10 +60,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-#pragma warning disable CS0618 // Obsolete deployment name methods retained for backward compatibility
-
-            deploymentName = connection.GetImagesDeploymentOrDefaultName(false);
-#pragma warning restore CS0618
+            deploymentName = connection.GetLegacyImageDeploymentName();
         }
 
         if (string.IsNullOrEmpty(deploymentName))
@@ -89,10 +80,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-#pragma warning disable CS0618 // Obsolete deployment name methods retained for backward compatibility
-
-            deploymentName = connection.GetSpeechToTextDeploymentOrDefaultName(false);
-#pragma warning restore CS0618
+            deploymentName = connection.GetLegacySpeechToTextDeploymentName();
         }
 
         if (string.IsNullOrEmpty(deploymentName))

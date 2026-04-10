@@ -10,20 +10,35 @@ namespace CrestApps.Core.AI.Services;
 internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : IPostConfigureOptions<AIProviderOptions>
 {
     private readonly IConfiguration _configuration;
+    private readonly AIProviderConnectionCatalogOptions _catalogOptions;
     private readonly ILogger _logger;
 
     public ConfigurationAIProviderConnectionsOptionsConfiguration(
         IConfiguration configuration,
+        IOptions<AIProviderConnectionCatalogOptions> catalogOptions,
         ILogger<ConfigurationAIProviderConnectionsOptionsConfiguration> logger)
     {
         _configuration = configuration;
+        _catalogOptions = catalogOptions.Value;
         _logger = logger;
     }
 
     public void PostConfigure(string name, AIProviderOptions options)
     {
-        var section = _configuration.GetSection("CrestApps:AI:Connections");
+        foreach (var sectionPath in _catalogOptions.ConnectionSections)
+        {
+            ReadTopLevelConnections(options, sectionPath);
+        }
 
+        foreach (var sectionPath in _catalogOptions.ProviderSections)
+        {
+            ReadProviderConnections(options, sectionPath);
+        }
+    }
+
+    private void ReadTopLevelConnections(AIProviderOptions options, string sectionPath)
+    {
+        var section = _configuration.GetSection(sectionPath);
         if (!section.Exists())
         {
             return;
@@ -34,42 +49,95 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
             try
             {
                 var connection = ReadConnection(connectionSection);
-                var connectionName = connection.GetStringValue("Name", false);
-                var clientName = AIProviderNameNormalizer.Normalize(connection.GetStringValue("ClientName", false));
-
-                if (string.IsNullOrWhiteSpace(connectionName))
-                {
-                    _logger.LogWarning(
-                        "The AI connection entry at 'CrestApps:AI:Connections:{Index}' is missing the required 'Name' property and will be ignored.",
-                        connectionSection.Key);
-
-                    continue;
-                }
-
-                if (string.IsNullOrWhiteSpace(clientName))
-                {
-                    _logger.LogWarning(
-                        "The AI connection '{ConnectionName}' is missing the required 'ClientName' property and will be ignored.",
-                        connectionName);
-
-                    continue;
-                }
-
-                AIProviderOptionsConnectionMerger.MergeConnection(options, clientName, connectionName, connection);
+                MergeConnection(options, connection, $"{sectionPath}:{connectionSection.Key}");
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(
                     ex,
-                    "Unable to bind AI connection entry from 'CrestApps:AI:Connections:{Index}'.",
+                    "Unable to bind AI connection entry from '{SectionPath}:{ConnectionKey}'.",
+                    sectionPath,
                     connectionSection.Key);
             }
         }
     }
 
-    private static AIProviderConnectionEntry ReadConnection(IConfigurationSection section)
+    private void ReadProviderConnections(AIProviderOptions options, string sectionPath)
+    {
+        var section = _configuration.GetSection(sectionPath);
+        if (!section.Exists())
+        {
+            return;
+        }
+
+        foreach (var providerSection in section.GetChildren())
+        {
+            var providerName = AIProviderNameNormalizer.Normalize(providerSection.Key);
+            var connectionsSection = providerSection.GetSection("Connections");
+            if (!connectionsSection.Exists())
+            {
+                continue;
+            }
+
+            foreach (var connectionSection in connectionsSection.GetChildren())
+            {
+                try
+                {
+                    var connection = ReadConnection(connectionSection, providerName);
+                    MergeConnection(options, connection, $"{sectionPath}:{providerSection.Key}:Connections:{connectionSection.Key}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Unable to bind AI connection entry from '{SectionPath}:{ProviderKey}:Connections:{ConnectionKey}'.",
+                        sectionPath,
+                        providerSection.Key,
+                        connectionSection.Key);
+                }
+            }
+        }
+    }
+
+    private void MergeConnection(AIProviderOptions options, AIProviderConnectionEntry connection, string sourcePath)
+    {
+        var connectionName = connection.GetStringValue("Name", false);
+        var clientName = AIProviderNameNormalizer.Normalize(connection.GetStringValue("ClientName", false));
+
+        if (string.IsNullOrWhiteSpace(connectionName))
+        {
+            _logger.LogWarning(
+                "The AI connection entry at '{SourcePath}' is missing the required 'Name' property and will be ignored.",
+                sourcePath);
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(clientName))
+        {
+            _logger.LogWarning(
+                "The AI connection '{ConnectionName}' at '{SourcePath}' is missing the required 'ClientName' property and will be ignored.",
+                connectionName,
+                sourcePath);
+
+            return;
+        }
+
+        AIProviderOptionsConnectionMerger.MergeConnection(options, clientName, connectionName, connection);
+    }
+
+    private static AIProviderConnectionEntry ReadConnection(IConfigurationSection section, string providerName = null)
     {
         var values = ReadObject(section);
+        if (!values.ContainsKey("Name") && !int.TryParse(section.Key, out _))
+        {
+            values["Name"] = section.Key;
+        }
+
+        if (!string.IsNullOrWhiteSpace(providerName) && !values.ContainsKey("ClientName") && !values.ContainsKey("ProviderName"))
+        {
+            values["ClientName"] = providerName;
+        }
 
         var displayText = values.GetStringValue("DisplayText", false) ??
             values.GetStringValue("Name", false) ??

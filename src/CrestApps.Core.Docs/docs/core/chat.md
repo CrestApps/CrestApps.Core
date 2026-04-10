@@ -20,7 +20,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddChatInteractions()));
 ```
 
-By default, connections are discovered from `CrestApps:AI:Connections` and standalone deployments are discovered from `CrestApps:AI:Deployments`.
+By default, connections are discovered from `CrestApps:AI:Connections` and deployments are discovered from `CrestApps:AI:Deployments`. Connection-based deployments can reference a shared `ConnectionName`, while contained-connection deployments can embed provider-specific settings directly in the deployment entry.
 
 ## Problem & Solution
 

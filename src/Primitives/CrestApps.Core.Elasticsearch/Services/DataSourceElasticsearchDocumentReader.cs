@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Support;
 using Elastic.Clients.Elasticsearch;
 
 namespace CrestApps.Core.Elasticsearch.Services;
@@ -70,7 +71,7 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
 
                     if (keyNode != null)
                     {
-                        key = GetStringValue(keyNode) ?? key;
+                        key = keyNode.GetStringValue() ?? key;
                     }
                 }
 
@@ -141,7 +142,7 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
 
                 if (keyNode != null)
                 {
-                    key = GetStringValue(keyNode) ?? key;
+                    key = keyNode.GetStringValue() ?? key;
                 }
             }
 
@@ -158,13 +159,13 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
         if (!string.IsNullOrEmpty(titleFieldName))
         {
             var titleNode = ResolveFieldValue(source, titleFieldName);
-            title = GetStringValue(titleNode);
+            title = titleNode.GetStringValue();
         }
 
         if (!string.IsNullOrEmpty(contentFieldName))
         {
             var contentNode = ResolveFieldValue(source, contentFieldName);
-            content = GetStringValue(contentNode);
+            content = contentNode.GetStringValue();
         }
 
         if (string.IsNullOrEmpty(content))
@@ -183,7 +184,7 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
 
         foreach (var prop in source)
         {
-            fields[prop.Key] = GetRawValue(prop.Value);
+            fields[prop.Key] = prop.Value.GetRawValue();
         }
 
         return new SourceDocument
@@ -194,22 +195,6 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
         };
     }
 
-    private static string GetStringValue(JsonNode node)
-    {
-        if (node == null)
-        {
-            return null;
-        }
-
-        if (node is JsonValue jsonValue)
-        {
-            return jsonValue.ToString();
-        }
-
-        // For arrays or objects, return the JSON representation.
-
-        return node.ToJsonString();
-    }
     /// <summary>
     /// Resolves a field value from a JSON object using a dotted path (e.g., "Content.ContentItem.DisplayText").
     /// Falls back to a direct property lookup if the path has no dots.
@@ -249,48 +234,6 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
         }
 
         return current;
-    }
-
-    private static object GetRawValue(JsonNode node)
-    {
-        if (node == null)
-        {
-            return null;
-        }
-
-        if (node is JsonValue jsonValue)
-        {
-            if (jsonValue.TryGetValue<string>(out var stringVal))
-            {
-                return stringVal;
-            }
-
-            if (jsonValue.TryGetValue<long>(out var longVal))
-            {
-                return longVal;
-            }
-
-            if (jsonValue.TryGetValue<double>(out var doubleVal))
-            {
-                return doubleVal;
-            }
-
-            if (jsonValue.TryGetValue<bool>(out var boolVal))
-            {
-                return boolVal;
-            }
-
-            if (jsonValue.TryGetValue<DateTime>(out var dateVal))
-            {
-                return dateVal;
-            }
-
-            return jsonValue.ToString();
-        }
-
-        // For arrays or objects, return as string.
-
-        return node.ToJsonString();
     }
 
     private static string ExtractTitleFromContent(string content)

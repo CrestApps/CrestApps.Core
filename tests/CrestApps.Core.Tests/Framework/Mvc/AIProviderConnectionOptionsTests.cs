@@ -134,6 +134,45 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
+    public async Task ConfigurationAIProviderConnectionCatalog_GetAllAsync_ShouldReadEveryConfiguredConnectionSection()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["Primary:Connections:0:Name"] = "config-primary",
+                ["Primary:Connections:0:ClientName"] = "OpenAI",
+                ["Secondary:Connections:0:Name"] = "config-secondary",
+                ["Secondary:Connections:0:ClientName"] = "OpenAI",
+                ["Primary:Providers:OpenAI:Connections:provider-primary:ApiKey"] = "secret-1",
+                ["Secondary:Providers:AzureOpenAI:Connections:provider-secondary:Endpoint"] = "https://example.openai.azure.com/",
+                ["Secondary:Providers:AzureOpenAI:Connections:provider-secondary:AuthenticationType"] = "ApiKey",
+                ["Secondary:Providers:AzureOpenAI:Connections:provider-secondary:ApiKey"] = "secret-2",
+            })
+            .Build();
+
+        var catalogOptions = new AIProviderConnectionCatalogOptions();
+        catalogOptions.ConnectionSections.Clear();
+        catalogOptions.ConnectionSections.Add("Primary:Connections");
+        catalogOptions.ConnectionSections.Add("Secondary:Connections");
+        catalogOptions.ProviderSections.Clear();
+        catalogOptions.ProviderSections.Add("Primary:Providers");
+        catalogOptions.ProviderSections.Add("Secondary:Providers");
+
+        var catalog = new ConfigurationAIProviderConnectionCatalog(
+            new TestAIProviderConnectionStore([]),
+            configuration,
+            Options.Create(catalogOptions),
+            NullLogger<ConfigurationAIProviderConnectionCatalog>.Instance);
+
+        var connections = await catalog.GetAllAsync();
+
+        Assert.Contains(connections, connection => connection.Name == "config-primary" && connection.ClientName == "OpenAI");
+        Assert.Contains(connections, connection => connection.Name == "config-secondary" && connection.ClientName == "OpenAI");
+        Assert.Contains(connections, connection => connection.Name == "provider-primary" && connection.ClientName == "OpenAI");
+        Assert.Contains(connections, connection => connection.Name == "provider-secondary" && connection.ClientName == AzureOpenAIConstants.ClientName);
+    }
+
+    [Fact]
     public void AddCrestAppsAI_WhenDisplayTextConfigured_ShouldKeepDisplayText()
     {
         var configuration = new ConfigurationBuilder()
@@ -282,6 +321,37 @@ public sealed class AIProviderConnectionOptionsTests
 
         Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.AzureSpeechProviderName));
         Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechProviderName].SupportsContainedConnection);
+    }
+
+    [Fact]
+    public void AddCrestAppsAI_WhenCustomConnectionSectionsConfigured_ShouldMergeEverySectionIntoProviderOptions()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["Primary:Connections:0:Name"] = "config-primary",
+                ["Primary:Connections:0:ClientName"] = "OpenAI",
+                ["Secondary:Providers:AzureOpenAI:Connections:azure-secondary:Endpoint"] = "https://example.openai.azure.com/",
+                ["Secondary:Providers:AzureOpenAI:Connections:azure-secondary:AuthenticationType"] = "ApiKey",
+                ["Secondary:Providers:AzureOpenAI:Connections:azure-secondary:ApiKey"] = "secret",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddLogging();
+        services.Configure<AIProviderConnectionCatalogOptions>(options =>
+        {
+            options.ConnectionSections.Add("Primary:Connections");
+            options.ProviderSections.Add("Secondary:Providers");
+        });
+        services.AddCoreAIServices();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var options = serviceProvider.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+
+        Assert.Contains("config-primary", options.Providers["OpenAI"].Connections.Keys);
+        Assert.Contains("azure-secondary", options.Providers[AzureOpenAIConstants.ClientName].Connections.Keys);
     }
 
     [Fact]

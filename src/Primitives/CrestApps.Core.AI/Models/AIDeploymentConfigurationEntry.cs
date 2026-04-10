@@ -9,9 +9,9 @@ namespace CrestApps.Core.AI.Models;
 public sealed class AIDeploymentConfigurationEntry
 {
     /// <summary>
-    /// Gets or sets the deployment provider name for standalone configuration entries.
+    /// Gets or sets the deployment provider name for configuration entries.
     /// </summary>
-    public string ProviderName { get; set; }
+    public string ClientName { get; set; }
 
     /// <summary>
     /// Gets or sets the unique technical deployment name used for lookups.
@@ -25,14 +25,15 @@ public sealed class AIDeploymentConfigurationEntry
     public string ModelName { get; set; }
 
     /// <summary>
+    /// Gets or sets the shared provider connection name for connection-based deployments.
+    /// Leave empty for contained-connection deployments.
+    /// </summary>
+    public string ConnectionName { get; set; }
+
+    /// <summary>
     /// Gets or sets the deployment capability types (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech).
     /// </summary>
     public AIDeploymentType Type { get; set; }
-
-    /// <summary>
-    /// Gets or sets whether this deployment is the default for its type within its connection or provider.
-    /// </summary>
-    public bool IsDefault { get; set; }
 
     /// <summary>
     /// Gets or sets provider-specific properties for contained-connection deployments.

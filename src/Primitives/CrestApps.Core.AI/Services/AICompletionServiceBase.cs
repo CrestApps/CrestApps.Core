@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Services;
@@ -32,9 +31,7 @@ public abstract class AICompletionServiceBase
     {
         if (connectionName is not null && provider.Connections.TryGetValue(connectionName, out var connection))
         {
-#pragma warning disable CS0618 // Obsolete deployment name methods retained for backward compatibility
-            var deploymentName = connection.GetChatDeploymentOrDefaultName();
-#pragma warning restore CS0618
+            var deploymentName = connection.GetLegacyChatDeploymentName();
 
             if (!string.IsNullOrEmpty(deploymentName))
             {
@@ -44,6 +41,7 @@ public abstract class AICompletionServiceBase
 
         return null;
     }
+
     /// <summary>
     /// Resolves a deployment name and connection name using the <see cref="IAIDeploymentManager"/>
     /// with fallback to legacy connection entry values when they are still present.

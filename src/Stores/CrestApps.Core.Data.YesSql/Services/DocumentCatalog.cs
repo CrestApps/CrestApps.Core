@@ -20,7 +20,7 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
     }
 
     internal DocumentCatalog(ISession session, string collectionName)
-    : this(session)
+        : this(session)
     {
         CollectionName = collectionName;
     }
