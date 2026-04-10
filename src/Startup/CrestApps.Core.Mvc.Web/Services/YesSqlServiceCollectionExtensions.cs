@@ -66,13 +66,13 @@ internal static class YesSqlServiceCollectionExtensions
 
         Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration.UseSqLite(connectionStringBuilder.ToString()).SetTablePrefix("CA_"));
         // YesSql-backed catalogs and managers.
-        services.AddNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()
-            .AddNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>()
-            .AddDocumentCatalog<A2AConnection, A2AConnectionIndex>()
-            .AddSourceDocumentCatalog<McpConnection, McpConnectionIndex>()
-            .AddNamedDocumentCatalog<McpPrompt, McpPromptIndex>()
-            .AddSourceDocumentCatalog<McpResource, McpResourceIndex>()
-            .AddNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>()
+        services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()
+            .AddYesSqlNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>()
+            .AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()
+            .AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()
+            .AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()
+            .AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>()
+            .AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>()
             .AddScoped<DefaultAIProfileTemplateManager>()
             .AddScoped<IAIProfileTemplateManager>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
             .AddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
@@ -105,18 +105,18 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAuthorizationHandler, MvcChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>()
-            .AddDocumentCatalog<ChatInteraction, ChatInteractionIndex>()
+            .AddYesSqlDocumentCatalog<ChatInteraction, ChatInteractionIndex>()
             .AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>()
-            .AddDocumentCatalog<Article, ArticleIndex>()
+            .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
             .AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>()
             .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
             .AddScoped<ArticleIndexingService>();
 
         services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey)
-            .AddNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex, ConfigurationAIProviderConnectionCatalog>();
+            .AddYesSqlNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex, ConfigurationAIProviderConnectionCatalog>();
 
         services.AddKeyedScoped<INamedSourceCatalog<AIDeployment>, NamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey)
-            .AddNamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex, ConfigurationAIDeploymentCatalog>();
+            .AddYesSqlNamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex, ConfigurationAIDeploymentCatalog>();
 
         return services;
     }

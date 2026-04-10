@@ -18,15 +18,15 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .UseSqLite("Data Source=app.db;Cache=Shared")
         .SetTablePrefix("CA_")));
 
-builder.Services.AddNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>();
+builder.Services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>();
 
 // Entity Framework Core + SQLite
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddEntityCoreSqliteDataStore("Data Source=app.db"));
-builder.Services.AddCoreEntityCoreStores();
+builder.Services.AddEntityCoreStores();
 ```
 
-`AddYesSqlDataStore(...)` on the root CrestApps builder maps to `AddCoreYesSqlDataStore(...)`, while `AddEntityCoreSqliteDataStore(...)` maps to `AddCoreEntityCoreSqliteDataStore(...)`. The YesSql and Entity Framework Core packages are both optional: consumers can register either flavor or replace them with their own persistence layer entirely.
+`AddYesSqlDataStore(...)` on the root CrestApps builder maps to `AddCoreYesSqlDataStore(...)`, while `AddEntityCoreSqliteDataStore(...)` maps to `AddCoreEntityCoreSqliteDataStore(...)`. The YesSql and Entity Framework Core packages are both optional: consumers can register either flavor or replace them with their own persistence layer entirely. After configuring the EF Core data store, call `AddEntityCoreStores()` to register the built-in CrestApps stores and catalog services.
 
 Reusable AI-related YesSql index models, `IndexProvider` types, and schema helpers now live in `CrestApps.Core.Data.YesSql` as well, so hosts can register the shared AI storage surface without copying provider implementations out of the sample app. Within that project, feature assets are grouped directly under `Indexes/{Feature}`, their namespaces follow the same `CrestApps.Core.Data.YesSql.Indexes.{Feature}` shape, each shared schema-helper file is scoped to a single index type, and each shared index file now keeps the index model beside its matching `IndexProvider` for easier maintenance.
 
@@ -105,10 +105,10 @@ public interface INamedSourceCatalog<T> : INamedCatalog<T>, ISourceCatalog<T>
 
 | Method | Registers | Requires |
 |--------|-----------|----------|
-| `AddDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` | `CatalogItem` + `CatalogItemIndex` |
-| `AddNamedDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `INamedCatalog<T>` | + `INameAwareModel` + `INameAwareIndex` |
-| `AddSourceDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `ISourceCatalog<T>` | + `ISourceAwareModel` + `ISourceAwareIndex` |
-| `AddNamedSourceDocumentCatalog<TModel, TIndex>()` | All four interfaces | Both `INameAware*` + `ISourceAware*` |
+| `AddYesSqlDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` | `CatalogItem` + `CatalogItemIndex` |
+| `AddYesSqlNamedDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `INamedCatalog<T>` | + `INameAwareModel` + `INameAwareIndex` |
+| `AddYesSqlSourceDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `ISourceCatalog<T>` | + `ISourceAwareModel` + `ISourceAwareIndex` |
+| `AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>()` | All four interfaces | Both `INameAware*` + `ISourceAware*` |
 
 The Entity Framework Core package exposes the same service-registration shape without YesSql indexes:
 
@@ -119,7 +119,7 @@ The Entity Framework Core package exposes the same service-registration shape wi
 | `AddSourceDocumentCatalog<TModel>()` | `ICatalog<T>` + `ISourceCatalog<T>` | `CatalogItem` + `ISourceAwareModel` |
 | `AddNamedSourceDocumentCatalog<TModel>()` | All four interfaces | `CatalogItem` + both awareness interfaces |
 
-`AddCoreEntityCoreStores()` registers the built-in CrestApps store interfaces (`IAIChatSessionManager`, prompt stores, document stores, memory stores, search index profile store, and related catalog registrations) against the Entity Framework Core package.
+`AddEntityCoreStores()` registers the built-in CrestApps store interfaces (`IAIChatSessionManager`, prompt stores, document stores, memory stores, search index profile store, and related catalog registrations) against the Entity Framework Core package.
 
 
 ## Catalog Entry Handlers
@@ -204,7 +204,7 @@ The `CrestApps.Core.Data.EntityCore` package gives you a ready-made alternative 
 builder.Services.AddCoreEntityCoreSqliteDataStore(
     $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}");
 
-builder.Services.AddCoreEntityCoreStores();
+builder.Services.AddEntityCoreStores();
 ```
 
 Create the schema during startup:
@@ -313,7 +313,7 @@ Register additional read-only sources alongside the primary catalog:
 
 ```csharp
 // Primary writable catalog (YesSql-backed)
-builder.Services.AddNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>();
+builder.Services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>();
 
 // Additional read-only source (e.g., code-defined defaults)
 builder.Services.AddScoped<IReadCatalog<AIProfile>, DefaultProfilesCatalog>();

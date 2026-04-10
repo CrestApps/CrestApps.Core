@@ -164,7 +164,7 @@ For local SQLite-backed EF Core development:
 builder.Services.AddCoreEntityCoreSqliteDataStore(
     $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}");
 
-builder.Services.AddCoreEntityCoreStores();
+builder.Services.AddEntityCoreStores();
 ```
 
 For YesSql, keep using `AddCoreYesSqlDataStore(...)` plus the YesSql catalog registrations. If you already use another ORM or storage model, implement the same catalog/store abstractions against your preferred backend.

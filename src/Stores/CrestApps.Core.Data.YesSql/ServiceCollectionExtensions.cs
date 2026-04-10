@@ -29,7 +29,7 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    public static IServiceCollection AddDocumentCatalogs(this IServiceCollection services)
+    public static IServiceCollection AddYesSqlDocumentCatalogs(this IServiceCollection services)
     {
         services.TryAddScoped(typeof(ICatalog<>), typeof(DocumentCatalog<,>));
         services.TryAddScoped(typeof(INamedCatalog<>), typeof(NamedDocumentCatalog<,>));
@@ -39,7 +39,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
+    public static IServiceCollection AddYesSqlDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
         where TModel : CatalogItem
         where TIndex : CatalogItemIndex
     {
@@ -54,7 +54,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddNamedDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
+    public static IServiceCollection AddYesSqlNamedDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
     {
@@ -73,7 +73,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddSourceDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
+    public static IServiceCollection AddYesSqlSourceDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
         where TModel : CatalogItem, ISourceAwareModel
         where TIndex : CatalogItemIndex, ISourceAwareIndex
     {
@@ -92,7 +92,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddNamedSourceDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
+    public static IServiceCollection AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>(this IServiceCollection services, string collection = null)
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
     {
@@ -115,64 +115,73 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
-        where TModel : CatalogItem
-        where TIndex : CatalogItemIndex
-        where T : class, ICatalog<TModel>
-    {
-        services.RemoveAll<ICatalog<TModel>>();
-
-        services.AddScoped<T>();
-        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
-
-        return services;
-    }
-
-    public static IServiceCollection AddNamedDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services)
+    public static IServiceCollection AddYesSqlNamedDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
-        where T : class, INamedCatalog<TModel>
+        where TService : class, ICatalog<TModel>
     {
-        services.RemoveAll<ICatalog<TModel>>();
-        services.RemoveAll<INamedCatalog<TModel>>();
+        services
+            .RemoveAll<ICatalog<TModel>>();
 
-        services.AddScoped<T>();
-        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
-        services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.TryAddScoped<TService>();
+
+        services
+            .AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<TService>());
 
         return services;
     }
 
-    public static IServiceCollection AddSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services)
+    public static IServiceCollection AddYesSqlDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
+        where TModel : CatalogItem
+        where TIndex : CatalogItemIndex
+        where TService : class, ICatalog<TModel>
+    {
+        services
+            .RemoveAll<ICatalog<TModel>>();
+
+        services.TryAddScoped<TService>();
+
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<TService>());
+
+        return services;
+    }
+
+    public static IServiceCollection AddYesSqlSourceDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
         where TModel : CatalogItem, ISourceAwareModel
         where TIndex : CatalogItemIndex, ISourceAwareIndex
-        where T : class, ISourceCatalog<TModel>
+        where TService : class, ISourceCatalog<TModel>
     {
-        services.RemoveAll<ICatalog<TModel>>();
-        services.RemoveAll<ISourceCatalog<TModel>>();
+        services
+            .RemoveAll<ICatalog<TModel>>()
+            .RemoveAll<ISourceCatalog<TModel>>();
 
-        services.AddScoped<T>();
-        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
-        services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.TryAddScoped<TService>();
+
+        services
+            .AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<TService>())
+            .AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<TService>());
 
         return services;
     }
 
-    public static IServiceCollection AddNamedSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services)
+    public static IServiceCollection AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
-        where T : class, INamedSourceCatalog<TModel>
+        where TService : class, INamedSourceCatalog<TModel>
     {
-        services.RemoveAll<ICatalog<TModel>>();
-        services.RemoveAll<INamedCatalog<TModel>>();
-        services.RemoveAll<ISourceCatalog<TModel>>();
-        services.RemoveAll<INamedSourceCatalog<TModel>>();
+        services
+            .RemoveAll<ICatalog<TModel>>()
+            .RemoveAll<INamedCatalog<TModel>>()
+            .RemoveAll<ISourceCatalog<TModel>>()
+            .RemoveAll<INamedSourceCatalog<TModel>>();
 
-        services.AddScoped<T>();
-        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
-        services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
-        services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
-        services.AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
+        services.TryAddScoped<TService>();
+
+        services
+            .AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<TService>())
+            .AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<TService>())
+            .AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<TService>())
+            .AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<TService>());
 
         return services;
     }
