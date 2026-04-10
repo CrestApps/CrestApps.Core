@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
@@ -12,7 +13,7 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class AIDeploymentController : Controller
 {
-    private readonly INamedSourceCatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIDeploymentStore _deploymentCatalog;
     private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
 
     private static readonly List<SelectListItem> _providers =
@@ -38,7 +39,7 @@ public sealed class AIDeploymentController : Controller
     };
 
     public AIDeploymentController(
-        INamedSourceCatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentStore deploymentCatalog,
         INamedSourceCatalog<AIProviderConnection> connectionCatalog)
     {
         _deploymentCatalog = deploymentCatalog;

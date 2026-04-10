@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Services;

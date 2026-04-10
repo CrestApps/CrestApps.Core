@@ -19,7 +19,7 @@
         <ol class="mb-3">
             <li><strong>Add an AI Connection</strong> — configure a connection to your AI provider (OpenAI, Azure OpenAI, Ollama, etc.).</li>
             <li><strong>Add an AI Deployment</strong> — map a model deployment (e.g., <code>gpt-4o-mini</code>) to your connection.</li>
-            <li><strong>Start chatting</strong> — use <strong>Chat Interactions</strong> as a playground, or create an <strong>AI Profile</strong> for reusable multi-session conversations via AI Chat.</li>
+            <li><strong>Start testing</strong> — open <strong>Chat Interactions</strong> first to validate your connection and deployment immediately, then create an <strong>AI Profile</strong> when you want reusable chat, agent, or orchestration behavior.</li>
         </ol>
         <div class="alert alert-secondary mb-0 py-2">
             <i class="bi bi-info-circle"></i>
@@ -58,13 +58,27 @@
         </div>
     </div>
     <div class="col">
+        <div class="card h-100 border-danger">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-chat-left-dots fs-2 text-danger me-3"></i>
+                    <h5 class="card-title mb-0">Chat Interactions</h5>
+                </div>
+                <p class="card-text">The fastest way to test a new setup with a real conversation before creating reusable profiles.</p>
+                <a asp-area="ChatInteractions" asp-controller="ChatInteraction" asp-action="Index" class="btn btn-danger">
+                    <i class="bi bi-arrow-right"></i> Manage Interactions
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col">
         <div class="card h-100 border-primary">
             <div class="card-body">
                 <div class="d-flex align-items-center mb-3">
                     <i class="bi bi-person-gear fs-2 text-primary me-3"></i>
                     <h5 class="card-title mb-0">AI Profiles</h5>
                 </div>
-                <p class="card-text">Create and manage AI profiles with system prompts, parameters, and provider configurations.</p>
+                <p class="card-text">Create reusable AI behavior for chat, agents, tools, data sources, memory, and session processing.</p>
                 <a asp-area="AI" asp-controller="AIProfile" asp-action="Index" class="btn btn-primary">
                     <i class="bi bi-arrow-right"></i> Manage Profiles
                 </a>
@@ -78,23 +92,9 @@
                     <i class="bi bi-chat-dots fs-2 text-info me-3"></i>
                     <h5 class="card-title mb-0">AI Chat</h5>
                 </div>
-                <p class="card-text">Manage reusable interaction sessions and orchestration-driven conversation flows.</p>
+                <p class="card-text">Manage reusable interaction sessions and orchestration-driven conversation flows powered by AI Profiles.</p>
                 <a asp-area="AIChat" asp-controller="AIChat" asp-action="Index" class="btn btn-info text-white">
                     <i class="bi bi-arrow-right"></i> Start Chat
-                </a>
-            </div>
-        </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 border-danger">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="bi bi-chat-left-dots fs-2 text-danger me-3"></i>
-                    <h5 class="card-title mb-0">Chat Interactions</h5>
-                </div>
-                <p class="card-text">Start real-time conversations with AI assistants as playground.</p>
-                <a asp-area="ChatInteractions" asp-controller="ChatInteraction" asp-action="Index" class="btn btn-danger">
-                    <i class="bi bi-arrow-right"></i> Manage Interactions
                 </a>
             </div>
         </div>

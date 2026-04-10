@@ -9,7 +9,7 @@ description: Chat session management, interaction handlers, and response routing
 
 > Manages chat sessions, routes responses through pluggable handlers, and tracks interaction history.
 
-If you want the easiest playground-style UI for a new host, start here after you have one provider connection, one deployment, and one AI profile configured.
+If you want the easiest playground-style UI for a new host, start here after you have one provider connection and one deployment configured. Unlike AI Chat, Chat Interactions do not require an AI Profile to get started.
 
 ## Quick Start
 
@@ -21,6 +21,8 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 ```
 
 By default, connections are discovered from `CrestApps:AI:Connections` and deployments are discovered from `CrestApps:AI:Deployments`. Connection-based deployments can reference a shared `ConnectionName`, while contained-connection deployments can embed provider-specific settings directly in the deployment entry.
+
+When you are ready to turn an ad hoc interaction into a reusable runtime contract, move that setup into an [AI Profile](./ai-profiles.md).
 
 ## Problem & Solution
 

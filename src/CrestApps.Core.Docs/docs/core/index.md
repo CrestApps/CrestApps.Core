@@ -48,7 +48,7 @@ By default:
 - connections are loaded from `CrestApps:AI:Connections`
 - deployments are loaded from `CrestApps:AI:Deployments`
 
-The quickest way to validate the setup is to create an AI profile and use **Chat Interactions** as your first playground-style UI.
+The quickest way to validate the setup is to use **Chat Interactions** first, then create an [AI Profile](./ai-profiles.md) when you want reusable chat, agent, or orchestration behavior.
 
 ## Package map
 

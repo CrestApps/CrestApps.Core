@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
@@ -5,12 +6,12 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
-public class DefaultAIDeploymentManager : AIDeploymentManagerBase
+public sealed class DefaultAIDeploymentManager : AIDeploymentManagerBase
 {
     private readonly IOptionsMonitor<DefaultAIDeploymentSettings> _deploymentSettings;
 
     public DefaultAIDeploymentManager(
-        INamedSourceCatalog<AIDeployment> deploymentStore,
+        IAIDeploymentStore deploymentStore,
         IEnumerable<ICatalogEntryHandler<AIDeployment>> handlers,
         IOptionsMonitor<DefaultAIDeploymentSettings> deploymentSettings,
         ILogger<DefaultAIDeploymentManager> logger)

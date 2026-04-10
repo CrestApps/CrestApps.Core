@@ -1,8 +1,11 @@
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Mcp.Functions;
 using CrestApps.Core.AI.Mcp.Handlers;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Services;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
@@ -11,50 +14,94 @@ namespace CrestApps.Core.AI.Mcp;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>
-    /// Adds MCP client services including transport providers, OAuth2, and the core
-    /// <see cref="McpService"/> that manages connections to remote MCP servers.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddCoreAIMcpClient(this IServiceCollection services)
+    public static IServiceCollection AddCoreAIMcpServices(this IServiceCollection services)
     {
         services.AddMemoryCache();
+        services.AddDistributedMemoryCache();
         services.AddHttpClient();
+        services.AddDataProtection();
 
         services.TryAddScoped<McpService>();
         services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
+        services.TryAddSingleton<IMcpMetadataPromptGenerator, DefaultMcpMetadataPromptGenerator>();
+        services.TryAddSingleton<IMcpCapabilityEmbeddingCacheProvider, InMemoryMcpCapabilityEmbeddingCacheProvider>();
+        services.TryAddScoped<IMcpServerMetadataCacheProvider, DefaultMcpServerMetadataProvider>();
+        services.TryAddScoped<IMcpCapabilityResolver, DefaultMcpCapabilityResolver>();
+
+        services.AddOptions<McpCapabilityResolverOptions>();
+        services.AddOptions<McpMetadataCacheOptions>();
+
+        services.AddCoreAISseMcpClientTransport();
+
+        return services;
+    }
+
+    public static IServiceCollection AddCoreAISseMcpClientTransport(this IServiceCollection services)
+    {
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IMcpClientTransportProvider, SseClientTransportProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMcpClientTransportProvider, StdioClientTransportProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, McpAICompletionContextBuilderHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<McpConnection>, SseMcpConnectionSettingsHandler>());
 
         services.Configure<McpClientAIOptions>(options =>
         {
             options.AddTransportType(McpConstants.TransportTypes.Sse, entry =>
             {
                 entry.DisplayName = new LocalizedString("Server-Sent Events", "Server-Sent Events");
-                entry.Description = new LocalizedString("Server-Sent Events Description", "Uses a remote MCP server over HTTP.");
+                entry.Description = new LocalizedString(
+                    "Server-Sent Events Description",
+                    "Uses Server-Sent Events over HTTP to receive streaming responses from a remote model server. Great for real-time output from hosted models.");
             });
-
-            options.AddTransportType(McpConstants.TransportTypes.StdIo, entry =>
-            {
-                entry.DisplayName = new LocalizedString("Standard Input/Output", "Standard Input/Output");
-                entry.Description = new LocalizedString("Standard Input/Output Description", "Uses a local MCP process over standard input/output.");
-            });
-
         });
 
         return services;
     }
 
-    public static CrestAppsAISuiteBuilder AddMcpClient(this CrestAppsAISuiteBuilder builder)
+    public static IServiceCollection AddCoreAIStdIoMcpClientTransport(this IServiceCollection services)
     {
-        builder.Services.AddCoreAIMcpClient();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMcpClientTransportProvider, StdioClientTransportProvider>());
+
+        services.Configure<McpClientAIOptions>(options =>
+        {
+            options.AddTransportType(McpConstants.TransportTypes.StdIo, entry =>
+            {
+                entry.DisplayName = new LocalizedString("Standard Input/Output", "Standard Input/Output");
+                entry.Description = new LocalizedString(
+                    "Standard Input/Output Description",
+                    "Uses standard input/output streams to communicate with a locally running model process. Ideal for local subprocess integration.");
+            });
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds MCP client services including transport providers, OAuth2, and the core
+    /// <see cref="McpService"/> that manages connections to remote MCP servers.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddCoreAIMcpClient(this IServiceCollection services, bool includeStdIoTransport = true)
+    {
+        services.AddCoreAIMcpServices();
+
+        if (includeStdIoTransport)
+        {
+            services.AddCoreAIStdIoMcpClientTransport();
+        }
+
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, McpAICompletionContextBuilderHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, McpToolRegistryProvider>());
+        services.AddCoreAITool<McpInvokeFunction>(McpInvokeFunction.FunctionName);
+
+        return services;
+    }
+
+    public static CrestAppsAISuiteBuilder AddMcpServices(this CrestAppsAISuiteBuilder builder)
+    {
+        builder.Services.AddCoreAIMcpServices();
         return builder;
     }
 
-    [Obsolete("Use AddAISuite(ai => ai.AddMcpClient()).")]
-    public static CrestAppsCoreBuilder AddMcpClient(this CrestAppsCoreBuilder builder)
+    public static CrestAppsAISuiteBuilder AddMcpClient(this CrestAppsAISuiteBuilder builder)
     {
         builder.Services.AddCoreAIMcpClient();
         return builder;
