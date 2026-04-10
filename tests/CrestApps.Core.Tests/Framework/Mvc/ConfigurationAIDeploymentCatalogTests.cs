@@ -67,6 +67,79 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     }
 
     [Fact]
+    public async Task GetAllAsync_ShouldLoadStandaloneDeploymentsForProvidersWithoutContainedConnections()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:Name"] = "gpt-4.1",
+            ["CrestApps:AI:Deployments:0:ModelName"] = "gpt-4.1",
+            ["CrestApps:AI:Deployments:0:Type"] = "Chat",
+            ["CrestApps:AI:Deployments:0:IsDefault"] = "true",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+
+        var catalog = new ConfigurationAIDeploymentCatalog(
+            new TestAIDeploymentStore([]),
+            configuration,
+            Options.Create(aiOptions),
+            Options.Create(new AIDeploymentCatalogOptions()),
+            NullLogger<ConfigurationAIDeploymentCatalog>.Instance);
+
+        var deployment = Assert.Single(await catalog.GetAllAsync());
+
+        Assert.Equal("OpenAI", deployment.ClientName);
+        Assert.Equal("gpt-4.1", deployment.Name);
+        Assert.Equal("gpt-4.1", deployment.ModelName);
+        Assert.Equal(AIDeploymentType.Chat, deployment.Type);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReadEveryConfiguredDeploymentSectionAndPreserveConnectionNames()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["Primary:Deployments:0:ClientName"] = "OpenAI",
+            ["Primary:Deployments:0:ConnectionName"] = "shared-primary",
+            ["Primary:Deployments:0:Name"] = "gpt-4.1",
+            ["Primary:Deployments:0:ModelName"] = "gpt-4.1",
+            ["Primary:Deployments:0:Type"] = "Chat",
+            ["Secondary:Deployments:AzureSpeech:0:Name"] = "speech-primary",
+            ["Secondary:Deployments:AzureSpeech:0:Type"] = "SpeechToText",
+            ["Secondary:Deployments:AzureSpeech:0:Endpoint"] = "https://example.cognitiveservices.azure.com/",
+            ["Secondary:Deployments:AzureSpeech:0:AuthenticationType"] = "ApiKey",
+            ["Secondary:Deployments:AzureSpeech:0:ApiKey"] = "secret",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
+
+        var catalogOptions = new AIDeploymentCatalogOptions();
+        catalogOptions.DeploymentSections.Clear();
+        catalogOptions.DeploymentSections.Add("Primary:Deployments");
+        catalogOptions.DeploymentSections.Add("Secondary:Deployments");
+
+        var catalog = new ConfigurationAIDeploymentCatalog(
+            new TestAIDeploymentStore([]),
+            configuration,
+            Options.Create(aiOptions),
+            Options.Create(catalogOptions),
+            NullLogger<ConfigurationAIDeploymentCatalog>.Instance);
+
+        var deployments = await catalog.GetAllAsync();
+        var sharedDeployment = Assert.Single(deployments, x => x.Name == "gpt-4.1");
+        var containedDeployment = Assert.Single(deployments, x => x.Name == "speech-primary");
+
+        Assert.Equal("shared-primary", sharedDeployment.ConnectionName);
+        Assert.Equal(AIConfigurationRecordIds.CreateDeploymentId("OpenAI", "shared-primary", "gpt-4.1"), sharedDeployment.ItemId);
+        Assert.Null(containedDeployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.SpeechToText, containedDeployment.Type);
+    }
+
+    [Fact]
     public async Task GetAllAsync_ShouldPreferStoredDeploymentWhenConfiguredNameConflicts()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>

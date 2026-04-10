@@ -290,7 +290,7 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
             ProviderName = AIProviderNameNormalizer.Normalize(GetStringValue(deploymentObject["ClientName"]) ?? GetStringValue(deploymentObject["ProviderName"]) ?? providerName),
             Name = GetStringValue(deploymentObject["Name"]),
             ModelName = GetStringValue(deploymentObject["ModelName"]) ?? GetStringValue(deploymentObject["Name"]),
-            IsDefault = GetBooleanValue(deploymentObject["IsDefault"]),
+            ConnectionName = GetStringValue(deploymentObject["ConnectionName"]),
             Properties = BuildStandaloneDeploymentProperties(deploymentObject),
         };
         if (TryGetDeploymentType(deploymentObject["Type"], out var deploymentType))
@@ -326,10 +326,12 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
             return null;
         }
 
-        if (!providerEntry.SupportsContainedConnection)
+        if (!providerEntry.SupportsContainedConnection && _logger.IsEnabled(LogLevel.Debug))
         {
-            _logger.LogWarning("Provider '{ProviderName}' does not support contained connections. Use connection-scoped deployments instead.", entry.ProviderName);
-            return null;
+            _logger.LogDebug(
+                "Provider '{ProviderName}' does not support contained connections. Treating deployment '{DeploymentName}' as shared metadata that resolves through provider connections at runtime.",
+                entry.ProviderName,
+                entry.Name);
         }
 
         if (string.IsNullOrWhiteSpace(entry.Name))
@@ -346,10 +348,11 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
         return new AIDeployment
         {
-            ItemId = AIConfigurationRecordIds.CreateDeploymentId(entry.ProviderName, connectionName: null, entry.Name),
+            ItemId = AIConfigurationRecordIds.CreateDeploymentId(entry.ProviderName, entry.ConnectionName, entry.Name),
             Name = entry.Name,
             ModelName = entry.ModelName,
             Source = entry.ProviderName,
+            ConnectionName = entry.ConnectionName,
             Type = entry.Type,
             Properties = entry.Properties?.Count > 0 ? JsonSerializer.Deserialize<Dictionary<string, object>>(entry.Properties.DeepClone()) : null,
         };
@@ -472,7 +475,7 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     private static bool IsStandaloneDeploymentMetadataKey(string key)
     {
-        return string.Equals(key, "ClientName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ProviderName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Name", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ModelName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Type", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "IsDefault", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Properties", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(key, "ClientName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ProviderName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Name", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ModelName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ConnectionName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Type", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "IsDefault", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Properties", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetStringValue(JsonNode node)

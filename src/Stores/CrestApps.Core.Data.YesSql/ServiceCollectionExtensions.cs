@@ -128,7 +128,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddNamedDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+    public static IServiceCollection AddNamedDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
         where T : class, INamedCatalog<TModel>
@@ -143,7 +143,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+    public static IServiceCollection AddSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services)
         where TModel : CatalogItem, ISourceAwareModel
         where TIndex : CatalogItemIndex, ISourceAwareIndex
         where T : class, ISourceCatalog<TModel>
@@ -158,7 +158,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddNamedSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services, string collection = null)
+    public static IServiceCollection AddNamedSourceDocumentCatalog<TModel, TIndex, T>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
         where T : class, INamedSourceCatalog<TModel>
