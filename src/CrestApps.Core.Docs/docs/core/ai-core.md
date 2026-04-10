@@ -25,6 +25,14 @@ AI applications need to work with multiple LLM providers (OpenAI, Azure, Ollama,
 
 ## Core Concepts
 
+### AI Profile
+
+An **AI Profile** is the reusable runtime definition that ties deployments, prompts, orchestration, tools, retrieval, memory, and session behavior together. It is the main contract used by higher-level features such as AI Chat and agents.
+
+Use Chat Interactions when you want fast ad hoc testing. Use an AI Profile when you want a named, reusable experience that multiple sessions, users, or orchestrators can share.
+
+See [AI Profiles](./ai-profiles.md) for the full conceptual model and guidance.
+
 ### Deployment
 
 A **deployment** maps a logical name to a specific model on a specific provider connection. For example, deployment `"gpt-4o"` might map to the `gpt-4o` model on your OpenAI connection. The orchestrator resolves deployments at runtime using a fallback chain:
@@ -129,7 +137,7 @@ public interface IAICompletionClient
 
 ### `AIOptions`
 
-Central options class for registering profile sources, deployment providers, connection sources, and template sources.
+Central options class for registering profile sources, deployment providers, connection sources, and template sources. By default, connections are loaded from `CrestApps:AI:Connections` and deployments are loaded from `CrestApps:AI:Deployments`.
 
 ```csharp
 services.Configure<AIOptions>(options =>

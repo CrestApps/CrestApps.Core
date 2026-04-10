@@ -13,8 +13,15 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 
 TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
 {
+    if (IsBenignAppHostException(eventArgs.Exception))
+    {
+        eventArgs.SetObserved();
+        return;
+    }
+
     Console.Error.WriteLine("[AppHost] Unobserved task exception.");
     Console.Error.WriteLine(eventArgs.Exception);
+    eventArgs.SetObserved();
 };
 
 AppDomain.CurrentDomain.ProcessExit += (_, _) =>
@@ -79,4 +86,15 @@ catch (Exception ex)
     Console.Error.WriteLine("[AppHost] Distributed application terminated unexpectedly.");
     Console.Error.WriteLine(ex);
     throw;
+}
+
+static bool IsBenignAppHostException(Exception exception)
+{
+    return exception switch
+    {
+        AggregateException aggregateException => aggregateException.InnerExceptions.All(IsBenignAppHostException),
+        OperationCanceledException => true,
+        IOException ioException when ioException.Message.Contains("request was aborted", StringComparison.OrdinalIgnoreCase) => true,
+        _ => false,
+    };
 }

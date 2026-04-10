@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Services;
 public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDeployment>, IAIDeploymentManager
 {
     public AIDeploymentManagerBase(
-        INamedSourceCatalog<AIDeployment> deploymentStore,
+        IAIDeploymentStore deploymentStore,
         IEnumerable<ICatalogEntryHandler<AIDeployment>> handlers,
         ILogger<AIDeploymentManagerBase> logger)
         : base(deploymentStore, handlers, logger)

@@ -1,11 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using CrestApps.Core.Support;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -14,24 +14,22 @@ namespace CrestApps.Core.AI.Services;
 /// Decorates a persisted AI deployment store with configuration-backed deployments from appsettings.json.
 /// Read operations return the merged result while write operations continue to target the persisted store only.
 /// </summary>
-public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDeployment>
+public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
 {
-    public const string PersistedCatalogKey = "PersistedCatalog";
-
-    private readonly INamedSourceCatalog<AIDeployment> _inner;
+    private readonly INamedSourceCatalog<AIDeployment> _deploymentCatalog;
     private readonly IConfiguration _configuration;
     private readonly AIOptions _aiOptions;
     private readonly AIDeploymentCatalogOptions _catalogOptions;
     private readonly ILogger _logger;
 
     public ConfigurationAIDeploymentCatalog(
-        [FromKeyedServices(PersistedCatalogKey)] INamedSourceCatalog<AIDeployment> inner,
+        INamedSourceCatalog<AIDeployment> deploymentCatalog,
         IConfiguration configuration,
         IOptions<AIOptions> aiOptions,
         IOptions<AIDeploymentCatalogOptions> catalogOptions,
         ILogger<ConfigurationAIDeploymentCatalog> logger)
     {
-        _inner = inner;
+        _deploymentCatalog = deploymentCatalog;
         _configuration = configuration;
         _aiOptions = aiOptions.Value;
         _catalogOptions = catalogOptions.Value;
@@ -40,20 +38,20 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     public async ValueTask<AIDeployment> FindByIdAsync(string id)
     {
-        var result = await _inner.FindByIdAsync(id);
+        var result = await _deploymentCatalog.FindByIdAsync(id);
         if (result != null)
         {
             return result;
         }
 
-        return (await GetConfigDeploymentsAsync(await _inner.GetAllAsync()))
+        return (await GetConfigDeploymentsAsync(await _deploymentCatalog.GetAllAsync()))
             .FirstOrDefault(deployment => string.Equals(deployment.ItemId, id, StringComparison.OrdinalIgnoreCase))
             ?.Clone();
     }
 
     public async ValueTask<IReadOnlyCollection<AIDeployment>> GetAllAsync()
     {
-        var dbRecords = await _inner.GetAllAsync();
+        var dbRecords = await _deploymentCatalog.GetAllAsync();
         var configRecords = await GetConfigDeploymentsAsync(dbRecords);
         if (configRecords.Count == 0)
         {
@@ -65,7 +63,7 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     public async ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(IEnumerable<string> ids)
     {
-        var dbRecords = await _inner.GetAsync(ids);
+        var dbRecords = await _deploymentCatalog.GetAsync(ids);
         var requestedIds = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var foundIds = dbRecords.Select(static deployment => deployment.ItemId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var missingIds = requestedIds.Except(foundIds).ToList();
@@ -86,10 +84,10 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
     public async ValueTask<PageResult<AIDeployment>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
         where TQuery : QueryContext
     {
-        var configRecords = await GetConfigDeploymentsAsync(await _inner.GetAllAsync());
+        var configRecords = await GetConfigDeploymentsAsync(await _deploymentCatalog.GetAllAsync());
         if (configRecords.Count == 0)
         {
-            return await _inner.PageAsync(page, pageSize, context);
+            return await _deploymentCatalog.PageAsync(page, pageSize, context);
         }
 
         var allRecords = await GetAllAsync();
@@ -104,20 +102,20 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     public async ValueTask<AIDeployment> FindByNameAsync(string name)
     {
-        var result = await _inner.FindByNameAsync(name);
+        var result = await _deploymentCatalog.FindByNameAsync(name);
         if (result != null)
         {
             return result;
         }
 
-        return (await GetConfigDeploymentsAsync(await _inner.GetAllAsync()))
+        return (await GetConfigDeploymentsAsync(await _deploymentCatalog.GetAllAsync()))
             .FirstOrDefault(deployment => string.Equals(deployment.Name, name, StringComparison.OrdinalIgnoreCase))
             ?.Clone();
     }
 
     public async ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(string source)
     {
-        var dbRecords = await _inner.GetAsync(source);
+        var dbRecords = await _deploymentCatalog.GetAsync(source);
         var configMatches = (await GetConfigDeploymentsAsync(dbRecords)).Where(deployment => string.Equals(deployment.Source, source, StringComparison.OrdinalIgnoreCase)).ToList();
         if (configMatches.Count == 0)
         {
@@ -129,22 +127,22 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
     public async ValueTask<AIDeployment> GetAsync(string name, string source)
     {
-        var result = await _inner.GetAsync(name, source);
+        var result = await _deploymentCatalog.GetAsync(name, source);
         if (result != null)
         {
             return result;
         }
 
-        return (await GetConfigDeploymentsAsync(await _inner.GetAllAsync()))
+        return (await GetConfigDeploymentsAsync(await _deploymentCatalog.GetAllAsync()))
             .FirstOrDefault(deployment =>
                 string.Equals(deployment.Name, name, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(deployment.Source, source, StringComparison.OrdinalIgnoreCase))
             ?.Clone();
     }
 
-    public ValueTask<bool> DeleteAsync(AIDeployment entry) => _inner.DeleteAsync(entry);
-    public ValueTask CreateAsync(AIDeployment entry) => _inner.CreateAsync(entry);
-    public ValueTask UpdateAsync(AIDeployment entry) => _inner.UpdateAsync(entry);
+    public ValueTask<bool> DeleteAsync(AIDeployment entry) => _deploymentCatalog.DeleteAsync(entry);
+    public ValueTask CreateAsync(AIDeployment entry) => _deploymentCatalog.CreateAsync(entry);
+    public ValueTask UpdateAsync(AIDeployment entry) => _deploymentCatalog.UpdateAsync(entry);
 
     private async Task<IReadOnlyCollection<AIDeployment>> GetConfigDeploymentsAsync(IReadOnlyCollection<AIDeployment> storedDeployments)
     {

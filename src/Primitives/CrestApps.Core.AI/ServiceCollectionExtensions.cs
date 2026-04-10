@@ -19,6 +19,7 @@ using CrestApps.Core.Templates.Extensions;
 using CrestApps.Core.Templates.Parsing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -93,12 +94,6 @@ public static class ServiceCollectionExtensions
 
     }
 
-    [Obsolete("Use AddCoreAITool().")]
-    public static AIToolBuilder<TTool> AddAITool<TTool>(this IServiceCollection services, string name)
-        where TTool : AITool
-    {
-        return services.AddCoreAITool<TTool>(name);
-    }
     /// <summary>
     /// Registers the core DI services for an AI tool (singleton and keyed singleton)
     /// without adding it to the tool definition options. Use this for tools that
@@ -124,6 +119,7 @@ public static class ServiceCollectionExtensions
         // Ensure IHttpContextAccessor is available for services that need HTTP context.
 
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
 
         services
             .AddCoreAITemplating()
@@ -150,9 +146,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAICompletionContextBuilder, DefaultAICompletionContextBuilder>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());
 
         return services;
-
     }
 
     public static CrestAppsCoreBuilder AddAISuite(this CrestAppsCoreBuilder builder, Action<CrestAppsAISuiteBuilder> configure = null)
@@ -170,13 +166,6 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    [Obsolete("Use AddAISuite(...).")]
-    public static CrestAppsCoreBuilder AddAI(this CrestAppsCoreBuilder builder)
-    {
-        builder.Services.AddCoreAIServices();
-        return builder;
-    }
-
     public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string implementationName, string providerName, Action<AIProfileProviderEntry> configure = null)
 
         where TClient : class, IAICompletionClient
@@ -188,7 +177,6 @@ public static class ServiceCollectionExtensions
 
             })
             .AddCoreAICompletionClient<TClient>(implementationName);
-
     }
 
     public static IServiceCollection AddCoreAIDeploymentProvider(this IServiceCollection services, string providerName, Action<AIDeploymentProviderEntry> configure = null)
@@ -219,7 +207,6 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAIConnectionSource(this IServiceCollection services, string providerName, Action<AIProviderConnectionOptionsEntry> configure = null)
     {
-
         services.Configure<AIOptions>(o =>
         {
             o.AddConnectionSource(providerName, configure);
@@ -230,7 +217,6 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAITemplateSource(this IServiceCollection services, string sourceName, Action<AITemplateSourceEntry> configure = null)
     {
-
         services.Configure<AIOptions>(o =>
         {
             o.AddTemplateSource(sourceName, configure);
@@ -356,9 +342,11 @@ public static class ServiceCollectionExtensions
         });
 
         // Register the Framework-level deployment manager.
-
-        // OrchardCore overrides this with its ISiteService-backed implementation.
         services.TryAddScoped<IAIDeploymentManager, DefaultAIDeploymentManager>();
+        services.TryAddScoped<ICatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
+        services.TryAddScoped<INamedCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
+        services.TryAddScoped<ISourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
+        services.TryAddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
 
         services.TryAddSingleton<IExternalChatRelayManager, ExternalChatRelayConnectionManager>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatResponseHandler, AIChatResponseHandler>());
@@ -393,7 +381,6 @@ public static class ServiceCollectionExtensions
         // Register content generation system tools.
         services.AddCoreAITool<GenerateImageTool>(GenerateImageTool.TheName)
             .WithTitle("Generate Image")
-
             .WithDescription("Generates an image from a text description using an AI image generation model.")
             .WithPurpose(AIToolPurposes.ContentGeneration);
 
@@ -409,13 +396,6 @@ public static class ServiceCollectionExtensions
             .Selectable();
 
         return services;
-    }
-
-    [Obsolete("Use AddAISuite(...), which already includes orchestration.")]
-    public static CrestAppsCoreBuilder AddOrchestration(this CrestAppsCoreBuilder builder)
-    {
-        builder.Services.AddCoreAIOrchestration();
-        return builder;
     }
 
     /// <summary>

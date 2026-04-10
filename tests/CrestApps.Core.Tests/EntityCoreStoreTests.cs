@@ -1,9 +1,9 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Services;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -57,7 +57,7 @@ public sealed class EntityCoreStoreTests
         using var scope = harness.Services.CreateScope();
         var services = scope.ServiceProvider;
 
-        var deploymentStore = services.GetRequiredKeyedService<INamedSourceCatalog<AIDeployment>>(ConfigurationAIDeploymentCatalog.PersistedCatalogKey);
+        var deploymentStore = services.GetRequiredService<IAIDeploymentStore>();
         var dataSourceStore = services.GetRequiredService<IAIDataSourceStore>();
         var memoryStore = services.GetRequiredService<IAIMemoryStore>();
         var documentStore = services.GetRequiredService<IAIDocumentStore>();

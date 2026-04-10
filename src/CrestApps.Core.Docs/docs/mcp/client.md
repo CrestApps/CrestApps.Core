@@ -18,7 +18,9 @@ builder.Services
     .AddCoreAIMcpClient();
 ```
 
-This registers transport providers, OAuth2 support, the core `McpService` that manages connections to remote MCP servers, and the shared AI-profile completion-context handler that flows selected MCP connection IDs into the completion request.
+This registers the shared MCP runtime services, the default SSE and StdIO transport providers, the core `McpService` that manages connections to remote MCP servers, the MCP tool-registry provider, and the shared AI-profile completion-context handler that flows selected MCP connection IDs into the completion request.
+
+If your host needs the shared MCP runtime registrations without automatically enabling the StdIO transport, call `AddCoreAIMcpServices()` and then opt into transports explicitly, or call `AddCoreAIMcpClient(includeStdIoTransport: false)`.
 
 ## Problem & Solution
 
@@ -40,9 +42,14 @@ The MCP client framework:
 |---------|---------------|----------|---------|
 | `McpService` | — | Scoped | Creates MCP clients for configured connections |
 | `IOAuth2TokenService` | `DefaultOAuth2TokenService` | Scoped | OAuth2 token acquisition and caching |
+| `IMcpMetadataPromptGenerator` | `DefaultMcpMetadataPromptGenerator` | Singleton | Builds prompt text from remote MCP metadata |
+| `IMcpCapabilityEmbeddingCacheProvider` | `InMemoryMcpCapabilityEmbeddingCacheProvider` | Singleton | Caches capability embeddings for hybrid MCP resolution |
+| `IMcpServerMetadataCacheProvider` | `DefaultMcpServerMetadataProvider` | Scoped | Loads and caches remote MCP server metadata |
+| `IMcpCapabilityResolver` | `DefaultMcpCapabilityResolver` | Scoped | Resolves likely MCP capabilities for a prompt |
 | `IMcpClientTransportProvider` | `SseClientTransportProvider` | Scoped | Server-Sent Events transport |
 | `IMcpClientTransportProvider` | `StdioClientTransportProvider` | Scoped | Standard I/O transport |
 | `IAICompletionContextBuilderHandler` | `McpAICompletionContextBuilderHandler` | Scoped | Copies selected MCP connection IDs from AI profile metadata into the completion context |
+| `IToolRegistryProvider` | `McpToolRegistryProvider` | Scoped | Publishes remote MCP tools into the AI tool registry |
 
 Two transport types are automatically registered in `McpClientAIOptions`:
 

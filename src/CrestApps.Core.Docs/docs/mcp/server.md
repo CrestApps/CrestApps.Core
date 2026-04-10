@@ -22,6 +22,8 @@ builder.Services
 
 `AddCoreAIMcpServer()` registers the shared prompt and resource services. FTP and SFTP resource handlers now live in the optional `CrestApps.Core.AI.Ftp` and `CrestApps.Core.AI.Sftp` packages, so hosts opt into those transport dependencies explicitly.
 
+When the same host also acts as an MCP client, use `AddCoreAIMcpServices()` or `AddCoreAIMcpClient(...)` once for the shared runtime pieces, then layer `AddCoreAIMcpServer()` on top for the prompt and resource services.
+
 ## Problem & Solution
 
 External AI clients — IDE assistants, chat agents, orchestration frameworks — need a standardized way to discover and call your application's tools, read your prompts, and access your resources. The [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) provides that standard.

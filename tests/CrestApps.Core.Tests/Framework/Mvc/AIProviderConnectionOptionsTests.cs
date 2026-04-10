@@ -1,4 +1,5 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.Services;
@@ -198,7 +199,7 @@ public sealed class AIProviderConnectionOptionsTests
     [Fact]
     public async Task AIDeploymentController_Create_ShouldPopulateConnectionsFromMergedCatalog()
     {
-        var deploymentCatalog = new Mock<INamedSourceCatalog<AIDeployment>>();
+        var deploymentCatalog = new Mock<IAIDeploymentStore>();
         var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
         connectionCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
         [
@@ -267,7 +268,7 @@ public sealed class AIProviderConnectionOptionsTests
     [Fact]
     public async Task AIDeploymentController_Index_ShouldMarkConfiguredDeploymentsAsReadOnly()
     {
-        var deploymentCatalog = new Mock<INamedSourceCatalog<AIDeployment>>();
+        var deploymentCatalog = new Mock<IAIDeploymentStore>();
         deploymentCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
         [
             new AIDeployment
