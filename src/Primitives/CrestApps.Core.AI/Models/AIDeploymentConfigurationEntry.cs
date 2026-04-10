@@ -9,9 +9,9 @@ namespace CrestApps.Core.AI.Models;
 public sealed class AIDeploymentConfigurationEntry
 {
     /// <summary>
-    /// Gets or sets the deployment provider name for standalone configuration entries.
+    /// Gets or sets the deployment provider name for configuration entries.
     /// </summary>
-    public string ProviderName { get; set; }
+    public string ClientName { get; set; }
 
     /// <summary>
     /// Gets or sets the unique technical deployment name used for lookups.

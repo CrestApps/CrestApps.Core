@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -162,7 +163,7 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
         try
         {
-            ReadStandaloneDeployments(deployments, names);
+            ReadConfiguredDeployments(deployments, names);
         }
         catch (Exception ex)
         {
@@ -179,7 +180,7 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
         return deployments.Values.ToArray();
     }
 
-    private void ReadStandaloneDeployments(Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names)
+    private void ReadConfiguredDeployments(Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names)
     {
         foreach (var sectionPath in _catalogOptions.DeploymentSections)
         {
@@ -214,10 +215,10 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
             switch (deploymentsNode)
             {
                 case JsonArray deploymentArray:
-                    ReadStandaloneDeploymentsFromArray(deploymentArray, deployments, names, sectionPath);
+                    ReadConfiguredDeploymentsFromArray(deploymentArray, deployments, names, sectionPath);
                     break;
                 case JsonObject deploymentObject:
-                    ReadStandaloneDeploymentsFromObject(deploymentObject, deployments, names, sectionPath);
+                    ReadConfiguredDeploymentsFromObject(deploymentObject, deployments, names, sectionPath);
                     break;
                 case null:
                     break;
@@ -228,7 +229,7 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
         }
     }
 
-    private void ReadStandaloneDeploymentsFromArray(JsonArray deploymentArray, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
+    private void ReadConfiguredDeploymentsFromArray(JsonArray deploymentArray, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
     {
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -242,16 +243,16 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
         {
             if (deploymentNode is not JsonObject deploymentObject)
             {
-                _logger.LogWarning("A standalone AI deployment entry is not a valid object. Skipping.");
+                _logger.LogWarning("An AI deployment entry is not a valid object. Skipping.");
                 continue;
             }
 
-            var deployment = CreateStandaloneDeployment(ParseStandaloneDeploymentEntry(deploymentObject));
+            var deployment = CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(deploymentObject));
             AddDeployment(deployments, names, deployment, sectionPath);
         }
     }
 
-    private void ReadStandaloneDeploymentsFromObject(JsonObject deploymentObject, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
+    private void ReadConfiguredDeploymentsFromObject(JsonObject deploymentObject, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
     {
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -261,11 +262,11 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
                 string.Join(", ", deploymentObject.Select(static pair => pair.Key)));
         }
 
-        foreach (var (providerName, providerDeploymentsNode) in deploymentObject)
+        foreach (var (clientName, providerDeploymentsNode) in deploymentObject)
         {
             if (providerDeploymentsNode is not JsonArray providerDeployments)
             {
-                _logger.LogWarning("The provider '{ProviderName}' must contain an array of deployments. Skipping.", providerName);
+                _logger.LogWarning("The provider '{ProviderName}' must contain an array of deployments. Skipping.", clientName);
                 continue;
             }
 
@@ -273,25 +274,25 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
             {
                 if (deploymentNode is not JsonObject standaloneDeploymentObject)
                 {
-                    _logger.LogWarning("A standalone AI deployment entry for provider '{ProviderName}' is not a valid object. Skipping.", providerName);
+                    _logger.LogWarning("An AI deployment entry for client '{ClientName}' is not a valid object. Skipping.", clientName);
                     continue;
                 }
 
-                var deployment = CreateStandaloneDeployment(ParseStandaloneDeploymentEntry(standaloneDeploymentObject, providerName));
-                AddDeployment(deployments, names, deployment, $"{sectionPath}:{providerName}");
+                var deployment = CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(standaloneDeploymentObject, clientName));
+                AddDeployment(deployments, names, deployment, $"{sectionPath}:{clientName}");
             }
         }
     }
 
-    private static AIDeploymentConfigurationEntry ParseStandaloneDeploymentEntry(JsonObject deploymentObject, string providerName = null)
+    private static AIDeploymentConfigurationEntry ParseConfiguredDeploymentEntry(JsonObject deploymentObject, string clientName = null)
     {
         var entry = new AIDeploymentConfigurationEntry
         {
-            ProviderName = AIProviderNameNormalizer.Normalize(GetStringValue(deploymentObject["ClientName"]) ?? GetStringValue(deploymentObject["ProviderName"]) ?? providerName),
-            Name = GetStringValue(deploymentObject["Name"]),
-            ModelName = GetStringValue(deploymentObject["ModelName"]) ?? GetStringValue(deploymentObject["Name"]),
-            ConnectionName = GetStringValue(deploymentObject["ConnectionName"]),
-            Properties = BuildStandaloneDeploymentProperties(deploymentObject),
+            ClientName = deploymentObject["ClientName"].GetStringValue() ?? clientName,
+            Name = deploymentObject["Name"].GetStringValue(),
+            ModelName = deploymentObject["ModelName"].GetStringValue() ?? deploymentObject["Name"].GetStringValue(),
+            ConnectionName = deploymentObject["ConnectionName"].GetStringValue(),
+            Properties = BuildDeploymentProperties(deploymentObject),
         };
         if (TryGetDeploymentType(deploymentObject["Type"], out var deploymentType))
         {
@@ -301,71 +302,52 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
         return entry;
     }
 
-    private AIDeployment CreateStandaloneDeployment(AIDeploymentConfigurationEntry entry)
+    private AIDeployment CreateConfiguredDeployment(AIDeploymentConfigurationEntry entry)
     {
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
                 "Parsed AI deployment configuration entry. Provider: {ProviderName}. Name: {DeploymentName}. Model: {ModelName}. Type: {DeploymentType}. Property count: {PropertyCount}.",
-                entry.ProviderName,
+                entry.ClientName,
                 entry.Name,
                 entry.ModelName,
                 entry.Type,
                 entry.Properties?.Count ?? 0);
         }
 
-        if (string.IsNullOrWhiteSpace(entry.ProviderName))
+        if (string.IsNullOrWhiteSpace(entry.ClientName))
         {
-            _logger.LogWarning("A standalone AI deployment entry is missing a ClientName. Skipping.");
+            _logger.LogWarning("An AI deployment entry is missing a ClientName. Skipping.");
             return null;
         }
 
-        if (!_aiOptions.Deployments.TryGetValue(entry.ProviderName, out var providerEntry))
+        if (!_aiOptions.Deployments.ContainsKey(entry.ClientName))
         {
-            _logger.LogWarning("Unknown deployment provider '{ProviderName}' in AI deployment configuration. Skipping.", entry.ProviderName);
+            _logger.LogWarning("Unknown deployment provider '{ProviderName}' in AI deployment configuration. Skipping.", entry.ClientName);
             return null;
-        }
-
-        if (!providerEntry.SupportsContainedConnection && _logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogDebug(
-                "Provider '{ProviderName}' does not support contained connections. Treating deployment '{DeploymentName}' as shared metadata that resolves through provider connections at runtime.",
-                entry.ProviderName,
-                entry.Name);
         }
 
         if (string.IsNullOrWhiteSpace(entry.Name))
         {
-            _logger.LogWarning("A deployment entry for provider '{ProviderName}' is missing a Name. Skipping.", entry.ProviderName);
+            _logger.LogWarning("A deployment entry for provider '{ProviderName}' is missing a Name. Skipping.", entry.ClientName);
             return null;
         }
 
         if (!entry.Type.IsValidSelection())
         {
-            _logger.LogWarning("Deployment entry '{Name}' for provider '{ProviderName}' has an invalid Type. Skipping.", entry.Name, entry.ProviderName);
+            _logger.LogWarning("Deployment entry '{Name}' for provider '{ProviderName}' has an invalid Type. Skipping.", entry.Name, entry.ClientName);
             return null;
         }
 
         return new AIDeployment
         {
-            ItemId = AIConfigurationRecordIds.CreateDeploymentId(entry.ProviderName, entry.ConnectionName, entry.Name),
+            ItemId = AIConfigurationRecordIds.CreateDeploymentId(entry.ClientName, entry.ConnectionName, entry.Name),
             Name = entry.Name,
             ModelName = entry.ModelName,
-            Source = entry.ProviderName,
+            Source = entry.ClientName,
             ConnectionName = entry.ConnectionName,
             Type = entry.Type,
             Properties = entry.Properties?.Count > 0 ? JsonSerializer.Deserialize<Dictionary<string, object>>(entry.Properties.DeepClone()) : null,
-        };
-    }
-
-    private static JsonArray ConvertToJsonArray(object value)
-    {
-        return value switch
-        {
-            JsonElement jsonElement when jsonElement.ValueKind == JsonValueKind.Array => JsonNode.Parse(jsonElement.GetRawText()) as JsonArray,
-            JsonArray jsonArray => jsonArray,
-            IEnumerable<object> values => JsonSerializer.SerializeToNode(values) as JsonArray,
-            _ => null,
         };
     }
 
@@ -434,7 +416,7 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
         {
             foreach (var item in array)
             {
-                var typeName = GetStringValue(item);
+                var typeName = item.GetStringValue();
                 if (string.IsNullOrWhiteSpace(typeName) || !Enum.TryParse<AIDeploymentType>(typeName, ignoreCase: true, out var parsedType) || parsedType == AIDeploymentType.None)
                 {
                     type = AIDeploymentType.None;
@@ -447,11 +429,11 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
             return type.IsValidSelection();
         }
 
-        var singleTypeName = GetStringValue(typeNode);
+        var singleTypeName = typeNode.GetStringValue();
         return !string.IsNullOrWhiteSpace(singleTypeName) && Enum.TryParse(singleTypeName, ignoreCase: true, out type) && type.IsValidSelection();
     }
 
-    private static JsonObject BuildStandaloneDeploymentProperties(JsonObject deploymentObject)
+    private static JsonObject BuildDeploymentProperties(JsonObject deploymentObject)
     {
         JsonObject properties = null;
         if (deploymentObject["Properties"] is JsonObject explicitProperties)
@@ -461,49 +443,11 @@ public sealed class ConfigurationAIDeploymentCatalog : INamedSourceCatalog<AIDep
 
         foreach (var (key, value) in deploymentObject)
         {
-            if (IsStandaloneDeploymentMetadataKey(key))
-            {
-                continue;
-            }
-
             properties ??= [];
             properties[key] = value?.DeepClone();
         }
 
         return properties;
-    }
-
-    private static bool IsStandaloneDeploymentMetadataKey(string key)
-    {
-        return string.Equals(key, "ClientName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ProviderName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Name", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ModelName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "ConnectionName", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Type", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "IsDefault", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Properties", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string GetStringValue(JsonNode node)
-    {
-        if (node is not JsonValue jsonValue || !jsonValue.TryGetValue<string>(out var value))
-        {
-            return null;
-        }
-
-        return value;
-    }
-
-    private static bool GetBooleanValue(JsonNode node)
-    {
-        if (node is JsonValue jsonValue)
-        {
-            if (jsonValue.TryGetValue<bool>(out var boolValue))
-            {
-                return boolValue;
-            }
-
-            if (jsonValue.TryGetValue<string>(out var stringValue) && bool.TryParse(stringValue, out boolValue))
-            {
-                return boolValue;
-            }
-        }
-
-        return false;
     }
 
     private void AddDeployment(
