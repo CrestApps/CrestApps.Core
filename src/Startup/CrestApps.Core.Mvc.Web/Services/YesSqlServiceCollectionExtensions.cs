@@ -38,12 +38,9 @@ using CrestApps.Core.Mvc.Web.Areas.Mcp.Indexes;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using YesSql;
 using YesSql.Provider.Sqlite;
 using YesSql.Sql;
-using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace CrestApps.Core.Mvc.Web.Services;
 
@@ -119,16 +116,7 @@ internal static class YesSqlServiceCollectionExtensions
             .AddYesSqlNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex, ConfigurationAIProviderConnectionCatalog>();
 
         services.AddScoped<INamedSourceCatalog<AIDeployment>, YesSqlAIDeploymentStore>();
-        services.AddScoped<IAIDeploymentStore>(sp =>
-            new ConfigurationAIDeploymentCatalog(
-                sp.GetRequiredService<INamedSourceCatalog<AIDeployment>>(),
-                sp.GetService<IConfiguration>() ?? new ConfigurationBuilder().Build(),
-                sp.GetService<IOptions<AIOptions>>() ?? Options.Create(new AIOptions()),
-                sp.GetService<IOptions<AIDeploymentCatalogOptions>>() ?? Options.Create(new AIDeploymentCatalogOptions()),
-                sp.GetService<ILogger<ConfigurationAIDeploymentCatalog>>() ?? NullLogger<ConfigurationAIDeploymentCatalog>.Instance));
-        services.AddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<ISourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+        services.AddScoped<IAIDeploymentStore, ConfigurationAIDeploymentStore>();
 
         return services;
     }

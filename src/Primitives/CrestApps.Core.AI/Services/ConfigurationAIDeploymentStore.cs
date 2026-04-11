@@ -14,7 +14,7 @@ namespace CrestApps.Core.AI.Services;
 /// Decorates a persisted AI deployment store with configuration-backed deployments from appsettings.json.
 /// Read operations return the merged result while write operations continue to target the persisted store only.
 /// </summary>
-public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
+public sealed class ConfigurationAIDeploymentStore : IAIDeploymentStore
 {
     private readonly INamedSourceCatalog<AIDeployment> _deploymentCatalog;
     private readonly IConfiguration _configuration;
@@ -22,12 +22,12 @@ public sealed class ConfigurationAIDeploymentCatalog : IAIDeploymentStore
     private readonly AIDeploymentCatalogOptions _catalogOptions;
     private readonly ILogger _logger;
 
-    public ConfigurationAIDeploymentCatalog(
+    public ConfigurationAIDeploymentStore(
         INamedSourceCatalog<AIDeployment> deploymentCatalog,
         IConfiguration configuration,
         IOptions<AIOptions> aiOptions,
         IOptions<AIDeploymentCatalogOptions> catalogOptions,
-        ILogger<ConfigurationAIDeploymentCatalog> logger)
+        ILogger<ConfigurationAIDeploymentStore> logger)
     {
         _deploymentCatalog = deploymentCatalog;
         _configuration = configuration;

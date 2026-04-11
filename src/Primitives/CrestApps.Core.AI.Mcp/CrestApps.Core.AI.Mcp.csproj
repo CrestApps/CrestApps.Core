@@ -12,6 +12,10 @@ Model Context Protocol (MCP) implementation for CrestApps AI services.
 </PropertyGroup>
 
 <ItemGroup>
+<InternalsVisibleTo Include="CrestApps.Core.Tests" />
+</ItemGroup>
+
+<ItemGroup>
 <FrameworkReference Include="Microsoft.AspNetCore.App" />
 </ItemGroup>
 

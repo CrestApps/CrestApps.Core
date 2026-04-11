@@ -13,11 +13,8 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Data.EntityCore;
 
@@ -90,16 +87,7 @@ public static class ServiceCollectionExtensions
         services.AddNamedSourceDocumentCatalog<AIProviderConnection, ConfigurationAIProviderConnectionCatalog>();
 
         services.AddScoped<INamedSourceCatalog<AIDeployment>, EntityCoreAIDeploymentStore>();
-        services.AddScoped<IAIDeploymentStore>(sp =>
-            new ConfigurationAIDeploymentCatalog(
-                sp.GetRequiredService<INamedSourceCatalog<AIDeployment>>(),
-                sp.GetService<IConfiguration>() ?? new ConfigurationBuilder().Build(),
-                sp.GetService<IOptions<AIOptions>>() ?? Options.Create(new AIOptions()),
-                sp.GetService<IOptions<AIDeploymentCatalogOptions>>() ?? Options.Create(new AIDeploymentCatalogOptions()),
-                sp.GetService<ILogger<ConfigurationAIDeploymentCatalog>>() ?? NullLogger<ConfigurationAIDeploymentCatalog>.Instance));
-        services.AddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<ISourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+        services.AddScoped<IAIDeploymentStore, ConfigurationAIDeploymentStore>(); ;
 
         return services;
     }
