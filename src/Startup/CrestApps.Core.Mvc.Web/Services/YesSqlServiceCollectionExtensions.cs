@@ -19,7 +19,6 @@ using CrestApps.Core.Data.YesSql.Indexes.AIMemory;
 using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
-using CrestApps.Core.Data.YesSql.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.A2A.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
@@ -55,6 +54,7 @@ internal static class YesSqlServiceCollectionExtensions
     public static IServiceCollection AddCoreYesSqlDataStore(this IServiceCollection services, string appDataPath)
     {
         var dbPath = Path.Combine(appDataPath, "crestapps.db");
+
         var connectionStringBuilder = new SqliteConnectionStringBuilder
         {
             DataSource = dbPath,
@@ -64,7 +64,11 @@ internal static class YesSqlServiceCollectionExtensions
             Pooling = true,
         };
 
-        Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration.UseSqLite(connectionStringBuilder.ToString()).SetTablePrefix("CA_"));
+        Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration
+            .UseSqLite(connectionStringBuilder.ToString())
+            .SetTablePrefix("CA_")
+        );
+
         // YesSql-backed catalogs and managers.
         services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()
             .AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()
