@@ -191,11 +191,11 @@ public static class ServiceCollectionExtensions
     /// as an <see cref="INamedSourceCatalogSource{TModel}"/> binding source for the
     /// multi-source store pattern.
     /// </summary>
-    public static IServiceCollection AddYesSqlNamedSourceBindingSource<TModel, TIndex>(this IServiceCollection services)
+    public static IServiceCollection AddYesSqlNamedSourceBindingSource<TModel, TIndex>(this IServiceCollection services, string collection = null)
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
     {
-        services.AddScoped<NamedSourceDocumentCatalog<TModel, TIndex>>();
+        services.AddScoped(sp => new NamedSourceDocumentCatalog<TModel, TIndex>(sp.GetRequiredService<ISession>(), collection));
         services.AddScoped<INamedSourceCatalogSource<TModel>>(sp =>
             new WritableCatalogBindingSource<TModel>(sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>()));
 
