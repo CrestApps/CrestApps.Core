@@ -10,6 +10,7 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Tests;
 
@@ -209,7 +210,9 @@ public sealed class EntityCoreStoreTests
             var services = new ServiceCollection();
 
             services.AddHttpContextAccessor();
+            services.AddLogging();
             services.AddSingleton(TimeProvider.System);
+            services.AddCoreAIServices();
             services.AddCoreEntityCoreSqliteDataStore($"Data Source={databasePath}");
             services.AddEntityCoreStores();
 

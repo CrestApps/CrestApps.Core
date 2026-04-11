@@ -185,4 +185,36 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Registers a YesSql-backed <see cref="NamedSourceDocumentCatalog{TModel,TIndex}"/>
+    /// as an <see cref="INamedSourceCatalogSource{TModel}"/> binding source for the
+    /// multi-source store pattern.
+    /// </summary>
+    public static IServiceCollection AddYesSqlNamedSourceBindingSource<TModel, TIndex>(this IServiceCollection services)
+        where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
+        where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
+    {
+        services.AddScoped<NamedSourceDocumentCatalog<TModel, TIndex>>();
+        services.AddScoped<INamedSourceCatalogSource<TModel>>(sp =>
+            new WritableCatalogBindingSource<TModel>(sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>()));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a YesSql-backed <see cref="NamedDocumentCatalog{TModel,TIndex}"/>
+    /// as an <see cref="INamedCatalogSource{TModel}"/> binding source for the
+    /// multi-source store pattern.
+    /// </summary>
+    public static IServiceCollection AddYesSqlNamedBindingSource<TModel, TIndex>(this IServiceCollection services)
+        where TModel : CatalogItem, INameAwareModel
+        where TIndex : CatalogItemIndex, INameAwareIndex
+    {
+        services.AddScoped<NamedDocumentCatalog<TModel, TIndex>>();
+        services.AddScoped<INamedCatalogSource<TModel>>(sp =>
+            new WritableNamedCatalogBindingSource<TModel>(sp.GetRequiredService<NamedDocumentCatalog<TModel, TIndex>>()));
+
+        return services;
+    }
 }

@@ -97,7 +97,7 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
-    public async Task ConfigurationAIProviderConnectionCatalog_GetAllAsync_ShouldMergeStoredAndConfiguredConnections()
+    public async Task ConfigurationAIProviderConnectionStore_GetAllAsync_ShouldMergeStoredAndConfiguredConnections()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -109,8 +109,9 @@ public sealed class AIProviderConnectionOptionsTests
             })
             .Build();
 
-        var catalog = new ConfigurationAIProviderConnectionCatalog(
-            new TestAIProviderConnectionStore(
+        var store = CreateConnectionStore(
+            configuration,
+            dbEntries:
             [
                 new AIProviderConnection
                 {
@@ -123,19 +124,16 @@ public sealed class AIProviderConnectionOptionsTests
                         ["ApiKey"] = "ui-secret",
                     },
                 },
-            ]),
-            configuration,
-            Options.Create(new AIProviderConnectionCatalogOptions()),
-            NullLogger<ConfigurationAIProviderConnectionCatalog>.Instance);
+            ]);
 
-        var connections = await catalog.GetAllAsync();
+        var connections = await store.GetAllAsync();
 
         Assert.Contains(connections, connection => connection.Name == "config-primary" && AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId));
         Assert.Contains(connections, connection => connection.Name == "ui-secondary" && connection.ItemId == "ui-connection");
     }
 
     [Fact]
-    public async Task ConfigurationAIProviderConnectionCatalog_GetAllAsync_ShouldReadEveryConfiguredConnectionSection()
+    public async Task ConfigurationAIProviderConnectionStore_GetAllAsync_ShouldReadEveryConfiguredConnectionSection()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -159,13 +157,9 @@ public sealed class AIProviderConnectionOptionsTests
         catalogOptions.ProviderSections.Add("Primary:Providers");
         catalogOptions.ProviderSections.Add("Secondary:Providers");
 
-        var catalog = new ConfigurationAIProviderConnectionCatalog(
-            new TestAIProviderConnectionStore([]),
-            configuration,
-            Options.Create(catalogOptions),
-            NullLogger<ConfigurationAIProviderConnectionCatalog>.Instance);
+        var store = CreateConnectionStore(configuration, catalogOptions: catalogOptions);
 
-        var connections = await catalog.GetAllAsync();
+        var connections = await store.GetAllAsync();
 
         Assert.Contains(connections, connection => connection.Name == "config-primary" && connection.ClientName == "OpenAI");
         Assert.Contains(connections, connection => connection.Name == "config-secondary" && connection.ClientName == "OpenAI");
@@ -356,7 +350,7 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
-    public async Task ConfigurationAIProviderConnectionCatalog_ShouldSkipConfiguredConflictsByName()
+    public async Task ConfigurationAIProviderConnectionStore_ShouldSkipConfiguredConflictsByName()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -366,8 +360,9 @@ public sealed class AIProviderConnectionOptionsTests
             })
             .Build();
 
-        var catalog = new ConfigurationAIProviderConnectionCatalog(
-            new TestAIProviderConnectionStore(
+        var store = CreateConnectionStore(
+            configuration,
+            dbEntries:
             [
                 new AIProviderConnection
                 {
@@ -375,19 +370,43 @@ public sealed class AIProviderConnectionOptionsTests
                     ClientName = "OpenAI",
                     Name = "shared-name",
                 },
-            ]),
-            configuration,
-            Options.Create(new AIProviderConnectionCatalogOptions()),
-            NullLogger<ConfigurationAIProviderConnectionCatalog>.Instance);
+            ]);
 
-        var connections = await catalog.GetAllAsync();
+        var connections = await store.GetAllAsync();
 
         Assert.Single(connections);
         Assert.Equal("ui-connection", connections.Single().ItemId);
     }
 
-    private sealed class TestAIProviderConnectionStore(List<AIProviderConnection> connections) : INamedSourceCatalog<AIProviderConnection>
+    private static DefaultAIProviderConnectionStore CreateConnectionStore(
+        IConfiguration configuration,
+        AIProviderConnectionCatalogOptions catalogOptions = null,
+        List<AIProviderConnection> dbEntries = null)
     {
+        var sources = new List<INamedSourceCatalogSource<AIProviderConnection>>();
+
+        if (dbEntries is { Count: > 0 })
+        {
+            sources.Add(new TestAIProviderConnectionSource(dbEntries));
+        }
+
+        sources.Add(new ConfigurationAIProviderConnectionSource(
+            configuration,
+            Options.Create(catalogOptions ?? new AIProviderConnectionCatalogOptions()),
+            NullLogger<ConfigurationAIProviderConnectionSource>.Instance));
+
+        return new DefaultAIProviderConnectionStore(sources);
+    }
+
+    private sealed class TestAIProviderConnectionSource(List<AIProviderConnection> connections) : IWritableNamedSourceCatalogSource<AIProviderConnection>
+    {
+        public int Order => 0;
+
+        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries)
+        {
+            return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.ToArray());
+        }
+
         public ValueTask CreateAsync(AIProviderConnection entry)
         {
             connections.Add(entry);
@@ -398,42 +417,6 @@ public sealed class AIProviderConnectionOptionsTests
         {
             connections.Remove(entry);
             return ValueTask.FromResult(true);
-        }
-
-        public ValueTask<AIProviderConnection> FindByIdAsync(string id)
-        {
-            return ValueTask.FromResult(connections.FirstOrDefault(connection => connection.ItemId == id));
-        }
-
-        public ValueTask<AIProviderConnection> FindByNameAsync(string name)
-        {
-            return ValueTask.FromResult(connections.FirstOrDefault(connection => connection.Name == name));
-        }
-
-        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAllAsync()
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.ToArray());
-        }
-
-        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAsync(IEnumerable<string> ids)
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.Where(connection => ids.Contains(connection.ItemId)).ToArray());
-        }
-
-        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAsync(string source)
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.Where(connection => connection.Source == source).ToArray());
-        }
-
-        public ValueTask<AIProviderConnection> GetAsync(string name, string source)
-        {
-            return ValueTask.FromResult(connections.FirstOrDefault(connection => connection.Name == name && connection.Source == source));
-        }
-
-        public ValueTask<PageResult<AIProviderConnection>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
-            where TQuery : QueryContext
-        {
-            return ValueTask.FromResult(new PageResult<AIProviderConnection> { Count = connections.Count, Entries = connections.ToArray(), });
         }
 
         public ValueTask UpdateAsync(AIProviderConnection entry) => ValueTask.CompletedTask;

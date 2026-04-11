@@ -38,12 +38,9 @@ using CrestApps.Core.Mvc.Web.Areas.Mcp.Indexes;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using YesSql;
 using YesSql.Provider.Sqlite;
 using YesSql.Sql;
-using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace CrestApps.Core.Mvc.Web.Services;
 
@@ -70,7 +67,6 @@ internal static class YesSqlServiceCollectionExtensions
         Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration.UseSqLite(connectionStringBuilder.ToString()).SetTablePrefix("CA_"));
         // YesSql-backed catalogs and managers.
         services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()
-            .AddYesSqlNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>()
             .AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()
             .AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()
             .AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()
@@ -115,20 +111,11 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
             .AddScoped<ArticleIndexingService>();
 
-        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey)
-            .AddYesSqlNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex, ConfigurationAIProviderConnectionCatalog>();
+        // AI provider connections: wrap YesSql catalog as a writable multi-source binding source.
+        services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
 
-        services.AddScoped<INamedSourceCatalog<AIDeployment>, YesSqlAIDeploymentStore>();
-        services.AddScoped<IAIDeploymentStore>(sp =>
-            new ConfigurationAIDeploymentCatalog(
-                sp.GetRequiredService<INamedSourceCatalog<AIDeployment>>(),
-                sp.GetService<IConfiguration>() ?? new ConfigurationBuilder().Build(),
-                sp.GetService<IOptions<AIOptions>>() ?? Options.Create(new AIOptions()),
-                sp.GetService<IOptions<AIDeploymentCatalogOptions>>() ?? Options.Create(new AIDeploymentCatalogOptions()),
-                sp.GetService<ILogger<ConfigurationAIDeploymentCatalog>>() ?? NullLogger<ConfigurationAIDeploymentCatalog>.Instance));
-        services.AddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.AddScoped<ISourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+        // AI deployments: wrap YesSql catalog as a writable multi-source binding source.
+        services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
 
         return services;
     }

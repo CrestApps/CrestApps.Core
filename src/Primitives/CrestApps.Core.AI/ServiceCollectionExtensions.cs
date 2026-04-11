@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Memory;
@@ -128,6 +129,23 @@ public static class ServiceCollectionExtensions
             .AddOptions<AIDeploymentCatalogOptions>().Services
             .AddScoped<IAIClientFactory, DefaultAIClientFactory>()
             .AddScoped<ISpeechVoiceResolver, DefaultSpeechVoiceResolver>();
+
+        // Register the multi-source stores and forward all catalog interfaces.
+        services.TryAddScoped<IAIDeploymentStore, DefaultAIDeploymentStore>();
+        services.TryAddScoped<INamedSourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+        services.TryAddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+        services.TryAddScoped<ISourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+        services.TryAddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
+
+        services.TryAddScoped<IAIProviderConnectionStore, DefaultAIProviderConnectionStore>();
+        services.TryAddScoped<INamedSourceCatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
+        services.TryAddScoped<INamedCatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
+        services.TryAddScoped<ISourceCatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
+        services.TryAddScoped<ICatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
+
+        // Register the configuration-backed sources (Order=100, lower priority than DB).
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<INamedSourceCatalogSource<AIDeployment>, ConfigurationAIDeploymentSource>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<INamedSourceCatalogSource<AIProviderConnection>, ConfigurationAIProviderConnectionSource>());
 
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
 

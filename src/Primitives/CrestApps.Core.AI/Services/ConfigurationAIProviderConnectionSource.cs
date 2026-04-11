@@ -1,170 +1,40 @@
 using System.Globalization;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure;
-using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
 /// <summary>
-/// Decorates a persisted AI provider connection store with configuration-backed
-/// connections from appsettings.json. Read operations return the merged result
-/// while write operations continue to target the persisted store only.
+/// A read-only catalog source that reads AI provider connections from application
+/// configuration (e.g., appsettings.json). Registered with Order = 100 so that
+/// DB-backed sources (Order = 0) take precedence when entries share the same name.
 /// </summary>
-public sealed class ConfigurationAIProviderConnectionCatalog : INamedSourceCatalog<AIProviderConnection>
+public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalogSource<AIProviderConnection>
 {
-    public const string PersistedCatalogKey = "PersistedCatalog";
-
-    private readonly INamedSourceCatalog<AIProviderConnection> _inner;
     private readonly IConfiguration _configuration;
     private readonly AIProviderConnectionCatalogOptions _options;
     private readonly ILogger _logger;
 
-    public ConfigurationAIProviderConnectionCatalog(
-        [FromKeyedServices(PersistedCatalogKey)] INamedSourceCatalog<AIProviderConnection> inner,
+    public ConfigurationAIProviderConnectionSource(
         IConfiguration configuration,
         IOptions<AIProviderConnectionCatalogOptions> options,
-        ILogger<ConfigurationAIProviderConnectionCatalog> logger)
+        ILogger<ConfigurationAIProviderConnectionSource> logger)
     {
-        _inner = inner;
         _configuration = configuration;
         _options = options.Value;
         _logger = logger;
     }
 
-    public async ValueTask<AIProviderConnection> FindByIdAsync(string id)
-    {
-        var result = await _inner.FindByIdAsync(id);
-        if (result != null)
-        {
-            return result;
-        }
+    public int Order => 100;
 
-        return (await GetConfiguredConnectionsAsync(await _inner.GetAllAsync()))
-            .FirstOrDefault(connection => string.Equals(connection.ItemId, id, StringComparison.OrdinalIgnoreCase))
-            ?.Clone();
-    }
-
-    public async ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAllAsync()
-    {
-        var storedConnections = await _inner.GetAllAsync();
-        var configuredConnections = await GetConfiguredConnectionsAsync(storedConnections);
-
-        if (configuredConnections.Count == 0)
-        {
-            return storedConnections;
-        }
-
-        var merged = new List<AIProviderConnection>(storedConnections.Count + configuredConnections.Count);
-        merged.AddRange(storedConnections);
-        merged.AddRange(configuredConnections);
-
-        return merged;
-    }
-
-    public async ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAsync(IEnumerable<string> ids)
-    {
-        var storedConnections = await _inner.GetAsync(ids);
-        var requestedIds = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var foundIds = storedConnections.Select(static connection => connection.ItemId).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var missingIds = requestedIds.Except(foundIds).ToList();
-
-        if (missingIds.Count == 0)
-        {
-            return storedConnections;
-        }
-
-        var configuredConnections = (await GetConfiguredConnectionsAsync(storedConnections))
-            .Where(connection => missingIds.Contains(connection.ItemId))
-            .ToArray();
-
-        if (configuredConnections.Length == 0)
-        {
-            return storedConnections;
-        }
-
-        var merged = new List<AIProviderConnection>(storedConnections.Count + configuredConnections.Length);
-        merged.AddRange(storedConnections);
-        merged.AddRange(configuredConnections);
-
-        return merged;
-    }
-
-    public async ValueTask<PageResult<AIProviderConnection>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
-        where TQuery : QueryContext
-    {
-        var allConnections = await GetAllAsync();
-        var filtered = ApplyFilters(context, allConnections);
-        var skip = (page - 1) * pageSize;
-
-        return new PageResult<AIProviderConnection>
-        {
-            Count = filtered.Count(),
-            Entries = filtered.Skip(skip).Take(pageSize).ToArray(),
-        };
-    }
-
-    public async ValueTask<AIProviderConnection> FindByNameAsync(string name)
-    {
-        var result = await _inner.FindByNameAsync(name);
-        if (result != null)
-        {
-            return result;
-        }
-
-        return (await GetConfiguredConnectionsAsync(await _inner.GetAllAsync()))
-            .FirstOrDefault(connection => string.Equals(connection.Name, name, StringComparison.OrdinalIgnoreCase))
-            ?.Clone();
-    }
-
-    public async ValueTask<IReadOnlyCollection<AIProviderConnection>> GetAsync(string source)
-    {
-        var storedConnections = await _inner.GetAsync(source);
-        var configuredConnections = (await GetConfiguredConnectionsAsync(storedConnections))
-            .Where(connection => string.Equals(connection.Source, source, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-
-        if (configuredConnections.Length == 0)
-        {
-            return storedConnections;
-        }
-
-        var merged = new List<AIProviderConnection>(storedConnections.Count + configuredConnections.Length);
-        merged.AddRange(storedConnections);
-        merged.AddRange(configuredConnections);
-
-        return merged;
-    }
-
-    public async ValueTask<AIProviderConnection> GetAsync(string name, string source)
-    {
-        var result = await _inner.GetAsync(name, source);
-        if (result != null)
-        {
-            return result;
-        }
-
-        return (await GetConfiguredConnectionsAsync(await _inner.GetAllAsync()))
-            .FirstOrDefault(connection =>
-                string.Equals(connection.Name, name, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(connection.Source, source, StringComparison.OrdinalIgnoreCase))
-            ?.Clone();
-    }
-
-    public ValueTask<bool> DeleteAsync(AIProviderConnection entry) => _inner.DeleteAsync(entry);
-
-    public ValueTask CreateAsync(AIProviderConnection entry) => _inner.CreateAsync(entry);
-
-    public ValueTask UpdateAsync(AIProviderConnection entry) => _inner.UpdateAsync(entry);
-
-    private Task<IReadOnlyCollection<AIProviderConnection>> GetConfiguredConnectionsAsync(IReadOnlyCollection<AIProviderConnection> storedConnections)
+    public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries)
     {
         var connections = new Dictionary<string, AIProviderConnection>(StringComparer.OrdinalIgnoreCase);
-        var names = storedConnections
+        var names = knownEntries
             .Where(static connection => !string.IsNullOrWhiteSpace(connection.Name))
             .ToDictionary(static connection => connection.Name, static connection => connection.ItemId, StringComparer.OrdinalIgnoreCase);
 
@@ -185,7 +55,7 @@ public sealed class ConfigurationAIProviderConnectionCatalog : INamedSourceCatal
             _logger.LogError(ex, "Error reading AI provider connection configuration.");
         }
 
-        return Task.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.Values.ToArray());
+        return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.Values);
     }
 
     private void ReadTopLevelConnections(string sectionPath, Dictionary<string, AIProviderConnection> connections, Dictionary<string, string> names)
@@ -364,30 +234,5 @@ public sealed class ConfigurationAIProviderConnectionCatalog : INamedSourceCatal
         }
 
         return value;
-    }
-
-    private static IEnumerable<AIProviderConnection> ApplyFilters(QueryContext context, IEnumerable<AIProviderConnection> records)
-    {
-        if (context is null)
-        {
-            return records;
-        }
-
-        if (!string.IsNullOrEmpty(context.Source))
-        {
-            records = records.Where(connection => string.Equals(connection.Source, context.Source, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrEmpty(context.Name))
-        {
-            records = records.Where(connection => connection.Name.Contains(context.Name, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (context.Sorted)
-        {
-            records = records.OrderBy(static connection => connection.DisplayText ?? connection.Name, StringComparer.OrdinalIgnoreCase);
-        }
-
-        return records;
     }
 }

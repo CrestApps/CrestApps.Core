@@ -103,12 +103,25 @@ public interface INamedSourceCatalog<T> : INamedCatalog<T>, ISourceCatalog<T>
 
 ## DI Extension Methods
 
+### YesSql catalog extensions
+
 | Method | Registers | Requires |
 |--------|-----------|----------|
 | `AddYesSqlDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` | `CatalogItem` + `CatalogItemIndex` |
 | `AddYesSqlNamedDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `INamedCatalog<T>` | + `INameAwareModel` + `INameAwareIndex` |
 | `AddYesSqlSourceDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `ISourceCatalog<T>` | + `ISourceAwareModel` + `ISourceAwareIndex` |
 | `AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>()` | All four interfaces | Both `INameAware*` + `ISourceAware*` |
+
+### YesSql binding source extensions
+
+These register a YesSql-backed catalog as a **binding source** for the multi-source store pattern (see [Multi-Source Binding Pattern](#multi-source-binding-pattern) below):
+
+| Method | Binding source registered | Requires |
+|--------|--------------------------|----------|
+| `AddYesSqlNamedSourceBindingSource<TModel, TIndex>()` | `INamedSourceCatalogSource<TModel>` | `CatalogItem` + both `INameAware*` + `ISourceAware*` |
+| `AddYesSqlNamedBindingSource<TModel, TIndex>()` | `INamedCatalogSource<TModel>` | `CatalogItem` + `INameAwareModel` |
+
+### Entity Framework Core catalog extensions
 
 The Entity Framework Core package exposes the same service-registration shape without YesSql indexes:
 
@@ -119,7 +132,18 @@ The Entity Framework Core package exposes the same service-registration shape wi
 | `AddSourceDocumentCatalog<TModel>()` | `ICatalog<T>` + `ISourceCatalog<T>` | `CatalogItem` + `ISourceAwareModel` |
 | `AddNamedSourceDocumentCatalog<TModel>()` | All four interfaces | `CatalogItem` + both awareness interfaces |
 
-`AddEntityCoreStores()` registers the built-in CrestApps store interfaces (`IAIChatSessionManager`, prompt stores, document stores, memory stores, search index profile store, and related catalog registrations) against the Entity Framework Core package.
+### Entity Framework Core binding source extensions
+
+These register an EntityCore-backed catalog as a **binding source** for the multi-source store pattern:
+
+| Method | Binding source registered | Requires |
+|--------|--------------------------|----------|
+| `AddEntityCoreNamedSourceBindingSource<TModel>()` | `INamedSourceCatalogSource<TModel>` | `SourceCatalogEntry` + `INameAwareModel` |
+| `AddEntityCoreNamedBindingSource<TModel>()` | `INamedCatalogSource<TModel>` | `CatalogItem` + `INameAwareModel` |
+
+### Bulk store registration
+
+`AddEntityCoreStores()` registers the built-in CrestApps store interfaces (`IAIChatSessionManager`, prompt stores, document stores, memory stores, search index profile store, and related catalog registrations) against the Entity Framework Core package. It also registers the multi-source binding sources for `AIProviderConnection` and `AIDeployment`.
 
 
 ## Catalog Entry Handlers
@@ -193,6 +217,89 @@ In `CrestApps.Core.Data.YesSql`, the shared convention is to keep each index typ
 | `McpPrompt` | Named | MCP prompts |
 | `McpResource` | Source | MCP resources |
 | `A2AConnection` | Basic | A2A connections |
+
+## Feature Store Requirements
+
+Each feature requires specific stores to be registered. The table below lists what each feature needs and the corresponding registration calls for YesSql and Entity Framework Core.
+
+:::tip
+`AddCoreAIServices()` registers the multi-source stores for `AIDeployment` and `AIProviderConnection` with appsettings-backed binding sources automatically. You only need to register the persistence-layer binding sources to enable database-backed storage.
+:::
+
+### Core AI (always required)
+
+Registered automatically by `AddCoreAIServices()`:
+
+| Model | Store interface | Registration |
+|-------|----------------|--------------|
+| `AIDeployment` | `IAIDeploymentStore` | Auto-registered (multi-source, config source at Order 100) |
+| `AIProviderConnection` | `IAIProviderConnectionStore` | Auto-registered (multi-source, config source at Order 100) |
+
+Add a DB binding source if you want database-backed deployments and connections:
+
+```csharp
+// YesSql
+services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
+services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
+
+// Entity Framework Core (included in AddEntityCoreStores())
+services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
+services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
+```
+
+### AI Profiles
+
+| Model | Catalog registration | YesSql | EntityCore |
+|-------|---------------------|--------|------------|
+| `AIProfile` | `INamedSourceCatalog<AIProfile>` | `AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()` | `AddNamedSourceDocumentCatalog<AIProfile, NamedSourceDocumentCatalog<AIProfile>>()` |
+| `AIProfileTemplate` | `INamedSourceCatalog<AIProfileTemplate>` | `AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>()` | `AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>()` |
+
+### Chat
+
+| Model | Store interface | Registration |
+|-------|----------------|--------------|
+| `AIChatSession` | `IAIChatSessionManager` | `AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>()` (YesSql) or `EntityCoreAIChatSessionManager` (EF Core) |
+| `AIChatSessionPrompt` | `IAIChatSessionPromptStore` | `AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>()` (YesSql) or `EntityCoreAIChatSessionPromptStore` (EF Core) |
+
+### Chat Interactions
+
+| Model | Catalog registration | YesSql | EntityCore |
+|-------|---------------------|--------|------------|
+| `ChatInteraction` | `ICatalog<ChatInteraction>` | `AddYesSqlDocumentCatalog<ChatInteraction, ChatInteractionIndex>()` | `AddDocumentCatalog<ChatInteraction, DocumentCatalog<ChatInteraction>>()` |
+| `ChatInteractionPrompt` | `IChatInteractionPromptStore` | `AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>()` | `EntityCoreChatInteractionPromptStore` |
+
+### Documents and Data Sources
+
+| Model | Store interface | Registration |
+|-------|----------------|--------------|
+| `AIDocument` | `IAIDocumentStore` | `AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>()` or `EntityCoreAIDocumentStore` |
+| `AIDocumentChunk` | `IAIDocumentChunkStore` | `AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>()` or `EntityCoreAIDocumentChunkStore` |
+| `AIDataSource` | `IAIDataSourceStore` | `AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>()` or `EntityCoreAIDataSourceStore` |
+| `SearchIndexProfile` | `ISearchIndexProfileStore` | `AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>()` or `EntityCoreSearchIndexProfileStore` |
+
+### Memory
+
+| Model | Store interface | Registration |
+|-------|----------------|--------------|
+| `AIMemoryEntry` | `IAIMemoryStore` | `AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>()` or `EntityCoreAIMemoryStore` |
+
+### MCP (Model Context Protocol)
+
+| Model | Catalog registration | YesSql | EntityCore |
+|-------|---------------------|--------|------------|
+| `McpConnection` | `ISourceCatalog<McpConnection>` | `AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()` | `AddSourceDocumentCatalog<McpConnection, SourceDocumentCatalog<McpConnection>>()` |
+| `McpPrompt` | `INamedCatalog<McpPrompt>` | `AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()` | `AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>()` |
+| `McpResource` | `ISourceCatalog<McpResource>` | `AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>()` | `AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>()` |
+
+### A2A (Agent-to-Agent)
+
+| Model | Catalog registration | YesSql | EntityCore |
+|-------|---------------------|--------|------------|
+| `A2AConnection` | `ICatalog<A2AConnection>` | `AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()` | `AddDocumentCatalog<A2AConnection, DocumentCatalog<A2AConnection>>()` |
+
+:::note
+`AddEntityCoreStores()` registers all of the above EntityCore stores in a single call. YesSql hosts must register each catalog individually because they also need to register index providers and create index tables during startup.
+:::
 
 ## First-party Entity Framework Core package
 
@@ -275,48 +382,207 @@ services.AddScoped<IStoreCommitter, MyCustomStoreCommitter>();
 
 The filter infrastructure calls your committer automatically — no other wiring is required.
 
-## Composite Catalogs
+## Multi-Source Binding Pattern
 
-When models need to be loaded from multiple sources (e.g., code-defined defaults merged with database entries), use the **CatalogManager** pattern. The `CatalogManager<T>` delegates reads across all registered `ICatalog<T>` instances and merges the results:
+When a model needs entries that come from more than one place — for example, AI deployments defined in `appsettings.json` merged with deployments stored in a database — the framework uses **binding sources**. Each source supplies entries independently, and a multi-source store aggregates them at runtime, deduplicating by name (the lowest-order source wins).
+
+### How it works
+
+```text
+┌────────────────────────────────────────────────────────┐
+│  DefaultAIDeploymentStore (MultiSourceNamedSourceCatalog)  │
+│                                                        │
+│  ┌─────────────────────┐  ┌─────────────────────────┐  │
+│  │ DB binding source   │  │ Config binding source    │  │
+│  │ Order = 0 (wins)    │  │ Order = 100 (fallback)  │  │
+│  │ YesSql / EntityCore │  │ appsettings.json        │  │
+│  └─────────────────────┘  └─────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+```
+
+1. Each **binding source** implements `INamedSourceCatalogSource<T>` (or `INamedCatalogSource<T>` for models without a source property).
+2. Sources declare an `Order` property — lower values win when two sources provide entries with the same name.
+3. The **multi-source store** iterates all sources in order and builds a deduplicated list.
+4. Write operations (create, update, delete) are delegated to the first **writable** source.
+
+### Binding source interfaces
 
 ```csharp
-public sealed class CatalogManager<T>(
-    ICatalog<T> primaryCatalog,
-    IEnumerable<IReadCatalog<T>> additionalSources) where T : CatalogItem
+// Read-only source for named models
+public interface INamedCatalogSource<T> where T : INameAwareModel
 {
-    public async ValueTask<IReadOnlyCollection<T>> GetAllAsync()
+    int Order { get; }
+    ValueTask<IReadOnlyCollection<T>> GetEntriesAsync(IReadOnlyCollection<T> knownEntries);
+}
+
+// Read-only source for named + source-aware models
+public interface INamedSourceCatalogSource<T> : INamedCatalogSource<T>
+    where T : INameAwareModel, ISourceAwareModel { }
+
+// Writable source for named models
+public interface IWritableNamedCatalogSource<T> : INamedCatalogSource<T>
+    where T : INameAwareModel
+{
+    ValueTask<bool> DeleteAsync(T entry);
+    ValueTask CreateAsync(T entry);
+    ValueTask UpdateAsync(T entry);
+}
+
+// Writable source for named + source-aware models
+public interface IWritableNamedSourceCatalogSource<T>
+    : INamedSourceCatalogSource<T>, IWritableNamedCatalogSource<T>
+    where T : INameAwareModel, ISourceAwareModel { }
+```
+
+### Base classes
+
+The framework provides two abstract base classes that handle merging, deduplication, filtering, pagination, and write delegation:
+
+| Base class | For models that implement | Implements |
+|------------|--------------------------|------------|
+| `MultiSourceNamedCatalog<T>` | `INameAwareModel` | `INamedCatalog<T>` |
+| `MultiSourceNamedSourceCatalog<T>` | `INameAwareModel` + `ISourceAwareModel` | `INamedSourceCatalog<T>` |
+
+Both accept `IEnumerable<INamedCatalogSource<T>>` (or the source-aware variant) via constructor injection, order the sources by `Order`, and merge entries by name.
+
+### Built-in stores
+
+`AddCoreAIServices()` registers two multi-source stores and their default configuration-backed binding sources automatically:
+
+| Store | Implements | Binding sources |
+|-------|-----------|-----------------|
+| `DefaultAIDeploymentStore` | `IAIDeploymentStore` → `INamedSourceCatalog<AIDeployment>` | `ConfigurationAIDeploymentSource` (Order 100) |
+| `DefaultAIProviderConnectionStore` | `IAIProviderConnectionStore` → `INamedSourceCatalog<AIProviderConnection>` | `ConfigurationAIProviderConnectionSource` (Order 100) |
+
+The configuration sources read from `appsettings.json` using the sections configured in `AIDeploymentCatalogOptions` and `AIProviderConnectionCatalogOptions`:
+
+| Options class | Default sections |
+|--------------|------------------|
+| `AIDeploymentCatalogOptions` | `CrestApps:AI:Deployments` |
+| `AIProviderConnectionCatalogOptions` | `CrestApps:AI:Connections` (connection sections) and `CrestApps:AI:Providers` (provider sections) |
+
+When a persistence package (YesSql or EntityCore) is added, it registers an additional **writable** DB binding source at Order 0, so database entries take priority over `appsettings.json` entries and all write operations go to the database.
+
+### Registering DB binding sources
+
+#### YesSql
+
+```csharp
+// Register a YesSql-backed writable binding source for AI deployments
+services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
+
+// Register a YesSql-backed writable binding source for AI connections
+services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
+```
+
+#### Entity Framework Core
+
+```csharp
+// Register an EntityCore-backed writable binding source for AI deployments
+services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
+
+// Register an EntityCore-backed writable binding source for AI connections
+services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
+```
+
+:::info
+`AddEntityCoreStores()` already calls both of the above registrations. You only need to call them explicitly when composing your own store registration.
+:::
+
+### How binding source adapters work
+
+The framework provides two generic adapter classes that wrap an existing catalog as a writable binding source:
+
+| Adapter | Wraps | For models with |
+|---------|-------|-----------------|
+| `WritableCatalogBindingSource<T>` | `INamedSourceCatalog<T>` | Name + Source |
+| `WritableNamedCatalogBindingSource<T>` | `INamedCatalog<T>` | Name only |
+
+Both set `Order = 0` (highest priority) and delegate all read and write operations to the wrapped catalog. The generic YesSql and EntityCore extension methods use these adapters internally.
+
+### Creating a custom binding source
+
+To add entries from any source (remote API, file system, embedded resources, etc.), implement `INamedSourceCatalogSource<T>` (or `INamedCatalogSource<T>` for named-only models):
+
+```csharp
+public sealed class RemoteApiDeploymentSource : INamedSourceCatalogSource<AIDeployment>
+{
+    private readonly IRemoteDeploymentClient _client;
+
+    public RemoteApiDeploymentSource(IRemoteDeploymentClient client)
     {
-        var results = new List<T>();
+        _client = client;
+    }
 
-        // Load from the primary (writable) catalog
-        results.AddRange(await primaryCatalog.GetAllAsync());
+    // Order 50 — higher priority than config (100), lower than DB (0)
+    public int Order => 50;
 
-        // Merge from read-only additional sources
-        foreach (var source in additionalSources)
-        {
-            var entries = await source.GetAllAsync();
-            foreach (var entry in entries)
-            {
-                if (!results.Any(r => r.Id == entry.Id))
-                {
-                    results.Add(entry);
-                }
-            }
-        }
+    public async ValueTask<IReadOnlyCollection<AIDeployment>> GetEntriesAsync(
+        IReadOnlyCollection<AIDeployment> knownEntries)
+    {
+        // knownEntries contains entries from higher-priority sources (DB, etc.)
+        // Use it to skip entries whose names already exist.
+        var existingNames = knownEntries
+            .Select(e => e.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return results;
+        var remoteDeployments = await _client.GetDeploymentsAsync();
+
+        return remoteDeployments
+            .Where(d => !existingNames.Contains(d.Name))
+            .ToArray();
     }
 }
 ```
 
-Register additional read-only sources alongside the primary catalog:
+Register it with `TryAddEnumerable` so that it is additive:
 
 ```csharp
-// Primary writable catalog (YesSql-backed)
-builder.Services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>();
+services.TryAddEnumerable(
+    ServiceDescriptor.Scoped<INamedSourceCatalogSource<AIDeployment>, RemoteApiDeploymentSource>());
+```
 
-// Additional read-only source (e.g., code-defined defaults)
-builder.Services.AddScoped<IReadCatalog<AIProfile>, DefaultProfilesCatalog>();
+The multi-source store discovers all registered `INamedSourceCatalogSource<AIDeployment>` instances and merges them automatically. No changes are needed to existing store or controller code.
+
+### Priority and deduplication rules
+
+| Priority | Source | Typical registration |
+|----------|--------|---------------------|
+| 0 (highest) | Database (YesSql / EntityCore) | `AddYesSqlNamedSourceBindingSource` or `AddEntityCoreNamedSourceBindingSource` |
+| 1–99 | Custom sources | Registered by application code |
+| 100 (lowest) | Configuration (`appsettings.json`) | Registered by `AddCoreAIServices()` |
+
+When two sources provide an entry with the same `Name`, the entry from the lower-order source wins and the duplicate is skipped.
+
+### Building a custom multi-source store
+
+If you need multi-source behavior for your own model type, extend the appropriate base class:
+
+```csharp
+public sealed class DefaultWidgetStore : MultiSourceNamedSourceCatalog<Widget>, IWidgetStore
+{
+    public DefaultWidgetStore(IEnumerable<INamedSourceCatalogSource<Widget>> sources)
+        : base(sources)
+    {
+    }
+
+    protected override string GetItemId(Widget entry) => entry.ItemId;
+}
+```
+
+Then register the store and its configuration source:
+
+```csharp
+// Store registration
+services.TryAddScoped<IWidgetStore, DefaultWidgetStore>();
+services.TryAddScoped<INamedSourceCatalog<Widget>>(sp => sp.GetRequiredService<IWidgetStore>());
+
+// Config-backed source (Order = 100)
+services.TryAddEnumerable(
+    ServiceDescriptor.Scoped<INamedSourceCatalogSource<Widget>, ConfigurationWidgetSource>());
+
+// DB-backed source (Order = 0) — YesSql example
+services.AddYesSqlNamedSourceBindingSource<Widget, WidgetIndex>();
 ```
 
 ## Pagination
