@@ -11,4 +11,5 @@ This section tracks `CrestApps.Core` releases and notable repository-level chang
 
 | Version | Highlights |
 | --- | --- |
+| [1.1.0](v1.1.0) | Multi-source binding pattern for AI stores, generic YesSql/EntityCore binding source extensions, connection loading fix |
 | [1.0.0](v1.0.0) | Initial standalone release plus merged configuration catalogs, clearer quick-start guidance, and deployment configuration diagnostics |

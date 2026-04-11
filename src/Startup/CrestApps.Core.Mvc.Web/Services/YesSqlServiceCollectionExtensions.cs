@@ -67,7 +67,6 @@ internal static class YesSqlServiceCollectionExtensions
         Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration.UseSqLite(connectionStringBuilder.ToString()).SetTablePrefix("CA_"));
         // YesSql-backed catalogs and managers.
         services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()
-            .AddYesSqlNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>()
             .AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()
             .AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()
             .AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()
@@ -112,11 +111,11 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
             .AddScoped<ArticleIndexingService>();
 
-        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey)
-            .AddYesSqlNamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex, ConfigurationAIProviderConnectionCatalog>();
+        // AI provider connections: wrap YesSql catalog as a writable multi-source binding source.
+        services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
 
-        services.AddScoped<INamedSourceCatalog<AIDeployment>, YesSqlAIDeploymentStore>();
-        services.AddScoped<IAIDeploymentStore, ConfigurationAIDeploymentStore>();
+        // AI deployments: wrap YesSql catalog as a writable multi-source binding source.
+        services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
 
         return services;
     }

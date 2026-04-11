@@ -2,15 +2,14 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,11 +82,41 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatInteractionPromptStore, EntityCoreChatInteractionPromptStore>();
         services.AddScoped<ICatalog<ChatInteractionPrompt>>(sp => sp.GetRequiredService<IChatInteractionPromptStore>());
 
-        services.AddKeyedScoped<INamedSourceCatalog<AIProviderConnection>, NamedSourceDocumentCatalog<AIProviderConnection>>(ConfigurationAIProviderConnectionCatalog.PersistedCatalogKey);
-        services.AddNamedSourceDocumentCatalog<AIProviderConnection, ConfigurationAIProviderConnectionCatalog>();
+        // AI provider connections: wrap EntityCore catalog as a writable multi-source binding source.
+        services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
 
-        services.AddScoped<INamedSourceCatalog<AIDeployment>, EntityCoreAIDeploymentStore>();
-        services.AddScoped<IAIDeploymentStore, ConfigurationAIDeploymentStore>(); ;
+        // AI deployments: wrap EntityCore catalog as a writable multi-source binding source.
+        services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an EntityCore-backed <see cref="NamedSourceDocumentCatalog{TModel}"/>
+    /// as an <see cref="INamedSourceCatalogSource{TModel}"/> binding source for the
+    /// multi-source store pattern.
+    /// </summary>
+    public static IServiceCollection AddEntityCoreNamedSourceBindingSource<TModel>(this IServiceCollection services)
+        where TModel : SourceCatalogEntry, INameAwareModel
+    {
+        services.AddScoped<NamedSourceDocumentCatalog<TModel>>();
+        services.AddScoped<INamedSourceCatalogSource<TModel>>(sp =>
+            new WritableCatalogBindingSource<TModel>(sp.GetRequiredService<NamedSourceDocumentCatalog<TModel>>()));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an EntityCore-backed <see cref="NamedDocumentCatalog{TModel}"/>
+    /// as an <see cref="INamedCatalogSource{TModel}"/> binding source for the
+    /// multi-source store pattern.
+    /// </summary>
+    public static IServiceCollection AddEntityCoreNamedBindingSource<TModel>(this IServiceCollection services)
+        where TModel : CatalogItem, INameAwareModel
+    {
+        services.AddScoped<NamedDocumentCatalog<TModel>>();
+        services.AddScoped<INamedCatalogSource<TModel>>(sp =>
+            new WritableNamedCatalogBindingSource<TModel>(sp.GetRequiredService<NamedDocumentCatalog<TModel>>()));
 
         return services;
     }

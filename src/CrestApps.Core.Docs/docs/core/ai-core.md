@@ -52,9 +52,13 @@ A **provider connection** stores credentials and endpoint information for a spec
 | `IAIClientFactory` | `DefaultAIClientFactory` | Scoped | Creates typed AI clients |
 | `IAICompletionService` | `DefaultAICompletionService` | Scoped | Deployment-aware completion |
 | `IAICompletionContextBuilder` | `DefaultAICompletionContextBuilder` | Scoped | Builds context with handler pipeline |
+| `IAIDeploymentStore` | `DefaultAIDeploymentStore` | Scoped | Multi-source deployment store (merges DB + config entries) |
+| `IAIProviderConnectionStore` | `DefaultAIProviderConnectionStore` | Scoped | Multi-source connection store (merges DB + config entries) |
+| `INamedSourceCatalogSource<AIDeployment>` | `ConfigurationAIDeploymentSource` | Scoped | Reads deployments from `appsettings.json` (Order 100) |
+| `INamedSourceCatalogSource<AIProviderConnection>` | `ConfigurationAIProviderConnectionSource` | Scoped | Reads connections from `appsettings.json` (Order 100) |
 | `ITemplateService` | *(from AddCoreAITemplating)* | Scoped | Template rendering |
 
-It also chains `AddCoreAITemplating()` and `AddCoreServices()` automatically.
+It also chains `AddCoreAITemplating()` and `AddCoreServices()` automatically, and forwards `IAIDeploymentStore` to `INamedSourceCatalog<AIDeployment>`, `INamedCatalog<AIDeployment>`, `ISourceCatalog<AIDeployment>`, and `ICatalog<AIDeployment>` (and the same forwarding for `AIProviderConnection`). This means you can inject any of these catalog interfaces and they will resolve through the multi-source store.
 
 Optional format-specific packages stay opt-in. For example, Markdown-aware normalization lives in `CrestApps.Core.AI.Markdown`, so hosts that want Markdig-backed RAG normalization should register `AddCoreAIMarkdown()` explicitly instead of expecting `AddCoreAIServices()` to pull it in automatically.
 
