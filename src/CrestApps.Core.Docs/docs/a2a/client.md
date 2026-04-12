@@ -12,13 +12,18 @@ description: Discover and invoke remote AI agents using the A2A protocol client 
 ## Quick Start
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-    .AddCoreAIA2AClient();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddA2AClient(a2a => a2a
+            .AddEntityCoreStores()
+        )
+    )
+    .AddEntityCoreSqliteDataStore("Data Source=app.db")
+);
 ```
 
-This single call registers everything needed to consume remote A2A agents: HTTP infrastructure, agent card caching, tool registry integration, authentication services, and three built-in discovery tools.
+This registers everything needed to consume remote A2A agents: HTTP infrastructure, agent card caching, tool registry integration, authentication services, and three built-in discovery tools.
 
 ## Problem & Solution
 
@@ -115,9 +120,35 @@ public sealed class A2AConnection : CatalogItem, IDisplayTextAwareModel
 
 `A2AConnection` extends `CatalogItem`, which means it supports the `Properties` dictionary for extensible metadata. Authentication details are stored as an `A2AConnectionMetadata` object in this dictionary.
 
-### Implementing `ICatalog<A2AConnection>`
+### Registering A2A Connection Stores
 
-The framework defines the `A2AConnection` model but does **not** include a built-in store. You must implement `ICatalog<A2AConnection>` to persist connections in your data store:
+The framework defines the `A2AConnection` model and ships built-in store implementations for both YesSql and Entity Framework Core. Register stores directly on the A2A client builder:
+
+**Entity Framework Core (via builder):**
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddA2AClient(a2a => a2a
+            .AddEntityCoreStores()
+        )
+    )
+);
+```
+
+**YesSql (via builder):**
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddA2AClient(a2a => a2a
+            .AddYesSqlStores()
+        )
+    )
+);
+```
+
+Both register an `ICatalog<A2AConnection>` implementation. If your host uses a different storage technology, implement `ICatalog<A2AConnection>` yourself:
 
 ```csharp
 public sealed class MyA2AConnectionStore : ICatalog<A2AConnection>

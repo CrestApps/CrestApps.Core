@@ -3,7 +3,7 @@ using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+using CrestApps.Core.Data.YesSql.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Moq;

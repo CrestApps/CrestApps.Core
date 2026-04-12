@@ -9,7 +9,10 @@ public sealed class MvcAIChatSessionEventService
 {
     private readonly ISession _session;
     private readonly TimeProvider _timeProvider;
-    public MvcAIChatSessionEventService(ISession session, TimeProvider timeProvider)
+
+    public MvcAIChatSessionEventService(
+        ISession session,
+        TimeProvider timeProvider)
     {
         _session = session;
         _timeProvider = timeProvider;

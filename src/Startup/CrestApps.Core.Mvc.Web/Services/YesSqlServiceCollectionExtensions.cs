@@ -1,26 +1,22 @@
 using System.Data.Common;
 using CrestApps.Core.AI;
-using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Completions;
-using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Indexing;
-using CrestApps.Core.AI.Mcp.Models;
-using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Builders;
 using CrestApps.Core.Data.YesSql;
+using CrestApps.Core.Data.YesSql.Indexes.A2A;
 using CrestApps.Core.Data.YesSql.Indexes.AI;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using CrestApps.Core.Data.YesSql.Indexes.AIMemory;
 using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
+using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Mvc.Web.Areas.A2A.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
@@ -29,11 +25,8 @@ using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
-using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Services;
 using CrestApps.Core.Mvc.Web.Areas.DataSources.Handlers;
-using CrestApps.Core.Mvc.Web.Areas.DataSources.Services;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
-using CrestApps.Core.Mvc.Web.Areas.Mcp.Indexes;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
@@ -69,13 +62,8 @@ internal static class YesSqlServiceCollectionExtensions
             .SetTablePrefix("CA_")
         );
 
-        // YesSql-backed catalogs and managers.
-        services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()
-            .AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()
-            .AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()
-            .AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()
-            .AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>()
-            .AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>()
+        // Host-specific managers.
+        services
             .AddScoped<DefaultAIProfileTemplateManager>()
             .AddScoped<IAIProfileTemplateManager>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
             .AddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
@@ -85,9 +73,10 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>())
             .AddScoped<IAIProfileManager, SimpleAIProfileManager>()
             .AddScoped<AIProfileDocumentService>()
-            .AddScoped<AIProfileTemplateDocumentService>()
-            .AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>()
-            .AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>()
+            .AddScoped<AIProfileTemplateDocumentService>();
+
+        // Host-specific chat session services.
+        services
             .AddScoped<MvcAIChatSessionEventService>()
             .AddScoped<MvcAICompletionUsageService>()
             .AddScoped<MvcAIChatSessionEventPostCloseObserver>()
@@ -96,38 +85,25 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>())
             .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>())
             .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionExtractedDataService>())
-            .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>().AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>()
-            .AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>()
-            .AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>()
-            .AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>()
-            .AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>())
-            .AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>()
+            .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>();
+
+        // Host-specific indexing and authorization services.
+        services
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryIndexingHandler>()
             .AddScoped<MvcAIDocumentIndexingService>()
             .AddScoped<ISearchIndexProfileManager, SearchIndexProfileManager>()
             .AddScoped<IAuthorizationHandler, MvcChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthorizationHandler>()
-            .AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>()
-            .AddYesSqlDocumentCatalog<ChatInteraction, ChatInteractionIndex>()
-            .AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>()
+            .AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>();
+
+        // Host-specific data-source and article services.
+        services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
             .AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>()
             .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
             .AddScoped<ArticleIndexingService>();
 
-        // AI provider connections: wrap YesSql catalog as a writable multi-source binding source.
-        services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
-
-        // AI deployments: wrap YesSql catalog as a writable multi-source binding source.
-        services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
-
         return services;
-    }
-
-    public static CrestAppsCoreBuilder AddYesSqlDataStore(this CrestAppsCoreBuilder builder, string appDataPath)
-    {
-        builder.Services.AddCoreYesSqlDataStore(appDataPath);
-        return builder;
     }
 
     /// <summary>
@@ -147,10 +123,10 @@ internal static class YesSqlServiceCollectionExtensions
         await NormalizeLegacyDocumentTypeNamesAsync(store, connection, transaction, logger);
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileIndexSchemaAsync());
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProviderConnectionIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<A2AConnectionIndex>(t => t.Column<string>(nameof(A2AConnectionIndex.ItemId), c => c.WithLength(26)).Column<string>(nameof(A2AConnectionIndex.DisplayText), c => c.WithLength(255))));
-        await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<McpConnectionIndex>(t => t.Column<string>(nameof(McpConnectionIndex.ItemId), c => c.WithLength(26)).Column<string>(nameof(McpConnectionIndex.DisplayText), c => c.WithLength(255)).Column<string>(nameof(McpConnectionIndex.Source), c => c.WithLength(50))));
-        await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<McpPromptIndex>(t => t.Column<string>(nameof(McpPromptIndex.ItemId), c => c.WithLength(26)).Column<string>(nameof(McpPromptIndex.Name), c => c.WithLength(255))));
-        await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<McpResourceIndex>(t => t.Column<string>(nameof(McpResourceIndex.ItemId), c => c.WithLength(26)).Column<string>(nameof(McpResourceIndex.DisplayText), c => c.WithLength(255)).Column<string>(nameof(McpResourceIndex.Source), c => c.WithLength(50))));
+        await TryCreateTableAsync(() => schemaBuilder.CreateA2AConnectionIndexSchemaAsync());
+        await TryCreateTableAsync(() => schemaBuilder.CreateMcpConnectionIndexSchemaAsync());
+        await TryCreateTableAsync(() => schemaBuilder.CreateMcpPromptIndexSchemaAsync());
+        await TryCreateTableAsync(() => schemaBuilder.CreateMcpResourceIndexSchemaAsync());
         await TryCreateTableAsync(() => schemaBuilder.CreateAIDeploymentIndexSchemaAsync());
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileTemplateIndexSchemaAsync());
         await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionIndexSchemaAsync());
@@ -165,7 +141,9 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIMemoryEntryIndexSchemaAsync());
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync());
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<ArticleIndex>(t => t.Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26)).Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));
+        await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<ArticleIndex>(t => t
+            .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
+            .Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));
         await transaction.CommitAsync();
     }
 
@@ -217,26 +195,8 @@ internal static class YesSqlServiceCollectionExtensions
 
     private static void RegisterIndexes(IStore store)
     {
-        store.RegisterIndexes<AIProfileIndexProvider>();
-        store.RegisterIndexes<AIProviderConnectionIndexProvider>();
-        store.RegisterIndexes<A2AConnectionIndexProvider>();
-        store.RegisterIndexes<McpConnectionIndexProvider>();
-        store.RegisterIndexes<McpPromptIndexProvider>();
-        store.RegisterIndexes<McpResourceIndexProvider>();
-        store.RegisterIndexes<AIDeploymentIndexProvider>();
-        store.RegisterIndexes<AIProfileTemplateIndexProvider>();
-        store.RegisterIndexes<AIChatSessionIndexProvider>();
-        store.RegisterIndexes<AIChatSessionMetricsIndexProvider>();
-        store.RegisterIndexes<AICompletionUsageIndexProvider>();
-        store.RegisterIndexes<AIChatSessionExtractedDataIndexProvider>();
-        store.RegisterIndexes<AIChatSessionPromptIndexProvider>();
-        store.RegisterIndexes<AIDocumentIndexProvider>();
-        store.RegisterIndexes<AIDocumentChunkIndexProvider>();
-        store.RegisterIndexes<SearchIndexProfileIndexProvider>();
-        store.RegisterIndexes<AIDataSourceIndexProvider>();
-        store.RegisterIndexes<AIMemoryEntryIndexProvider>();
-        store.RegisterIndexes<ChatInteractionIndexProvider>();
-        store.RegisterIndexes<ChatInteractionPromptIndexProvider>();
+        // Host-specific index provider. Shared index providers are registered
+        // automatically via DI in the per-feature AddCoreAI*StoresYesSql() methods.
         store.RegisterIndexes<ArticleIndexProvider>();
     }
 

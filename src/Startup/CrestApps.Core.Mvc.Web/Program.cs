@@ -18,6 +18,7 @@ using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.Azure.AISearch;
+using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
@@ -122,22 +123,33 @@ builder.Services.AddAuthorizationBuilder()
 // normal ASP.NET Core host. Keep them together so consumers can clearly see the
 // minimum CrestApps foundation, then remove optional features as needed.
 // =============================================================================
-builder.Services.AddCrestAppsCore(crestApps => crestApps
+builder.Services
+    .AddCoreYesSqlDataStore(appDataPath)
+    .AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
+        .AddYesSqlStores()
         .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
         // Optional AI features layered on top of the core AI + orchestration runtime.
         .AddMarkdown()
         .AddCopilotOrchestrator()
         .AddChatInteractions(chatInteractions => chatInteractions
+            .AddYesSqlStores()
             .ConfigureChatHubOptions<ChatInteractionHub>()
          )
         .AddDocumentProcessing(documentProcessing => documentProcessing
+            .AddYesSqlStores()
             .AddOpenXml()
             .AddPdf()
         )
-        .AddAIMemory()
-        .AddA2AClient()
-        .AddMcpClient()
+        .AddAIMemory(memory => memory
+            .AddYesSqlStores()
+        )
+        .AddA2AClient(a2a => a2a
+            .AddYesSqlStores()
+        )
+        .AddMcpClient(mcp => mcp
+            .AddYesSqlStores()
+        )
         .AddMcpServer(mcpServer => mcpServer
             .AddFtpResources()
             .AddSftpResources()
@@ -161,7 +173,6 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddAIMemory()
         )
      )
-    .AddYesSqlDataStore(appDataPath)
  );
 
 // =============================================================================

@@ -17,12 +17,39 @@ If you want the easiest playground-style UI for a new host, start here after you
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddOpenAI()
-        .AddChatInteractions()));
+        .AddChatInteractions(chatInteractions => chatInteractions
+            .AddEntityCoreStores()
+        )
+    )
+    .AddEntityCoreSqliteDataStore("Data Source=app.db")
+);
 ```
 
 By default, connections are discovered from `CrestApps:AI:Connections` and deployments are discovered from `CrestApps:AI:Deployments`. Connection-based deployments can reference a shared `ConnectionName`, while contained-connection deployments can embed provider-specific settings directly in the deployment entry.
 
 When you are ready to turn an ad hoc interaction into a reusable runtime contract, move that setup into an [AI Profile](./ai-profiles.md).
+
+### Registering Chat Interaction Stores
+
+The chat interactions feature requires stores for `ChatInteraction` and `IChatInteractionPromptStore`. Register stores directly on the chat interactions builder:
+
+**Entity Framework Core (via builder):**
+
+```csharp
+.AddChatInteractions(chatInteractions => chatInteractions
+    .AddEntityCoreStores()
+)
+```
+
+**YesSql (via builder):**
+
+```csharp
+.AddChatInteractions(chatInteractions => chatInteractions
+    .AddYesSqlStores()
+)
+```
+
+Both register an `ICatalog<ChatInteraction>` and `IChatInteractionPromptStore` implementation. See [Data Storage](data-storage.md) for the full per-feature store reference.
 
 ## Problem & Solution
 

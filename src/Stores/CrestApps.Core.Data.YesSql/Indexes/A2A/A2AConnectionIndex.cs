@@ -1,8 +1,7 @@
 using CrestApps.Core.AI.A2A.Models;
-using CrestApps.Core.Data.YesSql.Indexes;
 using YesSql.Indexes;
 
-namespace CrestApps.Core.Mvc.Web.Areas.A2A.Indexes;
+namespace CrestApps.Core.Data.YesSql.Indexes.A2A;
 
 public sealed class A2AConnectionIndex : CatalogItemIndex
 {

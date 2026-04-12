@@ -57,9 +57,42 @@ public sealed class CrestAppsDocumentProcessingBuilder
     public IServiceCollection Services { get; }
 }
 
+public sealed class CrestAppsA2AClientBuilder
+{
+    public CrestAppsA2AClientBuilder(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        Services = services;
+    }
+
+    public IServiceCollection Services { get; }
+}
+
+public sealed class CrestAppsMcpClientBuilder
+{
+    public CrestAppsMcpClientBuilder(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        Services = services;
+    }
+
+    public IServiceCollection Services { get; }
+}
+
 public sealed class CrestAppsMcpServerBuilder
 {
     public CrestAppsMcpServerBuilder(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        Services = services;
+    }
+
+    public IServiceCollection Services { get; }
+}
+
+public sealed class CrestAppsAIMemoryBuilder
+{
+    public CrestAppsAIMemoryBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         Services = services;

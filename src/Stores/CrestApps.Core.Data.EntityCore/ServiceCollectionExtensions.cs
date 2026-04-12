@@ -48,45 +48,121 @@ public static class ServiceCollectionExtensions
         services
             .AddCatalogManagers();
 
-        // Catalog registrations
+        services.AddCoreAIServicesStoresEntityCore();
+        services.AddCoreAIA2AClientStoresEntityCore();
+        services.AddCoreAIMcpClientStoresEntityCore();
+        services.AddCoreAIChatSessionStoresEntityCore();
+        services.AddCoreAIDocumentProcessingStoresEntityCore();
+        services.AddCoreAIDataSourceStoresEntityCore();
+        services.AddCoreAIMemoryStoresEntityCore();
+        services.AddCoreAIChatInteractionStoresEntityCore();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the core AI services feature.
+    /// This includes catalogs for <see cref="AIProfile"/>, <see cref="AIProfileTemplate"/>,
+    /// and multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIServicesStoresEntityCore(this IServiceCollection services)
+    {
         services.AddNamedSourceDocumentCatalog<AIProfile, NamedSourceDocumentCatalog<AIProfile>>();
+        services.AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>();
+        services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
+        services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the A2A client feature.
+    /// This includes a catalog for <see cref="A2AConnection"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIA2AClientStoresEntityCore(this IServiceCollection services)
+    {
         services.AddDocumentCatalog<A2AConnection, DocumentCatalog<A2AConnection>>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the MCP client feature.
+    /// This includes catalogs for <see cref="McpConnection"/>, <see cref="McpPrompt"/>, and <see cref="McpResource"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIMcpClientStoresEntityCore(this IServiceCollection services)
+    {
         services.AddSourceDocumentCatalog<McpConnection, SourceDocumentCatalog<McpConnection>>();
         services.AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>();
         services.AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>();
-        services.AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>();
-        services.AddDocumentCatalog<ChatInteraction, DocumentCatalog<ChatInteraction>>();
 
-        // Chat session stores
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the AI chat sessions feature.
+    /// This includes <see cref="IAIChatSessionManager"/> and <see cref="IAIChatSessionPromptStore"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIChatSessionStoresEntityCore(this IServiceCollection services)
+    {
         services.AddScoped<IAIChatSessionManager, EntityCoreAIChatSessionManager>();
         services.AddScoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>();
         services.AddScoped<ICatalog<AIChatSessionPrompt>>(sp => sp.GetRequiredService<IAIChatSessionPromptStore>());
 
-        // Document stores
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the document processing feature.
+    /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
+    /// and <see cref="ISearchIndexProfileStore"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIDocumentProcessingStoresEntityCore(this IServiceCollection services)
+    {
         services.AddScoped<IAIDocumentStore, EntityCoreAIDocumentStore>();
         services.AddScoped<ICatalog<AIDocument>>(sp => sp.GetRequiredService<IAIDocumentStore>());
         services.AddScoped<IAIDocumentChunkStore, EntityCoreAIDocumentChunkStore>();
         services.AddScoped<ICatalog<AIDocumentChunk>>(sp => sp.GetRequiredService<IAIDocumentChunkStore>());
-
-        // Search index store
         services.AddScoped<ISearchIndexProfileStore, EntityCoreSearchIndexProfileStore>();
         services.AddScoped<ICatalog<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileStore>());
 
-        // Data source and memory stores
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the data source RAG feature.
+    /// This includes <see cref="IAIDataSourceStore"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIDataSourceStoresEntityCore(this IServiceCollection services)
+    {
         services.AddScoped<IAIDataSourceStore, EntityCoreAIDataSourceStore>();
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the AI memory feature.
+    /// This includes <see cref="IAIMemoryStore"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIMemoryStoresEntityCore(this IServiceCollection services)
+    {
         services.AddScoped<IAIMemoryStore, EntityCoreAIMemoryStore>();
         services.AddScoped<ICatalog<AIMemoryEntry>>(sp => sp.GetRequiredService<IAIMemoryStore>());
 
-        // Chat interaction prompt store
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the chat interactions feature.
+    /// This includes a catalog for <see cref="ChatInteraction"/>
+    /// and <see cref="IChatInteractionPromptStore"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIChatInteractionStoresEntityCore(this IServiceCollection services)
+    {
+        services.AddDocumentCatalog<ChatInteraction, DocumentCatalog<ChatInteraction>>();
         services.AddScoped<IChatInteractionPromptStore, EntityCoreChatInteractionPromptStore>();
         services.AddScoped<ICatalog<ChatInteractionPrompt>>(sp => sp.GetRequiredService<IChatInteractionPromptStore>());
-
-        // AI provider connections: wrap EntityCore catalog as a writable multi-source binding source.
-        services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
-
-        // AI deployments: wrap EntityCore catalog as a writable multi-source binding source.
-        services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
 
         return services;
     }
@@ -131,6 +207,77 @@ public static class ServiceCollectionExtensions
     public static CrestAppsCoreBuilder AddEntityCoreSqliteDataStore(this CrestAppsCoreBuilder builder, string connectionString, string tablePrefix = "CA_")
     {
         builder.Services.AddCoreEntityCoreSqliteDataStore(connectionString, tablePrefix);
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the core AI services feature on the AI suite builder.
+    /// This includes catalogs for <see cref="AIProfile"/>, <see cref="AIProfileTemplate"/>,
+    /// multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>,
+    /// and the chat session stores (<see cref="IAIChatSessionManager"/> and <see cref="IAIChatSessionPromptStore"/>).
+    /// </summary>
+    public static CrestAppsAISuiteBuilder AddEntityCoreStores(this CrestAppsAISuiteBuilder builder)
+    {
+        builder.Services.AddCoreAIServicesStoresEntityCore();
+        builder.Services.AddCoreAIChatSessionStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the A2A client feature on the A2A client builder.
+    /// This includes a catalog for <see cref="A2AConnection"/>.
+    /// </summary>
+    public static CrestAppsA2AClientBuilder AddEntityCoreStores(this CrestAppsA2AClientBuilder builder)
+    {
+        builder.Services.AddCoreAIA2AClientStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the MCP client feature on the MCP client builder.
+    /// This includes catalogs for <see cref="McpConnection"/>, <see cref="McpPrompt"/>, and <see cref="McpResource"/>.
+    /// </summary>
+    public static CrestAppsMcpClientBuilder AddEntityCoreStores(this CrestAppsMcpClientBuilder builder)
+    {
+        builder.Services.AddCoreAIMcpClientStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the chat interactions feature on the chat interactions builder.
+    /// This includes a catalog for <see cref="ChatInteraction"/> and <see cref="IChatInteractionPromptStore"/>.
+    /// </summary>
+    public static CrestAppsChatInteractionsBuilder AddEntityCoreStores(this CrestAppsChatInteractionsBuilder builder)
+    {
+        builder.Services.AddCoreAIChatInteractionStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the document processing feature on the document processing builder.
+    /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
+    /// <see cref="ISearchIndexProfileStore"/>, and <see cref="IAIDataSourceStore"/>.
+    /// </summary>
+    public static CrestAppsDocumentProcessingBuilder AddEntityCoreStores(this CrestAppsDocumentProcessingBuilder builder)
+    {
+        builder.Services.AddCoreAIDocumentProcessingStoresEntityCore();
+        builder.Services.AddCoreAIDataSourceStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the AI memory feature on the AI memory builder.
+    /// This includes <see cref="IAIMemoryStore"/>.
+    /// </summary>
+    public static CrestAppsAIMemoryBuilder AddEntityCoreStores(this CrestAppsAIMemoryBuilder builder)
+    {
+        builder.Services.AddCoreAIMemoryStoresEntityCore();
 
         return builder;
     }

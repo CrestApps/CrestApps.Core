@@ -4,11 +4,12 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using YesSql;
 using ISession = YesSql.ISession;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Data.YesSql.Services;
 
 public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 {

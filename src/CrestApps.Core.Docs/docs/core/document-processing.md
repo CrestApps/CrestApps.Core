@@ -17,9 +17,12 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddMarkdown()
         .AddChatInteractions()
         .AddDocumentProcessing(documentProcessing => documentProcessing
+            .AddEntityCoreStores()
             .AddOpenXml()
             .AddPdf())
-        .AddOpenAI()));
+        .AddOpenAI())
+    .AddEntityCoreSqliteDataStore("Data Source=app.db")
+);
 ```
 
 ## Problem & Solution
@@ -142,11 +145,26 @@ That keeps file pickers, visible supported-format text, and server-side processi
 
 ## Storage
 
-Document metadata and chunks require store implementations:
+Document metadata and chunks require store implementations. Register stores directly on the document processing builder:
+
+**Entity Framework Core (via builder):**
 
 ```csharp
-builder.Services.AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>();
-builder.Services.AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>();
+.AddDocumentProcessing(documentProcessing => documentProcessing
+    .AddEntityCoreStores()
+    .AddOpenXml()
+    .AddPdf())
 ```
+
+**YesSql (via builder):**
+
+```csharp
+.AddDocumentProcessing(documentProcessing => documentProcessing
+    .AddYesSqlStores()
+    .AddOpenXml()
+    .AddPdf())
+```
+
+Both register `IAIDocumentStore`, `IAIDocumentChunkStore`, `ISearchIndexProfileStore`, and `IAIDataSourceStore`. See [Data Storage](data-storage.md) for the full per-feature store reference.
 
 
