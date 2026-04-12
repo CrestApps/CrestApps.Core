@@ -30,4 +30,6 @@ public sealed class AIChatSessionMetricsIndex : MapIndex
 
 public sealed class AIChatSessionMetricsIndexProvider : AIChatSessionMetricsIndexProviderBase
 {
+    internal AIChatSessionMetricsIndexProvider(string collectionName = null)
+        : base(collectionName) { }
 }

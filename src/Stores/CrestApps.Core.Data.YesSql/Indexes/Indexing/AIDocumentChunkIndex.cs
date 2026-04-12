@@ -16,6 +16,11 @@ public sealed class AIDocumentChunkIndex : CatalogItemIndex
 
 public sealed class AIDocumentChunkIndexProvider : IndexProvider<AIDocumentChunk>
 {
+    internal AIDocumentChunkIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIDocumentChunk> context)
     {
         context.For<AIDocumentChunkIndex>()

@@ -12,6 +12,11 @@ public sealed class McpConnectionIndex : CatalogItemIndex, ISourceAwareIndex
 
 public sealed class McpConnectionIndexProvider : IndexProvider<McpConnection>
 {
+    internal McpConnectionIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<McpConnection> context)
     {
         context.For<McpConnectionIndex>()

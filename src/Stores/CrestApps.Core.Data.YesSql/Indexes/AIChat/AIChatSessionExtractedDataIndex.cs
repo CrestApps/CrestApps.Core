@@ -24,6 +24,11 @@ public sealed class AIChatSessionExtractedDataIndex : MapIndex
 
 public sealed class AIChatSessionExtractedDataIndexProvider : IndexProvider<AIChatSessionExtractedDataRecord>
 {
+    internal AIChatSessionExtractedDataIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIChatSessionExtractedDataRecord> context)
     {
         context.For<AIChatSessionExtractedDataIndex>()

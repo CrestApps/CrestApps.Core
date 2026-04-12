@@ -12,6 +12,11 @@ public sealed class AIProviderConnectionIndex : CatalogItemIndex, INameAwareInde
 
 public sealed class AIProviderConnectionIndexProvider : IndexProvider<AIProviderConnection>
 {
+    internal AIProviderConnectionIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIProviderConnection> context)
     {
         context.For<AIProviderConnectionIndex>()

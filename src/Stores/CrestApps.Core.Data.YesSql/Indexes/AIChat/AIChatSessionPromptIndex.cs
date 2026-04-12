@@ -12,6 +12,11 @@ public sealed class AIChatSessionPromptIndex : CatalogItemIndex
 
 public sealed class AIChatSessionPromptIndexProvider : IndexProvider<AIChatSessionPrompt>
 {
+    internal AIChatSessionPromptIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIChatSessionPrompt> context)
     {
         context.For<AIChatSessionPromptIndex>()

@@ -50,6 +50,11 @@ public sealed class AICompletionUsageIndex : MapIndex
 
 public sealed class AICompletionUsageIndexProvider : IndexProvider<AICompletionUsageRecord>
 {
+    internal AICompletionUsageIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AICompletionUsageRecord> context)
     {
         context.For<AICompletionUsageIndex>()

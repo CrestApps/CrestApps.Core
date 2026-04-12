@@ -14,6 +14,11 @@ public sealed class AIDocumentIndex : CatalogItemIndex
 
 public sealed class AIDocumentIndexProvider : IndexProvider<AIDocument>
 {
+    internal AIDocumentIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIDocument> context)
     {
         context.For<AIDocumentIndex>()

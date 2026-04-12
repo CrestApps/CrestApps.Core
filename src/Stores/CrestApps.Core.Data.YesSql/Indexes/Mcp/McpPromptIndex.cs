@@ -10,6 +10,11 @@ public sealed class McpPromptIndex : CatalogItemIndex, INameAwareIndex
 
 public sealed class McpPromptIndexProvider : IndexProvider<McpPrompt>
 {
+    internal McpPromptIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<McpPrompt> context)
     {
         context.For<McpPromptIndex>()

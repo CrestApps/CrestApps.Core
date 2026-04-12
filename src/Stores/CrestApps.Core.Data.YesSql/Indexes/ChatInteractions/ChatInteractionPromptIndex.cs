@@ -14,6 +14,11 @@ public sealed class ChatInteractionPromptIndex : CatalogItemIndex
 
 public sealed class ChatInteractionPromptIndexProvider : IndexProvider<ChatInteractionPrompt>
 {
+    internal ChatInteractionPromptIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<ChatInteractionPrompt> context)
     {
         context.For<ChatInteractionPromptIndex>()

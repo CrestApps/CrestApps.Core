@@ -18,6 +18,11 @@ public sealed class AIChatSessionIndex : CatalogItemIndex
 
 public sealed class AIChatSessionIndexProvider : IndexProvider<AIChatSession>
 {
+    internal AIChatSessionIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIChatSession> context)
     {
         context.For<AIChatSessionIndex>()
