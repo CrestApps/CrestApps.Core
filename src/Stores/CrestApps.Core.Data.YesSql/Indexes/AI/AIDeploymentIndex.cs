@@ -12,6 +12,11 @@ public sealed class AIDeploymentIndex : CatalogItemIndex, INameAwareIndex, ISour
 
 public sealed class AIDeploymentIndexProvider : IndexProvider<AIDeployment>
 {
+    internal AIDeploymentIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIDeployment> context)
     {
         context.For<AIDeploymentIndex>()

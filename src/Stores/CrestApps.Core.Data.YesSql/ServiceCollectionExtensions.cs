@@ -62,7 +62,7 @@ public static class ServiceCollectionExtensions
     public static CrestAppsAISuiteBuilder AddYesSqlStores(this CrestAppsAISuiteBuilder builder, string collection = null)
     {
         builder.Services.AddCoreAIServicesStoresYesSql(collection);
-        builder.Services.AddCoreAIChatSessionStoresYesSql();
+        builder.Services.AddCoreAIChatSessionStoresYesSql(collection);
 
         return builder;
     }
@@ -105,10 +105,10 @@ public static class ServiceCollectionExtensions
     /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
     /// <see cref="ISearchIndexProfileStore"/>, and <see cref="IAIDataSourceStore"/>.
     /// </summary>
-    public static CrestAppsDocumentProcessingBuilder AddYesSqlStores(this CrestAppsDocumentProcessingBuilder builder)
+    public static CrestAppsDocumentProcessingBuilder AddYesSqlStores(this CrestAppsDocumentProcessingBuilder builder, string collection = null)
     {
-        builder.Services.AddCoreAIDocumentProcessingStoresYesSql();
-        builder.Services.AddCoreAIDataSourceStoresYesSql();
+        builder.Services.AddCoreAIDocumentProcessingStoresYesSql(collection);
+        builder.Services.AddCoreAIDataSourceStoresYesSql(collection);
 
         return builder;
     }
@@ -117,9 +117,9 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the AI memory feature on the AI memory builder.
     /// This includes <see cref="IAIMemoryStore"/>.
     /// </summary>
-    public static CrestAppsAIMemoryBuilder AddYesSqlStores(this CrestAppsAIMemoryBuilder builder)
+    public static CrestAppsAIMemoryBuilder AddYesSqlStores(this CrestAppsAIMemoryBuilder builder, string collection = null)
     {
-        builder.Services.AddCoreAIMemoryStoresYesSql();
+        builder.Services.AddCoreAIMemoryStoresYesSql(collection);
 
         return builder;
     }
@@ -136,10 +136,10 @@ public static class ServiceCollectionExtensions
         services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(collection);
         services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(collection);
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileTemplateIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProviderConnectionIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDeploymentIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIProfileIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIProfileTemplateIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIProviderConnectionIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIDeploymentIndexProvider(collection)));
 
         return services;
     }
@@ -152,7 +152,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>(collection);
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, A2AConnectionIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new A2AConnectionIndexProvider(collection)));
 
         return services;
     }
@@ -167,9 +167,9 @@ public static class ServiceCollectionExtensions
         services.AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>(collection);
         services.AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>(collection);
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpConnectionIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpPromptIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpResourceIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new McpConnectionIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new McpPromptIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new McpResourceIndexProvider(collection)));
 
         return services;
     }
@@ -178,16 +178,16 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the AI chat sessions feature.
     /// This includes <see cref="IAIChatSessionManager"/> and <see cref="IAIChatSessionPromptStore"/>.
     /// </summary>
-    public static IServiceCollection AddCoreAIChatSessionStoresYesSql(this IServiceCollection services)
+    public static IServiceCollection AddCoreAIChatSessionStoresYesSql(this IServiceCollection services, string collection = null)
     {
         services.AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>();
         services.AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>();
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionMetricsIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AICompletionUsageIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionExtractedDataIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionPromptIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIChatSessionIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIChatSessionMetricsIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AICompletionUsageIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIChatSessionExtractedDataIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIChatSessionPromptIndexProvider(collection)));
 
         return services;
     }
@@ -197,15 +197,15 @@ public static class ServiceCollectionExtensions
     /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
     /// and <see cref="ISearchIndexProfileStore"/>.
     /// </summary>
-    public static IServiceCollection AddCoreAIDocumentProcessingStoresYesSql(this IServiceCollection services)
+    public static IServiceCollection AddCoreAIDocumentProcessingStoresYesSql(this IServiceCollection services, string collection = null)
     {
         services.AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>();
         services.AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>();
         services.AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>();
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDocumentIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDocumentChunkIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, SearchIndexProfileIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIDocumentIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIDocumentChunkIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new SearchIndexProfileIndexProvider(collection)));
 
         return services;
     }
@@ -214,12 +214,12 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the data source RAG feature.
     /// This includes <see cref="IAIDataSourceStore"/>.
     /// </summary>
-    public static IServiceCollection AddCoreAIDataSourceStoresYesSql(this IServiceCollection services)
+    public static IServiceCollection AddCoreAIDataSourceStoresYesSql(this IServiceCollection services, string collection = null)
     {
         services.AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>();
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDataSourceIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIDataSourceIndexProvider(collection)));
 
         return services;
     }
@@ -228,11 +228,11 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the AI memory feature.
     /// This includes <see cref="IAIMemoryStore"/>.
     /// </summary>
-    public static IServiceCollection AddCoreAIMemoryStoresYesSql(this IServiceCollection services)
+    public static IServiceCollection AddCoreAIMemoryStoresYesSql(this IServiceCollection services, string collection = null)
     {
         services.AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>();
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIMemoryEntryIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new AIMemoryEntryIndexProvider(collection)));
 
         return services;
     }
@@ -247,8 +247,8 @@ public static class ServiceCollectionExtensions
         services.AddYesSqlDocumentCatalog<ChatInteraction, ChatInteractionIndex>(collection);
         services.AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>();
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ChatInteractionIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ChatInteractionPromptIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new ChatInteractionIndexProvider(collection)));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider>(new ChatInteractionPromptIndexProvider(collection)));
 
         return services;
     }

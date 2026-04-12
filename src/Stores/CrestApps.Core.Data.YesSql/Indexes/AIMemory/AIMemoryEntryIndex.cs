@@ -12,6 +12,11 @@ public sealed class AIMemoryEntryIndex : CatalogItemIndex
 
 public sealed class AIMemoryEntryIndexProvider : IndexProvider<AIMemoryEntry>
 {
+    internal AIMemoryEntryIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIMemoryEntry> context)
     {
         context.For<AIMemoryEntryIndex>()

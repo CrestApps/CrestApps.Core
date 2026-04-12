@@ -12,6 +12,11 @@ public sealed class AIDataSourceIndex : CatalogItemIndex
 
 public sealed class AIDataSourceIndexProvider : IndexProvider<AIDataSource>
 {
+    internal AIDataSourceIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIDataSource> context)
     {
         context.For<AIDataSourceIndex>()

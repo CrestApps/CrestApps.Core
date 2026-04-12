@@ -10,6 +10,11 @@ public sealed class A2AConnectionIndex : CatalogItemIndex
 
 public sealed class A2AConnectionIndexProvider : IndexProvider<A2AConnection>
 {
+    internal A2AConnectionIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<A2AConnection> context)
     {
         context.For<A2AConnectionIndex>()

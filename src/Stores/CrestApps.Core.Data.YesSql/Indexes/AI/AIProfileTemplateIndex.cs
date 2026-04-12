@@ -12,6 +12,11 @@ public sealed class AIProfileTemplateIndex : CatalogItemIndex, INameAwareIndex, 
 
 public sealed class AIProfileTemplateIndexProvider : IndexProvider<AIProfileTemplate>
 {
+    internal AIProfileTemplateIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<AIProfileTemplate> context)
     {
         context.For<AIProfileTemplateIndex>()

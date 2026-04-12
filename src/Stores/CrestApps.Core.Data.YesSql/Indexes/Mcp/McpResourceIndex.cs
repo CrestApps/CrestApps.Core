@@ -12,6 +12,11 @@ public sealed class McpResourceIndex : CatalogItemIndex, ISourceAwareIndex
 
 public sealed class McpResourceIndexProvider : IndexProvider<McpResource>
 {
+    internal McpResourceIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<McpResource> context)
     {
         context.For<McpResourceIndex>()

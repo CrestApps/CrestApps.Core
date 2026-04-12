@@ -14,6 +14,11 @@ public sealed class SearchIndexProfileIndex : CatalogItemIndex
 
 public sealed class SearchIndexProfileIndexProvider : IndexProvider<SearchIndexProfile>
 {
+    internal SearchIndexProfileIndexProvider(string collectionName = null)
+    {
+        CollectionName = collectionName;
+    }
+
     public override void Describe(DescribeContext<SearchIndexProfile> context)
     {
         context.For<SearchIndexProfileIndex>()
