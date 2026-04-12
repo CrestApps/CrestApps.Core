@@ -9,7 +9,12 @@ public sealed class SearchIndexProfileManager : CatalogManager<SearchIndexProfil
 {
     private readonly ISearchIndexProfileStore _store;
     private readonly IEnumerable<IIndexProfileHandler> _handlers;
-    public SearchIndexProfileManager(ISearchIndexProfileStore store, IEnumerable<IIndexProfileHandler> handlers, ILogger<SearchIndexProfileManager> logger) : base(store, handlers, logger)
+
+    public SearchIndexProfileManager(
+        ISearchIndexProfileStore store,
+        IEnumerable<IIndexProfileHandler> handlers,
+        ILogger<SearchIndexProfileManager> logger)
+        : base(store, handlers, logger)
     {
         _store = store;
         _handlers = handlers;

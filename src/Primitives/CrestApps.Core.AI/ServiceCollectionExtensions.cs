@@ -290,9 +290,15 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static CrestAppsAISuiteBuilder AddAIMemory(this CrestAppsAISuiteBuilder builder)
+    public static CrestAppsAISuiteBuilder AddAIMemory(this CrestAppsAISuiteBuilder builder, Action<CrestAppsAIMemoryBuilder> configure = null)
     {
         builder.Services.AddCoreAIMemory();
+
+        if (configure is not null)
+        {
+            configure(new CrestAppsAIMemoryBuilder(builder.Services));
+        }
+
         return builder;
     }
 

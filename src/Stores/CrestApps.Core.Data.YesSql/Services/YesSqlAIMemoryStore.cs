@@ -6,7 +6,7 @@ using YesSql;
 using YesSql.Services;
 using ISession = YesSql.ISession;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AI.Services;
+namespace CrestApps.Core.Data.YesSql.Services;
 
 public sealed class YesSqlAIMemoryStore : IAIMemoryStore
 {

@@ -29,8 +29,8 @@ Start with the smallest set that matches your scenario.
   <PackageReference Include="CrestApps.Core.AI.Markdown" />
   <PackageReference Include="CrestApps.Core.Templates" />
   <PackageReference Include="CrestApps.Core.SignalR" />
-  <PackageReference Include="CrestApps.Core.Data.YesSql" />
-  <!-- or CrestApps.Core.Data.EntityCore -->
+  <PackageReference Include="CrestApps.Core.Data.EntityCore" />
+  <!-- or CrestApps.Core.Data.YesSql -->
 </ItemGroup>
 ```
 
@@ -155,19 +155,77 @@ Register the same services in the app host and use them from native pages or hyb
 
 If your app needs durable profiles, sessions, templates, or connection records, plug in a store implementation. The repository includes two first-party options:
 
-- `CrestApps.Core.Data.YesSql` for YesSql-backed catalogs and stores
 - `CrestApps.Core.Data.EntityCore` for Entity Framework Core-backed catalogs and stores
+- `CrestApps.Core.Data.YesSql` for YesSql-backed catalogs and stores
 
-For local SQLite-backed EF Core development:
+Each feature has its own per-feature store registration extension so you can see exactly which stores each feature needs:
+
+**Entity Framework Core** — configure the data store, then register stores per feature via the builder:
 
 ```csharp
-builder.Services.AddCoreEntityCoreSqliteDataStore(
-    $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}");
-
-builder.Services.AddEntityCoreStores();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddEntityCoreStores()
+        .AddOpenAI()
+        .AddChatInteractions(ci => ci
+            .AddEntityCoreStores()
+        )
+        .AddDocumentProcessing(dp => dp
+            .AddEntityCoreStores()
+            .AddOpenXml()
+            .AddPdf()
+        )
+        .AddAIMemory(memory => memory
+            .AddEntityCoreStores()
+        )
+        .AddA2AClient(a2a => a2a
+            .AddEntityCoreStores()
+        )
+        .AddMcpClient(mcp => mcp
+            .AddEntityCoreStores()
+        )
+    )
+    .AddEntityCoreSqliteDataStore(
+        $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
+);
 ```
 
-For YesSql, keep using `AddCoreYesSqlDataStore(...)` plus the YesSql catalog registrations. If you already use another ORM or storage model, implement the same catalog/store abstractions against your preferred backend.
+**YesSql** — configure the data store, then register stores per feature via the builder:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddYesSqlStores()                        // AIProfile, AIProfileTemplate, connections, deployments, chat sessions
+        .AddOpenAI()
+        .AddChatInteractions(ci => ci
+            .AddYesSqlStores()                    // ChatInteraction, IChatInteractionPromptStore
+        )
+        .AddDocumentProcessing(dp => dp
+            .AddYesSqlStores()                    // IAIDocumentStore, IAIDocumentChunkStore, ISearchIndexProfileStore, IAIDataSourceStore
+            .AddOpenXml()
+            .AddPdf()
+        )
+        .AddAIMemory(memory => memory
+            .AddYesSqlStores()                    // IAIMemoryStore
+        )
+        .AddA2AClient(a2a => a2a
+            .AddYesSqlStores()                    // A2AConnection
+        )
+        .AddMcpClient(mcp => mcp
+            .AddYesSqlStores()                    // McpConnection, McpPrompt, McpResource
+        )
+    )
+    .AddYesSqlDataStore(configuration => configuration
+        .UseSqLite("Data Source=app.db;Cache=Shared")
+        .SetTablePrefix("CA_"))
+);
+```
+
+:::tip
+YesSql stages writes in memory and flushes them as a single transaction at the end of a request. The framework provides `IStoreCommitter` and automatic commit filters to handle this. See [Data Storage — Automatic store commit](data-storage.md#automatic-store-commit-istorecommitter) for details. Entity Framework Core commits on every individual write, so no commit middleware is needed.
+:::
+
+If you already use another ORM or storage model, implement the same catalog/store abstractions against your preferred backend. See [Data Storage](data-storage.md) for the full per-feature store reference.
 
 ## 6. Add features one layer at a time
 

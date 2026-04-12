@@ -21,11 +21,14 @@ description: Long-term memory services for user-scoped facts, semantic retrieval
 - shared indexing and search helpers
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-    .AddCoreAIMemory()
-    .AddCoreAIOpenAI();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddAIMemory(memory => memory
+            .AddEntityCoreStores()
+        )
+        .AddOpenAI())
+    .AddEntityCoreSqliteDataStore("Data Source=app.db")
+);
 ```
 
 ## What your host must provide
@@ -36,6 +39,26 @@ The framework does not assume a single persistence model. A host application is 
 - an `ISearchIndexProfileStore` implementation for index profile lookup
 - one or more keyed `IMemoryVectorSearchService` implementations
 - options such as `AIMemoryOptions`, `GeneralAIOptions`, and `ChatInteractionMemoryOptions`
+
+Register stores directly on the AI memory builder:
+
+**Entity Framework Core (via builder):**
+
+```csharp
+.AddAIMemory(memory => memory
+    .AddEntityCoreStores()
+)
+```
+
+**YesSql (via builder):**
+
+```csharp
+.AddAIMemory(memory => memory
+    .AddYesSqlStores()
+)
+```
+
+Both register the `IAIMemoryStore` implementation. See [Data Storage](data-storage.md) for the full per-feature store reference.
 
 
 ## Core concepts

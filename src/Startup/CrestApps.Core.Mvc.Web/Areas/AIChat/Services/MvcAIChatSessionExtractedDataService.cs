@@ -10,7 +10,10 @@ public sealed class MvcAIChatSessionExtractedDataService : IAIChatSessionExtract
 {
     private readonly ISession _session;
     private readonly TimeProvider _timeProvider;
-    public MvcAIChatSessionExtractedDataService(ISession session, TimeProvider timeProvider)
+
+    public MvcAIChatSessionExtractedDataService(
+        ISession session,
+        TimeProvider timeProvider)
     {
         _session = session;
         _timeProvider = timeProvider;
@@ -39,6 +42,7 @@ public sealed class MvcAIChatSessionExtractedDataService : IAIChatSessionExtract
         record.SessionEndedUtc = session.ClosedAtUtc;
         record.UpdatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
         record.Values = session.ExtractedData.Where(pair => pair.Value.Values.Count > 0).ToDictionary(pair => pair.Key, pair => pair.Value.Values.ToList(), StringComparer.OrdinalIgnoreCase);
+
         await _session.SaveAsync(record);
     }
 
@@ -58,6 +62,7 @@ public sealed class MvcAIChatSessionExtractedDataService : IAIChatSessionExtract
         }
 
         var records = await query.ListAsync(cancellationToken);
+
         return records.OrderByDescending(x => x.SessionStartedUtc).ToList();
     }
 

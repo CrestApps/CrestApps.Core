@@ -13,6 +13,10 @@ Optional - consumers can provide their own store implementations.
 </PropertyGroup>
 
 <ItemGroup>
+<FrameworkReference Include="Microsoft.AspNetCore.App" />
+</ItemGroup>
+
+<ItemGroup>
 <PackageReference Include="YesSql.Core" />
 </ItemGroup>
 
@@ -20,6 +24,9 @@ Optional - consumers can provide their own store implementations.
     <ProjectReference Include="../../Abstractions/CrestApps.Core.Abstractions/CrestApps.Core.Abstractions.csproj" />
     <ProjectReference Include="../../Abstractions/CrestApps.Core.AI.Abstractions/CrestApps.Core.AI.Abstractions.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
   </ItemGroup>
 

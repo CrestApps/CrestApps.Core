@@ -18,6 +18,20 @@ builder.Services
     .AddCoreAIMcpClient();
 ```
 
+Or, using the builder pattern:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddMcpClient(mcp => mcp
+            .AddEntityCoreStores()
+        )
+    )
+    .AddEntityCoreSqliteDataStore("Data Source=app.db")
+);
+```
+
 This registers the shared MCP runtime services, the default SSE and StdIO transport providers, the core `McpService` that manages connections to remote MCP servers, the MCP tool-registry provider, and the shared AI-profile completion-context handler that flows selected MCP connection IDs into the completion request.
 
 If your host needs the shared MCP runtime registrations without automatically enabling the StdIO transport, call `AddCoreAIMcpServices()` and then opt into transports explicitly, or call `AddCoreAIMcpClient(includeStdIoTransport: false)`.
@@ -190,6 +204,26 @@ public sealed class McpConnection : SourceCatalogEntry, IDisplayTextAwareModel
 ```
 
 The `Source` property (inherited from `SourceCatalogEntry`) indicates the transport type — `"sse"` or `"stdIo"`. Transport-specific metadata (e.g., `SseMcpConnectionMetadata`) is stored in the `Properties` bag and retrieved using `connection.As<SseMcpConnectionMetadata>()`.
+
+### Registering MCP Stores
+
+The MCP client feature requires stores for `McpConnection`, `McpPrompt`, and `McpResource`. Register stores directly on the MCP client builder:
+
+**Entity Framework Core (via builder):**
+
+```csharp
+.AddMcpClient(mcp => mcp
+    .AddEntityCoreStores()
+)
+```
+
+**YesSql (via builder):**
+
+```csharp
+.AddMcpClient(mcp => mcp
+    .AddYesSqlStores()
+)
+```
 
 ### McpService
 

@@ -1,9 +1,7 @@
 using CrestApps.Core.AI.Mcp.Models;
-using CrestApps.Core.Data.YesSql;
-using CrestApps.Core.Data.YesSql.Indexes;
 using YesSql.Indexes;
 
-namespace CrestApps.Core.Mvc.Web.Areas.Mcp.Indexes;
+namespace CrestApps.Core.Data.YesSql.Indexes.Mcp;
 
 public sealed class McpResourceIndex : CatalogItemIndex, ISourceAwareIndex
 {

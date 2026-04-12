@@ -29,9 +29,15 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static CrestAppsAISuiteBuilder AddA2AClient(this CrestAppsAISuiteBuilder builder)
+    public static CrestAppsAISuiteBuilder AddA2AClient(this CrestAppsAISuiteBuilder builder, Action<CrestAppsA2AClientBuilder> configure = null)
     {
         builder.Services.AddCoreAIA2AClient();
+
+        if (configure is not null)
+        {
+            configure(new CrestAppsA2AClientBuilder(builder.Services));
+        }
+
         return builder;
     }
 }

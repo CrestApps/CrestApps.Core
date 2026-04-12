@@ -7,26 +7,40 @@ description: Pluggable catalog pattern for persistent data storage with first-pa
 
 # Data Storage
 
-> A pluggable catalog pattern for CRUD operations on framework models, with first-party `CrestApps.Core.Data.YesSql` and `CrestApps.Core.Data.EntityCore` packages plus support for custom implementations.
+> A pluggable catalog pattern for CRUD operations on framework models, with first-party `CrestApps.Core.Data.EntityCore` and `CrestApps.Core.Data.YesSql` packages plus support for custom implementations.
 
 ## Quick Start
 
+Register the data store and call `.AddEntityCoreStores()` or `.AddYesSqlStores()` on each feature builder:
+
 ```csharp
 builder.Services.AddCrestAppsCore(crestApps => crestApps
-    // YesSql + SQLite
-    .AddYesSqlDataStore(configuration => configuration
-        .UseSqLite("Data Source=app.db;Cache=Shared")
-        .SetTablePrefix("CA_")));
-
-builder.Services.AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>();
-
-// Entity Framework Core + SQLite
-builder.Services.AddCrestAppsCore(crestApps => crestApps
-    .AddEntityCoreSqliteDataStore("Data Source=app.db"));
-builder.Services.AddEntityCoreStores();
+    .AddAISuite(ai => ai
+        .AddEntityCoreStores()                    // AI Services + Chat Sessions
+        .AddOpenAI()
+        .AddA2AClient(a2a => a2a
+            .AddEntityCoreStores()
+        )
+        .AddMcpClient(mcp => mcp
+            .AddEntityCoreStores()
+        )
+        .AddChatInteractions(ci => ci
+            .AddEntityCoreStores()
+        )
+        .AddDocumentProcessing(dp => dp
+            .AddEntityCoreStores()
+            .AddOpenXml()
+            .AddPdf()
+        )
+        .AddAIMemory(memory => memory
+            .AddEntityCoreStores()
+        )
+    )
+    .AddEntityCoreSqliteDataStore("Data Source=app.db")
+);
 ```
 
-`AddYesSqlDataStore(...)` on the root CrestApps builder maps to `AddCoreYesSqlDataStore(...)`, while `AddEntityCoreSqliteDataStore(...)` maps to `AddCoreEntityCoreSqliteDataStore(...)`. The YesSql and Entity Framework Core packages are both optional: consumers can register either flavor or replace them with their own persistence layer entirely. After configuring the EF Core data store, call `AddEntityCoreStores()` to register the built-in CrestApps stores and catalog services.
+`AddEntityCoreSqliteDataStore(...)` on the root CrestApps builder maps to `AddCoreEntityCoreSqliteDataStore(...)`, while `AddYesSqlDataStore(...)` maps to `AddCoreYesSqlDataStore(...)`. The Entity Framework Core and YesSql packages are both optional: consumers can register either flavor or replace them with their own persistence layer entirely.
 
 Reusable AI-related YesSql index models, `IndexProvider` types, and schema helpers now live in `CrestApps.Core.Data.YesSql` as well, so hosts can register the shared AI storage surface without copying provider implementations out of the sample app. Within that project, feature assets are grouped directly under `Indexes/{Feature}`, their namespaces follow the same `CrestApps.Core.Data.YesSql.Indexes.{Feature}` shape, each shared schema-helper file is scoped to a single index type, and each shared index file now keeps the index model beside its matching `IndexProvider` for easier maintenance.
 
@@ -45,8 +59,8 @@ The repository now ships two first-party persistence flavors:
 
 | Package | Backing technology | Typical fit |
 |---------|--------------------|-------------|
-| `CrestApps.Core.Data.YesSql` | YesSql document store | Hosts that want YesSql collections, indexes, and a request-scoped unit of work |
 | `CrestApps.Core.Data.EntityCore` | Entity Framework Core | Hosts that already standardize on EF Core and want SQLite or another EF-supported relational provider |
+| `CrestApps.Core.Data.YesSql` | YesSql document store | Hosts that want YesSql collections, indexes, and a request-scoped unit of work |
 
 You can also implement the same interfaces with another ORM, a remote service, or any custom storage approach.
 
@@ -65,7 +79,7 @@ public interface ICatalog<T> : IReadCatalog<T>
 }
 ```
 
-The YesSql implementation **stages** writes only. Hosts using `CrestApps.Core.Data.YesSql` should flush the YesSql session at the end of the HTTP request, SignalR hub method, or background operation that performed the write. The Entity Framework Core implementation commits after each write operation via an individual `SaveChangesAsync()` call inside each store method. Every create, update, and delete is durable immediately; no request-level middleware is required or expected for the built-in stores.
+The YesSql implementation **stages** writes only. Hosts using `CrestApps.Core.Data.YesSql` must flush the YesSql session at the end of the HTTP request, SignalR hub method, or background operation that performed the write — see [Automatic store commit (`IStoreCommitter`)](#automatic-store-commit-istorecommitter) for how the framework handles this automatically. The Entity Framework Core implementation commits after each write operation via an individual `SaveChangesAsync()` call inside each store method. Every create, update, and delete is durable immediately; no request-level middleware is required or expected for the built-in stores.
 
 ### `INamedCatalog<T>`
 
@@ -103,24 +117,6 @@ public interface INamedSourceCatalog<T> : INamedCatalog<T>, ISourceCatalog<T>
 
 ## DI Extension Methods
 
-### YesSql catalog extensions
-
-| Method | Registers | Requires |
-|--------|-----------|----------|
-| `AddYesSqlDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` | `CatalogItem` + `CatalogItemIndex` |
-| `AddYesSqlNamedDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `INamedCatalog<T>` | + `INameAwareModel` + `INameAwareIndex` |
-| `AddYesSqlSourceDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `ISourceCatalog<T>` | + `ISourceAwareModel` + `ISourceAwareIndex` |
-| `AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>()` | All four interfaces | Both `INameAware*` + `ISourceAware*` |
-
-### YesSql binding source extensions
-
-These register a YesSql-backed catalog as a **binding source** for the multi-source store pattern (see [Multi-Source Binding Pattern](#multi-source-binding-pattern) below):
-
-| Method | Binding source registered | Requires |
-|--------|--------------------------|----------|
-| `AddYesSqlNamedSourceBindingSource<TModel, TIndex>()` | `INamedSourceCatalogSource<TModel>` | `CatalogItem` + both `INameAware*` + `ISourceAware*` |
-| `AddYesSqlNamedBindingSource<TModel, TIndex>()` | `INamedCatalogSource<TModel>` | `CatalogItem` + `INameAwareModel` |
-
 ### Entity Framework Core catalog extensions
 
 The Entity Framework Core package exposes the same service-registration shape without YesSql indexes:
@@ -141,9 +137,99 @@ These register an EntityCore-backed catalog as a **binding source** for the mult
 | `AddEntityCoreNamedSourceBindingSource<TModel>()` | `INamedSourceCatalogSource<TModel>` | `SourceCatalogEntry` + `INameAwareModel` |
 | `AddEntityCoreNamedBindingSource<TModel>()` | `INamedCatalogSource<TModel>` | `CatalogItem` + `INameAwareModel` |
 
-### Bulk store registration
+### YesSql catalog extensions
 
-`AddEntityCoreStores()` registers the built-in CrestApps store interfaces (`IAIChatSessionManager`, prompt stores, document stores, memory stores, search index profile store, and related catalog registrations) against the Entity Framework Core package. It also registers the multi-source binding sources for `AIProviderConnection` and `AIDeployment`.
+| Method | Registers | Requires |
+|--------|-----------|----------|
+| `AddYesSqlDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` | `CatalogItem` + `CatalogItemIndex` |
+| `AddYesSqlNamedDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `INamedCatalog<T>` | + `INameAwareModel` + `INameAwareIndex` |
+| `AddYesSqlSourceDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `ISourceCatalog<T>` | + `ISourceAwareModel` + `ISourceAwareIndex` |
+| `AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>()` | All four interfaces | Both `INameAware*` + `ISourceAware*` |
+
+### YesSql binding source extensions
+
+These register a YesSql-backed catalog as a **binding source** for the multi-source store pattern (see [Multi-Source Binding Pattern](#multi-source-binding-pattern) below):
+
+| Method | Binding source registered | Requires |
+|--------|--------------------------|----------|
+| `AddYesSqlNamedSourceBindingSource<TModel, TIndex>()` | `INamedSourceCatalogSource<TModel>` | `CatalogItem` + both `INameAware*` + `ISourceAware*` |
+| `AddYesSqlNamedBindingSource<TModel, TIndex>()` | `INamedCatalogSource<TModel>` | `CatalogItem` + `INameAwareModel` |
+
+### Per-Feature Store Registration
+
+Every CrestApps feature that needs persistent storage exposes `.AddYesSqlStores()` and `.AddEntityCoreStores()` extension methods on the feature's builder. Calling the matching method registers **only** the stores that particular feature requires. This makes it clear which stores belong to each feature and lets hosts opt in to exactly the storage they need.
+
+| Feature | Builder | EntityCore | YesSql | Stores registered |
+|---------|---------|------------|--------|-------------------|
+| **AI Services** | `CrestAppsAISuiteBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `AIProfile` catalog, `AIProfileTemplate` catalog, `AIProviderConnection` binding source, `AIDeployment` binding source, `IAIChatSessionManager`, `IAIChatSessionPromptStore` |
+| **A2A Client** | `CrestAppsA2AClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `A2AConnection` catalog |
+| **MCP Client** | `CrestAppsMcpClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `McpConnection` catalog, `McpPrompt` catalog, `McpResource` catalog |
+| **Chat Interactions** | `CrestAppsChatInteractionsBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `ChatInteraction` catalog, `IChatInteractionPromptStore` |
+| **Document Processing** | `CrestAppsDocumentProcessingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIDocumentStore`, `IAIDocumentChunkStore`, `ISearchIndexProfileStore`, `IAIDataSourceStore` |
+| **AI Memory** | `CrestAppsAIMemoryBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIMemoryStore` |
+
+**Entity Framework Core example** — register stores inline with each feature:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddEntityCoreStores()
+        .AddOpenAI()
+        .AddA2AClient(a2a => a2a
+            .AddEntityCoreStores()
+        )
+        .AddMcpClient(mcp => mcp
+            .AddEntityCoreStores()
+        )
+        .AddChatInteractions(ci => ci
+            .AddEntityCoreStores()
+        )
+        .AddDocumentProcessing(dp => dp
+            .AddEntityCoreStores()
+            .AddOpenXml()
+            .AddPdf()
+        )
+        .AddAIMemory(memory => memory
+            .AddEntityCoreStores()
+        )
+    )
+    .AddEntityCoreSqliteDataStore(
+        $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
+);
+```
+
+**YesSql example** — register stores inline with each feature:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddYesSqlStores()                        // AI Services + Chat Sessions
+        .AddOpenAI()
+        .AddA2AClient(a2a => a2a
+            .AddYesSqlStores()
+        )
+        .AddMcpClient(mcp => mcp
+            .AddYesSqlStores()
+        )
+        .AddChatInteractions(ci => ci
+            .AddYesSqlStores()
+        )
+        .AddDocumentProcessing(dp => dp
+            .AddYesSqlStores()
+            .AddOpenXml()
+            .AddPdf()
+        )
+        .AddAIMemory(memory => memory
+            .AddYesSqlStores()
+        )
+    )
+    .AddYesSqlDataStore(configuration => configuration
+        .UseSqLite("Data Source=app.db;Cache=Shared")
+        .SetTablePrefix("CA_"))
+);
+```
+
+The per-feature `IServiceCollection` extension methods (e.g., `AddCoreAIServicesStoresYesSql()`) are still available for advanced scenarios where you need to register stores outside the builder chain.
 
 
 ## Catalog Entry Handlers
@@ -238,67 +324,67 @@ Registered automatically by `AddCoreAIServices()`:
 Add a DB binding source if you want database-backed deployments and connections:
 
 ```csharp
-// YesSql
-services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
-services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
-
 // Entity Framework Core (included in AddEntityCoreStores())
 services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
 services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
+
+// YesSql
+services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
+services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
 ```
 
 ### AI Profiles
 
-| Model | Catalog registration | YesSql | EntityCore |
-|-------|---------------------|--------|------------|
-| `AIProfile` | `INamedSourceCatalog<AIProfile>` | `AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()` | `AddNamedSourceDocumentCatalog<AIProfile, NamedSourceDocumentCatalog<AIProfile>>()` |
-| `AIProfileTemplate` | `INamedSourceCatalog<AIProfileTemplate>` | `AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>()` | `AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>()` |
+| Model | Catalog registration | EntityCore | YesSql |
+|-------|---------------------|------------|--------|
+| `AIProfile` | `INamedSourceCatalog<AIProfile>` | `AddNamedSourceDocumentCatalog<AIProfile, NamedSourceDocumentCatalog<AIProfile>>()` | `AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>()` |
+| `AIProfileTemplate` | `INamedSourceCatalog<AIProfileTemplate>` | `AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>()` | `AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>()` |
 
 ### Chat
 
 | Model | Store interface | Registration |
 |-------|----------------|--------------|
-| `AIChatSession` | `IAIChatSessionManager` | `AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>()` (YesSql) or `EntityCoreAIChatSessionManager` (EF Core) |
-| `AIChatSessionPrompt` | `IAIChatSessionPromptStore` | `AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>()` (YesSql) or `EntityCoreAIChatSessionPromptStore` (EF Core) |
+| `AIChatSession` | `IAIChatSessionManager` | `EntityCoreAIChatSessionManager` (EF Core) or `AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>()` (YesSql) |
+| `AIChatSessionPrompt` | `IAIChatSessionPromptStore` | `EntityCoreAIChatSessionPromptStore` (EF Core) or `AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>()` (YesSql) |
 
 ### Chat Interactions
 
-| Model | Catalog registration | YesSql | EntityCore |
-|-------|---------------------|--------|------------|
-| `ChatInteraction` | `ICatalog<ChatInteraction>` | `AddYesSqlDocumentCatalog<ChatInteraction, ChatInteractionIndex>()` | `AddDocumentCatalog<ChatInteraction, DocumentCatalog<ChatInteraction>>()` |
-| `ChatInteractionPrompt` | `IChatInteractionPromptStore` | `AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>()` | `EntityCoreChatInteractionPromptStore` |
+| Model | Catalog registration | EntityCore | YesSql |
+|-------|---------------------|------------|--------|
+| `ChatInteraction` | `ICatalog<ChatInteraction>` | `AddDocumentCatalog<ChatInteraction, DocumentCatalog<ChatInteraction>>()` | `AddYesSqlDocumentCatalog<ChatInteraction, ChatInteractionIndex>()` |
+| `ChatInteractionPrompt` | `IChatInteractionPromptStore` | `EntityCoreChatInteractionPromptStore` | `AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>()` |
 
 ### Documents and Data Sources
 
 | Model | Store interface | Registration |
 |-------|----------------|--------------|
-| `AIDocument` | `IAIDocumentStore` | `AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>()` or `EntityCoreAIDocumentStore` |
-| `AIDocumentChunk` | `IAIDocumentChunkStore` | `AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>()` or `EntityCoreAIDocumentChunkStore` |
-| `AIDataSource` | `IAIDataSourceStore` | `AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>()` or `EntityCoreAIDataSourceStore` |
-| `SearchIndexProfile` | `ISearchIndexProfileStore` | `AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>()` or `EntityCoreSearchIndexProfileStore` |
+| `AIDocument` | `IAIDocumentStore` | `EntityCoreAIDocumentStore` (EF Core) or `AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>()` (YesSql) |
+| `AIDocumentChunk` | `IAIDocumentChunkStore` | `EntityCoreAIDocumentChunkStore` (EF Core) or `AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>()` (YesSql) |
+| `AIDataSource` | `IAIDataSourceStore` | `EntityCoreAIDataSourceStore` (EF Core) or `AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>()` (YesSql) |
+| `SearchIndexProfile` | `ISearchIndexProfileStore` | `EntityCoreSearchIndexProfileStore` (EF Core) or `AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>()` (YesSql) |
 
 ### Memory
 
 | Model | Store interface | Registration |
 |-------|----------------|--------------|
-| `AIMemoryEntry` | `IAIMemoryStore` | `AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>()` or `EntityCoreAIMemoryStore` |
+| `AIMemoryEntry` | `IAIMemoryStore` | `EntityCoreAIMemoryStore` (EF Core) or `AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>()` (YesSql) |
 
 ### MCP (Model Context Protocol)
 
-| Model | Catalog registration | YesSql | EntityCore |
-|-------|---------------------|--------|------------|
-| `McpConnection` | `ISourceCatalog<McpConnection>` | `AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()` | `AddSourceDocumentCatalog<McpConnection, SourceDocumentCatalog<McpConnection>>()` |
-| `McpPrompt` | `INamedCatalog<McpPrompt>` | `AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()` | `AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>()` |
-| `McpResource` | `ISourceCatalog<McpResource>` | `AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>()` | `AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>()` |
+| Model | Catalog registration | EntityCore | YesSql |
+|-------|---------------------|------------|--------|
+| `McpConnection` | `ISourceCatalog<McpConnection>` | `AddSourceDocumentCatalog<McpConnection, SourceDocumentCatalog<McpConnection>>()` | `AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()` |
+| `McpPrompt` | `INamedCatalog<McpPrompt>` | `AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>()` | `AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()` |
+| `McpResource` | `ISourceCatalog<McpResource>` | `AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>()` | `AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>()` |
 
 ### A2A (Agent-to-Agent)
 
-| Model | Catalog registration | YesSql | EntityCore |
-|-------|---------------------|--------|------------|
-| `A2AConnection` | `ICatalog<A2AConnection>` | `AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()` | `AddDocumentCatalog<A2AConnection, DocumentCatalog<A2AConnection>>()` |
+| Model | Catalog registration | EntityCore | YesSql |
+|-------|---------------------|------------|--------|
+| `A2AConnection` | `ICatalog<A2AConnection>` | `AddDocumentCatalog<A2AConnection, DocumentCatalog<A2AConnection>>()` | `AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>()` |
 
 :::note
-`AddEntityCoreStores()` registers all of the above EntityCore stores in a single call. YesSql hosts must register each catalog individually because they also need to register index providers and create index tables during startup.
+Both Entity Framework Core and YesSql stores are registered via the per-feature builder extensions (`.AddEntityCoreStores()` / `.AddYesSqlStores()`). The `IServiceCollection` extension methods are still available for advanced scenarios. YesSql hosts also need to register index providers and create index tables during startup.
 :::
 
 ## First-party Entity Framework Core package
@@ -308,10 +394,13 @@ The `CrestApps.Core.Data.EntityCore` package gives you a ready-made alternative 
 ### SQLite local development
 
 ```csharp
-builder.Services.AddCoreEntityCoreSqliteDataStore(
-    $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}");
-
-builder.Services.AddEntityCoreStores();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddEntityCoreStores()
+        .AddOpenAI())
+    .AddEntityCoreSqliteDataStore(
+        $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
+);
 ```
 
 Create the schema during startup:
@@ -330,7 +419,15 @@ The package stores framework records in EF Core-managed tables and keeps the sam
 
 ## Automatic store commit (`IStoreCommitter`)
 
-The YesSql store package stages writes in memory and flushes them to the database as a single transaction when `ISession.SaveChangesAsync()` is called. Instead of requiring you to call that flush manually in every controller action and hub method, the framework provides `IStoreCommitter` — a thin interface that abstracts the flush signal.
+:::info
+**If you are using Entity Framework Core**, you can skip this section entirely. The EntityCore stores commit on every individual write operation via `SaveChangesAsync()`, so no commit middleware or manual flush is required.
+:::
+
+### Why does YesSql need this?
+
+YesSql is a document store that **stages** all writes in memory during a request. Nothing is persisted to the database until the YesSql session is explicitly flushed with `ISession.SaveChangesAsync()`. This design gives you transactional consistency — all writes in a single request succeed or fail together — but it means you must call the flush at the end of every request that performs writes.
+
+Instead of requiring you to call that flush manually in every controller action, hub method, and endpoint, the framework provides `IStoreCommitter` — a thin abstraction that triggers the flush at the right time.
 
 ```csharp
 public interface IStoreCommitter
@@ -339,7 +436,11 @@ public interface IStoreCommitter
 }
 ```
 
-`AddCoreYesSqlDataStore()` registers `YesSqlStoreCommitter` as the scoped `IStoreCommitter`. The Entity Framework Core package does **not** register a committer because its stores commit on every individual write operation.
+`AddCoreYesSqlDataStore()` registers `YesSqlStoreCommitter` as the scoped `IStoreCommitter`. The implementation calls `ISession.SaveChangesAsync()` to flush all staged writes to the database.
+
+### What happens if you forget to commit?
+
+If `IStoreCommitter.CommitAsync()` is never called during a YesSql request, all writes made during that request are silently lost. The data appears to be saved in memory (reads within the same request see the staged data), but nothing reaches the database. This is the most common pitfall when using YesSql stores.
 
 ### Automatic commit for MVC controllers
 
@@ -372,6 +473,20 @@ app.MapGroup("/api")
     .AddEndpointFilter<StoreCommitterEndpointFilter>();
 ```
 
+### Manual commit in background tasks
+
+If you perform writes outside of an HTTP request or hub method (for example, in an `IHostedService` or background job), you must resolve `IStoreCommitter` from the current scope and call `CommitAsync()` yourself:
+
+```csharp
+using var scope = serviceProvider.CreateScope();
+var session = scope.ServiceProvider.GetRequiredService<ISession>();
+var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+
+// ... perform writes using stores or catalogs ...
+
+await committer.CommitAsync();
+```
+
 ### Providing a custom committer
 
 If you build a custom store that stages writes, implement `IStoreCommitter` and register it as scoped:
@@ -381,6 +496,13 @@ services.AddScoped<IStoreCommitter, MyCustomStoreCommitter>();
 ```
 
 The filter infrastructure calls your committer automatically — no other wiring is required.
+
+### Summary
+
+| Store package | Commit behavior | Middleware required? |
+|---------------|----------------|---------------------|
+| **Entity Framework Core** | Commits on every individual write (`SaveChangesAsync()` per operation) | No |
+| **YesSql** | Stages writes in memory; flushes on `IStoreCommitter.CommitAsync()` | Yes — use `AddCrestAppsStoreCommitterFilter()` for MVC/SignalR, or `StoreCommitterEndpointFilter` for Minimal APIs |
 
 ## Multi-Source Binding Pattern
 
@@ -465,16 +587,6 @@ When a persistence package (YesSql or EntityCore) is added, it registers an addi
 
 ### Registering DB binding sources
 
-#### YesSql
-
-```csharp
-// Register a YesSql-backed writable binding source for AI deployments
-services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
-
-// Register a YesSql-backed writable binding source for AI connections
-services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
-```
-
 #### Entity Framework Core
 
 ```csharp
@@ -488,6 +600,16 @@ services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
 :::info
 `AddEntityCoreStores()` already calls both of the above registrations. You only need to call them explicitly when composing your own store registration.
 :::
+
+#### YesSql
+
+```csharp
+// Register a YesSql-backed writable binding source for AI deployments
+services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
+
+// Register a YesSql-backed writable binding source for AI connections
+services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
+```
 
 ### How binding source adapters work
 

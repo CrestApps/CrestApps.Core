@@ -127,16 +127,16 @@ public sealed class ArticleIndexingService
         [
             new IndexDocument
             {
-            Id = article.ItemId,
-            Fields = new Dictionary<string, object>
-            {
-            [ColumnNames.ArticleId] = article.ItemId,
-            [ColumnNames.Title] = article.Title ?? string.Empty,
-            [ColumnNames.Description] = article.Description ?? string.Empty,
-            [ColumnNames.CreatedUtc] = article.CreatedUtc,
+                Id = article.ItemId,
+                Fields = new Dictionary<string, object>
+                {
+                    [ColumnNames.ArticleId] = article.ItemId,
+                    [ColumnNames.Title] = article.Title ?? string.Empty,
+                    [ColumnNames.Description] = article.Description ?? string.Empty,
+                    [ColumnNames.CreatedUtc] = article.CreatedUtc,
+                },
             },
-            },
-            ], cancellationToken);
+        ], cancellationToken);
 
         if (!indexed)
         {
@@ -182,29 +182,29 @@ public sealed class ArticleIndexingService
         [
         new SearchIndexField
             {
-            Name = ColumnNames.ArticleId,
-            FieldType = SearchFieldType.Keyword,
-            IsKey = true,
-            IsFilterable = true,
+                Name = ColumnNames.ArticleId,
+                FieldType = SearchFieldType.Keyword,
+                IsKey = true,
+                IsFilterable = true,
             },
             new SearchIndexField
             {
-            Name = ColumnNames.Title,
-            FieldType = SearchFieldType.Text,
-            IsSearchable = true,
-            IsFilterable = true,
+                Name = ColumnNames.Title,
+                FieldType = SearchFieldType.Text,
+                IsSearchable = true,
+                IsFilterable = true,
             },
             new SearchIndexField
             {
-            Name = ColumnNames.Description,
-            FieldType = SearchFieldType.Text,
-            IsSearchable = true,
+                Name = ColumnNames.Description,
+                FieldType = SearchFieldType.Text,
+                IsSearchable = true,
             },
             new SearchIndexField
             {
-            Name = ColumnNames.CreatedUtc,
-            FieldType = SearchFieldType.DateTime,
-            IsFilterable = true,
+                Name = ColumnNames.CreatedUtc,
+                FieldType = SearchFieldType.DateTime,
+                IsFilterable = true,
             },
         ];
     }

@@ -101,9 +101,15 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    public static CrestAppsAISuiteBuilder AddMcpClient(this CrestAppsAISuiteBuilder builder)
+    public static CrestAppsAISuiteBuilder AddMcpClient(this CrestAppsAISuiteBuilder builder, Action<CrestAppsMcpClientBuilder> configure = null)
     {
         builder.Services.AddCoreAIMcpClient();
+
+        if (configure is not null)
+        {
+            configure(new CrestAppsMcpClientBuilder(builder.Services));
+        }
+
         return builder;
     }
 
