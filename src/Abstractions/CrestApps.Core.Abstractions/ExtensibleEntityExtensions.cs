@@ -9,15 +9,33 @@ namespace CrestApps.Core;
 /// </summary>
 public static class ExtensibleEntityExtensions
 {
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    private static JsonSerializerOptions _jsonOptions = ExtensibleEntityJsonOptions.CreateDefaultSerializerOptions();
+
+    /// <summary>
+    /// Gets or sets the <see cref="JsonSerializerOptions"/> used for serializing and
+    /// deserializing extensible entity properties.
+    /// </summary>
+    /// <remarks>
+    /// This property is initialized with sensible defaults. To customize, either:
+    /// <list type="bullet">
+    /// <item>Set this property directly at application startup before any serialization occurs.</item>
+    /// <item>Use the DI options pattern with <see cref="ExtensibleEntityJsonOptions"/> (requires CrestApps.Core).</item>
+    /// </list>
+    /// </remarks>
+    public static JsonSerializerOptions JsonSerializerOptions
     {
-        PropertyNameCaseInsensitive = true,
-    };
+        get => _jsonOptions;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _jsonOptions = value;
+        }
+    }
 
     /// <summary>
     /// Gets a strongly-typed object stored in the entity's properties.
     /// </summary>
-    public static T As<T>(this ExtensibleEntity entity)
+    public static T GetOrCreate<T>(this ExtensibleEntity entity)
         where T : new()
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -73,7 +91,7 @@ public static class ExtensibleEntityExtensions
     /// Returns <c>true</c> if a non-null value was found and deserialized.
     /// </summary>
     public static bool TryGet<T>(this ExtensibleEntity entity, out T result)
-        where T : class, new()
+        where T : class
     {
         ArgumentNullException.ThrowIfNull(entity);
 
@@ -109,7 +127,7 @@ public static class ExtensibleEntityExtensions
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(alter);
 
-        var obj = entity.As<T>();
+        var obj = entity.GetOrCreate<T>();
         alter(obj);
         entity.Put(obj);
 

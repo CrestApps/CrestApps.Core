@@ -9,7 +9,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
-using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.SignalR;
@@ -57,7 +56,7 @@ public sealed class ChatInteractionHubTests
         await hub.SaveSettings(interaction.ItemId, json.RootElement.Clone());
         Assert.Equal("Updated title", interaction.Title);
         Assert.Equal(["agent-a", "agent-b"], interaction.AgentNames);
-        var promptTemplateMetadata = interaction.As<PromptTemplateMetadata>();
+        var promptTemplateMetadata = interaction.GetOrCreate<PromptTemplateMetadata>();
         var template = Assert.Single(promptTemplateMetadata.Templates);
         Assert.Equal("template-1", template.TemplateId);
         Assert.NotNull(template.Parameters);
@@ -100,9 +99,9 @@ public sealed class ChatInteractionHubTests
             }
             """);
         await hub.SaveSettings(interaction.ItemId, json.RootElement.Clone());
-        var dataSourceMetadata = interaction.As<DataSourceMetadata>();
+        var dataSourceMetadata = interaction.GetOrCreate<DataSourceMetadata>();
         Assert.Equal("datasource-1", dataSourceMetadata.DataSourceId);
-        var ragMetadata = interaction.As<AIDataSourceRagMetadata>();
+        var ragMetadata = interaction.GetOrCreate<AIDataSourceRagMetadata>();
         Assert.Equal(4, ragMetadata.Strictness);
         Assert.Equal(7, ragMetadata.TopNDocuments);
         Assert.False(ragMetadata.IsInScope);

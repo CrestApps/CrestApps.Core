@@ -23,7 +23,6 @@ using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
-using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
@@ -49,23 +48,74 @@ using NLog.Web;
 // does and why it is needed.
 //
 // Sections:
-//   1. Logging
-//   2. Application Configuration (App_Data appsettings override)
-//   3. ASP.NET Core MVC setup
-//   4. Authentication & Authorization
-//   5. CrestApps foundation + AI services
-//   6. AI Providers (OpenAI, Azure OpenAI, Ollama, Azure AI Inference)
-//   7. Elasticsearch services
-//   8. Azure AI Search services
-//   9. MCP — Model Context Protocol (client + server)
-//  10. Custom AI Tools
-//  11. Data Store (YesSql / SQLite — replaceable with any ORM)
-//  12. Background Tasks
-//  13. Middleware Pipeline
+//   1. Crash Diagnostics & Host Resilience
+//   2. Logging
+//   3. Application Configuration (App_Data appsettings override)
+//   4. ASP.NET Core MVC setup
+//   5. Authentication & Authorization
+//   6. CrestApps foundation + AI services
+//   7. AI Providers (OpenAI, Azure OpenAI, Ollama, Azure AI Inference)
+//   8. Elasticsearch services
+//   9. Azure AI Search services
+//  10. MCP — Model Context Protocol (client + server)
+//  11. Custom AI Tools
+//  12. Data Store (YesSql / SQLite — replaceable with any ORM)
+//  13. Background Tasks
+//  14. Middleware Pipeline
 // =============================================================================
 var builder = WebApplication.CreateBuilder(args);
+
+// Early startup marker — writes immediately to confirm the process launched.
+var crashLogDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "logs");
+Directory.CreateDirectory(crashLogDir);
+File.WriteAllText(
+    Path.Combine(crashLogDir, "startup-marker.txt"),
+    $"Process started at {DateTime.UtcNow:O}, PID={Environment.ProcessId}{Environment.NewLine}");
+
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+{
+    var message = $"[{DateTime.UtcNow:O}] Unhandled exception (IsTerminating={e.IsTerminating}):{Environment.NewLine}{e.ExceptionObject}{Environment.NewLine}";
+
+    try
+    {
+        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), message);
+    }
+    catch
+    {
+        // Best-effort — the process is already dying.
+    }
+
+    Console.Error.Write(message);
+};
+
+TaskScheduler.UnobservedTaskException += (_, e) =>
+{
+    var message = $"[{DateTime.UtcNow:O}] Unobserved task exception:{Environment.NewLine}{e.Exception}{Environment.NewLine}";
+
+    try
+    {
+        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), message);
+    }
+    catch
+    {
+        // Best-effort.
+    }
+
+    Console.Error.Write(message);
+    e.SetObserved();
+};
+
+// Prevent background/hosted-service exceptions from tearing down the host.
+// The default BackgroundServiceExceptionBehavior.StopHost silently kills the
+// process when any IHostedService.ExecuteAsync throws — even if the exception
+// is transient. With Ignore, the exception is still logged but the host
+// continues running.
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
 // =============================================================================
-// 1. LOGGING
+// 2. LOGGING
 // =============================================================================
 // NLog writes daily log files to App_Data/logs/. Replace with your preferred
 // logging provider (Serilog, Application Insights, etc.) if desired.
@@ -76,7 +126,7 @@ builder.WebHost.UseNLog();
 var appDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(appDataPath);
 // =============================================================================
-// 2. APPLICATION CONFIGURATION
+// 3. APPLICATION CONFIGURATION
 // =============================================================================
 // Two-layer App_Data configuration:
 //
@@ -108,7 +158,7 @@ builder.Services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, Sit
 builder.Services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
 builder.Services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
 // =============================================================================
-// 3. ASP.NET CORE MVC SETUP
+// 4. ASP.NET CORE MVC SETUP
 // =============================================================================
 // Start with the standard ASP.NET Core building blocks before adding CrestApps-
 // specific features. This keeps the host framework registrations easy to find.
@@ -118,7 +168,7 @@ builder.Services.AddControllersWithViews()
     .AddCrestAppsStoreCommitterFilter();
 builder.Services.AddHttpContextAccessor();
 // =============================================================================
-// 4. AUTHENTICATION & AUTHORIZATION
+// 5. AUTHENTICATION & AUTHORIZATION
 // =============================================================================
 // Cookie-based authentication with a simple "Admin" policy. Replace with your
 // preferred auth scheme (JWT, OpenID Connect, etc.).
@@ -131,7 +181,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
 // =============================================================================
-// 5. CRESTAPPS FOUNDATION + AI SERVICES
+// 6. CRESTAPPS FOUNDATION + AI SERVICES
 // =============================================================================
 // These are the shared CrestApps service registrations that sit on top of the
 // normal ASP.NET Core host. Keep them together so consumers can clearly see the
@@ -142,7 +192,7 @@ builder.Services
     .AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddYesSqlStores()
-        .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
+        // .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
         // Optional AI features layered on top of the core AI + orchestration runtime.
         .AddMarkdown()
         .AddCopilotOrchestrator()
@@ -192,7 +242,7 @@ builder.Services
  );
 
 // =============================================================================
-// 6. AI PROVIDERS
+// 7. AI PROVIDERS
 // =============================================================================
 // Register the AI completion providers you want to use. Each provider adds an
 // IAICompletionClient implementation that knows how to communicate with its
@@ -205,13 +255,13 @@ builder.Services
 //   AddAISuite(ai => ai.AddAzureAIInference())— Azure AI Inference / GitHub Models
 // =============================================================================
 // =============================================================================
-// 7. ELASTICSEARCH SERVICES
+// 8. ELASTICSEARCH SERVICES
 // =============================================================================
 // Keep each vector-search backend in its own group so it is obvious which block
 // to remove when the application does not use that provider.
 // =============================================================================
 // =============================================================================
-// 8. AZURE AI SEARCH SERVICES
+// 9. AZURE AI SEARCH SERVICES
 // =============================================================================
 // This block mirrors the Elasticsearch group so each provider's registrations
 // stay together and are easy to remove independently.
@@ -234,7 +284,7 @@ builder.Services.Configure<IndexProfileSourceOptions>(options => options.AddOrUp
 }));
 
 // =============================================================================
-// 9. MCP — MODEL CONTEXT PROTOCOL
+// 10. MCP — MODEL CONTEXT PROTOCOL
 // =============================================================================
 // MCP server endpoint configuration (using the ModelContextProtocol SDK).
 // This wires the CrestApps tool registry, prompt service, and resource service
@@ -250,7 +300,7 @@ _ = builder.Services.AddMcpServer(options =>
 .WithCrestAppsHandlers();
 
 // =============================================================================
-// 10. CUSTOM AI TOOLS
+// 11. CUSTOM AI TOOLS
 // =============================================================================
 // Register application-specific AI tools using the fluent builder pattern.
 // Tools marked as Selectable() are visible in the UI for user assignment to
@@ -270,7 +320,7 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
     .Selectable();
 
 // =============================================================================
-// 11. DATA STORE — YesSql with SQLite
+// 12. DATA STORE — YesSql with SQLite
 // =============================================================================
 // The framework does not impose a specific data store. You must provide
 // implementations of the store interfaces (IAIProfileManager,
@@ -288,7 +338,7 @@ builder.Services.AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialSto
 builder.Services.ConfigureOptions<MvcCopilotOptionsConfiguration>();
 
 // =============================================================================
-// 12. BACKGROUND TASKS
+// 13. BACKGROUND TASKS
 // =============================================================================
 // These hosted services run periodic maintenance work. Implement your own
 // IHostedService or use these as reference implementations.
@@ -305,14 +355,27 @@ builder.Services.AddHostedService<DataSourceAlignmentBackgroundService>();
 
 var app = builder.Build();
 
-// YesSql schema initialization — creates tables on first run.
-await app.Services.InitializeYesSqlSchemaAsync();
+try
+{
+    // YesSql schema initialization — creates tables on first run.
+    await app.Services.InitializeYesSqlSchemaAsync();
 
-// Seed sample articles on first run.
-await app.Services.SeedArticlesAsync();
+    // Seed sample articles on first run.
+    await app.Services.SeedArticlesAsync();
+}
+catch (Exception ex)
+{
+    var msg = $"[{DateTime.UtcNow:O}] Startup initialization failed:{Environment.NewLine}{ex}{Environment.NewLine}";
+
+    try { File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), msg); } catch { }
+
+    Console.Error.Write(msg);
+
+    throw;
+}
 
 // =============================================================================
-// 13. MIDDLEWARE PIPELINE
+// 14. MIDDLEWARE PIPELINE
 // =============================================================================
 if (!app.Environment.IsDevelopment())
 {
@@ -378,4 +441,24 @@ app.AddChatApiEndpoints()
 app.MapControllerRoute(name: "areas", pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
 
-await app.RunAsync();
+try
+{
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    var crashMessage = $"[{DateTime.UtcNow:O}] Host terminated unexpectedly:{Environment.NewLine}{ex}{Environment.NewLine}";
+
+    try
+    {
+        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), crashMessage);
+    }
+    catch
+    {
+        // Best-effort.
+    }
+
+    Console.Error.Write(crashMessage);
+
+    throw;
+}

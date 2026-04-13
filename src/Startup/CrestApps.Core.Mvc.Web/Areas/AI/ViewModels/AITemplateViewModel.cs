@@ -161,18 +161,14 @@ public sealed class AITemplateViewModel
 
         if (template.Source == AITemplateSources.SystemPrompt)
         {
-            var metadata = template.As<SystemPromptTemplateMetadata>();
-
-            if (metadata != null)
+            if (template.TryGet<SystemPromptTemplateMetadata>(out var sysMetadata))
             {
-                model.SystemMessage = metadata.SystemMessage;
+                model.SystemMessage = sysMetadata.SystemMessage;
             }
         }
         else if (template.Source == AITemplateSources.Profile)
         {
-            var metadata = template.As<ProfileTemplateMetadata>();
-
-            if (metadata != null)
+            if (template.TryGet<ProfileTemplateMetadata>(out var metadata))
             {
                 model.ProfileType = metadata.ProfileType;
                 model.SystemMessage = metadata.SystemMessage;
@@ -194,61 +190,56 @@ public sealed class AITemplateViewModel
                 model.SelectedAgentNames = metadata.AgentNames ?? [];
             }
 
-            var mcpMetadata = template.As<AIProfileMcpMetadata>();
-
-            if (mcpMetadata != null)
+            if (template.TryGet<AIProfileMcpMetadata>(out var mcpMetadata))
             {
                 model.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
             }
 
-            var aiMetadata = template.As<AIProfileMetadata>();
-
-            if (aiMetadata != null)
+            if (template.TryGet<AIProfileMetadata>(out var aiMetadata))
             {
                 model.UseCaching = aiMetadata.UseCaching;
                 model.AddInitialPrompt = !string.IsNullOrEmpty(aiMetadata.InitialPrompt);
                 model.InitialPrompt = aiMetadata.InitialPrompt;
             }
 
-            var promptMetadata = template.As<PromptTemplateMetadata>();
+            if (template.TryGet<PromptTemplateMetadata>(out var promptMetadata))
+            {
+                model.PromptTemplates = (promptMetadata.Templates ?? [])
+                    .Where(t => !string.IsNullOrWhiteSpace(t.TemplateId))
+                    .Select(t => new PromptTemplateSelectionItem
+                    {
+                        TemplateId = t.TemplateId,
+                        PromptParameters = t.Parameters is { Count: > 0 }
+                            ? JsonSerializer.Serialize(t.Parameters)
+                            : null,
+                    })
+                    .ToList();
+            }
 
-            model.PromptTemplates = (promptMetadata?.Templates ?? [])
-                .Where(t => !string.IsNullOrWhiteSpace(t.TemplateId))
-                .Select(t => new PromptTemplateSelectionItem
-                {
-                    TemplateId = t.TemplateId,
-                    PromptParameters = t.Parameters is { Count: > 0 }
-                        ? JsonSerializer.Serialize(t.Parameters)
-                        : null,
-                })
-                .ToList();
+            if (template.TryGet<DataSourceMetadata>(out var dataSourceMetadata))
+            {
+                model.DataSourceId = dataSourceMetadata.DataSourceId;
+            }
 
-            var dataSourceMetadata = template.As<DataSourceMetadata>();
-            var ragMetadata = template.As<AIDataSourceRagMetadata>();
+            if (template.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
+            {
+                model.DataSourceStrictness = ragMetadata.Strictness;
+                model.DataSourceTopNDocuments = ragMetadata.TopNDocuments;
+                model.DataSourceIsInScope = ragMetadata.IsInScope;
+                model.DataSourceFilter = ragMetadata.Filter;
+            }
 
-            model.DataSourceId = dataSourceMetadata?.DataSourceId;
-            model.DataSourceStrictness = ragMetadata?.Strictness;
-            model.DataSourceTopNDocuments = ragMetadata?.TopNDocuments;
-            model.DataSourceIsInScope = ragMetadata?.IsInScope ?? false;
-            model.DataSourceFilter = ragMetadata?.Filter;
-
-            var sessionDocMetadata = template.As<AIProfileSessionDocumentsMetadata>();
-
-            if (sessionDocMetadata != null)
+            if (template.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata))
             {
                 model.AllowSessionDocuments = sessionDocMetadata.AllowSessionDocuments;
             }
 
-            var docMetadata = template.As<DocumentsMetadata>();
-
-            if (docMetadata != null)
+            if (template.TryGet<DocumentsMetadata>(out var docMetadata))
             {
                 model.DocumentTopN = docMetadata.DocumentTopN;
             }
 
-            var dataExtractionSettings = template.As<AIProfileDataExtractionSettings>();
-
-            if (dataExtractionSettings != null)
+            if (template.TryGet<AIProfileDataExtractionSettings>(out var dataExtractionSettings))
             {
                 model.EnableDataExtraction = dataExtractionSettings.EnableDataExtraction;
                 model.ExtractionCheckInterval = dataExtractionSettings.ExtractionCheckInterval;
@@ -264,9 +255,7 @@ public sealed class AITemplateViewModel
                 .ToList();
             }
 
-            var analyticsMetadata = template.As<AnalyticsMetadata>();
-
-            if (analyticsMetadata != null)
+            if (template.TryGet<AnalyticsMetadata>(out var analyticsMetadata))
             {
                 model.EnableSessionMetrics = analyticsMetadata.EnableSessionMetrics;
                 model.EnableAIResolutionDetection = analyticsMetadata.EnableAIResolutionDetection;
@@ -282,9 +271,7 @@ public sealed class AITemplateViewModel
                 .ToList();
             }
 
-            var postSessionSettings = template.As<AIProfilePostSessionSettings>();
-
-            if (postSessionSettings != null)
+            if (template.TryGet<AIProfilePostSessionSettings>(out var postSessionSettings))
             {
                 model.EnablePostSessionProcessing = postSessionSettings.EnablePostSessionProcessing;
                 model.PostSessionTasks = postSessionSettings.PostSessionTasks
@@ -305,9 +292,7 @@ public sealed class AITemplateViewModel
 
             model.EnableUserMemory = template.GetMemoryMetadata().EnableUserMemory ?? false;
 
-            var profileSettings = template.As<AIProfileSettings>();
-
-            if (profileSettings != null)
+            if (template.TryGet<AIProfileSettings>(out var profileSettings))
             {
                 model.IsRemovable = profileSettings.IsRemovable;
                 model.LockSystemMessage = profileSettings.LockSystemMessage;

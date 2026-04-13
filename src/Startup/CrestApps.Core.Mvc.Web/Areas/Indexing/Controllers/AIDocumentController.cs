@@ -98,7 +98,7 @@ public sealed class AIDocumentController : Controller
         await _documentIndexingService.IndexAsync(result.Document, result.Chunks);
 
         // Update the profile's document metadata.
-        var documentsMetadata = profile.As<DocumentsMetadata>();
+        var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
         documentsMetadata.Documents ??= [];
         documentsMetadata.Documents.Add(result.DocumentInfo);
         profile.Put(documentsMetadata);
@@ -136,7 +136,7 @@ public sealed class AIDocumentController : Controller
         }
 
         // Remove from profile metadata.
-        var documentsMetadata = profile.As<DocumentsMetadata>();
+        var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
         documentsMetadata.Documents ??= [];
         documentsMetadata.Documents = documentsMetadata.Documents.Where(d => d.DocumentId != documentId).ToList();
         profile.Put(documentsMetadata);

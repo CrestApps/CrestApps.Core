@@ -59,6 +59,12 @@ public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareMod
 
     public string OwnerId { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether this catalog item is read-only.
+    /// Configuration-backed entries are read-only and cannot be modified or deleted through the UI.
+    /// </summary>
+    public bool IsReadOnly { get; set; }
+
     public bool SupportsType(AIDeploymentType type)
     {
         return Type.Supports(type);
@@ -74,6 +80,7 @@ public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareMod
             Source = Source,
             ConnectionName = ConnectionName,
             Type = Type,
+            IsReadOnly = IsReadOnly,
             CreatedUtc = CreatedUtc,
             Author = Author,
             OwnerId = OwnerId,

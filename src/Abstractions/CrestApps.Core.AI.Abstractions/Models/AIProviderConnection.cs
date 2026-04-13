@@ -37,6 +37,12 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
 
     public string OwnerId { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether this catalog item is read-only.
+    /// Configuration-backed entries are read-only and cannot be modified or deleted through the UI.
+    /// </summary>
+    public bool IsReadOnly { get; set; }
+
     public AIProviderConnection Clone()
     {
         return new AIProviderConnection
@@ -45,6 +51,7 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
             Source = Source,
             Name = Name,
             DisplayText = DisplayText,
+            IsReadOnly = IsReadOnly,
             CreatedUtc = CreatedUtc,
             Author = Author,
             OwnerId = OwnerId,

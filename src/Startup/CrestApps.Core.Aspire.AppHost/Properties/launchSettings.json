@@ -10,7 +10,10 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DOTNET_ENVIRONMENT": "Development",
         "DOTNET_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21194",
-        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22004"
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22004",
+        "DOTNET_DbgEnableMiniDump": "1",
+        "DOTNET_DbgMiniDumpType": "4",
+        "DOTNET_CreateDumpDiagnostics": "1"
       }
     },
     "http": {
@@ -22,7 +25,10 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DOTNET_ENVIRONMENT": "Development",
         "DOTNET_DASHBOARD_OTLP_ENDPOINT_URL": "http://localhost:19030",
-        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:20028"
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:20028",
+        "DOTNET_DbgEnableMiniDump": "1",
+        "DOTNET_DbgMiniDumpType": "4",
+        "DOTNET_CreateDumpDiagnostics": "1"
       }
     }
   }

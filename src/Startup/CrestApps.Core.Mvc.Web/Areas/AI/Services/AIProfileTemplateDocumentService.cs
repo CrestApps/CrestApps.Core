@@ -87,7 +87,7 @@ public sealed class AIProfileTemplateDocumentService
 
                 await _documentIndexingService.IndexAsync(result.Document, result.Chunks, cancellationToken);
 
-                var documentsMetadata = template.As<DocumentsMetadata>();
+                var documentsMetadata = template.GetOrCreate<DocumentsMetadata>();
                 documentsMetadata.Documents ??= [];
                 documentsMetadata.Documents.Add(result.DocumentInfo);
                 template.Put(documentsMetadata);
@@ -104,7 +104,7 @@ public sealed class AIProfileTemplateDocumentService
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(documentIds);
 
-        var documentsMetadata = template.As<DocumentsMetadata>();
+        var documentsMetadata = template.GetOrCreate<DocumentsMetadata>();
 
         if (documentsMetadata?.Documents == null || documentsMetadata.Documents.Count == 0)
         {
@@ -162,14 +162,16 @@ public sealed class AIProfileTemplateDocumentService
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(profile);
 
-        var templateDocuments = template.As<DocumentsMetadata>()?.Documents;
+        var templateDocuments = template.TryGet<DocumentsMetadata>(out var templateDocMetadata)
+            ? templateDocMetadata.Documents
+            : null;
 
         if (templateDocuments == null || templateDocuments.Count == 0)
         {
             return;
         }
 
-        var profileDocuments = profile.As<DocumentsMetadata>();
+        var profileDocuments = profile.GetOrCreate<DocumentsMetadata>();
         profileDocuments.Documents ??= [];
 
         foreach (var docInfo in templateDocuments)
@@ -279,9 +281,9 @@ public sealed class AIProfileTemplateDocumentService
 
     private async Task<AIDeployment> ResolveTemplateDeploymentAsync(AIProfileTemplate template)
     {
-        var metadata = template.As<ProfileTemplateMetadata>();
+        template.TryGet<ProfileTemplateMetadata>(out var metadata);
 
-        if (!string.IsNullOrWhiteSpace(metadata?.ChatDeploymentName))
+        if (metadata is not null && !string.IsNullOrWhiteSpace(metadata.ChatDeploymentName))
         {
             var chatDeployment = await _deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Chat,

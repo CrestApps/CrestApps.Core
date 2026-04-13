@@ -4,14 +4,18 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AI;
 
 public static class AIProfileTemplateIndexSchemaBuilderExtensions
 {
-    public static Task CreateAIProfileTemplateIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options = null)
+    public static async Task CreateAIProfileTemplateIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
-        options ??= new YesSqlStoreOptions();
-
-        return schemaBuilder.CreateMapIndexTableAsync<AIProfileTemplateIndex>(table => table
+        await schemaBuilder.CreateMapIndexTableAsync<AIProfileTemplateIndex>(table => table
             .Column<string>(nameof(AIProfileTemplateIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIProfileTemplateIndex.Name), column => column.WithLength(255))
             .Column<string>(nameof(AIProfileTemplateIndex.Source), column => column.WithLength(255)),
-            collection: options.AICollectionName);
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIProfileTemplateIndex>(table =>
+        {
+            table.CreateIndex("IDX_AIProfileTemplate_DocumentId", "DocumentId", nameof(AIProfileTemplateIndex.Name));
+            table.CreateIndex("IDX_AIProfileTemplate_Source", "DocumentId", nameof(AIProfileTemplateIndex.Source));
+        }, collection: options?.AICollectionName);
     }
 }

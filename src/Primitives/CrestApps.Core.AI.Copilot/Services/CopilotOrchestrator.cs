@@ -477,8 +477,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             mcpDescription.Append(connection.DisplayText ?? connection.ItemId);
             if (connection.Source == McpConstants.TransportTypes.Sse)
             {
-                var sseMetadata = connection.As<SseMcpConnectionMetadata>();
-                if (sseMetadata?.Endpoint is not null)
+                if (connection.TryGet<SseMcpConnectionMetadata>(out var sseMetadata) && sseMetadata.Endpoint is not null)
                 {
                     mcpDescription.Append(" (SSE: ");
                     mcpDescription.Append(sseMetadata.Endpoint);
@@ -487,8 +486,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             }
             else if (connection.Source == McpConstants.TransportTypes.StdIo)
             {
-                var stdioMetadata = connection.As<StdioMcpConnectionMetadata>();
-                if (!string.IsNullOrEmpty(stdioMetadata?.Command))
+                if (connection.TryGet<StdioMcpConnectionMetadata>(out var stdioMetadata) && !string.IsNullOrEmpty(stdioMetadata.Command))
                 {
                     mcpDescription.Append(" (StdIO: ");
                     mcpDescription.Append(stdioMetadata.Command);

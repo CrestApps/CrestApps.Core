@@ -52,9 +52,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         }
         else if (context.Resource is AIProfile profile)
         {
-            var documentsMetadata = profile.As<DocumentsMetadata>();
-
-            if (documentsMetadata.Documents is { Count: > 0 })
+            if (profile.TryGet<DocumentsMetadata>(out var documentsMetadata) && documentsMetadata.Documents is { Count: > 0 })
             {
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
@@ -85,8 +83,9 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         }
         else if (context.Resource is AIProfile profile)
         {
-            var documentsMetadata = profile.As<DocumentsMetadata>();
-            knowledgeBaseDocuments = documentsMetadata.Documents;
+            knowledgeBaseDocuments = profile.TryGet<DocumentsMetadata>(out var documentsMetadata)
+                ? documentsMetadata.Documents
+                : null;
 
             if (context.OrchestrationContext.CompletionContext?.AdditionalProperties is not null &&
                 context.OrchestrationContext.CompletionContext.AdditionalProperties.TryGetValue("Session", out var sessionObj) &&

@@ -175,13 +175,26 @@ public sealed class SiteSettingsStore
             return [];
         }
 
-        var json = File.ReadAllText(_filePath);
-        if (string.IsNullOrWhiteSpace(json))
+        try
         {
+            var json = File.ReadAllText(_filePath);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return [];
+            }
+
+            return JsonNode.Parse(json) as JsonObject ?? [];
+        }
+        catch (Exception ex)
+        {
+            // Log the parse failure so the operator can investigate, then start
+            // with an empty settings bag instead of crashing the host.
+            var crashPath = Path.Combine(Path.GetDirectoryName(_filePath) ?? ".", "site-settings-load-error.log");
+
+            try { File.WriteAllText(crashPath, $"[{DateTime.UtcNow:O}] Failed to load {_filePath}:{Environment.NewLine}{ex}"); } catch { }
+
             return [];
         }
-
-        return JsonNode.Parse(json) as JsonObject ?? [];
     }
 
     /// <summary>

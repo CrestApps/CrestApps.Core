@@ -107,9 +107,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 
         if (profile.Type == AIProfileType.Chat)
         {
-            var profileMetadata = profile.As<AIProfileMetadata>();
-
-            if (!string.IsNullOrWhiteSpace(profileMetadata.InitialPrompt))
+            if (profile.TryGet<AIProfileMetadata>(out var profileMetadata) && !string.IsNullOrWhiteSpace(profileMetadata.InitialPrompt))
             {
                 await _promptStore.CreateAsync(new AIChatSessionPrompt
                 {

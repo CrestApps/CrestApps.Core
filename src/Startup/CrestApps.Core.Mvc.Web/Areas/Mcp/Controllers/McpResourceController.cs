@@ -175,7 +175,7 @@ public sealed class McpResourceController : Controller
         if (model.Source == FtpResourceConstants.Type)
         {
             var protector = _dataProtectionProvider.CreateProtector(FtpResourceConstants.DataProtectionPurpose);
-            var metadata = resource.As<FtpConnectionMetadata>();
+            var metadata = resource.GetOrCreate<FtpConnectionMetadata>();
             var existingPassword = metadata.Password;
             metadata.Host = model.Host?.Trim();
             metadata.Port = model.Port;
@@ -192,7 +192,7 @@ public sealed class McpResourceController : Controller
         else if (model.Source == SftpResourceConstants.Type)
         {
             var protector = _dataProtectionProvider.CreateProtector(SftpResourceConstants.DataProtectionPurpose);
-            var metadata = resource.As<SftpConnectionMetadata>();
+            var metadata = resource.GetOrCreate<SftpConnectionMetadata>();
             var existingPassword = metadata.Password;
             var existingPrivateKey = metadata.PrivateKey;
             var existingPassphrase = metadata.Passphrase;
@@ -233,34 +233,38 @@ public sealed class McpResourceController : Controller
         };
         if (resource.Source == FtpResourceConstants.Type)
         {
-            var metadata = resource.As<FtpConnectionMetadata>();
-            model.Host = metadata.Host;
-            model.Port = metadata.Port;
-            model.Username = metadata.Username;
-            model.HasPassword = !string.IsNullOrEmpty(metadata.Password);
-            model.EncryptionMode = metadata.EncryptionMode;
-            model.DataConnectionType = metadata.DataConnectionType;
-            model.ValidateAnyCertificate = metadata.ValidateAnyCertificate;
-            model.ConnectTimeout = metadata.ConnectTimeout;
-            model.ReadTimeout = metadata.ReadTimeout;
-            model.RetryAttempts = metadata.RetryAttempts;
+            if (resource.TryGet<FtpConnectionMetadata>(out var ftpMetadata))
+            {
+                model.Host = ftpMetadata.Host;
+                model.Port = ftpMetadata.Port;
+                model.Username = ftpMetadata.Username;
+                model.HasPassword = !string.IsNullOrEmpty(ftpMetadata.Password);
+                model.EncryptionMode = ftpMetadata.EncryptionMode;
+                model.DataConnectionType = ftpMetadata.DataConnectionType;
+                model.ValidateAnyCertificate = ftpMetadata.ValidateAnyCertificate;
+                model.ConnectTimeout = ftpMetadata.ConnectTimeout;
+                model.ReadTimeout = ftpMetadata.ReadTimeout;
+                model.RetryAttempts = ftpMetadata.RetryAttempts;
+            }
         }
         else if (resource.Source == SftpResourceConstants.Type)
         {
-            var metadata = resource.As<SftpConnectionMetadata>();
-            model.Host = metadata.Host;
-            model.Port = metadata.Port;
-            model.Username = metadata.Username;
-            model.HasPassword = !string.IsNullOrEmpty(metadata.Password);
-            model.HasPrivateKey = !string.IsNullOrEmpty(metadata.PrivateKey);
-            model.HasPassphrase = !string.IsNullOrEmpty(metadata.Passphrase);
-            model.ProxyType = metadata.ProxyType;
-            model.ProxyHost = metadata.ProxyHost;
-            model.ProxyPort = metadata.ProxyPort;
-            model.ProxyUsername = metadata.ProxyUsername;
-            model.HasProxyPassword = !string.IsNullOrEmpty(metadata.ProxyPassword);
-            model.ConnectionTimeout = metadata.ConnectionTimeout;
-            model.KeepAliveInterval = metadata.KeepAliveInterval;
+            if (resource.TryGet<SftpConnectionMetadata>(out var sftpMetadata))
+            {
+                model.Host = sftpMetadata.Host;
+                model.Port = sftpMetadata.Port;
+                model.Username = sftpMetadata.Username;
+                model.HasPassword = !string.IsNullOrEmpty(sftpMetadata.Password);
+                model.HasPrivateKey = !string.IsNullOrEmpty(sftpMetadata.PrivateKey);
+                model.HasPassphrase = !string.IsNullOrEmpty(sftpMetadata.Passphrase);
+                model.ProxyType = sftpMetadata.ProxyType;
+                model.ProxyHost = sftpMetadata.ProxyHost;
+                model.ProxyPort = sftpMetadata.ProxyPort;
+                model.ProxyUsername = sftpMetadata.ProxyUsername;
+                model.HasProxyPassword = !string.IsNullOrEmpty(sftpMetadata.ProxyPassword);
+                model.ConnectionTimeout = sftpMetadata.ConnectionTimeout;
+                model.KeepAliveInterval = sftpMetadata.KeepAliveInterval;
+            }
         }
 
         return model;

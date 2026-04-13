@@ -197,7 +197,7 @@ public sealed class A2AConnectionController : Controller
     {
         connection.DisplayText = model.DisplayText?.Trim();
         connection.Endpoint = model.Endpoint?.Trim();
-        var metadata = connection.As<A2AConnectionMetadata>();
+        var metadata = connection.GetOrCreate<A2AConnectionMetadata>();
         var protector = _dataProtectionProvider.CreateProtector(A2AConstants.DataProtectionPurpose);
         var existingApiKey = metadata.ApiKey;
         var existingBasicPassword = metadata.BasicPassword;

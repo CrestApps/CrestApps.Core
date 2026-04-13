@@ -391,6 +391,7 @@ public sealed class AIProviderConnectionOptionsTests
 
         sources.Add(new ConfigurationAIProviderConnectionSource(
             configuration,
+            TimeProvider.System,
             Options.Create(catalogOptions ?? new AIProviderConnectionCatalogOptions()),
             NullLogger<ConfigurationAIProviderConnectionSource>.Instance));
 

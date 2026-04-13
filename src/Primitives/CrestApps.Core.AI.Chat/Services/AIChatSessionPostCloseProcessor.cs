@@ -34,20 +34,24 @@ public sealed class AIChatSessionPostCloseProcessor
     public static bool NeedsProcessing(AIProfile profile, AIChatSession chatSession)
     {
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
-        var analyticsMetadata = profile.As<AnalyticsMetadata>();
 
         var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
             && postSessionSettings.EnablePostSessionProcessing
             && postSessionSettings.PostSessionTasks.Count > 0;
 
-        var needsAnalytics = !chatSession.IsAnalyticsRecorded
-            && (analyticsMetadata.EnableSessionMetrics || analyticsMetadata.EnableAIResolutionDetection);
+        if (profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata))
+        {
+            var needsAnalytics = !chatSession.IsAnalyticsRecorded
+                && (analyticsMetadata.EnableSessionMetrics || analyticsMetadata.EnableAIResolutionDetection);
 
-        var needsConversionGoals = !chatSession.IsConversionGoalsEvaluated
-            && analyticsMetadata.EnableConversionMetrics
-            && analyticsMetadata.ConversionGoals.Count > 0;
+            var needsConversionGoals = !chatSession.IsConversionGoalsEvaluated
+                && analyticsMetadata.EnableConversionMetrics
+                && analyticsMetadata.ConversionGoals.Count > 0;
 
-        return needsPostSessionTasks || needsAnalytics || needsConversionGoals;
+            return needsPostSessionTasks || needsAnalytics || needsConversionGoals;
+        }
+
+        return needsPostSessionTasks;
     }
 
     public async Task<AIChatSessionPostCloseProcessingResult> ProcessAsync(
@@ -59,18 +63,23 @@ public sealed class AIChatSessionPostCloseProcessor
         var result = new AIChatSessionPostCloseProcessingResult();
 
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
-        var analyticsMetadata = profile.As<AnalyticsMetadata>();
 
         var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
             && postSessionSettings.EnablePostSessionProcessing
             && postSessionSettings.PostSessionTasks.Count > 0;
 
-        var needsAnalytics = !chatSession.IsAnalyticsRecorded
-            && (analyticsMetadata.EnableSessionMetrics || analyticsMetadata.EnableAIResolutionDetection);
+        var needsAnalytics = false;
+        var needsConversionGoals = false;
 
-        var needsConversionGoals = !chatSession.IsConversionGoalsEvaluated
-            && analyticsMetadata.EnableConversionMetrics
-            && analyticsMetadata.ConversionGoals.Count > 0;
+        if (profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata))
+        {
+            needsAnalytics = !chatSession.IsAnalyticsRecorded
+                && (analyticsMetadata.EnableSessionMetrics || analyticsMetadata.EnableAIResolutionDetection);
+
+            needsConversionGoals = !chatSession.IsConversionGoalsEvaluated
+                && analyticsMetadata.EnableConversionMetrics
+                && analyticsMetadata.ConversionGoals.Count > 0;
+        }
 
         if (!needsPostSessionTasks && !needsAnalytics && !needsConversionGoals)
         {
@@ -292,7 +301,7 @@ public sealed class AIChatSessionPostCloseProcessor
         {
             var isResolved = false;
 
-            if (profile.As<AnalyticsMetadata>().EnableAIResolutionDetection)
+            if (profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableAIResolutionDetection)
             {
                 isResolved = await _postSessionProcessingService.EvaluateResolutionAsync(profile, prompts, cancellationToken);
             }

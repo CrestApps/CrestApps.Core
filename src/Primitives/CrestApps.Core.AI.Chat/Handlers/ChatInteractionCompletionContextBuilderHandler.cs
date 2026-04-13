@@ -55,7 +55,11 @@ internal sealed class ChatInteractionCompletionContextBuilderHandler : IAIComple
 
     private async Task<string> ResolveSystemMessageAsync(ChatInteraction interaction)
     {
-        var promptMetadata = interaction.As<PromptTemplateMetadata>();
+        if (!interaction.TryGet<PromptTemplateMetadata>(out var promptMetadata))
+        {
+            return interaction.SystemMessage;
+        }
+
         var validTemplates = promptMetadata.Templates?.Where(selection => !string.IsNullOrWhiteSpace(selection.TemplateId)).ToList();
         if (validTemplates is not { Count: > 0 })
         {

@@ -26,15 +26,19 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
         context.Context.ConnectionName = profile.GetLegacyConnectionName();
         context.Context.ChatDeploymentName = profile.ChatDeploymentName;
         context.Context.UtilityDeploymentName = profile.UtilityDeploymentName;
-        var metadata = profile.As<AIProfileMetadata>();
-        context.Context.SystemMessage = await ResolveSystemMessageAsync(profile, metadata);
-        context.Context.Temperature = metadata.Temperature;
-        context.Context.TopP = metadata.TopP;
-        context.Context.FrequencyPenalty = metadata.FrequencyPenalty;
-        context.Context.PresencePenalty = metadata.PresencePenalty;
-        context.Context.MaxTokens = metadata.MaxTokens;
-        context.Context.PastMessagesCount = metadata.PastMessagesCount;
-        context.Context.UseCaching = metadata.UseCaching;
+
+        if (profile.TryGet<AIProfileMetadata>(out var metadata))
+        {
+            context.Context.SystemMessage = await ResolveSystemMessageAsync(profile, metadata);
+            context.Context.Temperature = metadata.Temperature;
+            context.Context.TopP = metadata.TopP;
+            context.Context.FrequencyPenalty = metadata.FrequencyPenalty;
+            context.Context.PresencePenalty = metadata.PresencePenalty;
+            context.Context.MaxTokens = metadata.MaxTokens;
+            context.Context.PastMessagesCount = metadata.PastMessagesCount;
+            context.Context.UseCaching = metadata.UseCaching;
+        }
+
         if (profile.TryGet<FunctionInvocationMetadata>(out var functionInvocationMetadata))
         {
             context.Context.ToolNames = functionInvocationMetadata.Names;

@@ -86,13 +86,10 @@ internal sealed class A2AAgentProxyTool : AIFunction
                 var connectionStore = arguments.Services.GetRequiredService<ICatalog<A2AConnection>>();
 
                 var connection = await connectionStore.FindByIdAsync(_connectionId);
-
-                if (connection is not null)
+                if (connection is not null && connection.TryGet<A2AConnectionMetadata>(out var metadata))
                 {
-                    var metadata = connection.As<A2AConnectionMetadata>();
                     await authService.ConfigureHttpClientAsync(httpClient, metadata, cancellationToken);
                 }
-
             }
 
             var client = new A2AClient(new Uri(_endpoint), httpClient);

@@ -1,14 +1,22 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+// File-based crash log — Console.Error output is lost when the process dies,
+// so we write to a persistent file as well.
+var crashLogPath = Path.Combine(AppContext.BaseDirectory, "apphost-crash.log");
+
+void WriteCrashEntry(string label, object data)
+{
+    var message = $"[{DateTime.UtcNow:O}] {label}:{Environment.NewLine}{data}{Environment.NewLine}{Environment.NewLine}";
+
+    try { File.AppendAllText(crashLogPath, message); } catch { }
+
+    Console.Error.Write(message);
+}
+
 AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 {
-    Console.Error.WriteLine("[AppHost] Unhandled exception terminated the process.");
-
-    if (eventArgs.ExceptionObject is Exception exception)
-    {
-        Console.Error.WriteLine(exception);
-    }
+    WriteCrashEntry($"Unhandled exception (IsTerminating={eventArgs.IsTerminating})", eventArgs.ExceptionObject);
 };
 
 TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
@@ -16,17 +24,17 @@ TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
     if (IsBenignAppHostException(eventArgs.Exception))
     {
         eventArgs.SetObserved();
+
         return;
     }
 
-    Console.Error.WriteLine("[AppHost] Unobserved task exception.");
-    Console.Error.WriteLine(eventArgs.Exception);
+    WriteCrashEntry("Unobserved task exception", eventArgs.Exception);
     eventArgs.SetObserved();
 };
 
 AppDomain.CurrentDomain.ProcessExit += (_, _) =>
 {
-    Console.Error.WriteLine("[AppHost] Process exit signaled.");
+    WriteCrashEntry("Process exit signaled", $"Exit code: {Environment.ExitCode}");
 };
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -83,8 +91,8 @@ try
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine("[AppHost] Distributed application terminated unexpectedly.");
-    Console.Error.WriteLine(ex);
+    WriteCrashEntry("Distributed application terminated unexpectedly", ex);
+
     throw;
 }
 

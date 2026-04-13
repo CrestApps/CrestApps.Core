@@ -27,8 +27,12 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
 
     protected override async Task<ReadResourceResult> GetResultAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken)
     {
-        var metadata = resource.As<FtpConnectionMetadata>();
-        var host = metadata?.Host;
+        if (!resource.TryGet<FtpConnectionMetadata>(out var metadata))
+        {
+            return CreateErrorResult(resource.Resource.Uri, "FTP connection metadata is missing.");
+        }
+
+        var host = metadata.Host;
 
         if (string.IsNullOrEmpty(host))
         {
