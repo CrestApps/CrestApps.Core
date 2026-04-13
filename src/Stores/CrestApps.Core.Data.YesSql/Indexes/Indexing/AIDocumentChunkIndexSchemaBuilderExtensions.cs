@@ -4,16 +4,20 @@ namespace CrestApps.Core.Data.YesSql.Indexes.Indexing;
 
 public static class AIDocumentChunkIndexSchemaBuilderExtensions
 {
-    public static Task CreateAIDocumentChunkIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options = null)
+    public static async Task CreateAIDocumentChunkIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
-        options ??= new YesSqlStoreOptions();
-
-        return schemaBuilder.CreateMapIndexTableAsync<AIDocumentChunkIndex>(table => table
+        await schemaBuilder.CreateMapIndexTableAsync<AIDocumentChunkIndex>(table => table
             .Column<string>(nameof(AIDocumentChunkIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIDocumentChunkIndex.AIDocumentId), column => column.WithLength(26))
             .Column<string>(nameof(AIDocumentChunkIndex.ReferenceId), column => column.WithLength(26))
             .Column<string>(nameof(AIDocumentChunkIndex.ReferenceType), column => column.WithLength(50))
             .Column<int>(nameof(AIDocumentChunkIndex.Index)),
-            collection: options.AIDocsCollectionName);
+            collection: options?.AIDocsCollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIDocumentChunkIndex>(table =>
+        {
+            table.CreateIndex("IDX_AIDocumentChunk_DocumentId", "DocumentId", nameof(AIDocumentChunkIndex.AIDocumentId));
+            table.CreateIndex("IDX_AIDocumentChunk_Reference", "DocumentId", nameof(AIDocumentChunkIndex.ReferenceId), nameof(AIDocumentChunkIndex.ReferenceType));
+        }, collection: options?.AIDocsCollectionName);
     }
 }

@@ -237,6 +237,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             Source = entry.ClientName,
             ConnectionName = entry.ConnectionName,
             Type = entry.Type,
+            IsReadOnly = true,
             Properties = entry.Properties?.Count > 0 ? JsonSerializer.Deserialize<Dictionary<string, object>>(entry.Properties.DeepClone()) : null,
         };
     }

@@ -23,7 +23,6 @@ using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
-using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
@@ -142,7 +141,7 @@ builder.Services
     .AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddYesSqlStores()
-        .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
+        // .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
         // Optional AI features layered on top of the core AI + orchestration runtime.
         .AddMarkdown()
         .AddCopilotOrchestrator()

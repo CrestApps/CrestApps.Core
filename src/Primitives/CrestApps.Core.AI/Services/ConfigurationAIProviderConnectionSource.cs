@@ -159,6 +159,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             Name = connectionName,
             DisplayText = string.IsNullOrWhiteSpace(displayText) ? connectionName : displayText,
             ClientName = clientName,
+            IsReadOnly = true,
             Properties = properties.Count > 0 ? properties : null,
         };
     }

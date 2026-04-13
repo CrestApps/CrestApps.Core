@@ -4,16 +4,17 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
 
 public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 {
-    public static async Task CreateAIChatSessionMetricsSchemaAsync(this ISchemaBuilder schemaBuilder, AIChatSessionMetricsIndexSchemaOptions options = null, YesSqlStoreOptions storeOptions = null)
+    public static async Task CreateAIChatSessionMetricsSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
         options = NormalizeOptions(options, storeOptions);
-        await schemaBuilder.CreateAIChatSessionMetricsIndexTableAsync(options);
-        await schemaBuilder.CreateAIChatSessionMetricsNamedIndexesAsync(options);
+        await schemaBuilder.CreateAIChatSessionMetricsIndexTableAsync(storeOptions, options);
+        await schemaBuilder.CreateAIChatSessionMetricsNamedIndexesAsync(storeOptions, options);
     }
 
-    public static Task CreateAIChatSessionMetricsIndexTableAsync(this ISchemaBuilder schemaBuilder, AIChatSessionMetricsIndexSchemaOptions options = null, YesSqlStoreOptions storeOptions = null)
+    public static Task CreateAIChatSessionMetricsIndexTableAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
         options = NormalizeOptions(options, storeOptions);
+
         return schemaBuilder.CreateMapIndexTableAsync<AIChatSessionMetricsIndex>(table => table
             .Column<string>(nameof(AIChatSessionMetricsIndex.SessionId), column => column.WithLength(options.SessionIdLength))
             .Column<string>(nameof(AIChatSessionMetricsIndex.ProfileId), column => column.WithLength(options.ProfileIdLength))
@@ -40,7 +41,7 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
             collection: options.CollectionName);
     }
 
-    public static Task CreateAIChatSessionMetricsNamedIndexesAsync(this ISchemaBuilder schemaBuilder, AIChatSessionMetricsIndexSchemaOptions options = null, YesSqlStoreOptions storeOptions = null)
+    public static Task CreateAIChatSessionMetricsNamedIndexesAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
         options = NormalizeOptions(options, storeOptions);
 
@@ -64,26 +65,23 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
                 collection: options.CollectionName));
     }
 
-    public static Task AddAIChatSessionMetricsCompletionCountColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions = null)
+    public static Task AddAIChatSessionMetricsCompletionCountColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions)
     {
-        storeOptions ??= new YesSqlStoreOptions();
-
         return schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(table =>
         {
             table.AddColumn<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0));
-        }, collection: storeOptions.AICollectionName);
+        }, collection: storeOptions?.AICollectionName);
     }
 
     private static AIChatSessionMetricsIndexSchemaOptions NormalizeOptions(AIChatSessionMetricsIndexSchemaOptions options, YesSqlStoreOptions storeOptions)
     {
-        storeOptions ??= new YesSqlStoreOptions();
         options ??= new AIChatSessionMetricsIndexSchemaOptions();
 
         if (options.CollectionName == null)
         {
             return new AIChatSessionMetricsIndexSchemaOptions
             {
-                CollectionName = storeOptions.AICollectionName,
+                CollectionName = storeOptions?.AICollectionName,
                 SessionIdLength = options.SessionIdLength,
                 ProfileIdLength = options.ProfileIdLength,
                 VisitorIdLength = options.VisitorIdLength,

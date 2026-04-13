@@ -24,6 +24,7 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
             ?? GetString(node, "ProviderName"),
             Name = GetString(node, nameof(AIProviderConnection.Name)),
             DisplayText = GetString(node, nameof(AIProviderConnection.DisplayText)),
+            IsReadOnly = GetBoolean(node, nameof(AIProviderConnection.IsReadOnly)),
             CreatedUtc = GetDateTime(node, nameof(AIProviderConnection.CreatedUtc)),
             Author = GetString(node, nameof(AIProviderConnection.Author)),
             OwnerId = GetString(node, nameof(AIProviderConnection.OwnerId)),
@@ -58,6 +59,7 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
         WriteString(writer, nameof(AIProviderConnection.ClientName), value.ClientName);
         WriteString(writer, nameof(AIProviderConnection.Name), value.Name);
         WriteString(writer, nameof(AIProviderConnection.DisplayText), value.DisplayText);
+        writer.WriteBoolean(nameof(AIProviderConnection.IsReadOnly), value.IsReadOnly);
         writer.WriteString(nameof(AIProviderConnection.CreatedUtc), value.CreatedUtc);
         WriteString(writer, nameof(AIProviderConnection.Author), value.Author);
         WriteString(writer, nameof(AIProviderConnection.OwnerId), value.OwnerId);
@@ -85,6 +87,16 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
         }
 
         return null;
+    }
+
+    private static bool GetBoolean(JsonObject node, string name)
+    {
+        if (node.TryGetPropertyValue(name, out var value) && value != null)
+        {
+            return value.GetValue<bool>();
+        }
+
+        return false;
     }
 
     private static DateTime GetDateTime(JsonObject node, string name)
