@@ -26,7 +26,8 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddAIMemory(memory => memory
             .AddEntityCoreStores()
         )
-        .AddOpenAI())
+        .AddOpenAI()
+    )
     .AddEntityCoreSqliteDataStore("Data Source=app.db")
 );
 ```

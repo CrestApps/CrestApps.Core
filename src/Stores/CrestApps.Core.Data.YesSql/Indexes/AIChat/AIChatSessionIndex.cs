@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
@@ -18,9 +19,9 @@ public sealed class AIChatSessionIndex : CatalogItemIndex
 
 public sealed class AIChatSessionIndexProvider : IndexProvider<AIChatSession>
 {
-    internal AIChatSessionIndexProvider(string collectionName = null)
+    public AIChatSessionIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AICollectionName;
     }
 
     public override void Describe(DescribeContext<AIChatSession> context)

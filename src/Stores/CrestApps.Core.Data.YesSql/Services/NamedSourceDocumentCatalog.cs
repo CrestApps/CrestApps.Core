@@ -9,15 +9,9 @@ public class NamedSourceDocumentCatalog<T, TIndex> : SourceDocumentCatalog<T, TI
     where T : CatalogItem, INameAwareModel, ISourceAwareModel
     where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
 {
-    public NamedSourceDocumentCatalog(ISession session)
-        : base(session)
+    public NamedSourceDocumentCatalog(ISession session, string collectionName = null)
+        : base(session, collectionName)
     {
-    }
-
-    internal NamedSourceDocumentCatalog(ISession session, string collectionName)
-        : this(session)
-    {
-        CollectionName = collectionName;
     }
 
     public async ValueTask<T> FindByNameAsync(string name)

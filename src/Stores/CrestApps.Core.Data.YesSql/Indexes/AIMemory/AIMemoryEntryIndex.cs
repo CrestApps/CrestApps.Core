@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AIMemory;
@@ -12,9 +13,9 @@ public sealed class AIMemoryEntryIndex : CatalogItemIndex
 
 public sealed class AIMemoryEntryIndexProvider : IndexProvider<AIMemoryEntry>
 {
-    internal AIMemoryEntryIndexProvider(string collectionName = null)
+    public AIMemoryEntryIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AIMemoryCollectionName;
     }
 
     public override void Describe(DescribeContext<AIMemoryEntry> context)

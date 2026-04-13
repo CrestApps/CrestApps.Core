@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AI;
@@ -12,9 +13,9 @@ public sealed class AIProfileTemplateIndex : CatalogItemIndex, INameAwareIndex, 
 
 public sealed class AIProfileTemplateIndexProvider : IndexProvider<AIProfileTemplate>
 {
-    internal AIProfileTemplateIndexProvider(string collectionName = null)
+    public AIProfileTemplateIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AICollectionName;
     }
 
     public override void Describe(DescribeContext<AIProfileTemplate> context)

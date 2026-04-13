@@ -6,6 +6,7 @@ using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using YesSql;
 using ISession = YesSql.ISession;
 
@@ -17,36 +18,39 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     private readonly ISession _session;
     private readonly IAIChatSessionPromptStore _promptStore;
     private readonly TimeProvider _timeProvider;
+    private readonly string _collection;
 
     public YesSqlAIChatSessionManager(
         IHttpContextAccessor httpContextAccessor,
         ISession session,
         IAIChatSessionPromptStore promptStore,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IOptions<YesSqlStoreOptions> options)
     {
         _httpContextAccessor = httpContextAccessor;
         _session = session;
         _promptStore = promptStore;
         _timeProvider = timeProvider;
+        _collection = options.Value.AICollectionName;
     }
 
     public async Task<AIChatSession> FindByIdAsync(string id)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id).FirstOrDefaultAsync();
+        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync();
     }
 
     public async Task<AIChatSession> FindAsync(string id)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id).FirstOrDefaultAsync();
+        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync();
     }
 
     public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null)
     {
-        var query = _session.Query<AIChatSession, AIChatSessionIndex>();
+        var query = _session.Query<AIChatSession, AIChatSessionIndex>(collection: _collection);
 
         if (!string.IsNullOrEmpty(context?.ProfileId))
         {
@@ -81,6 +85,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     public async Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context)
     {
         ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(context);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var session = new AIChatSession
@@ -133,7 +138,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         ArgumentNullException.ThrowIfNull(chatSession);
 
         chatSession.LastActivityUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        await _session.SaveAsync(chatSession);
+        await _session.SaveAsync(chatSession, _collection);
         await _session.SaveChangesAsync();
     }
 
@@ -141,14 +146,14 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
 
-        var session = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == sessionId).FirstOrDefaultAsync();
+        var session = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == sessionId, collection: _collection).FirstOrDefaultAsync();
 
         if (session == null)
         {
             return false;
         }
 
-        _session.Delete(session);
+        _session.Delete(session, _collection);
         await _session.SaveChangesAsync();
 
         return true;
@@ -156,12 +161,14 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 
     public async Task<int> DeleteAllAsync(string profileId)
     {
-        var sessions = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.ProfileId == profileId).ListAsync();
+        ArgumentException.ThrowIfNullOrEmpty(profileId);
+
+        var sessions = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.ProfileId == profileId, collection: _collection).ListAsync();
         var count = 0;
 
         foreach (var s in sessions)
         {
-            _session.Delete(s);
+            _session.Delete(s, _collection);
             count++;
         }
 

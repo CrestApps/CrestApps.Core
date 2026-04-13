@@ -42,7 +42,9 @@ In `Program.cs`, compose the framework through the `AddCrestAppsCore(...)` build
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddOpenAI()
-        .AddChatInteractions()));
+        .AddChatInteractions()
+    )
+);
 ```
 
 `AddAISuite(...)` adds the shared CrestApps core services, the AI runtime, and orchestration together. If you prefer the lower-level registrations, the same features are still available as raw `IServiceCollection` extensions such as `AddCoreAIServices()` and `AddCoreAIOrchestration()`.
@@ -217,7 +219,8 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
     )
     .AddYesSqlDataStore(configuration => configuration
         .UseSqLite("Data Source=app.db;Cache=Shared")
-        .SetTablePrefix("CA_"))
+        .SetTablePrefix("CA_")
+    )
 );
 ```
 

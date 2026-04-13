@@ -43,6 +43,10 @@ dotnet test .\tests\CrestApps.Core.Tests\CrestApps.Core.Tests.csproj -c Release 
 
 ### MVC sample application
 
+**Visual Studio:** Set `CrestApps.Core.Mvc.Web` as the startup project and press **F5** (or **Ctrl+F5** to run without debugging).
+
+**Command line:**
+
 ```bash
 dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web.csproj
 ```
@@ -51,11 +55,19 @@ Use the MVC sample when you want to see the full framework in one place: AI prov
 
 ### Aspire host
 
+The Aspire host boots the MVC sample and related sample clients together as a composed local environment.
+
+:::info Prerequisites
+Aspire manages containers for services like Redis. You need a container runtime such as [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running before starting the Aspire host.
+:::
+
+**Visual Studio:** Set `CrestApps.Core.Aspire.AppHost` as the startup project and press **F5**.
+
+**Command line:**
+
 ```bash
 dotnet run --project .\src\Startup\CrestApps.Core.Aspire.AppHost\CrestApps.Core.Aspire.AppHost.csproj
 ```
-
-Use the Aspire host when you want to boot the MVC sample and related sample clients together.
 
 ## Smallest useful app integration
 
@@ -64,7 +76,9 @@ Use the `AddCrestAppsCore(...)` builder as the main entry point:
 ```csharp
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
-        .AddOpenAI()));
+        .AddOpenAI()
+    )
+);
 ```
 
 Then add the first interactive feature:
@@ -73,7 +87,9 @@ Then add the first interactive feature:
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddOpenAI()
-        .AddChatInteractions()));
+        .AddChatInteractions()
+    )
+);
 ```
 
 By default:
