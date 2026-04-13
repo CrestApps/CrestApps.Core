@@ -87,7 +87,7 @@ public sealed class AIProfileDocumentService
 
                 await _documentIndexingService.IndexAsync(result.Document, result.Chunks, cancellationToken);
 
-                var documentsMetadata = profile.As<DocumentsMetadata>();
+                var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
                 documentsMetadata.Documents ??= [];
                 documentsMetadata.Documents.Add(result.DocumentInfo);
                 profile.Put(documentsMetadata);
@@ -104,7 +104,7 @@ public sealed class AIProfileDocumentService
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(documentIds);
 
-        var documentsMetadata = profile.As<DocumentsMetadata>();
+        var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
 
         if (documentsMetadata?.Documents == null || documentsMetadata.Documents.Count == 0)
         {
@@ -161,7 +161,7 @@ public sealed class AIProfileDocumentService
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        var documentsMetadata = profile.As<DocumentsMetadata>();
+        var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
         var documentIds = (documentsMetadata?.Documents ?? [])
             .Select(document => document.DocumentId)
             .Where(documentId => !string.IsNullOrWhiteSpace(documentId))

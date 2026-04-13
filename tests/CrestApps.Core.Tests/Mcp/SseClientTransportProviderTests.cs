@@ -68,7 +68,7 @@ public sealed class SseClientTransportProviderTests
     {
         // Arrange
         var connection = CreateConnection(McpClientAuthenticationType.ApiKey);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.ApiKeyHeaderName = headerName;
         metadata.ApiKeyPrefix = prefix;
         metadata.ApiKey = apiKey;
@@ -91,7 +91,7 @@ public sealed class SseClientTransportProviderTests
         var username = "testuser";
         var password = "testpass";
         var connection = CreateConnection(McpClientAuthenticationType.Basic);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.BasicUsername = username;
         metadata.BasicPassword = password;
         connection.Put(metadata);
@@ -112,7 +112,7 @@ public sealed class SseClientTransportProviderTests
     {
         // Arrange
         var connection = CreateConnection(McpClientAuthenticationType.Basic);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.BasicUsername = "testuser";
         metadata.BasicPassword = null;
         connection.Put(metadata);
@@ -139,7 +139,7 @@ public sealed class SseClientTransportProviderTests
         var scopes = "read write";
 
         var connection = CreateConnection(McpClientAuthenticationType.OAuth2ClientCredentials);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = tokenEndpoint;
         metadata.OAuth2ClientId = clientId;
         metadata.OAuth2ClientSecret = clientSecret;
@@ -175,7 +175,7 @@ public sealed class SseClientTransportProviderTests
         var scopes = "api";
 
         var connection = CreateConnection(McpClientAuthenticationType.OAuth2PrivateKeyJwt);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = tokenEndpoint;
         metadata.OAuth2ClientId = clientId;
         metadata.OAuth2PrivateKey = privateKey;
@@ -217,7 +217,7 @@ public sealed class SseClientTransportProviderTests
         var protector = new PassthroughDataProtectionProvider().CreateProtector("test");
 
         var connection = CreateConnection(McpClientAuthenticationType.OAuth2Mtls);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = tokenEndpoint;
         metadata.OAuth2ClientId = clientId;
         metadata.OAuth2ClientCertificate = protector.Protect(certBase64);
@@ -251,7 +251,7 @@ public sealed class SseClientTransportProviderTests
     {
         // Arrange
         var connection = CreateConnection(McpClientAuthenticationType.CustomHeaders);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.AdditionalHeaders = new Dictionary<string, string>
         {
             ["X-Custom-Header"] = "custom-value",
@@ -277,7 +277,7 @@ public sealed class SseClientTransportProviderTests
     {
         // Arrange
         var connection = CreateConnection(McpClientAuthenticationType.CustomHeaders);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.AdditionalHeaders = null;
         connection.Put(metadata);
 
@@ -295,7 +295,7 @@ public sealed class SseClientTransportProviderTests
     {
         // Arrange
         var connection = CreateConnection(McpClientAuthenticationType.OAuth2ClientCredentials);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = "https://auth.example.com/token";
         metadata.OAuth2ClientId = "client-id";
         metadata.OAuth2ClientSecret = "client-secret";

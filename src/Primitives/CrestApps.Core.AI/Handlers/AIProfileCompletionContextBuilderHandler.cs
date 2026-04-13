@@ -26,7 +26,7 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
         context.Context.ConnectionName = profile.GetLegacyConnectionName();
         context.Context.ChatDeploymentName = profile.ChatDeploymentName;
         context.Context.UtilityDeploymentName = profile.UtilityDeploymentName;
-        var metadata = profile.As<AIProfileMetadata>();
+        var metadata = profile.GetOrCreate<AIProfileMetadata>();
         context.Context.SystemMessage = await ResolveSystemMessageAsync(profile, metadata);
         context.Context.Temperature = metadata.Temperature;
         context.Context.TopP = metadata.TopP;

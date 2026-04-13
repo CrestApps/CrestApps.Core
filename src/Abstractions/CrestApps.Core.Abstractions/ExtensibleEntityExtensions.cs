@@ -13,13 +13,16 @@ public static class ExtensibleEntityExtensions
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() },
+        Converters =
+        {
+            new JsonStringEnumConverter(),
+        },
     };
 
     /// <summary>
     /// Gets a strongly-typed object stored in the entity's properties.
     /// </summary>
-    public static T As<T>(this ExtensibleEntity entity)
+    public static T GetOrCreate<T>(this ExtensibleEntity entity)
         where T : new()
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -111,7 +114,7 @@ public static class ExtensibleEntityExtensions
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(alter);
 
-        var obj = entity.As<T>();
+        var obj = entity.GetOrCreate<T>();
         alter(obj);
         entity.Put(obj);
 

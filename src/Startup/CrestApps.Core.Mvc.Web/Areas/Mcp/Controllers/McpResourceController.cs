@@ -175,7 +175,7 @@ public sealed class McpResourceController : Controller
         if (model.Source == FtpResourceConstants.Type)
         {
             var protector = _dataProtectionProvider.CreateProtector(FtpResourceConstants.DataProtectionPurpose);
-            var metadata = resource.As<FtpConnectionMetadata>();
+            var metadata = resource.GetOrCreate<FtpConnectionMetadata>();
             var existingPassword = metadata.Password;
             metadata.Host = model.Host?.Trim();
             metadata.Port = model.Port;
@@ -192,7 +192,7 @@ public sealed class McpResourceController : Controller
         else if (model.Source == SftpResourceConstants.Type)
         {
             var protector = _dataProtectionProvider.CreateProtector(SftpResourceConstants.DataProtectionPurpose);
-            var metadata = resource.As<SftpConnectionMetadata>();
+            var metadata = resource.GetOrCreate<SftpConnectionMetadata>();
             var existingPassword = metadata.Password;
             var existingPrivateKey = metadata.PrivateKey;
             var existingPassphrase = metadata.Passphrase;
@@ -233,7 +233,7 @@ public sealed class McpResourceController : Controller
         };
         if (resource.Source == FtpResourceConstants.Type)
         {
-            var metadata = resource.As<FtpConnectionMetadata>();
+            var metadata = resource.GetOrCreate<FtpConnectionMetadata>();
             model.Host = metadata.Host;
             model.Port = metadata.Port;
             model.Username = metadata.Username;
@@ -247,7 +247,7 @@ public sealed class McpResourceController : Controller
         }
         else if (resource.Source == SftpResourceConstants.Type)
         {
-            var metadata = resource.As<SftpConnectionMetadata>();
+            var metadata = resource.GetOrCreate<SftpConnectionMetadata>();
             model.Host = metadata.Host;
             model.Port = metadata.Port;
             model.Username = metadata.Username;

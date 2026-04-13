@@ -277,7 +277,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
     protected static string BuildTitleUserPrompt(AIProfile profile, string userPrompt)
     {
         var trimmedUserPrompt = userPrompt?.Trim();
-        var profileMetadata = profile.As<AIProfileMetadata>();
+        var profileMetadata = profile.GetOrCreate<AIProfileMetadata>();
         var initialPrompt = profileMetadata.InitialPrompt?.Trim();
         if (string.IsNullOrWhiteSpace(initialPrompt))
         {
@@ -1106,7 +1106,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 Type = profile.Type.ToString(),
             },
             chatSession.Documents,
-            Messages = prompts.Select(message => new AIChatResponseMessageDetailed { Id = message.ItemId, Role = message.Role.Value, IsGeneratedPrompt = message.IsGeneratedPrompt, Title = message.Title, Content = message.Content, UserRating = message.UserRating, References = message.References, Appearance = message.As<AssistantMessageAppearance>(), })
+            Messages = prompts.Select(message => new AIChatResponseMessageDetailed { Id = message.ItemId, Role = message.Role.Value, IsGeneratedPrompt = message.IsGeneratedPrompt, Title = message.Title, Content = message.Content, UserRating = message.UserRating, References = message.References, Appearance = message.GetOrCreate<AssistantMessageAppearance>(), })
         };
     }
 

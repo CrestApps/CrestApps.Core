@@ -34,7 +34,7 @@ public sealed class AIChatSessionPostCloseProcessor
     public static bool NeedsProcessing(AIProfile profile, AIChatSession chatSession)
     {
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
-        var analyticsMetadata = profile.As<AnalyticsMetadata>();
+        var analyticsMetadata = profile.GetOrCreate<AnalyticsMetadata>();
 
         var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
             && postSessionSettings.EnablePostSessionProcessing
@@ -59,7 +59,7 @@ public sealed class AIChatSessionPostCloseProcessor
         var result = new AIChatSessionPostCloseProcessingResult();
 
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
-        var analyticsMetadata = profile.As<AnalyticsMetadata>();
+        var analyticsMetadata = profile.GetOrCreate<AnalyticsMetadata>();
 
         var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
             && postSessionSettings.EnablePostSessionProcessing
@@ -292,7 +292,7 @@ public sealed class AIChatSessionPostCloseProcessor
         {
             var isResolved = false;
 
-            if (profile.As<AnalyticsMetadata>().EnableAIResolutionDetection)
+            if (profile.GetOrCreate<AnalyticsMetadata>().EnableAIResolutionDetection)
             {
                 isResolved = await _postSessionProcessingService.EvaluateResolutionAsync(profile, prompts, cancellationToken);
             }

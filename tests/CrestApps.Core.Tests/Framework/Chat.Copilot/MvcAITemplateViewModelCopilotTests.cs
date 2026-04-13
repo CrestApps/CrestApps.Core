@@ -103,6 +103,6 @@ public sealed class MvcAITemplateViewModelCopilotTests
 
         model.ApplyTo(template);
 
-        Assert.True(template.As<MemoryMetadata>().EnableUserMemory ?? false);
+        Assert.True(template.GetOrCreate<MemoryMetadata>().EnableUserMemory ?? false);
     }
 }

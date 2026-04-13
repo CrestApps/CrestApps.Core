@@ -23,9 +23,9 @@
         : "What do you want to know?";
     var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
     var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
-    var sessionDocumentsMetadata = Model.As<CrestApps.Core.AI.Models.AIProfileSessionDocumentsMetadata>();
+    var sessionDocumentsMetadata = Model.GetOrCreate<CrestApps.Core.AI.Models.AIProfileSessionDocumentsMetadata>();
     var allowSessionDocuments = sessionDocumentsMetadata?.AllowSessionDocuments ?? false;
-    var metricsEnabled = Model.As<AnalyticsMetadata>()?.EnableSessionMetrics ?? false;
+    var metricsEnabled = Model.GetOrCreate<AnalyticsMetadata>()?.EnableSessionMetrics ?? false;
     var existingDocuments = session?.Documents ?? [];
     var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();
     ChatModeProfileSettings chatModeSettings = null;

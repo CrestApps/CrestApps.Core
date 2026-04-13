@@ -318,7 +318,7 @@ public sealed class AIProfileController : Controller
 
     private static void ApplyTemplateToProfile(AIProfile profile, AIProfileTemplate template)
     {
-        var metadata = template.As<ProfileTemplateMetadata>();
+        var metadata = template.GetOrCreate<ProfileTemplateMetadata>();
         if (metadata == null)
         {
             return;
@@ -369,7 +369,7 @@ public sealed class AIProfileController : Controller
             profile.Put(new AgentMetadata { Availability = metadata.AgentAvailability.Value, });
         }
 
-        var profileMetadata = profile.As<AIProfileMetadata>();
+        var profileMetadata = profile.GetOrCreate<AIProfileMetadata>();
         if (!string.IsNullOrWhiteSpace(metadata.SystemMessage))
         {
             profileMetadata.SystemMessage = metadata.SystemMessage;

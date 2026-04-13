@@ -31,7 +31,7 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
 
         var templates = await provider.GetTemplatesAsync();
         var template = templates.Single(t => t.ItemId == "chat-session-summarizer");
-        var metadata = template.As<ProfileTemplateMetadata>();
+        var metadata = template.GetOrCreate<ProfileTemplateMetadata>();
 
         Assert.Equal(AIProfileType.TemplatePrompt, metadata.ProfileType);
         Assert.Equal(0.3f, metadata.Temperature);

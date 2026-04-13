@@ -27,7 +27,7 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
 
     protected override async Task<ReadResourceResult> GetResultAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken)
     {
-        var metadata = resource.As<SftpConnectionMetadata>();
+        var metadata = resource.GetOrCreate<SftpConnectionMetadata>();
         var host = metadata?.Host;
 
         if (string.IsNullOrEmpty(host))

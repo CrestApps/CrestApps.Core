@@ -512,7 +512,7 @@ public static class AIChatDocumentEndpoints
 
     private static bool IsSessionDocumentUploadEnabled(AIProfile profile)
     {
-        return profile.As<AIProfileSessionDocumentsMetadata>()?.AllowSessionDocuments == true;
+        return profile.GetOrCreate<AIProfileSessionDocumentsMetadata>()?.AllowSessionDocuments == true;
     }
 
     private static async Task<AIDeployment> ResolveSessionDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)

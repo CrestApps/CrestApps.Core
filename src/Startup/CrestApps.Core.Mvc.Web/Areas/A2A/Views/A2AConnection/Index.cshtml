@@ -34,7 +34,7 @@ else
             <tbody>
                 @foreach (var connection in Model)
                 {
-                    var metadata = connection.As<A2AConnectionMetadata>();
+                    var metadata = connection.GetOrCreate<A2AConnectionMetadata>();
                     <tr>
                         <td><strong>@connection.DisplayText</strong></td>
                         <td><code>@connection.Endpoint</code></td>

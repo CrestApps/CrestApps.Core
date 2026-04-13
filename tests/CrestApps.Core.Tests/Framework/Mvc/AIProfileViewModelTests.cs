@@ -187,7 +187,7 @@ public sealed class AIProfileViewModelTests
         Assert.Equal(AISessionTitleType.Generated, profile.TitleType);
         Assert.Null(profile.WelcomeMessage);
 
-        var profileMetadata = profile.As<AIProfileMetadata>();
+        var profileMetadata = profile.GetOrCreate<AIProfileMetadata>();
         Assert.Equal("system", profileMetadata.SystemMessage);
         Assert.Equal("hello", profileMetadata.InitialPrompt);
         Assert.Equal(0.2f, profileMetadata.Temperature);
@@ -203,25 +203,25 @@ public sealed class AIProfileViewModelTests
         Assert.True(profileSettings.IsListable);
         Assert.False(profileSettings.IsRemovable);
 
-        Assert.Equal(["tool-1"], profile.As<FunctionInvocationMetadata>().Names);
-        Assert.Equal(["agent-1"], profile.As<AgentInvocationMetadata>().Names);
-        Assert.Equal("data-source-1", profile.As<DataSourceMetadata>().DataSourceId);
-        Assert.Equal(["a2a-1"], profile.As<AIProfileA2AMetadata>().ConnectionIds);
-        Assert.Equal(["mcp-1"], profile.As<AIProfileMcpMetadata>().ConnectionIds);
+        Assert.Equal(["tool-1"], profile.GetOrCreate<FunctionInvocationMetadata>().Names);
+        Assert.Equal(["agent-1"], profile.GetOrCreate<AgentInvocationMetadata>().Names);
+        Assert.Equal("data-source-1", profile.GetOrCreate<DataSourceMetadata>().DataSourceId);
+        Assert.Equal(["a2a-1"], profile.GetOrCreate<AIProfileA2AMetadata>().ConnectionIds);
+        Assert.Equal(["mcp-1"], profile.GetOrCreate<AIProfileMcpMetadata>().ConnectionIds);
 
-        var ragMetadata = profile.As<AIDataSourceRagMetadata>();
+        var ragMetadata = profile.GetOrCreate<AIDataSourceRagMetadata>();
         Assert.Equal(4, ragMetadata.Strictness);
         Assert.Equal(8, ragMetadata.TopNDocuments);
         Assert.True(ragMetadata.IsInScope);
         Assert.Equal("category eq 'docs'", ragMetadata.Filter);
 
-        var promptMetadata = profile.As<PromptTemplateMetadata>();
+        var promptMetadata = profile.GetOrCreate<PromptTemplateMetadata>();
         var promptTemplate = Assert.Single(promptMetadata.Templates);
         Assert.Equal("template-1", promptTemplate.TemplateId);
         Assert.Equal("friendly", Assert.IsType<string>(promptTemplate.Parameters["tone"]));
 
-        Assert.Equal(6, profile.As<DocumentsMetadata>().DocumentTopN);
-        Assert.True(profile.As<AIProfileSessionDocumentsMetadata>().AllowSessionDocuments);
+        Assert.Equal(6, profile.GetOrCreate<DocumentsMetadata>().DocumentTopN);
+        Assert.True(profile.GetOrCreate<AIProfileSessionDocumentsMetadata>().AllowSessionDocuments);
 
         var extractionSettings = profile.GetSettings<AIProfileDataExtractionSettings>();
         Assert.True(extractionSettings.EnableDataExtraction);
@@ -229,7 +229,7 @@ public sealed class AIProfileViewModelTests
         Assert.Equal(12, extractionSettings.SessionInactivityTimeoutInMinutes);
         Assert.Single(extractionSettings.DataExtractionEntries);
 
-        var analyticsMetadata = profile.As<AnalyticsMetadata>();
+        var analyticsMetadata = profile.GetOrCreate<AnalyticsMetadata>();
         Assert.True(analyticsMetadata.EnableSessionMetrics);
         Assert.False(analyticsMetadata.EnableAIResolutionDetection);
         Assert.True(analyticsMetadata.EnableConversionMetrics);
@@ -250,7 +250,7 @@ public sealed class AIProfileViewModelTests
             option => Assert.Equal("one", option.Value),
             option => Assert.Equal("two", option.Value));
 
-        Assert.True(profile.As<MemoryMetadata>().EnableUserMemory ?? false);
+        Assert.True(profile.GetOrCreate<MemoryMetadata>().EnableUserMemory ?? false);
 
         Assert.False(profile.TryGet<CopilotSessionMetadata>(out _));
 
@@ -333,8 +333,8 @@ public sealed class AIProfileViewModelTests
             },
         };
 
-        Assert.Equal("dictionary-source", profile.As<DataSourceMetadata>().DataSourceId);
-        Assert.True(profile.As<AIDataSourceRagMetadata>().IsInScope);
+        Assert.Equal("dictionary-source", profile.GetOrCreate<DataSourceMetadata>().DataSourceId);
+        Assert.True(profile.GetOrCreate<AIDataSourceRagMetadata>().IsInScope);
     }
 
     [Fact]
@@ -364,6 +364,6 @@ public sealed class AIProfileViewModelTests
         Assert.True(reloaded.Properties.ContainsKey(nameof(DataSourceMetadata)));
         Assert.True(reloaded.GetSettings<AIProfileSettings>().IsListable);
         Assert.False(reloaded.GetSettings<AIProfileSettings>().IsRemovable);
-        Assert.Equal("serialized-source", reloaded.As<DataSourceMetadata>().DataSourceId);
+        Assert.Equal("serialized-source", reloaded.GetOrCreate<DataSourceMetadata>().DataSourceId);
     }
 }

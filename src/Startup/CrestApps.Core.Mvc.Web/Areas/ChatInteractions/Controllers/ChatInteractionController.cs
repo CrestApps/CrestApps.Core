@@ -194,9 +194,9 @@ public sealed class ChatInteractionController : Controller
         var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
         var deploymentDefaults = _siteSettings.Get<DefaultAIDeploymentSettings>();
 
-        var dataSourceMetadata = interaction.As<DataSourceMetadata>();
+        var dataSourceMetadata = interaction.GetOrCreate<DataSourceMetadata>();
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
-        var promptMetadata = interaction.As<PromptTemplateMetadata>();
+        var promptMetadata = interaction.GetOrCreate<PromptTemplateMetadata>();
 
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);

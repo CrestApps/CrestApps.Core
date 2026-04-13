@@ -41,8 +41,8 @@
             name = selectedProfile.Name,
             displayText = selectedProfile.DisplayText ?? selectedProfile.Name,
             welcomeMessage = selectedProfile.WelcomeMessage,
-            enableSessionMetrics = selectedProfile.As<AnalyticsMetadata>()?.EnableSessionMetrics ?? false,
-            allowSessionDocuments = selectedProfile.As<AIProfileSessionDocumentsMetadata>()?.AllowSessionDocuments ?? false,
+            enableSessionMetrics = selectedProfile.GetOrCreate<AnalyticsMetadata>()?.EnableSessionMetrics ?? false,
+            allowSessionDocuments = selectedProfile.GetOrCreate<AIProfileSessionDocumentsMetadata>()?.AllowSessionDocuments ?? false,
         };
     var widgetStyle = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
         ? null

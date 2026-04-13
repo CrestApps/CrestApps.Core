@@ -25,7 +25,7 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
 
     public async Task<IClientTransport> GetAsync(McpConnection connection)
     {
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         var headers = await BuildHeadersAsync(metadata);
         return new HttpClientTransport(new HttpClientTransportOptions { Endpoint = metadata.Endpoint, AdditionalHeaders = headers, });
     }

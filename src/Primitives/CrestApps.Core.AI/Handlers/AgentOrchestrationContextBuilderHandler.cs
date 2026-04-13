@@ -46,7 +46,7 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
                 continue;
             }
 
-            var agentMetadata = agent.As<AgentMetadata>();
+            var agentMetadata = agent.GetOrCreate<AgentMetadata>();
             var isAlwaysAvailable = agentMetadata?.Availability == AgentAvailability.AlwaysAvailable;
             if (isAlwaysAvailable || (requestedAgentNames is { Length: > 0 } && requestedAgentNames.Contains(agent.Name, StringComparer.OrdinalIgnoreCase)))
             {

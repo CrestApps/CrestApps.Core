@@ -89,7 +89,7 @@ internal sealed class A2AAgentProxyTool : AIFunction
 
                 if (connection is not null)
                 {
-                    var metadata = connection.As<A2AConnectionMetadata>();
+                    var metadata = connection.GetOrCreate<A2AConnectionMetadata>();
                     await authService.ConfigureHttpClientAsync(httpClient, metadata, cancellationToken);
                 }
 

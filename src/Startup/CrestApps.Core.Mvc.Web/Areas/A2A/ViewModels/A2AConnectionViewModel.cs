@@ -63,7 +63,7 @@ public sealed class A2AConnectionViewModel
 
     public static A2AConnectionViewModel FromConnection(A2AConnection connection)
     {
-        var metadata = connection.As<A2AConnectionMetadata>();
+        var metadata = connection.GetOrCreate<A2AConnectionMetadata>();
 
         return new A2AConnectionViewModel
         {

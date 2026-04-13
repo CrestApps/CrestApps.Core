@@ -24,7 +24,7 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
 
     private static Task PopulateAsync(AIProfile profile, JsonNode data)
     {
-        var metadata = profile.As<AIProfileMetadata>();
+        var metadata = profile.GetOrCreate<AIProfileMetadata>();
 
         var settings = profile.GetSettings<AIProfileSettings>();
 

@@ -12,7 +12,7 @@ internal static class SearchIndexProfileEmbeddingMetadataAccessor
     {
         ArgumentNullException.ThrowIfNull(indexProfile);
 
-        var metadata = indexProfile.As<DataSourceIndexProfileMetadata>();
+        var metadata = indexProfile.GetOrCreate<DataSourceIndexProfileMetadata>();
         metadata.EmbeddingDeploymentId ??= indexProfile.EmbeddingDeploymentId;
 
         Merge(metadata, indexProfile.Get<DataSourceIndexProfileMetadata>(ChatInteractionMetadataKey));

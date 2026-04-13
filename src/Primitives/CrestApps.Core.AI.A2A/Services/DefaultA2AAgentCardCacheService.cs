@@ -33,7 +33,7 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         try
         {
             var httpClient = _httpClientFactory.CreateClient();
-            var metadata = connection.As<A2AConnectionMetadata>();
+            var metadata = connection.GetOrCreate<A2AConnectionMetadata>();
             // Resolve the scoped auth service from the current request to avoid
             // capturing a scoped service in this singleton.
             var authService = _httpContextAccessor.HttpContext?.RequestServices.GetService<IA2AConnectionAuthService>();

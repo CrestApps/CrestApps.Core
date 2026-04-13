@@ -166,20 +166,20 @@ public sealed class AIProfileViewModel
 
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
-        var metadata = profile.As<AIProfileMetadata>();
+        var metadata = profile.GetOrCreate<AIProfileMetadata>();
         var settings = profile.GetSettings<AIProfileSettings>();
-        var toolMetadata = profile.As<FunctionInvocationMetadata>();
-        var docMetadata = profile.As<DocumentsMetadata>();
-        var sessionDocMetadata = profile.As<AIProfileSessionDocumentsMetadata>();
+        var toolMetadata = profile.GetOrCreate<FunctionInvocationMetadata>();
+        var docMetadata = profile.GetOrCreate<DocumentsMetadata>();
+        var sessionDocMetadata = profile.GetOrCreate<AIProfileSessionDocumentsMetadata>();
         var dataExtractionSettings = profile.GetSettings<AIProfileDataExtractionSettings>();
-        var analyticsMetadata = profile.As<AnalyticsMetadata>();
+        var analyticsMetadata = profile.GetOrCreate<AnalyticsMetadata>();
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
         var memoryMetadata = profile.GetMemoryMetadata();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
-        var a2aMetadata = profile.As<AIProfileA2AMetadata>();
-        var mcpMetadata = profile.As<AIProfileMcpMetadata>();
-        var promptMetadata = profile.As<PromptTemplateMetadata>();
-        var dataSourceRagMetadata = profile.As<AIDataSourceRagMetadata>();
+        var a2aMetadata = profile.GetOrCreate<AIProfileA2AMetadata>();
+        var mcpMetadata = profile.GetOrCreate<AIProfileMcpMetadata>();
+        var promptMetadata = profile.GetOrCreate<PromptTemplateMetadata>();
+        var dataSourceRagMetadata = profile.GetOrCreate<AIDataSourceRagMetadata>();
 
         var vm = new AIProfileViewModel
         {
@@ -216,8 +216,8 @@ public sealed class AIProfileViewModel
             IsRemovable = settings.IsRemovable,
 
             SelectedToolNames = toolMetadata?.Names ?? [],
-            SelectedAgentNames = profile.As<AgentInvocationMetadata>().Names ?? [],
-            DataSourceId = profile.As<DataSourceMetadata>().DataSourceId,
+            SelectedAgentNames = profile.GetOrCreate<AgentInvocationMetadata>().Names ?? [],
+            DataSourceId = profile.GetOrCreate<DataSourceMetadata>().DataSourceId,
             DataSourceStrictness = dataSourceRagMetadata.Strictness,
             DataSourceTopNDocuments = dataSourceRagMetadata.TopNDocuments,
             DataSourceIsInScope = dataSourceRagMetadata.IsInScope,

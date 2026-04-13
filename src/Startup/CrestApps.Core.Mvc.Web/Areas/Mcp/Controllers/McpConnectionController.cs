@@ -298,7 +298,7 @@ public sealed class McpConnectionController : Controller
     private void ApplySseTransport(McpConnectionViewModel model, McpConnection connection)
     {
         var authenticationType = ResolveAuthenticationType(model.AuthenticationType);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         var protector = _dataProtectionProvider.CreateProtector(McpConstants.DataProtectionPurpose);
         var existingApiKey = metadata.ApiKey;
         var existingBasicPassword = metadata.BasicPassword;
@@ -439,7 +439,7 @@ public sealed class McpConnectionController : Controller
         };
         if (connection.Source == McpConstants.TransportTypes.Sse)
         {
-            var metadata = connection.As<SseMcpConnectionMetadata>();
+            var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
             model.Endpoint = metadata.Endpoint?.ToString();
             model.AuthenticationType = metadata.AuthenticationType;
             model.ApiKeyHeaderName = metadata.ApiKeyHeaderName;
@@ -459,7 +459,7 @@ public sealed class McpConnectionController : Controller
         }
         else
         {
-            var metadata = connection.As<StdioMcpConnectionMetadata>();
+            var metadata = connection.GetOrCreate<StdioMcpConnectionMetadata>();
             model.Command = metadata.Command;
             model.Arguments = metadata.Arguments is { Length: > 0 } ? JsonSerializer.Serialize(metadata.Arguments, _indentedJsonOptions) : "[]";
             model.WorkingDirectory = metadata.WorkingDirectory;

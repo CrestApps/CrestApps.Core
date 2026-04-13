@@ -17,7 +17,7 @@ internal sealed class CopilotOrchestrationContextHandler : IOrchestrationContext
             return Task.CompletedTask;
         }
 
-        var metadata = entity.As<CopilotSessionMetadata>();
+        var metadata = entity.GetOrCreate<CopilotSessionMetadata>();
         if (metadata is not null)
         {
             context.Context.Properties[nameof(CopilotSessionMetadata)] = metadata;

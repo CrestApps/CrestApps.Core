@@ -36,7 +36,7 @@ internal sealed class SseMcpConnectionSettingsHandler : CatalogEntryHandlerBase<
         }
 
         var protector = _dataProtectionProvider.CreateProtector(McpConstants.DataProtectionPurpose);
-        var metadata = connection.As<SseMcpConnectionMetadata>();
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
 
         ProtectField(protector, metadataNode, nameof(SseMcpConnectionMetadata.ApiKey), value => metadata.ApiKey = value);
         ProtectField(protector, metadataNode, nameof(SseMcpConnectionMetadata.BasicPassword), value => metadata.BasicPassword = value);

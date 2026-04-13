@@ -52,7 +52,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         }
         else if (context.Resource is AIProfile profile)
         {
-            var documentsMetadata = profile.As<DocumentsMetadata>();
+            var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
 
             if (documentsMetadata.Documents is { Count: > 0 })
             {
@@ -85,7 +85,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         }
         else if (context.Resource is AIProfile profile)
         {
-            var documentsMetadata = profile.As<DocumentsMetadata>();
+            var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
             knowledgeBaseDocuments = documentsMetadata.Documents;
 
             if (context.OrchestrationContext.CompletionContext?.AdditionalProperties is not null &&
