@@ -21,9 +21,7 @@ public sealed class AnalyticsChatSessionHandler : AIChatSessionHandlerBase
 
     public override async Task MessageCompletedAsync(ChatMessageCompletedContext context)
     {
-        var analyticsMetadata = context.Profile.GetOrCreate<AnalyticsMetadata>();
-
-        if (!analyticsMetadata.EnableSessionMetrics)
+        if (!context.Profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) || !analyticsMetadata.EnableSessionMetrics)
         {
             return;
         }

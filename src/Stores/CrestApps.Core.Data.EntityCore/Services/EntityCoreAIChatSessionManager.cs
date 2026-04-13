@@ -73,8 +73,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
         if (profile.Type == AIProfileType.Chat)
         {
-            var profileMetadata = profile.GetOrCreate<AIProfileMetadata>();
-            if (!string.IsNullOrWhiteSpace(profileMetadata.InitialPrompt))
+            if (profile.TryGet<AIProfileMetadata>(out var profileMetadata) && !string.IsNullOrWhiteSpace(profileMetadata.InitialPrompt))
             {
                 // Stage the initial prompt directly in the change tracker so that SaveAsync
                 // commits both the session and this prompt atomically in a single transaction.

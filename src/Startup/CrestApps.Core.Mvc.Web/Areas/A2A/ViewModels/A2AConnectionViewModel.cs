@@ -63,32 +63,36 @@ public sealed class A2AConnectionViewModel
 
     public static A2AConnectionViewModel FromConnection(A2AConnection connection)
     {
-        var metadata = connection.GetOrCreate<A2AConnectionMetadata>();
-
-        return new A2AConnectionViewModel
+        var vm = new A2AConnectionViewModel
         {
             ItemId = connection.ItemId,
             DisplayText = connection.DisplayText,
             Endpoint = connection.Endpoint,
-            AuthenticationType = metadata.AuthenticationType == A2AClientAuthenticationType.Anonymous && metadata.AdditionalHeaders is { Count: > 0 }
-                ? A2AClientAuthenticationType.CustomHeaders
-                : metadata.AuthenticationType,
-            ApiKeyHeaderName = metadata.ApiKeyHeaderName,
-            ApiKeyPrefix = metadata.ApiKeyPrefix,
-            BasicUsername = metadata.BasicUsername,
-            OAuth2TokenEndpoint = metadata.OAuth2TokenEndpoint,
-            OAuth2ClientId = metadata.OAuth2ClientId,
-            OAuth2Scopes = metadata.OAuth2Scopes,
-            OAuth2KeyId = metadata.OAuth2KeyId,
-            AdditionalHeaders = metadata.AdditionalHeaders is null
-                ? null
-                : JsonSerializer.Serialize(metadata.AdditionalHeaders, _serializerOptions),
-            HasApiKey = !string.IsNullOrEmpty(metadata.ApiKey),
-            HasBasicPassword = !string.IsNullOrEmpty(metadata.BasicPassword),
-            HasOAuth2ClientSecret = !string.IsNullOrEmpty(metadata.OAuth2ClientSecret),
-            HasOAuth2PrivateKey = !string.IsNullOrEmpty(metadata.OAuth2PrivateKey),
-            HasOAuth2ClientCertificate = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificate),
-            HasOAuth2ClientCertificatePassword = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificatePassword),
         };
+
+        if (connection.TryGet<A2AConnectionMetadata>(out var metadata))
+        {
+            vm.AuthenticationType = metadata.AuthenticationType == A2AClientAuthenticationType.Anonymous && metadata.AdditionalHeaders is { Count: > 0 }
+                ? A2AClientAuthenticationType.CustomHeaders
+                : metadata.AuthenticationType;
+            vm.ApiKeyHeaderName = metadata.ApiKeyHeaderName;
+            vm.ApiKeyPrefix = metadata.ApiKeyPrefix;
+            vm.BasicUsername = metadata.BasicUsername;
+            vm.OAuth2TokenEndpoint = metadata.OAuth2TokenEndpoint;
+            vm.OAuth2ClientId = metadata.OAuth2ClientId;
+            vm.OAuth2Scopes = metadata.OAuth2Scopes;
+            vm.OAuth2KeyId = metadata.OAuth2KeyId;
+            vm.AdditionalHeaders = metadata.AdditionalHeaders is null
+                ? null
+                : JsonSerializer.Serialize(metadata.AdditionalHeaders, _serializerOptions);
+            vm.HasApiKey = !string.IsNullOrEmpty(metadata.ApiKey);
+            vm.HasBasicPassword = !string.IsNullOrEmpty(metadata.BasicPassword);
+            vm.HasOAuth2ClientSecret = !string.IsNullOrEmpty(metadata.OAuth2ClientSecret);
+            vm.HasOAuth2PrivateKey = !string.IsNullOrEmpty(metadata.OAuth2PrivateKey);
+            vm.HasOAuth2ClientCertificate = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificate);
+            vm.HasOAuth2ClientCertificatePassword = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificatePassword);
+        }
+
+        return vm;
     }
 }

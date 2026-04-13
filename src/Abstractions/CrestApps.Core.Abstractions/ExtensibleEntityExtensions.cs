@@ -12,7 +12,14 @@ public static class ExtensibleEntityExtensions
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
+        ReferenceHandler = null, // Needed by JsonObjectCreationHandling.Populate.
+        ReadCommentHandling = JsonCommentHandling.Skip,
         PropertyNameCaseInsensitive = true,
+        AllowTrailingCommas = true,
+        WriteIndented = false,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
         Converters =
         {
             new JsonStringEnumConverter(),
@@ -78,7 +85,7 @@ public static class ExtensibleEntityExtensions
     /// Returns <c>true</c> if a non-null value was found and deserialized.
     /// </summary>
     public static bool TryGet<T>(this ExtensibleEntity entity, out T result)
-        where T : class, new()
+        where T : class
     {
         ArgumentNullException.ThrowIfNull(entity);
 

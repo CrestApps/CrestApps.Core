@@ -161,8 +161,9 @@ public sealed class AIProfileDocumentService
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
-        var documentIds = (documentsMetadata?.Documents ?? [])
+        var documentIds = (profile.TryGet<DocumentsMetadata>(out var documentsMetadata)
+                ? documentsMetadata.Documents ?? []
+                : [])
             .Select(document => document.DocumentId)
             .Where(documentId => !string.IsNullOrWhiteSpace(documentId))
             .Distinct(StringComparer.OrdinalIgnoreCase)

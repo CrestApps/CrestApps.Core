@@ -318,8 +318,7 @@ public sealed class AIProfileController : Controller
 
     private static void ApplyTemplateToProfile(AIProfile profile, AIProfileTemplate template)
     {
-        var metadata = template.GetOrCreate<ProfileTemplateMetadata>();
-        if (metadata == null)
+        if (!template.TryGet<ProfileTemplateMetadata>(out var metadata))
         {
             return;
         }

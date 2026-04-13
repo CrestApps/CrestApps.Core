@@ -166,20 +166,11 @@ public sealed class AIProfileViewModel
 
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
-        var metadata = profile.GetOrCreate<AIProfileMetadata>();
         var settings = profile.GetSettings<AIProfileSettings>();
-        var toolMetadata = profile.GetOrCreate<FunctionInvocationMetadata>();
-        var docMetadata = profile.GetOrCreate<DocumentsMetadata>();
-        var sessionDocMetadata = profile.GetOrCreate<AIProfileSessionDocumentsMetadata>();
         var dataExtractionSettings = profile.GetSettings<AIProfileDataExtractionSettings>();
-        var analyticsMetadata = profile.GetOrCreate<AnalyticsMetadata>();
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
         var memoryMetadata = profile.GetMemoryMetadata();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
-        var a2aMetadata = profile.GetOrCreate<AIProfileA2AMetadata>();
-        var mcpMetadata = profile.GetOrCreate<AIProfileMcpMetadata>();
-        var promptMetadata = profile.GetOrCreate<PromptTemplateMetadata>();
-        var dataSourceRagMetadata = profile.GetOrCreate<AIDataSourceRagMetadata>();
 
         var vm = new AIProfileViewModel
         {
@@ -197,54 +188,12 @@ public sealed class AIProfileViewModel
             Description = profile.Description,
             TitleType = profile.TitleType,
 
-            AddInitialPrompt = !string.IsNullOrEmpty(metadata.InitialPrompt),
-            InitialPrompt = metadata.InitialPrompt,
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
             VoiceName = chatModeSettings?.VoiceName,
-
-            SystemMessage = metadata.SystemMessage,
-            Temperature = metadata.Temperature,
-            TopP = metadata.TopP,
-            FrequencyPenalty = metadata.FrequencyPenalty,
-            PresencePenalty = metadata.PresencePenalty,
-            MaxTokens = metadata.MaxTokens,
-            PastMessagesCount = metadata.PastMessagesCount,
-            UseCaching = metadata.UseCaching,
 
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
             IsRemovable = settings.IsRemovable,
-
-            SelectedToolNames = toolMetadata?.Names ?? [],
-            SelectedAgentNames = profile.GetOrCreate<AgentInvocationMetadata>().Names ?? [],
-            DataSourceId = profile.GetOrCreate<DataSourceMetadata>().DataSourceId,
-            DataSourceStrictness = dataSourceRagMetadata.Strictness,
-            DataSourceTopNDocuments = dataSourceRagMetadata.TopNDocuments,
-            DataSourceIsInScope = dataSourceRagMetadata.IsInScope,
-            DataSourceFilter = dataSourceRagMetadata.Filter,
-            SelectedA2AConnectionIds = a2aMetadata?.ConnectionIds ?? [],
-            SelectedMcpConnectionIds = mcpMetadata?.ConnectionIds ?? [],
-
-            PromptTemplates = (promptMetadata.Templates ?? [])
-                .Where(t => !string.IsNullOrWhiteSpace(t.TemplateId))
-                .Select(t => new PromptTemplateSelectionItem
-                {
-                    TemplateId = t.TemplateId,
-                    PromptParameters = t.Parameters is { Count: > 0 }
-                ? System.Text.Json.JsonSerializer.Serialize(t.Parameters)
-                : null,
-                })
-            .ToList(),
-
-            DocumentTopN = docMetadata?.DocumentTopN,
-            AllowSessionDocuments = sessionDocMetadata?.AllowSessionDocuments ?? false,
-            AttachedDocuments = (docMetadata?.Documents ?? []).Select(d => new DocumentItem
-            {
-                DocumentId = d.DocumentId,
-                FileName = d.FileName,
-                ContentType = d.ContentType,
-                FileSize = d.FileSize,
-            }).ToList(),
 
             EnableDataExtraction = dataExtractionSettings.EnableDataExtraction,
             ExtractionCheckInterval = dataExtractionSettings.ExtractionCheckInterval,
@@ -256,19 +205,6 @@ public sealed class AIProfileViewModel
                     Description = e.Description,
                     AllowMultipleValues = e.AllowMultipleValues,
                     IsUpdatable = e.IsUpdatable,
-                })
-            .ToList(),
-
-            EnableSessionMetrics = analyticsMetadata.EnableSessionMetrics,
-            EnableAIResolutionDetection = analyticsMetadata.EnableAIResolutionDetection,
-            EnableConversionMetrics = analyticsMetadata.EnableConversionMetrics,
-            ConversionGoals = analyticsMetadata.ConversionGoals
-                .Select(g => new ConversionGoalItem
-                {
-                    Name = g.Name,
-                    Description = g.Description,
-                    MinScore = g.MinScore,
-                    MaxScore = g.MaxScore,
                 })
             .ToList(),
 
@@ -288,6 +224,100 @@ public sealed class AIProfileViewModel
 
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
+
+        if (profile.TryGet<AIProfileMetadata>(out var metadata))
+        {
+            vm.AddInitialPrompt = !string.IsNullOrEmpty(metadata.InitialPrompt);
+            vm.InitialPrompt = metadata.InitialPrompt;
+            vm.SystemMessage = metadata.SystemMessage;
+            vm.Temperature = metadata.Temperature;
+            vm.TopP = metadata.TopP;
+            vm.FrequencyPenalty = metadata.FrequencyPenalty;
+            vm.PresencePenalty = metadata.PresencePenalty;
+            vm.MaxTokens = metadata.MaxTokens;
+            vm.PastMessagesCount = metadata.PastMessagesCount;
+            vm.UseCaching = metadata.UseCaching;
+        }
+
+        if (profile.TryGet<FunctionInvocationMetadata>(out var toolMetadata))
+        {
+            vm.SelectedToolNames = toolMetadata.Names ?? [];
+        }
+
+        if (profile.TryGet<AgentInvocationMetadata>(out var agentMetadata))
+        {
+            vm.SelectedAgentNames = agentMetadata.Names ?? [];
+        }
+
+        if (profile.TryGet<DataSourceMetadata>(out var dataSourceMetadata))
+        {
+            vm.DataSourceId = dataSourceMetadata.DataSourceId;
+        }
+
+        if (profile.TryGet<AIDataSourceRagMetadata>(out var dataSourceRagMetadata))
+        {
+            vm.DataSourceStrictness = dataSourceRagMetadata.Strictness;
+            vm.DataSourceTopNDocuments = dataSourceRagMetadata.TopNDocuments;
+            vm.DataSourceIsInScope = dataSourceRagMetadata.IsInScope;
+            vm.DataSourceFilter = dataSourceRagMetadata.Filter;
+        }
+
+        if (profile.TryGet<AIProfileA2AMetadata>(out var a2aMetadata))
+        {
+            vm.SelectedA2AConnectionIds = a2aMetadata.ConnectionIds ?? [];
+        }
+
+        if (profile.TryGet<AIProfileMcpMetadata>(out var mcpMetadata))
+        {
+            vm.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
+        }
+
+        if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
+        {
+            vm.PromptTemplates = (promptMetadata.Templates ?? [])
+                .Where(t => !string.IsNullOrWhiteSpace(t.TemplateId))
+                .Select(t => new PromptTemplateSelectionItem
+                {
+                    TemplateId = t.TemplateId,
+                    PromptParameters = t.Parameters is { Count: > 0 }
+                ? System.Text.Json.JsonSerializer.Serialize(t.Parameters)
+                : null,
+                })
+            .ToList();
+        }
+
+        if (profile.TryGet<DocumentsMetadata>(out var docMetadata))
+        {
+            vm.DocumentTopN = docMetadata.DocumentTopN;
+            vm.AttachedDocuments = (docMetadata.Documents ?? []).Select(d => new DocumentItem
+            {
+                DocumentId = d.DocumentId,
+                FileName = d.FileName,
+                ContentType = d.ContentType,
+                FileSize = d.FileSize,
+            }).ToList();
+        }
+
+        if (profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata))
+        {
+            vm.AllowSessionDocuments = sessionDocMetadata.AllowSessionDocuments;
+        }
+
+        if (profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata))
+        {
+            vm.EnableSessionMetrics = analyticsMetadata.EnableSessionMetrics;
+            vm.EnableAIResolutionDetection = analyticsMetadata.EnableAIResolutionDetection;
+            vm.EnableConversionMetrics = analyticsMetadata.EnableConversionMetrics;
+            vm.ConversionGoals = analyticsMetadata.ConversionGoals
+                .Select(g => new ConversionGoalItem
+                {
+                    Name = g.Name,
+                    Description = g.Description,
+                    MinScore = g.MinScore,
+                    MaxScore = g.MaxScore,
+                })
+            .ToList();
+        }
 
         // Load Copilot metadata if present
         if (profile.TryGet<CopilotSessionMetadata>(out var copilotMeta))

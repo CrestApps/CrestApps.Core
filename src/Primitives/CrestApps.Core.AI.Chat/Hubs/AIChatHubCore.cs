@@ -277,14 +277,17 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
     protected static string BuildTitleUserPrompt(AIProfile profile, string userPrompt)
     {
         var trimmedUserPrompt = userPrompt?.Trim();
-        var profileMetadata = profile.GetOrCreate<AIProfileMetadata>();
-        var initialPrompt = profileMetadata.InitialPrompt?.Trim();
-        if (string.IsNullOrWhiteSpace(initialPrompt))
+
+        if (profile.TryGet<AIProfileMetadata>(out var profileMetadata))
         {
-            return trimmedUserPrompt;
+            var initialPrompt = profileMetadata.InitialPrompt?.Trim();
+            if (!string.IsNullOrWhiteSpace(initialPrompt))
+            {
+                return string.IsNullOrWhiteSpace(trimmedUserPrompt) ? initialPrompt : $"{initialPrompt}\n\n{trimmedUserPrompt}";
+            }
         }
 
-        return string.IsNullOrWhiteSpace(trimmedUserPrompt) ? initialPrompt : $"{initialPrompt}\n\n{trimmedUserPrompt}";
+        return trimmedUserPrompt;
     }
 
     // ────────────── Session group management ──────────────
@@ -1106,7 +1109,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 Type = profile.Type.ToString(),
             },
             chatSession.Documents,
-            Messages = prompts.Select(message => new AIChatResponseMessageDetailed { Id = message.ItemId, Role = message.Role.Value, IsGeneratedPrompt = message.IsGeneratedPrompt, Title = message.Title, Content = message.Content, UserRating = message.UserRating, References = message.References, Appearance = message.GetOrCreate<AssistantMessageAppearance>(), })
+            Messages = prompts.Select(message => new AIChatResponseMessageDetailed { Id = message.ItemId, Role = message.Role.Value, IsGeneratedPrompt = message.IsGeneratedPrompt, Title = message.Title, Content = message.Content, UserRating = message.UserRating, References = message.References, Appearance = message.TryGet<AssistantMessageAppearance>(out var appearance) ? appearance : null, })
         };
     }
 

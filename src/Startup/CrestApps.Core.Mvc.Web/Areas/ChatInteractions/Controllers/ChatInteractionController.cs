@@ -194,9 +194,9 @@ public sealed class ChatInteractionController : Controller
         var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
         var deploymentDefaults = _siteSettings.Get<DefaultAIDeploymentSettings>();
 
-        var dataSourceMetadata = interaction.GetOrCreate<DataSourceMetadata>();
+        interaction.TryGet<DataSourceMetadata>(out var dataSourceMetadata);
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
-        var promptMetadata = interaction.GetOrCreate<PromptTemplateMetadata>();
+        interaction.TryGet<PromptTemplateMetadata>(out var promptMetadata);
 
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
@@ -223,7 +223,7 @@ public sealed class ChatInteractionController : Controller
             MaxTokens = interaction.MaxTokens,
             PastMessagesCount = interaction.PastMessagesCount,
             Documents = interaction.Documents ?? [],
-            DataSourceId = string.IsNullOrWhiteSpace(dataSourceMetadata.DataSourceId) ? null : dataSourceMetadata.DataSourceId,
+            DataSourceId = dataSourceMetadata is not null && !string.IsNullOrWhiteSpace(dataSourceMetadata.DataSourceId) ? dataSourceMetadata.DataSourceId : null,
             DataSourceStrictness = ragMetadata?.Strictness,
             DataSourceTopNDocuments = ragMetadata?.TopNDocuments,
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
@@ -232,7 +232,7 @@ public sealed class ChatInteractionController : Controller
             SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
             SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],
             SelectedAgentNames = interaction.AgentNames?.ToArray() ?? [],
-            PromptTemplates = (promptMetadata.Templates ?? [])
+            PromptTemplates = (promptMetadata?.Templates ?? [])
                 .Where(template => !string.IsNullOrWhiteSpace(template.TemplateId))
                 .Select(template => new PromptTemplateSelectionItem
                 {

@@ -15,9 +15,10 @@ public static class MemoryMetadataExtensions
     public static MemoryMetadata GetMemoryMetadata(this AIProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        if (profile.Has<MemoryMetadata>())
+
+        if (profile.TryGet<MemoryMetadata>(out var memoryMetadata))
         {
-            return profile.GetOrCreate<MemoryMetadata>();
+            return memoryMetadata;
         }
 
         if (TryDeserialize(profile.Settings?[LegacyAIProfileSettingsKey], out MemoryMetadata metadata) || TryDeserialize(profile.Settings?[LegacyMvcMemorySettingsKey], out metadata))
@@ -41,9 +42,10 @@ public static class MemoryMetadataExtensions
     public static MemoryMetadata GetMemoryMetadata(this AIProfileTemplate template)
     {
         ArgumentNullException.ThrowIfNull(template);
-        if (template.Has<MemoryMetadata>())
+
+        if (template.TryGet<MemoryMetadata>(out var memoryMetadata))
         {
-            return template.GetOrCreate<MemoryMetadata>();
+            return memoryMetadata;
         }
 
         if (TryDeserialize(GetPropertyValue(template.Properties, LegacyAIProfileSettingsKey), out MemoryMetadata metadata) || TryDeserialize(GetPropertyValue(template.Properties, LegacyMvcMemorySettingsKey), out metadata))

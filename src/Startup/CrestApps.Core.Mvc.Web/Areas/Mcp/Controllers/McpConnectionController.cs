@@ -439,31 +439,35 @@ public sealed class McpConnectionController : Controller
         };
         if (connection.Source == McpConstants.TransportTypes.Sse)
         {
-            var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
-            model.Endpoint = metadata.Endpoint?.ToString();
-            model.AuthenticationType = metadata.AuthenticationType;
-            model.ApiKeyHeaderName = metadata.ApiKeyHeaderName;
-            model.ApiKeyPrefix = metadata.ApiKeyPrefix;
-            model.HasApiKey = !string.IsNullOrEmpty(metadata.ApiKey);
-            model.BasicUsername = metadata.BasicUsername;
-            model.HasBasicPassword = !string.IsNullOrEmpty(metadata.BasicPassword);
-            model.OAuth2TokenEndpoint = metadata.OAuth2TokenEndpoint;
-            model.OAuth2ClientId = metadata.OAuth2ClientId;
-            model.OAuth2Scopes = metadata.OAuth2Scopes;
-            model.HasOAuth2ClientSecret = !string.IsNullOrEmpty(metadata.OAuth2ClientSecret);
-            model.OAuth2KeyId = metadata.OAuth2KeyId;
-            model.HasOAuth2PrivateKey = !string.IsNullOrEmpty(metadata.OAuth2PrivateKey);
-            model.HasOAuth2ClientCertificate = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificate);
-            model.HasOAuth2ClientCertificatePassword = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificatePassword);
-            model.AdditionalHeaders = metadata.AdditionalHeaders is not null ? JsonSerializer.Serialize(metadata.AdditionalHeaders, _indentedJsonOptions) : "{}";
+            if (connection.TryGet<SseMcpConnectionMetadata>(out var sseMetadata))
+            {
+                model.Endpoint = sseMetadata.Endpoint?.ToString();
+                model.AuthenticationType = sseMetadata.AuthenticationType;
+                model.ApiKeyHeaderName = sseMetadata.ApiKeyHeaderName;
+                model.ApiKeyPrefix = sseMetadata.ApiKeyPrefix;
+                model.HasApiKey = !string.IsNullOrEmpty(sseMetadata.ApiKey);
+                model.BasicUsername = sseMetadata.BasicUsername;
+                model.HasBasicPassword = !string.IsNullOrEmpty(sseMetadata.BasicPassword);
+                model.OAuth2TokenEndpoint = sseMetadata.OAuth2TokenEndpoint;
+                model.OAuth2ClientId = sseMetadata.OAuth2ClientId;
+                model.OAuth2Scopes = sseMetadata.OAuth2Scopes;
+                model.HasOAuth2ClientSecret = !string.IsNullOrEmpty(sseMetadata.OAuth2ClientSecret);
+                model.OAuth2KeyId = sseMetadata.OAuth2KeyId;
+                model.HasOAuth2PrivateKey = !string.IsNullOrEmpty(sseMetadata.OAuth2PrivateKey);
+                model.HasOAuth2ClientCertificate = !string.IsNullOrEmpty(sseMetadata.OAuth2ClientCertificate);
+                model.HasOAuth2ClientCertificatePassword = !string.IsNullOrEmpty(sseMetadata.OAuth2ClientCertificatePassword);
+                model.AdditionalHeaders = sseMetadata.AdditionalHeaders is not null ? JsonSerializer.Serialize(sseMetadata.AdditionalHeaders, _indentedJsonOptions) : "{}";
+            }
         }
         else
         {
-            var metadata = connection.GetOrCreate<StdioMcpConnectionMetadata>();
-            model.Command = metadata.Command;
-            model.Arguments = metadata.Arguments is { Length: > 0 } ? JsonSerializer.Serialize(metadata.Arguments, _indentedJsonOptions) : "[]";
-            model.WorkingDirectory = metadata.WorkingDirectory;
-            model.EnvironmentVariables = metadata.EnvironmentVariables is { Count: > 0 } ? JsonSerializer.Serialize(metadata.EnvironmentVariables, _indentedJsonOptions) : "{}";
+            if (connection.TryGet<StdioMcpConnectionMetadata>(out var stdioMetadata))
+            {
+                model.Command = stdioMetadata.Command;
+                model.Arguments = stdioMetadata.Arguments is { Length: > 0 } ? JsonSerializer.Serialize(stdioMetadata.Arguments, _indentedJsonOptions) : "[]";
+                model.WorkingDirectory = stdioMetadata.WorkingDirectory;
+                model.EnvironmentVariables = stdioMetadata.EnvironmentVariables is { Count: > 0 } ? JsonSerializer.Serialize(stdioMetadata.EnvironmentVariables, _indentedJsonOptions) : "{}";
+            }
         }
 
         return model;

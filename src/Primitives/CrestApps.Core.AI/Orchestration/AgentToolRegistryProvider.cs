@@ -44,8 +44,8 @@ internal sealed class AgentToolRegistryProvider : IToolRegistryProvider
                 continue;
             }
 
-            var agentMetadata = agent.GetOrCreate<AgentMetadata>();
-            var isAlwaysAvailable = agentMetadata?.Availability == AgentAvailability.AlwaysAvailable;
+            var isAlwaysAvailable = agent.TryGet<AgentMetadata>(out var agentMetadata)
+                && agentMetadata.Availability == AgentAvailability.AlwaysAvailable;
 
             // Always-available agents are automatically included in every request.
             // On-demand agents are only included if explicitly selected via AgentNames.

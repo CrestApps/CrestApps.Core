@@ -162,7 +162,9 @@ public sealed class AIProfileTemplateDocumentService
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(profile);
 
-        var templateDocuments = template.GetOrCreate<DocumentsMetadata>()?.Documents;
+        var templateDocuments = template.TryGet<DocumentsMetadata>(out var templateDocMetadata)
+            ? templateDocMetadata.Documents
+            : null;
 
         if (templateDocuments == null || templateDocuments.Count == 0)
         {
@@ -279,9 +281,9 @@ public sealed class AIProfileTemplateDocumentService
 
     private async Task<AIDeployment> ResolveTemplateDeploymentAsync(AIProfileTemplate template)
     {
-        var metadata = template.GetOrCreate<ProfileTemplateMetadata>();
+        template.TryGet<ProfileTemplateMetadata>(out var metadata);
 
-        if (!string.IsNullOrWhiteSpace(metadata?.ChatDeploymentName))
+        if (metadata is not null && !string.IsNullOrWhiteSpace(metadata.ChatDeploymentName))
         {
             var chatDeployment = await _deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Chat,
