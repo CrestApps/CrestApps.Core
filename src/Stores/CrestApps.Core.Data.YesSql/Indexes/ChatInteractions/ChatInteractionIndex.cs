@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
@@ -14,9 +15,9 @@ public sealed class ChatInteractionIndex : CatalogItemIndex
 
 public sealed class ChatInteractionIndexProvider : IndexProvider<ChatInteraction>
 {
-    internal ChatInteractionIndexProvider(string collectionName = null)
+    public ChatInteractionIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AICollectionName;
     }
 
     public override void Describe(DescribeContext<ChatInteraction> context)

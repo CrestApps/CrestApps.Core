@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.DataSources;
@@ -12,9 +13,9 @@ public sealed class AIDataSourceIndex : CatalogItemIndex
 
 public sealed class AIDataSourceIndexProvider : IndexProvider<AIDataSource>
 {
-    internal AIDataSourceIndexProvider(string collectionName = null)
+    public AIDataSourceIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AIDocsCollectionName;
     }
 
     public override void Describe(DescribeContext<AIDataSource> context)

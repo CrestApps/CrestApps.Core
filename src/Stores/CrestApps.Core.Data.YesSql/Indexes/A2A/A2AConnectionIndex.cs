@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.A2A.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.A2A;
@@ -10,9 +11,9 @@ public sealed class A2AConnectionIndex : CatalogItemIndex
 
 public sealed class A2AConnectionIndexProvider : IndexProvider<A2AConnection>
 {
-    internal A2AConnectionIndexProvider(string collectionName = null)
+    public A2AConnectionIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AICollectionName;
     }
 
     public override void Describe(DescribeContext<A2AConnection> context)

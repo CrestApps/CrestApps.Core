@@ -4,8 +4,10 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
 
 public static class AICompletionUsageIndexSchemaBuilderExtensions
 {
-    public static Task CreateAICompletionUsageIndexSchemaAsync(this ISchemaBuilder schemaBuilder, string collection = null)
+    public static Task CreateAICompletionUsageIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options = null)
     {
+        options ??= new YesSqlStoreOptions();
+
         return schemaBuilder.CreateMapIndexTableAsync<AICompletionUsageIndex>(table => table
             .Column<string>(nameof(AICompletionUsageIndex.ContextType), column => column.WithLength(64))
             .Column<string>(nameof(AICompletionUsageIndex.SessionId), column => column.WithLength(26))
@@ -28,6 +30,6 @@ public static class AICompletionUsageIndexSchemaBuilderExtensions
             .Column<int>(nameof(AICompletionUsageIndex.TotalTokenCount))
             .Column<double>(nameof(AICompletionUsageIndex.ResponseLatencyMs))
             .Column<DateTime>(nameof(AICompletionUsageIndex.CreatedUtc)),
-            collection: collection);
+            collection: options.AICollectionName);
     }
 }

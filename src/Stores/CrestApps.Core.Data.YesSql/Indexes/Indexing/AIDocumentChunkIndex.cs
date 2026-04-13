@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.Indexing;
@@ -16,9 +17,9 @@ public sealed class AIDocumentChunkIndex : CatalogItemIndex
 
 public sealed class AIDocumentChunkIndexProvider : IndexProvider<AIDocumentChunk>
 {
-    internal AIDocumentChunkIndexProvider(string collectionName = null)
+    public AIDocumentChunkIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AIDocsCollectionName;
     }
 
     public override void Describe(DescribeContext<AIDocumentChunk> context)

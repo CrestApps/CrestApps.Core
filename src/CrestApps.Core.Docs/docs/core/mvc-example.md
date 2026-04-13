@@ -98,29 +98,37 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddChatInteractions(chat => chat.ConfigureChatHubOptions<ChatInteractionHub>())
         .AddDocumentProcessing(documentProcessing => documentProcessing
             .AddOpenXml()
-            .AddPdf())
+            .AddPdf()
+        )
         .AddAIMemory()
         .AddA2AClient()
         .AddMcpClient()
         .AddMcpServer(mcpServer => mcpServer
             .AddFtpResources()
-            .AddSftpResources())
+            .AddSftpResources()
+        )
         .AddSignalR(addStoreCommitterFilter: true)
         .AddA2AHost()
         .AddOpenAI()
         .AddAzureOpenAI()
         .AddOllama()
-        .AddAzureAIInference())
+        .AddAzureAIInference()
+    )
     .AddIndexingServices(indexing => indexing
+        .AddYesSqlStores()
         .AddElasticsearch(configuration.GetSection("CrestApps:Elasticsearch"), elasticsearch => elasticsearch
             .AddAIDocuments()
             .AddAIDataSources()
-            .AddAIMemory())
+            .AddAIMemory()
+        )
         .AddAzureAISearch(configuration.GetSection("CrestApps:AzureAISearch"), azureAISearch => azureAISearch
             .AddAIDocuments()
             .AddAIDataSources()
-            .AddAIMemory()))
-    .AddYesSqlDataStore(appDataPath));
+            .AddAIMemory()
+        )
+    )
+    .AddYesSqlDataStore(appDataPath)
+);
 ```
 
 `AddAISuite(...)` always wires the shared foundation, AI runtime, and orchestration together. `AddChatInteractions()` inside that suite then registers the shared `DataSourceChatInteractionSettingsHandler`, so Chat Interactions persist the selected data source and RAG metadata through the framework settings pipeline instead of MVC-only wiring. The provider service blocks also pull in the shared data-source RAG registrations, which register both `DataSourceOrchestrationHandler` and `DataSourcePreemptiveRagHandler` at the framework level so source availability instructions and preemptive RAG stay aligned with the saved chat settings.
@@ -139,7 +147,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddOpenAI()
         .AddAzureOpenAI()
         .AddOllama()
-        .AddAzureAIInference()));
+        .AddAzureAIInference()
+    )
+);
 ```
 
 The MVC sample still binds static provider metadata from `CrestApps:AI:Providers`, but mutable AI connections and deployments now come from first-class merged catalogs instead of rebuilding `AIProviderOptions` after admin edits.
@@ -358,9 +368,12 @@ The middleware pipeline includes:
 
 ## Running the Example
 
+**Visual Studio:** Set `CrestApps.Core.Mvc.Web` as the startup project and press **F5** (or **Ctrl+F5** to run without debugging).
+
+**Command line:**
+
 ```bash
-cd src/Startup/CrestApps.Core.Mvc.Web
-dotnet run
+dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web.csproj
 ```
 
 The application starts on `https://localhost:5001`. Configure AI provider connections in `App_Data/appsettings.json` before using AI features.

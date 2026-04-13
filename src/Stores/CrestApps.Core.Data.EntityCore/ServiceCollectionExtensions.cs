@@ -56,6 +56,7 @@ public static class ServiceCollectionExtensions
         services.AddCoreAIDataSourceStoresEntityCore();
         services.AddCoreAIMemoryStoresEntityCore();
         services.AddCoreAIChatInteractionStoresEntityCore();
+        services.AddCoreIndexingStoresEntityCore();
 
         return services;
     }
@@ -114,8 +115,7 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers EntityCore-backed stores for the document processing feature.
-    /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
-    /// and <see cref="ISearchIndexProfileStore"/>.
+    /// This includes <see cref="IAIDocumentStore"/> and <see cref="IAIDocumentChunkStore"/>.
     /// </summary>
     public static IServiceCollection AddCoreAIDocumentProcessingStoresEntityCore(this IServiceCollection services)
     {
@@ -123,6 +123,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<AIDocument>>(sp => sp.GetRequiredService<IAIDocumentStore>());
         services.AddScoped<IAIDocumentChunkStore, EntityCoreAIDocumentChunkStore>();
         services.AddScoped<ICatalog<AIDocumentChunk>>(sp => sp.GetRequiredService<IAIDocumentChunkStore>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the indexing services feature.
+    /// This includes <see cref="ISearchIndexProfileStore"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreIndexingStoresEntityCore(this IServiceCollection services)
+    {
         services.AddScoped<ISearchIndexProfileStore, EntityCoreSearchIndexProfileStore>();
         services.AddScoped<ICatalog<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileStore>());
 
@@ -261,7 +271,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers EntityCore-backed stores for the document processing feature on the document processing builder.
     /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
-    /// <see cref="ISearchIndexProfileStore"/>, and <see cref="IAIDataSourceStore"/>.
+    /// and <see cref="IAIDataSourceStore"/>.
     /// </summary>
     public static CrestAppsDocumentProcessingBuilder AddEntityCoreStores(this CrestAppsDocumentProcessingBuilder builder)
     {
@@ -278,6 +288,17 @@ public static class ServiceCollectionExtensions
     public static CrestAppsAIMemoryBuilder AddEntityCoreStores(this CrestAppsAIMemoryBuilder builder)
     {
         builder.Services.AddCoreAIMemoryStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the indexing services feature on the indexing builder.
+    /// This includes <see cref="ISearchIndexProfileStore"/>.
+    /// </summary>
+    public static CrestAppsIndexingBuilder AddEntityCoreStores(this CrestAppsIndexingBuilder builder)
+    {
+        builder.Services.AddCoreIndexingStoresEntityCore();
 
         return builder;
     }

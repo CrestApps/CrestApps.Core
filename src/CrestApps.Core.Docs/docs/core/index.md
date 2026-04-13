@@ -38,7 +38,9 @@ description: The package layout and feature map for the standalone CrestApps.Cor
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddOpenAI()
-        .AddChatInteractions()));
+        .AddChatInteractions()
+    )
+);
 ```
 
 That is enough to start resolving `IAICompletionService`, `IAIClientFactory`, or `IOrchestrator` from DI and composing your own AI experience.

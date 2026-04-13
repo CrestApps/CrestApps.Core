@@ -19,8 +19,10 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddDocumentProcessing(documentProcessing => documentProcessing
             .AddEntityCoreStores()
             .AddOpenXml()
-            .AddPdf())
-        .AddOpenAI())
+            .AddPdf()
+        )
+        .AddOpenAI()
+    )
     .AddEntityCoreSqliteDataStore("Data Source=app.db")
 );
 ```
@@ -153,7 +155,8 @@ Document metadata and chunks require store implementations. Register stores dire
 .AddDocumentProcessing(documentProcessing => documentProcessing
     .AddEntityCoreStores()
     .AddOpenXml()
-    .AddPdf())
+    .AddPdf()
+)
 ```
 
 **YesSql (via builder):**
@@ -162,9 +165,10 @@ Document metadata and chunks require store implementations. Register stores dire
 .AddDocumentProcessing(documentProcessing => documentProcessing
     .AddYesSqlStores()
     .AddOpenXml()
-    .AddPdf())
+    .AddPdf()
+)
 ```
 
-Both register `IAIDocumentStore`, `IAIDocumentChunkStore`, `ISearchIndexProfileStore`, and `IAIDataSourceStore`. See [Data Storage](data-storage.md) for the full per-feature store reference.
+Both register `IAIDocumentStore`, `IAIDocumentChunkStore`, and `IAIDataSourceStore`. The `ISearchIndexProfileStore` is registered separately through the indexing services builder — see [Data Storage](data-storage.md) for the full per-feature store reference.
 
 

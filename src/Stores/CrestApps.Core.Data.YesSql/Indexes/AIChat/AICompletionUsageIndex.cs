@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
@@ -50,9 +51,9 @@ public sealed class AICompletionUsageIndex : MapIndex
 
 public sealed class AICompletionUsageIndexProvider : IndexProvider<AICompletionUsageRecord>
 {
-    internal AICompletionUsageIndexProvider(string collectionName = null)
+    public AICompletionUsageIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AICollectionName;
     }
 
     public override void Describe(DescribeContext<AICompletionUsageRecord> context)

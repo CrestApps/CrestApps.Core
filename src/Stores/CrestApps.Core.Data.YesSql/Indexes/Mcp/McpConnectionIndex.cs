@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Mcp.Models;
+using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.Mcp;
@@ -12,9 +13,9 @@ public sealed class McpConnectionIndex : CatalogItemIndex, ISourceAwareIndex
 
 public sealed class McpConnectionIndexProvider : IndexProvider<McpConnection>
 {
-    internal McpConnectionIndexProvider(string collectionName = null)
+    public McpConnectionIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = collectionName;
+        CollectionName = options.Value.AICollectionName;
     }
 
     public override void Describe(DescribeContext<McpConnection> context)

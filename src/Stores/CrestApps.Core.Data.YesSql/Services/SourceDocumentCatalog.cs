@@ -9,15 +9,9 @@ public class SourceDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, ISou
     where T : CatalogItem, ISourceAwareModel
     where TIndex : CatalogItemIndex, ISourceAwareIndex
 {
-    public SourceDocumentCatalog(ISession session)
-        : base(session)
+    public SourceDocumentCatalog(ISession session, string collectionName = null)
+        : base(session, collectionName)
     {
-    }
-
-    internal SourceDocumentCatalog(ISession session, string collectionName)
-        : base(session)
-    {
-        CollectionName = collectionName;
     }
 
     public async ValueTask<IReadOnlyCollection<T>> GetAsync(string source)

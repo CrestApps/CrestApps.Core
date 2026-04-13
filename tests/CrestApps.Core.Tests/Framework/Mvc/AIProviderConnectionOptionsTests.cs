@@ -4,7 +4,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
-using CrestApps.Core.Models;
 using CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Services;

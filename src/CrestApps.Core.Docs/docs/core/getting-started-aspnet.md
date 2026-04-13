@@ -42,7 +42,9 @@ In `Program.cs`, compose the framework through the `AddCrestAppsCore(...)` build
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddOpenAI()
-        .AddChatInteractions()));
+        .AddChatInteractions()
+    )
+);
 ```
 
 `AddAISuite(...)` adds the shared CrestApps core services, the AI runtime, and orchestration together. If you prefer the lower-level registrations, the same features are still available as raw `IServiceCollection` extensions such as `AddCoreAIServices()` and `AddCoreAIOrchestration()`.
@@ -185,6 +187,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddEntityCoreStores()
         )
     )
+    .AddIndexingServices(indexing => indexing
+        .AddEntityCoreStores()
+    )
     .AddEntityCoreSqliteDataStore(
         $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
 );
@@ -201,7 +206,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddYesSqlStores()                    // ChatInteraction, IChatInteractionPromptStore
         )
         .AddDocumentProcessing(dp => dp
-            .AddYesSqlStores()                    // IAIDocumentStore, IAIDocumentChunkStore, ISearchIndexProfileStore, IAIDataSourceStore
+            .AddYesSqlStores()                    // IAIDocumentStore, IAIDocumentChunkStore, IAIDataSourceStore
             .AddOpenXml()
             .AddPdf()
         )
@@ -215,9 +220,13 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddYesSqlStores()                    // McpConnection, McpPrompt, McpResource
         )
     )
+    .AddIndexingServices(indexing => indexing
+        .AddYesSqlStores()                        // ISearchIndexProfileStore
+    )
     .AddYesSqlDataStore(configuration => configuration
         .UseSqLite("Data Source=app.db;Cache=Shared")
-        .SetTablePrefix("CA_"))
+        .SetTablePrefix("CA_")
+    )
 );
 ```
 

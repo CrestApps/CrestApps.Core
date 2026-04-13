@@ -10,18 +10,13 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
     where T : CatalogItem
     where TIndex : CatalogItemIndex
 {
-    protected string CollectionName { get; set; }
+    protected string CollectionName { get; }
 
     protected readonly ISession Session;
 
-    public DocumentCatalog(ISession session)
+    public DocumentCatalog(ISession session, string collectionName = null)
     {
         Session = session;
-    }
-
-    internal DocumentCatalog(ISession session, string collectionName)
-        : this(session)
-    {
         CollectionName = collectionName;
     }
 

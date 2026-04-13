@@ -57,6 +57,16 @@ internal static class YesSqlServiceCollectionExtensions
             Pooling = true,
         };
 
+        services.Configure<YesSqlStoreOptions>(options =>
+        {
+            // The MVC sample host keeps all documents in a single SQLite database
+            // with no collection separation. Override the defaults so that all stores
+            // and index providers use the root (null) collection.
+            options.AICollectionName = null;
+            options.AIMemoryCollectionName = null;
+            options.AIDocsCollectionName = null;
+        });
+
         Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration
             .UseSqLite(connectionStringBuilder.ToString())
             .SetTablePrefix("CA_")
@@ -114,6 +124,7 @@ internal static class YesSqlServiceCollectionExtensions
     {
         var store = services.GetRequiredService<IStore>();
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("CrestApps.Core.Mvc.Web.YesSql");
+        var storeOptions = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<YesSqlStoreOptions>>().Value;
         RegisterIndexes(store);
         await using var connection = store.Configuration.ConnectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -121,26 +132,26 @@ internal static class YesSqlServiceCollectionExtensions
         await using var transaction = await connection.BeginTransactionAsync();
         var schemaBuilder = new SchemaBuilder(store.Configuration, transaction);
         await NormalizeLegacyDocumentTypeNamesAsync(store, connection, transaction, logger);
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIProviderConnectionIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateA2AConnectionIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateMcpConnectionIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateMcpPromptIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateMcpResourceIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIDeploymentIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileTemplateIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionMetricsSchemaAsync(new AIChatSessionMetricsIndexSchemaOptions()));
-        await TryCreateTableAsync(() => schemaBuilder.CreateAICompletionUsageIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionExtractedDataIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionPromptIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIDocumentIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIDocumentChunkIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateSearchIndexProfileIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIDataSourceIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIMemoryEntryIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync());
-        await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync());
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIProviderConnectionIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateA2AConnectionIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateMcpConnectionIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateMcpPromptIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateMcpResourceIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIDeploymentIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileTemplateIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionMetricsSchemaAsync(storeOptions: storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAICompletionUsageIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionExtractedDataIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionPromptIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIDocumentIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIDocumentChunkIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateSearchIndexProfileIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIDataSourceIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIMemoryEntryIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<ArticleIndex>(t => t
             .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
             .Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));

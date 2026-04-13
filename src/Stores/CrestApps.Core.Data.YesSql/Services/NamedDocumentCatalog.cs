@@ -9,15 +9,9 @@ public class NamedDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, IName
     where T : CatalogItem, INameAwareModel
     where TIndex : CatalogItemIndex, INameAwareIndex
 {
-    public NamedDocumentCatalog(ISession session)
-        : base(session)
+    public NamedDocumentCatalog(ISession session, string collectionName = null)
+        : base(session, collectionName)
     {
-    }
-
-    internal NamedDocumentCatalog(ISession session, string collectionName)
-        : base(session)
-    {
-        CollectionName = collectionName;
     }
 
     public async ValueTask<T> FindByNameAsync(string name)

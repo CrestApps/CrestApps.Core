@@ -161,12 +161,13 @@ Every CrestApps feature that needs persistent storage exposes `.AddYesSqlStores(
 
 | Feature | Builder | EntityCore | YesSql | Stores registered |
 |---------|---------|------------|--------|-------------------|
-| **AI Services** | `CrestAppsAISuiteBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `AIProfile` catalog, `AIProfileTemplate` catalog, `AIProviderConnection` binding source, `AIDeployment` binding source, `IAIChatSessionManager`, `IAIChatSessionPromptStore` |
-| **A2A Client** | `CrestAppsA2AClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `A2AConnection` catalog |
-| **MCP Client** | `CrestAppsMcpClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `McpConnection` catalog, `McpPrompt` catalog, `McpResource` catalog |
-| **Chat Interactions** | `CrestAppsChatInteractionsBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores(collection?)` | `ChatInteraction` catalog, `IChatInteractionPromptStore` |
-| **Document Processing** | `CrestAppsDocumentProcessingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIDocumentStore`, `IAIDocumentChunkStore`, `ISearchIndexProfileStore`, `IAIDataSourceStore` |
+| **AI Services** | `CrestAppsAISuiteBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `AIProfile` catalog, `AIProfileTemplate` catalog, `AIProviderConnection` binding source, `AIDeployment` binding source, `IAIChatSessionManager`, `IAIChatSessionPromptStore` |
+| **A2A Client** | `CrestAppsA2AClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `A2AConnection` catalog |
+| **MCP Client** | `CrestAppsMcpClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `McpConnection` catalog, `McpPrompt` catalog, `McpResource` catalog |
+| **Chat Interactions** | `CrestAppsChatInteractionsBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `ChatInteraction` catalog, `IChatInteractionPromptStore` |
+| **Document Processing** | `CrestAppsDocumentProcessingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIDocumentStore`, `IAIDocumentChunkStore`, `IAIDataSourceStore` |
 | **AI Memory** | `CrestAppsAIMemoryBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIMemoryStore` |
+| **Indexing Services** | `CrestAppsIndexingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `ISearchIndexProfileStore` |
 
 **Entity Framework Core example** — register stores inline with each feature:
 
@@ -192,6 +193,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddAIMemory(memory => memory
             .AddEntityCoreStores()
         )
+    )
+    .AddIndexingServices(indexing => indexing
+        .AddEntityCoreStores()
     )
     .AddEntityCoreSqliteDataStore(
         $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
@@ -223,13 +227,75 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddYesSqlStores()
         )
     )
+    .AddIndexingServices(indexing => indexing
+        .AddYesSqlStores()                        // ISearchIndexProfileStore
+    )
     .AddYesSqlDataStore(configuration => configuration
         .UseSqLite("Data Source=app.db;Cache=Shared")
-        .SetTablePrefix("CA_"))
+        .SetTablePrefix("CA_")
+    )
 );
 ```
 
 The per-feature `IServiceCollection` extension methods (e.g., `AddCoreAIServicesStoresYesSql()`) are still available for advanced scenarios where you need to register stores outside the builder chain.
+
+## YesSql Collection Configuration (`YesSqlStoreOptions`)
+
+When using the YesSql data store, each store, index provider, and schema migration reads its collection name from `YesSqlStoreOptions`. The defaults separate AI data into logical collections:
+
+| Property | Default | Used by |
+|----------|---------|---------|
+| `DefaultCollectionName` | `null` (root collection) | `SearchIndexProfile` |
+| `AICollectionName` | `"AI"` | Profiles, deployments, connections, A2A, MCP, chat sessions, chat interactions, completion usage, metrics, extracted data |
+| `AIMemoryCollectionName` | `"AIMemory"` | `AIMemoryEntry` |
+| `AIDocsCollectionName` | `"AIDocs"` | `AIDocument`, `AIDocumentChunk`, `AIDataSource` |
+
+Override collection names via standard options configuration:
+
+```csharp
+builder.Services.Configure<YesSqlStoreOptions>(options =>
+{
+    // Keep all data in the root collection (no separation).
+    options.AICollectionName = null;
+    options.AIMemoryCollectionName = null;
+    options.AIDocsCollectionName = null;
+});
+```
+
+Schema migrations also accept `YesSqlStoreOptions` so index tables are created in the correct collection:
+
+```csharp
+var storeOptions = services.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
+await schemaBuilder.CreateAIProfileIndexSchemaAsync(storeOptions);
+await schemaBuilder.CreateAIChatSessionIndexSchemaAsync(storeOptions);
+```
+
+When no `YesSqlStoreOptions` is passed to a schema builder extension, a default instance is used automatically.
+
+### Manual Catalog Registration
+
+The built-in per-feature extension methods (e.g., `AddCoreAIServicesStoresYesSql()`) are the recommended way to register YesSql stores because they guarantee that the catalog, index provider, and schema migration all share the same collection name from `YesSqlStoreOptions`.
+
+If you need to register a `DocumentCatalog` manually (for example when creating a custom store), pass the collection name through the constructor:
+
+```csharp
+services.AddScoped<ICatalog<MyModel>>(sp =>
+{
+    var session = sp.GetRequiredService<ISession>();
+    var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>();
+
+    return new DocumentCatalog<MyModel, MyModelIndex>(
+        session,
+        options.Value.AICollectionName
+    );
+});
+```
+
+The `collectionName` parameter is optional and defaults to `null` (root collection). Once set through the constructor, the collection name cannot be changed at runtime, ensuring consistency with the matching index provider and schema migration.
+
+:::warning
+When registering manually, ensure the catalog, its `IndexProvider`, and the corresponding `ISchemaBuilder` migration all use the **same** collection name. Mismatched collection names will cause data to be stored in one collection but queried from another, resulting in silent data loss.
+:::
 
 
 ## Catalog Entry Handlers
@@ -274,6 +340,11 @@ public sealed class AIProfileIndex : CatalogItemIndex, INameAwareIndex, ISourceA
 
 public sealed class AIProfileIndexProvider : IndexProvider<AIProfile>
 {
+    public AIProfileIndexProvider(IOptions<YesSqlStoreOptions> options)
+    {
+        CollectionName = options.Value.AICollectionName;
+    }
+
     public override void Describe(DescribeContext<AIProfile> context)
     {
         context.For<AIProfileIndex>()
@@ -361,6 +432,11 @@ services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConne
 | `AIDocument` | `IAIDocumentStore` | `EntityCoreAIDocumentStore` (EF Core) or `AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>()` (YesSql) |
 | `AIDocumentChunk` | `IAIDocumentChunkStore` | `EntityCoreAIDocumentChunkStore` (EF Core) or `AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>()` (YesSql) |
 | `AIDataSource` | `IAIDataSourceStore` | `EntityCoreAIDataSourceStore` (EF Core) or `AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>()` (YesSql) |
+
+### Indexing Services
+
+| Model | Store interface | Registration |
+|-------|----------------|--------------|
 | `SearchIndexProfile` | `ISearchIndexProfileStore` | `EntityCoreSearchIndexProfileStore` (EF Core) or `AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>()` (YesSql) |
 
 ### Memory
@@ -397,7 +473,8 @@ The `CrestApps.Core.Data.EntityCore` package gives you a ready-made alternative 
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddEntityCoreStores()
-        .AddOpenAI())
+        .AddOpenAI()
+    )
     .AddEntityCoreSqliteDataStore(
         $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
 );
