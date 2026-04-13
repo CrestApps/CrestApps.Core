@@ -47,8 +47,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
-    private readonly AppDataSettingsService<ChatInteractionSettings> _chatInteractionSettingsService;
-    private readonly AppDataSettingsService<DefaultAIDeploymentSettings> _defaultDeploymentSettingsService;
+    private readonly SiteSettingsStore _siteSettings;
     private readonly MvcAIDocumentIndexingService _documentIndexingService;
     private readonly InteractionDocumentOptions _interactionDocumentOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
@@ -74,8 +73,7 @@ public sealed class ChatInteractionController : Controller
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
-        AppDataSettingsService<ChatInteractionSettings> chatInteractionSettingsService,
-        AppDataSettingsService<DefaultAIDeploymentSettings> defaultDeploymentSettingsService,
+        SiteSettingsStore siteSettings,
         MvcAIDocumentIndexingService documentIndexingService,
         IOptions<InteractionDocumentOptions> interactionDocumentOptions,
         ISearchIndexProfileStore indexProfileStore,
@@ -99,8 +97,7 @@ public sealed class ChatInteractionController : Controller
         _documentProcessingService = documentProcessingService;
         _deploymentManager = deploymentManager;
         _aiClientFactory = aiClientFactory;
-        _chatInteractionSettingsService = chatInteractionSettingsService;
-        _defaultDeploymentSettingsService = defaultDeploymentSettingsService;
+        _siteSettings = siteSettings;
         _documentIndexingService = documentIndexingService;
         _interactionDocumentOptions = interactionDocumentOptions.Value;
         _indexProfileStore = indexProfileStore;
@@ -194,8 +191,8 @@ public sealed class ChatInteractionController : Controller
         }
 
         var prompts = await _promptStore.GetPromptsAsync(id);
-        var chatInteractionSettings = await _chatInteractionSettingsService.GetAsync();
-        var deploymentDefaults = await _defaultDeploymentSettingsService.GetAsync();
+        var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
+        var deploymentDefaults = _siteSettings.Get<DefaultAIDeploymentSettings>();
 
         var dataSourceMetadata = interaction.As<DataSourceMetadata>();
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);

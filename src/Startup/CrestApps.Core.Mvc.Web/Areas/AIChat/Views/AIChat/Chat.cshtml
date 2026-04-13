@@ -4,7 +4,7 @@
 @using Microsoft.Extensions.Options
 @model CrestApps.Core.AI.Models.AIProfile
 @inject IOptions<CrestApps.Core.AI.Models.ChatDocumentsOptions> ChatDocumentOptions
-@inject CrestApps.Core.Mvc.Web.Services.AppDataSettingsService<CrestApps.Core.AI.Models.DefaultAIDeploymentSettings> DefaultDeploymentSettingsService
+@inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
 @{
     var session = ViewData["Session"] as CrestApps.Core.AI.Models.AIChatSession;
     var prompts = ViewData["Prompts"] as IReadOnlyList<CrestApps.Core.AI.Models.AIChatSessionPrompt>;
@@ -27,7 +27,7 @@
     var allowSessionDocuments = sessionDocumentsMetadata?.AllowSessionDocuments ?? false;
     var metricsEnabled = Model.As<AnalyticsMetadata>()?.EnableSessionMetrics ?? false;
     var existingDocuments = session?.Documents ?? [];
-    var defaultDeploymentSettings = await DefaultDeploymentSettingsService.GetAsync();
+    var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();
     ChatModeProfileSettings chatModeSettings = null;
     Model.TryGetSettings<ChatModeProfileSettings>(out chatModeSettings);
     var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;

@@ -10,23 +10,23 @@ internal sealed class MvcCopilotOptionsConfiguration : IConfigureOptions<Copilot
 {
     private const string ProtectorPurpose = "CrestApps.Core.Mvc.Web.CopilotSettings";
 
-    private readonly AppDataSettingsService<CopilotSettings> _settingsService;
+    private readonly SiteSettingsStore _siteSettings;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger<MvcCopilotOptionsConfiguration> _logger;
 
     public MvcCopilotOptionsConfiguration(
-        AppDataSettingsService<CopilotSettings> settingsService,
+        SiteSettingsStore siteSettings,
         IDataProtectionProvider dataProtectionProvider,
         ILogger<MvcCopilotOptionsConfiguration> logger)
     {
-        _settingsService = settingsService;
+        _siteSettings = siteSettings;
         _dataProtectionProvider = dataProtectionProvider;
         _logger = logger;
     }
 
     public void Configure(CopilotOptions options)
     {
-        var settings = _settingsService.GetAsync().GetAwaiter().GetResult();
+        var settings = _siteSettings.Get<CopilotSettings>();
 
         if (settings == null)
         {

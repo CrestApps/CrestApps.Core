@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Ftp;
 using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
@@ -36,6 +37,7 @@ using CrestApps.Core.SignalR;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using NLog.Web;
 
 // =============================================================================
@@ -76,23 +78,35 @@ Directory.CreateDirectory(appDataPath);
 // =============================================================================
 // 2. APPLICATION CONFIGURATION
 // =============================================================================
-// Three-layer configuration: base → environment override → App_Data override.
-// The App_Data/appsettings.json file always wins so local secrets and
-// machine-specific changes stay out of source control while still flowing
-// through IConfiguration reload-on-change.
+// Two-layer App_Data configuration:
 //
-// AppDataConfigurationFileService writes admin-managed sections back into that
-// same App_Data/appsettings.json file so runtime changes remain durable and the
-// existing reloadOnChange configuration pipeline can refresh them automatically.
+// App_Data/appsettings.json holds infrastructure config (AI connections,
+// credentials, Elasticsearch, Azure AI Search, etc.) that is rarely changed at
+// runtime. reloadOnChange is disabled to avoid FileSystemWatcher race
+// conditions in the App_Data directory. Restart the app after editing.
+//
+// App_Data/site-settings.json holds mutable admin-managed settings (general AI
+// options, default deployments, chat interaction, admin widget, etc.) owned
+// entirely by SiteSettingsStore. It is NOT registered in the configuration
+// pipeline — SiteSettingsStore loads it into memory at startup and writes it
+// back atomically via SaveChangesAsync().
+//
+// NOTE: The default appsettings.json and appsettings.{env}.json files are
+// already registered by WebApplicationBuilder — do not re-add them here.
 // =============================================================================
-builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddJsonFile($"appsettings.{builder.Environment}.json", optional: true, reloadOnChange: true)
-    .AddJsonFile("App_Data/appsettings.json", optional: true, reloadOnChange: true);
+builder.Configuration.AddJsonFile("App_Data/appsettings.json", optional: true, reloadOnChange: false);
 
-// Persist settings into the same reloadable App_Data file that IConfiguration watches.
-builder.Services.AddSingleton(new AppDataConfigurationFileService(appDataPath));
-// Register typed wrappers over the App_Data-backed settings sections used by the MVC admin UI.
-builder.Services.AddMvcAppDataSettings(builder.Configuration);
+// SiteSettingsStore is the single owner of App_Data/site-settings.json.
+// It migrates old JSON keys on load and serves reads from memory.
+builder.Services.AddSingleton(new SiteSettingsStore(appDataPath));
+
+// Bridge SiteSettingsStore → framework IOptions<T> so that framework services
+// (orchestrators, memory, data sources, etc.) see the admin-managed values.
+builder.Services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigureGeneralAIOptions>();
+builder.Services.AddSingleton<IConfigureOptions<AIMemoryOptions>, SiteSettingsConfigureAIMemoryOptions>();
+builder.Services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, SiteSettingsConfigureInteractionDocumentOptions>();
+builder.Services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
+builder.Services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
 // =============================================================================
 // 3. ASP.NET CORE MVC SETUP
 // =============================================================================
@@ -315,7 +329,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 {
     branch.Use(async (context, next) =>
     {
-        var settings = await context.RequestServices.GetRequiredService<AppDataSettingsService<McpServerOptions>>().GetAsync();
+        var settings = context.RequestServices.GetRequiredService<SiteSettingsStore>().Get<McpServerOptions>();
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
             await next();
