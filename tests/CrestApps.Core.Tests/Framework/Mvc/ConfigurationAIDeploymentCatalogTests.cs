@@ -180,6 +180,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
 
         sources.Add(new ConfigurationAIDeploymentSource(
             configuration,
+            TimeProvider.System,
             Options.Create(aiOptions),
             Options.Create(catalogOptions ?? new AIDeploymentCatalogOptions()),
             NullLogger<ConfigurationAIDeploymentSource>.Instance));

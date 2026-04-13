@@ -65,15 +65,12 @@ using NLog.Web;
 // =============================================================================
 var builder = WebApplication.CreateBuilder(args);
 
-// =============================================================================
-// 1. CRASH DIAGNOSTICS & HOST RESILIENCE
-// =============================================================================
-// Capture unhandled exceptions that would otherwise silently terminate the
-// process. These handlers write a crash-report to App_Data/logs/ so the root
-// cause is visible even when the normal logger has already been disposed.
-// =============================================================================
+// Early startup marker — writes immediately to confirm the process launched.
 var crashLogDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "logs");
 Directory.CreateDirectory(crashLogDir);
+File.WriteAllText(
+    Path.Combine(crashLogDir, "startup-marker.txt"),
+    $"Process started at {DateTime.UtcNow:O}, PID={Environment.ProcessId}{Environment.NewLine}");
 
 AppDomain.CurrentDomain.UnhandledException += (_, e) =>
 {
@@ -358,11 +355,24 @@ builder.Services.AddHostedService<DataSourceAlignmentBackgroundService>();
 
 var app = builder.Build();
 
-// YesSql schema initialization — creates tables on first run.
-await app.Services.InitializeYesSqlSchemaAsync();
+try
+{
+    // YesSql schema initialization — creates tables on first run.
+    await app.Services.InitializeYesSqlSchemaAsync();
 
-// Seed sample articles on first run.
-await app.Services.SeedArticlesAsync();
+    // Seed sample articles on first run.
+    await app.Services.SeedArticlesAsync();
+}
+catch (Exception ex)
+{
+    var msg = $"[{DateTime.UtcNow:O}] Startup initialization failed:{Environment.NewLine}{ex}{Environment.NewLine}";
+
+    try { File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), msg); } catch { }
+
+    Console.Error.Write(msg);
+
+    throw;
+}
 
 // =============================================================================
 // 14. MIDDLEWARE PIPELINE
