@@ -14,19 +14,20 @@ namespace CrestApps.Core.Mvc.Web.Areas.Admin.Controllers;
 public sealed class ArticleController : Controller
 {
     private readonly ICatalogManager<Article> _manager;
-    private readonly AppDataSettingsService<PaginationSettings> _paginationSettingsService;
+    private readonly SiteSettingsStore _siteSettingsStore;
 
     public ArticleController(
         ICatalogManager<Article> manager,
-        AppDataSettingsService<PaginationSettings> paginationSettingsService)
+        SiteSettingsStore siteSettingsStore)
     {
         _manager = manager;
-        _paginationSettingsService = paginationSettingsService;
+        _siteSettingsStore = siteSettingsStore;
     }
 
     public async Task<IActionResult> Index(int page = 1)
     {
-        var pagination = await _paginationSettingsService.GetAsync();
+        var pagination = _siteSettingsStore.Get<PaginationSettings>();
+
         var pageSize = pagination.AdminPageSize;
 
         if (page < 1)

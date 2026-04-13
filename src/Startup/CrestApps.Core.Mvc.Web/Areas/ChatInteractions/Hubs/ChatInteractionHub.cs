@@ -25,16 +25,14 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
     private readonly MvcCitationReferenceCollector _citationCollector;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
-    private readonly AppDataSettingsService<ChatInteractionSettings> _chatInteractionSettingsService;
-    private readonly AppDataSettingsService<DefaultAIDeploymentSettings> _defaultDeploymentSettingsService;
+    private readonly SiteSettingsStore _siteSettings;
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    public ChatInteractionHub(ICatalogManager<ChatInteraction> interactionManager, IChatInteractionPromptStore promptStore, IOrchestrationContextBuilder orchestrationContextBuilder, IOrchestratorResolver orchestratorResolver, IEnumerable<IChatInteractionSettingsHandler> settingsHandlers, IServiceProvider serviceProvider, TimeProvider timeProvider, MvcCitationReferenceCollector citationCollector, IAIDeploymentManager deploymentManager, IAIClientFactory aiClientFactory, AppDataSettingsService<ChatInteractionSettings> chatInteractionSettingsService, AppDataSettingsService<DefaultAIDeploymentSettings> defaultDeploymentSettingsService, IServiceScopeFactory serviceScopeFactory, ILogger<ChatInteractionHub> logger) : base(interactionManager, promptStore, orchestrationContextBuilder, orchestratorResolver, settingsHandlers, serviceProvider, timeProvider, logger)
+    public ChatInteractionHub(ICatalogManager<ChatInteraction> interactionManager, IChatInteractionPromptStore promptStore, IOrchestrationContextBuilder orchestrationContextBuilder, IOrchestratorResolver orchestratorResolver, IEnumerable<IChatInteractionSettingsHandler> settingsHandlers, IServiceProvider serviceProvider, TimeProvider timeProvider, MvcCitationReferenceCollector citationCollector, IAIDeploymentManager deploymentManager, IAIClientFactory aiClientFactory, SiteSettingsStore siteSettings, IServiceScopeFactory serviceScopeFactory, ILogger<ChatInteractionHub> logger) : base(interactionManager, promptStore, orchestrationContextBuilder, orchestratorResolver, settingsHandlers, serviceProvider, timeProvider, logger)
     {
         _citationCollector = citationCollector;
         _deploymentManager = deploymentManager;
         _aiClientFactory = aiClientFactory;
-        _chatInteractionSettingsService = chatInteractionSettingsService;
-        _defaultDeploymentSettingsService = defaultDeploymentSettingsService;
+        _siteSettings = siteSettings;
         _serviceScopeFactory = serviceScopeFactory;
     }
 
@@ -82,7 +80,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
             return;
         }
 
-        var chatInteractionSettings = await _chatInteractionSettingsService.GetAsync();
+        var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
         if (chatInteractionSettings.ChatMode != ChatMode.Conversation)
         {
             await Clients.Caller.ReceiveError("Conversation mode is not enabled for chat interactions.");
@@ -103,7 +101,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
             return;
         }
 
-        var deploymentDefaults = await _defaultDeploymentSettingsService.GetAsync();
+        var deploymentDefaults = _siteSettings.Get<DefaultAIDeploymentSettings>();
         using var speechToTextClient = await _aiClientFactory.CreateSpeechToTextClientAsync(speechToTextDeployment);
         using var textToSpeechClient = await _aiClientFactory.CreateTextToSpeechClientAsync(textToSpeechDeployment);
         using var conversationCts = CancellationTokenSource.CreateLinkedTokenSource(Context.ConnectionAborted);
@@ -135,7 +133,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
             return;
         }
 
-        var chatInteractionSettings = await _chatInteractionSettingsService.GetAsync();
+        var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
         if (chatInteractionSettings.ChatMode == ChatMode.TextInput)
         {
             await Clients.Caller.ReceiveError("Audio input is not enabled for chat interactions.");
@@ -179,7 +177,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
             return;
         }
 
-        var chatInteractionSettings = await _chatInteractionSettingsService.GetAsync();
+        var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
         if (chatInteractionSettings.ChatMode != ChatMode.Conversation)
         {
             await Clients.Caller.ReceiveError("Text-to-speech is not enabled for chat interactions.");
@@ -195,7 +193,7 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
 
         try
         {
-            var deploymentDefaults = await _defaultDeploymentSettingsService.GetAsync();
+            var deploymentDefaults = _siteSettings.Get<DefaultAIDeploymentSettings>();
             using var textToSpeechClient = await _aiClientFactory.CreateTextToSpeechClientAsync(textToSpeechDeployment);
             await StreamSpeechAsync(textToSpeechClient, itemId, text, string.IsNullOrWhiteSpace(voiceName) ? deploymentDefaults.DefaultTextToSpeechVoiceId : voiceName, Context.ConnectionAborted);
         }

@@ -13,7 +13,6 @@ using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -38,7 +37,8 @@ public sealed class ChatInteractionHubTests
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
-        var hub = new ChatInteractionHub(managerMock.Object, new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object, new Mock<IOrchestrationContextBuilder>(MockBehavior.Strict).Object, new Mock<IOrchestratorResolver>(MockBehavior.Strict).Object, [new PromptTemplateChatInteractionSettingsHandler()], serviceProvider, TimeProvider.System, CreateCitationCollector(), new Mock<IAIDeploymentManager>(MockBehavior.Strict).Object, new Mock<IAIClientFactory>(MockBehavior.Strict).Object, CreateSettingsService<ChatInteractionSettings>(AppDataConfigurationSections.ChatInteraction), CreateSettingsService<DefaultAIDeploymentSettings>(AppDataConfigurationSections.DefaultDeployments), new Mock<IServiceScopeFactory>(MockBehavior.Strict).Object, NullLogger<ChatInteractionHub>.Instance)
+        var siteSettings = CreateSiteSettingsStore();
+        var hub = new ChatInteractionHub(managerMock.Object, new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object, new Mock<IOrchestrationContextBuilder>(MockBehavior.Strict).Object, new Mock<IOrchestratorResolver>(MockBehavior.Strict).Object, [new PromptTemplateChatInteractionSettingsHandler()], serviceProvider, TimeProvider.System, CreateCitationCollector(), new Mock<IAIDeploymentManager>(MockBehavior.Strict).Object, new Mock<IAIClientFactory>(MockBehavior.Strict).Object, siteSettings, new Mock<IServiceScopeFactory>(MockBehavior.Strict).Object, NullLogger<ChatInteractionHub>.Instance)
         {
             Clients = clientsMock.Object,
         };
@@ -85,7 +85,8 @@ public sealed class ChatInteractionHubTests
         callerMock.Setup(client => client.SettingsSaved(interaction.ItemId, interaction.Title)).Returns(Task.CompletedTask);
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
-        var hub = new ChatInteractionHub(managerMock.Object, new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object, new Mock<IOrchestrationContextBuilder>(MockBehavior.Strict).Object, new Mock<IOrchestratorResolver>(MockBehavior.Strict).Object, [new DataSourceChatInteractionSettingsHandler(serviceProvider, NullLogger<DataSourceChatInteractionSettingsHandler>.Instance)], serviceProvider, TimeProvider.System, CreateCitationCollector(), new Mock<IAIDeploymentManager>(MockBehavior.Strict).Object, new Mock<IAIClientFactory>(MockBehavior.Strict).Object, CreateSettingsService<ChatInteractionSettings>(AppDataConfigurationSections.ChatInteraction), CreateSettingsService<DefaultAIDeploymentSettings>(AppDataConfigurationSections.DefaultDeployments), new Mock<IServiceScopeFactory>(MockBehavior.Strict).Object, NullLogger<ChatInteractionHub>.Instance)
+        var siteSettings = CreateSiteSettingsStore();
+        var hub = new ChatInteractionHub(managerMock.Object, new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object, new Mock<IOrchestrationContextBuilder>(MockBehavior.Strict).Object, new Mock<IOrchestratorResolver>(MockBehavior.Strict).Object, [new DataSourceChatInteractionSettingsHandler(serviceProvider, NullLogger<DataSourceChatInteractionSettingsHandler>.Instance)], serviceProvider, TimeProvider.System, CreateCitationCollector(), new Mock<IAIDeploymentManager>(MockBehavior.Strict).Object, new Mock<IAIClientFactory>(MockBehavior.Strict).Object, siteSettings, new Mock<IServiceScopeFactory>(MockBehavior.Strict).Object, NullLogger<ChatInteractionHub>.Instance)
         {
             Clients = clientsMock.Object,
         };
@@ -116,13 +117,10 @@ public sealed class ChatInteractionHubTests
         return new(new CompositeAIReferenceLinkResolver(new ServiceCollection().BuildServiceProvider()));
     }
 
-    private static AppDataSettingsService<T> CreateSettingsService<T>(string sectionKey)
-        where T : new()
+    private static SiteSettingsStore CreateSiteSettingsStore()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
         var appDataPath = Path.Combine(Path.GetTempPath(), "copilot-chatinteractionhubtests", Guid.NewGuid().ToString("N"));
-        var configurationFileService = new AppDataConfigurationFileService(appDataPath);
-        var sectionResolver = new AppDataSettingsSectionResolver([new(typeof(T), sectionKey)]);
-        return new AppDataSettingsService<T>(configuration, configurationFileService, sectionResolver);
+
+        return new SiteSettingsStore(appDataPath);
     }
 }

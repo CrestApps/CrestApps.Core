@@ -186,6 +186,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddMcpClient(mcp => mcp
             .AddEntityCoreStores()
         )
+        .AddMcpServer(mcpServer => mcpServer
+            .AddEntityCoreStores()
+        )
     )
     .AddIndexingServices(indexing => indexing
         .AddEntityCoreStores()
@@ -217,7 +220,10 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddYesSqlStores()                    // A2AConnection
         )
         .AddMcpClient(mcp => mcp
-            .AddYesSqlStores()                    // McpConnection, McpPrompt, McpResource
+            .AddYesSqlStores()                    // McpConnection
+        )
+        .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()                    // McpPrompt, McpResource
         )
     )
     .AddIndexingServices(indexing => indexing

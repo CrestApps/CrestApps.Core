@@ -66,9 +66,9 @@ Loads settings from the normal appsettings chain plus `App_Data/appsettings.json
 | Service | Purpose |
 
 |---------|---------|
-| `App_Data/appsettings.json` | Local machine overrides for admin-managed AI, MCP, Copilot, and pagination settings |
-| `AppDataConfigurationFileService` | Writes admin-managed sections back into the same `App_Data/appsettings.json` file that ASP.NET Core watches, so changes persist and reload through `IConfiguration` without a restart |
-| `AppDataSettingsService<T>` | Reads merged `IConfiguration` and persists nested sections back into `App_Data/appsettings.json` through `AppDataConfigurationFileService` |
+| `App_Data/appsettings.json` | Local machine overrides for infrastructure settings (AI connections, credentials, Elasticsearch, Azure AI Search) |
+| `App_Data/site-settings.json` | Mutable admin-managed settings (AI options, deployments, chat, admin widget, etc.) owned exclusively by `SiteSettingsStore` — not registered in the configuration pipeline |
+| `SiteSettingsStore` | In-memory store for admin-managed settings backed by `site-settings.json`. Reads from memory via `Get<T>()`, writes via `Set<T>()`, and persists atomically via `SaveChangesAsync()` |
 
 The project file also excludes the broader `App_Data` folder from `dotnet watch` so watch-based local hosts do not mistake uploaded documents or SQLite/log writes for source changes and restart the app in the middle of a request.
 
@@ -104,6 +104,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddA2AClient()
         .AddMcpClient()
         .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
             .AddFtpResources()
             .AddSftpResources()
         )
@@ -271,9 +272,9 @@ The MVC sample also now records provider usage in a dedicated **AI Usage Analyti
 
 Full bidirectional MCP setup:
 
-- **Client**: `AddCoreAIMcpClient()` for connecting to remote MCP servers
+- **Client**: `AddMcpClient()` for connecting to remote MCP servers (`McpConnection` catalog)
 
-- **Server**: `AddCoreAIMcpServer()` plus `AddCoreAIFtpMcpResources()`, `AddCoreAISftpMcpResources()`, and `MapMcp("mcp")` / `AddMcpServer(...)` handlers for tools, prompts, and resources
+- **Server**: `AddMcpServer(...)` with `.AddYesSqlStores()` for `McpPrompt` and `McpResource` catalogs, plus `.AddFtpResources()`, `.AddSftpResources()`, and `MapMcp("mcp")` handlers for tools, prompts, and resources
 
 The MCP server endpoint at `/mcp` includes configurable authentication middleware supporting API key, cookie auth, and admin role checks.
 

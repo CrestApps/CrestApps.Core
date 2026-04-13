@@ -207,7 +207,7 @@ The `Source` property (inherited from `SourceCatalogEntry`) indicates the transp
 
 ### Registering MCP Stores
 
-The MCP client feature requires stores for `McpConnection`, `McpPrompt`, and `McpResource`. Register stores directly on the MCP client builder:
+The MCP client feature requires a store for `McpConnection`. Register stores directly on the MCP client builder:
 
 **Entity Framework Core (via builder):**
 
@@ -224,6 +224,16 @@ The MCP client feature requires stores for `McpConnection`, `McpPrompt`, and `Mc
     .AddYesSqlStores()
 )
 ```
+
+If your host also acts as an MCP server, the `McpPrompt` and `McpResource` catalogs are registered separately on the MCP server builder:
+
+```csharp
+.AddMcpServer(mcpServer => mcpServer
+    .AddYesSqlStores()
+)
+```
+
+See [MCP Server](./server.md) for full details.
 
 ### McpService
 

@@ -53,6 +53,7 @@ public static class ServiceCollectionExtensions
     public static CrestAppsCoreBuilder AddYesSqlDataStore(this CrestAppsCoreBuilder builder, Func<Configuration, IConfiguration> configure)
     {
         builder.Services.AddCoreYesSqlDataStore(configure);
+
         return builder;
     }
 
@@ -65,6 +66,7 @@ public static class ServiceCollectionExtensions
     public static CrestAppsAISuiteBuilder AddYesSqlStores(this CrestAppsAISuiteBuilder builder)
     {
         builder.Services.AddCoreAIServicesStoresYesSql();
+        builder.Services.AddCoreAIProfileTemplateStoresYesSql();
         builder.Services.AddCoreAIChatSessionStoresYesSql();
 
         return builder;
@@ -83,11 +85,22 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers YesSql-backed stores for the MCP client feature on the MCP client builder.
-    /// This includes catalogs for <see cref="McpConnection"/>, <see cref="McpPrompt"/>, and <see cref="McpResource"/>.
+    /// This includes a catalog for <see cref="McpConnection"/>.
     /// </summary>
     public static CrestAppsMcpClientBuilder AddYesSqlStores(this CrestAppsMcpClientBuilder builder)
     {
         builder.Services.AddCoreAIMcpClientStoresYesSql();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the MCP server feature on the MCP server builder.
+    /// This includes catalogs for <see cref="McpPrompt"/> and <see cref="McpResource"/>.
+    /// </summary>
+    public static CrestAppsMcpServerBuilder AddYesSqlStores(this CrestAppsMcpServerBuilder builder)
+    {
+        builder.Services.AddCoreAIMcpServerStoresYesSql();
 
         return builder;
     }
@@ -140,20 +153,31 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers YesSql-backed stores for the core AI services feature.
-    /// This includes catalogs for <see cref="AIProfile"/>, <see cref="AIProfileTemplate"/>,
+    /// This includes a catalog for <see cref="AIProfile"/>
     /// and multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>.
     /// </summary>
     public static IServiceCollection AddCoreAIServicesStoresYesSql(this IServiceCollection services)
     {
         AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>(services, static o => o.AICollectionName);
-        AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileTemplateIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProviderConnectionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDeploymentIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the AI profile template feature.
+    /// This includes a catalog for <see cref="AIProfileTemplate"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIProfileTemplateStoresYesSql(this IServiceCollection services)
+    {
+        AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>(services, static o => o.AICollectionName);
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileTemplateIndexProvider>());
 
         return services;
     }
@@ -186,15 +210,26 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers YesSql-backed stores for the MCP client feature.
-    /// This includes catalogs for <see cref="McpConnection"/>, <see cref="McpPrompt"/>, and <see cref="McpResource"/>.
+    /// This includes a catalog for <see cref="McpConnection"/>.
     /// </summary>
     public static IServiceCollection AddCoreAIMcpClientStoresYesSql(this IServiceCollection services)
     {
         AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>(services, static o => o.AICollectionName);
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpConnectionIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the MCP server feature.
+    /// This includes catalogs for <see cref="McpPrompt"/> and <see cref="McpResource"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIMcpServerStoresYesSql(this IServiceCollection services)
+    {
         AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>(services, static o => o.AICollectionName);
         AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>(services, static o => o.AICollectionName);
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpConnectionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpPromptIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpResourceIndexProvider>());
 

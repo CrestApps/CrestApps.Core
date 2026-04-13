@@ -173,12 +173,18 @@ Every CrestApps feature that needs persistent storage exposes `.AddYesSqlStores(
 | Feature | Builder | EntityCore | YesSql | Stores registered |
 |---------|---------|------------|--------|-------------------|
 | **AI Services** | `CrestAppsAISuiteBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `AIProfile` catalog, `AIProfileTemplate` catalog, `AIProviderConnection` binding source, `AIDeployment` binding source, `IAIChatSessionManager`, `IAIChatSessionPromptStore` |
+| **AI Profile Template** | — | `AddCoreAIProfileTemplateStoresEntityCore()` | `AddCoreAIProfileTemplateStoresYesSql()` | `AIProfileTemplate` catalog |
 | **A2A Client** | `CrestAppsA2AClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `A2AConnection` catalog |
-| **MCP Client** | `CrestAppsMcpClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `McpConnection` catalog, `McpPrompt` catalog, `McpResource` catalog |
+| **MCP Client** | `CrestAppsMcpClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `McpConnection` catalog |
+| **MCP Server** | `CrestAppsMcpServerBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `McpPrompt` catalog, `McpResource` catalog |
 | **Chat Interactions** | `CrestAppsChatInteractionsBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `ChatInteraction` catalog, `IChatInteractionPromptStore` |
 | **Document Processing** | `CrestAppsDocumentProcessingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIDocumentStore`, `IAIDocumentChunkStore`, `IAIDataSourceStore` |
 | **AI Memory** | `CrestAppsAIMemoryBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIMemoryStore` |
 | **Indexing Services** | `CrestAppsIndexingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `ISearchIndexProfileStore` |
+
+:::tip
+The **AI Services** builder method (`.AddYesSqlStores()` / `.AddEntityCoreStores()` on `CrestAppsAISuiteBuilder`) is a convenience that registers AI Profile Template and Chat Session stores together. Implementations that need finer-grained control (e.g., Orchard Core) can call the individual `IServiceCollection` extensions (`AddCoreAIProfileTemplateStoresYesSql()`, `AddCoreAIMcpServerStoresYesSql()`, etc.) directly.
+:::
 
 **Entity Framework Core example** — register stores inline with each feature:
 
@@ -191,6 +197,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddEntityCoreStores()
         )
         .AddMcpClient(mcp => mcp
+            .AddEntityCoreStores()
+        )
+        .AddMcpServer(mcpServer => mcpServer
             .AddEntityCoreStores()
         )
         .AddChatInteractions(ci => ci
@@ -224,6 +233,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddYesSqlStores()
         )
         .AddMcpClient(mcp => mcp
+            .AddYesSqlStores()
+        )
+        .AddMcpServer(mcpServer => mcpServer
             .AddYesSqlStores()
         )
         .AddChatInteractions(ci => ci
@@ -464,11 +476,16 @@ services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConne
 |-------|----------------|--------------|
 | `AIMemoryEntry` | `IAIMemoryStore` | `EntityCoreAIMemoryStore` (EF Core) or `AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>()` (YesSql) |
 
-### MCP (Model Context Protocol)
+### MCP Client
 
 | Model | Catalog registration | EntityCore | YesSql |
 |-------|---------------------|------------|--------|
 | `McpConnection` | `ISourceCatalog<McpConnection>` | `AddSourceDocumentCatalog<McpConnection, SourceDocumentCatalog<McpConnection>>()` | `AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>()` |
+
+### MCP Server
+
+| Model | Catalog registration | EntityCore | YesSql |
+|-------|---------------------|------------|--------|
 | `McpPrompt` | `INamedCatalog<McpPrompt>` | `AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>()` | `AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>()` |
 | `McpResource` | `ISourceCatalog<McpResource>` | `AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>()` | `AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>()` |
 

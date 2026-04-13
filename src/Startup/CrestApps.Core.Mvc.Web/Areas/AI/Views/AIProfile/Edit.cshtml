@@ -3,7 +3,7 @@
 @using Microsoft.Extensions.Options
 @model AIProfileViewModel
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
-@inject CrestApps.Core.Mvc.Web.Services.AppDataSettingsService<CrestApps.Core.AI.Models.DefaultAIDeploymentSettings> DefaultDeploymentSettingsService
+@inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
 @{
     ViewData["Title"] = "Edit AI Profile";
     const string maxTokensHelp = "The maximum number of tokens (roughly words or word fragments) the AI can generate in a single response. Lower values produce shorter responses and reduce costs. Higher values allow for more detailed answers.";
@@ -14,7 +14,7 @@
     const string pastMessagesHelp = "The number of previous messages from the conversation to include as context. More messages provide better context but increase token usage and costs.";
     var embeddableExtensionsAccept = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsAcceptValue();
     var embeddableExtensionsDisplay = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsDisplayValue();
-    var defaultDeploymentSettings = await DefaultDeploymentSettingsService.GetAsync();
+    var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();
     var defaultTextToSpeechDeploymentName = defaultDeploymentSettings.DefaultTextToSpeechDeploymentName;
 }
 

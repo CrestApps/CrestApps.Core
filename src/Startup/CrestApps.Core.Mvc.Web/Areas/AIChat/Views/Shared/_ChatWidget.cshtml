@@ -6,12 +6,11 @@
 
 @inject IAIProfileManager ProfileManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
-@inject CrestApps.Core.Mvc.Web.Services.AppDataSettingsService<CrestApps.Core.Mvc.Web.Areas.AIChat.Models.AIChatAdminWidgetSettings> AdminWidgetSettingsService
-@inject CrestApps.Core.Mvc.Web.Services.AppDataSettingsService<CrestApps.Core.AI.Models.DefaultAIDeploymentSettings> DefaultDeploymentSettingsService
+@inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
 
 @{
-    var adminWidgetSettings = await AdminWidgetSettingsService.GetAsync();
-    var defaultDeploymentSettings = await DefaultDeploymentSettingsService.GetAsync();
+    var adminWidgetSettings = SiteSettings.Get<CrestApps.Core.Mvc.Web.Areas.AIChat.Models.AIChatAdminWidgetSettings>();
+    var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();
     var selectedProfile = string.IsNullOrWhiteSpace(adminWidgetSettings.ProfileId)
         ? null
         : await ProfileManager.FindByIdAsync(adminWidgetSettings.ProfileId);
