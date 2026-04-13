@@ -139,6 +139,11 @@ These register an EntityCore-backed catalog as a **binding source** for the mult
 
 ### YesSql catalog extensions
 
+Each method has two overloads:
+
+- **Parameterless** — reads the collection name from `YesSqlStoreOptions.DefaultCollectionName`.
+- **`string collection`** — uses the provided collection name directly, bypassing `YesSqlStoreOptions`.
+
 | Method | Registers | Requires |
 |--------|-----------|----------|
 | `AddYesSqlDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` | `CatalogItem` + `CatalogItemIndex` |
@@ -146,9 +151,15 @@ These register an EntityCore-backed catalog as a **binding source** for the mult
 | `AddYesSqlSourceDocumentCatalog<TModel, TIndex>()` | `ICatalog<T>` + `ISourceCatalog<T>` | + `ISourceAwareModel` + `ISourceAwareIndex` |
 | `AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>()` | All four interfaces | Both `INameAware*` + `ISourceAware*` |
 
+**Example with an explicit collection:**
+
+```csharp
+services.AddYesSqlDocumentCatalog<CustomModel, CustomIndex>(collection: "Test");
+```
+
 ### YesSql binding source extensions
 
-These register a YesSql-backed catalog as a **binding source** for the multi-source store pattern (see [Multi-Source Binding Pattern](#multi-source-binding-pattern) below):
+These register a YesSql-backed catalog as a **binding source** for the multi-source store pattern (see [Multi-Source Binding Pattern](#multi-source-binding-pattern) below). Each also has a `string collection` overload:
 
 | Method | Binding source registered | Requires |
 |--------|--------------------------|----------|
@@ -276,7 +287,15 @@ When no `YesSqlStoreOptions` is passed to a schema builder extension, a default 
 
 The built-in per-feature extension methods (e.g., `AddCoreAIServicesStoresYesSql()`) are the recommended way to register YesSql stores because they guarantee that the catalog, index provider, and schema migration all share the same collection name from `YesSqlStoreOptions`.
 
-If you need to register a `DocumentCatalog` manually (for example when creating a custom store), pass the collection name through the constructor:
+For custom models that are not part of a built-in feature, use the generic catalog extensions with an explicit collection name:
+
+```csharp
+services.AddYesSqlDocumentCatalog<MyModel, MyModelIndex>(
+    collection: MyConstants.CollectionName
+);
+```
+
+If you need more control (for example to resolve the collection from `YesSqlStoreOptions`), you can register a `DocumentCatalog` factory directly:
 
 ```csharp
 services.AddScoped<ICatalog<MyModel>>(sp =>
