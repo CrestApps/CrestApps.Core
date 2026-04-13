@@ -17,17 +17,20 @@ namespace CrestApps.Core.AI.Services;
 public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<AIDeployment>
 {
     private readonly IConfiguration _configuration;
+    private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
     private readonly AIDeploymentCatalogOptions _catalogOptions;
     private readonly ILogger _logger;
 
     public ConfigurationAIDeploymentSource(
         IConfiguration configuration,
+        TimeProvider timeProvider,
         IOptions<AIOptions> aiOptions,
         IOptions<AIDeploymentCatalogOptions> catalogOptions,
         ILogger<ConfigurationAIDeploymentSource> logger)
     {
         _configuration = configuration;
+        _timeProvider = timeProvider;
         _aiOptions = aiOptions.Value;
         _catalogOptions = catalogOptions.Value;
         _logger = logger;
@@ -238,6 +241,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             ConnectionName = entry.ConnectionName,
             Type = entry.Type,
             IsReadOnly = true,
+            CreatedUtc = _timeProvider.GetUtcNow().DateTime,
             Properties = entry.Properties?.Count > 0 ? JsonSerializer.Deserialize<Dictionary<string, object>>(entry.Properties.DeepClone()) : null,
         };
     }

@@ -16,15 +16,18 @@ namespace CrestApps.Core.AI.Services;
 public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalogSource<AIProviderConnection>
 {
     private readonly IConfiguration _configuration;
+    private readonly TimeProvider _timeProvider;
     private readonly AIProviderConnectionCatalogOptions _options;
     private readonly ILogger _logger;
 
     public ConfigurationAIProviderConnectionSource(
         IConfiguration configuration,
+        TimeProvider timeProvider,
         IOptions<AIProviderConnectionCatalogOptions> options,
         ILogger<ConfigurationAIProviderConnectionSource> logger)
     {
         _configuration = configuration;
+        _timeProvider = timeProvider;
         _options = options.Value;
         _logger = logger;
     }
@@ -160,6 +163,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             DisplayText = string.IsNullOrWhiteSpace(displayText) ? connectionName : displayText,
             ClientName = clientName,
             IsReadOnly = true,
+            CreatedUtc = _timeProvider.GetUtcNow().DateTime,
             Properties = properties.Count > 0 ? properties : null,
         };
     }
