@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core;
@@ -15,6 +16,9 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
+
+        services.AddOptions<ExtensibleEntityJsonOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ExtensibleEntityJsonOptionsInitializer>());
 
         configure(new CrestAppsCoreBuilder(services));
 

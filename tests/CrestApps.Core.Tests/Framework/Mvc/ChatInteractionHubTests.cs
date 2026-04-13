@@ -9,7 +9,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
-using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.SignalR;

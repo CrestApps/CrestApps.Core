@@ -12,6 +12,7 @@ const sidebars = {
             items: [
                 'core/architecture',
                 'core/core-services',
+                'core/extensible-entity',
                 'core/getting-started-aspnet',
                 'core/index',
                 'core/interfaces',

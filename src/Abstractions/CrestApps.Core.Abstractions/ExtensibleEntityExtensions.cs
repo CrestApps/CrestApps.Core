@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
 
 namespace CrestApps.Core;
 
@@ -10,21 +9,28 @@ namespace CrestApps.Core;
 /// </summary>
 public static class ExtensibleEntityExtensions
 {
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    private static JsonSerializerOptions _jsonOptions = ExtensibleEntityJsonOptions.CreateDefaultSerializerOptions();
+
+    /// <summary>
+    /// Gets or sets the <see cref="JsonSerializerOptions"/> used for serializing and
+    /// deserializing extensible entity properties.
+    /// </summary>
+    /// <remarks>
+    /// This property is initialized with sensible defaults. To customize, either:
+    /// <list type="bullet">
+    /// <item>Set this property directly at application startup before any serialization occurs.</item>
+    /// <item>Use the DI options pattern with <see cref="ExtensibleEntityJsonOptions"/> (requires CrestApps.Core).</item>
+    /// </list>
+    /// </remarks>
+    public static JsonSerializerOptions JsonSerializerOptions
     {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
-        ReferenceHandler = null, // Needed by JsonObjectCreationHandling.Populate.
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        WriteIndented = false,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        Converters =
+        get => _jsonOptions;
+        set
         {
-            new JsonStringEnumConverter(),
-        },
-    };
+            ArgumentNullException.ThrowIfNull(value);
+            _jsonOptions = value;
+        }
+    }
 
     /// <summary>
     /// Gets a strongly-typed object stored in the entity's properties.
