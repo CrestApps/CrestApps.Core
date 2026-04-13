@@ -104,6 +104,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddA2AClient()
         .AddMcpClient()
         .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
             .AddFtpResources()
             .AddSftpResources()
         )
@@ -271,9 +272,9 @@ The MVC sample also now records provider usage in a dedicated **AI Usage Analyti
 
 Full bidirectional MCP setup:
 
-- **Client**: `AddCoreAIMcpClient()` for connecting to remote MCP servers
+- **Client**: `AddMcpClient()` for connecting to remote MCP servers (`McpConnection` catalog)
 
-- **Server**: `AddCoreAIMcpServer()` plus `AddCoreAIFtpMcpResources()`, `AddCoreAISftpMcpResources()`, and `MapMcp("mcp")` / `AddMcpServer(...)` handlers for tools, prompts, and resources
+- **Server**: `AddMcpServer(...)` with `.AddYesSqlStores()` for `McpPrompt` and `McpResource` catalogs, plus `.AddFtpResources()`, `.AddSftpResources()`, and `MapMcp("mcp")` handlers for tools, prompts, and resources
 
 The MCP server endpoint at `/mcp` includes configurable authentication middleware supporting API key, cookie auth, and admin role checks.
 

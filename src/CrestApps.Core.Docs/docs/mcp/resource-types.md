@@ -19,6 +19,20 @@ builder.Services
     .AddMcpResourceType<MyDatabaseResourceHandler>("database");
 ```
 
+Or, using the builder pattern with stores:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
+            .AddFtpResources()
+            .AddSftpResources()
+        )
+    )
+);
+```
+
 ## Problem & Solution
 
 MCP resources represent files, URLs, or data that clients can read. FTP and SFTP handlers are available as optional packages (`CrestApps.Core.AI.Ftp` and `CrestApps.Core.AI.Sftp`), and applications often need additional resource types for databases, APIs, blob storage, or custom protocols. Resource type handlers provide a pluggable extension point.

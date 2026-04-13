@@ -49,8 +49,10 @@ public static class ServiceCollectionExtensions
             .AddCatalogManagers();
 
         services.AddCoreAIServicesStoresEntityCore();
+        services.AddCoreAIProfileTemplateStoresEntityCore();
         services.AddCoreAIA2AClientStoresEntityCore();
         services.AddCoreAIMcpClientStoresEntityCore();
+        services.AddCoreAIMcpServerStoresEntityCore();
         services.AddCoreAIChatSessionStoresEntityCore();
         services.AddCoreAIDocumentProcessingStoresEntityCore();
         services.AddCoreAIDataSourceStoresEntityCore();
@@ -63,15 +65,25 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers EntityCore-backed stores for the core AI services feature.
-    /// This includes catalogs for <see cref="AIProfile"/>, <see cref="AIProfileTemplate"/>,
+    /// This includes a catalog for <see cref="AIProfile"/>
     /// and multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>.
     /// </summary>
     public static IServiceCollection AddCoreAIServicesStoresEntityCore(this IServiceCollection services)
     {
         services.AddNamedSourceDocumentCatalog<AIProfile, NamedSourceDocumentCatalog<AIProfile>>();
-        services.AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>();
         services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
         services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the AI profile template feature.
+    /// This includes a catalog for <see cref="AIProfileTemplate"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIProfileTemplateStoresEntityCore(this IServiceCollection services)
+    {
+        services.AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>();
 
         return services;
     }
@@ -89,11 +101,21 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers EntityCore-backed stores for the MCP client feature.
-    /// This includes catalogs for <see cref="McpConnection"/>, <see cref="McpPrompt"/>, and <see cref="McpResource"/>.
+    /// This includes a catalog for <see cref="McpConnection"/>.
     /// </summary>
     public static IServiceCollection AddCoreAIMcpClientStoresEntityCore(this IServiceCollection services)
     {
         services.AddSourceDocumentCatalog<McpConnection, SourceDocumentCatalog<McpConnection>>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the MCP server feature.
+    /// This includes catalogs for <see cref="McpPrompt"/> and <see cref="McpResource"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreAIMcpServerStoresEntityCore(this IServiceCollection services)
+    {
         services.AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>();
         services.AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>();
 
@@ -230,6 +252,7 @@ public static class ServiceCollectionExtensions
     public static CrestAppsAISuiteBuilder AddEntityCoreStores(this CrestAppsAISuiteBuilder builder)
     {
         builder.Services.AddCoreAIServicesStoresEntityCore();
+        builder.Services.AddCoreAIProfileTemplateStoresEntityCore();
         builder.Services.AddCoreAIChatSessionStoresEntityCore();
 
         return builder;
@@ -248,11 +271,22 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers EntityCore-backed stores for the MCP client feature on the MCP client builder.
-    /// This includes catalogs for <see cref="McpConnection"/>, <see cref="McpPrompt"/>, and <see cref="McpResource"/>.
+    /// This includes a catalog for <see cref="McpConnection"/>.
     /// </summary>
     public static CrestAppsMcpClientBuilder AddEntityCoreStores(this CrestAppsMcpClientBuilder builder)
     {
         builder.Services.AddCoreAIMcpClientStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the MCP server feature on the MCP server builder.
+    /// This includes catalogs for <see cref="McpPrompt"/> and <see cref="McpResource"/>.
+    /// </summary>
+    public static CrestAppsMcpServerBuilder AddEntityCoreStores(this CrestAppsMcpServerBuilder builder)
+    {
+        builder.Services.AddCoreAIMcpServerStoresEntityCore();
 
         return builder;
     }

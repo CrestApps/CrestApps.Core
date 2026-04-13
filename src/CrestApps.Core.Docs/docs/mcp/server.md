@@ -20,9 +20,50 @@ builder.Services
     .AddCoreAISftpMcpResources();
 ```
 
+Or, using the builder pattern:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
+            .AddFtpResources()
+            .AddSftpResources()
+        )
+    )
+    .AddYesSqlDataStore(configuration => configuration
+        .UseSqLite("Data Source=app.db;Cache=Shared")
+        .SetTablePrefix("CA_")
+    )
+);
+```
+
 `AddCoreAIMcpServer()` registers the shared prompt and resource services. FTP and SFTP resource handlers now live in the optional `CrestApps.Core.AI.Ftp` and `CrestApps.Core.AI.Sftp` packages, so hosts opt into those transport dependencies explicitly.
 
-When the same host also acts as an MCP client, use `AddCoreAIMcpServices()` or `AddCoreAIMcpClient(...)` once for the shared runtime pieces, then layer `AddCoreAIMcpServer()` on top for the prompt and resource services.
+### Registering MCP Server Stores
+
+The MCP server requires stores for `McpPrompt` and `McpResource` catalogs. Register them on the MCP server builder:
+
+**Entity Framework Core (via builder):**
+
+```csharp
+.AddMcpServer(mcpServer => mcpServer
+    .AddEntityCoreStores()
+)
+```
+
+**YesSql (via builder):**
+
+```csharp
+.AddMcpServer(mcpServer => mcpServer
+    .AddYesSqlStores()
+)
+```
+
+Or use the `IServiceCollection` extensions directly: `AddCoreAIMcpServerStoresYesSql()` / `AddCoreAIMcpServerStoresEntityCore()`.
+
+When the same host also acts as an MCP client, use `AddCoreAIMcpServices()` or `AddCoreAIMcpClient(...)` once for the shared runtime pieces, then layer `AddCoreAIMcpServer()` on top for the prompt and resource services. The MCP client stores (`McpConnection` catalog) and MCP server stores (`McpPrompt`, `McpResource` catalogs) are registered independently.
 
 ## Problem & Solution
 

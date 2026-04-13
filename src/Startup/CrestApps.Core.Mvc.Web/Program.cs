@@ -151,6 +151,7 @@ builder.Services
             .AddYesSqlStores()
         )
         .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
             .AddFtpResources()
             .AddSftpResources()
         )

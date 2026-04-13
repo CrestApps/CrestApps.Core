@@ -42,6 +42,20 @@ builder.Services
     .AddCoreAIMcpServer();
 ```
 
+Or, using the builder pattern with stores:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
+            .AddFtpResources()
+        )
+    )
+);
+```
+
 **Key capabilities:**
 
 - **Tool exposure** — Registered AI tools become callable by external MCP clients
