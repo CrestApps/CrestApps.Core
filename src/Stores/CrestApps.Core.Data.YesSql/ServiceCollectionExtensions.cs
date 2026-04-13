@@ -106,7 +106,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers YesSql-backed stores for the document processing feature on the document processing builder.
     /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
-    /// <see cref="ISearchIndexProfileStore"/>, and <see cref="IAIDataSourceStore"/>.
+    /// and <see cref="IAIDataSourceStore"/>.
     /// </summary>
     public static CrestAppsDocumentProcessingBuilder AddYesSqlStores(this CrestAppsDocumentProcessingBuilder builder)
     {
@@ -128,10 +128,20 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers YesSql-backed stores for the indexing services feature on the indexing builder.
+    /// This includes <see cref="ISearchIndexProfileStore"/> and the <see cref="SearchIndexProfileIndexProvider"/>.
+    /// </summary>
+    public static CrestAppsIndexingBuilder AddYesSqlStores(this CrestAppsIndexingBuilder builder)
+    {
+        builder.Services.AddCoreIndexingStoresYesSql();
+
+        return builder;
+    }
+
+    /// <summary>
     /// Registers YesSql-backed stores for the core AI services feature.
     /// This includes catalogs for <see cref="AIProfile"/>, <see cref="AIProfileTemplate"/>,
-    /// multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>,
-    /// and the <see cref="ISearchIndexProfileStore"/>.
+    /// and multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>.
     /// </summary>
     public static IServiceCollection AddCoreAIServicesStoresYesSql(this IServiceCollection services)
     {
@@ -139,12 +149,23 @@ public static class ServiceCollectionExtensions
         AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(services, static o => o.AICollectionName);
-        services.AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileTemplateIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProviderConnectionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDeploymentIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the indexing services feature.
+    /// This includes <see cref="ISearchIndexProfileStore"/> and the <see cref="SearchIndexProfileIndexProvider"/>.
+    /// </summary>
+    public static IServiceCollection AddCoreIndexingStoresYesSql(this IServiceCollection services)
+    {
+        services.TryAddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>();
+
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, SearchIndexProfileIndexProvider>());
 
         return services;
@@ -265,7 +286,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIDataSourceStoresYesSql(this IServiceCollection services)
     {
-        services.AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>();
+        services.TryAddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>();
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDataSourceIndexProvider>());

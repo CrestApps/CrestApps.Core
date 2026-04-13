@@ -169,6 +169,6 @@ Document metadata and chunks require store implementations. Register stores dire
 )
 ```
 
-Both register `IAIDocumentStore`, `IAIDocumentChunkStore`, `ISearchIndexProfileStore`, and `IAIDataSourceStore`. See [Data Storage](data-storage.md) for the full per-feature store reference.
+Both register `IAIDocumentStore`, `IAIDocumentChunkStore`, and `IAIDataSourceStore`. The `ISearchIndexProfileStore` is registered separately through the indexing services builder — see [Data Storage](data-storage.md) for the full per-feature store reference.
 
 

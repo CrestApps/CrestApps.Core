@@ -187,6 +187,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddEntityCoreStores()
         )
     )
+    .AddIndexingServices(indexing => indexing
+        .AddEntityCoreStores()
+    )
     .AddEntityCoreSqliteDataStore(
         $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
 );
@@ -203,7 +206,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddYesSqlStores()                    // ChatInteraction, IChatInteractionPromptStore
         )
         .AddDocumentProcessing(dp => dp
-            .AddYesSqlStores()                    // IAIDocumentStore, IAIDocumentChunkStore, ISearchIndexProfileStore, IAIDataSourceStore
+            .AddYesSqlStores()                    // IAIDocumentStore, IAIDocumentChunkStore, IAIDataSourceStore
             .AddOpenXml()
             .AddPdf()
         )
@@ -216,6 +219,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddMcpClient(mcp => mcp
             .AddYesSqlStores()                    // McpConnection, McpPrompt, McpResource
         )
+    )
+    .AddIndexingServices(indexing => indexing
+        .AddYesSqlStores()                        // ISearchIndexProfileStore
     )
     .AddYesSqlDataStore(configuration => configuration
         .UseSqLite("Data Source=app.db;Cache=Shared")

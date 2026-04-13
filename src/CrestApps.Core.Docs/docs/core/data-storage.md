@@ -165,8 +165,9 @@ Every CrestApps feature that needs persistent storage exposes `.AddYesSqlStores(
 | **A2A Client** | `CrestAppsA2AClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `A2AConnection` catalog |
 | **MCP Client** | `CrestAppsMcpClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `McpConnection` catalog, `McpPrompt` catalog, `McpResource` catalog |
 | **Chat Interactions** | `CrestAppsChatInteractionsBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `ChatInteraction` catalog, `IChatInteractionPromptStore` |
-| **Document Processing** | `CrestAppsDocumentProcessingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIDocumentStore`, `IAIDocumentChunkStore`, `ISearchIndexProfileStore`, `IAIDataSourceStore` |
+| **Document Processing** | `CrestAppsDocumentProcessingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIDocumentStore`, `IAIDocumentChunkStore`, `IAIDataSourceStore` |
 | **AI Memory** | `CrestAppsAIMemoryBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIMemoryStore` |
+| **Indexing Services** | `CrestAppsIndexingBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `ISearchIndexProfileStore` |
 
 **Entity Framework Core example** — register stores inline with each feature:
 
@@ -192,6 +193,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddAIMemory(memory => memory
             .AddEntityCoreStores()
         )
+    )
+    .AddIndexingServices(indexing => indexing
+        .AddEntityCoreStores()
     )
     .AddEntityCoreSqliteDataStore(
         $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "App_Data", "crestapps.db")}")
@@ -222,6 +226,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddAIMemory(memory => memory
             .AddYesSqlStores()
         )
+    )
+    .AddIndexingServices(indexing => indexing
+        .AddYesSqlStores()                        // ISearchIndexProfileStore
     )
     .AddYesSqlDataStore(configuration => configuration
         .UseSqLite("Data Source=app.db;Cache=Shared")
@@ -425,6 +432,11 @@ services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConne
 | `AIDocument` | `IAIDocumentStore` | `EntityCoreAIDocumentStore` (EF Core) or `AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>()` (YesSql) |
 | `AIDocumentChunk` | `IAIDocumentChunkStore` | `EntityCoreAIDocumentChunkStore` (EF Core) or `AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>()` (YesSql) |
 | `AIDataSource` | `IAIDataSourceStore` | `EntityCoreAIDataSourceStore` (EF Core) or `AddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>()` (YesSql) |
+
+### Indexing Services
+
+| Model | Store interface | Registration |
+|-------|----------------|--------------|
 | `SearchIndexProfile` | `ISearchIndexProfileStore` | `EntityCoreSearchIndexProfileStore` (EF Core) or `AddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>()` (YesSql) |
 
 ### Memory

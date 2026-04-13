@@ -115,6 +115,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddAzureAIInference()
     )
     .AddIndexingServices(indexing => indexing
+        .AddYesSqlStores()
         .AddElasticsearch(configuration.GetSection("CrestApps:Elasticsearch"), elasticsearch => elasticsearch
             .AddAIDocuments()
             .AddAIDataSources()
