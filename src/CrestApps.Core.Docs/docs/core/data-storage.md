@@ -247,7 +247,7 @@ When using the YesSql data store, each store, index provider, and schema migrati
 |----------|---------|---------|
 | `DefaultCollectionName` | `null` (root collection) | `SearchIndexProfile` |
 | `AICollectionName` | `"AI"` | Profiles, deployments, connections, A2A, MCP, chat sessions, chat interactions, completion usage, metrics, extracted data |
-| `AIMemoryCollectionName` | `"AI"` | `AIMemoryEntry` |
+| `AIMemoryCollectionName` | `"AIMemory"` | `AIMemoryEntry` |
 | `AIDocsCollectionName` | `"AIDocs"` | `AIDocument`, `AIDocumentChunk`, `AIDataSource` |
 
 Override collection names via standard options configuration:
