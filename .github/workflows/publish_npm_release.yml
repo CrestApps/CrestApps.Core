@@ -1,0 +1,41 @@
+name: Publish npm - Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    name: Publish @crestapps/ai-chat-ui
+    steps:
+    - name: Get the version
+      id: get_version
+      run: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - uses: actions/checkout@v6
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: "20"
+        registry-url: "https://registry.npmjs.org"
+
+    - name: Build assets
+      run: |
+        npm ci
+        gulp rebuild
+
+    - name: Publish to npm
+      working-directory: src/Resources/CrestApps.AI.Resources
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: |
+        npm version "${{ steps.get_version.outputs.VERSION }}" --no-git-tag-version --allow-same-version
+        npm publish --access public

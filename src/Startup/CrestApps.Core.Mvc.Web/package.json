@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "description": "MVC sample host for CrestApps.Core — consumes @crestapps/ai-chat-ui via npm.",
+  "dependencies": {
+    "@crestapps/ai-chat-ui": "file:../../Resources/CrestApps.AI.Resources"
+  },
+  "scripts": {
+    "postinstall": "node scripts/copy-deps.js"
+  }
+}

@@ -288,6 +288,18 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# npm publish dist (generated from gulp build output)
+src/Resources/CrestApps.AI.Resources/dist/
+
+# MvcWeb npm-managed assets (copied from @crestapps/ai-chat-ui by postinstall)
+src/Startup/CrestApps.Core.Mvc.Web/wwwroot/js/ai-chat.js
+src/Startup/CrestApps.Core.Mvc.Web/wwwroot/js/chat-interaction.js
+src/Startup/CrestApps.Core.Mvc.Web/wwwroot/js/document-drop-zone.js
+src/Startup/CrestApps.Core.Mvc.Web/wwwroot/js/technical-name-generator.js
+src/Startup/CrestApps.Core.Mvc.Web/wwwroot/css/chat-widget.css
+src/Startup/CrestApps.Core.Mvc.Web/wwwroot/css/document-drop-zone.css
+src/Startup/CrestApps.Core.Mvc.Web/node_modules/
+
 # Visual Studio 6 build log
 *.plg
 
