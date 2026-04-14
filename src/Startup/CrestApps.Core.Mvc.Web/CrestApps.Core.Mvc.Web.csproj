@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../Resources/CrestApps.AI.Resources/CrestApps.AI.Resources.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core/CrestApps.Core.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />

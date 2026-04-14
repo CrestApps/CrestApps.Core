@@ -258,9 +258,9 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
 
     private static object ReadValue(IConfigurationSection section)
     {
-        var children = section.GetChildren().ToArray();
+        var children = section.GetChildren();
 
-        if (children.Length == 0)
+        if (!children.Any())
         {
             return ParseScalar(section.Value);
         }
@@ -269,8 +269,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
         {
             return children
                 .OrderBy(static child => int.Parse(child.Key, CultureInfo.InvariantCulture))
-                .Select(ReadValue)
-                .ToArray();
+                .Select(ReadValue);
         }
 
         return children.ToDictionary(static child => child.Key, ReadValue, StringComparer.OrdinalIgnoreCase);

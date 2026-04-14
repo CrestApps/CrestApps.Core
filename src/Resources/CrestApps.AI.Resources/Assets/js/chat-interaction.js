@@ -139,7 +139,7 @@ window.chatInteractionManager = function () {
     window.__chartConfigs = window.__chartConfigs || {};
 
     function createChartHtml(chartId) {
-        return `<div class="chart-container" style="position: relative; width: 100%; max-width: 680px; min-height: 300px;">`
+        return `<div class="chart-container" style="position: relative; width: 100%; max-width: 560px; min-height: 420px;">`
             + `<canvas id="${chartId}"></canvas>`
             + `</div>`
             + `<div class="mt-2">`
@@ -276,6 +276,13 @@ window.chatInteractionManager = function () {
                     continue;
                 }
 
+                // When the canvas is inside a hidden container (e.g., display:none),
+                // it has zero dimensions. Keep the config for later rendering.
+                if (canvas.offsetParent === null) {
+                    window.__chartConfigs[c.chartId] = c.config;
+                    continue;
+                }
+
                 try {
                     // Destroy existing chart instance if re-rendering
                     if (canvas._chartInstance) {
@@ -286,6 +293,7 @@ window.chatInteractionManager = function () {
                     cfg.options ??= {};
                     cfg.options.responsive = true;
                     cfg.options.maintainAspectRatio = true;
+                    cfg.options.aspectRatio ??= 4 / 3;
 
                     canvas._chartInstance = new Chart(canvas, cfg);
                 } catch (e) {

@@ -93,11 +93,12 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
             return;
         }
 
-        var providerChildren = section.GetChildren().ToArray();
+        var providerChildren = section.GetChildren();
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug("Options: Provider section '{SectionPath}' found with {ProviderCount} provider(s): [{Providers}].",
-                sectionPath, providerChildren.Length,
+                sectionPath, providerChildren.Count(),
                 string.Join(", ", providerChildren.Select(c => c.Key)));
         }
 
@@ -198,9 +199,9 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
 
     private static object ReadValue(IConfigurationSection section)
     {
-        var children = section.GetChildren().ToArray();
+        var children = section.GetChildren();
 
-        if (children.Length == 0)
+        if (!children.Any())
         {
             return ParseScalar(section.Value);
         }
@@ -209,8 +210,7 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
         {
             return children
                 .OrderBy(static child => int.Parse(child.Key, CultureInfo.InvariantCulture))
-                .Select(ReadValue)
-                .ToArray();
+                .Select(ReadValue);
         }
 
         return children.ToDictionary(static child => child.Key, ReadValue, StringComparer.OrdinalIgnoreCase);
