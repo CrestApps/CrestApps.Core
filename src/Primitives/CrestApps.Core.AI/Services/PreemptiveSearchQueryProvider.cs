@@ -180,6 +180,6 @@ public sealed class PreemptiveSearchQueryProvider
             return null;
         }
 
-        return await _aiClientFactory.CreateChatClientAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+        return await _aiClientFactory.CreateChatClientAsync(deployment);
     }
 }

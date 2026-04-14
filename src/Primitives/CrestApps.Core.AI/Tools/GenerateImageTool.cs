@@ -73,19 +73,13 @@ public sealed class GenerateImageTool : AIFunction
                 return $"Image generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
             }
 
-            var providerName = executionContext.ProviderName;
+            var clientName = executionContext.ClientName;
             var connectionName = executionContext.ConnectionName;
-
-            if (string.IsNullOrEmpty(providerName))
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: AI provider is not configured.", Name);
-                return "Image generation is not available. AI provider is not configured.";
-            }
 
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
             var deployment = await deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Image,
-                clientName: providerName,
+                clientName: clientName,
                 connectionName: connectionName);
 
             if (deployment == null)
@@ -94,15 +88,9 @@ public sealed class GenerateImageTool : AIFunction
                 return "Image generation is not available. No image model deployment is configured.";
             }
 
-            if (string.IsNullOrEmpty(deployment.ConnectionName))
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: image deployment '{DeploymentName}' has no connection reference.", Name, deployment.Name);
-                return "Image generation is not available. The resolved image deployment does not define a connection.";
-            }
-
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
 
-            var imageGenerator = await aIClientFactory.CreateImageGeneratorAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+            var imageGenerator = await aIClientFactory.CreateImageGeneratorAsync(deployment);
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             var options = new ImageGenerationOptions

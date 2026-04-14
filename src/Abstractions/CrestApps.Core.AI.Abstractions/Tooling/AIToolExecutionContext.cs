@@ -4,20 +4,20 @@ namespace CrestApps.Core.AI.Tooling;
 
 /// <summary>
 /// Ambient context that provides AI tool implementations with
-/// the provider, connection, and resource information of the current request.
+/// the client, connection, and resource information of the current request.
 /// Stored in <see cref="AIInvocationContext.ToolExecutionContext"/> and accessible
 /// via <c>AIInvocationScope.Current?.ToolExecutionContext</c>.
 /// </summary>
 public sealed class AIToolExecutionContext
 {
     /// <summary>
-    /// Gets or sets the name of the AI provider handling the current request
+    /// Gets or sets the name of the AI client handling the current request
     /// (e.g., "OpenAI", "AzureOpenAI", "Ollama").
     /// </summary>
-    public string ProviderName { get; set; }
+    public string ClientName { get; set; }
 
     /// <summary>
-    /// Gets or sets the connection name within the provider.
+    /// Gets or sets the connection name within the client.
     /// </summary>
     public string ConnectionName { get; set; }
 

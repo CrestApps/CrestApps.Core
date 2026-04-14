@@ -30,217 +30,136 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         _logger = logger;
     }
 
-    public async ValueTask<IChatClient> CreateChatClientAsync(string providerName, string connectionName, string deploymentName = null)
+    public async ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
     {
-        ArgumentException.ThrowIfNullOrEmpty(providerName);
+        ArgumentNullException.ThrowIfNull(deployment);
+        ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
-        ArgumentException.ThrowIfNullOrEmpty(connectionName);
-
-        var connection = await GetConnectionEntryAsync(providerName, connectionName);
+        var connection = await GetConnectionEntryAsync(deployment);
 
         foreach (var clientProvider in _clientProviders)
         {
-            if (!clientProvider.CanHandle(providerName))
+            if (!clientProvider.CanHandle(deployment.ClientName))
             {
                 continue;
             }
 
-            var client = await clientProvider.GetChatClientAsync(connection, deploymentName);
+            var client = await clientProvider.GetChatClientAsync(connection, deployment.ModelName);
 
             return new AICompletionUsageTrackingChatClient(
                 client,
-                providerName,
-                providerName,
-                connectionName,
-                deploymentName,
+                deployment.ClientName,
+                deployment.ClientName,
+                deployment.ConnectionName,
+                deployment.ModelName,
                 _serviceProvider,
                 _logger);
-
         }
 
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the provider '{providerName}'.");
-
+        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
     }
 
-    public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(providerName);
-
-        ArgumentException.ThrowIfNullOrEmpty(connectionName);
-
-        var connection = await GetConnectionEntryAsync(providerName, connectionName);
-
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(providerName))
-            {
-                continue;
-
-            }
-
-            return await clientProvider.GetEmbeddingGeneratorAsync(connection, deploymentName);
-
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the provider '{providerName}'.");
-
-    }
-
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    public async ValueTask<IImageGenerator> CreateImageGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
-#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    {
-        ArgumentException.ThrowIfNullOrEmpty(providerName);
-
-        ArgumentException.ThrowIfNullOrEmpty(connectionName);
-
-        var connection = await GetConnectionEntryAsync(providerName, connectionName);
-
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(providerName))
-            {
-                continue;
-
-            }
-
-            return await clientProvider.GetImageGeneratorAsync(connection, deploymentName);
-
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the provider '{providerName}'.");
-
-    }
-
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    public async ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(string providerName, string connectionName, string deploymentName = null)
-#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    {
-        ArgumentException.ThrowIfNullOrEmpty(providerName);
-
-        ArgumentException.ThrowIfNullOrEmpty(connectionName);
-
-        var connection = await GetConnectionEntryAsync(providerName, connectionName);
-
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(providerName))
-            {
-                continue;
-
-            }
-
-            return await clientProvider.GetSpeechToTextClientAsync(connection, deploymentName);
-
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the provider '{providerName}'.");
-
-    }
-
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
-#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
     {
         ArgumentNullException.ThrowIfNull(deployment);
-
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
-        // When the deployment has a connection reference, use the standard path.
-        if (!string.IsNullOrEmpty(deployment.ConnectionName))
-        {
-            return CreateSpeechToTextClientAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
-
-        }
-
-        // Contained-connection deployment: build an AIProviderConnectionEntry from the deployment's Properties.
-
-        var connectionEntry = AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
+        var connection = await GetConnectionEntryAsync(deployment);
 
         foreach (var clientProvider in _clientProviders)
         {
             if (!clientProvider.CanHandle(deployment.ClientName))
             {
                 continue;
-
             }
 
-            return clientProvider.GetSpeechToTextClientAsync(connectionEntry, deployment.ModelName);
-
+            return await clientProvider.GetEmbeddingGeneratorAsync(connection, deployment.ModelName);
         }
 
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the provider '{deployment.ClientName}'.");
-
+        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    public async ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(string providerName, string connectionName, string deploymentName = null)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(providerName);
-
-        ArgumentException.ThrowIfNullOrEmpty(connectionName);
-
-        var connection = await GetConnectionEntryAsync(providerName, connectionName);
-
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(providerName))
-            {
-                continue;
-
-            }
-
-            return await clientProvider.GetTextToSpeechClientAsync(connection, deploymentName);
-
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the provider '{providerName}'.");
-
-    }
-
-    public ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
+    public async ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment)
+#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
         ArgumentNullException.ThrowIfNull(deployment);
-
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
-        // When the deployment has a connection reference, use the standard path.
-        if (!string.IsNullOrEmpty(deployment.ConnectionName))
-        {
-            return CreateTextToSpeechClientAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
-
-        }
-
-        // Contained-connection deployment: build an AIProviderConnectionEntry from the deployment's Properties.
-
-        var connectionEntry = AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
+        var connection = await GetConnectionEntryAsync(deployment);
 
         foreach (var clientProvider in _clientProviders)
         {
             if (!clientProvider.CanHandle(deployment.ClientName))
             {
                 continue;
-
             }
 
-            return clientProvider.GetTextToSpeechClientAsync(connectionEntry, deployment.ModelName);
-
+            return await clientProvider.GetImageGeneratorAsync(connection, deployment.ModelName);
         }
 
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the provider '{deployment.ClientName}'.");
+        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
     }
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    public async ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
-    private async ValueTask<AIProviderConnectionEntry> GetConnectionEntryAsync(string providerName, string connectionName)
     {
-        var connection = await _connectionCatalog.GetAsync(connectionName, providerName);
+        ArgumentNullException.ThrowIfNull(deployment);
+        ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
-        if (connection == null)
+        var connection = await GetConnectionEntryAsync(deployment);
+
+        foreach (var clientProvider in _clientProviders)
         {
-            throw new ArgumentException($"Connection '{connectionName}' not found with in the provider '{providerName}'.");
+            if (!clientProvider.CanHandle(deployment.ClientName))
+            {
+                continue;
+            }
+
+            return await clientProvider.GetSpeechToTextClientAsync(connection, deployment.ModelName);
         }
 
-        return AIProviderConnectionEntryFactory.Create(connection);
+        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
+    }
+
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    public async ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
+#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    {
+        ArgumentNullException.ThrowIfNull(deployment);
+        ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
+
+        var connection = await GetConnectionEntryAsync(deployment);
+
+        foreach (var clientProvider in _clientProviders)
+        {
+            if (!clientProvider.CanHandle(deployment.ClientName))
+            {
+                continue;
+            }
+
+            return await clientProvider.GetTextToSpeechClientAsync(connection, deployment.ModelName);
+        }
+
+        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
+    }
+
+    private async ValueTask<AIProviderConnectionEntry> GetConnectionEntryAsync(AIDeployment deployment)
+    {
+        if (!string.IsNullOrEmpty(deployment.ConnectionName))
+        {
+            var connection = await _connectionCatalog.GetAsync(deployment.ConnectionName, deployment.ClientName);
+
+            if (connection == null)
+            {
+                throw new ArgumentException($"Connection '{deployment.ConnectionName}' not found within the client '{deployment.ClientName}'.");
+            }
+
+            return AIProviderConnectionEntryFactory.Create(connection);
+        }
+
+        // Contained-connection deployment: build an AIProviderConnectionEntry from the deployment's Properties.
+        return AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
     }
 }

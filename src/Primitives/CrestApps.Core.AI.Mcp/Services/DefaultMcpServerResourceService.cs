@@ -10,11 +10,16 @@ namespace CrestApps.Core.AI.Mcp.Services;
 public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
 {
     private readonly ISourceCatalog<McpResource> _catalog;
+    private readonly IEnumerable<IMcpResourceProvider> _resourceProviders;
     private readonly IEnumerable<McpServerResource> _sdkResources;
-    public DefaultMcpServerResourceService(ISourceCatalog<McpResource> catalog, IEnumerable<McpServerResource> sdkResources = null)
+    public DefaultMcpServerResourceService(
+        ISourceCatalog<McpResource> catalog,
+        IEnumerable<IMcpResourceProvider> resourceProviders,
+        IEnumerable<McpServerResource> sdkResources)
     {
         _catalog = catalog;
-        _sdkResources = sdkResources ?? [];
+        _resourceProviders = resourceProviders;
+        _sdkResources = sdkResources;
     }
 
     public async Task<IList<Resource>> ListAsync()
@@ -38,12 +43,26 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
 
     public async Task<ReadResourceResult> ReadAsync(RequestContext<ReadResourceRequestParams> request, CancellationToken cancellationToken = default)
     {
+        // Try resources from registered providers first.
+        foreach (var provider in _resourceProviders)
+        {
+            var skillResource = (await provider.GetResourcesAsync())
+                .FirstOrDefault(r => r.IsMatch(request.Params.Uri));
+
+            if (skillResource is not null)
+            {
+                return await skillResource.ReadAsync(request, cancellationToken);
+            }
+        }
+
+        // Try SDK-registered resources.
         var sdkResource = _sdkResources.FirstOrDefault(resource => resource.IsMatch(request.Params.Uri));
         if (sdkResource is not null)
         {
             return await sdkResource.ReadAsync(request, cancellationToken);
         }
 
+        // Try catalog-managed resources.
         var uri = request.Params.Uri;
         var schemeEnd = uri.IndexOf("://", StringComparison.Ordinal);
         if (schemeEnd < 0)
@@ -82,6 +101,20 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
     private async Task<IList<Resource>> GetAllResourcesAsync()
     {
         var resources = (await _catalog.GetAllAsync()).Where(entry => entry.Resource != null).Select(entry => entry.Resource).ToList();
+
+        // Include resources from registered providers (e.g., agent skill files).
+        foreach (var provider in _resourceProviders)
+        {
+            foreach (var skillResource in await provider.GetResourcesAsync())
+            {
+                if (skillResource.ProtocolResource is not null && !resources.Any(resource => resource.Uri == skillResource.ProtocolResource.Uri))
+                {
+                    resources.Add(skillResource.ProtocolResource);
+                }
+            }
+        }
+
+        // Include resources registered via the MCP C# SDK.
         foreach (var sdkResource in _sdkResources)
         {
             if (sdkResource.ProtocolResource is not null && !resources.Any(resource => resource.Uri == sdkResource.ProtocolResource.Uri))

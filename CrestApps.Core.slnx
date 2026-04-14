@@ -41,6 +41,9 @@
     <Project Path="src/Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
     <Project Path="src/Primitives/CrestApps.Core/CrestApps.Core.csproj" />
   </Folder>
+  <Folder Name="/src/Resources/">
+    <Project Path="src/Resources/CrestApps.AI.Resources/CrestApps.AI.Resources.csproj" />
+  </Folder>
   <Folder Name="/src/Startup/">
     <Project Path="src/Startup/CrestApps.Core.Aspire.AppHost/CrestApps.Core.Aspire.AppHost.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Samples.A2AClient/CrestApps.Core.Mvc.Samples.A2AClient.csproj" />

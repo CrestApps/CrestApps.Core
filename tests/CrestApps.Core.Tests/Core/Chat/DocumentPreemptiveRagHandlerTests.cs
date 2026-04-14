@@ -109,34 +109,24 @@ public sealed class DocumentPreemptiveRagHandlerTests
             _embeddingGenerator = embeddingGenerator;
         }
 
-        public ValueTask<IChatClient> CreateChatClientAsync(string providerName, string connectionName, string deploymentName)
+        public ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
         {
             return new((IChatClient)null);
         }
 
-        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string providerName, string connectionName, string deploymentName)
+        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
         {
             return new(_embeddingGenerator);
         }
 
-        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
+        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment)
         {
             return new((IImageGenerator)null);
-        }
-
-        public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(string providerName, string connectionName, string deploymentName = null)
-        {
-            return new((ISpeechToTextClient)null);
         }
 
         public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
         {
             return new((ISpeechToTextClient)null);
-        }
-
-        public ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(string providerName, string connectionName, string deploymentName = null)
-        {
-            return new((ITextToSpeechClient)null);
         }
 
         public ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)

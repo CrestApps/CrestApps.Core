@@ -762,7 +762,7 @@ public sealed class ChatInteractionController : Controller
         var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
         return deployment == null
             ? null
-            : await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+            : await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
     private async Task PopulateCopilotChatStatusAsync(ChatInteractionChatViewModel model)

@@ -443,25 +443,20 @@ public sealed class DefaultOrchestratorTests
     /// </summary>
     private sealed class FakeAIClientFactory : IAIClientFactory
     {
-        public ValueTask<IChatClient> CreateChatClientAsync(string providerName, string connectionName, string deploymentName)
+        public ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
         {
             return new((IChatClient)null);
         }
 
-        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string providerName, string connectionName, string deploymentName)
+        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
         {
             return new((IEmbeddingGenerator<string, Embedding<float>>)null);
         }
 
 #pragma warning disable MEAI001
-        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
+        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment)
         {
             return new((IImageGenerator)null);
-        }
-
-        public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(string providerName, string connectionName, string deploymentName = null)
-        {
-            return new((ISpeechToTextClient)null);
         }
 
         public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
@@ -469,21 +464,11 @@ public sealed class DefaultOrchestratorTests
             return new((ISpeechToTextClient)null);
         }
 
-#pragma warning restore MEAI001
-#pragma warning disable MEAI001
-        public ValueTask<Microsoft.Extensions.AI.ITextToSpeechClient> CreateTextToSpeechClientAsync(string providerName, string connectionName, string deploymentName = null)
-        {
-            return new((Microsoft.Extensions.AI.ITextToSpeechClient)null);
-        }
-
         public ValueTask<Microsoft.Extensions.AI.ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
         {
             return new((Microsoft.Extensions.AI.ITextToSpeechClient)null);
         }
-
 #pragma warning restore MEAI001
-
-
     }
 
     /// </summary>

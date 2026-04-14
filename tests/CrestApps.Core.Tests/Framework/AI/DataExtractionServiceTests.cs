@@ -95,7 +95,7 @@ public sealed class DataExtractionServiceTests
         profile.UtilityDeploymentName = "utility";
         deploymentManager.Setup(manager => manager.ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null, null)).ReturnsAsync(new AIDeployment { ClientName = "OpenAI", ConnectionName = "Default", ModelName = "gpt-4.1", });
         deploymentManager.Setup(manager => manager.ResolveOrDefaultAsync(AIDeploymentType.Chat, null, null, null)).ReturnsAsync(new AIDeployment { ClientName = "OpenAI", ConnectionName = "Default", ModelName = "gpt-4.1", });
-        clientFactory.Setup(factory => factory.CreateChatClientAsync("OpenAI", "Default", "gpt-4.1")).ReturnsAsync(chatClient.Object);
+        clientFactory.Setup(factory => factory.CreateChatClientAsync(It.Is<AIDeployment>(d => d.ClientName == "OpenAI" && d.ConnectionName == "Default" && d.ModelName == "gpt-4.1"))).ReturnsAsync(chatClient.Object);
         templateService.Setup(service => service.RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>())).ReturnsAsync("system prompt");
         IDictionary<string, object> promptArguments = null;
         templateService.Setup(service => service.RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>())).Callback<string, IDictionary<string, object>>((_, arguments) => promptArguments = arguments).ReturnsAsync("rendered prompt");

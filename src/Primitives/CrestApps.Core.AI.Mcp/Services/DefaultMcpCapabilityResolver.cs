@@ -351,15 +351,12 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
             clientName: providerName,
             connectionName: connectionName);
 
-        if (deployment is null || string.IsNullOrEmpty(deployment.ConnectionName))
+        if (deployment is null)
         {
             return null;
         }
 
-        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName);
+        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
     private static List<CapabilityEntry> BuildCapabilityEntries(List<McpServerCapabilities> capabilitiesList)

@@ -681,4 +681,25 @@ public sealed class EscalationHandler : IChatResponseHandler
 }
 ```
 
+## Rich Content Rendering
+
+The bundled chat UI components (`ai-chat.js` and `chat-interaction.js`) support rendering rich content beyond plain text.
+
+### Image Generation
+
+When an image-capable deployment is configured (e.g., a DALL-E model), the `GenerateImageTool` produces image URLs that the chat UI renders inline. No additional client-side libraries are required — generated images are displayed automatically using standard `<img>` tags.
+
+### Interactive Charts
+
+The `GenerateChartTool` returns [Chart.js](https://www.chartjs.org/) configuration objects that the chat UI can render as interactive charts. To enable chart rendering, include the Chart.js library on your page:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+```
+
+When Chart.js is loaded, chart responses are rendered as interactive `<canvas>` elements. When Chart.js is **not** loaded, the raw JSON is displayed instead and a warning is logged to the browser console so you know chart rendering is available.
+
+:::tip
+Both tools are registered automatically by the orchestration pipeline and listed under [Built-in System Tools](./orchestration.md#built-in-system-tools).
+:::
 

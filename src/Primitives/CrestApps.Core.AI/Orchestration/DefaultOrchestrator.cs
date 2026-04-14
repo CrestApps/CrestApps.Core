@@ -438,10 +438,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
             return null;
         }
 
-        return await _aiClientFactory.CreateChatClientAsync(
-            deployment.ClientName,
-            deployment.ConnectionName ?? context.CompletionContext?.ConnectionName,
-            deployment.ModelName);
+        return await _aiClientFactory.CreateChatClientAsync(deployment);
     }
     /// <summary>
     /// Resolves the chat deployment from the orchestration context.

@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Support.Json;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,24 +46,21 @@ public sealed class GenerateChartTool : AIFunction
         ["Strict"] = false,
     };
 
-
     protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
-
         CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<GenerateChartTool>>();
 
         if (logger.IsEnabled(LogLevel.Debug))
-
         {
             logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
         }
 
         if (!arguments.TryGetFirstString("data_description", out var dataDescription))
         {
-
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'data_description'.", Name);
+
             return "Unable to find a 'data_description' argument in the arguments parameter.";
         }
 
@@ -72,47 +70,27 @@ public sealed class GenerateChartTool : AIFunction
 
             if (executionContext is null)
             {
-
                 logger.LogWarning("AI tool '{ToolName}' failed: execution context is missing.", Name);
+
                 return $"Chart generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
-
-            }
-
-            var providerName = executionContext.ProviderName;
-            var connectionName = executionContext.ConnectionName;
-
-            if (string.IsNullOrEmpty(providerName))
-            {
-
-                logger.LogWarning("AI tool '{ToolName}' failed: AI provider is not configured.", Name);
-                return "Chart generation is not available. AI provider is not configured.";
             }
 
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
 
             var deployment = await deploymentManager.ResolveUtilityOrDefaultAsync(
-                clientName: providerName,
-                connectionName: connectionName);
+                clientName: executionContext.ClientName,
+                connectionName: executionContext.ConnectionName);
 
             if (deployment == null)
             {
-
                 logger.LogWarning("AI tool '{ToolName}' failed: no chat model deployment configured.", Name);
+
                 return "Chart generation is not available. No chat model deployment is configured.";
-            }
-
-            if (string.IsNullOrEmpty(deployment.ConnectionName))
-            {
-
-                logger.LogWarning("AI tool '{ToolName}' failed: chart deployment '{DeploymentName}' has no connection reference.", Name, deployment.Name);
-
-                return "Chart generation is not available. The resolved deployment does not define a connection.";
-
             }
 
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
 
-            var chatClient = await aIClientFactory.CreateChatClientAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+            var chatClient = await aIClientFactory.CreateChatClientAsync(deployment);
 
             var promptService = arguments.Services.GetService<ITemplateService>();
 
@@ -122,16 +100,13 @@ public sealed class GenerateChartTool : AIFunction
 
             var messages = new List<ChatMessage>
             {
-
                 new(ChatRole.System, systemPrompt ?? string.Empty),
                 new(ChatRole.User, dataDescription),
             };
 
             var chatOptions = new ChatOptions
             {
-
                 Temperature = 0.3f,
-
                 MaxOutputTokens = 2000,
             };
 
@@ -139,23 +114,21 @@ public sealed class GenerateChartTool : AIFunction
 
             if (response is null || string.IsNullOrWhiteSpace(response.Text))
             {
-
                 logger.LogWarning("AI tool '{ToolName}' received an empty response from the chat client.", Name);
 
                 return "Failed to generate chart configuration.";
             }
 
-            var chartConfig = ExtractJsonFromResponse(response.Text);
+            var chartConfig = JsonExtractor.ExtractJsonObject(response.Text);
 
             if (string.IsNullOrEmpty(chartConfig))
             {
-
                 logger.LogWarning("AI tool '{ToolName}' failed to extract valid JSON from the chat response.", Name);
+
                 return "Failed to generate valid chart configuration.";
             }
 
             // Validate it's valid Chart.js JSON.
-
             try
             {
                 using var doc = JsonDocument.Parse(chartConfig);
@@ -163,18 +136,17 @@ public sealed class GenerateChartTool : AIFunction
                 if (!doc.RootElement.TryGetProperty("type", out _) || !doc.RootElement.TryGetProperty("data", out _))
                 {
                     logger.LogWarning("AI tool '{ToolName}' generated chart config missing 'type' or 'data' properties.", Name);
+
                     return "Generated chart configuration is missing required properties.";
                 }
             }
             catch (JsonException)
             {
-
                 logger.LogWarning("AI tool '{ToolName}' generated invalid JSON for chart configuration.", Name);
                 return "Failed to generate valid chart configuration.";
             }
 
             if (logger.IsEnabled(LogLevel.Debug))
-
             {
                 logger.LogDebug("AI tool '{ToolName}' completed.", Name);
             }
@@ -187,101 +159,5 @@ public sealed class GenerateChartTool : AIFunction
 
             return "An error occurred while generating the chart.";
         }
-    }
-
-    private static string ExtractJsonFromResponse(string response)
-    {
-        if (string.IsNullOrWhiteSpace(response))
-
-        {
-
-            return null;
-        }
-
-        var text = response.Trim();
-
-        // If wrapped in markdown code blocks, extract the content.
-        if (text.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
-        {
-            var endIndex = text.IndexOf("```", 7);
-            if (endIndex > 7)
-            {
-                text = text[7..endIndex].Trim();
-            }
-        }
-        else if (text.StartsWith("```"))
-        {
-            var startIndex = text.IndexOf('\n');
-            if (startIndex > 0)
-            {
-                var endIndex = text.LastIndexOf("```");
-                if (endIndex > startIndex)
-                {
-                    text = text[(startIndex + 1)..endIndex].Trim();
-
-                }
-
-            }
-        }
-
-        var jsonStart = text.IndexOf('{');
-
-        if (jsonStart < 0)
-
-        {
-            return null;
-        }
-
-        var depth = 0;
-        var inString = false;
-        var escape = false;
-
-        for (var i = jsonStart; i < text.Length; i++)
-        {
-            var c = text[i];
-
-            if (escape)
-            {
-
-                escape = false;
-                continue;
-            }
-
-            if (c == '\\' && inString)
-            {
-
-                escape = true;
-                continue;
-            }
-
-            if (c == '"')
-            {
-
-                inString = !inString;
-                continue;
-            }
-
-            if (inString)
-
-            {
-                continue;
-            }
-
-            if (c == '{')
-            {
-                depth++;
-            }
-            else if (c == '}')
-            {
-                depth--;
-                if (depth == 0)
-                {
-                    return text[jsonStart..(i + 1)];
-
-                }
-            }
-        }
-
-        return null;
     }
 }

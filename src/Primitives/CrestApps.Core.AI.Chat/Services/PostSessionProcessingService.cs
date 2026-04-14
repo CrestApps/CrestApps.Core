@@ -1,10 +1,10 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Support.Json;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -475,7 +475,7 @@ public sealed class PostSessionProcessingService
         }
 
         // Strategy 2: Extract JSON from markdown code fences.
-        var jsonBlock = ExtractJsonFromCodeFence(responseText);
+        var jsonBlock = JsonExtractor.ExtractFromCodeFence(responseText);
 
         if (jsonBlock != null)
         {
@@ -506,7 +506,7 @@ public sealed class PostSessionProcessingService
         }
 
         // Strategy 3: Extract the first JSON object from surrounding text.
-        var jsonObject = ExtractJsonObject(responseText);
+        var jsonObject = JsonExtractor.ExtractJsonObject(responseText);
 
         if (jsonObject != null && jsonObject != responseText)
         {
@@ -691,39 +691,6 @@ public sealed class PostSessionProcessingService
 
             StringComparer.OrdinalIgnoreCase);
     }
-    /// <summary>
-    /// Extracts JSON content from markdown code fences (e.g., ```json ... ``` or ``` ... ```).
-    /// </summary>
-    private static string ExtractJsonFromCodeFence(string text)
-    {
-        var match = Regex.Match(text, @"```(?:json)?\s*\n?([\s\S]*?)\n?\s*```", RegexOptions.None, TimeSpan.FromSeconds(1));
-
-        return match.Success ? match.Groups[1].Value.Trim() : null;
-    }
-    /// <summary>
-    /// Extracts the first balanced JSON object from text that may contain surrounding content.
-    /// </summary>
-    private static string ExtractJsonObject(string text)
-    {
-        var start = text.IndexOf('{');
-
-        if (start < 0)
-        {
-
-            return null;
-
-        }
-
-        var end = text.LastIndexOf('}');
-
-        if (end <= start)
-        {
-
-            return null;
-        }
-
-        return text[start..(end + 1)];
-    }
 
     private static string CreateResponseLogPreview(string responseText)
     {
@@ -858,7 +825,7 @@ public sealed class PostSessionProcessingService
 
             if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
             {
-                return await _clientFactory.CreateChatClientAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+                return await _clientFactory.CreateChatClientAsync(deployment);
 
             }
         }

@@ -73,10 +73,7 @@ public sealed class AIDocumentController : Controller
         var embeddingDeployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
         var embeddingGenerator = embeddingDeployment == null
             ? null
-            : await _aiClientFactory.CreateEmbeddingGeneratorAsync(
-                embeddingDeployment.ClientName,
-                embeddingDeployment.ConnectionName,
-                embeddingDeployment.ModelName);
+            : await _aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
         var result = await _documentProcessingService.ProcessFileAsync(
             file,
             profileId,

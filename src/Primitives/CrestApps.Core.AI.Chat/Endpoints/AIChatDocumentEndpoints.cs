@@ -160,7 +160,7 @@ public static class AIChatDocumentEndpoints
             logger.LogInformation("Resolved embedding deployment '{DeploymentName}' for interaction '{InteractionId}'.", embeddingDeployment?.Name, interaction.ItemId);
         }
 
-        var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment.ClientName, embeddingDeployment.ConnectionName, embeddingDeployment.ModelName);
+        var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation("Created embedding generator for interaction '{InteractionId}': {HasEmbeddingGenerator}.", interaction.ItemId, embeddingGenerator != null);
@@ -352,7 +352,7 @@ public static class AIChatDocumentEndpoints
 
         var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
         var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding, clientName: deployment?.ClientName, connectionName: deployment?.ConnectionName);
-        var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment.ClientName, embeddingDeployment.ConnectionName, embeddingDeployment.ModelName);
+        var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
         var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
         var S = localizerFactory.Create(typeof(AIChatDocumentEndpoints));
         session.Documents ??= [];

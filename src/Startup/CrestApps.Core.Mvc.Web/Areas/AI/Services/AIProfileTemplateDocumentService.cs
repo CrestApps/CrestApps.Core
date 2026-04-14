@@ -249,10 +249,7 @@ public sealed class AIProfileTemplateDocumentService
             return null;
         }
 
-        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName);
+        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
     private async Task<AIDeployment> ResolveEmbeddingDeploymentAsync(AIProfileTemplate template)

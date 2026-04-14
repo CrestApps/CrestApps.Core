@@ -81,6 +81,20 @@ The orchestrator handles all of this in a single pipeline.
 | `GenerateChartTool` | Chart.js configuration generation | Content Generation |
 | `CurrentDateTimeTool` | Returns current date and time | Utilities (Selectable) |
 
+#### GenerateImageTool
+
+Generates images using a configured image-capable deployment (e.g., DALL-E). The tool resolves the deployment from the current `AIToolExecutionContext`; when no specific deployment is set, it falls back to global AI settings. Generated image URLs are returned as markdown image tags that the chat UI renders inline.
+
+#### GenerateChartTool
+
+Generates interactive [Chart.js](https://www.chartjs.org/) chart configurations. The tool sends the user's request to a chat model along with a chart-generation prompt template, then extracts the Chart.js JSON configuration from the response. To render charts interactively in the browser, include the Chart.js library on your page:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+```
+
+When Chart.js is not loaded, the raw JSON configuration is displayed instead.
+
 ## Key Interfaces
 
 ### `IOrchestrator`

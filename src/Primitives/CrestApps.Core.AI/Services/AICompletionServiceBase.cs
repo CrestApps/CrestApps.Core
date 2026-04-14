@@ -43,10 +43,10 @@ public abstract class AICompletionServiceBase
     }
 
     /// <summary>
-    /// Resolves a deployment name and connection name using the <see cref="IAIDeploymentManager"/>
+    /// Resolves a deployment using the <see cref="IAIDeploymentManager"/>
     /// with fallback to legacy connection entry values when they are still present.
     /// </summary>
-    protected virtual async ValueTask<(string DeploymentName, string ConnectionName)> ResolveDeploymentAsync(
+    protected virtual async ValueTask<AIDeployment> ResolveDeploymentAsync(
         AIDeploymentType type,
         AIProvider provider,
         string providerName,
@@ -63,14 +63,30 @@ public abstract class AICompletionServiceBase
 
             if (deployment != null)
             {
-                return (deployment.ModelName, deployment.ConnectionName ?? connectionName);
+                // If the deployment has no connection name, fall back to the requested connectionName.
+                if (string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(connectionName))
+                {
+                    deployment.ConnectionName = connectionName;
+                }
+
+                return deployment;
             }
         }
 
         // Fall back to legacy dictionary-based resolution.
-        var legacyName = GetDefaultDeploymentName(provider, connectionName);
+        var legacyModelName = GetDefaultDeploymentName(provider, connectionName);
 
-        return (legacyName, connectionName);
+        if (string.IsNullOrEmpty(legacyModelName))
+        {
+            return null;
+        }
+
+        return new AIDeployment
+        {
+            ClientName = providerName,
+            ConnectionName = connectionName,
+            ModelName = legacyModelName,
+        };
     }
 
     protected static int GetTotalMessagesToSkip(int totalMessages, int pastMessageCount)
