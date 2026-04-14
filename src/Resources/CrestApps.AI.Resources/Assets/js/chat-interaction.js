@@ -305,7 +305,7 @@ window.chatInteractionManager = function () {
         _pendingCharts = [];
         const html = marked.parse(content, { renderer });
         message._pendingCharts = _pendingCharts.length > 0 ? [..._pendingCharts] : [];
-        return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
+        return DOMPurify.sanitize(html, { ADD_TAGS: ['canvas'], ADD_ATTR: ['target'] });
     }
 
     const initialize = (instanceConfig) => {

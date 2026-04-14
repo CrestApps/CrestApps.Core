@@ -11,6 +11,8 @@ public sealed class AIDocumentIndex : CatalogItemIndex
     public string ReferenceType { get; set; }
 
     public string FileName { get; set; }
+
+    public string Extension { get; set; }
 }
 
 public sealed class AIDocumentIndexProvider : IndexProvider<AIDocument>
@@ -23,12 +25,22 @@ public sealed class AIDocumentIndexProvider : IndexProvider<AIDocument>
     public override void Describe(DescribeContext<AIDocument> context)
     {
         context.For<AIDocumentIndex>()
-            .Map(doc => new AIDocumentIndex
+            .Map(doc =>
             {
-                ItemId = doc.ItemId,
-                ReferenceId = doc.ReferenceId,
-                ReferenceType = doc.ReferenceType,
-                FileName = doc.FileName,
+                var index = new AIDocumentIndex
+                {
+                    ItemId = doc.ItemId,
+                    ReferenceId = doc.ReferenceId,
+                    ReferenceType = doc.ReferenceType,
+                };
+
+                if (!string.IsNullOrEmpty(doc.FileName))
+                {
+                    index.FileName = doc.FileName;
+                    index.Extension = Path.GetExtension(doc.FileName);
+                }
+
+                return index;
             });
     }
 }
