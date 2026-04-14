@@ -178,8 +178,8 @@ window.openAIChatManager = function () {
     function createChartHtml(chartId) {
         const chartMaxWidth = defaultConfig.generatedChartMaxWidth;
 
-        return `<div class="chart-container" style="position: relative; width: 100%; max-width: ${chartMaxWidth}px; margin: 0 auto; height: 480px;">`
-            + `<canvas id="${chartId}" class="img-thumbnail" width="${chartMaxWidth}" height="480" style="width: 100%; height: 480px;"></canvas>`
+        return `<div class="chart-container" style="position: relative; width: 100%; max-width: ${chartMaxWidth}px;">`
+            + `<canvas id="${chartId}" class="img-thumbnail"></canvas>`
             + `</div>`
             + `<div class="mt-2">`
             + `<button type="button" class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart-id="${chartId}" title="${defaultConfig.downloadChartTitle}">`

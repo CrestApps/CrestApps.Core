@@ -105,7 +105,10 @@
                     }
 
                 .ai-chat-message-body {
-                    padding: 0 5.5rem 1.75rem 0;
+                    padding: 0 0 1.75rem 0;
+                    overflow-wrap: break-word;
+                    word-break: break-word;
+                    min-width: 0;
                 }
 
                 .message-buttons-container {
@@ -117,6 +120,10 @@
                     opacity: 0;
                     pointer-events: none;
                     transition: opacity 0.15s ease-in-out;
+                    background: rgba(255, 255, 255, 0.92);
+                    padding: 0.15rem 0.35rem;
+                    border-radius: 4px;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
                 }
 
                 .ai-chat-message-item:hover .message-buttons-container,
