@@ -186,9 +186,6 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
             return null;
         }
 
-        return await aiClientFactory.CreateEmbeddingGeneratorAsync(
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName);
+        return await aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 }

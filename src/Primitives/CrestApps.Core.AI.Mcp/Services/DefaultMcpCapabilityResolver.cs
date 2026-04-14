@@ -43,8 +43,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
 
     public async Task<McpCapabilityResolutionResult> ResolveAsync(
         string prompt,
-        string providerName,
-        string connectionName,
+        string clientName,
         string[] mcpConnectionIds,
         CancellationToken cancellationToken = default)
     {
@@ -111,8 +110,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
 
             var embeddingCandidates = await TryEmbeddingMatchAsync(
                 prompt,
-                providerName,
-                connectionName,
+                clientName,
                 capabilitiesList,
                 entries,
                 cancellationToken);
@@ -154,13 +152,12 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
 
     private async Task<List<McpCapabilityCandidate>> TryEmbeddingMatchAsync(
         string prompt,
-        string providerName,
-        string connectionName,
+        string clientName,
         List<McpServerCapabilities> capabilitiesList,
         List<CapabilityEntry> entries,
         CancellationToken cancellationToken)
     {
-        var embeddingGenerator = await CreateEmbeddingGeneratorAsync(providerName, connectionName);
+        var embeddingGenerator = await CreateEmbeddingGeneratorAsync(clientName);
 
         if (embeddingGenerator is null)
         {
@@ -339,27 +336,23 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         }
     }
 
-    private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string providerName, string connectionName)
+    private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string clientName)
     {
-        if (string.IsNullOrEmpty(providerName))
+        if (string.IsNullOrEmpty(clientName))
         {
             return null;
         }
 
         var deployment = await _deploymentManager.ResolveOrDefaultAsync(
             AIDeploymentType.Embedding,
-            clientName: providerName,
-            connectionName: connectionName);
+            clientName: clientName);
 
-        if (deployment is null || string.IsNullOrEmpty(deployment.ConnectionName))
+        if (deployment is null)
         {
             return null;
         }
 
-        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName);
+        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
     private static List<CapabilityEntry> BuildCapabilityEntries(List<McpServerCapabilities> capabilitiesList)

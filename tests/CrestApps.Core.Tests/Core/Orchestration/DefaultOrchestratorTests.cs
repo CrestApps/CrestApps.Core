@@ -334,7 +334,7 @@ public sealed class DefaultOrchestratorTests
     private static DefaultOrchestrator CreateOrchestrator(FakeCompletionService completionService = null, FakeToolRegistry toolRegistry = null)
     {
         var deploymentManager = new Mock<IAIDeploymentManager>();
-        deploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(new AIDeployment { ItemId = "test-dep", Name = "test-model", ClientName = "test-client" });
+        deploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(new AIDeployment { ItemId = "test-dep", Name = "test-model", ClientName = "test-client" });
         return new DefaultOrchestrator(completionService ?? new FakeCompletionService("default response"), new FakeAIClientFactory(), new FakeAITemplateService(), deploymentManager.Object, toolRegistry ?? new FakeToolRegistry([]), new LuceneTextTokenizer(), Options.Create(new DefaultOrchestratorOptions()), NullLogger<DefaultOrchestrator>.Instance);
     }
 
@@ -357,7 +357,6 @@ public sealed class DefaultOrchestratorTests
             ConversationHistory = [new ChatMessage(ChatRole.User, userMessage)],
             CompletionContext = new AICompletionContext
             {
-                ConnectionName = "test",
                 ChatDeploymentName = "test-deployment",
                 ToolNames = ["tool0", "tool1", "tool2"],
             },
@@ -443,25 +442,20 @@ public sealed class DefaultOrchestratorTests
     /// </summary>
     private sealed class FakeAIClientFactory : IAIClientFactory
     {
-        public ValueTask<IChatClient> CreateChatClientAsync(string providerName, string connectionName, string deploymentName)
+        public ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
         {
             return new((IChatClient)null);
         }
 
-        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(string providerName, string connectionName, string deploymentName)
+        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
         {
             return new((IEmbeddingGenerator<string, Embedding<float>>)null);
         }
 
 #pragma warning disable MEAI001
-        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(string providerName, string connectionName, string deploymentName = null)
+        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment)
         {
             return new((IImageGenerator)null);
-        }
-
-        public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(string providerName, string connectionName, string deploymentName = null)
-        {
-            return new((ISpeechToTextClient)null);
         }
 
         public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
@@ -469,21 +463,11 @@ public sealed class DefaultOrchestratorTests
             return new((ISpeechToTextClient)null);
         }
 
-#pragma warning restore MEAI001
-#pragma warning disable MEAI001
-        public ValueTask<Microsoft.Extensions.AI.ITextToSpeechClient> CreateTextToSpeechClientAsync(string providerName, string connectionName, string deploymentName = null)
-        {
-            return new((Microsoft.Extensions.AI.ITextToSpeechClient)null);
-        }
-
         public ValueTask<Microsoft.Extensions.AI.ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
         {
             return new((Microsoft.Extensions.AI.ITextToSpeechClient)null);
         }
-
 #pragma warning restore MEAI001
-
-
     }
 
     /// </summary>

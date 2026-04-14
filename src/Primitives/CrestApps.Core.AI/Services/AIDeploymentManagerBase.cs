@@ -15,11 +15,10 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     {
     }
 
-    public async ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName, string connectionName)
+    public async ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName)
     {
         var deployments = (await Catalog.GetAllAsync())
-            .Where(x => string.Equals(x.ClientName, clientName, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(x.ConnectionName ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase));
+            .Where(x => string.Equals(x.ClientName, clientName, StringComparison.OrdinalIgnoreCase));
 
         foreach (var deployment in deployments)
         {
@@ -42,18 +41,18 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return deployments;
     }
 
-    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, string connectionName, AIDeploymentType type)
+    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type)
     {
-        var deployments = await GetAllAsync(clientName, connectionName);
+        var deployments = await GetAllAsync(clientName);
 
         var candidates = deployments.Where(d => d.SupportsType(type));
 
         return candidates.FirstOrDefault();
     }
 
-    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, string connectionName = null)
+    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null)
     {
-        return ResolveByTypeAsync(type, deploymentName, clientName, connectionName);
+        return ResolveByTypeAsync(type, deploymentName, clientName);
     }
 
     public async ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null)
@@ -70,7 +69,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return filtered;
     }
 
-    private async ValueTask<AIDeployment> ResolveByTypeAsync(AIDeploymentType type, string deploymentName, string clientName, string connectionName)
+    private async ValueTask<AIDeployment> ResolveByTypeAsync(AIDeploymentType type, string deploymentName, string clientName)
     {
         if (!string.IsNullOrEmpty(deploymentName))
         {
@@ -94,10 +93,10 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
             }
         }
 
-        return await GetFirstMatchingDeploymentAsync(type, clientName, connectionName);
+        return await GetFirstMatchingDeploymentAsync(type, clientName);
     }
 
-    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentType type, string clientName, string connectionName)
+    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentType type, string clientName)
     {
         var deployments = await GetAllAsync();
 
@@ -114,12 +113,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
                 return false;
             }
 
-            if (string.IsNullOrEmpty(connectionName))
-            {
-                return true;
-            }
-
-            return string.Equals(deployment.ConnectionName ?? string.Empty, connectionName, StringComparison.OrdinalIgnoreCase);
+            return true;
         });
     }
 

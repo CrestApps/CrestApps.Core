@@ -99,23 +99,20 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         }
 
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var (deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(
+        var deployment = await ResolveDeploymentAsync(
             AIDeploymentType.Chat,
             provider,
             ProviderName,
-            context.ConnectionName,
             deploymentName: context.ChatDeploymentName);
 
-        var connectionName = resolvedConnectionName;
-
-        if (string.IsNullOrEmpty(connectionName))
+        if (deployment == null)
         {
-            Logger.LogWarning("Unable to chat. Unable to find a connection '{ConnectionName}' and no fallback connection could be resolved.", context.ConnectionName);
+            Logger.LogWarning("Unable to chat. Unable to find a deployment and no fallback deployment could be resolved.");
 
             return null;
         }
 
-        if (string.IsNullOrEmpty(deploymentName))
+        if (string.IsNullOrEmpty(deployment.ModelName))
         {
             Logger.LogWarning("Unable to chat. Unable to find a deployment name '{DeploymentName}' or the default deployment", context.ChatDeploymentName);
 
@@ -124,11 +121,11 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         try
         {
-            var chatClient = await BuildClientAsync(connectionName, context, deploymentName);
+            var chatClient = await BuildClientAsync(deployment, context);
 
             var prompts = GetPrompts(messages, context);
 
-            var chatOptions = await GetChatOptionsAsync(context, deploymentName, false);
+            var chatOptions = await GetChatOptionsAsync(context, deployment.ModelName, false);
 
             var response = await chatClient.GetResponseAsync(prompts, chatOptions, cancellationToken);
 
@@ -154,35 +151,30 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             throw new ArgumentException($"Provider '{ProviderName}' not found.");
         }
 
-        var connectionName = context.ConnectionName;
-
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var (deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(
+        var deployment = await ResolveDeploymentAsync(
             AIDeploymentType.Chat,
             provider,
             ProviderName,
-            connectionName,
             deploymentName: context.ChatDeploymentName);
 
-        connectionName = resolvedConnectionName;
-
-        if (string.IsNullOrEmpty(connectionName))
+        if (deployment == null)
         {
-            Logger.LogWarning("Unable to chat. Unable to find a connection '{ConnectionName}' and no fallback connection could be resolved.", context.ConnectionName);
+            Logger.LogWarning("Unable to chat. Unable to find a deployment and no fallback deployment could be resolved.");
 
             yield break;
         }
 
-        if (string.IsNullOrEmpty(deploymentName))
+        if (string.IsNullOrEmpty(deployment.ModelName))
         {
             Logger.LogWarning("Unable to chat. Unable to find a deployment name '{DeploymentName}' or the default deployment", context.ChatDeploymentName);
 
             yield break;
         }
 
-        var chatClient = await BuildClientAsync(connectionName, context, deploymentName);
+        var chatClient = await BuildClientAsync(deployment, context);
 
-        var chatOptions = await GetChatOptionsAsync(context, deploymentName, true);
+        var chatOptions = await GetChatOptionsAsync(context, deployment.ModelName, true);
 
         var prompts = GetPrompts(messages, context);
 
@@ -260,15 +252,15 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         return chatOptions;
     }
 
-    private async ValueTask<IChatClient> BuildClientAsync(string connectionName, AICompletionContext context, string modelName)
+    private async ValueTask<IChatClient> BuildClientAsync(AIDeployment deployment, AICompletionContext context)
     {
-        var client = await _aIClientFactory.CreateChatClientAsync(ProviderName, connectionName, modelName);
+        var client = await _aIClientFactory.CreateChatClientAsync(deployment);
 
         var builder = new ChatClientBuilder(client);
 
         builder.UseLogging(LoggerFactory, ConfigureLogger);
 
-        if (SupportFunctionInvocation(context, modelName))
+        if (SupportFunctionInvocation(context, deployment.ModelName))
         {
             builder.UseFunctionInvocation(LoggerFactory, ConfigureFunctionInvocation);
         }

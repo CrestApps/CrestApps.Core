@@ -19,7 +19,6 @@ internal sealed class ChatInteractionCompletionContextBuilderHandler : IAIComple
             return;
         }
 
-        context.Context.ConnectionName = interaction.ConnectionName;
         context.Context.ChatDeploymentName = interaction.ChatDeploymentName;
         context.Context.SystemMessage = await ResolveSystemMessageAsync(interaction);
         context.Context.Temperature = interaction.Temperature;

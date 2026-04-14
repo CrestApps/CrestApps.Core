@@ -79,7 +79,7 @@ public sealed class AIMemorySearchServiceTests
 
         var aiClientFactory = new Mock<IAIClientFactory>();
         aiClientFactory
-            .Setup(factory => factory.CreateEmbeddingGeneratorAsync("AzureOpenAI", "Default", "text-embedding-3-small"))
+            .Setup(factory => factory.CreateEmbeddingGeneratorAsync(It.Is<AIDeployment>(d => d.ClientName == "AzureOpenAI" && d.ConnectionName == "Default" && d.ModelName == "text-embedding-3-small")))
             .Returns(new ValueTask<IEmbeddingGenerator<string, Embedding<float>>>(new FakeEmbeddingGenerator([1f, 2f, 3f])));
 
         var service = CreateService(

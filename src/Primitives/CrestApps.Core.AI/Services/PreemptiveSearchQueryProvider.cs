@@ -164,7 +164,6 @@ public sealed class PreemptiveSearchQueryProvider
     private async Task<IChatClient> TryCreateUtilityChatClientAsync(OrchestrationContext context)
     {
         var providerName = context.SourceName;
-        var connectionName = context.CompletionContext?.ConnectionName;
 
         if (string.IsNullOrEmpty(providerName))
         {
@@ -172,14 +171,13 @@ public sealed class PreemptiveSearchQueryProvider
         }
 
         var deployment = await _deploymentManager.ResolveUtilityOrDefaultAsync(
-            clientName: providerName,
-            connectionName: connectionName);
+            clientName: providerName);
 
-        if (deployment == null || string.IsNullOrEmpty(deployment.ConnectionName))
+        if (deployment == null)
         {
             return null;
         }
 
-        return await _aiClientFactory.CreateChatClientAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+        return await _aiClientFactory.CreateChatClientAsync(deployment);
     }
 }

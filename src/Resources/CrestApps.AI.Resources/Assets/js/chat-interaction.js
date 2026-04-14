@@ -136,14 +136,17 @@ window.chatInteractionManager = function () {
     // Collector for charts discovered during marked parsing.
     let _pendingCharts = [];
 
+    // Global chart config map shared with ai-chat.js
+    window.__chartConfigs = window.__chartConfigs || {};
+
     function createChartHtml(chartId) {
         const chartMaxWidth = defaultConfig.generatedChartMaxWidth;
 
-        return `<div class="chart-container" style="position: relative; width: 100%; max-width: ${chartMaxWidth}px; margin: 0 auto; height: 480px;">`
-            + `<canvas id="${chartId}" class="img-thumbnail" width="${chartMaxWidth}" height="480" style="width: 100%; height: 480px;"></canvas>`
+        return `<div class="chart-container" style="position: relative; width: 100%; max-width: ${chartMaxWidth}px;">`
+            + `<canvas id="${chartId}" class="img-thumbnail"></canvas>`
             + `</div>`
             + `<div class="mt-2">`
-            + `<button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadChart('${chartId}')" title="${defaultConfig.downloadChartTitle}">`
+            + `<button type="button" class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart-id="${chartId}" title="${defaultConfig.downloadChartTitle}">`
             + `<i class="fa-solid fa-download"></i> ${defaultConfig.downloadChartButtonText}`
             + `</button>`
             + `</div>`;
@@ -176,6 +179,7 @@ window.chatInteractionManager = function () {
             },
             renderer(token) {
                 _pendingCharts.push({ chartId: token.chartId, config: token.json });
+                window.__chartConfigs[token.chartId] = token.json;
                 return createChartHtml(token.chartId);
             }
         }]
@@ -257,36 +261,41 @@ window.chatInteractionManager = function () {
             return;
         }
 
-        for (const c of message._pendingCharts) {
-            const canvas = document.getElementById(c.chartId);
-            if (!canvas) {
-                continue;
-            }
+        // Copy and clear pending charts immediately to prevent duplicate renders.
+        const charts = [...message._pendingCharts];
+        message._pendingCharts = [];
 
-            if (typeof Chart === 'undefined') {
-                console.error('Chart.js is not available on the page.');
-                continue;
-            }
-
-            try {
-                // Destroy existing chart instance if re-rendering
-                if (canvas._chartInstance) {
-                    canvas._chartInstance.destroy();
+        // Defer to requestAnimationFrame so the browser has fully laid out the
+        // canvas elements before Chart.js reads their dimensions.
+        requestAnimationFrame(() => {
+            for (const c of charts) {
+                const canvas = document.getElementById(c.chartId);
+                if (!canvas) {
+                    continue;
                 }
 
-                const cfg = typeof c.config === 'string' ? JSON.parse(c.config) : c.config;
-                cfg.options ??= {};
-                cfg.options.responsive = true;
-                cfg.options.maintainAspectRatio = false;
+                if (typeof Chart === 'undefined') {
+                    console.warn('Chart.js is not loaded. To render interactive charts, include the Chart.js library on the page (e.g., <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>).');
+                    continue;
+                }
 
-                canvas._chartInstance = new Chart(canvas, cfg);
-            } catch (e) {
-                console.error('Error creating chart:', e);
+                try {
+                    // Destroy existing chart instance if re-rendering
+                    if (canvas._chartInstance) {
+                        canvas._chartInstance.destroy();
+                    }
+
+                    const cfg = typeof c.config === 'string' ? JSON.parse(c.config) : c.config;
+                    cfg.options ??= {};
+                    cfg.options.responsive = true;
+                    cfg.options.maintainAspectRatio = false;
+
+                    canvas._chartInstance = new Chart(canvas, cfg);
+                } catch (e) {
+                    console.error('Error creating chart:', e);
+                }
             }
-        }
-
-        // Prevent re-render work
-        message._pendingCharts = [];
+        });
     }
 
     // Parse markdown content via marked (which natively handles [chart:...] markers
@@ -964,7 +973,10 @@ window.chatInteractionManager = function () {
 
                         this.messages[messageIndex] = message;
 
-                        this.scrollToBottom();
+                        this.$nextTick(() => {
+                            renderChartsInMessage(message);
+                            this.scrollToBottom();
+                        });
                     }
                 },
                 streamingStarted() {
@@ -2050,20 +2062,23 @@ window.chatInteractionManager = function () {
     };
 }();
 
-// Global function for downloading charts as images
-window.downloadChart = function (chartId) {
-    const canvas = document.getElementById(chartId);
+// Download chart as image via event delegation (DOMPurify strips inline onclick).
+document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.download-chart-btn');
+    if (!btn) {
+        return;
+    }
+    const chartId = btn.getAttribute('data-chart-id');
+    const canvas = chartId ? document.getElementById(chartId) : null;
     if (!canvas) {
         console.error('Chart canvas not found:', chartId);
         return;
     }
-
-    // Create a temporary link element
     const link = document.createElement('a');
     link.download = 'chart-' + chartId + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
-};
+});
 
 // Intercept download clicks for data-URI images and convert to blob downloads.
 document.addEventListener('click', function (e) {

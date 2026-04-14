@@ -249,10 +249,7 @@ public sealed class AIProfileTemplateDocumentService
             return null;
         }
 
-        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName);
+        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
     private async Task<AIDeployment> ResolveEmbeddingDeploymentAsync(AIProfileTemplate template)
@@ -262,13 +259,11 @@ public sealed class AIProfileTemplateDocumentService
         var profileDeployment = await ResolveTemplateDeploymentAsync(template);
 
         if (profileDeployment != null &&
-            !string.IsNullOrWhiteSpace(profileDeployment.ClientName) &&
-            !string.IsNullOrWhiteSpace(profileDeployment.ConnectionName))
+            !string.IsNullOrWhiteSpace(profileDeployment.ClientName))
         {
             var scopedEmbeddingDeployment = await _deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Embedding,
-                clientName: profileDeployment.ClientName,
-                connectionName: profileDeployment.ConnectionName);
+                clientName: profileDeployment.ClientName);
 
             if (scopedEmbeddingDeployment != null)
             {

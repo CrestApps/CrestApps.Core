@@ -556,6 +556,7 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             if (window.bootstrap && window.bootstrap.Tooltip) {
@@ -590,6 +591,112 @@
                     }
                     return hljs.highlightAuto(code).value;
                 }
+            });
+
+            // --- Chart.js rendering support ---
+            var _chartCounter = 0;
+            var _chartConfigs = {};
+
+            function tryExtractChartMarker(text) {
+                var token = '[chart:';
+                var start = text.indexOf(token);
+                if (start < 0) return null;
+                var jsonStart = start + token.length;
+                var i = jsonStart;
+                while (i < text.length && (text[i] === ' ' || text[i] === '\n' || text[i] === '\r' || text[i] === '\t')) i++;
+                if (i >= text.length || text[i] !== '{') return null;
+                var depth = 0, inString = false, escape = false;
+                for (; i < text.length; i++) {
+                    var ch = text[i];
+                    if (inString) {
+                        if (escape) { escape = false; continue; }
+                        if (ch === '\\') { escape = true; continue; }
+                        if (ch === '"') inString = false;
+                        continue;
+                    }
+                    if (ch === '"') { inString = true; continue; }
+                    if (ch === '{') depth++;
+                    else if (ch === '}') {
+                        depth--;
+                        if (depth === 0) {
+                            var jsonEnd = i;
+                            var closeBracketIndex = text.indexOf(']', jsonEnd + 1);
+                            if (closeBracketIndex < 0) return null;
+                            return { startIndex: start, endIndex: closeBracketIndex + 1, json: text.substring(jsonStart, jsonEnd + 1).trim() };
+                        }
+                    }
+                }
+                return null;
+            }
+
+            marked.use({
+                extensions: [{
+                    name: 'chart',
+                    level: 'block',
+                    start: function (src) {
+                        var idx = src.indexOf('[chart:');
+                        return idx >= 0 ? idx : undefined;
+                    },
+                    tokenizer: function (src) {
+                        var extracted = tryExtractChartMarker(src);
+                        if (!extracted || extracted.startIndex !== 0) return undefined;
+                        var chartId = 'ci_chart_' + (++_chartCounter);
+                        return { type: 'chart', raw: src.substring(0, extracted.endIndex), chartId: chartId, json: extracted.json };
+                    },
+                    renderer: function (token) {
+                        _chartConfigs[token.chartId] = token.json;
+                        return '<div class="chart-container" style="position: relative; width: 100%; max-width: 600px; margin: 0 auto; height: 480px;">'
+                            + '<canvas id="' + token.chartId + '" class="img-thumbnail" width="600" height="480" style="width: 100%; height: 480px;"></canvas>'
+                            + '</div>'
+                            + '<div class="mt-2">'
+                            + '<button type="button" class="btn btn-sm btn-outline-secondary ci-download-chart-btn" data-chart-id="' + token.chartId + '" title="Download Chart">'
+                            + '<i class="fa-solid fa-download"></i> Download'
+                            + '</button>'
+                            + '</div>';
+                    }
+                }]
+            });
+
+            function renderPendingCharts() {
+                if (typeof Chart === 'undefined') {
+                    if (Object.keys(_chartConfigs).length > 0) {
+                        console.warn('Chart.js is not loaded. To render interactive charts, include the Chart.js library on the page.');
+                    }
+                    return;
+                }
+                requestAnimationFrame(function () {
+                    var ids = Object.keys(_chartConfigs);
+                    for (var k = 0; k < ids.length; k++) {
+                        var cid = ids[k];
+                        var canvas = document.getElementById(cid);
+                        if (!canvas) continue;
+                        try {
+                            if (canvas._chartInstance) canvas._chartInstance.destroy();
+                            var cfg = typeof _chartConfigs[cid] === 'string' ? JSON.parse(_chartConfigs[cid]) : _chartConfigs[cid];
+                            cfg.options = cfg.options || {};
+                            cfg.options.responsive = true;
+                            cfg.options.maintainAspectRatio = false;
+                            canvas._chartInstance = new Chart(canvas, cfg);
+                            delete _chartConfigs[cid];
+                        } catch (e) {
+                            console.error('Error creating chart:', e);
+                        }
+                    }
+                });
+            }
+
+            // Download chart as image via event delegation
+            document.addEventListener('click', function (e) {
+                var btn = e.target.closest('.ci-download-chart-btn');
+                if (!btn) return;
+                var chartId = btn.getAttribute('data-chart-id');
+                if (!chartId) return;
+                var canvas = document.getElementById(chartId);
+                if (!canvas) return;
+                var link = document.createElement('a');
+                link.download = chartId + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
             });
 
             function renderMarkdown(text) {
@@ -1183,11 +1290,20 @@
 
             // --- Vue app for messages ---
             var app = Vue.createApp({
+                mounted: function () {
+                    var self = this;
+                    this.$nextTick(function () {
+                        renderPendingCharts();
+                    });
+                },
                 methods: {
                     addMessage: function (role, content, isStreaming, isSystem, references) {
                         this.messages.push(createChatMessage(role, content, isStreaming, isSystem, references));
                         var self = this;
-                        this.$nextTick(function () { self.scrollToBottom(); });
+                        this.$nextTick(function () {
+                            self.scrollToBottom();
+                            renderPendingCharts();
+                        });
                     },
                     appendToLast: function (token, references) {
                         var last = this.messages[this.messages.length - 1];
@@ -1196,6 +1312,10 @@
                             last.content = last.rawContent;
                             last.references = mergeReferences(last.references, references);
                             last.htmlContent = renderMarkdown(formatMessageContent(last.rawContent, last.references));
+                            var self = this;
+                            this.$nextTick(function () {
+                                renderPendingCharts();
+                            });
                         }
                     },
                     finishStreaming: function () {
@@ -1205,7 +1325,10 @@
                             last.htmlContent = renderMarkdown(formatMessageContent(last.rawContent, last.references));
                         }
                         var self = this;
-                        this.$nextTick(function () { self.scrollToBottom(); });
+                        this.$nextTick(function () {
+                            self.scrollToBottom();
+                            renderPendingCharts();
+                        });
                     },
                     clearAll: function () {
                         this.messages = [];
@@ -1505,6 +1628,7 @@
                 conversationAssistantMessage.content = conversationAssistantMessage.rawContent;
                 conversationAssistantMessage.htmlContent = renderMarkdown(formatMessageContent(conversationAssistantMessage.rawContent, conversationAssistantMessage.references));
                 vm.scrollToBottom();
+                vm.$nextTick(function () { renderPendingCharts(); });
             });
 
             connection.on('ReceiveConversationAssistantComplete', function (identifier) {
@@ -1516,6 +1640,7 @@
                 conversationAssistantMessage.htmlContent = renderMarkdown(formatMessageContent(conversationAssistantMessage.rawContent, conversationAssistantMessage.references));
                 conversationAssistantMessage = null;
                 vm.scrollToBottom();
+                vm.$nextTick(function () { renderPendingCharts(); });
             });
 
             connection.on('ReceiveAudioChunk', function (identifier, base64Audio) {

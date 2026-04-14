@@ -260,7 +260,7 @@ public sealed class DataExtractionService
 
             if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
             {
-                return await _clientFactory.CreateChatClientAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+                return await _clientFactory.CreateChatClientAsync(deployment);
             }
         }
 

@@ -195,7 +195,6 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
                 var planningContext = new AICompletionContext
                 {
-                    ConnectionName = context.CompletionContext.ConnectionName,
                     ChatDeploymentName = context.CompletionContext.ChatDeploymentName,
                     DisableTools = true,
                     SystemMessage = planningSystemPrompt,
@@ -438,10 +437,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
             return null;
         }
 
-        return await _aiClientFactory.CreateChatClientAsync(
-            deployment.ClientName,
-            deployment.ConnectionName ?? context.CompletionContext?.ConnectionName,
-            deployment.ModelName);
+        return await _aiClientFactory.CreateChatClientAsync(deployment);
     }
     /// <summary>
     /// Resolves the chat deployment from the orchestration context.

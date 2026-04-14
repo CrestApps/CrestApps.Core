@@ -55,13 +55,12 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             throw new ArgumentException($"Provider '{AzureOpenAIConstants.ClientName}' not found.");
         }
 
-        var connectionName = context.ConnectionName;
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var (deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
-        connectionName = resolvedConnectionName;
+        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
+        var connectionName = deployment?.ConnectionName;
         if (string.IsNullOrEmpty(connectionName))
         {
-            _logger.LogWarning("Unable to chat. Unable to find a connection '{ConnectionName}' and no fallback connection could be resolved.", context.ConnectionName);
+            _logger.LogWarning("Unable to chat. Unable to find a deployment with a valid connection.");
             return null;
         }
 
@@ -71,7 +70,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             return null;
         }
 
-        if (string.IsNullOrEmpty(deploymentName))
+        if (string.IsNullOrEmpty(deployment.ModelName))
         {
             _logger.LogWarning("Unable to chat. Unable to find a deployment name '{DeploymentName}' or the default deployment", context.ChatDeploymentName);
             return null;
@@ -99,8 +98,8 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
 
         var prompts = GetPrompts(context, azureMessages);
         var azureClient = GetChatClient(connectionProperties);
-        var chatClient = azureClient.GetChatClient(deploymentName);
-        var functions = await ResolveToolsAsync(context, deploymentName);
+        var chatClient = azureClient.GetChatClient(deployment.ModelName);
+        var functions = await ResolveToolsAsync(context, deployment.ModelName);
         var chatOptions = GetOptions(context, functions);
         var systemFunctions = await ConfigureOptionsAsync(chatOptions, context, prompts);
         var allFunctions = systemFunctions.Count > 0 ? functions.Concat(systemFunctions) : functions;
@@ -149,7 +148,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                 },
             };
             stopwatch.Stop();
-            await RecordUsageAsync(context, connectionName, deploymentName, result.ModelId, result.ResponseId, result.Usage, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
+            await RecordUsageAsync(context, connectionName, deployment.ModelName, result.ModelId, result.ResponseId, result.Usage, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
             return result;
         }
         catch (Exception ex)
@@ -169,17 +168,16 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             throw new ArgumentException($"Provider '{AzureOpenAIConstants.ClientName}' not found.");
         }
 
-        var connectionName = context.ConnectionName;
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var (deploymentName, resolvedConnectionName) = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
-        connectionName = resolvedConnectionName;
+        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
+        var connectionName = deployment?.ConnectionName;
         if (string.IsNullOrEmpty(connectionName) || !provider.Connections.TryGetValue(connectionName, out var connection))
         {
-            _logger.LogWarning("Unable to chat. Unable to find a connection '{ConnectionName}' and no fallback connection could be resolved.", context.ConnectionName);
+            _logger.LogWarning("Unable to chat. Unable to find a deployment with a valid connection.");
             yield break;
         }
 
-        if (string.IsNullOrEmpty(deploymentName))
+        if (string.IsNullOrEmpty(deployment.ModelName))
         {
             _logger.LogWarning("Unable to chat. Unable to find a deployment name '{DeploymentName}' or the default deployment", context.ChatDeploymentName);
             yield break;
@@ -206,8 +204,8 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         }
 
         var azureClient = GetChatClient(connection);
-        var chatClient = azureClient.GetChatClient(deploymentName);
-        var functions = await ResolveToolsAsync(context, deploymentName);
+        var chatClient = azureClient.GetChatClient(deployment.ModelName);
+        var functions = await ResolveToolsAsync(context, deployment.ModelName);
         var chatOptions = GetOptions(context, functions);
         ChatCompletionOptions subSequenceContext = null;
         var prompts = GetPrompts(context, azureMessages);
@@ -310,7 +308,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         }
 
         stopwatch.Stop();
-        await RecordUsageAsync(context, connectionName, deploymentName, modelId, responseId, usage, stopwatch.Elapsed.TotalMilliseconds, true, cancellationToken);
+        await RecordUsageAsync(context, connectionName, deployment.ModelName, modelId, responseId, usage, stopwatch.Elapsed.TotalMilliseconds, true, cancellationToken);
         // Notify the user when the maximum iteration limit was reached while the model still wanted to make tool calls.
         if (iterations > _defaultOptions.MaximumIterationsPerRequest)
         {

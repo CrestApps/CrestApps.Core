@@ -391,7 +391,7 @@ public sealed class PostSessionProcessingServiceTests
         var mockClientFactory = new Mock<IAIClientFactory>();
         if (chatClient is not null)
         {
-            mockClientFactory.Setup(f => f.CreateChatClientAsync(TestProviderName, TestConnectionName, TestDeploymentName)).ReturnsAsync(chatClient);
+            mockClientFactory.Setup(f => f.CreateChatClientAsync(It.Is<AIDeployment>(d => d.ClientName == TestProviderName && d.ConnectionName == TestConnectionName && d.ModelName == TestDeploymentName))).ReturnsAsync(chatClient);
         }
 
         var mockDeploymentManager = new Mock<IAIDeploymentManager>();
@@ -405,7 +405,7 @@ public sealed class PostSessionProcessingServiceTests
                 ConnectionName = TestConnectionName,
                 Type = AIDeploymentType.Chat,
             };
-            mockDeploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(deployment);
+            mockDeploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(deployment);
         }
 
         var mockToolsService = toolsService is not null ? null : new Mock<IAIToolsService>();

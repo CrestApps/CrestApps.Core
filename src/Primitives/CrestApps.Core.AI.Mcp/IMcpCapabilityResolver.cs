@@ -14,8 +14,7 @@ public interface IMcpCapabilityResolver
     /// Resolves MCP capabilities that are semantically relevant to the given user prompt.
     /// </summary>
     /// <param name="prompt">The user's input prompt.</param>
-    /// <param name="providerName">The AI provider name for embedding generation.</param>
-    /// <param name="connectionName">The AI connection name for embedding generation.</param>
+    /// <param name="clientName">The AI client name for embedding generation.</param>
     /// <param name="mcpConnectionIds">The MCP connection IDs configured for the current profile.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>
@@ -24,8 +23,7 @@ public interface IMcpCapabilityResolver
     /// </returns>
     Task<McpCapabilityResolutionResult> ResolveAsync(
         string prompt,
-        string providerName,
-        string connectionName,
+        string clientName,
         string[] mcpConnectionIds,
         CancellationToken cancellationToken = default);
 }

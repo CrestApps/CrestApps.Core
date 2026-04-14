@@ -87,7 +87,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator;
         try
         {
-            embeddingGenerator = await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+            embeddingGenerator = await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
         }
         catch (Exception ex)
         {

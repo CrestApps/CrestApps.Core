@@ -27,30 +27,14 @@ public abstract class AICompletionServiceBase
         DeploymentResolver = deploymentResolver;
     }
 
-    protected virtual string GetDefaultDeploymentName(AIProvider provider, string connectionName)
-    {
-        if (connectionName is not null && provider.Connections.TryGetValue(connectionName, out var connection))
-        {
-            var deploymentName = connection.GetLegacyChatDeploymentName();
-
-            if (!string.IsNullOrEmpty(deploymentName))
-            {
-                return deploymentName;
-            }
-        }
-
-        return null;
-    }
-
     /// <summary>
-    /// Resolves a deployment name and connection name using the <see cref="IAIDeploymentManager"/>
+    /// Resolves a deployment using the <see cref="IAIDeploymentManager"/>
     /// with fallback to legacy connection entry values when they are still present.
     /// </summary>
-    protected virtual async ValueTask<(string DeploymentName, string ConnectionName)> ResolveDeploymentAsync(
+    protected virtual async ValueTask<AIDeployment> ResolveDeploymentAsync(
         AIDeploymentType type,
         AIProvider provider,
         string providerName,
-        string connectionName,
         string deploymentName = null)
     {
         if (DeploymentResolver != null)
@@ -58,19 +42,15 @@ public abstract class AICompletionServiceBase
             var deployment = await DeploymentResolver.ResolveOrDefaultAsync(
                 type,
                 deploymentName: deploymentName,
-                clientName: providerName,
-                connectionName: connectionName);
+                clientName: providerName);
 
             if (deployment != null)
             {
-                return (deployment.ModelName, deployment.ConnectionName ?? connectionName);
+                return deployment;
             }
         }
 
-        // Fall back to legacy dictionary-based resolution.
-        var legacyName = GetDefaultDeploymentName(provider, connectionName);
-
-        return (legacyName, connectionName);
+        return null;
     }
 
     protected static int GetTotalMessagesToSkip(int totalMessages, int pastMessageCount)

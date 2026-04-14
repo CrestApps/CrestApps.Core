@@ -45,7 +45,7 @@ public static class EmbeddingDeploymentResolver
             return legacyDeployment;
         }
 
-        var deployments = await deploymentManager.GetAllAsync(metadata.EmbeddingProviderName, metadata.EmbeddingConnectionName);
+        var deployments = await deploymentManager.GetAllAsync(metadata.EmbeddingProviderName);
 
         return deployments.FirstOrDefault(deployment =>
             deployment.SupportsType(AIDeploymentType.Embedding) &&
@@ -65,15 +65,9 @@ public static class EmbeddingDeploymentResolver
 
         var deployment = await FindEmbeddingDeploymentAsync(deploymentManager, metadata, deploymentIdOrName);
 
-        if (deployment != null &&
-            !string.IsNullOrWhiteSpace(deployment.ClientName) &&
-            !string.IsNullOrWhiteSpace(deployment.ConnectionName) &&
-            !string.IsNullOrWhiteSpace(deployment.ModelName))
+        if (deployment != null)
         {
-            return await aiClientFactory.CreateEmbeddingGeneratorAsync(
-                deployment.ClientName,
-                deployment.ConnectionName,
-                deployment.ModelName);
+            return await aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
         }
 
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -85,10 +79,14 @@ public static class EmbeddingDeploymentResolver
             return null;
         }
 
-        return await aiClientFactory.CreateEmbeddingGeneratorAsync(
-            metadata.EmbeddingProviderName,
-            metadata.EmbeddingConnectionName,
-            metadata.EmbeddingDeploymentName);
+        var legacyDeployment = new AIDeployment
+        {
+            ClientName = metadata.EmbeddingProviderName,
+            ConnectionName = metadata.EmbeddingConnectionName,
+            ModelName = metadata.EmbeddingDeploymentName,
+        };
+
+        return await aiClientFactory.CreateEmbeddingGeneratorAsync(legacyDeployment);
 #pragma warning restore CS0618 // Type or member is obsolete
     }
 

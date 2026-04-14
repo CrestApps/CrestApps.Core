@@ -60,6 +60,7 @@ public sealed class GenerateImageTool : AIFunction
         if (!arguments.TryGetFirstString("prompt", out var prompt))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'prompt'.", Name);
+
             return "Unable to find a 'prompt' argument in the arguments parameter.";
         }
 
@@ -70,39 +71,25 @@ public sealed class GenerateImageTool : AIFunction
             if (executionContext is null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: execution context is missing.", Name);
+
                 return $"Image generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
             }
 
-            var providerName = executionContext.ProviderName;
-            var connectionName = executionContext.ConnectionName;
-
-            if (string.IsNullOrEmpty(providerName))
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: AI provider is not configured.", Name);
-                return "Image generation is not available. AI provider is not configured.";
-            }
+            var clientName = executionContext.ClientName;
 
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(
-                AIDeploymentType.Image,
-                clientName: providerName,
-                connectionName: connectionName);
+            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Image, clientName);
 
             if (deployment == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no image model deployment configured.", Name);
-                return "Image generation is not available. No image model deployment is configured.";
-            }
 
-            if (string.IsNullOrEmpty(deployment.ConnectionName))
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: image deployment '{DeploymentName}' has no connection reference.", Name, deployment.Name);
-                return "Image generation is not available. The resolved image deployment does not define a connection.";
+                return "Image generation is not available. No image model deployment is configured.";
             }
 
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
 
-            var imageGenerator = await aIClientFactory.CreateImageGeneratorAsync(deployment.ClientName, deployment.ConnectionName, deployment.ModelName);
+            var imageGenerator = await aIClientFactory.CreateImageGeneratorAsync(deployment);
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             var options = new ImageGenerationOptions

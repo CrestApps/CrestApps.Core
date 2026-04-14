@@ -11,15 +11,14 @@ namespace CrestApps.Core.AI.Deployments;
 public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
 {
     /// <summary>
-    /// Asynchronously retrieves a list of model deployments for the specified client and connection name.
+    /// Asynchronously retrieves a list of model deployments for the specified client.
     /// </summary>
     /// <param name="clientName">The name of the client. Must not be null or empty.</param>
-    /// <param name="connectionName">The name of the connection. Must not be null or empty.</param>
     /// <returns>
     /// A ValueTask that represents the asynchronous operation. The result is an <see cref="IEnumerable{AIDeployment}"/>
-    /// containing the model deployments for the specified client and connection.
+    /// containing the model deployments for the specified client.
     /// </returns>
-    ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName, string connectionName);
+    ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName);
 
     /// <summary>
     /// Asynchronously retrieves all deployments supporting the specified type.
@@ -32,11 +31,11 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type);
 
     /// <summary>
-    /// Resolves the default deployment of a given type for a specific connection.
-    /// Returns the deployment marked as IsDefault for that type on the connection,
-    /// or the first deployment supporting that type on the connection if none is marked as default.
+    /// Resolves the default deployment of a given type for a specific client.
+    /// Returns the deployment marked as IsDefault for that type on the client,
+    /// or the first deployment supporting that type on the client if none is marked as default.
     /// </summary>
-    ValueTask<AIDeployment> GetDefaultAsync(string clientName, string connectionName, AIDeploymentType type);
+    ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type);
 
     /// <summary>
     /// Resolves a deployment using the full fallback chain:
@@ -45,7 +44,7 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// 3. Falls back to the first deployment supporting the requested type within the current scope.
     /// Returns <see langword="null"/> if no deployment can be resolved.
     /// </summary>
-    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, string connectionName = null);
+    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null);
 
     /// <summary>
     /// Gets all deployments of a given type, optionally filtered by client.

@@ -139,19 +139,6 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    [Obsolete("Use AddAISuite(ai => ai.AddMcpServer(...)).")]
-    public static CrestAppsCoreBuilder AddMcpServer(this CrestAppsCoreBuilder builder, Action<CrestAppsMcpServerBuilder> configure = null)
-    {
-        builder.Services.AddCoreAIMcpServer();
-
-        if (configure is not null)
-        {
-            configure(new CrestAppsMcpServerBuilder(builder.Services));
-        }
-
-        return builder;
-    }
-
     /// <summary>
     /// Registers an MCP resource type with its handler.
     /// </summary>

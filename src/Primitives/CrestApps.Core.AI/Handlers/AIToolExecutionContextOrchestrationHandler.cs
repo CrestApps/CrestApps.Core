@@ -24,8 +24,8 @@ internal sealed class AIToolExecutionContextOrchestrationHandler : IOrchestratio
         }
 
         invocationContext.ToolExecutionContext ??= new AIToolExecutionContext(context.Resource);
-        invocationContext.ToolExecutionContext.ProviderName = context.OrchestrationContext.SourceName;
-        invocationContext.ToolExecutionContext.ConnectionName = context.OrchestrationContext.CompletionContext?.ConnectionName;
+        invocationContext.ToolExecutionContext.ClientName = context.OrchestrationContext.SourceName;
+
         return Task.CompletedTask;
     }
 }

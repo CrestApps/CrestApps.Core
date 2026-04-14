@@ -23,7 +23,6 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
             return;
         }
 
-        context.Context.ConnectionName = profile.GetLegacyConnectionName();
         context.Context.ChatDeploymentName = profile.ChatDeploymentName;
         context.Context.UtilityDeploymentName = profile.UtilityDeploymentName;
 

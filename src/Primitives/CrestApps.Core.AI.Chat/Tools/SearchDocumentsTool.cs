@@ -131,12 +131,10 @@ public sealed class SearchDocumentsTool : AIFunction
 
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-            var providerName = executionContext?.ProviderName;
-            var connectionName = executionContext?.ConnectionName;
+            var clientName = executionContext?.ClientName;
             var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Embedding,
-                clientName: providerName,
-                connectionName: connectionName);
+                clientName: clientName);
 
             if (embeddingDeployment == null)
             {
@@ -144,16 +142,7 @@ public sealed class SearchDocumentsTool : AIFunction
                 return "No embedding deployment is configured for document search.";
             }
 
-            if (string.IsNullOrEmpty(embeddingDeployment.ConnectionName))
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: embedding deployment '{DeploymentName}' has no connection reference.", Name, embeddingDeployment.Name);
-                return "The resolved embedding deployment does not define a connection.";
-            }
-
-            var embeddingGenerator = await aiClientFactory.CreateEmbeddingGeneratorAsync(
-                embeddingDeployment.ClientName,
-                embeddingDeployment.ConnectionName,
-                embeddingDeployment.ModelName);
+            var embeddingGenerator = await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
 
             if (embeddingGenerator == null)
             {
