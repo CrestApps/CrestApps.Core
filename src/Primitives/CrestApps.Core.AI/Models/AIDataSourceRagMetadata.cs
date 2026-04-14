@@ -21,8 +21,9 @@ public sealed class AIDataSourceRagMetadata
 
     /// <summary>
     /// Gets or sets a value indicating whether to limit retrieval to in-scope documents only.
+    /// When <see langword="false"/> (the default), the model may supplement retrieved data with general knowledge.
     /// </summary>
-    public bool IsInScope { get; set; } = true;
+    public bool IsInScope { get; set; }
 
     /// <summary>
     /// Gets or sets the filter expression to query a subset of indexed data.

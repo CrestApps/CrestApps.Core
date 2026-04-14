@@ -128,6 +128,11 @@ window.openAIChatManager = function () {
 
   // Collector for charts discovered during marked parsing.
   var _pendingCharts = [];
+
+  // Global chart config map: any page (e.g., Chat Interactions) that uses
+  // the shared marked instance can call window.renderPendingCharts() after
+  // its DOM update to render charts it didn't create itself.
+  window.__chartConfigs = window.__chartConfigs || {};
   function createChartHtml(chartId) {
     var chartMaxWidth = defaultConfig.generatedChartMaxWidth;
     return "<div class=\"chart-container\" style=\"position: relative; width: 100%; max-width: ".concat(chartMaxWidth, "px; margin: 0 auto; height: 480px;\">") + "<canvas id=\"".concat(chartId, "\" class=\"img-thumbnail\" width=\"").concat(chartMaxWidth, "\" height=\"480\" style=\"width: 100%; height: 480px;\"></canvas>") + "</div>" + "<div class=\"mt-2\">" + "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary download-chart-btn\" data-chart-id=\"".concat(chartId, "\" title=\"").concat(defaultConfig.downloadChartTitle, "\">") + "<i class=\"fa-solid fa-download\"></i> ".concat(defaultConfig.downloadChartButtonText) + "</button>" + "</div>";
@@ -161,6 +166,7 @@ window.openAIChatManager = function () {
           chartId: token.chartId,
           config: token.json
         });
+        window.__chartConfigs[token.chartId] = token.json;
         return createChartHtml(token.chartId);
       }
     }]
@@ -245,28 +251,7 @@ window.openAIChatManager = function () {
       try {
         for (_iterator.s(); !(_step = _iterator.n()).done;) {
           var c = _step.value;
-          var canvas = document.getElementById(c.chartId);
-          if (!canvas) {
-            continue;
-          }
-          if (typeof Chart === 'undefined') {
-            console.warn('Chart.js is not loaded. To render interactive charts, include the Chart.js library on the page (e.g., <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>).');
-            continue;
-          }
-          try {
-            var _cfg$options;
-            // Destroy existing chart instance if re-rendering
-            if (canvas._chartInstance) {
-              canvas._chartInstance.destroy();
-            }
-            var cfg = typeof c.config === 'string' ? JSON.parse(c.config) : c.config;
-            (_cfg$options = cfg.options) !== null && _cfg$options !== void 0 ? _cfg$options : cfg.options = {};
-            cfg.options.responsive = true;
-            cfg.options.maintainAspectRatio = false;
-            canvas._chartInstance = new Chart(canvas, cfg);
-          } catch (e) {
-            console.error('Error creating chart:', e);
-          }
+          renderChartOnCanvas(c.chartId, c.config);
         }
       } catch (err) {
         _iterator.e(err);
@@ -275,6 +260,49 @@ window.openAIChatManager = function () {
       }
     });
   }
+  function renderChartOnCanvas(chartId, config) {
+    var canvas = document.getElementById(chartId);
+    if (!canvas) {
+      return;
+    }
+    if (typeof Chart === 'undefined') {
+      console.warn('Chart.js is not loaded. To render interactive charts, include the Chart.js library on the page (e.g., <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>).');
+      return;
+    }
+    try {
+      var _cfg$options;
+      if (canvas._chartInstance) {
+        canvas._chartInstance.destroy();
+      }
+      var cfg = typeof config === 'string' ? JSON.parse(config) : config;
+      (_cfg$options = cfg.options) !== null && _cfg$options !== void 0 ? _cfg$options : cfg.options = {};
+      cfg.options.responsive = true;
+      cfg.options.maintainAspectRatio = false;
+      canvas._chartInstance = new Chart(canvas, cfg);
+      delete window.__chartConfigs[chartId];
+    } catch (e) {
+      console.error('Error creating chart:', e);
+    }
+  }
+
+  // Global function: renders any chart canvases whose configs are in the
+  // global __chartConfigs map. Called by pages (e.g., Chat Interactions)
+  // that share the marked instance but have their own rendering pipeline.
+  window.renderPendingCharts = function () {
+    if (typeof Chart === 'undefined') {
+      return;
+    }
+    var configs = window.__chartConfigs;
+    if (!configs) {
+      return;
+    }
+    requestAnimationFrame(function () {
+      for (var _i2 = 0, _Object$keys = Object.keys(configs); _i2 < _Object$keys.length; _i2++) {
+        var chartId = _Object$keys[_i2];
+        renderChartOnCanvas(chartId, configs[chartId]);
+      }
+    });
+  };
 
   // Parse markdown content via marked (which natively handles [chart:...] markers
   // through the registered extension) and collect pending chart configs for later
@@ -1292,9 +1320,9 @@ window.openAIChatManager = function () {
                 message.title = chunk.title;
               }
               if (chunk.references && _typeof(chunk.references) === "object" && Object.keys(chunk.references).length) {
-                for (var _i2 = 0, _Object$entries2 = Object.entries(chunk.references); _i2 < _Object$entries2.length; _i2++) {
+                for (var _i3 = 0, _Object$entries2 = Object.entries(chunk.references); _i3 < _Object$entries2.length; _i3++) {
                   var _normalizeReference2;
-                  var _Object$entries2$_i = _slicedToArray(_Object$entries2[_i2], 2),
+                  var _Object$entries2$_i = _slicedToArray(_Object$entries2[_i3], 2),
                     key = _Object$entries2$_i[0],
                     value = _Object$entries2$_i[1];
                   references[key] = (_normalizeReference2 = normalizeReference(value)) !== null && _normalizeReference2 !== void 0 ? _normalizeReference2 : {};
@@ -1310,8 +1338,8 @@ window.openAIChatManager = function () {
                   lastResponseId = chunk.responseId;
                 }
                 var processedContent = chunk.content;
-                for (var _i3 = 0, _Object$entries3 = Object.entries(references); _i3 < _Object$entries3.length; _i3++) {
-                  var _Object$entries3$_i = _slicedToArray(_Object$entries3[_i3], 2),
+                for (var _i4 = 0, _Object$entries3 = Object.entries(references); _i4 < _Object$entries3.length; _i4++) {
+                  var _Object$entries3$_i = _slicedToArray(_Object$entries3[_i4], 2),
                     _key2 = _Object$entries3$_i[0],
                     _value3 = _Object$entries3$_i[1];
                   processedContent = processedContent.replaceAll(_key2, "<sup><strong>".concat(_value3.index, "</strong></sup>"));
@@ -2072,8 +2100,8 @@ window.openAIChatManager = function () {
               _this14.showChatScreen();
             });
           }
-          for (var _i4 = 0; _i4 < config.messages.length; _i4++) {
-            this.addMessage(config.messages[_i4]);
+          for (var _i5 = 0; _i5 < config.messages.length; _i5++) {
+            this.addMessage(config.messages[_i5]);
           }
 
           // Update feedback icons in the DOM after initial messages have rendered.

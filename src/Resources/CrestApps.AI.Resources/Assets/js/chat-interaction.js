@@ -179,6 +179,7 @@ window.chatInteractionManager = function () {
             },
             renderer(token) {
                 _pendingCharts.push({ chartId: token.chartId, config: token.json });
+                window.__chartConfigs[token.chartId] = token.json;
                 return createChartHtml(token.chartId);
             }
         }]
