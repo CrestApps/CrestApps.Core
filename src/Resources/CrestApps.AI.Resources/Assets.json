@@ -10,5 +10,29 @@
       "Assets/js/chat-interaction.js"
     ],
     "output": "wwwroot/scripts/chat-interaction.js"
+  },
+  {
+    "inputs": [
+      "Assets/js/document-drop-zone.js"
+    ],
+    "output": "wwwroot/scripts/document-drop-zone.js"
+  },
+  {
+    "inputs": [
+      "Assets/js/technical-name-generator.js"
+    ],
+    "output": "wwwroot/scripts/technical-name-generator.js"
+  },
+  {
+    "inputs": [
+      "Assets/css/chat-widget.css"
+    ],
+    "output": "wwwroot/styles/chat-widget.css"
+  },
+  {
+    "inputs": [
+      "Assets/css/document-drop-zone.css"
+    ],
+    "output": "wwwroot/styles/document-drop-zone.css"
   }
 ]

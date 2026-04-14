@@ -1,0 +1,59 @@
+{
+  "name": "@crestapps/ai-chat-ui",
+  "version": "1.0.0-preview-22",
+  "description": "Browser-ready JavaScript widgets and CSS for CrestApps AI chat sessions and chat interactions. Supports streaming responses, image generation, Chart.js interactive charts, document uploads, copy-to-clipboard, and feedback buttons.",
+  "license": "MIT",
+  "author": "CrestApps",
+  "homepage": "https://crestapps.com/docs/core/chat",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CrestApps/CrestApps.Core.git",
+    "directory": "src/Resources/CrestApps.AI.Resources"
+  },
+  "bugs": {
+    "url": "https://github.com/CrestApps/CrestApps.Core/issues"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "chatbot",
+    "chat-ui",
+    "signalr",
+    "crestapps",
+    "chart.js",
+    "streaming",
+    "vue",
+    "css"
+  ],
+  "files": [
+    "dist/"
+  ],
+  "main": "dist/ai-chat.js",
+  "exports": {
+    ".": "./dist/ai-chat.js",
+    "./ai-chat": "./dist/ai-chat.js",
+    "./ai-chat.min": "./dist/ai-chat.min.js",
+    "./chat-interaction": "./dist/chat-interaction.js",
+    "./chat-interaction.min": "./dist/chat-interaction.min.js",
+    "./document-drop-zone": "./dist/document-drop-zone.js",
+    "./document-drop-zone.min": "./dist/document-drop-zone.min.js",
+    "./technical-name-generator": "./dist/technical-name-generator.js",
+    "./technical-name-generator.min": "./dist/technical-name-generator.min.js",
+    "./chat-widget.css": "./dist/chat-widget.css",
+    "./chat-widget.min.css": "./dist/chat-widget.min.css",
+    "./document-drop-zone.css": "./dist/document-drop-zone.css",
+    "./document-drop-zone.min.css": "./dist/document-drop-zone.min.css",
+    "./dist/*": "./dist/*"
+  },
+  "scripts": {
+    "prepublishOnly": "node scripts/prepare-dist.js"
+  },
+  "peerDependencies": {
+    "chart.js": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "chart.js": {
+      "optional": true
+    }
+  }
+}

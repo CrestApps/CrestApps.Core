@@ -1,0 +1,83 @@
+name: Publish npm - Preview
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 4:29 AM UTC every day (offset from NuGet preview at 4:19).
+    - cron: '29 4 * * *'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    name: Publish @crestapps/ai-chat-ui (preview)
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Check if should publish
+      id: check-publish
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        $eventName = '${{ github.event_name }}'
+
+        if ($eventName -eq 'workflow_dispatch')
+        {
+          Write-Output 'Manual preview release requested. Publishing unconditionally.'
+          "should-publish=true" >> $Env:GITHUB_OUTPUT
+          exit 0
+        }
+
+        $headers = @{
+          Authorization = "Bearer $Env:GITHUB_TOKEN"
+          Accept = 'application/vnd.github+json'
+          'X-GitHub-Api-Version' = '2022-11-28'
+        }
+
+        $workflowRunsUrl = 'https://api.github.com/repos/${{ github.repository }}/actions/workflows/publish_npm_preview.yml/runs?status=success&branch=${{ github.ref_name }}&per_page=20'
+        $response = Invoke-RestMethod -Uri $workflowRunsUrl -Headers $headers -Method Get
+        $previousRun = $response.workflow_runs |
+          Where-Object { $_.id -ne [int64]'${{ github.run_id }}' } |
+          Sort-Object created_at -Descending |
+          Select-Object -First 1
+
+        if ($null -eq $previousRun)
+        {
+          Write-Output 'No previous successful preview publish run found. Publishing.'
+          "should-publish=true" >> $Env:GITHUB_OUTPUT
+          exit 0
+        }
+
+        $hasNewCommitSinceLastRelease = $previousRun.head_sha -ne '${{ github.sha }}'
+        Write-Output "Last successful preview publish SHA: $($previousRun.head_sha)"
+        Write-Output "Current SHA: ${{ github.sha }}"
+        Write-Output "New commits since last preview publish: $hasNewCommitSinceLastRelease"
+
+        $shouldPublish = $eventName -eq 'schedule' -and $hasNewCommitSinceLastRelease
+        "should-publish=$($shouldPublish ? 'true' : 'false')" >> $Env:GITHUB_OUTPUT
+
+    - uses: actions/setup-node@v6
+      if: steps.check-publish.outputs.should-publish == 'true'
+      with:
+        node-version: "20"
+        registry-url: "https://registry.npmjs.org"
+
+    - name: Build assets
+      if: steps.check-publish.outputs.should-publish == 'true'
+      run: |
+        npm ci
+        gulp rebuild
+
+    - name: Publish preview to npm
+      if: steps.check-publish.outputs.should-publish == 'true'
+      working-directory: src/Resources/CrestApps.AI.Resources
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: |
+        PREVIEW_VERSION="$(node -p "require('./package.json').version")-preview.${{ github.run_number }}"
+        npm version "${PREVIEW_VERSION}" --no-git-tag-version --allow-same-version
+        npm publish --access public --tag preview

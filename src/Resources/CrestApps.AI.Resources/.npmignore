@@ -1,0 +1,9 @@
+# Exclude everything not needed in the published package
+Assets/
+wwwroot/
+scripts/
+bin/
+obj/
+*.csproj
+Assets.json
+.gitignore

@@ -703,3 +703,61 @@ When Chart.js is loaded, chart responses are rendered as interactive `<canvas>` 
 Both tools are registered automatically by the orchestration pipeline and listed under [Built-in System Tools](./orchestration.md#built-in-system-tools).
 :::
 
+## Client-Side Assets
+
+The JavaScript and CSS files that power the chat UIs are published as an npm package:
+
+```bash
+npm install @crestapps/ai-chat-ui
+```
+
+After installing, copy the files from `node_modules/@crestapps/ai-chat-ui/dist/` into your web application's static assets folder.
+
+### Via CDN
+
+All assets are also available through [jsDelivr](https://www.jsdelivr.com/) — no install required:
+
+```html
+<!-- CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/chat-widget.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/document-drop-zone.min.css" />
+
+<!-- JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/ai-chat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/document-drop-zone.min.js"></script>
+```
+
+:::tip
+Pin a specific version in production by appending `@<version>` after the package name, e.g.
+`https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui@1.0.0/dist/ai-chat.min.js`
+:::
+
+### Package Contents
+
+| File | Description |
+|------|-------------|
+| `ai-chat.js` / `.min.js` | AI Chat widget — sessions, uploads, streaming, full chat UI |
+| `chat-interaction.js` / `.min.js` | Chat Interaction widget — lighter standalone chat experience |
+| `document-drop-zone.js` / `.min.js` | Drag-and-drop file upload component |
+| `technical-name-generator.js` / `.min.js` | Auto-generates URL-safe technical names from display names |
+| `chat-widget.css` / `.min.css` | Styles for the floating AI Chat widget |
+| `document-drop-zone.css` / `.min.css` | Styles for the document drop-zone component |
+
+### Required Client-Side Dependencies
+
+Both widgets require the following libraries to be loaded on the page **before** the widget script:
+
+| Library | Purpose | CDN Example |
+|---------|---------|-------------|
+| [Vue 3](https://vuejs.org/) | Reactive UI | `https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js` |
+| [marked](https://marked.js.org/) | Markdown rendering | `https://cdn.jsdelivr.net/npm/marked/marked.min.js` |
+| [DOMPurify](https://github.com/cure53/DOMPurify) | HTML sanitization | `https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js` |
+| [SignalR](https://learn.microsoft.com/aspnet/core/signalr/) | Real-time messaging | `https://cdn.jsdelivr.net/npm/@microsoft/signalr/dist/browser/signalr.min.js` |
+
+### Optional Dependencies
+
+| Library | Purpose | CDN Example |
+|---------|---------|-------------|
+| [Chart.js](https://www.chartjs.org/) | Interactive chart rendering | `https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js` |
+| [highlight.js](https://highlightjs.org/) | Code syntax highlighting | `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js` |
+
