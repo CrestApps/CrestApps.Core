@@ -259,13 +259,11 @@ public sealed class AIProfileTemplateDocumentService
         var profileDeployment = await ResolveTemplateDeploymentAsync(template);
 
         if (profileDeployment != null &&
-            !string.IsNullOrWhiteSpace(profileDeployment.ClientName) &&
-            !string.IsNullOrWhiteSpace(profileDeployment.ConnectionName))
+            !string.IsNullOrWhiteSpace(profileDeployment.ClientName))
         {
             var scopedEmbeddingDeployment = await _deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Embedding,
-                clientName: profileDeployment.ClientName,
-                connectionName: profileDeployment.ConnectionName);
+                clientName: profileDeployment.ClientName);
 
             if (scopedEmbeddingDeployment != null)
             {

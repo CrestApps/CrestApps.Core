@@ -136,6 +136,9 @@ window.chatInteractionManager = function () {
     // Collector for charts discovered during marked parsing.
     let _pendingCharts = [];
 
+    // Global chart config map shared with ai-chat.js
+    window.__chartConfigs = window.__chartConfigs || {};
+
     function createChartHtml(chartId) {
         const chartMaxWidth = defaultConfig.generatedChartMaxWidth;
 

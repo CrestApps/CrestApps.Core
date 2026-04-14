@@ -17,11 +17,6 @@ public sealed class AIToolExecutionContext
     public string ClientName { get; set; }
 
     /// <summary>
-    /// Gets or sets the connection name within the client.
-    /// </summary>
-    public string ConnectionName { get; set; }
-
-    /// <summary>
     /// Gets the resource (e.g., <see cref="Models.AIProfile"/> or
     /// <see cref="Models.ChatInteraction"/>) that initiated the current AI request.
     /// Tools can cast this to access resource-specific data such as interaction IDs.

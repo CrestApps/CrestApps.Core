@@ -334,7 +334,7 @@ public sealed class DefaultOrchestratorTests
     private static DefaultOrchestrator CreateOrchestrator(FakeCompletionService completionService = null, FakeToolRegistry toolRegistry = null)
     {
         var deploymentManager = new Mock<IAIDeploymentManager>();
-        deploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(new AIDeployment { ItemId = "test-dep", Name = "test-model", ClientName = "test-client" });
+        deploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(new AIDeployment { ItemId = "test-dep", Name = "test-model", ClientName = "test-client" });
         return new DefaultOrchestrator(completionService ?? new FakeCompletionService("default response"), new FakeAIClientFactory(), new FakeAITemplateService(), deploymentManager.Object, toolRegistry ?? new FakeToolRegistry([]), new LuceneTextTokenizer(), Options.Create(new DefaultOrchestratorOptions()), NullLogger<DefaultOrchestrator>.Instance);
     }
 
@@ -357,7 +357,6 @@ public sealed class DefaultOrchestratorTests
             ConversationHistory = [new ChatMessage(ChatRole.User, userMessage)],
             CompletionContext = new AICompletionContext
             {
-                ConnectionName = "test",
                 ChatDeploymentName = "test-deployment",
                 ToolNames = ["tool0", "tool1", "tool2"],
             },

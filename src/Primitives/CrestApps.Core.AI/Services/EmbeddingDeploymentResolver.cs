@@ -45,7 +45,7 @@ public static class EmbeddingDeploymentResolver
             return legacyDeployment;
         }
 
-        var deployments = await deploymentManager.GetAllAsync(metadata.EmbeddingProviderName, metadata.EmbeddingConnectionName);
+        var deployments = await deploymentManager.GetAllAsync(metadata.EmbeddingProviderName);
 
         return deployments.FirstOrDefault(deployment =>
             deployment.SupportsType(AIDeploymentType.Embedding) &&

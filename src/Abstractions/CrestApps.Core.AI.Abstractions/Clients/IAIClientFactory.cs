@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Clients;
+
 /// <summary>
 /// Defines a factory for creating AI clients from resolved <see cref="AIDeployment"/> instances.
 /// Every Create method takes a fully resolved deployment that carries the client name,

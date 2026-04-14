@@ -195,7 +195,6 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
                 var planningContext = new AICompletionContext
                 {
-                    ConnectionName = context.CompletionContext.ConnectionName,
                     ChatDeploymentName = context.CompletionContext.ChatDeploymentName,
                     DisableTools = true,
                     SystemMessage = planningSystemPrompt,

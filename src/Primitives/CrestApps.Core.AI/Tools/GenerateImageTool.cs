@@ -60,6 +60,7 @@ public sealed class GenerateImageTool : AIFunction
         if (!arguments.TryGetFirstString("prompt", out var prompt))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'prompt'.", Name);
+
             return "Unable to find a 'prompt' argument in the arguments parameter.";
         }
 
@@ -70,21 +71,19 @@ public sealed class GenerateImageTool : AIFunction
             if (executionContext is null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: execution context is missing.", Name);
+
                 return $"Image generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
             }
 
             var clientName = executionContext.ClientName;
-            var connectionName = executionContext.ConnectionName;
 
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(
-                AIDeploymentType.Image,
-                clientName: clientName,
-                connectionName: connectionName);
+            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Image, clientName);
 
             if (deployment == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no image model deployment configured.", Name);
+
                 return "Image generation is not available. No image model deployment is configured.";
             }
 

@@ -4,8 +4,6 @@ namespace CrestApps.Core.AI.Models;
 
 public class AICompletionContext
 {
-    public string ConnectionName { get; set; }
-
     public bool DisableTools { get; set; }
 
     public string SystemMessage { get; set; }

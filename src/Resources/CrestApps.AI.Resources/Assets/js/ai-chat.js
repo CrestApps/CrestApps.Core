@@ -170,6 +170,11 @@ window.openAIChatManager = function () {
     // Collector for charts discovered during marked parsing.
     let _pendingCharts = [];
 
+    // Global chart config map: any page (e.g., Chat Interactions) that uses
+    // the shared marked instance can call window.renderPendingCharts() after
+    // its DOM update to render charts it didn't create itself.
+    window.__chartConfigs = window.__chartConfigs || {};
+
     function createChartHtml(chartId) {
         const chartMaxWidth = defaultConfig.generatedChartMaxWidth;
 
@@ -210,6 +215,7 @@ window.openAIChatManager = function () {
             },
             renderer(token) {
                 _pendingCharts.push({ chartId: token.chartId, config: token.json });
+                window.__chartConfigs[token.chartId] = token.json;
                 return createChartHtml(token.chartId);
             }
         }]
@@ -299,34 +305,58 @@ window.openAIChatManager = function () {
         // canvas elements before Chart.js reads their dimensions.
         requestAnimationFrame(() => {
             for (const c of charts) {
-                const canvas = document.getElementById(c.chartId);
-                if (!canvas) {
-                    continue;
-                }
-
-                if (typeof Chart === 'undefined') {
-                    console.warn('Chart.js is not loaded. To render interactive charts, include the Chart.js library on the page (e.g., <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>).');
-                    continue;
-                }
-
-                try {
-                    // Destroy existing chart instance if re-rendering
-                    if (canvas._chartInstance) {
-                        canvas._chartInstance.destroy();
-                    }
-
-                    const cfg = typeof c.config === 'string' ? JSON.parse(c.config) : c.config;
-                    cfg.options ??= {};
-                    cfg.options.responsive = true;
-                    cfg.options.maintainAspectRatio = false;
-
-                    canvas._chartInstance = new Chart(canvas, cfg);
-                } catch (e) {
-                    console.error('Error creating chart:', e);
-                }
+                renderChartOnCanvas(c.chartId, c.config);
             }
         });
     }
+
+    function renderChartOnCanvas(chartId, config) {
+        const canvas = document.getElementById(chartId);
+        if (!canvas) {
+            return;
+        }
+
+        if (typeof Chart === 'undefined') {
+            console.warn('Chart.js is not loaded. To render interactive charts, include the Chart.js library on the page (e.g., <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>).');
+            return;
+        }
+
+        try {
+            if (canvas._chartInstance) {
+                canvas._chartInstance.destroy();
+            }
+
+            const cfg = typeof config === 'string' ? JSON.parse(config) : config;
+            cfg.options ??= {};
+            cfg.options.responsive = true;
+            cfg.options.maintainAspectRatio = false;
+
+            canvas._chartInstance = new Chart(canvas, cfg);
+            delete window.__chartConfigs[chartId];
+        } catch (e) {
+            console.error('Error creating chart:', e);
+        }
+    }
+
+    // Global function: renders any chart canvases whose configs are in the
+    // global __chartConfigs map. Called by pages (e.g., Chat Interactions)
+    // that share the marked instance but have their own rendering pipeline.
+    window.renderPendingCharts = function () {
+        if (typeof Chart === 'undefined') {
+            return;
+        }
+
+        const configs = window.__chartConfigs;
+        if (!configs) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            for (const chartId of Object.keys(configs)) {
+                renderChartOnCanvas(chartId, configs[chartId]);
+            }
+        });
+    };
 
     // Parse markdown content via marked (which natively handles [chart:...] markers
     // through the registered extension) and collect pending chart configs for later

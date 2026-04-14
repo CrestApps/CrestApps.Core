@@ -78,8 +78,7 @@ public sealed class GenerateChartTool : AIFunction
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
 
             var deployment = await deploymentManager.ResolveUtilityOrDefaultAsync(
-                clientName: executionContext.ClientName,
-                connectionName: executionContext.ConnectionName);
+                clientName: executionContext.ClientName);
 
             if (deployment == null)
             {
@@ -143,6 +142,7 @@ public sealed class GenerateChartTool : AIFunction
             catch (JsonException)
             {
                 logger.LogWarning("AI tool '{ToolName}' generated invalid JSON for chart configuration.", Name);
+
                 return "Failed to generate valid chart configuration.";
             }
 

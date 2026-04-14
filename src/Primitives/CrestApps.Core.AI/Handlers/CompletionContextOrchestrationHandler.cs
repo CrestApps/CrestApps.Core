@@ -21,14 +21,10 @@ internal sealed class CompletionContextOrchestrationHandler : IOrchestrationCont
         // Build the AICompletionContext using the existing handler pipeline.
         var completionContext = await _completionContextBuilder.BuildAsync(context.Resource);
         context.Context.CompletionContext = completionContext;
-        // Resolve the SourceName from the connection configured on the completion context.
-        if (string.IsNullOrEmpty(context.Context.SourceName) && !string.IsNullOrEmpty(completionContext.ConnectionName))
-        {
-            context.Context.SourceName = completionContext.ConnectionName;
-        }
 
         // Propagate DisableTools from the completion context.
         context.Context.DisableTools = context.Context.CompletionContext.DisableTools;
+
         // Seed the SystemMessageBuilder with the initial system message.
         if (!string.IsNullOrEmpty(context.Context.CompletionContext.SystemMessage))
         {

@@ -8,48 +8,43 @@ public static class AIDeploymentManagerExtensions
         this IAIDeploymentManager deploymentManager,
         string utilityDeploymentName = null,
         string chatDeploymentName = null,
-        string clientName = null,
-        string connectionName = null)
+        string clientName = null)
     {
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
         return await deploymentManager.ResolveOrDefaultAsync(
             AIDeploymentType.Utility,
             utilityDeploymentName,
-            clientName,
-            connectionName)
+            clientName)
         ?? await deploymentManager.ResolveOrDefaultAsync(
             AIDeploymentType.Chat,
             chatDeploymentName,
-            clientName,
-            connectionName);
+            clientName);
     }
 
     public static async ValueTask<AIDeployment> ResolveAsync(
         this IAIDeploymentManager deploymentManager,
         AIDeploymentType type,
         string deploymentName = null,
-        string clientName = null,
-        string connectionName = null)
+        string clientName = null)
     {
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
-        var deployment = await deploymentManager.ResolveOrDefaultAsync(type, deploymentName, clientName, connectionName);
+        var deployment = await deploymentManager.ResolveOrDefaultAsync(type, deploymentName, clientName);
 
-        return deployment ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for type '{type}' with deploymentName '{deploymentName ?? "(null)"}', clientName '{clientName ?? "(null)"}', and connectionName '{connectionName ?? "(null)"}'.");
+        return deployment ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for type '{type}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
     }
 
     public static async ValueTask<AIDeployment> ResolveUtilityAsync(
         this IAIDeploymentManager deploymentManager,
         string utilityDeploymentName = null,
         string chatDeploymentName = null,
-        string clientName = null,
-        string connectionName = null)
+        string clientName = null)
     {
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
-        var deployment = await deploymentManager.ResolveUtilityOrDefaultAsync(utilityDeploymentName, chatDeploymentName, clientName, connectionName);
+        var deployment = await deploymentManager.ResolveUtilityOrDefaultAsync(utilityDeploymentName, chatDeploymentName, clientName);
 
-        return deployment ?? throw new InvalidOperationException($"Unable to resolve a utility AI deployment using utilityDeploymentName '{utilityDeploymentName ?? "(null)"}', chatDeploymentName '{chatDeploymentName ?? "(null)"}', clientName '{clientName ?? "(null)"}', and connectionName '{connectionName ?? "(null)"}'.");
+        return deployment ?? throw new InvalidOperationException($"Unable to resolve a utility AI deployment using utilityDeploymentName '{utilityDeploymentName ?? "(null)"}', chatDeploymentName '{chatDeploymentName ?? "(null)"}', and clientName '{clientName ?? "(null)"}'.");
     }
 }

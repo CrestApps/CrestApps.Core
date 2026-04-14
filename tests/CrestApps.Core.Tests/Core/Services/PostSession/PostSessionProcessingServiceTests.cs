@@ -405,7 +405,7 @@ public sealed class PostSessionProcessingServiceTests
                 ConnectionName = TestConnectionName,
                 Type = AIDeploymentType.Chat,
             };
-            mockDeploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(deployment);
+            mockDeploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(deployment);
         }
 
         var mockToolsService = toolsService is not null ? null : new Mock<IAIToolsService>();

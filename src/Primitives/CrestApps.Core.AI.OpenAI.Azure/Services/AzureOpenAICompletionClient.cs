@@ -55,13 +55,12 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             throw new ArgumentException($"Provider '{AzureOpenAIConstants.ClientName}' not found.");
         }
 
-        var connectionName = context.ConnectionName;
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
-        connectionName = deployment?.ConnectionName;
+        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
+        var connectionName = deployment?.ConnectionName;
         if (string.IsNullOrEmpty(connectionName))
         {
-            _logger.LogWarning("Unable to chat. Unable to find a connection '{ConnectionName}' and no fallback connection could be resolved.", context.ConnectionName);
+            _logger.LogWarning("Unable to chat. Unable to find a deployment with a valid connection.");
             return null;
         }
 
@@ -169,13 +168,12 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             throw new ArgumentException($"Provider '{AzureOpenAIConstants.ClientName}' not found.");
         }
 
-        var connectionName = context.ConnectionName;
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, connectionName, deploymentName: context.ChatDeploymentName);
-        connectionName = deployment?.ConnectionName;
+        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
+        var connectionName = deployment?.ConnectionName;
         if (string.IsNullOrEmpty(connectionName) || !provider.Connections.TryGetValue(connectionName, out var connection))
         {
-            _logger.LogWarning("Unable to chat. Unable to find a connection '{ConnectionName}' and no fallback connection could be resolved.", context.ConnectionName);
+            _logger.LogWarning("Unable to chat. Unable to find a deployment with a valid connection.");
             yield break;
         }
 

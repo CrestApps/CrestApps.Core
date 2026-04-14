@@ -132,11 +132,9 @@ public sealed class SearchDocumentsTool : AIFunction
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
             var clientName = executionContext?.ClientName;
-            var connectionName = executionContext?.ConnectionName;
             var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Embedding,
-                clientName: clientName,
-                connectionName: connectionName);
+                clientName: clientName);
 
             if (embeddingDeployment == null)
             {

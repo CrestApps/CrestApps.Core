@@ -293,14 +293,12 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
             // completion context for this batch
             var completionContext = new AICompletionContext
             {
-                ConnectionName = sourceContext.ConnectionName,
                 ChatDeploymentName = sourceContext.ChatDeploymentName,
                 SystemMessage = await GetBatchSystemMessageAsync(batch, sourceContext.SystemMessage),
                 Temperature = sourceContext.Temperature ?? 0.1f, // Use low temperature for consistent row processing
                 TopP = sourceContext.TopP ?? 1.0f,
                 FrequencyPenalty = sourceContext.FrequencyPenalty,
                 PresencePenalty = sourceContext.PresencePenalty,
-
                 MaxTokens = sourceContext.MaxTokens,
                 DisableTools = true, // Disable tools for batch processing
 
