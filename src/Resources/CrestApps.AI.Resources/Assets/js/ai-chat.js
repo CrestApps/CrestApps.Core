@@ -5,7 +5,6 @@ window.openAIChatManager = function () {
         // UI defaults for generated media
         generatedImageAltText: 'Generated Image',
         generatedImageMaxWidth: 400,
-        generatedChartMaxWidth: 900,
         downloadImageTitle: 'Download image',
         downloadChartTitle: 'Download chart as image',
         downloadChartButtonText: 'Download',
@@ -176,10 +175,8 @@ window.openAIChatManager = function () {
     window.__chartConfigs = window.__chartConfigs || {};
 
     function createChartHtml(chartId) {
-        const chartMaxWidth = defaultConfig.generatedChartMaxWidth;
-
-        return `<div class="chart-container" style="position: relative; width: 100%; max-width: ${chartMaxWidth}px;">`
-            + `<canvas id="${chartId}" class="img-thumbnail"></canvas>`
+        return `<div class="chart-container" style="position: relative; width: 100%; max-width: 680px; min-height: 300px;">`
+            + `<canvas id="${chartId}"></canvas>`
             + `</div>`
             + `<div class="mt-2">`
             + `<button type="button" class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart-id="${chartId}" title="${defaultConfig.downloadChartTitle}">`
@@ -329,7 +326,7 @@ window.openAIChatManager = function () {
             const cfg = typeof config === 'string' ? JSON.parse(config) : config;
             cfg.options ??= {};
             cfg.options.responsive = true;
-            cfg.options.maintainAspectRatio = false;
+            cfg.options.maintainAspectRatio = true;
 
             canvas._chartInstance = new Chart(canvas, cfg);
             delete window.__chartConfigs[chartId];

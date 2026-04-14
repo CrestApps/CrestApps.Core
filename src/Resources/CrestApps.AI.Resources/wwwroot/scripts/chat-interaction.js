@@ -25,7 +25,6 @@ window.chatInteractionManager = function () {
     // UI defaults for generated media
     generatedImageAltText: 'Generated Image',
     generatedImageMaxWidth: 400,
-    generatedChartMaxWidth: 900,
     downloadImageTitle: 'Download image',
     downloadChartTitle: 'Download chart as image',
     downloadChartButtonText: 'Download',
@@ -109,8 +108,7 @@ window.chatInteractionManager = function () {
   // Global chart config map shared with ai-chat.js
   window.__chartConfigs = window.__chartConfigs || {};
   function createChartHtml(chartId) {
-    var chartMaxWidth = defaultConfig.generatedChartMaxWidth;
-    return "<div class=\"chart-container\" style=\"position: relative; width: 100%; max-width: ".concat(chartMaxWidth, "px;\">") + "<canvas id=\"".concat(chartId, "\" class=\"img-thumbnail\"></canvas>") + "</div>" + "<div class=\"mt-2\">" + "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary download-chart-btn\" data-chart-id=\"".concat(chartId, "\" title=\"").concat(defaultConfig.downloadChartTitle, "\">") + "<i class=\"fa-solid fa-download\"></i> ".concat(defaultConfig.downloadChartButtonText) + "</button>" + "</div>";
+    return "<div class=\"chart-container\" style=\"position: relative; width: 100%; max-width: 680px; min-height: 300px;\">" + "<canvas id=\"".concat(chartId, "\"></canvas>") + "</div>" + "<div class=\"mt-2\">" + "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary download-chart-btn\" data-chart-id=\"".concat(chartId, "\" title=\"").concat(defaultConfig.downloadChartTitle, "\">") + "<i class=\"fa-solid fa-download\"></i> ".concat(defaultConfig.downloadChartButtonText) + "</button>" + "</div>";
   }
 
   // Register [chart:{...json...}] as a native marked block extension so the
@@ -243,7 +241,7 @@ window.chatInteractionManager = function () {
             var cfg = typeof c.config === 'string' ? JSON.parse(c.config) : c.config;
             (_cfg$options = cfg.options) !== null && _cfg$options !== void 0 ? _cfg$options : cfg.options = {};
             cfg.options.responsive = true;
-            cfg.options.maintainAspectRatio = false;
+            cfg.options.maintainAspectRatio = true;
             canvas._chartInstance = new Chart(canvas, cfg);
           } catch (e) {
             console.error('Error creating chart:', e);
@@ -267,6 +265,7 @@ window.chatInteractionManager = function () {
     });
     message._pendingCharts = _pendingCharts.length > 0 ? _toConsumableArray(_pendingCharts) : [];
     return DOMPurify.sanitize(html, {
+      ADD_TAGS: ['canvas'],
       ADD_ATTR: ['target']
     });
   }

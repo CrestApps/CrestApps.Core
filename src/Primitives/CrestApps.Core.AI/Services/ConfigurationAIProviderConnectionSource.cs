@@ -41,6 +41,14 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             .Where(static connection => !string.IsNullOrWhiteSpace(connection.Name))
             .ToDictionary(static connection => connection.Name, static connection => connection.ItemId, StringComparer.OrdinalIgnoreCase);
 
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Reading AI provider connections from configuration. Known entries: {KnownCount}. ConnectionSections: [{ConnectionSections}]. ProviderSections: [{ProviderSections}].",
+                knownEntries.Count,
+                string.Join(", ", _options.ConnectionSections),
+                string.Join(", ", _options.ProviderSections));
+        }
+
         try
         {
             foreach (var sectionPath in _options.ConnectionSections)
@@ -58,6 +66,11 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             _logger.LogError(ex, "Error reading AI provider connection configuration.");
         }
 
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Finished reading AI provider connections from configuration. Total connections found: {ConnectionCount}.", connections.Count);
+        }
+
         return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.Values);
     }
 
@@ -66,10 +79,22 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
         var section = _configuration.GetSection(sectionPath);
         if (!section.Exists())
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Connection section '{SectionPath}' does not exist in configuration.", sectionPath);
+            }
+
             return;
         }
 
-        foreach (var connectionSection in section.GetChildren())
+        var children = section.GetChildren();
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Connection section '{SectionPath}' found with {ChildCount} children.", sectionPath, children.Count());
+        }
+
+        foreach (var connectionSection in children)
         {
             var values = ReadObject(connectionSection);
             var connection = ParseConnection(values, fallbackName: connectionSection.Key);
@@ -82,7 +107,19 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
         var section = _configuration.GetSection(sectionPath);
         if (!section.Exists())
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Provider section '{SectionPath}' does not exist in configuration.", sectionPath);
+            }
+
             return;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            var providerKeys = section.GetChildren().Select(c => c.Key);
+            _logger.LogDebug("Provider section '{SectionPath}' found with providers: [{Providers}].",
+                sectionPath, string.Join(", ", providerKeys));
         }
 
         foreach (var providerSection in section.GetChildren())
@@ -91,7 +128,19 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             var connectionsSection = providerSection.GetSection("Connections");
             if (!connectionsSection.Exists())
             {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("Provider '{ProviderName}' in section '{SectionPath}' has no 'Connections' sub-section. Skipping.", providerName, sectionPath);
+                }
+
                 continue;
+            }
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                var connectionKeys = connectionsSection.GetChildren().Select(c => c.Key);
+                _logger.LogDebug("Provider '{ProviderName}' in section '{SectionPath}' has connections: [{Connections}].",
+                    providerName, sectionPath, string.Join(", ", connectionKeys));
             }
 
             foreach (var connectionSection in connectionsSection.GetChildren())
@@ -111,6 +160,11 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
     {
         if (connection == null)
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Parsed connection from '{SourceDescription}' was null (missing Name or ClientName). Skipping.", sourceDescription);
+            }
+
             return;
         }
 
@@ -122,6 +176,12 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
                 connection.Name,
                 sourceDescription);
             return;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Adding AI connection '{ConnectionName}' (ClientName: '{ClientName}', ItemId: '{ItemId}') from '{SourceDescription}'.",
+                connection.Name, connection.ClientName, connection.ItemId, sourceDescription);
         }
 
         names[connection.Name] = connection.ItemId;
