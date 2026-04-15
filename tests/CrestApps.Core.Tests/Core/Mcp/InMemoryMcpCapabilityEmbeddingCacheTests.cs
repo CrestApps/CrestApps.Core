@@ -1,5 +1,3 @@
-using CrestApps.Core.AI.Mcp.Models;
-using CrestApps.Core.AI.Mcp.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 

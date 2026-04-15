@@ -1,12 +1,3 @@
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Deployments;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.OpenAI.Azure;
-using CrestApps.Core.AI.Services;
-using CrestApps.Core.Infrastructure;
-using CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
-using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
-using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,8 +1,8 @@
+using System.Text.Json;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Blazor.Web.Areas.Admin.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using System.Text.Json;
 
 namespace CrestApps.Core.Blazor.Web.Services;
 

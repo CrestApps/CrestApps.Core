@@ -1,10 +1,4 @@
 using System.Security.Claims;
-using CrestApps.Core;
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.ResponseHandling;
-using CrestApps.Core.Data.YesSql;
-using CrestApps.Core.Data.YesSql.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;

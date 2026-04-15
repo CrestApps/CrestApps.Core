@@ -1,5 +1,3 @@
-using CrestApps.Core.AI.Mcp.Services;
-
 namespace CrestApps.OrchardCore.Tests.Core.Mcp;
 
 public sealed class CosineSimilarityTests

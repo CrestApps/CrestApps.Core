@@ -1,9 +1,3 @@
-using CrestApps.Core;
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Services;
-using CrestApps.Core.Templates.Parsing;
-
 namespace CrestApps.OrchardCore.Tests.Core.Services;
 
 public sealed class EmbeddedResourceAIProfileTemplateProviderTests

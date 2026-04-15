@@ -1,9 +1,3 @@
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.Infrastructure;
-using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

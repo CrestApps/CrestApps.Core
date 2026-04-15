@@ -1,6 +1,6 @@
+using CrestApps.Core.Blazor.Web.Areas.Admin.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Blazor.Web.Areas.Admin.Models;
 using CrestApps.Core.Services;
 using CrestApps.Core.Support;
 

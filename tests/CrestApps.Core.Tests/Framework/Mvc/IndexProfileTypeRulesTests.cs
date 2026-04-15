@@ -1,11 +1,4 @@
 using System.Text.Json.Nodes;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Models;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Controllers;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
-using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;

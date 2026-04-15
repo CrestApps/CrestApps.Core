@@ -1,8 +1,3 @@
-using CrestApps.Core.AI.Completions;
-using CrestApps.Core.AI.Mcp;
-using CrestApps.Core.AI.Mcp.Models;
-using CrestApps.Core.AI.Mcp.Services;
-using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 

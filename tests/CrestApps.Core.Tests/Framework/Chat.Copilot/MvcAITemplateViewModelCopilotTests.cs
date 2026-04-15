@@ -1,10 +1,3 @@
-using CrestApps.Core;
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Copilot.Models;
-using CrestApps.Core.AI.Copilot.Services;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
-
 namespace CrestApps.OrchardCore.Tests.Framework.Chat.Copilot;
 
 public sealed class MvcAITemplateViewModelCopilotTests

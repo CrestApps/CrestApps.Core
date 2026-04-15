@@ -1,5 +1,3 @@
-using CrestApps.Core.AI.Mcp;
-
 namespace CrestApps.OrchardCore.Tests.Core.Mcp;
 
 public sealed class McpResourceUriTests

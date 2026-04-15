@@ -58,6 +58,10 @@ public sealed class CalculatorTool : AIFunction
 
     private static string GetSymbol(string operation) => operation.ToLowerInvariant() switch
     {
-        "add" => "+", "subtract" => "-", "multiply" => "×", "divide" => "÷", _ => "?",
+        "add" => "+",
+        "subtract" => "-",
+        "multiply" => "×",
+        "divide" => "÷",
+        _ => "?",
     };
 }

@@ -1,8 +1,8 @@
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.Blazor.Web.Areas.Admin.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
-using CrestApps.Core.Blazor.Web.Areas.Admin.Services;
 
 namespace CrestApps.Core.Blazor.Web.Areas.Admin.Handlers;
 

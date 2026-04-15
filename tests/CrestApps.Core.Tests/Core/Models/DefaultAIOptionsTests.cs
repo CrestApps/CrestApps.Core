@@ -1,5 +1,3 @@
-using CrestApps.Core.AI.Models;
-
 namespace CrestApps.OrchardCore.Tests.Core.Models;
 
 public sealed class DefaultAIOptionsTests

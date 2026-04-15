@@ -1,7 +1,3 @@
-using CrestApps.Core.Templates.Models;
-using CrestApps.Core.Templates.Providers;
-using CrestApps.Core.Templates.Rendering;
-using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 

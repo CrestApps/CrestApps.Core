@@ -1,7 +1,3 @@
-using CrestApps.Core.AI.Completions;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Orchestration;
-using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 using Microsoft.Extensions.Options;

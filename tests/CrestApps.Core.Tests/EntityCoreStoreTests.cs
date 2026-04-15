@@ -1,14 +1,3 @@
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Chat;
-using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Deployments;
-using CrestApps.Core.AI.Memory;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.Data.EntityCore;
-using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Tests;

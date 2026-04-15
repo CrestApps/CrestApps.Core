@@ -1,5 +1,4 @@
 using System.Reflection;
-using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
