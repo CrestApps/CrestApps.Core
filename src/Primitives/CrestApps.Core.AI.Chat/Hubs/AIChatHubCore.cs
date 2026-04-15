@@ -32,7 +32,8 @@ namespace CrestApps.Core.AI.Chat.Hubs;
 /// logic and then call the base implementation.
 /// </para>
 /// </summary>
-public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAIChatHubClient
+public class AIChatHubCore<TClient> : Hub<TClient>
+    where TClient : class, IAIChatHubClient
 {
     private const string _conversationCtsKey = "ConversationCts";
     private readonly IServiceProvider _services;
