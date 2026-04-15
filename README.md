@@ -61,6 +61,12 @@ dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web
 
 The MVC sample is the quickest way to see the full stack working together: AI connections, deployments, agent profiles, Chat Interactions, document processing, MCP, A2A, storage, and SignalR.
 
+There is also a **Blazor sample** that mirrors the same feature set using Blazor Server with EntityCore (EF Core + SQLite) stores:
+
+```powershell
+dotnet run --project .\src\Startup\CrestApps.Core.Blazor.Web\CrestApps.Core.Blazor.Web.csproj
+```
+
 ## Fastest way to consume it
 
 Install the smallest useful package set for your app:
@@ -131,6 +137,7 @@ src/
 ├── Startup/
 │   ├── CrestApps.Core.Aspire.AppHost/
 │   ├── CrestApps.Core.Mvc.Web/
+│   ├── CrestApps.Core.Blazor.Web/
 │   ├── CrestApps.Core.Mvc.Samples.A2AClient/
 │   └── CrestApps.Core.Mvc.Samples.McpClient/
 └── CrestApps.Core.Docs/

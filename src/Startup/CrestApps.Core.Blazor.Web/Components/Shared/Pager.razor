@@ -1,0 +1,46 @@
+@typeparam TItem
+
+@if (TotalPages > 1)
+{
+    <nav aria-label="Page navigation">
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <span class="text-muted">Showing page @Page of @TotalPages (@TotalCount total items)</span>
+            <ul class="pagination mb-0">
+                <li class="page-item @(Page <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="@GetPageUrl(Page - 1)" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+                @for (var i = StartPage; i <= EndPage; i++)
+                {
+                    var pageNum = i;
+                    <li class="page-item @(pageNum == Page ? "active" : "")">
+                        <a class="page-link" href="@GetPageUrl(pageNum)">@pageNum</a>
+                    </li>
+                }
+                <li class="page-item @(Page >= TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="@GetPageUrl(Page + 1)" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+}
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int TotalPages { get; set; }
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public string BaseUrl { get; set; } = "";
+    [Parameter] public int MaxVisiblePages { get; set; } = 5;
+
+    private int StartPage => Math.Max(1, Page - MaxVisiblePages / 2);
+    private int EndPage => Math.Min(TotalPages, StartPage + MaxVisiblePages - 1);
+
+    private string GetPageUrl(int page)
+    {
+        var separator = BaseUrl.Contains('?') ? "&" : "?";
+        return $"{BaseUrl}{separator}page={page}";
+    }
+}

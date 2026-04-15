@@ -1,0 +1,323 @@
+@page "/AI/Deployments/Create"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.Services
+@using System.Text.RegularExpressions
+@inject IAIDeploymentStore DeploymentCatalog
+@inject INamedSourceCatalog<AIProviderConnection> ConnectionCatalog
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create AI Deployment</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Create AI Deployment</h2>
+<hr />
+
+<EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="CreateDeployment">
+    <div class="row">
+        <div class="col-md-8">
+            @if (ValidationErrors.Count > 0)
+            {
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        @foreach (var error in ValidationErrors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Model name <span class="text-danger">*</span></label>
+                <InputText @bind-Value="Model.ModelName" class="form-control"
+                           placeholder="e.g., gpt-4o-mini"
+                           @oninput="OnModelNameChanged" />
+                <div class="form-text">The provider model or deployment name used when connecting to the AI provider.</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Technical name <span class="text-danger">*</span></label>
+                <InputText @bind-Value="Model.TechnicalName" class="form-control"
+                           @oninput="@(() => _nameManuallyEdited = true)" />
+                <div class="form-text">This is the deployment identifier shown throughout the app. It is auto-generated from the model name and can be adjusted before saving.</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Provider</label>
+                <InputSelect @bind-Value="Model.ClientName" class="form-select"
+                             @bind-Value:after="OnProviderChanged">
+                    <option value="">Select provider</option>
+                    <option value="OpenAI">OpenAI</option>
+                    <option value="Azure">Azure OpenAI</option>
+                    <option value="AzureAIInference">Azure AI Inference (GitHub Models)</option>
+                    <option value="AzureSpeech">Azure AI Services</option>
+                    <option value="Ollama">Ollama</option>
+                </InputSelect>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Deployment types <span class="text-danger">*</span></label>
+                @foreach (var type in AvailableTypes)
+                {
+                    var typeName = type.ToString();
+                    <div class="form-check">
+                        <input id="SelectedTypes_@typeName"
+                               type="checkbox"
+                               class="form-check-input"
+                               checked="@Model.SelectedTypes.Contains(typeName)"
+                               @onchange="e => OnTypeToggled(typeName, (bool)(e.Value ?? false))" />
+                        <label class="form-check-label" for="SelectedTypes_@typeName">@typeName</label>
+                    </div>
+                }
+                <div class="form-text">Select one or more capability types for this deployment.</div>
+            </div>
+
+            @if (!IsStandaloneProvider)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Connection</label>
+                    <InputSelect @bind-Value="Model.ConnectionName" class="form-select">
+                        <option value="">No connection</option>
+                        @foreach (var conn in FilteredConnections)
+                        {
+                            <option value="@conn.Name">@conn.DisplayLabel</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The connection this deployment belongs to.</div>
+                </div>
+            }
+
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                Default deployment fallbacks are configured from <strong>Settings</strong>, not on individual deployments.
+            </div>
+
+            @if (IsStandaloneProvider)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Endpoint</label>
+                    <InputText @bind-Value="Model.Endpoint" class="form-control"
+                               placeholder="e.g., https://your-resource.cognitiveservices.azure.com/" />
+                    <div class="form-text">The service endpoint URL.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Authentication type</label>
+                    <InputSelect @bind-Value="Model.AuthenticationType" class="form-select"
+                                 @bind-Value:after="OnAuthTypeChanged">
+                        <option value="">Select authentication type</option>
+                        <option value="ApiKey">API Key</option>
+                        <option value="Default">Default Azure Credential</option>
+                        <option value="ManagedIdentity">Managed Identity</option>
+                    </InputSelect>
+                </div>
+
+                @if (Model.AuthenticationType == "ApiKey")
+                {
+                    <div class="mb-3">
+                        <label class="form-label">API key</label>
+                        <InputText @bind-Value="Model.ApiKey" class="form-control" type="password"
+                                   placeholder="Enter API key" autocomplete="new-password" />
+                        <div class="form-text">The API key or secret used for authentication.</div>
+                    </div>
+                }
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                    <i class="bi bi-check-lg"></i> Create
+                </button>
+                <a href="/AI/Deployments" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private static readonly HashSet<string> _standaloneProviders = new(StringComparer.OrdinalIgnoreCase) { "AzureSpeech" };
+
+    private DeploymentFormModel Model { get; set; } = new();
+    private List<string> ValidationErrors { get; set; } = [];
+    private bool IsSubmitting { get; set; }
+    private bool _nameManuallyEdited;
+    private List<ConnectionItem> AllConnections { get; set; } = [];
+
+    private AIDeploymentType[] AvailableTypes => Enum.GetValues<AIDeploymentType>()
+        .Where(t => t != AIDeploymentType.None)
+        .ToArray();
+
+    private bool IsStandaloneProvider => _standaloneProviders.Contains(Model.ClientName ?? string.Empty);
+
+    private IEnumerable<ConnectionItem> FilteredConnections
+    {
+        get
+        {
+            var selectedProvider = string.IsNullOrWhiteSpace(Model.ClientName) ? null : Model.ClientName;
+            return AllConnections
+                .Where(c => selectedProvider is null || string.Equals(c.ClientName, selectedProvider, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(c => c.DisplayLabel, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var connections = await ConnectionCatalog.GetAllAsync();
+        AllConnections = connections
+            .Select(c => new ConnectionItem
+            {
+                Name = c.Name,
+                ClientName = c.ClientName,
+                DisplayLabel = c.DisplayText ?? c.Name,
+            })
+            .OrderBy(c => c.ClientName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(c => c.DisplayLabel, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void OnModelNameChanged(ChangeEventArgs e)
+    {
+        if (!_nameManuallyEdited)
+        {
+            Model.TechnicalName = GenerateTechnicalName(e.Value?.ToString());
+        }
+    }
+
+    private void OnProviderChanged() => StateHasChanged();
+    private void OnAuthTypeChanged() => StateHasChanged();
+
+    private void OnTypeToggled(string typeName, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!Model.SelectedTypes.Contains(typeName))
+            {
+                Model.SelectedTypes.Add(typeName);
+            }
+        }
+        else
+        {
+            Model.SelectedTypes.Remove(typeName);
+        }
+    }
+
+    private AIDeploymentType GetDeploymentType()
+    {
+        var result = AIDeploymentType.None;
+        foreach (var typeName in Model.SelectedTypes)
+        {
+            if (Enum.TryParse<AIDeploymentType>(typeName, ignoreCase: true, out var parsed) && parsed != AIDeploymentType.None)
+            {
+                result |= parsed;
+            }
+        }
+        return result;
+    }
+
+    private async Task HandleSubmit()
+    {
+        ValidationErrors.Clear();
+        IsSubmitting = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Model.TechnicalName))
+            {
+                ValidationErrors.Add("Technical name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(Model.ModelName))
+            {
+                ValidationErrors.Add("Model name is required.");
+            }
+
+            var deploymentType = GetDeploymentType();
+            if (!deploymentType.IsValidSelection())
+            {
+                ValidationErrors.Add("At least one deployment type is required.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Model.TechnicalName))
+            {
+                var existing = await DeploymentCatalog.FindByNameAsync(Model.TechnicalName);
+                if (existing != null)
+                {
+                    ValidationErrors.Add("Technical name must be unique across appsettings and UI deployments.");
+                }
+            }
+
+            if (ValidationErrors.Count > 0)
+            {
+                return;
+            }
+
+            var connectionName = IsStandaloneProvider ? null : Model.ConnectionName;
+
+            var deployment = new AIDeployment
+            {
+                ItemId = Guid.NewGuid().ToString("N"),
+                CreatedUtc = DateTime.UtcNow,
+                Name = Model.TechnicalName,
+                ModelName = Model.ModelName,
+                Type = deploymentType,
+                ConnectionName = connectionName,
+                ClientName = AIProviderNameNormalizer.Normalize(Model.ClientName),
+                Properties = new Dictionary<string, object>(),
+            };
+
+            if (IsStandaloneProvider)
+            {
+                if (!string.IsNullOrWhiteSpace(Model.Endpoint))
+                {
+                    deployment.Properties["Endpoint"] = Model.Endpoint;
+                }
+
+                if (!string.IsNullOrWhiteSpace(Model.AuthenticationType))
+                {
+                    deployment.Properties["AuthenticationType"] = Model.AuthenticationType;
+                }
+
+                if (!string.IsNullOrWhiteSpace(Model.ApiKey))
+                {
+                    deployment.Properties["ApiKey"] = Model.ApiKey;
+                }
+            }
+
+            await DeploymentCatalog.CreateAsync(deployment);
+            NavigationManager.NavigateTo("/AI/Deployments");
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private static string GenerateTechnicalName(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var cleaned = Regex.Replace(text.Trim(), @"[^a-zA-Z0-9\s\-_]", "");
+        var parts = cleaned.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Select(p =>
+            char.ToUpperInvariant(p[0]) + p[1..].ToLowerInvariant()));
+    }
+
+    private sealed class DeploymentFormModel
+    {
+        public string? ModelName { get; set; }
+        public string? TechnicalName { get; set; }
+        public string? ClientName { get; set; }
+        public List<string> SelectedTypes { get; set; } = [];
+        public string? ConnectionName { get; set; }
+        public string? Endpoint { get; set; }
+        public string? AuthenticationType { get; set; }
+        public string? ApiKey { get; set; }
+    }
+
+    private sealed class ConnectionItem
+    {
+        public string Name { get; set; } = default!;
+        public string ClientName { get; set; } = default!;
+        public string DisplayLabel { get; set; } = default!;
+    }
+}

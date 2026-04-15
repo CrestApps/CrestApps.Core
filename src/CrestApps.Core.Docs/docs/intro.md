@@ -45,5 +45,6 @@ The framework fits standard .NET dependency injection and works well in:
 - **[Getting Started](getting-started.md)** for the quickest path from package install to first prompt
 - **[Core Overview](core/index.md)** for the feature catalog and package layout
 - **[AI Chat Use Cases](core/use-cases.md)** for real-world scenarios
-- **[MVC Example](core/mvc-example.md)** for the complete reference host
+- **[MVC Example](core/mvc-example.md)** for the complete reference host with YesSql
+- **[Blazor Example](core/blazor-example.md)** for the complete reference host with EntityCore
 

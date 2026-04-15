@@ -1,0 +1,208 @@
+@page "/AI/Connections/Create"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.Services
+@using System.Text.RegularExpressions
+@inject INamedSourceCatalog<AIProviderConnection> ConnectionCatalog
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create AI Connection</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Create AI Connection</h2>
+<hr />
+
+<EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="CreateConnection">
+    <div class="row">
+        <div class="col-md-8">
+            @if (ValidationErrors.Count > 0)
+            {
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        @foreach (var error in ValidationErrors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText @bind-Value="Model.DisplayText" class="form-control"
+                           placeholder="e.g., My OpenAI Connection"
+                           @oninput="OnDisplayTextChanged" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Technical name <span class="text-danger">*</span></label>
+                <InputText @bind-Value="Model.Name" class="form-control"
+                           placeholder="e.g., MyOpenAIConnection"
+                           @oninput="@(() => _nameManuallyEdited = true)" />
+                <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Provider <span class="text-danger">*</span></label>
+                <InputSelect @bind-Value="Model.Source" class="form-select"
+                             @bind-Value:after="OnProviderChanged">
+                    <option value="">Select provider</option>
+                    <option value="OpenAI">OpenAI</option>
+                    <option value="Azure">Azure OpenAI</option>
+                    <option value="AzureAIInference">Azure AI Inference (GitHub Models)</option>
+                    <option value="Ollama">Ollama</option>
+                </InputSelect>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Endpoint</label>
+                <InputText @bind-Value="Model.Endpoint" class="form-control"
+                           placeholder="e.g., https://api.openai.com/v1" />
+                <div class="form-text">The API endpoint URL for the provider.</div>
+            </div>
+
+            @if (ShowAuthType)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Authentication type</label>
+                    <InputSelect @bind-Value="Model.AuthenticationType" class="form-select"
+                                 @bind-Value:after="OnAuthTypeChanged">
+                        <option value="">Select authentication type</option>
+                        <option value="ApiKey">API Key</option>
+                        <option value="Default">Default Azure Credential</option>
+                        <option value="ManagedIdentity">Managed Identity</option>
+                    </InputSelect>
+                </div>
+            }
+
+            @if (ShowApiKey)
+            {
+                <div class="mb-3">
+                    <label class="form-label">API key</label>
+                    <InputText @bind-Value="Model.ApiKey" class="form-control" type="password"
+                               placeholder="Enter API key" autocomplete="new-password" />
+                    <div class="form-text">The API key or secret used for authentication.</div>
+                </div>
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                    <i class="bi bi-check-lg"></i> Create
+                </button>
+                <a href="/AI/Connections" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private ConnectionFormModel Model { get; set; } = new();
+    private List<string> ValidationErrors { get; set; } = [];
+    private bool IsSubmitting { get; set; }
+    private bool _nameManuallyEdited;
+
+    private bool ShowAuthType => Model.Source is "Azure" or "AzureAIInference";
+
+    private bool ShowApiKey =>
+        Model.Source == "OpenAI" ||
+        ((Model.Source is "Azure" or "AzureAIInference") && Model.AuthenticationType == "ApiKey") ||
+        Model.Source == "Ollama";
+
+    private void OnDisplayTextChanged(ChangeEventArgs e)
+    {
+        if (!_nameManuallyEdited)
+        {
+            Model.Name = GenerateTechnicalName(e.Value?.ToString());
+        }
+    }
+
+    private void OnProviderChanged() => StateHasChanged();
+    private void OnAuthTypeChanged() => StateHasChanged();
+
+    private async Task HandleSubmit()
+    {
+        ValidationErrors.Clear();
+        IsSubmitting = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Model.Name))
+            {
+                ValidationErrors.Add("Name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(Model.Source))
+            {
+                ValidationErrors.Add("Provider is required.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Model.Name))
+            {
+                var existing = await ConnectionCatalog.FindByNameAsync(Model.Name);
+                if (existing != null)
+                {
+                    ValidationErrors.Add("Name must be unique across appsettings and UI connections.");
+                }
+            }
+
+            if (ValidationErrors.Count > 0)
+            {
+                return;
+            }
+
+            var connection = new AIProviderConnection
+            {
+                ItemId = Guid.NewGuid().ToString("N"),
+                CreatedUtc = DateTime.UtcNow,
+                Name = Model.Name,
+                DisplayText = Model.DisplayText,
+                Source = AIProviderNameNormalizer.Normalize(Model.Source),
+                Properties = new Dictionary<string, object>(),
+            };
+
+            if (!string.IsNullOrWhiteSpace(Model.Endpoint))
+            {
+                connection.Properties["Endpoint"] = Model.Endpoint;
+            }
+
+            if (!string.IsNullOrWhiteSpace(Model.ApiKey))
+            {
+                connection.Properties["ApiKey"] = Model.ApiKey;
+            }
+
+            if (!string.IsNullOrWhiteSpace(Model.AuthenticationType))
+            {
+                connection.Properties["AuthenticationType"] = Model.AuthenticationType;
+            }
+
+            await ConnectionCatalog.CreateAsync(connection);
+            NavigationManager.NavigateTo("/AI/Connections");
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private static string GenerateTechnicalName(string? displayText)
+    {
+        if (string.IsNullOrWhiteSpace(displayText))
+        {
+            return string.Empty;
+        }
+
+        // Remove non-alphanumeric characters except spaces, then PascalCase it.
+        var cleaned = Regex.Replace(displayText.Trim(), @"[^a-zA-Z0-9\s]", "");
+        var parts = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return string.Concat(parts.Select(p =>
+            char.ToUpperInvariant(p[0]) + p[1..].ToLowerInvariant()));
+    }
+
+    private sealed class ConnectionFormModel
+    {
+        public string? DisplayText { get; set; }
+        public string? Name { get; set; }
+        public string? Source { get; set; }
+        public string? Endpoint { get; set; }
+        public string? AuthenticationType { get; set; }
+        public string? ApiKey { get; set; }
+    }
+}

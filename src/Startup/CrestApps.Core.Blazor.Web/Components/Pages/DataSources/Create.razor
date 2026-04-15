@@ -1,0 +1,176 @@
+@page "/DataSources/Create"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Services
+@inject ICatalogManager<AIDataSource> Manager
+@inject ISearchIndexProfileStore IndexProfileStore
+@inject TimeProvider TimeProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Data Source</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Create Data Source</h2>
+<hr />
+
+<EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="CreateDataSource">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label class="form-label">Title <span class="text-danger">*</span></label>
+                <InputText @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., Product Catalog" />
+                @if (Errors.ContainsKey(nameof(Model.DisplayText)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.DisplayText)]</div>
+                }
+                <div class="form-text">A human-readable name for this data source.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Source index profile <span class="text-danger">*</span></label>
+                <InputSelect @bind-Value="Model.SourceIndexProfileName" class="form-select">
+                    <option value="">Select index profile</option>
+                    @foreach (var p in SourceIndexProfiles)
+                    {
+                        <option value="@p.Name">@(p.DisplayText ?? p.Name)</option>
+                    }
+                </InputSelect>
+                @if (Errors.ContainsKey(nameof(Model.SourceIndexProfileName)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.SourceIndexProfileName)]</div>
+                }
+                <div class="form-text">The index to read source documents from.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Knowledge base index profile</label>
+                <InputSelect @bind-Value="Model.AIKnowledgeBaseIndexProfileName" class="form-select">
+                    <option value="">Select index profile</option>
+                    @foreach (var p in KnowledgeBaseIndexProfiles)
+                    {
+                        <option value="@p.Name">@(p.DisplayText ?? p.Name)</option>
+                    }
+                </InputSelect>
+                @if (Errors.ContainsKey(nameof(Model.AIKnowledgeBaseIndexProfileName)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.AIKnowledgeBaseIndexProfileName)]</div>
+                }
+                <div class="form-text">The index where chunked and embedded documents are stored for AI retrieval.</div>
+            </div>
+
+            <hr />
+            <h5>Field Mapping</h5>
+
+            <div class="mb-3">
+                <label class="form-label">Key field name</label>
+                <InputText @bind-Value="Model.KeyFieldName" class="form-control" placeholder="e.g., id" />
+                <div class="form-text">The source index field that maps to the document key. Leave empty to use the native document ID.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Title field name</label>
+                <InputText @bind-Value="Model.TitleFieldName" class="form-control" placeholder="e.g., title" />
+                <div class="form-text">The source index field that maps to the document title.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Content field name <span class="text-danger">*</span></label>
+                <InputText @bind-Value="Model.ContentFieldName" class="form-control" placeholder="e.g., content" />
+                @if (Errors.ContainsKey(nameof(Model.ContentFieldName)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.ContentFieldName)]</div>
+                }
+                <div class="form-text">The source index field that maps to the document content (text body).</div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Create
+                </button>
+                <a href="/DataSources" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private FormModel Model { get; set; } = new();
+    private Dictionary<string, string> Errors { get; set; } = new();
+    private IReadOnlyList<CrestApps.Core.Infrastructure.Indexing.Models.SearchIndexProfile> SourceIndexProfiles = [];
+    private IReadOnlyList<CrestApps.Core.Infrastructure.Indexing.Models.SearchIndexProfile> KnowledgeBaseIndexProfiles = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PopulateDropdownsAsync();
+    }
+
+    private async Task PopulateDropdownsAsync()
+    {
+        var indexProfiles = await IndexProfileStore.GetAllAsync();
+        SourceIndexProfiles = indexProfiles
+            .Where(p =>
+                !string.Equals(p.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(p.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(p.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        KnowledgeBaseIndexProfiles = indexProfiles
+            .Where(p => string.Equals(p.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private async Task HandleSubmit()
+    {
+        Errors.Clear();
+
+        if (string.IsNullOrWhiteSpace(Model.DisplayText))
+            Errors[nameof(Model.DisplayText)] = "Display text is required.";
+        if (string.IsNullOrWhiteSpace(Model.SourceIndexProfileName))
+            Errors[nameof(Model.SourceIndexProfileName)] = "Source index profile is required.";
+        if (string.IsNullOrWhiteSpace(Model.ContentFieldName))
+            Errors[nameof(Model.ContentFieldName)] = "Content field name is required.";
+
+        if (!string.IsNullOrWhiteSpace(Model.SourceIndexProfileName))
+        {
+            var sourceProfile = await IndexProfileStore.FindByNameAsync(Model.SourceIndexProfileName);
+            if (sourceProfile is null)
+                Errors[nameof(Model.SourceIndexProfileName)] = "The selected source index profile could not be found.";
+            else if (string.Equals(sourceProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(sourceProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(sourceProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+                Errors[nameof(Model.SourceIndexProfileName)] = "The selected source index profile type is not supported for data sources.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(Model.AIKnowledgeBaseIndexProfileName))
+        {
+            var kbProfile = await IndexProfileStore.FindByNameAsync(Model.AIKnowledgeBaseIndexProfileName);
+            if (kbProfile is null)
+                Errors[nameof(Model.AIKnowledgeBaseIndexProfileName)] = "The selected knowledge base index profile could not be found.";
+            else if (!string.Equals(kbProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+                Errors[nameof(Model.AIKnowledgeBaseIndexProfileName)] = "The selected knowledge base index profile must be an AI Data Source profile.";
+        }
+
+        if (Errors.Any()) return;
+
+        var dataSource = await Manager.NewAsync();
+        dataSource.CreatedUtc = TimeProvider.GetUtcNow().UtcDateTime;
+        dataSource.DisplayText = Model.DisplayText?.Trim();
+        dataSource.SourceIndexProfileName = Model.SourceIndexProfileName;
+        dataSource.AIKnowledgeBaseIndexProfileName = Model.AIKnowledgeBaseIndexProfileName;
+        dataSource.KeyFieldName = Model.KeyFieldName?.Trim();
+        dataSource.TitleFieldName = Model.TitleFieldName?.Trim();
+        dataSource.ContentFieldName = Model.ContentFieldName?.Trim();
+
+        await Manager.CreateAsync(dataSource);
+        NavigationManager.NavigateTo("/DataSources?success=Data source created successfully. Initial synchronization has been queued.");
+    }
+
+    private sealed class FormModel
+    {
+        public string? DisplayText { get; set; }
+        public string? SourceIndexProfileName { get; set; }
+        public string? AIKnowledgeBaseIndexProfileName { get; set; }
+        public string? KeyFieldName { get; set; }
+        public string? TitleFieldName { get; set; }
+        public string? ContentFieldName { get; set; }
+    }
+}

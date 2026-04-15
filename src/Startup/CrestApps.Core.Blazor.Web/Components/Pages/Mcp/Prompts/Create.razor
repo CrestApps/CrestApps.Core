@@ -1,0 +1,111 @@
+@page "/Mcp/Prompts/Create"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text.Json
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.Services
+@using ModelContextProtocol.Protocol
+@inject INamedCatalog<McpPrompt> Catalog
+@inject TimeProvider TimeProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Add MCP Prompt</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Add MCP Prompt</h2>
+<hr />
+
+<EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="CreateMcpPrompt">
+    <div class="col-md-8">
+        <div class="mb-3">
+            <label for="title" class="form-label">Title</label>
+            <InputText id="title" @bind-Value="Model.Title" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label for="name" class="form-label">Technical name</label>
+            <InputText id="name" @bind-Value="Model.Name" class="form-control" />
+            @if (Errors.ContainsKey(nameof(Model.Name)))
+            {
+                <div class="text-danger">@Errors[nameof(Model.Name)]</div>
+            }
+            <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <InputTextArea id="description" @bind-Value="Model.Description" class="form-control" rows="4" />
+        </div>
+        <div class="mb-3">
+            <label for="arguments" class="form-label">Arguments (JSON array)</label>
+            <InputTextArea id="arguments" @bind-Value="Model.Arguments" class="form-control" rows="8" />
+            @if (Errors.ContainsKey(nameof(Model.Arguments)))
+            {
+                <div class="text-danger">@Errors[nameof(Model.Arguments)]</div>
+            }
+            <div class="form-text">Example: <code>[{ "name": "topic", "description": "Topic to expand", "required": true }]</code></div>
+        </div>
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create</button>
+            <a href="/Mcp/Prompts" class="btn btn-secondary">Cancel</a>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private FormModel Model { get; set; } = new();
+    private Dictionary<string, string> Errors { get; set; } = new();
+
+    private async Task HandleSubmit()
+    {
+        Errors.Clear();
+
+        if (string.IsNullOrWhiteSpace(Model.Name))
+            Errors[nameof(Model.Name)] = "Name is required.";
+
+        var arguments = ParseArguments();
+
+        if (Errors.Any()) return;
+
+        var prompt = new McpPrompt
+        {
+            ItemId = UniqueId.GenerateId(),
+            CreatedUtc = TimeProvider.GetUtcNow().UtcDateTime,
+            Name = Model.Name!.Trim(),
+            Prompt = new Prompt
+            {
+                Name = Model.Name!.Trim(),
+                Title = Model.Title?.Trim(),
+                Description = Model.Description?.Trim(),
+                Arguments = arguments,
+            },
+        };
+
+        await Catalog.CreateAsync(prompt);
+        NavigationManager.NavigateTo("/Mcp/Prompts?success=MCP prompt created successfully.");
+    }
+
+    private List<PromptArgument> ParseArguments()
+    {
+        if (string.IsNullOrWhiteSpace(Model.Arguments)) return [];
+        try
+        {
+            var args = JsonSerializer.Deserialize<List<PromptArgument>>(Model.Arguments) ?? [];
+            for (var i = 0; i < args.Count; i++)
+            {
+                if (string.IsNullOrWhiteSpace(args[i].Name))
+                    Errors[nameof(Model.Arguments)] = $"Argument {i + 1} requires a name.";
+            }
+            return args.Where(a => !string.IsNullOrWhiteSpace(a.Name)).ToList();
+        }
+        catch (JsonException)
+        {
+            Errors[nameof(Model.Arguments)] = "Arguments must be valid JSON.";
+            return [];
+        }
+    }
+
+    private sealed class FormModel
+    {
+        public string? Title { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? Arguments { get; set; } = "[]";
+    }
+}

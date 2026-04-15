@@ -1,0 +1,176 @@
+@inherits LayoutComponentBase
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <i class="bi bi-robot"></i> CrestApps AI
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+                        <i class="bi bi-house"></i> Home
+                    </NavLink>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <AuthorizeView>
+                    <Authorized>
+                        <li class="nav-item">
+                            <span class="nav-link text-light">
+                                <i class="bi bi-person-circle"></i> @context.User.Identity?.Name
+                            </span>
+                        </li>
+                        <li class="nav-item">
+                            <form method="post" action="Account/Logout">
+                                <AntiforgeryToken />
+                                <button type="submit" class="nav-link btn btn-link text-light">
+                                    <i class="bi bi-box-arrow-right"></i> Logout
+                                </button>
+                            </form>
+                        </li>
+                    </Authorized>
+                    <NotAuthorized>
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="Account/Login">
+                                <i class="bi bi-box-arrow-in-right"></i> Login
+                            </NavLink>
+                        </li>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="d-flex app-layout">
+    <AuthorizeView Roles="Administrator">
+        <Authorized>
+            <nav id="sidebar" class="bg-light border-end p-3" style="min-width: 220px;">
+                <h6 class="text-muted text-uppercase mb-3">Admin</h6>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AI/Connections">
+                            <i class="bi bi-plug"></i> AI Connections
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AI/Deployments">
+                            <i class="bi bi-box-seam"></i> AI Deployments
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="ChatInteractions">
+                            <i class="bi bi-chat-left-dots"></i> Chat Interactions
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AI/Profiles">
+                            <i class="bi bi-person-gear"></i> AI Profiles
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AIChat">
+                            <i class="bi bi-chat-dots"></i> AI Chat
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="Indexing/Profiles">
+                            <i class="bi bi-database-gear"></i> Index Profiles
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="DataSources">
+                            <i class="bi bi-collection"></i> Data Sources
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AI/Templates">
+                            <i class="bi bi-file-earmark-text"></i> Templates
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="Admin/Articles">
+                            <i class="bi bi-journal-text"></i> Articles
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link text-uppercase small text-muted disabled ps-2">Reports</span>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AIChat/Analytics">
+                            <i class="bi bi-bar-chart-line"></i> Chat Analytics
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AIChat/UsageAnalytics">
+                            <i class="bi bi-activity"></i> AI Usage Analytics
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="AIChat/ExtractedData">
+                            <i class="bi bi-table"></i> Chat Extracted Data
+                        </NavLink>
+                    </li>
+
+                    <hr class="my-2" />
+
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="A2A/Connections">
+                            <i class="bi bi-diagram-3"></i> Agent to Agent Hosts
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="Mcp/Connections">
+                            <i class="bi bi-hdd-network"></i> MCP Hosts
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="Mcp/Prompts">
+                            <i class="bi bi-chat-square-text"></i> MCP Prompts
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="Mcp/Resources">
+                            <i class="bi bi-folder2-open"></i> MCP Resources
+                        </NavLink>
+                    </li>
+
+                    <hr class="my-2" />
+
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="Admin/Settings">
+                            <i class="bi bi-gear"></i> Settings
+                        </NavLink>
+                    </li>
+                </ul>
+            </nav>
+        </Authorized>
+    </AuthorizeView>
+
+    <main class="flex-grow-1 p-4 app-content">
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i> @ErrorMessage
+            </div>
+        }
+
+        @Body
+    </main>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string? ErrorMessage { get; set; }
+}

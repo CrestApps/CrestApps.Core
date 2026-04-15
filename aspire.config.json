@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "src/Startup/CrestApps.Core.Aspire.AppHost/CrestApps.Core.Aspire.AppHost.csproj"
+  }
+}

@@ -1,0 +1,166 @@
+@page "/AIChat"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Profiles
+@inject IAIProfileManager ProfileManager
+@inject IAIChatSessionManager SessionManager
+@inject NavigationManager NavigationManager
+
+<PageTitle>AI Chat</PageTitle>
+
+<h2><i class="bi bi-chat-dots"></i> AI Chat</h2>
+<hr />
+
+@if (_profiles is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-7">
+            <h4>Chat Profiles</h4>
+            <p class="text-muted">Select a profile to start a new chat session.</p>
+
+            @if (!_profiles.Any())
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> No chat profiles available.
+                    <a href="/AI/Profiles">Create one first.</a>
+                </div>
+            }
+            else
+            {
+                <div class="row g-3">
+                    @foreach (var profile in _profiles)
+                    {
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">@(profile.DisplayText ?? profile.Name)</h5>
+                                    @if (!string.IsNullOrEmpty(profile.WelcomeMessage))
+                                    {
+                                        <p class="card-text text-muted small">@profile.WelcomeMessage</p>
+                                    }
+                                    <div class="d-flex gap-1 mb-2">
+                                        @if (!string.IsNullOrEmpty(profile.Source))
+                                        {
+                                            <span class="badge bg-info">@profile.Source</span>
+                                        }
+                                        <span class="badge bg-secondary">@profile.Type</span>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button type="button" class="btn btn-primary btn-sm" @onclick="() => CreateSessionAsync(profile.ItemId)">
+                                        <i class="bi bi-chat-left-text"></i> Start Chat
+                                    </button>
+                                    <a href="/AIChat/Sessions/@profile.ItemId" class="btn btn-outline-secondary btn-sm ms-1">
+                                        <i class="bi bi-clock-history"></i> Sessions
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="col-md-5">
+            <h4>Recent Sessions</h4>
+            @if (_sessions != null && _sessions.Sessions.Any())
+            {
+                <div class="list-group">
+                    @foreach (var session in _sessions.Sessions)
+                    {
+                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <a href="/AIChat/Chat/@session.ProfileId/@session.SessionId" class="text-decoration-none flex-grow-1">
+                                <strong>@(session.Title ?? "Untitled")</strong>
+                                <br />
+                                <small class="text-muted">@session.CreatedUtc.ToString("g")</small>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" @onclick="() => ConfirmDeleteSession(session.SessionId)" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No chat sessions yet. Start a new chat from a profile.</p>
+            }
+        </div>
+    </div>
+}
+
+@if (_showDeleteConfirmation)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Delete this session?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ExecuteDeleteAsync">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IEnumerable<AIProfile>? _profiles;
+    private AIChatSessionResult? _sessions;
+    private bool _showDeleteConfirmation;
+    private string? _deleteTargetSessionId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profiles = await ProfileManager.GetAsync(AIProfileType.Chat);
+        _sessions = await SessionManager.PageAsync(1, 50);
+    }
+
+    private async Task CreateSessionAsync(string profileId)
+    {
+        var profile = await ProfileManager.FindByIdAsync(profileId);
+        if (profile is null) return;
+
+        var session = await SessionManager.NewAsync(profile, new NewAIChatSessionContext());
+        session.Title = profile.DisplayText ?? profile.Name;
+        await SessionManager.SaveAsync(session);
+
+        NavigationManager.NavigateTo($"/AIChat/Chat/{profile.ItemId}/{session.SessionId}");
+    }
+
+    private void ConfirmDeleteSession(string sessionId)
+    {
+        _deleteTargetSessionId = sessionId;
+        _showDeleteConfirmation = true;
+    }
+
+    private void CancelDelete()
+    {
+        _deleteTargetSessionId = null;
+        _showDeleteConfirmation = false;
+    }
+
+    private async Task ExecuteDeleteAsync()
+    {
+        if (!string.IsNullOrEmpty(_deleteTargetSessionId))
+        {
+            await SessionManager.DeleteAsync(_deleteTargetSessionId);
+        }
+
+        _showDeleteConfirmation = false;
+        _deleteTargetSessionId = null;
+        _sessions = await SessionManager.PageAsync(1, 50);
+    }
+}

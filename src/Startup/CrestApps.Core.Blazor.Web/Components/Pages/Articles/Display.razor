@@ -1,0 +1,74 @@
+@page "/Articles/{Id}"
+@using CrestApps.Core.Blazor.Web.Areas.Admin.Models
+@using CrestApps.Core.Blazor.Web.Services
+@inject ArticleService ArticleService
+
+<PageTitle>@(Article?.Title ?? "Article")</PageTitle>
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Article not found.
+    </div>
+}
+else if (Article is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <style>
+        .article-markdown img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .article-markdown pre {
+            padding: 1rem;
+            overflow-x: auto;
+            border-radius: 0.5rem;
+            background: var(--bs-tertiary-bg, #f8f9fa);
+        }
+    </style>
+
+    <div class="container py-4">
+        <div class="mx-auto" style="max-width: 900px;">
+            <h1 class="mb-2">@Article.Title</h1>
+
+            <p class="text-muted mb-4">
+                Published @Article.CreatedUtc.ToString("f")
+            </p>
+
+            @if (!string.IsNullOrWhiteSpace(Article.Description))
+            {
+                <article class="article-markdown">
+                    <pre style="white-space: pre-wrap; border: none; background: transparent; padding: 0;">@Article.Description</pre>
+                </article>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private Article? Article;
+    private bool NotFound;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Id))
+        {
+            NotFound = true;
+            return;
+        }
+
+        Article = await ArticleService.FindByIdAsync(Id);
+
+        if (Article is null)
+        {
+            NotFound = true;
+        }
+    }
+}

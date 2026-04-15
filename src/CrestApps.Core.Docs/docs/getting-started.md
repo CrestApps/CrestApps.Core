@@ -53,9 +53,21 @@ dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web
 
 Use the MVC sample when you want to see the full framework in one place: AI providers, deployments, profiles, templates, document processing, MCP, A2A, storage, and SignalR-driven chat flows.
 
+### Blazor sample application
+
+**Visual Studio:** Set `CrestApps.Core.Blazor.Web` as the startup project and press **F5** (or **Ctrl+F5** to run without debugging).
+
+**Command line:**
+
+```bash
+dotnet run --project .\src\Startup\CrestApps.Core.Blazor.Web\CrestApps.Core.Blazor.Web.csproj
+```
+
+The Blazor sample mirrors the MVC feature set but uses Blazor Server (`InteractiveServerRenderMode`) with EntityCore (EF Core + SQLite) stores instead of YesSql. Use it when you prefer Razor components over MVC controllers and views.
+
 ### Aspire host
 
-The Aspire host boots the MVC sample and related sample clients together as a composed local environment.
+The Aspire host boots the MVC and Blazor samples and related sample clients together as a composed local environment.
 
 :::info Prerequisites
 Aspire manages containers for services like Redis. You need a container runtime such as [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running before starting the Aspire host.
@@ -130,7 +142,8 @@ Under the hood, each builder step still maps to the corresponding `AddCrestApps.
 
 - Start with **[Core overview](core/index.md)** to understand the package layout
 - Use **[ASP.NET Core integration](core/getting-started-aspnet.md)** to wire the same services into MVC, Razor Pages, Blazor, Minimal APIs, or MAUI hybrid hosts
-- Follow **[MVC example](core/mvc-example.md)** for a complete working composition
+- Follow **[MVC example](core/mvc-example.md)** for a complete working composition with YesSql
+- Follow **[Blazor example](core/blazor-example.md)** for a complete working composition with EntityCore
 
 ## Build the docs site
 

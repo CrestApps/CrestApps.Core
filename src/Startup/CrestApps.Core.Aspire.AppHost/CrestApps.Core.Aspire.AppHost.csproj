@@ -3,6 +3,8 @@
   <Sdk Name="Aspire.AppHost.Sdk" Version="13.2.2" />
 
   <PropertyGroup>
+    <TargetFrameworks />
+    <TargetFramework>$(DefaultTargetFramework)</TargetFramework>
     <OutputType>Exe</OutputType>
     <IsAspireHost>true</IsAspireHost>
     <IsPackable>false</IsPackable>
@@ -19,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
+    <ProjectReference Include="../CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
     <ProjectReference Include="../CrestApps.Core.Mvc.Samples.A2AClient/CrestApps.Core.Mvc.Samples.A2AClient.csproj" />
     <ProjectReference Include="../CrestApps.Core.Mvc.Samples.McpClient/CrestApps.Core.Mvc.Samples.McpClient.csproj" />
   </ItemGroup>

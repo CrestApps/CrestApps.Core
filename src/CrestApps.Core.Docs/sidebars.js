@@ -17,6 +17,7 @@ const sidebars = {
                 'core/index',
                 'core/interfaces',
                 'core/mvc-example',
+                'core/blazor-example',
             ],
         },
         {

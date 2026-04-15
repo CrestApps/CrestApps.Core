@@ -1,0 +1,282 @@
+@page "/AIChat/Chat/{ProfileId}/{SessionId?}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Profiles
+@using System.Text.Json
+@using Microsoft.JSInterop
+@inject IAIProfileManager ProfileManager
+@inject IAIChatSessionManager SessionManager
+@inject IAIChatSessionPromptStore PromptStore
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<PageTitle>@_pageTitle</PageTitle>
+
+@if (_notFound)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> The requested profile or session was not found.
+        <a href="/AIChat">Return to AI Chat</a>.
+    </div>
+}
+else if (_profile is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <style>
+        .chat-page-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+        .ai-chat-messages { padding: 1rem; }
+        .ai-chat-messages .ai-chat-message-item { position: relative; padding: 0.5rem 0; }
+        .ai-chat-messages .ai-chat-message-item + .ai-chat-message-item::before {
+            content: '';
+            display: block;
+            width: 100%;
+            margin-bottom: 0.5rem;
+            border-top: 1px solid rgba(33, 37, 41, 0.08);
+        }
+        .ai-chat-messages .ai-chat-message-item p:last-child { margin-bottom: 0; }
+        .ai-chat-messages .ai-chat-message-body { padding: 0 5.5rem 1.75rem 0; }
+        .ai-chat-msg-role { font-size: 0.75rem; font-weight: 600; margin-bottom: 2px; }
+        .ai-chat-msg-role-user { color: #0d6efd; }
+        .ai-chat-msg-role-assistant { color: #6f42c1; }
+        .ai-chat-msg-role-assistant i.ai-streaming-icon { animation: pulse 1.5s infinite; }
+        .ai-chat-msg-role-assistant i.ai-bot-icon { color: #6f42c1; }
+        .ai-chat-messages .message-buttons-container {
+            position: absolute;
+            right: 0;
+            bottom: 0.25rem;
+            display: inline-flex;
+            gap: 0.35rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease-in-out;
+        }
+        .ai-chat-messages .ai-chat-message-item:hover .message-buttons-container,
+        .ai-chat-messages .ai-chat-message-item:focus-within .message-buttons-container {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .ai-chat-messages .message-buttons-container > .button-message-toolbox {
+            color: var(--bs-secondary-color, #6c757d) !important;
+            text-decoration: none;
+        }
+        .ai-chat-messages .message-buttons-container > .button-message-toolbox:hover,
+        .ai-chat-messages .message-buttons-container > .button-message-toolbox:focus {
+            color: var(--bs-body-color, #212529) !important;
+        }
+        .ai-chat-notification {
+            margin: 0.75rem 1rem 0;
+            padding: 0.625rem 0.75rem;
+            border: 1px solid rgba(33, 37, 41, 0.12);
+            border-radius: 0.5rem;
+            background: rgba(248, 249, 250, 0.95);
+        }
+        .ai-chat-notification-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        .ai-chat-notification-icon {
+            margin-top: 0.1rem;
+            color: var(--bs-secondary-color, #6c757d);
+        }
+        .ai-chat-notification-text {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        .ai-chat-notification-dismiss {
+            margin-left: auto !important;
+            color: var(--bs-secondary-color, #6c757d) !important;
+        }
+        .ai-chat-notification-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-chat-dots"></i> @(_profile.DisplayText ?? _profile.Name)</h2>
+        <a href="/AIChat" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="chat-page-wrapper">
+        <div class="border rounded flex-grow-1 d-flex flex-column">
+            <div id="chat-container" class="flex-grow-1 overflow-auto">
+                <div id="chat-placeholder">
+                    <div class="p-3 text-muted">
+                        <i class="bi bi-robot"></i> @_placeholderMessage
+                    </div>
+                </div>
+                <div id="chat-app"></div>
+            </div>
+            <div id="chat-document-bar" class="border-top bg-light @(_allowSessionDocuments ? string.Empty : "d-none")"></div>
+            <div class="border-top p-3">
+                <div class="d-flex gap-2">
+                    <textarea id="chat-input"
+                              class="form-control"
+                              rows="1"
+                              placeholder="Type a message..."
+                              data-session-id="@_sessionId"
+                              data-profile-id="@_profile.ItemId"></textarea>
+                    <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ProfileId { get; set; } = default!;
+    [Parameter] public string? SessionId { get; set; }
+
+    private AIProfile? _profile;
+    private AIChatSession? _session;
+    private IReadOnlyList<AIChatSessionPrompt>? _prompts;
+    private string _pageTitle = "Chat";
+    private string _placeholderMessage = "What do you want to know?";
+    private string _sessionId = string.Empty;
+    private bool _notFound;
+    private bool _allowSessionDocuments;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profile = await ProfileManager.FindByIdAsync(ProfileId);
+        if (_profile is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(SessionId))
+        {
+            _session = await SessionManager.FindByIdAsync(SessionId);
+            if (_session is null)
+            {
+                _notFound = true;
+                return;
+            }
+
+            _prompts = await PromptStore.GetPromptsAsync(SessionId);
+            _sessionId = _session.SessionId;
+        }
+        else
+        {
+            // Auto-create a session when none is specified.
+            _session = await SessionManager.NewAsync(_profile, new NewAIChatSessionContext());
+            _session.Title = _profile.DisplayText ?? _profile.Name;
+            await SessionManager.SaveAsync(_session);
+            _sessionId = _session.SessionId;
+        }
+
+        _pageTitle = "Chat - " + (_profile.DisplayText ?? _profile.Name);
+
+        if (!string.IsNullOrWhiteSpace(_profile.WelcomeMessage))
+        {
+            _placeholderMessage = _profile.WelcomeMessage;
+        }
+
+        if (_profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocumentsMetadata))
+        {
+            _allowSessionDocuments = sessionDocumentsMetadata.AllowSessionDocuments;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _profile is not null && !_notFound)
+        {
+            var messages = _prompts?.Select(m => new
+            {
+                role = m.Role.Value,
+                content = m.Content,
+                id = m.ItemId,
+                title = m.Title,
+                references = m.References,
+            }) ?? [];
+
+            var metricsEnabled = _profile.TryGet<AnalyticsMetadata>(out var analytics) && analytics.EnableSessionMetrics;
+            var existingDocuments = _session?.Documents ?? [];
+
+            await JS.InvokeVoidAsync("eval", """
+                if (!document.querySelector('script[src*="signalr.min.js"]')) {
+                    const scripts = [
+                        'https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js',
+                        'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
+                        'https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js',
+                        'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js',
+                        'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js'
+                    ];
+                    window.__aiChatScriptsLoaded = Promise.all(scripts.map(src => new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = src;
+                        s.onload = resolve;
+                        s.onerror = reject;
+                        document.head.appendChild(s);
+                    })));
+                }
+            """);
+
+            await JS.InvokeVoidAsync("eval", """
+                (window.__aiChatScriptsLoaded || Promise.resolve()).then(() => {
+                    const aiRes = document.querySelector('script[src*="ai-chat.js"]');
+                    if (!aiRes) {
+                        const s = document.createElement('script');
+                        s.src = '/_content/CrestApps.AI.Resources/scripts/ai-chat.js';
+                        s.onload = () => window.__aiChatResourceReady = true;
+                        document.head.appendChild(s);
+                    } else {
+                        window.__aiChatResourceReady = true;
+                    }
+                });
+            """);
+
+            var config = new
+            {
+                signalRHubUrl = "/hubs/ai-chat",
+                appElementSelector = "#chat-app",
+                chatContainerElementSelector = "#chat-container",
+                inputElementSelector = "#chat-input",
+                sendButtonElementSelector = "#send-btn",
+                placeholderElementSelector = "#chat-placeholder",
+                messages,
+                metricsEnabled,
+                chatMode = "TextInput",
+                sessionDocumentsEnabled = _allowSessionDocuments,
+                existingDocuments,
+                documentBarSelector = "#chat-document-bar",
+                uploadDocumentUrl = "/ai/chat-sessions/upload-document",
+                removeDocumentUrl = "/ai/chat-sessions/remove-document",
+            };
+
+            var configJson = JsonSerializer.Serialize(config);
+            await JS.InvokeVoidAsync("eval", $$"""
+                function __initAIChat() {
+                    if (window.openAIChatManager && window.__aiChatResourceReady) {
+                        window.openAIChatManager.initialize({{configJson}});
+                    } else {
+                        setTimeout(__initAIChat, 100);
+                    }
+                }
+                __initAIChat();
+            """);
+        }
+    }
+}

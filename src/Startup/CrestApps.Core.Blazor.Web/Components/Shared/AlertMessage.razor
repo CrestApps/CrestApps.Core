@@ -1,0 +1,21 @@
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-@AlertType alert-dismissible fade show" role="alert">
+        <i class="bi bi-@IconClass"></i> @Message
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string AlertType { get; set; } = "success";
+
+    private string IconClass => AlertType switch
+    {
+        "success" => "check-circle",
+        "danger" => "exclamation-triangle",
+        "warning" => "exclamation-triangle",
+        "info" => "info-circle",
+        _ => "info-circle"
+    };
+}

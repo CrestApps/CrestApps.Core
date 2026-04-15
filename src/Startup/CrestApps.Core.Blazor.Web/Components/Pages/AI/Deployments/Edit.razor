@@ -1,0 +1,374 @@
+@page "/AI/Deployments/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.Services
+@inject IAIDeploymentStore DeploymentCatalog
+@inject INamedSourceCatalog<AIProviderConnection> ConnectionCatalog
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit AI Deployment</PageTitle>
+
+<h2><i class="bi bi-pencil"></i> Edit AI Deployment</h2>
+<hr />
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Deployment not found.
+    </div>
+    <a href="/AI/Deployments" class="btn btn-secondary">Back to Deployments</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditDeployment">
+        <div class="row">
+            <div class="col-md-8">
+                @if (ValidationErrors.Count > 0)
+                {
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            @foreach (var error in ValidationErrors)
+                            {
+                                <li>@error</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Model name <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="Model.ModelName" class="form-control"
+                               placeholder="e.g., gpt-4o-mini" />
+                    <div class="form-text">The provider model or deployment name used when connecting to the AI provider.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Technical name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" value="@Model.TechnicalName" disabled />
+                    <div class="form-text">This deployment identifier is shown throughout the app and cannot be changed after creation.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Provider</label>
+                    <InputSelect @bind-Value="Model.ClientName" class="form-select"
+                                 @bind-Value:after="OnProviderChanged">
+                        <option value="">Select provider</option>
+                        <option value="OpenAI">OpenAI</option>
+                        <option value="Azure">Azure OpenAI</option>
+                        <option value="AzureAIInference">Azure AI Inference (GitHub Models)</option>
+                        <option value="AzureSpeech">Azure AI Services</option>
+                        <option value="Ollama">Ollama</option>
+                    </InputSelect>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Deployment types <span class="text-danger">*</span></label>
+                    @foreach (var type in AvailableTypes)
+                    {
+                        var typeName = type.ToString();
+                        <div class="form-check">
+                            <input id="SelectedTypes_@typeName"
+                                   type="checkbox"
+                                   class="form-check-input"
+                                   checked="@Model.SelectedTypes.Contains(typeName)"
+                                   @onchange="e => OnTypeToggled(typeName, (bool)(e.Value ?? false))" />
+                            <label class="form-check-label" for="SelectedTypes_@typeName">@typeName</label>
+                        </div>
+                    }
+                    <div class="form-text">Select one or more capability types for this deployment.</div>
+                </div>
+
+                @if (!IsStandaloneProvider)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Connection</label>
+                        <InputSelect @bind-Value="Model.ConnectionName" class="form-select">
+                            <option value="">No connection</option>
+                            @foreach (var conn in FilteredConnections)
+                            {
+                                <option value="@conn.Name">@conn.DisplayLabel</option>
+                            }
+                        </InputSelect>
+                        <div class="form-text">The connection this deployment belongs to.</div>
+                    </div>
+                }
+
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Default deployment fallbacks are configured from <strong>Settings</strong>, not on individual deployments.
+                </div>
+
+                @if (IsStandaloneProvider)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Endpoint</label>
+                        <InputText @bind-Value="Model.Endpoint" class="form-control"
+                                   placeholder="e.g., https://your-resource.cognitiveservices.azure.com/" />
+                        <div class="form-text">The service endpoint URL.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Authentication type</label>
+                        <InputSelect @bind-Value="Model.AuthenticationType" class="form-select"
+                                     @bind-Value:after="OnAuthTypeChanged">
+                            <option value="">Select authentication type</option>
+                            <option value="ApiKey">API Key</option>
+                            <option value="Default">Default Azure Credential</option>
+                            <option value="ManagedIdentity">Managed Identity</option>
+                        </InputSelect>
+                    </div>
+
+                    @if (Model.AuthenticationType == "ApiKey")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">API key</label>
+                            <InputText @bind-Value="Model.ApiKey" class="form-control" type="password"
+                                       placeholder="Enter API key (leave blank to keep existing)"
+                                       autocomplete="new-password" />
+                            <div class="form-text">The API key or secret used for authentication. Leave blank to keep the existing key.</div>
+                        </div>
+                    }
+                }
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <a href="/AI/Deployments" class="btn btn-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private static readonly HashSet<string> _standaloneProviders = new(StringComparer.OrdinalIgnoreCase) { "AzureSpeech" };
+
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private DeploymentEditModel? Model { get; set; }
+    private List<string> ValidationErrors { get; set; } = [];
+    private bool IsSubmitting { get; set; }
+    private bool NotFound { get; set; }
+    private List<ConnectionItem> AllConnections { get; set; } = [];
+
+    private AIDeploymentType[] AvailableTypes => Enum.GetValues<AIDeploymentType>()
+        .Where(t => t != AIDeploymentType.None)
+        .ToArray();
+
+    private bool IsStandaloneProvider => _standaloneProviders.Contains(Model?.ClientName ?? string.Empty);
+
+    private IEnumerable<ConnectionItem> FilteredConnections
+    {
+        get
+        {
+            var selectedProvider = string.IsNullOrWhiteSpace(Model?.ClientName) ? null : Model.ClientName;
+            return AllConnections
+                .Where(c => selectedProvider is null || string.Equals(c.ClientName, selectedProvider, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(c => c.DisplayLabel, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(Id))
+        {
+            NavigationManager.NavigateTo("/AI/Deployments");
+            return;
+        }
+
+        var deployment = await DeploymentCatalog.FindByIdAsync(Id);
+        if (deployment is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        {
+            NavigationManager.NavigateTo("/AI/Deployments");
+            return;
+        }
+
+        Model = new DeploymentEditModel
+        {
+            ItemId = deployment.ItemId,
+            TechnicalName = deployment.Name,
+            ModelName = deployment.ModelName,
+            ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
+            ConnectionName = deployment.ConnectionName,
+            SelectedTypes = deployment.Type.GetSupportedTypes()
+                .Select(t => t.ToString())
+                .ToList(),
+        };
+
+        if (deployment.Properties != null)
+        {
+            Model.Endpoint = deployment.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
+            Model.ApiKey = null; // Don't pre-fill API key for security.
+            Model.AuthenticationType = deployment.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
+        }
+
+        var connections = await ConnectionCatalog.GetAllAsync();
+        AllConnections = connections
+            .Select(c => new ConnectionItem
+            {
+                Name = c.Name,
+                ClientName = c.ClientName,
+                DisplayLabel = c.DisplayText ?? c.Name,
+            })
+            .OrderBy(c => c.ClientName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(c => c.DisplayLabel, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void OnProviderChanged() => StateHasChanged();
+    private void OnAuthTypeChanged() => StateHasChanged();
+
+    private void OnTypeToggled(string typeName, bool isChecked)
+    {
+        if (Model is null) return;
+
+        if (isChecked)
+        {
+            if (!Model.SelectedTypes.Contains(typeName))
+            {
+                Model.SelectedTypes.Add(typeName);
+            }
+        }
+        else
+        {
+            Model.SelectedTypes.Remove(typeName);
+        }
+    }
+
+    private AIDeploymentType GetDeploymentType()
+    {
+        var result = AIDeploymentType.None;
+        if (Model is null) return result;
+
+        foreach (var typeName in Model.SelectedTypes)
+        {
+            if (Enum.TryParse<AIDeploymentType>(typeName, ignoreCase: true, out var parsed) && parsed != AIDeploymentType.None)
+            {
+                result |= parsed;
+            }
+        }
+        return result;
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (Model is null) return;
+
+        ValidationErrors.Clear();
+        IsSubmitting = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Model.ModelName))
+            {
+                ValidationErrors.Add("Model name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(Model.TechnicalName))
+            {
+                ValidationErrors.Add("Technical name is required.");
+            }
+
+            var deploymentType = GetDeploymentType();
+            if (!deploymentType.IsValidSelection())
+            {
+                ValidationErrors.Add("At least one deployment type is required.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Model.TechnicalName))
+            {
+                var existingByName = await DeploymentCatalog.FindByNameAsync(Model.TechnicalName);
+                if (existingByName != null && !string.Equals(existingByName.ItemId, Model.ItemId, StringComparison.OrdinalIgnoreCase))
+                {
+                    ValidationErrors.Add("Technical name must be unique across appsettings and UI deployments.");
+                }
+            }
+
+            if (ValidationErrors.Count > 0)
+            {
+                return;
+            }
+
+            var existing = await DeploymentCatalog.FindByIdAsync(Model.ItemId!);
+            if (existing is null)
+            {
+                NotFound = true;
+                return;
+            }
+
+            var connectionName = IsStandaloneProvider ? null : Model.ConnectionName;
+
+            existing.Name = Model.TechnicalName;
+            existing.ModelName = Model.ModelName;
+            existing.Type = deploymentType;
+            existing.ConnectionName = connectionName;
+            existing.ClientName = AIProviderNameNormalizer.Normalize(Model.ClientName);
+
+            existing.Properties ??= new Dictionary<string, object>();
+
+            if (IsStandaloneProvider)
+            {
+                if (!string.IsNullOrWhiteSpace(Model.Endpoint))
+                {
+                    existing.Properties["Endpoint"] = Model.Endpoint;
+                }
+                else
+                {
+                    existing.Properties.Remove("Endpoint");
+                }
+
+                if (!string.IsNullOrWhiteSpace(Model.AuthenticationType))
+                {
+                    existing.Properties["AuthenticationType"] = Model.AuthenticationType;
+                }
+                else
+                {
+                    existing.Properties.Remove("AuthenticationType");
+                }
+
+                if (!string.IsNullOrWhiteSpace(Model.ApiKey))
+                {
+                    existing.Properties["ApiKey"] = Model.ApiKey;
+                }
+                // Don't remove existing ApiKey when blank.
+            }
+
+            await DeploymentCatalog.UpdateAsync(existing);
+            NavigationManager.NavigateTo("/AI/Deployments");
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private sealed class DeploymentEditModel
+    {
+        public string? ItemId { get; set; }
+        public string? TechnicalName { get; set; }
+        public string? ModelName { get; set; }
+        public string? ClientName { get; set; }
+        public List<string> SelectedTypes { get; set; } = [];
+        public string? ConnectionName { get; set; }
+        public string? Endpoint { get; set; }
+        public string? AuthenticationType { get; set; }
+        public string? ApiKey { get; set; }
+    }
+
+    private sealed class ConnectionItem
+    {
+        public string Name { get; set; } = default!;
+        public string ClientName { get; set; } = default!;
+        public string DisplayLabel { get; set; } = default!;
+    }
+}

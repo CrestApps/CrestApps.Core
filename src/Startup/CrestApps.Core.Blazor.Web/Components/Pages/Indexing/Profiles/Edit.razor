@@ -1,0 +1,154 @@
+@page "/Indexing/Profiles/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Infrastructure.Indexing.Models
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject ISearchIndexProfileManager IndexProfileManager
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject IOptions<IndexProfileSourceOptions> SourceOptions
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Index Profile</PageTitle>
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Index profile not found.
+    </div>
+    <a href="/Indexing/Profiles" class="btn btn-outline-secondary">Back to Index Profiles</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h2><i class="bi bi-pencil"></i> Edit Index Profile</h2>
+    <hr />
+
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditIndexProfile">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="mb-3">
+                    <label class="form-label">Title</label>
+                    <InputText @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., My Documents Index" />
+                    <div class="form-text">A human-readable label (optional).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Index name <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="Model.IndexName" class="form-control" disabled />
+                    <div class="form-text">The index name cannot be changed after creation because it corresponds to an actual index on the remote server.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Provider <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="Model.ProviderName" class="form-select" disabled>
+                        <option value="">Select Provider</option>
+                        @foreach (var provider in Providers)
+                        {
+                            <option value="@provider.ProviderName">@provider.ProviderDisplayName</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The search backend provider cannot be changed after the index is created.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Type <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="Model.Type" class="form-select" disabled>
+                        <option value="">Select Type</option>
+                        @foreach (var type in Types)
+                        {
+                            <option value="@type.Type">@type.DisplayName</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The index type cannot be changed after the index is created.</div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Type) && Model.Type != IndexProfileTypes.Articles)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Embedding deployment</label>
+                        <InputSelect @bind-Value="Model.EmbeddingDeploymentId" class="form-select" disabled>
+                            <option value="">Select an Embedding Deployment</option>
+                            @foreach (var d in EmbeddingDeployments)
+                            {
+                                <option value="@d.ItemId">@d.Name</option>
+                            }
+                        </InputSelect>
+                        <div class="form-text">The embedding deployment cannot be changed after the index is created.</div>
+                    </div>
+                }
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <a href="/Indexing/Profiles" class="btn btn-secondary ms-2">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private FormModel? Model;
+    private bool NotFound;
+    private IReadOnlyList<IndexProfileSourceDescriptor> Sources = [];
+    private IReadOnlyList<IndexProfileSourceDescriptor> Providers = [];
+    private IReadOnlyList<IndexProfileSourceDescriptor> Types = [];
+    private IReadOnlyList<AIDeployment> EmbeddingDeployments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Sources = SourceOptions.Value.Sources
+            .OrderBy(s => s.ProviderDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        Providers = Sources.GroupBy(s => s.ProviderName, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+        Types = Sources.GroupBy(s => s.Type, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+
+        var deployments = await DeploymentCatalog.GetAllAsync();
+        EmbeddingDeployments = deployments.Where(d => d.Type == AIDeploymentType.Embedding).ToList();
+
+        var profile = await IndexProfileManager.FindByIdAsync(Id);
+        if (profile is null) { NotFound = true; return; }
+
+        Model = new FormModel
+        {
+            DisplayText = profile.DisplayText,
+            IndexName = profile.IndexName,
+            ProviderName = profile.ProviderName,
+            Type = profile.Type,
+            EmbeddingDeploymentId = profile.EmbeddingDeploymentId,
+        };
+    }
+
+    private async Task HandleSubmit()
+    {
+        var profile = await IndexProfileManager.FindByIdAsync(Id);
+        if (profile is null) { NotFound = true; return; }
+
+        profile.DisplayText = Model!.DisplayText?.Trim();
+
+        await IndexProfileManager.UpdateAsync(profile);
+        await IndexProfileManager.SynchronizeAsync(profile);
+
+        NavigationManager.NavigateTo("/Indexing/Profiles?success=Index profile updated successfully.");
+    }
+
+    private sealed class FormModel
+    {
+        public string? DisplayText { get; set; }
+        public string? IndexName { get; set; }
+        public string? ProviderName { get; set; }
+        public string? Type { get; set; }
+        public string? EmbeddingDeploymentId { get; set; }
+    }
+}

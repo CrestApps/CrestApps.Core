@@ -1,0 +1,57 @@
+@page "/Account/Login"
+@layout CrestApps.Core.Blazor.Web.Components.Layout.MainLayout
+
+<PageTitle>Login</PageTitle>
+
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card mt-5">
+            <div class="card-header">
+                <h4>Login</h4>
+            </div>
+            <div class="card-body">
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger">@ErrorMessage</div>
+                }
+                <form method="post" action="/Account/LoginPost">
+                    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryToken" />
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required autofocus />
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Sign In</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? ErrorMessage { get; set; }
+
+    public string AntiforgeryToken { get; set; } = string.Empty;
+
+    [Inject]
+    public IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext is not null)
+        {
+            var antiforgery = httpContext.RequestServices.GetRequiredService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+            var tokens = antiforgery.GetAndStoreTokens(httpContext);
+            AntiforgeryToken = tokens.RequestToken ?? string.Empty;
+        }
+    }
+}

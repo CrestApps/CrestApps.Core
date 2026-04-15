@@ -1,0 +1,249 @@
+@page "/AI/Connections/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.Services
+@inject INamedSourceCatalog<AIProviderConnection> ConnectionCatalog
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit AI Connection</PageTitle>
+
+<h2><i class="bi bi-pencil"></i> Edit AI Connection</h2>
+<hr />
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Connection not found.
+    </div>
+    <a href="/AI/Connections" class="btn btn-secondary">Back to Connections</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditConnection">
+        <div class="row">
+            <div class="col-md-8">
+                @if (ValidationErrors.Count > 0)
+                {
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            @foreach (var error in ValidationErrors)
+                            {
+                                <li>@error</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Title</label>
+                    <InputText @bind-Value="Model.DisplayText" class="form-control"
+                               placeholder="e.g., My OpenAI Connection" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Technical name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" value="@Model.Name" disabled />
+                    <div class="form-text">The technical name cannot be changed after creation.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Provider <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="Model.Source" class="form-select"
+                                 @bind-Value:after="OnProviderChanged">
+                        <option value="">Select provider</option>
+                        <option value="OpenAI">OpenAI</option>
+                        <option value="Azure">Azure OpenAI</option>
+                        <option value="AzureAIInference">Azure AI Inference (GitHub Models)</option>
+                        <option value="Ollama">Ollama</option>
+                    </InputSelect>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Endpoint</label>
+                    <InputText @bind-Value="Model.Endpoint" class="form-control"
+                               placeholder="e.g., https://api.openai.com/v1" />
+                    <div class="form-text">The API endpoint URL for the provider.</div>
+                </div>
+
+                @if (ShowAuthType)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Authentication type</label>
+                        <InputSelect @bind-Value="Model.AuthenticationType" class="form-select"
+                                     @bind-Value:after="OnAuthTypeChanged">
+                            <option value="">Select authentication type</option>
+                            <option value="ApiKey">API Key</option>
+                            <option value="Default">Default Azure Credential</option>
+                            <option value="ManagedIdentity">Managed Identity</option>
+                        </InputSelect>
+                    </div>
+                }
+
+                @if (ShowApiKey)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">API key</label>
+                        <InputText @bind-Value="Model.ApiKey" class="form-control" type="password"
+                                   placeholder="Enter API key (leave blank to keep existing)"
+                                   autocomplete="new-password" />
+                        <div class="form-text">The API key or secret used for authentication. Leave blank to keep the existing key.</div>
+                    </div>
+                }
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <a href="/AI/Connections" class="btn btn-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private ConnectionEditModel? Model { get; set; }
+    private List<string> ValidationErrors { get; set; } = [];
+    private bool IsSubmitting { get; set; }
+    private bool NotFound { get; set; }
+
+    private bool ShowAuthType => Model?.Source is "Azure" or "AzureAIInference";
+
+    private bool ShowApiKey =>
+        Model?.Source == "OpenAI" ||
+        ((Model?.Source is "Azure" or "AzureAIInference") && Model?.AuthenticationType == "ApiKey") ||
+        Model?.Source == "Ollama";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AIConfigurationRecordIds.IsConfigurationConnectionId(Id))
+        {
+            NavigationManager.NavigateTo("/AI/Connections");
+            return;
+        }
+
+        var connection = await ConnectionCatalog.FindByIdAsync(Id);
+        if (connection is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
+        {
+            NavigationManager.NavigateTo("/AI/Connections");
+            return;
+        }
+
+        Model = new ConnectionEditModel
+        {
+            ItemId = connection.ItemId,
+            Name = connection.Name,
+            DisplayText = connection.DisplayText,
+            Source = AIProviderNameNormalizer.Normalize(connection.Source),
+        };
+
+        if (connection.Properties != null)
+        {
+            Model.Endpoint = connection.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
+            Model.ApiKey = null; // Don't pre-fill API key for security.
+            Model.AuthenticationType = connection.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
+        }
+    }
+
+    private void OnProviderChanged() => StateHasChanged();
+    private void OnAuthTypeChanged() => StateHasChanged();
+
+    private async Task HandleSubmit()
+    {
+        if (Model is null)
+        {
+            return;
+        }
+
+        ValidationErrors.Clear();
+        IsSubmitting = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Model.Name))
+            {
+                ValidationErrors.Add("Name is required.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Model.Name))
+            {
+                var existingByName = await ConnectionCatalog.FindByNameAsync(Model.Name);
+                if (existingByName != null && !string.Equals(existingByName.ItemId, Model.ItemId, StringComparison.OrdinalIgnoreCase))
+                {
+                    ValidationErrors.Add("Name must be unique across appsettings and UI connections.");
+                }
+            }
+
+            if (ValidationErrors.Count > 0)
+            {
+                return;
+            }
+
+            var existing = await ConnectionCatalog.FindByIdAsync(Model.ItemId!);
+            if (existing is null)
+            {
+                NotFound = true;
+                return;
+            }
+
+            existing.Name = Model.Name;
+            existing.DisplayText = Model.DisplayText;
+            existing.Source = AIProviderNameNormalizer.Normalize(Model.Source);
+
+            existing.Properties ??= new Dictionary<string, object>();
+
+            if (!string.IsNullOrWhiteSpace(Model.Endpoint))
+            {
+                existing.Properties["Endpoint"] = Model.Endpoint;
+            }
+            else
+            {
+                existing.Properties.Remove("Endpoint");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Model.ApiKey))
+            {
+                existing.Properties["ApiKey"] = Model.ApiKey;
+            }
+            // Don't remove existing ApiKey when blank (preserve on edit).
+
+            if (!string.IsNullOrWhiteSpace(Model.AuthenticationType))
+            {
+                existing.Properties["AuthenticationType"] = Model.AuthenticationType;
+            }
+            else
+            {
+                existing.Properties.Remove("AuthenticationType");
+            }
+
+            await ConnectionCatalog.UpdateAsync(existing);
+            NavigationManager.NavigateTo("/AI/Connections");
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private sealed class ConnectionEditModel
+    {
+        public string? ItemId { get; set; }
+        public string? Name { get; set; }
+        public string? DisplayText { get; set; }
+        public string? Source { get; set; }
+        public string? Endpoint { get; set; }
+        public string? AuthenticationType { get; set; }
+        public string? ApiKey { get; set; }
+    }
+}

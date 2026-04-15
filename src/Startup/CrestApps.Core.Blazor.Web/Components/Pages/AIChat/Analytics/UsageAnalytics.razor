@@ -1,0 +1,185 @@
+@page "/AIChat/UsageAnalytics"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
+@using System.Text
+@using Microsoft.JSInterop
+@inject MvcAICompletionUsageService UsageService
+@inject Microsoft.Extensions.Options.IOptions<GeneralAIOptions> GeneralAIOptions
+@inject TimeProvider TimeProvider
+@inject IJSRuntime JS
+
+<PageTitle>AI usage analytics</PageTitle>
+
+<h2><i class="bi bi-activity"></i> AI usage analytics</h2>
+<p class="text-muted">Review provider usage by user, model, and conversation type across chat sessions and chat interactions.</p>
+<hr />
+
+@if (!_isAIUsageTrackingEnabled)
+{
+    <div class="alert alert-warning">
+        AI usage tracking is currently disabled. Enable <strong>AI usage tracking</strong> in <strong>Admin &gt; Settings</strong> to capture future provider usage data for this report.
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <EditForm Model="_filter" OnValidSubmit="RunReportAsync" FormName="usageFilter" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">From</label>
+                <input type="date" class="form-control" @bind="_filter.StartDateUtc" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">To</label>
+                <input type="date" class="form-control" @bind="_filter.EndDateUtc" />
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Show
+                </button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@if (!_showReport)
+{
+    <div class="alert alert-info">Use the filters above to generate the usage report.</div>
+}
+else if (_rows.Count == 0)
+{
+    <div class="alert alert-warning">No usage data was found for the selected filters.</div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Provider calls</div><div class="fs-3 fw-semibold">@_totalCalls</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Chat sessions</div><div class="fs-3 fw-semibold">@_totalSessions</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Chat interactions</div><div class="fs-3 fw-semibold">@_totalChatInteractions</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total tokens</div><div class="fs-3 fw-semibold">@_totalTokens</div></div></div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Usage by user and model</div>
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Client</th>
+                        <th>Model</th>
+                        <th class="text-end">Calls</th>
+                        <th class="text-end">Sessions</th>
+                        <th class="text-end">Interactions</th>
+                        <th class="text-end">Input</th>
+                        <th class="text-end">Output</th>
+                        <th class="text-end">Tokens</th>
+                        <th class="text-end">Avg latency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@row.UserLabel</div>
+                                <div class="text-muted small">@(row.IsAuthenticated ? "Authenticated" : "Anonymous")</div>
+                            </td>
+                            <td>@row.ClientName</td>
+                            <td>@row.ModelName</td>
+                            <td class="text-end">@row.TotalCalls</td>
+                            <td class="text-end">@row.TotalSessions</td>
+                            <td class="text-end">@row.TotalChatInteractions</td>
+                            <td class="text-end">@row.TotalInputTokens</td>
+                            <td class="text-end">@row.TotalOutputTokens</td>
+                            <td class="text-end fw-semibold">@row.TotalTokens</td>
+                            <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private sealed class FilterModel
+    {
+        public DateTime? StartDateUtc { get; set; }
+        public DateTime? EndDateUtc { get; set; }
+    }
+
+    private sealed class UsageSummaryRow
+    {
+        public string UserLabel { get; set; } = string.Empty;
+        public bool IsAuthenticated { get; set; }
+        public string ClientName { get; set; } = string.Empty;
+        public string ModelName { get; set; } = string.Empty;
+        public int TotalCalls { get; set; }
+        public int TotalSessions { get; set; }
+        public int TotalChatInteractions { get; set; }
+        public long TotalInputTokens { get; set; }
+        public long TotalOutputTokens { get; set; }
+        public long TotalTokens { get; set; }
+        public double AverageResponseLatencyMs { get; set; }
+    }
+
+    private readonly FilterModel _filter = new();
+    private bool _isAIUsageTrackingEnabled;
+    private bool _showReport;
+    private int _totalCalls, _totalSessions, _totalChatInteractions;
+    private long _totalTokens;
+    private List<UsageSummaryRow> _rows = [];
+
+    protected override void OnInitialized()
+    {
+        _isAIUsageTrackingEnabled = GeneralAIOptions.Value.EnableAIUsageTracking;
+    }
+
+    private async Task RunReportAsync()
+    {
+        var records = await UsageService.GetAsync(_filter.StartDateUtc, _filter.EndDateUtc);
+        ApplyReport(records);
+    }
+
+    private void ApplyReport(IReadOnlyList<AICompletionUsageRecord> records)
+    {
+        _showReport = true;
+        var relevant = records.Where(r => !string.IsNullOrEmpty(r.SessionId) || !string.IsNullOrEmpty(r.InteractionId)).ToList();
+        _totalCalls = relevant.Count;
+        _totalSessions = relevant.Select(r => r.SessionId).Where(s => !string.IsNullOrEmpty(s)).Distinct(StringComparer.Ordinal).Count();
+        _totalChatInteractions = relevant.Select(r => r.InteractionId).Where(s => !string.IsNullOrEmpty(s)).Distinct(StringComparer.Ordinal).Count();
+        _totalTokens = relevant.Sum(r => (long)r.TotalTokenCount);
+
+        _rows = relevant
+            .GroupBy(r => new { UserLabel = GetUserLabel(r), r.IsAuthenticated, ClientName = r.ClientName ?? r.ProviderName ?? "Unknown", ModelName = r.ModelName ?? r.DeploymentName ?? "Unknown" })
+            .Select(g =>
+            {
+                var latencySamples = g.Where(r => r.ResponseLatencyMs > 0).ToList();
+                return new UsageSummaryRow
+                {
+                    UserLabel = g.Key.UserLabel,
+                    IsAuthenticated = g.Key.IsAuthenticated,
+                    ClientName = g.Key.ClientName,
+                    ModelName = g.Key.ModelName,
+                    TotalCalls = g.Count(),
+                    TotalSessions = g.Select(r => r.SessionId).Where(s => !string.IsNullOrEmpty(s)).Distinct(StringComparer.Ordinal).Count(),
+                    TotalChatInteractions = g.Select(r => r.InteractionId).Where(s => !string.IsNullOrEmpty(s)).Distinct(StringComparer.Ordinal).Count(),
+                    TotalInputTokens = g.Sum(r => (long)r.InputTokenCount),
+                    TotalOutputTokens = g.Sum(r => (long)r.OutputTokenCount),
+                    TotalTokens = g.Sum(r => (long)r.TotalTokenCount),
+                    AverageResponseLatencyMs = latencySamples.Count > 0 ? Math.Round(latencySamples.Average(r => r.ResponseLatencyMs), 0) : 0,
+                };
+            })
+            .OrderByDescending(r => r.TotalTokens)
+            .ThenByDescending(r => r.TotalCalls)
+            .ThenBy(r => r.UserLabel, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string GetUserLabel(AICompletionUsageRecord record)
+    {
+        if (!string.IsNullOrEmpty(record.UserName)) return record.UserName;
+        if (record.IsAuthenticated && !string.IsNullOrEmpty(record.UserId)) return record.UserId;
+        return "Anonymous";
+    }
+}

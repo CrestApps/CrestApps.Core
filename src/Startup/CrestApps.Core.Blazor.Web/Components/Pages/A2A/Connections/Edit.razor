@@ -1,0 +1,428 @@
+@page "/A2A/Connections/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text.Json
+@using CrestApps.Core.AI.A2A
+@using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.Services
+@using Microsoft.AspNetCore.DataProtection
+@inject ICatalog<A2AConnection> Catalog
+@inject IDataProtectionProvider DataProtectionProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Agent to Agent Host</PageTitle>
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Connection not found.
+    </div>
+    <a href="/A2A/Connections" class="btn btn-outline-secondary">Back to Connections</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h2><i class="bi bi-pencil"></i> Edit Agent to Agent Host</h2>
+    <hr />
+
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditA2AConnection">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="mb-3">
+                    <label for="displayText" class="form-label">Title <span class="text-danger">*</span></label>
+                    <InputText id="displayText" @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., Production Agent Hub" />
+                    @if (Errors.ContainsKey(nameof(Model.DisplayText)))
+                    {
+                        <div class="text-danger">@Errors[nameof(Model.DisplayText)]</div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label for="endpoint" class="form-label">Endpoint <span class="text-danger">*</span></label>
+                    <InputText id="endpoint" @bind-Value="Model.Endpoint" class="form-control" placeholder="https://agents.example.com" />
+                    <div class="form-text">The base host URL. The agent card is resolved from <code>/.well-known/agent-card.json</code>.</div>
+                    @if (Errors.ContainsKey(nameof(Model.Endpoint)))
+                    {
+                        <div class="text-danger">@Errors[nameof(Model.Endpoint)]</div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label for="authType" class="form-label">Authentication</label>
+                    <InputSelect id="authType" @bind-Value="Model.AuthenticationType" class="form-select">
+                        @foreach (var authType in Enum.GetValues<A2AClientAuthenticationType>())
+                        {
+                            <option value="@authType">@authType</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                @if (Model.AuthenticationType == A2AClientAuthenticationType.ApiKey)
+                {
+                    <div class="mb-3">
+                        <label for="apiKeyHeaderName" class="form-label">API key header name</label>
+                        <InputText id="apiKeyHeaderName" @bind-Value="Model.ApiKeyHeaderName" class="form-control" placeholder="Authorization" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="apiKeyPrefix" class="form-label">API key prefix</label>
+                        <InputText id="apiKeyPrefix" @bind-Value="Model.ApiKeyPrefix" class="form-control" placeholder="Bearer" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="apiKey" class="form-label">API key</label>
+                        <InputText id="apiKey" @bind-Value="Model.ApiKey" class="form-control" type="password" />
+                        @if (HasApiKey)
+                        {
+                            <div class="form-text">Leave blank to keep the existing API key.</div>
+                        }
+                        @if (Errors.ContainsKey(nameof(Model.ApiKey)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.ApiKey)]</div>
+                        }
+                    </div>
+                }
+
+                @if (Model.AuthenticationType == A2AClientAuthenticationType.Basic)
+                {
+                    <div class="mb-3">
+                        <label for="basicUsername" class="form-label">Username</label>
+                        <InputText id="basicUsername" @bind-Value="Model.BasicUsername" class="form-control" />
+                        @if (Errors.ContainsKey(nameof(Model.BasicUsername)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.BasicUsername)]</div>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label for="basicPassword" class="form-label">Password</label>
+                        <InputText id="basicPassword" @bind-Value="Model.BasicPassword" class="form-control" type="password" />
+                        @if (HasBasicPassword)
+                        {
+                            <div class="form-text">Leave blank to keep the existing password.</div>
+                        }
+                        @if (Errors.ContainsKey(nameof(Model.BasicPassword)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.BasicPassword)]</div>
+                        }
+                    </div>
+                }
+
+                @if (Model.AuthenticationType is A2AClientAuthenticationType.OAuth2ClientCredentials
+                    or A2AClientAuthenticationType.OAuth2PrivateKeyJwt
+                    or A2AClientAuthenticationType.OAuth2Mtls)
+                {
+                    <div class="mb-3">
+                        <label for="oauth2TokenEndpoint" class="form-label">Token endpoint</label>
+                        <InputText id="oauth2TokenEndpoint" @bind-Value="Model.OAuth2TokenEndpoint" class="form-control" placeholder="https://identity.example.com/connect/token" />
+                        @if (Errors.ContainsKey(nameof(Model.OAuth2TokenEndpoint)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.OAuth2TokenEndpoint)]</div>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label for="oauth2ClientId" class="form-label">Client ID</label>
+                        <InputText id="oauth2ClientId" @bind-Value="Model.OAuth2ClientId" class="form-control" />
+                        @if (Errors.ContainsKey(nameof(Model.OAuth2ClientId)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.OAuth2ClientId)]</div>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label for="oauth2Scopes" class="form-label">Scopes</label>
+                        <InputText id="oauth2Scopes" @bind-Value="Model.OAuth2Scopes" class="form-control" placeholder="agents.read agents.invoke" />
+                    </div>
+                }
+
+                @if (Model.AuthenticationType == A2AClientAuthenticationType.OAuth2ClientCredentials)
+                {
+                    <div class="mb-3">
+                        <label for="oauth2ClientSecret" class="form-label">Client secret</label>
+                        <InputText id="oauth2ClientSecret" @bind-Value="Model.OAuth2ClientSecret" class="form-control" type="password" />
+                        @if (HasOAuth2ClientSecret)
+                        {
+                            <div class="form-text">Leave blank to keep the existing client secret.</div>
+                        }
+                        @if (Errors.ContainsKey(nameof(Model.OAuth2ClientSecret)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.OAuth2ClientSecret)]</div>
+                        }
+                    </div>
+                }
+
+                @if (Model.AuthenticationType == A2AClientAuthenticationType.OAuth2PrivateKeyJwt)
+                {
+                    <div class="mb-3">
+                        <label for="oauth2KeyId" class="form-label">Key ID</label>
+                        <InputText id="oauth2KeyId" @bind-Value="Model.OAuth2KeyId" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="oauth2PrivateKey" class="form-label">Private key (PEM)</label>
+                        <InputTextArea id="oauth2PrivateKey" @bind-Value="Model.OAuth2PrivateKey" class="form-control" rows="6" />
+                        @if (HasOAuth2PrivateKey)
+                        {
+                            <div class="form-text">Leave blank to keep the existing private key.</div>
+                        }
+                        @if (Errors.ContainsKey(nameof(Model.OAuth2PrivateKey)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.OAuth2PrivateKey)]</div>
+                        }
+                    </div>
+                }
+
+                @if (Model.AuthenticationType == A2AClientAuthenticationType.OAuth2Mtls)
+                {
+                    <div class="mb-3">
+                        <label for="oauth2ClientCertificate" class="form-label">Client certificate (Base64 PFX/PKCS#12)</label>
+                        <InputTextArea id="oauth2ClientCertificate" @bind-Value="Model.OAuth2ClientCertificate" class="form-control" rows="6" />
+                        @if (HasOAuth2ClientCertificate)
+                        {
+                            <div class="form-text">Leave blank to keep the existing certificate.</div>
+                        }
+                        @if (Errors.ContainsKey(nameof(Model.OAuth2ClientCertificate)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.OAuth2ClientCertificate)]</div>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label for="oauth2ClientCertificatePassword" class="form-label">Certificate password</label>
+                        <InputText id="oauth2ClientCertificatePassword" @bind-Value="Model.OAuth2ClientCertificatePassword" class="form-control" type="password" />
+                        @if (HasOAuth2ClientCertificatePassword)
+                        {
+                            <div class="form-text">Leave blank to keep the existing certificate password.</div>
+                        }
+                    </div>
+                }
+
+                @if (Model.AuthenticationType == A2AClientAuthenticationType.CustomHeaders)
+                {
+                    <div class="mb-3">
+                        <label for="additionalHeaders" class="form-label">Additional headers (JSON)</label>
+                        <InputTextArea id="additionalHeaders" @bind-Value="Model.AdditionalHeaders" class="form-control" rows="6"
+                                       placeholder="@("{\n  \"X-Api-Key\": \"value\"\n}")" />
+                        @if (Errors.ContainsKey(nameof(Model.AdditionalHeaders)))
+                        {
+                            <div class="text-danger">@Errors[nameof(Model.AdditionalHeaders)]</div>
+                        }
+                    </div>
+                }
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <a href="/A2A/Connections" class="btn btn-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private FormModel? Model;
+    private bool NotFound;
+    private Dictionary<string, string> Errors { get; set; } = new();
+    private bool HasApiKey, HasBasicPassword, HasOAuth2ClientSecret, HasOAuth2PrivateKey, HasOAuth2ClientCertificate, HasOAuth2ClientCertificatePassword;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var connection = await Catalog.FindByIdAsync(Id);
+        if (connection is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        Model = new FormModel
+        {
+            DisplayText = connection.DisplayText,
+            Endpoint = connection.Endpoint,
+        };
+
+        if (connection.TryGet<A2AConnectionMetadata>(out var metadata))
+        {
+            Model.AuthenticationType = metadata.AuthenticationType == A2AClientAuthenticationType.Anonymous && metadata.AdditionalHeaders is { Count: > 0 }
+                ? A2AClientAuthenticationType.CustomHeaders
+                : metadata.AuthenticationType;
+            Model.ApiKeyHeaderName = metadata.ApiKeyHeaderName;
+            Model.ApiKeyPrefix = metadata.ApiKeyPrefix;
+            Model.BasicUsername = metadata.BasicUsername;
+            Model.OAuth2TokenEndpoint = metadata.OAuth2TokenEndpoint;
+            Model.OAuth2ClientId = metadata.OAuth2ClientId;
+            Model.OAuth2Scopes = metadata.OAuth2Scopes;
+            Model.OAuth2KeyId = metadata.OAuth2KeyId;
+            Model.AdditionalHeaders = metadata.AdditionalHeaders is null ? null : JsonSerializer.Serialize(metadata.AdditionalHeaders, IndentedJson);
+            HasApiKey = !string.IsNullOrEmpty(metadata.ApiKey);
+            HasBasicPassword = !string.IsNullOrEmpty(metadata.BasicPassword);
+            HasOAuth2ClientSecret = !string.IsNullOrEmpty(metadata.OAuth2ClientSecret);
+            HasOAuth2PrivateKey = !string.IsNullOrEmpty(metadata.OAuth2PrivateKey);
+            HasOAuth2ClientCertificate = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificate);
+            HasOAuth2ClientCertificatePassword = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificatePassword);
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        Errors.Clear();
+        var connection = await Catalog.FindByIdAsync(Id);
+        if (connection is null) { NotFound = true; return; }
+
+        if (string.IsNullOrWhiteSpace(Model!.DisplayText))
+            Errors[nameof(Model.DisplayText)] = "Display text is required.";
+
+        if (string.IsNullOrWhiteSpace(Model.Endpoint))
+            Errors[nameof(Model.Endpoint)] = "Endpoint is required.";
+        else if (!Uri.TryCreate(Model.Endpoint, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            Errors[nameof(Model.Endpoint)] = "Endpoint must be a valid HTTP or HTTPS URL.";
+
+        ValidateAuthFields();
+
+        if (Errors.Any())
+            return;
+
+        connection.DisplayText = Model.DisplayText?.Trim();
+        connection.Endpoint = Model.Endpoint?.Trim();
+        var metadata = connection.GetOrCreate<A2AConnectionMetadata>();
+        var protector = DataProtectionProvider.CreateProtector(A2AConstants.DataProtectionPurpose);
+        var existingApiKey = metadata.ApiKey;
+        var existingBasicPassword = metadata.BasicPassword;
+        var existingOAuth2ClientSecret = metadata.OAuth2ClientSecret;
+        var existingOAuth2PrivateKey = metadata.OAuth2PrivateKey;
+        var existingOAuth2ClientCertificate = metadata.OAuth2ClientCertificate;
+        var existingOAuth2ClientCertificatePassword = metadata.OAuth2ClientCertificatePassword;
+
+        metadata.AuthenticationType = Model.AuthenticationType;
+        metadata.ApiKeyHeaderName = null;
+        metadata.ApiKeyPrefix = null;
+        metadata.ApiKey = null;
+        metadata.BasicUsername = null;
+        metadata.BasicPassword = null;
+        metadata.OAuth2TokenEndpoint = null;
+        metadata.OAuth2ClientId = null;
+        metadata.OAuth2ClientSecret = null;
+        metadata.OAuth2Scopes = null;
+        metadata.OAuth2PrivateKey = null;
+        metadata.OAuth2KeyId = null;
+        metadata.OAuth2ClientCertificate = null;
+        metadata.OAuth2ClientCertificatePassword = null;
+        metadata.AdditionalHeaders = null;
+
+        switch (Model.AuthenticationType)
+        {
+            case A2AClientAuthenticationType.ApiKey:
+                metadata.ApiKeyHeaderName = Model.ApiKeyHeaderName;
+                metadata.ApiKeyPrefix = Model.ApiKeyPrefix;
+                metadata.ApiKey = ProtectOrReuse(Model.ApiKey, existingApiKey, protector);
+                break;
+            case A2AClientAuthenticationType.Basic:
+                metadata.BasicUsername = Model.BasicUsername;
+                metadata.BasicPassword = ProtectOrReuse(Model.BasicPassword, existingBasicPassword, protector);
+                break;
+            case A2AClientAuthenticationType.OAuth2ClientCredentials:
+                metadata.OAuth2TokenEndpoint = Model.OAuth2TokenEndpoint;
+                metadata.OAuth2ClientId = Model.OAuth2ClientId;
+                metadata.OAuth2Scopes = Model.OAuth2Scopes;
+                metadata.OAuth2ClientSecret = ProtectOrReuse(Model.OAuth2ClientSecret, existingOAuth2ClientSecret, protector);
+                break;
+            case A2AClientAuthenticationType.OAuth2PrivateKeyJwt:
+                metadata.OAuth2TokenEndpoint = Model.OAuth2TokenEndpoint;
+                metadata.OAuth2ClientId = Model.OAuth2ClientId;
+                metadata.OAuth2Scopes = Model.OAuth2Scopes;
+                metadata.OAuth2KeyId = Model.OAuth2KeyId;
+                metadata.OAuth2PrivateKey = ProtectOrReuse(Model.OAuth2PrivateKey, existingOAuth2PrivateKey, protector);
+                break;
+            case A2AClientAuthenticationType.OAuth2Mtls:
+                metadata.OAuth2TokenEndpoint = Model.OAuth2TokenEndpoint;
+                metadata.OAuth2ClientId = Model.OAuth2ClientId;
+                metadata.OAuth2Scopes = Model.OAuth2Scopes;
+                metadata.OAuth2ClientCertificate = ProtectOrReuse(Model.OAuth2ClientCertificate, existingOAuth2ClientCertificate, protector);
+                metadata.OAuth2ClientCertificatePassword = ProtectOrReuse(Model.OAuth2ClientCertificatePassword, existingOAuth2ClientCertificatePassword, protector);
+                break;
+            case A2AClientAuthenticationType.CustomHeaders:
+                metadata.AdditionalHeaders = string.IsNullOrWhiteSpace(Model.AdditionalHeaders) ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(Model.AdditionalHeaders);
+                break;
+        }
+        connection.Put(metadata);
+        await Catalog.UpdateAsync(connection);
+        NavigationManager.NavigateTo("/A2A/Connections?success=A2A connection updated successfully.");
+    }
+
+    private void ValidateAuthFields()
+    {
+        switch (Model!.AuthenticationType)
+        {
+            case A2AClientAuthenticationType.ApiKey:
+                if (!HasApiKey && string.IsNullOrWhiteSpace(Model.ApiKey))
+                    Errors[nameof(Model.ApiKey)] = "API key is required.";
+                break;
+            case A2AClientAuthenticationType.Basic:
+                if (string.IsNullOrWhiteSpace(Model.BasicUsername))
+                    Errors[nameof(Model.BasicUsername)] = "Username is required.";
+                if (!HasBasicPassword && string.IsNullOrWhiteSpace(Model.BasicPassword))
+                    Errors[nameof(Model.BasicPassword)] = "Password is required.";
+                break;
+            case A2AClientAuthenticationType.OAuth2ClientCredentials:
+                ValidateOAuth2Common();
+                if (!HasOAuth2ClientSecret && string.IsNullOrWhiteSpace(Model.OAuth2ClientSecret))
+                    Errors[nameof(Model.OAuth2ClientSecret)] = "Client secret is required.";
+                break;
+            case A2AClientAuthenticationType.OAuth2PrivateKeyJwt:
+                ValidateOAuth2Common();
+                if (!HasOAuth2PrivateKey && string.IsNullOrWhiteSpace(Model.OAuth2PrivateKey))
+                    Errors[nameof(Model.OAuth2PrivateKey)] = "Private key is required.";
+                break;
+            case A2AClientAuthenticationType.OAuth2Mtls:
+                ValidateOAuth2Common();
+                if (!HasOAuth2ClientCertificate && string.IsNullOrWhiteSpace(Model.OAuth2ClientCertificate))
+                    Errors[nameof(Model.OAuth2ClientCertificate)] = "Client certificate is required.";
+                break;
+            case A2AClientAuthenticationType.CustomHeaders:
+                if (!string.IsNullOrWhiteSpace(Model.AdditionalHeaders))
+                {
+                    try { JsonSerializer.Deserialize<Dictionary<string, string>>(Model.AdditionalHeaders); }
+                    catch (JsonException) { Errors[nameof(Model.AdditionalHeaders)] = "Additional headers must be valid JSON."; }
+                }
+                break;
+        }
+    }
+
+    private void ValidateOAuth2Common()
+    {
+        if (string.IsNullOrWhiteSpace(Model!.OAuth2TokenEndpoint))
+            Errors[nameof(Model.OAuth2TokenEndpoint)] = "Token endpoint is required.";
+        else if (!Uri.TryCreate(Model.OAuth2TokenEndpoint, UriKind.Absolute, out _))
+            Errors[nameof(Model.OAuth2TokenEndpoint)] = "Token endpoint must be a valid URL.";
+        if (string.IsNullOrWhiteSpace(Model.OAuth2ClientId))
+            Errors[nameof(Model.OAuth2ClientId)] = "Client ID is required.";
+    }
+
+    private static string? ProtectOrReuse(string? newValue, string? existingValue, Microsoft.AspNetCore.DataProtection.IDataProtector protector)
+    {
+        return !string.IsNullOrWhiteSpace(newValue) ? protector.Protect(newValue) : existingValue;
+    }
+
+    private sealed class FormModel
+    {
+        public string? DisplayText { get; set; }
+        public string? Endpoint { get; set; }
+        public A2AClientAuthenticationType AuthenticationType { get; set; }
+        public string? ApiKeyHeaderName { get; set; }
+        public string? ApiKeyPrefix { get; set; }
+        public string? ApiKey { get; set; }
+        public string? BasicUsername { get; set; }
+        public string? BasicPassword { get; set; }
+        public string? OAuth2TokenEndpoint { get; set; }
+        public string? OAuth2ClientId { get; set; }
+        public string? OAuth2ClientSecret { get; set; }
+        public string? OAuth2Scopes { get; set; }
+        public string? OAuth2PrivateKey { get; set; }
+        public string? OAuth2KeyId { get; set; }
+        public string? OAuth2ClientCertificate { get; set; }
+        public string? OAuth2ClientCertificatePassword { get; set; }
+        public string? AdditionalHeaders { get; set; }
+    }
+}

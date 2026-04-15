@@ -1,0 +1,136 @@
+@page "/Mcp/Prompts/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text.Json
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.Services
+@using ModelContextProtocol.Protocol
+@inject INamedCatalog<McpPrompt> Catalog
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit MCP Prompt</PageTitle>
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Prompt not found.
+    </div>
+    <a href="/Mcp/Prompts" class="btn btn-outline-secondary">Back to Prompts</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h2><i class="bi bi-pencil"></i> Edit MCP Prompt</h2>
+    <hr />
+
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditMcpPrompt">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label for="title" class="form-label">Title</label>
+                <InputText id="title" @bind-Value="Model.Title" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label for="name" class="form-label">Technical name</label>
+                <InputText id="name" @bind-Value="Model.Name" class="form-control" disabled />
+                <div class="form-text">The technical name cannot be changed after creation.</div>
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <InputTextArea id="description" @bind-Value="Model.Description" class="form-control" rows="4" />
+            </div>
+            <div class="mb-3">
+                <label for="arguments" class="form-label">Arguments (JSON array)</label>
+                <InputTextArea id="arguments" @bind-Value="Model.Arguments" class="form-control" rows="8" />
+                @if (Errors.ContainsKey(nameof(Model.Arguments)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.Arguments)]</div>
+                }
+                <div class="form-text">Example: <code>[{ "name": "topic", "description": "Topic to expand", "required": true }]</code></div>
+            </div>
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+                <a href="/Mcp/Prompts" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private FormModel? Model;
+    private bool NotFound;
+    private string? OriginalName;
+    private Dictionary<string, string> Errors { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var prompt = await Catalog.FindByIdAsync(Id);
+        if (prompt is null) { NotFound = true; return; }
+
+        OriginalName = prompt.Name;
+        Model = new FormModel
+        {
+            Title = prompt.Prompt?.Title,
+            Name = prompt.Name,
+            Description = prompt.Prompt?.Description,
+            Arguments = prompt.Prompt?.Arguments is { Count: > 0 }
+                ? JsonSerializer.Serialize(prompt.Prompt.Arguments, IndentedJson)
+                : "[]",
+        };
+    }
+
+    private async Task HandleSubmit()
+    {
+        Errors.Clear();
+        var prompt = await Catalog.FindByIdAsync(Id);
+        if (prompt is null) { NotFound = true; return; }
+
+        var arguments = ParseArguments();
+        if (Errors.Any()) return;
+
+        prompt.Prompt = new Prompt
+        {
+            Name = OriginalName!,
+            Title = Model!.Title?.Trim(),
+            Description = Model.Description?.Trim(),
+            Arguments = arguments,
+        };
+
+        await Catalog.UpdateAsync(prompt);
+        NavigationManager.NavigateTo("/Mcp/Prompts?success=MCP prompt updated successfully.");
+    }
+
+    private List<PromptArgument> ParseArguments()
+    {
+        if (string.IsNullOrWhiteSpace(Model!.Arguments)) return [];
+        try
+        {
+            var args = JsonSerializer.Deserialize<List<PromptArgument>>(Model.Arguments) ?? [];
+            for (var i = 0; i < args.Count; i++)
+            {
+                if (string.IsNullOrWhiteSpace(args[i].Name))
+                    Errors[nameof(Model.Arguments)] = $"Argument {i + 1} requires a name.";
+            }
+            return args.Where(a => !string.IsNullOrWhiteSpace(a.Name)).ToList();
+        }
+        catch (JsonException)
+        {
+            Errors[nameof(Model.Arguments)] = "Arguments must be valid JSON.";
+            return [];
+        }
+    }
+
+    private sealed class FormModel
+    {
+        public string? Title { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? Arguments { get; set; } = "[]";
+    }
+}

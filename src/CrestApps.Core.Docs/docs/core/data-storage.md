@@ -64,6 +64,10 @@ The repository now ships two first-party persistence flavors:
 
 You can also implement the same interfaces with another ORM, a remote service, or any custom storage approach.
 
+:::tip
+The **[MVC Example](mvc-example.md)** demonstrates YesSql stores in a full application, while the **[Blazor Example](blazor-example.md)** (`CrestApps.Core.Blazor.Web`) demonstrates EntityCore stores. Compare both to see how each persistence flavor integrates with the framework.
+:::
+
 ## Catalog Interfaces
 
 ### `ICatalog<T>`

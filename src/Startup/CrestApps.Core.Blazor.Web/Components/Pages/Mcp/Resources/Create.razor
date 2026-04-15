@@ -1,0 +1,332 @@
+@page "/Mcp/Resources/Create"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Ftp
+@using CrestApps.Core.AI.Ftp.Models
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.Sftp
+@using CrestApps.Core.AI.Sftp.Models
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@using ModelContextProtocol.Protocol
+@using Microsoft.AspNetCore.DataProtection
+@inject ISourceCatalog<McpResource> Catalog
+@inject IOptions<McpOptions> McpOptionsAccessor
+@inject IDataProtectionProvider DataProtectionProvider
+@inject TimeProvider TimeProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Add MCP Resource</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Add MCP Resource</h2>
+<hr />
+
+<EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="CreateMcpResource">
+    <div class="col-md-8">
+        <div class="mb-3">
+            <label class="form-label">Title</label>
+            <InputText @bind-Value="Model.DisplayText" class="form-control" />
+            @if (Errors.ContainsKey(nameof(Model.DisplayText)))
+            {
+                <div class="text-danger">@Errors[nameof(Model.DisplayText)]</div>
+            }
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Resource type</label>
+            <InputSelect @bind-Value="Model.Source" class="form-select">
+                @foreach (var rt in ResourceTypes)
+                {
+                    <option value="@rt.Key">@rt.Value.DisplayName.Value</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Name</label>
+            <InputText @bind-Value="Model.Name" class="form-control" />
+            @if (Errors.ContainsKey(nameof(Model.Name)))
+            {
+                <div class="text-danger">@Errors[nameof(Model.Name)]</div>
+            }
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Description</label>
+            <InputTextArea @bind-Value="Model.Description" class="form-control" rows="4" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Mime type</label>
+            <InputText @bind-Value="Model.MimeType" class="form-control" placeholder="text/plain" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Path or URI pattern</label>
+            <InputText @bind-Value="Model.Path" class="form-control" placeholder="docs/{path}" />
+            <div class="form-text">Use template variables like <code>{"{path}"}</code> when you want the MCP server to expose this as a resource template.</div>
+        </div>
+
+        @if (Model.Source == FtpResourceConstants.Type)
+        {
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Host</label>
+                    <InputText @bind-Value="Model.Host" class="form-control" />
+                    @if (Errors.ContainsKey(nameof(Model.Host)))
+                    {
+                        <div class="text-danger">@Errors[nameof(Model.Host)]</div>
+                    }
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Port</label>
+                    <InputNumber @bind-Value="Model.Port" class="form-control" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <InputText @bind-Value="Model.Username" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <InputText @bind-Value="Model.Password" class="form-control" type="password" />
+                @if (Errors.ContainsKey(nameof(Model.Password)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.Password)]</div>
+                }
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Encryption mode</label>
+                <InputText @bind-Value="Model.EncryptionMode" class="form-control" placeholder="None / Explicit / Implicit / Auto" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Data connection type</label>
+                <InputText @bind-Value="Model.DataConnectionType" class="form-control" placeholder="AutoPassive / PASV / EPSV / PORT" />
+            </div>
+            <div class="form-check form-switch mb-3">
+                <InputCheckbox @bind-Value="Model.ValidateAnyCertificate" class="form-check-input" />
+                <label class="form-check-label">Accept any SSL/TLS certificate</label>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Connect timeout (s)</label>
+                    <InputNumber @bind-Value="Model.ConnectTimeout" class="form-control" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Read timeout (s)</label>
+                    <InputNumber @bind-Value="Model.ReadTimeout" class="form-control" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Retry attempts</label>
+                    <InputNumber @bind-Value="Model.RetryAttempts" class="form-control" />
+                </div>
+            </div>
+        }
+
+        @if (Model.Source == SftpResourceConstants.Type)
+        {
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Host</label>
+                    <InputText @bind-Value="Model.Host" class="form-control" />
+                    @if (Errors.ContainsKey(nameof(Model.Host)))
+                    {
+                        <div class="text-danger">@Errors[nameof(Model.Host)]</div>
+                    }
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Port</label>
+                    <InputNumber @bind-Value="Model.Port" class="form-control" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <InputText @bind-Value="Model.Username" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <InputText @bind-Value="Model.Password" class="form-control" type="password" />
+                @if (Errors.ContainsKey(nameof(Model.Password)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.Password)]</div>
+                }
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Private key (PEM)</label>
+                <InputTextArea @bind-Value="Model.PrivateKey" class="form-control" rows="5" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Passphrase</label>
+                <InputText @bind-Value="Model.Passphrase" class="form-control" type="password" />
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Proxy type</label>
+                    <InputText @bind-Value="Model.ProxyType" class="form-control" placeholder="None / Socks4 / Socks5 / Http" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Proxy host</label>
+                    <InputText @bind-Value="Model.ProxyHost" class="form-control" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Proxy port</label>
+                    <InputNumber @bind-Value="Model.ProxyPort" class="form-control" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Proxy username</label>
+                <InputText @bind-Value="Model.ProxyUsername" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Proxy password</label>
+                <InputText @bind-Value="Model.ProxyPassword" class="form-control" type="password" />
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Connection timeout (s)</label>
+                    <InputNumber @bind-Value="Model.ConnectionTimeout" class="form-control" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Keep alive interval (s)</label>
+                    <InputNumber @bind-Value="Model.KeepAliveInterval" class="form-control" />
+                </div>
+            </div>
+        }
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create</button>
+            <a href="/Mcp/Resources" class="btn btn-secondary">Cancel</a>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private FormModel Model { get; set; } = new();
+    private Dictionary<string, string> Errors { get; set; } = new();
+    private IReadOnlyList<KeyValuePair<string, McpResourceTypeEntry>> ResourceTypes = [];
+
+    protected override void OnInitialized()
+    {
+        ResourceTypes = McpOptionsAccessor.Value.ResourceTypes.OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase).ToList();
+        if (ResourceTypes.Any() && string.IsNullOrEmpty(Model.Source))
+            Model.Source = ResourceTypes.First().Key;
+    }
+
+    private async Task HandleSubmit()
+    {
+        Errors.Clear();
+        if (string.IsNullOrWhiteSpace(Model.DisplayText))
+            Errors[nameof(Model.DisplayText)] = "Display text is required.";
+        if (string.IsNullOrWhiteSpace(Model.Name))
+            Errors[nameof(Model.Name)] = "Name is required.";
+
+        ValidateSourceFields(false);
+        if (Errors.Any()) return;
+
+        var resource = new McpResource
+        {
+            ItemId = UniqueId.GenerateId(),
+            CreatedUtc = TimeProvider.GetUtcNow().UtcDateTime,
+        };
+        Apply(resource);
+        await Catalog.CreateAsync(resource);
+        NavigationManager.NavigateTo("/Mcp/Resources?success=MCP resource created successfully.");
+    }
+
+    private void ValidateSourceFields(bool isEditing)
+    {
+        switch (Model.Source)
+        {
+            case FtpResourceConstants.Type:
+                if (string.IsNullOrWhiteSpace(Model.Host))
+                    Errors[nameof(Model.Host)] = "Host is required.";
+                if (!isEditing && string.IsNullOrWhiteSpace(Model.Password) && !string.IsNullOrWhiteSpace(Model.Username))
+                    Errors[nameof(Model.Password)] = "Password is required when a username is provided.";
+                break;
+            case SftpResourceConstants.Type:
+                if (string.IsNullOrWhiteSpace(Model.Host))
+                    Errors[nameof(Model.Host)] = "Host is required.";
+                if (string.IsNullOrWhiteSpace(Model.Password) && string.IsNullOrWhiteSpace(Model.PrivateKey))
+                    Errors[nameof(Model.Password)] = "Provide a password or private key.";
+                break;
+        }
+    }
+
+    private void Apply(McpResource resource)
+    {
+        resource.DisplayText = Model.DisplayText!.Trim();
+        resource.Source = Model.Source;
+        resource.Resource = new Resource
+        {
+            Uri = BuildUri(Model.Source, resource.ItemId, Model.Path?.Trim()),
+            Name = Model.Name!.Trim(),
+            Title = Model.DisplayText!.Trim(),
+            Description = Model.Description?.Trim(),
+            MimeType = Model.MimeType?.Trim(),
+        };
+
+        if (Model.Source == FtpResourceConstants.Type)
+        {
+            var protector = DataProtectionProvider.CreateProtector(FtpResourceConstants.DataProtectionPurpose);
+            var metadata = resource.GetOrCreate<FtpConnectionMetadata>();
+            metadata.Host = Model.Host?.Trim();
+            metadata.Port = Model.Port;
+            metadata.Username = Model.Username?.Trim();
+            metadata.Password = !string.IsNullOrWhiteSpace(Model.Password) ? protector.Protect(Model.Password) : null;
+            metadata.EncryptionMode = Model.EncryptionMode?.Trim();
+            metadata.DataConnectionType = Model.DataConnectionType?.Trim();
+            metadata.ValidateAnyCertificate = Model.ValidateAnyCertificate;
+            metadata.ConnectTimeout = Model.ConnectTimeout;
+            metadata.ReadTimeout = Model.ReadTimeout;
+            metadata.RetryAttempts = Model.RetryAttempts;
+            resource.Put(metadata);
+        }
+        else if (Model.Source == SftpResourceConstants.Type)
+        {
+            var protector = DataProtectionProvider.CreateProtector(SftpResourceConstants.DataProtectionPurpose);
+            var metadata = resource.GetOrCreate<SftpConnectionMetadata>();
+            metadata.Host = Model.Host?.Trim();
+            metadata.Port = Model.Port;
+            metadata.Username = Model.Username?.Trim();
+            metadata.Password = !string.IsNullOrWhiteSpace(Model.Password) ? protector.Protect(Model.Password) : null;
+            metadata.PrivateKey = !string.IsNullOrWhiteSpace(Model.PrivateKey) ? protector.Protect(Model.PrivateKey) : null;
+            metadata.Passphrase = !string.IsNullOrWhiteSpace(Model.Passphrase) ? protector.Protect(Model.Passphrase) : null;
+            metadata.ProxyType = Model.ProxyType?.Trim();
+            metadata.ProxyHost = Model.ProxyHost?.Trim();
+            metadata.ProxyPort = Model.ProxyPort;
+            metadata.ProxyUsername = Model.ProxyUsername?.Trim();
+            metadata.ProxyPassword = !string.IsNullOrWhiteSpace(Model.ProxyPassword) ? protector.Protect(Model.ProxyPassword) : null;
+            metadata.ConnectionTimeout = Model.ConnectionTimeout;
+            metadata.KeepAliveInterval = Model.KeepAliveInterval;
+            resource.Put(metadata);
+        }
+    }
+
+    private static string BuildUri(string source, string itemId, string? path)
+    {
+        return string.IsNullOrEmpty(path) ? $"{source}://{itemId}" : $"{source}://{itemId}/{path.TrimStart('/')}";
+    }
+
+    private sealed class FormModel
+    {
+        public string? DisplayText { get; set; }
+        public string Source { get; set; } = FtpResourceConstants.Type;
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? MimeType { get; set; }
+        public string? Path { get; set; }
+        public string? Host { get; set; }
+        public int? Port { get; set; }
+        public string? Username { get; set; }
+        public string? Password { get; set; }
+        public string? EncryptionMode { get; set; }
+        public string? DataConnectionType { get; set; }
+        public bool ValidateAnyCertificate { get; set; }
+        public int? ConnectTimeout { get; set; }
+        public int? ReadTimeout { get; set; }
+        public int? RetryAttempts { get; set; }
+        public string? PrivateKey { get; set; }
+        public string? Passphrase { get; set; }
+        public string? ProxyType { get; set; }
+        public string? ProxyHost { get; set; }
+        public int? ProxyPort { get; set; }
+        public string? ProxyUsername { get; set; }
+        public string? ProxyPassword { get; set; }
+        public int? ConnectionTimeout { get; set; }
+        public int? KeepAliveInterval { get; set; }
+    }
+}

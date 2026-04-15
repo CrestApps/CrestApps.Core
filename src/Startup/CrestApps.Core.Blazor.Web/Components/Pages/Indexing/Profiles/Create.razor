@@ -1,0 +1,243 @@
+@page "/Indexing/Profiles/Create"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Infrastructure.Indexing.Models
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject ISearchIndexProfileManager IndexProfileManager
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject IOptions<IndexProfileSourceOptions> SourceOptions
+@inject IServiceProvider ServiceProvider
+@inject ILogger<Create> Logger
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Index Profile</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Create Index Profile</h2>
+<hr />
+
+<EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="CreateIndexProfile">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., My Documents Index" />
+                <div class="form-text">A human-readable label (optional).</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Index name <span class="text-danger">*</span></label>
+                <InputText @bind-Value="Model.IndexName" class="form-control" placeholder="e.g., ai-documents" />
+                @if (Errors.ContainsKey(nameof(Model.IndexName)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.IndexName)]</div>
+                }
+                <div class="form-text">The configured provider <code>IndexPrefix</code> is prepended when the remote index is created. Use lowercase letters, numbers, and hyphens.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Provider <span class="text-danger">*</span></label>
+                <InputSelect @bind-Value="Model.ProviderName" class="form-select">
+                    <option value="">Select Provider</option>
+                    @foreach (var provider in Providers)
+                    {
+                        <option value="@provider.ProviderName">@provider.ProviderDisplayName</option>
+                    }
+                </InputSelect>
+                @if (Errors.ContainsKey(nameof(Model.ProviderName)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.ProviderName)]</div>
+                }
+                <div class="form-text">The search backend provider.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Type <span class="text-danger">*</span></label>
+                <InputSelect @bind-Value="Model.Type" class="form-select">
+                    <option value="">Select Type</option>
+                    @foreach (var type in FilteredTypes)
+                    {
+                        <option value="@type.Type">@type.DisplayName</option>
+                    }
+                </InputSelect>
+                @if (Errors.ContainsKey(nameof(Model.Type)))
+                {
+                    <div class="text-danger">@Errors[nameof(Model.Type)]</div>
+                }
+                <div class="form-text">Determines how this index is used.</div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.Type) && Model.Type != IndexProfileTypes.Articles)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Embedding deployment</label>
+                    <InputSelect @bind-Value="Model.EmbeddingDeploymentId" class="form-select">
+                        <option value="">Select an Embedding Deployment</option>
+                        @foreach (var d in EmbeddingDeployments)
+                        {
+                            <option value="@d.ItemId">@d.Name</option>
+                        }
+                    </InputSelect>
+                    @if (Errors.ContainsKey(nameof(Model.EmbeddingDeploymentId)))
+                    {
+                        <div class="text-danger">@Errors[nameof(Model.EmbeddingDeploymentId)]</div>
+                    }
+                    <div class="form-text">The embedding deployment used to generate vector embeddings for this index.</div>
+                </div>
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Create
+                </button>
+                <a href="/Indexing/Profiles" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private FormModel Model { get; set; } = new();
+    private Dictionary<string, string> Errors { get; set; } = new();
+    private IReadOnlyList<IndexProfileSourceDescriptor> Sources = [];
+    private IReadOnlyList<IndexProfileSourceDescriptor> Providers = [];
+    private IReadOnlyList<AIDeployment> EmbeddingDeployments = [];
+
+    private IEnumerable<IndexProfileSourceDescriptor> FilteredTypes =>
+        Sources.Where(s => string.IsNullOrEmpty(Model.ProviderName) || string.Equals(s.ProviderName, Model.ProviderName, StringComparison.OrdinalIgnoreCase))
+               .GroupBy(s => s.Type, StringComparer.OrdinalIgnoreCase)
+               .Select(g => g.First());
+
+    protected override async Task OnInitializedAsync()
+    {
+        Sources = SourceOptions.Value.Sources
+            .OrderBy(s => s.ProviderDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        Providers = Sources
+            .GroupBy(s => s.ProviderName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        var deployments = await DeploymentCatalog.GetAllAsync();
+        EmbeddingDeployments = deployments.Where(d => d.Type == AIDeploymentType.Embedding).ToList();
+    }
+
+    private async Task HandleSubmit()
+    {
+        Errors.Clear();
+
+        if (string.IsNullOrWhiteSpace(Model.IndexName))
+            Errors[nameof(Model.IndexName)] = "Index name is required.";
+        if (string.IsNullOrWhiteSpace(Model.ProviderName))
+            Errors[nameof(Model.ProviderName)] = "Provider is required.";
+        if (string.IsNullOrWhiteSpace(Model.Type))
+            Errors[nameof(Model.Type)] = "Type is required.";
+
+        if (Errors.Any()) return;
+
+        var name = Model.IndexName!.Trim();
+        if (string.IsNullOrWhiteSpace(Model.DisplayText))
+            Model.DisplayText = name;
+
+        var existing = await IndexProfileManager.FindByNameAsync(name);
+        if (existing is not null)
+        {
+            Errors[nameof(Model.IndexName)] = "An index profile with this name already exists.";
+            return;
+        }
+
+        if (!Sources.Any(s => string.Equals(s.ProviderName, Model.ProviderName, StringComparison.OrdinalIgnoreCase) &&
+                               string.Equals(s.Type, Model.Type, StringComparison.OrdinalIgnoreCase)))
+        {
+            Errors[nameof(Model.Type)] = "The selected provider does not support this index type.";
+            return;
+        }
+
+        var profile = new SearchIndexProfile
+        {
+            Name = name,
+            DisplayText = Model.DisplayText?.Trim(),
+            IndexName = name,
+            ProviderName = Model.ProviderName,
+            Type = Model.Type,
+            EmbeddingDeploymentId = Model.EmbeddingDeploymentId,
+        };
+
+        var indexManager = ServiceProvider.GetKeyedService<ISearchIndexManager>(profile.ProviderName);
+        if (indexManager is null)
+        {
+            Errors[nameof(Model.ProviderName)] = "The selected search provider is not configured for remote index provisioning.";
+            return;
+        }
+
+        profile.IndexFullName = indexManager.ComposeIndexFullName(profile);
+
+        var validationResult = await IndexProfileManager.ValidateAsync(profile);
+        foreach (var error in validationResult.Errors)
+        {
+            var key = error.MemberNames?.FirstOrDefault() ?? string.Empty;
+            Errors[key] = error.ErrorMessage!;
+        }
+        if (Errors.Any()) return;
+
+        IReadOnlyCollection<SearchIndexField> fields;
+        try { fields = await IndexProfileManager.GetFieldsAsync(profile); }
+        catch (InvalidOperationException ex)
+        {
+            Errors[nameof(Model.EmbeddingDeploymentId)] = ex.Message;
+            return;
+        }
+
+        if (fields is null)
+        {
+            Errors[nameof(Model.Type)] = $"The index type '{profile.Type}' is not supported for remote provisioning.";
+            return;
+        }
+
+        try
+        {
+            if (await indexManager.ExistsAsync(profile))
+            {
+                Errors[nameof(Model.IndexName)] = $"The remote index '{profile.IndexFullName}' already exists.";
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to validate remote index '{IndexName}'.", profile.IndexFullName);
+            Errors[nameof(Model.IndexName)] = $"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.";
+            return;
+        }
+
+        try { await indexManager.CreateAsync(profile, fields); }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create remote index '{IndexName}'.", profile.IndexFullName);
+            Errors[nameof(Model.IndexName)] = $"Unable to create the remote index '{profile.IndexFullName}'.";
+            return;
+        }
+
+        try { await IndexProfileManager.CreateAsync(profile); }
+        catch
+        {
+            await indexManager.DeleteAsync(profile);
+            throw;
+        }
+
+        await IndexProfileManager.SynchronizeAsync(profile);
+
+        NavigationManager.NavigateTo("/Indexing/Profiles?success=Index profile created successfully.");
+    }
+
+    private sealed class FormModel
+    {
+        public string? DisplayText { get; set; }
+        public string? IndexName { get; set; }
+        public string? ProviderName { get; set; }
+        public string? Type { get; set; }
+        public string? EmbeddingDeploymentId { get; set; }
+    }
+}

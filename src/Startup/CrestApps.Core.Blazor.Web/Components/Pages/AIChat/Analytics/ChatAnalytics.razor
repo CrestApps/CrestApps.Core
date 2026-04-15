@@ -1,0 +1,438 @@
+@page "/AIChat/Analytics"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
+@using System.Text
+@using Microsoft.JSInterop
+@inject IAIProfileManager ProfileManager
+@inject MvcAIChatSessionEventService EventService
+@inject TimeProvider TimeProvider
+@inject IJSRuntime JS
+
+<PageTitle>Chat analytics</PageTitle>
+
+<h2><i class="bi bi-bar-chart-line"></i> Chat analytics</h2>
+<p class="text-muted">Review chat-session activity, performance, conversion, and feedback across AI chat profiles.</p>
+<hr />
+
+<div class="card mb-4">
+    <div class="card-body">
+        <EditForm Model="_filter" OnValidSubmit="RunReportAsync" FormName="analyticsFilter" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">AI Profile</label>
+                <select class="form-select" @bind="_filter.ProfileId">
+                    @foreach (var p in _profileOptions)
+                    {
+                        <option value="@p.Value">@p.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">From</label>
+                <input type="date" class="form-control" @bind="_filter.StartDateUtc" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To</label>
+                <input type="date" class="form-control" @bind="_filter.EndDateUtc" />
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">
+                    <i class="bi bi-funnel"></i> Show
+                </button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@if (!_showReport)
+{
+    <div class="alert alert-info">
+        Use the filters above to generate the analytics report.
+    </div>
+}
+else if (_totalSessions == 0)
+{
+    <div class="alert alert-warning">
+        No chat analytics data was found for the selected filters.
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-end mb-3">
+        <button type="button" class="btn btn-outline-secondary" @onclick="ExportCsvAsync">
+            <i class="bi bi-filetype-csv"></i> Export CSV
+        </button>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total sessions</div><div class="fs-3 fw-semibold">@_totalSessions</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Unique visitors</div><div class="fs-3 fw-semibold">@_uniqueVisitors</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Containment rate</div><div class="fs-3 fw-semibold">@_containmentRatePercent%</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Abandonment rate</div><div class="fs-3 fw-semibold">@_abandonmentRatePercent%</div></div></div></div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Overview</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-7">Resolved sessions</dt><dd class="col-sm-5">@_resolvedSessions</dd>
+                        <dt class="col-sm-7">Abandoned sessions</dt><dd class="col-sm-5">@_abandonedSessions</dd>
+                        <dt class="col-sm-7">Active sessions</dt><dd class="col-sm-5">@_activeSessions</dd>
+                        <dt class="col-sm-7">Average handle time</dt><dd class="col-sm-5">@_averageHandleTimeSeconds s</dd>
+                        <dt class="col-sm-7">Average messages / session</dt><dd class="col-sm-5">@_averageMessagesPerSession</dd>
+                        <dt class="col-sm-7">Returning user rate</dt><dd class="col-sm-5">@_returningUserRatePercent%</dd>
+                        <dt class="col-sm-7">Average steps to resolution</dt><dd class="col-sm-5">@_averageStepsToResolution</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Performance</div>
+                <div class="card-body">
+                    @if (!_hasPerformanceData)
+                    {
+                        <p class="text-muted mb-0">No latency or token data is available for this selection.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-7">Sessions with latency data</dt><dd class="col-sm-5">@_sessionsWithLatencyData</dd>
+                            <dt class="col-sm-7">Average response latency</dt><dd class="col-sm-5">@_averageResponseLatencyMs ms</dd>
+                            <dt class="col-sm-7">Sessions with token data</dt><dd class="col-sm-5">@_sessionsWithTokenData</dd>
+                            <dt class="col-sm-7">Total tokens</dt><dd class="col-sm-5">@_totalTokens</dd>
+                            <dt class="col-sm-7">Average tokens / session</dt><dd class="col-sm-5">@_averageTokensPerSession</dd>
+                            <dt class="col-sm-7">Average input tokens / session</dt><dd class="col-sm-5">@_averageInputTokensPerSession</dd>
+                            <dt class="col-sm-7">Average output tokens / session</dt><dd class="col-sm-5">@_averageOutputTokensPerSession</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Resolution and conversion</div>
+                <div class="card-body">
+                    @if (!_hasResolutionData)
+                    {
+                        <p class="text-muted mb-0">No resolution data is available for this selection.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-7">AI resolved sessions</dt><dd class="col-sm-5">@_aiResolvedSessions</dd>
+                            <dt class="col-sm-7">AI unresolved sessions</dt><dd class="col-sm-5">@_aiUnresolvedSessions</dd>
+                            <dt class="col-sm-7">AI resolution rate</dt><dd class="col-sm-5">@_aiResolutionRatePercent%</dd>
+                        </dl>
+                    }
+                    <hr />
+                    @if (!_hasConversionData)
+                    {
+                        <p class="text-muted mb-0">No conversion goal data is available for this selection.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-7">Sessions with conversion data</dt><dd class="col-sm-5">@_sessionsWithConversionData</dd>
+                            <dt class="col-sm-7">Average conversion score</dt><dd class="col-sm-5">@_averageConversionScorePercent%</dd>
+                            <dt class="col-sm-7">High performing sessions</dt><dd class="col-sm-5">@_highPerformingSessions (@_highPerformingPercent%)</dd>
+                            <dt class="col-sm-7">Low performing sessions</dt><dd class="col-sm-5">@_lowPerformingSessions (@_lowPerformingPercent%)</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">User feedback</div>
+                <div class="card-body">
+                    @if (!_hasFeedbackData)
+                    {
+                        <p class="text-muted mb-0">No user ratings were recorded for this selection.</p>
+                    }
+                    else
+                    {
+                        <div class="row text-center">
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-success"><i class="bi bi-hand-thumbs-up me-1"></i>@_thumbsUpCount</div>
+                                    <div class="text-muted">Positive ratings</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-danger"><i class="bi bi-hand-thumbs-down me-1"></i>@_thumbsDownCount</div>
+                                    <div class="text-muted">Negative ratings</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-success">@_thumbsUpPercent%</div>
+                                    <div class="text-muted">Satisfaction rate</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-info">@_feedbackRatePercent%</div>
+                                    <div class="text-muted">Feedback rate</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (_totalRatings > 0)
+                        {
+                            <div class="progress mb-3" style="height: 40px;">
+                                <div class="progress-bar bg-success d-flex align-items-center justify-content-center gap-1 px-2" role="progressbar" style="width: @(_thumbsUpPercent)%">
+                                    <i class="bi bi-hand-thumbs-up"></i> <span>@_thumbsUpPercent%</span>
+                                </div>
+                                <div class="progress-bar bg-danger d-flex align-items-center justify-content-center gap-1 px-2" role="progressbar" style="width: @(_thumbsDownPercent)%">
+                                    <i class="bi bi-hand-thumbs-down"></i> <span>@_thumbsDownPercent%</span>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="text-muted small">No feedback: @_noFeedbackCount</div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Sessions by hour</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var entry in _sessionsByHour)
+                            {
+                                <tr><th class="ps-3">@entry.Key</th><td class="text-end pe-3">@entry.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Sessions by day of week</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var entry in _sessionsByDayOfWeek)
+                            {
+                                <tr><th class="ps-3">@entry.Key</th><td class="text-end pe-3">@entry.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Sessions by user segment</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var entry in _sessionsByUserSegment)
+                            {
+                                <tr><th class="ps-3">@entry.Key</th><td class="text-end pe-3">@entry.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private sealed class FilterModel
+    {
+        public string? ProfileId { get; set; }
+        public DateTime? StartDateUtc { get; set; }
+        public DateTime? EndDateUtc { get; set; }
+    }
+
+    private sealed class ProfileOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+    }
+
+    private readonly FilterModel _filter = new();
+    private List<ProfileOption> _profileOptions = [];
+    private bool _showReport;
+    private IReadOnlyList<AIChatSessionEvent> _events = [];
+
+    // Summary fields matching MVC ViewModel
+    private int _totalSessions, _uniqueVisitors, _resolvedSessions, _abandonedSessions, _activeSessions;
+    private double _containmentRatePercent, _abandonmentRatePercent, _averageHandleTimeSeconds, _averageMessagesPerSession;
+    private double _returningUserRatePercent, _averageStepsToResolution;
+    private bool _hasPerformanceData;
+    private int _sessionsWithLatencyData, _sessionsWithTokenData;
+    private double _averageResponseLatencyMs;
+    private long _totalInputTokens, _totalOutputTokens, _totalTokens;
+    private double _averageTokensPerSession, _averageInputTokensPerSession, _averageOutputTokensPerSession;
+    private bool _hasResolutionData;
+    private int _aiResolvedSessions, _aiUnresolvedSessions;
+    private double _aiResolutionRatePercent;
+    private bool _hasConversionData;
+    private int _sessionsWithConversionData, _totalConversionScore, _totalConversionMaxScore;
+    private double _averageConversionScorePercent;
+    private int _highPerformingSessions, _lowPerformingSessions;
+    private double _highPerformingPercent, _lowPerformingPercent;
+    private bool _hasFeedbackData;
+    private int _thumbsUpCount, _thumbsDownCount, _noFeedbackCount, _totalRatings;
+    private double _thumbsUpPercent, _thumbsDownPercent, _feedbackRatePercent;
+    private IReadOnlyDictionary<string, int> _sessionsByHour = new Dictionary<string, int>();
+    private IReadOnlyDictionary<string, int> _sessionsByDayOfWeek = new Dictionary<string, int>();
+    private IReadOnlyDictionary<string, int> _sessionsByUserSegment = new Dictionary<string, int>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profiles = await ProfileManager.GetAsync(AIProfileType.Chat);
+        _profileOptions =
+        [
+            new ProfileOption { Value = string.Empty, Text = "All profiles" },
+            .. profiles
+                .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(p => new ProfileOption { Value = p.ItemId, Text = p.DisplayText ?? p.Name }),
+        ];
+    }
+
+    private async Task RunReportAsync()
+    {
+        _events = await EventService.GetAsync(_filter.ProfileId, _filter.StartDateUtc, _filter.EndDateUtc);
+        _showReport = true;
+        ApplyAnalytics(_events);
+    }
+
+    private void ApplyAnalytics(IReadOnlyList<AIChatSessionEvent> events)
+    {
+        _totalSessions = events.Count;
+        _uniqueVisitors = events.Where(e => !string.IsNullOrEmpty(e.VisitorId)).Select(e => e.VisitorId).Distinct(StringComparer.Ordinal).Count();
+        _resolvedSessions = events.Count(e => e.IsResolved);
+        _abandonedSessions = events.Count(e => !e.IsResolved && e.SessionEndedUtc.HasValue);
+        _activeSessions = events.Count(e => !e.SessionEndedUtc.HasValue);
+
+        if (_totalSessions > 0)
+        {
+            _containmentRatePercent = Math.Round((double)_resolvedSessions / _totalSessions * 100, 1);
+            _abandonmentRatePercent = Math.Round((double)_abandonedSessions / _totalSessions * 100, 1);
+            _averageMessagesPerSession = Math.Round(events.Average(e => e.MessageCount), 1);
+            var withHandleTime = events.Where(e => e.HandleTimeSeconds > 0).ToList();
+            _averageHandleTimeSeconds = withHandleTime.Count > 0 ? Math.Round(withHandleTime.Average(e => e.HandleTimeSeconds), 1) : 0;
+            var visitorGroups = events.Where(e => !string.IsNullOrEmpty(e.VisitorId)).GroupBy(e => e.VisitorId).ToList();
+            if (visitorGroups.Count > 0)
+            {
+                var returning = visitorGroups.Count(g => g.Count() > 1);
+                _returningUserRatePercent = Math.Round((double)returning / visitorGroups.Count * 100, 1);
+            }
+            var resolved = events.Where(e => e.IsResolved).ToList();
+            if (resolved.Count > 0) _averageStepsToResolution = Math.Round(resolved.Average(e => e.MessageCount), 1);
+        }
+
+        var withLatency = events.Where(e => e.AverageResponseLatencyMs > 0).ToList();
+        var withTokens = events.Where(e => e.TotalInputTokens > 0 || e.TotalOutputTokens > 0).ToList();
+        _sessionsWithLatencyData = withLatency.Count;
+        _sessionsWithTokenData = withTokens.Count;
+        _hasPerformanceData = withLatency.Count > 0 || withTokens.Count > 0;
+        if (withLatency.Count > 0) _averageResponseLatencyMs = Math.Round(withLatency.Average(e => e.AverageResponseLatencyMs), 0);
+        if (withTokens.Count > 0)
+        {
+            _totalInputTokens = withTokens.Sum(e => (long)e.TotalInputTokens);
+            _totalOutputTokens = withTokens.Sum(e => (long)e.TotalOutputTokens);
+            _totalTokens = _totalInputTokens + _totalOutputTokens;
+            _averageTokensPerSession = Math.Round((double)_totalTokens / withTokens.Count, 0);
+            _averageInputTokensPerSession = Math.Round((double)_totalInputTokens / withTokens.Count, 0);
+            _averageOutputTokensPerSession = Math.Round((double)_totalOutputTokens / withTokens.Count, 0);
+        }
+
+        var closed = events.Where(e => e.SessionEndedUtc.HasValue).ToList();
+        if (closed.Count > 0)
+        {
+            _hasResolutionData = true;
+            _aiResolvedSessions = closed.Count(e => e.IsResolved);
+            _aiUnresolvedSessions = closed.Count(e => !e.IsResolved);
+            _aiResolutionRatePercent = Math.Round((double)_aiResolvedSessions / closed.Count * 100, 1);
+        }
+
+        var withConversion = events.Where(e => e.ConversionScore.HasValue && e.ConversionMaxScore.HasValue && e.ConversionMaxScore.Value > 0).ToList();
+        if (withConversion.Count > 0)
+        {
+            _hasConversionData = true;
+            _sessionsWithConversionData = withConversion.Count;
+            _totalConversionScore = withConversion.Sum(e => e.ConversionScore!.Value);
+            _totalConversionMaxScore = withConversion.Sum(e => e.ConversionMaxScore!.Value);
+            _averageConversionScorePercent = Math.Round((double)_totalConversionScore / _totalConversionMaxScore * 100, 1);
+            _highPerformingSessions = withConversion.Count(e => (double)e.ConversionScore!.Value / e.ConversionMaxScore!.Value >= 0.7);
+            _lowPerformingSessions = withConversion.Count(e => (double)e.ConversionScore!.Value / e.ConversionMaxScore!.Value < 0.3);
+            _highPerformingPercent = Math.Round((double)_highPerformingSessions / withConversion.Count * 100, 1);
+            _lowPerformingPercent = Math.Round((double)_lowPerformingSessions / withConversion.Count * 100, 1);
+        }
+
+        _thumbsUpCount = events.Sum(e => e.ThumbsUpCount);
+        _thumbsDownCount = events.Sum(e => e.ThumbsDownCount);
+        _noFeedbackCount = events.Count(e => e.ThumbsUpCount == 0 && e.ThumbsDownCount == 0);
+        _totalRatings = _thumbsUpCount + _thumbsDownCount;
+        _hasFeedbackData = _totalRatings > 0;
+        if (_totalRatings > 0)
+        {
+            _thumbsUpPercent = Math.Round((double)_thumbsUpCount / _totalRatings * 100, 1);
+            _thumbsDownPercent = Math.Round((double)_thumbsDownCount / _totalRatings * 100, 1);
+        }
+        if (events.Count > 0)
+        {
+            var withFeedback = events.Count(e => e.ThumbsUpCount > 0 || e.ThumbsDownCount > 0);
+            _feedbackRatePercent = Math.Round((double)withFeedback / events.Count * 100, 1);
+        }
+
+        _sessionsByHour = Enumerable.Range(0, 24).ToDictionary(h => $"{h:00}:00", h => events.Count(e => e.SessionStartedUtc.Hour == h));
+        _sessionsByDayOfWeek = Enum.GetValues<DayOfWeek>().ToDictionary(d => d.ToString(), d => events.Count(e => e.SessionStartedUtc.DayOfWeek == d));
+        _sessionsByUserSegment = new Dictionary<string, int>
+        {
+            ["Authenticated"] = events.Count(e => e.IsAuthenticated),
+            ["Anonymous"] = events.Count(e => !e.IsAuthenticated),
+        };
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("SessionId,ProfileId,VisitorId,UserId,IsAuthenticated,SessionStartedUtc,SessionEndedUtc,MessageCount,HandleTimeSeconds,IsResolved,TotalInputTokens,TotalOutputTokens,AverageResponseLatencyMs,ThumbsUpCount,ThumbsDownCount,ConversionScore,ConversionMaxScore");
+        foreach (var evt in _events)
+        {
+            builder.Append(EscapeCsv(evt.SessionId)).Append(',')
+                .Append(EscapeCsv(evt.ProfileId)).Append(',')
+                .Append(EscapeCsv(evt.VisitorId)).Append(',')
+                .Append(EscapeCsv(evt.UserId)).Append(',')
+                .Append(evt.IsAuthenticated).Append(',')
+                .Append(evt.SessionStartedUtc.ToString("o")).Append(',')
+                .Append(evt.SessionEndedUtc?.ToString("o") ?? string.Empty).Append(',')
+                .Append(evt.MessageCount).Append(',')
+                .Append(evt.HandleTimeSeconds).Append(',')
+                .Append(evt.IsResolved).Append(',')
+                .Append(evt.TotalInputTokens).Append(',')
+                .Append(evt.TotalOutputTokens).Append(',')
+                .Append(evt.AverageResponseLatencyMs).Append(',')
+                .Append(evt.ThumbsUpCount).Append(',')
+                .Append(evt.ThumbsDownCount).Append(',')
+                .Append(evt.ConversionScore?.ToString() ?? string.Empty).Append(',')
+                .AppendLine(evt.ConversionMaxScore?.ToString() ?? string.Empty);
+        }
+
+        var fileName = $"chat-analytics-{TimeProvider.GetUtcNow():yyyyMMdd-HHmmss}.csv";
+        var bytes = Encoding.UTF8.GetBytes(builder.ToString());
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval", $"{{ const a = document.createElement('a'); a.href = 'data:text/csv;base64,{base64}'; a.download = '{fileName}'; a.click(); }}");
+    }
+
+    private static string EscapeCsv(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        return value;
+    }
+}

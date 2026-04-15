@@ -1,0 +1,1264 @@
+@page "/AI/Profiles/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.AI.Orchestration
+@using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.DataSources
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject IAIProfileManager ProfileManager
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject ICatalog<A2AConnection> A2AConnectionCatalog
+@inject ICatalog<McpConnection> McpConnectionCatalog
+@inject IAIDataSourceStore DataSourceStore
+@inject IOptions<AIToolDefinitionOptions> ToolOptions
+@inject IOptions<OrchestratorOptions> OrchestratorOptions
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit AI Profile</PageTitle>
+
+@if (NotFound)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> Profile not found.
+    </div>
+    <a href="/AI/Profiles" class="btn btn-secondary">Back to Profiles</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h2><i class="bi bi-pencil"></i> Edit AI Profile</h2>
+    <hr />
+
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditAIProfile">
+        <div class="row">
+            <div class="col-md-8">
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> @ErrorMessage
+                    </div>
+                }
+
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(ActiveTab == "basic" ? "active" : "")"
+                                @onclick='() => ActiveTab = "basic"'>Basic Info</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(ActiveTab == "params" ? "active" : "")"
+                                @onclick='() => ActiveTab = "params"'>AI Parameters</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(ActiveTab == "capabilities" ? "active" : "")"
+                                @onclick='() => ActiveTab = "capabilities"'>Capabilities</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(ActiveTab == "knowledge" ? "active" : "")"
+                                @onclick='() => ActiveTab = "knowledge"'>Knowledge</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(ActiveTab == "processing" ? "active" : "")"
+                                @onclick='() => ActiveTab = "processing"'>Data Processing &amp; Metrics</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(ActiveTab == "settings" ? "active" : "")"
+                                @onclick='() => ActiveTab = "settings"'>Settings</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-3 border border-top-0 rounded-bottom">
+
+                    @* amamamamamamam BASIC INFO TAB amamamamamamam *@
+                    <div class="@(ActiveTab == "basic" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <label for="displayText" class="form-label">Title <span class="text-danger">*</span></label>
+                            <InputText id="displayText" @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., My Chat Assistant" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Technical name</label>
+                            <input id="name" value="@Model.Name" class="form-control" readonly disabled />
+                            <div class="form-text">Technical name cannot be changed after creation.</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="type" class="form-label">Profile type</label>
+                                    <InputSelect id="type" @bind-Value="Model.Type" class="form-select">
+                                        @foreach (var profileType in Enum.GetValues<AIProfileType>())
+                                        {
+                                            <option value="@profileType">@profileType</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">Choose the type of the profile.</div>
+                                </div>
+                            </div>
+                            @if (Model.Type == AIProfileType.Chat)
+                            {
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="titleType" class="form-label">Title type</label>
+                                        <InputSelect id="titleType" @bind-Value="Model.TitleType" class="form-select">
+                                            <option value="">Default</option>
+                                            @foreach (var tt in Enum.GetValues<AISessionTitleType>())
+                                            {
+                                                <option value="@tt">@tt</option>
+                                            }
+                                        </InputSelect>
+                                        <div class="form-text">How the chat session title is determined.</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (Model.Type == AIProfileType.Agent)
+                        {
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <InputTextArea id="description" @bind-Value="Model.Description" class="form-control" rows="3"
+                                               placeholder="Describe what this agent does so the orchestrator can decide when to invoke it." />
+                                <div class="form-text">A description of what this agent does. Used by the orchestrator to determine when to route requests to this agent.</div>
+                            </div>
+                        }
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="chatDeployment" class="form-label">Chat deployment</label>
+                                    <InputSelect id="chatDeployment" @bind-Value="Model.ChatDeploymentName" class="form-select">
+                                        <option value="">Use default chat deployment</option>
+                                        @foreach (var d in ChatDeployments)
+                                        {
+                                            <option value="@d.Name">@BuildDeploymentLabel(d)</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">The chat model deployment to use.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="utilityDeployment" class="form-label">Utility deployment</label>
+                                    <InputSelect id="utilityDeployment" @bind-Value="Model.UtilityDeploymentName" class="form-select">
+                                        <option value="">Use default utility deployment</option>
+                                        @foreach (var d in UtilityDeployments)
+                                        {
+                                            <option value="@d.Name">@BuildDeploymentLabel(d)</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">Optional deployment for utility tasks (planning, summarization).</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="orchestrator" class="form-label">Orchestrator</label>
+                                    <InputSelect id="orchestrator" @bind-Value="Model.OrchestratorName" class="form-select">
+                                        <option value="">Use default orchestrator</option>
+                                        @foreach (var o in Orchestrators)
+                                        {
+                                            <option value="@o.Key">@(o.Value ?? o.Key)</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">The orchestrator that manages AI interactions.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (Model.Type == AIProfileType.Chat || Model.Type == AIProfileType.TemplatePrompt)
+                        {
+                            <div class="mb-3">
+                                <label for="promptSubject" class="form-label">Prompt subject</label>
+                                <InputText id="promptSubject" @bind-Value="Model.PromptSubject" class="form-control"
+                                           placeholder="Optional subject context for the prompt" />
+                                <div class="form-text">Provides context to the AI about the primary subject of the conversation.</div>
+                            </div>
+                        }
+
+                        @if (Model.Type == AIProfileType.Chat)
+                        {
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <InputCheckbox id="addInitialPrompt" @bind-Value="Model.AddInitialPrompt" class="form-check-input" />
+                                    <label for="addInitialPrompt" class="form-check-label">Add initial prompt</label>
+                                </div>
+                                <div class="form-text">When enabled, each new chat session starts with an assistant message from the initial prompt and the welcome message is ignored.</div>
+                            </div>
+
+                            @if (!Model.AddInitialPrompt)
+                            {
+                                <div class="mb-3">
+                                    <label for="welcomeMessage" class="form-label">Welcome message</label>
+                                    <InputTextArea id="welcomeMessage" @bind-Value="Model.WelcomeMessage" class="form-control" rows="3"
+                                                   placeholder="Message shown when a chat starts" />
+                                    <div class="form-text">The welcome message to show on the user-interface when a new session is created.</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="mb-3">
+                                    <label for="initialPrompt" class="form-label">Initial prompt</label>
+                                    <InputTextArea id="initialPrompt" @bind-Value="Model.InitialPrompt" class="form-control" rows="4"
+                                                   placeholder="The assistant message added as the first chat history entry" />
+                                    <div class="form-text">This assistant message is added as the first chat history entry when a new session is created.</div>
+                                </div>
+                            }
+                        }
+
+                        @if (Model.Type == AIProfileType.TemplatePrompt)
+                        {
+                            <div class="mb-3">
+                                <label for="promptTemplate" class="form-label">Prompt template</label>
+                                <InputTextArea id="promptTemplate" @bind-Value="Model.PromptTemplate" class="form-control" rows="5"
+                                               placeholder="Template for generating prompts" />
+                                <div class="form-text">
+                                    Liquid syntax is supported. Available variables: <code>@("{{ User.UserName }}")</code>, <code>@("{{ User.Email }}")</code>,
+                                    <code>@("{{ Session.Id }}")</code>, <code>@("{{ Profile.Name }}")</code>, and any custom parameters.
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @* amamamamamamam AI PARAMETERS TAB amamamamamamam *@
+                    <div class="@(ActiveTab == "params" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <label for="systemMessage" class="form-label">System message</label>
+                            <InputTextArea id="systemMessage" @bind-Value="Model.SystemMessage" class="form-control" rows="5"
+                                           placeholder="You are a helpful AI assistant..." />
+                            <div class="form-text">Instructions that guide the AI's behavior throughout the conversation.</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="temperature" class="form-label">Temperature</label>
+                                    <InputNumber id="temperature" @bind-Value="Model.Temperature" class="form-control"
+                                                 step="0.01" min="0" max="2" placeholder="0.0 - 2.0" />
+                                    <div class="form-text">Controls randomness. Lower = more focused, higher = more creative.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="topP" class="form-label">Top P</label>
+                                    <InputNumber id="topP" @bind-Value="Model.TopP" class="form-control"
+                                                 step="0.01" min="0" max="1" placeholder="0.0 - 1.0" />
+                                    <div class="form-text">Nucleus sampling. Controls diversity of responses.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="frequencyPenalty" class="form-label">Frequency penalty</label>
+                                    <InputNumber id="frequencyPenalty" @bind-Value="Model.FrequencyPenalty" class="form-control"
+                                                 step="0.01" min="-2" max="2" placeholder="-2.0 - 2.0" />
+                                    <div class="form-text">Penalizes repeated tokens. Higher = less repetition.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="presencePenalty" class="form-label">Presence penalty</label>
+                                    <InputNumber id="presencePenalty" @bind-Value="Model.PresencePenalty" class="form-control"
+                                                 step="0.01" min="-2" max="2" placeholder="-2.0 - 2.0" />
+                                    <div class="form-text">Penalizes tokens already present. Higher = more topic variety.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="maxTokens" class="form-label">Max output tokens</label>
+                                    <InputNumber id="maxTokens" @bind-Value="Model.MaxTokens" class="form-control"
+                                                 min="1" placeholder="Leave blank for model default" />
+                                    <div class="form-text">Maximum number of tokens in the response.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="pastMessages" class="form-label">Past messages count</label>
+                                    <InputNumber id="pastMessages" @bind-Value="Model.PastMessagesCount" class="form-control"
+                                                 min="0" placeholder="Leave blank for all" />
+                                    <div class="form-text">Number of previous messages to include in context.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="useCaching" @bind-Value="Model.UseCaching" class="form-check-input" />
+                                <label for="useCaching" class="form-check-label">Enable response caching</label>
+                            </div>
+                            <div class="form-text">Cache responses to improve performance for repeated queries.</div>
+                        </div>
+                    </div>
+
+                    @* amamamamamamam CAPABILITIES TAB amamamamamamam *@
+                    <div class="@(ActiveTab == "capabilities" ? "" : "d-none")">
+
+                        @* AI Agents Section *@
+                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                        @if (!AvailableAgents.Any())
+                        {
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> No agent profiles are available. Create an agent profile first.
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-3 small">Select the agent profiles this profile can delegate tasks to during conversations.</p>
+                            @foreach (var agent in AvailableAgents)
+                            {
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="agent_@agent.Name"
+                                           checked="@SelectedAgentNames.Contains(agent.Name)"
+                                           @onchange="e => ToggleSelection(SelectedAgentNames, agent.Name, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="agent_@agent.Name">
+                                        <strong>@(agent.DisplayText ?? agent.Name)</strong>
+                                        @if (!string.IsNullOrEmpty(agent.Description))
+                                        {
+                                            <br />
+                                            <small class="text-muted">@agent.Description</small>
+                                        }
+                                    </label>
+                                </div>
+                            }
+                        }
+
+                        @* A2A Connections Section *@
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> Agent to Agent Hosts</h6>
+                        @if (!AvailableA2AConnections.Any())
+                        {
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> No A2A host connections are configured. Add them under <strong>Agent to Agent Hosts</strong> first.
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-3 small">Select the remote A2A hosts this profile can use for agent orchestration.</p>
+                            @foreach (var connection in AvailableA2AConnections)
+                            {
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="a2a_@connection.ItemId"
+                                           checked="@SelectedA2AConnectionIds.Contains(connection.ItemId)"
+                                           @onchange="e => ToggleSelection(SelectedA2AConnectionIds, connection.ItemId, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="a2a_@connection.ItemId">
+                                        <strong>@connection.DisplayText</strong><br />
+                                        <small class="text-muted">@connection.Endpoint</small>
+                                    </label>
+                                </div>
+                            }
+                        }
+
+                        @* MCP Hosts Section *@
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                        @if (!AvailableMcpConnections.Any())
+                        {
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> No MCP hosts are configured. Add them under <strong>MCP Hosts</strong> first.
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-3 small">Select the MCP server connections this profile can use for external tools and resources.</p>
+                            @foreach (var connection in AvailableMcpConnections)
+                            {
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="mcp_@connection.ItemId"
+                                           checked="@SelectedMcpConnectionIds.Contains(connection.ItemId)"
+                                           @onchange="e => ToggleSelection(SelectedMcpConnectionIds, connection.ItemId, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="mcp_@connection.ItemId">
+                                        <strong>@connection.DisplayText</strong>
+                                        @if (!string.IsNullOrEmpty(connection.Source))
+                                        {
+                                            <br />
+                                            <small class="text-muted">@connection.Source</small>
+                                        }
+                                    </label>
+                                </div>
+                            }
+                        }
+
+                        @* AI Tools Section *@
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                        @if (!AvailableTools.Any())
+                        {
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle"></i> No selectable AI tools are registered.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <p class="text-muted mb-0 small">Select the tools this profile can use during conversations.</p>
+                                <div class="btn-group btn-group-sm ms-3" role="group">
+                                    <button type="button" class="btn btn-outline-primary" @onclick="SelectAllTools">
+                                        <i class="bi bi-check-all"></i> Select all
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllTools">
+                                        <i class="bi bi-x-lg"></i> Deselect all
+                                    </button>
+                                </div>
+                            </div>
+                            @foreach (var group in AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
+                            {
+                                <h6 class="text-secondary mt-3 mb-2"><i class="bi bi-folder"></i> @group.Key</h6>
+                                @foreach (var tool in group)
+                                {
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="tool_@tool.Name"
+                                               checked="@SelectedToolNames.Contains(tool.Name)"
+                                               @onchange="e => ToggleSelection(SelectedToolNames, tool.Name, (bool)e.Value!)" />
+                                        <label class="form-check-label" for="tool_@tool.Name">
+                                            <strong>@(tool.Title ?? tool.Name)</strong>
+                                            @if (!string.IsNullOrEmpty(tool.Description))
+                                            {
+                                                <br />
+                                                <small class="text-muted">@tool.Description</small>
+                                            }
+                                        </label>
+                                    </div>
+                                }
+                            }
+                        }
+                    </div>
+
+                    @* amamamamamamam KNOWLEDGE TAB amamamamamamam *@
+                    <div class="@(ActiveTab == "knowledge" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="enableUserMemory" @bind-Value="Model.EnableUserMemory" class="form-check-input" />
+                                <label for="enableUserMemory" class="form-check-label">Enable user memory</label>
+                            </div>
+                            <div class="form-text">Store and recall user conversation history for personalized responses.</div>
+                        </div>
+
+                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-database"></i> Data Source</h6>
+                        <div class="mb-3">
+                            <label for="dataSourceId" class="form-label">Data source</label>
+                            <InputSelect id="dataSourceId" @bind-Value="Model.DataSourceId" class="form-select">
+                                <option value="">No data source</option>
+                                @foreach (var ds in DataSources)
+                                {
+                                    <option value="@ds.ItemId">@ds.DisplayText</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">Select a data source to enable Retrieval-Augmented Generation (RAG) for this profile.</div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(Model.DataSourceId))
+                        {
+                            <div class="mb-3">
+                                <label for="dataSourceFilter" class="form-label">Filter</label>
+                                <InputText id="dataSourceFilter" @bind-Value="Model.DataSourceFilter" class="form-control"
+                                           placeholder="Optional provider-specific filter" />
+                                <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="dataSourceIsInScope" @bind-Value="Model.DataSourceIsInScope" class="form-check-input" />
+                                <label for="dataSourceIsInScope" class="form-check-label">Restrict answers to retrieved data only</label>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="documentTopN" class="form-label">Document Top N</label>
+                                    <InputNumber id="documentTopN" @bind-Value="Model.DocumentTopN" class="form-control"
+                                                 min="1" max="20" placeholder="Default: 3" />
+                                    <div class="form-text">Number of top matching document chunks to include as AI context.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="dataSourceStrictness" class="form-label">Strictness</label>
+                                    <InputNumber id="dataSourceStrictness" @bind-Value="Model.DataSourceStrictness" class="form-control"
+                                                 min="1" max="5" placeholder="Default provider setting" />
+                                    <div class="form-text">Controls how strictly the AI should follow retrieved data-source matches.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="dataSourceTopN" class="form-label">Retrieved documents</label>
+                                    <InputNumber id="dataSourceTopN" @bind-Value="Model.DataSourceTopNDocuments" class="form-control"
+                                                 min="1" max="20" placeholder="Default provider setting" />
+                                    <div class="form-text">How many data-source documents to retrieve for RAG.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="allowSessionDocs" @bind-Value="Model.AllowSessionDocuments" class="form-check-input" />
+                                <label for="allowSessionDocs" class="form-check-label">Allow session document uploads</label>
+                            </div>
+                            <div class="form-text">Allow users to upload documents during chat sessions with this profile.</div>
+                        </div>
+                    </div>
+
+                    @* amamamamamamam DATA PROCESSING & METRICS TAB amamamamamamam *@
+                    <div class="@(ActiveTab == "processing" ? "" : "d-none")">
+                        <p class="text-muted mb-3">Configure automatic data extraction from conversations.</p>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="enableDataExtraction" @bind-Value="Model.EnableDataExtraction" class="form-check-input" />
+                                <label for="enableDataExtraction" class="form-check-label">Enable data extraction</label>
+                            </div>
+                            <div class="form-text">Run AI-powered extraction on conversation messages to populate structured fields.</div>
+                        </div>
+
+                        @if (Model.EnableDataExtraction)
+                        {
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="extractionInterval" class="form-label">Extraction check interval</label>
+                                        <InputNumber id="extractionInterval" @bind-Value="Model.ExtractionCheckInterval" class="form-control"
+                                                     min="1" max="20" />
+                                        <div class="form-text">How often extraction runs (1 = every message, 2 = every other message, etc.).</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="inactivityTimeout" class="form-label">Session inactivity timeout (minutes)</label>
+                                        <InputNumber id="inactivityTimeout" @bind-Value="Model.SessionInactivityTimeoutInMinutes" class="form-control"
+                                                     min="1" />
+                                        <div class="form-text">Sessions inactive longer than this will be automatically closed.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h6 class="mb-2 mt-2 border-bottom pb-2"><i class="bi bi-list-check"></i> Extraction Entries</h6>
+                            @for (var i = 0; i < Model.DataExtractionEntries.Count; i++)
+                            {
+                                var index = i;
+                                var entry = Model.DataExtractionEntries[index];
+                                <div class="card mb-2">
+                                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                        <span class="fw-semibold">@(string.IsNullOrWhiteSpace(entry.Name) ? "New Entry" : entry.Name)</span>
+                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => Model.DataExtractionEntries.RemoveAt(index)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Name</label>
+                                            <InputText @bind-Value="entry.Name" class="form-control" placeholder="e.g., customer_name" />
+                                            <span class="form-text">A unique identifier. Only alphanumeric characters and underscores.</span>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Description</label>
+                                            <InputTextArea @bind-Value="entry.Description" class="form-control" rows="3"
+                                                           placeholder="What to extract" />
+                                            <span class="form-text">Describes what data to extract. The AI uses this to understand what to look for.</span>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <InputCheckbox @bind-Value="entry.AllowMultipleValues" class="form-check-input" />
+                                            <label class="form-check-label">Allow multiple values</label>
+                                            <span class="form-text d-block">When enabled, the field accumulates multiple values across messages.</span>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <InputCheckbox @bind-Value="entry.IsUpdatable" class="form-check-input" />
+                                            <label class="form-check-label">Updatable</label>
+                                            <span class="form-text d-block">When enabled, the value can be replaced if updated information is provided.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            <button type="button" class="btn btn-sm btn-success" @onclick="AddExtractionEntry">
+                                <i class="bi bi-plus"></i> Add Entry
+                            </button>
+                        }
+
+                        <hr class="my-4" />
+                        <p class="text-muted mb-3">Configure session metrics and post-session processing for conversations using this profile.</p>
+
+                        <h6 class="mb-2"><i class="bi bi-graph-up"></i> Session Metrics</h6>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="enableSessionMetrics" @bind-Value="Model.EnableSessionMetrics" class="form-check-input" />
+                                <label for="enableSessionMetrics" class="form-check-label">Enable session metrics</label>
+                            </div>
+                            <div class="form-text">Capture usage, latency, and feedback metrics for analytics.</div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="enableResolution" @bind-Value="Model.EnableAIResolutionDetection" class="form-check-input" />
+                                <label for="enableResolution" class="form-check-label">Enable AI resolution detection</label>
+                            </div>
+                            <div class="form-text">When enabled, the AI will determine whether the user's issue was resolved during the session.</div>
+                        </div>
+
+                        <h6 class="mb-2"><i class="bi bi-clipboard-check"></i> Post-session Processing</h6>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="enablePostSession" @bind-Value="Model.EnablePostSessionProcessing" class="form-check-input" />
+                                <label for="enablePostSession" class="form-check-label">Enable post-session processing</label>
+                            </div>
+                            <div class="form-text">Run AI-powered analysis on the complete conversation after a session closes.</div>
+                        </div>
+
+                        @if (Model.EnablePostSessionProcessing)
+                        {
+                            @for (var i = 0; i < Model.PostSessionTasks.Count; i++)
+                            {
+                                var index = i;
+                                var task = Model.PostSessionTasks[index];
+                                <div class="card mb-2">
+                                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                        <span class="fw-semibold">@(string.IsNullOrWhiteSpace(task.Name) ? "New Task" : task.Name)</span>
+                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => Model.PostSessionTasks.RemoveAt(index)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Name</label>
+                                            <InputText @bind-Value="task.Name" class="form-control" placeholder="e.g., session_summary" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Type</label>
+                                            <InputSelect @bind-Value="task.Type" class="form-select">
+                                                @foreach (var taskType in Enum.GetValues<PostSessionTaskType>())
+                                                {
+                                                    <option value="@taskType">@taskType</option>
+                                                }
+                                            </InputSelect>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Instructions</label>
+                                            <InputTextArea @bind-Value="task.Instructions" class="form-control" rows="3"
+                                                           placeholder="Instructions for the AI" />
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <InputCheckbox @bind-Value="task.AllowMultipleValues" class="form-check-input" />
+                                            <label class="form-check-label">Allow multiple values</label>
+                                        </div>
+                                        @if (task.Type == PostSessionTaskType.PredefinedOptions)
+                                        {
+                                            <div class="mb-3">
+                                                <label class="form-label">Options (one per line)</label>
+                                                <InputTextArea @bind-Value="task.Options" class="form-control" rows="4"
+                                                               placeholder="Option 1&#10;Option 2&#10;Option 3" />
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddPostSessionTask">
+                                <i class="bi bi-plus-circle"></i> Add Task
+                            </button>
+                        }
+
+                        <h6 class="mb-2 mt-4"><i class="bi bi-bullseye"></i> Conversion Goals</h6>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="enableConversion" @bind-Value="Model.EnableConversionMetrics" class="form-check-input" />
+                                <label for="enableConversion" class="form-check-label">Enable conversion metrics</label>
+                            </div>
+                            <div class="form-text">Evaluate each session against defined goals and assign scores to measure session success.</div>
+                        </div>
+
+                        @if (Model.EnableConversionMetrics)
+                        {
+                            @for (var i = 0; i < Model.ConversionGoals.Count; i++)
+                            {
+                                var index = i;
+                                var goal = Model.ConversionGoals[index];
+                                <div class="card mb-2">
+                                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                        <span class="fw-semibold">@(string.IsNullOrWhiteSpace(goal.Name) ? "New Goal" : goal.Name)</span>
+                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => Model.ConversionGoals.RemoveAt(index)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Name</label>
+                                            <InputText @bind-Value="goal.Name" class="form-control" placeholder="e.g., booking_completed" />
+                                            <span class="form-text">A unique identifier. Only alphanumeric characters and underscores.</span>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Description</label>
+                                            <InputTextArea @bind-Value="goal.Description" class="form-control" rows="3"
+                                                           placeholder="Describe what constitutes success for this goal" />
+                                            <span class="form-text">Provided to the AI model as evaluation criteria.</span>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Min score</label>
+                                                    <InputNumber @bind-Value="goal.MinScore" class="form-control" min="0" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Max score</label>
+                                                    <InputNumber @bind-Value="goal.MaxScore" class="form-control" min="1" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            <button type="button" class="btn btn-sm btn-success" @onclick="AddConversionGoal">
+                                <i class="bi bi-plus"></i> Add Goal
+                            </button>
+                        }
+                    </div>
+
+                    @* amamamamamamam SETTINGS TAB amamamamamamam *@
+                    <div class="@(ActiveTab == "settings" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="isListable" @bind-Value="Model.IsListable" class="form-check-input" />
+                                <label for="isListable" class="form-check-label">Listable</label>
+                            </div>
+                            <div class="form-text">Show this profile in the chat UI for users to select.</div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="isRemovable" @bind-Value="Model.IsRemovable" class="form-check-input" />
+                                <label for="isRemovable" class="form-check-label">Removable</label>
+                            </div>
+                            <div class="form-text">Allow this profile to be deleted.</div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="lockSystemMessage" @bind-Value="Model.LockSystemMessage" class="form-check-input" />
+                                <label for="lockSystemMessage" class="form-check-label">Lock system message</label>
+                            </div>
+                            <div class="form-text">Prevent modification of the system message after creation.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                        @if (IsSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                    <a href="/AI/Profiles" class="btn btn-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private ProfileFormModel? Model;
+    private string ActiveTab { get; set; } = "basic";
+    private string? ErrorMessage;
+    private bool IsSubmitting;
+    private bool NotFound;
+    private string? ExistingItemId;
+
+    // Dropdown data
+    private List<AIDeployment> ChatDeployments = [];
+    private List<AIDeployment> UtilityDeployments = [];
+    private Dictionary<string, string> Orchestrators = [];
+    private List<ToolInfo> AvailableTools = [];
+    private List<AIProfile> AvailableAgents = [];
+    private List<A2AConnection> AvailableA2AConnections = [];
+    private List<McpConnection> AvailableMcpConnections = [];
+    private List<AIDataSource> DataSources = [];
+
+    // Multi-select collections
+    private HashSet<string> SelectedToolNames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> SelectedAgentNames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> SelectedA2AConnectionIds = new(StringComparer.Ordinal);
+    private HashSet<string> SelectedMcpConnectionIds = new(StringComparer.Ordinal);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await ProfileManager.FindByIdAsync(Id);
+        if (profile is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        ExistingItemId = profile.ItemId;
+
+        // Load dropdown data
+        var allDeployments = await DeploymentCatalog.GetAllAsync();
+        ChatDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Chat)).ToList();
+        UtilityDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Utility) || d.Type.Supports(AIDeploymentType.Chat)).ToList();
+
+        var orchestratorDescriptors = OrchestratorOptions.Value.GetOrchestratorDescriptors();
+        Orchestrators = orchestratorDescriptors.ToDictionary(o => o.Key, o => o.Value.Title ?? o.Key);
+
+        var toolOptions = ToolOptions.Value;
+        AvailableTools = toolOptions.Tools
+            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Select(kvp => new ToolInfo { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous" })
+            .OrderBy(t => t.Category).ThenBy(t => t.Title)
+            .ToList();
+
+        var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
+        AvailableAgents = allAgents.Where(a => !string.IsNullOrEmpty(a.Description)).OrderBy(a => a.DisplayText ?? a.Name).ToList();
+
+        var a2aConnections = await A2AConnectionCatalog.GetAllAsync();
+        AvailableA2AConnections = a2aConnections.OrderBy(c => c.DisplayText).ToList();
+
+        var mcpConnections = await McpConnectionCatalog.GetAllAsync();
+        AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText).ToList();
+
+        var allDataSources = await DataSourceStore.GetAllAsync();
+        DataSources = allDataSources.OrderBy(ds => ds.DisplayText).ToList();
+
+        // Populate form model from existing profile
+        var settings = profile.GetSettings<AIProfileSettings>();
+        var dataExtractionSettings = profile.GetSettings<AIProfileDataExtractionSettings>();
+        var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
+        var memoryMetadata = profile.GetMemoryMetadata();
+
+        Model = new ProfileFormModel
+        {
+            Name = profile.Name,
+            DisplayText = profile.DisplayText,
+            Type = profile.Type,
+            TitleType = profile.TitleType,
+            Description = profile.Description,
+            ChatDeploymentName = profile.ChatDeploymentName,
+            UtilityDeploymentName = profile.UtilityDeploymentName,
+            OrchestratorName = profile.OrchestratorName,
+            PromptSubject = profile.PromptSubject,
+            PromptTemplate = profile.PromptTemplate,
+            WelcomeMessage = profile.WelcomeMessage,
+            LockSystemMessage = settings.LockSystemMessage,
+            IsListable = settings.IsListable,
+            IsRemovable = settings.IsRemovable,
+            EnableDataExtraction = dataExtractionSettings.EnableDataExtraction,
+            ExtractionCheckInterval = dataExtractionSettings.ExtractionCheckInterval,
+            SessionInactivityTimeoutInMinutes = dataExtractionSettings.SessionInactivityTimeoutInMinutes,
+            DataExtractionEntries = dataExtractionSettings.DataExtractionEntries
+                .Select(e => new DataExtractionEntryModel
+                {
+                    Name = e.Name,
+                    Description = e.Description,
+                    AllowMultipleValues = e.AllowMultipleValues,
+                    IsUpdatable = e.IsUpdatable,
+                }).ToList(),
+            EnablePostSessionProcessing = postSessionSettings.EnablePostSessionProcessing,
+            PostSessionTasks = postSessionSettings.PostSessionTasks
+                .Select(t => new PostSessionTaskModel
+                {
+                    Name = t.Name,
+                    Type = t.Type,
+                    Instructions = t.Instructions,
+                    AllowMultipleValues = t.AllowMultipleValues,
+                    Options = string.Join(Environment.NewLine, t.Options.Select(o => o.Value)),
+                }).ToList(),
+            EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
+        };
+
+        // AI Parameters
+        if (profile.TryGet<AIProfileMetadata>(out var metadata))
+        {
+            Model.AddInitialPrompt = !string.IsNullOrEmpty(metadata.InitialPrompt);
+            Model.InitialPrompt = metadata.InitialPrompt;
+            Model.SystemMessage = metadata.SystemMessage;
+            Model.Temperature = metadata.Temperature;
+            Model.TopP = metadata.TopP;
+            Model.FrequencyPenalty = metadata.FrequencyPenalty;
+            Model.PresencePenalty = metadata.PresencePenalty;
+            Model.MaxTokens = metadata.MaxTokens;
+            Model.PastMessagesCount = metadata.PastMessagesCount;
+            Model.UseCaching = metadata.UseCaching;
+        }
+
+        // Tool selections
+        if (profile.TryGet<FunctionInvocationMetadata>(out var toolMetadata) && toolMetadata.Names != null)
+        {
+            foreach (var name in toolMetadata.Names) SelectedToolNames.Add(name);
+        }
+
+        // Agent selections
+        if (profile.TryGet<AgentInvocationMetadata>(out var agentMetadata) && agentMetadata.Names != null)
+        {
+            foreach (var name in agentMetadata.Names) SelectedAgentNames.Add(name);
+        }
+
+        // A2A
+        if (profile.TryGet<AIProfileA2AMetadata>(out var a2aMeta) && a2aMeta.ConnectionIds != null)
+        {
+            foreach (var id in a2aMeta.ConnectionIds) SelectedA2AConnectionIds.Add(id);
+        }
+
+        // MCP
+        if (profile.TryGet<AIProfileMcpMetadata>(out var mcpMeta) && mcpMeta.ConnectionIds != null)
+        {
+            foreach (var id in mcpMeta.ConnectionIds) SelectedMcpConnectionIds.Add(id);
+        }
+
+        // Data source
+        if (profile.TryGet<DataSourceMetadata>(out var dsMetadata))
+        {
+            Model.DataSourceId = dsMetadata.DataSourceId;
+        }
+
+        if (profile.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
+        {
+            Model.DataSourceStrictness = ragMetadata.Strictness;
+            Model.DataSourceTopNDocuments = ragMetadata.TopNDocuments;
+            Model.DataSourceIsInScope = ragMetadata.IsInScope;
+            Model.DataSourceFilter = ragMetadata.Filter;
+        }
+
+        if (profile.TryGet<DocumentsMetadata>(out var docMetadata))
+        {
+            Model.DocumentTopN = docMetadata.DocumentTopN;
+        }
+
+        if (profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata))
+        {
+            Model.AllowSessionDocuments = sessionDocMetadata.AllowSessionDocuments;
+        }
+
+        if (profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata))
+        {
+            Model.EnableSessionMetrics = analyticsMetadata.EnableSessionMetrics;
+            Model.EnableAIResolutionDetection = analyticsMetadata.EnableAIResolutionDetection;
+            Model.EnableConversionMetrics = analyticsMetadata.EnableConversionMetrics;
+            Model.ConversionGoals = analyticsMetadata.ConversionGoals
+                .Select(g => new ConversionGoalModel
+                {
+                    Name = g.Name,
+                    Description = g.Description,
+                    MinScore = g.MinScore,
+                    MaxScore = g.MaxScore,
+                }).ToList();
+        }
+    }
+
+    private static string BuildDeploymentLabel(AIDeployment d)
+    {
+        return string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? d.Name
+            : $"{d.Name} ({d.ModelName})";
+    }
+
+    private void ToggleSelection(HashSet<string> set, string value, bool isChecked)
+    {
+        if (isChecked) set.Add(value);
+        else set.Remove(value);
+    }
+
+    private void SelectAllTools()
+    {
+        foreach (var tool in AvailableTools) SelectedToolNames.Add(tool.Name);
+    }
+
+    private void DeselectAllTools() => SelectedToolNames.Clear();
+
+    private void AddExtractionEntry()
+    {
+        Model!.DataExtractionEntries.Add(new DataExtractionEntryModel());
+    }
+
+    private void AddPostSessionTask()
+    {
+        Model!.PostSessionTasks.Add(new PostSessionTaskModel());
+    }
+
+    private void AddConversionGoal()
+    {
+        Model!.ConversionGoals.Add(new ConversionGoalModel { MaxScore = 10 });
+    }
+
+    private async Task HandleSubmit()
+    {
+        ErrorMessage = null;
+
+        if (Model is null || string.IsNullOrEmpty(ExistingItemId))
+        {
+            ErrorMessage = "Profile data is missing.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Model.DisplayText))
+        {
+            ErrorMessage = "Title is required.";
+            ActiveTab = "basic";
+            return;
+        }
+
+        IsSubmitting = true;
+
+        try
+        {
+            var existing = await ProfileManager.FindByIdAsync(ExistingItemId);
+            if (existing is null)
+            {
+                ErrorMessage = "Profile no longer exists.";
+                return;
+            }
+
+            ApplyModelToProfile(existing);
+
+            await ProfileManager.UpdateAsync(existing);
+            NavigationManager.NavigateTo("/AI/Profiles?success=Profile updated successfully.");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to update profile: {ex.Message}";
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private void ApplyModelToProfile(AIProfile profile)
+    {
+        // Name is readonly for edit — do not change it
+        profile.DisplayText = Model!.DisplayText?.Trim();
+        profile.Type = Model.Type;
+        profile.ChatDeploymentName = Model.ChatDeploymentName;
+        profile.UtilityDeploymentName = Model.UtilityDeploymentName;
+        profile.OrchestratorName = Model.OrchestratorName;
+        profile.PromptTemplate = Model.PromptTemplate;
+        profile.PromptSubject = Model.PromptSubject;
+        profile.Description = Model.Description;
+        profile.TitleType = Model.TitleType;
+        profile.WelcomeMessage = Model.AddInitialPrompt ? null : Model.WelcomeMessage;
+
+        profile.Alter<AIProfileMetadata>(m =>
+        {
+            m.SystemMessage = Model.SystemMessage;
+            m.InitialPrompt = Model.AddInitialPrompt ? Model.InitialPrompt?.Trim() : null;
+            m.Temperature = Model.Temperature;
+            m.TopP = Model.TopP;
+            m.FrequencyPenalty = Model.FrequencyPenalty;
+            m.PresencePenalty = Model.PresencePenalty;
+            m.MaxTokens = Model.MaxTokens;
+            m.PastMessagesCount = Model.PastMessagesCount;
+            m.UseCaching = Model.UseCaching;
+        });
+
+        profile.AlterSettings<AIProfileSettings>(s =>
+        {
+            s.LockSystemMessage = Model.LockSystemMessage;
+            s.IsListable = Model.IsListable;
+            s.IsRemovable = Model.IsRemovable;
+        });
+
+        var toolNames = SelectedToolNames.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
+        profile.Alter<FunctionInvocationMetadata>(x =>
+        {
+            x.Names = toolNames.Length > 0 ? toolNames : null;
+        });
+
+        profile.Alter<AgentInvocationMetadata>(a =>
+        {
+            var agentNames = SelectedAgentNames.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
+            a.Names = agentNames.Length > 0 ? agentNames : [];
+        });
+
+        profile.Alter<AIProfileA2AMetadata>(a =>
+        {
+            a.ConnectionIds = SelectedA2AConnectionIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        });
+
+        profile.Alter<AIProfileMcpMetadata>(x =>
+        {
+            x.ConnectionIds = SelectedMcpConnectionIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        });
+
+        profile.Alter<DataSourceMetadata>(c =>
+        {
+            c.DataSourceId = Model.DataSourceId;
+        });
+
+        profile.Alter<AIDataSourceRagMetadata>(x =>
+        {
+            x.Strictness = Model.DataSourceStrictness;
+            x.TopNDocuments = Model.DataSourceTopNDocuments;
+            x.IsInScope = Model.DataSourceIsInScope;
+            x.Filter = Model.DataSourceFilter;
+        });
+
+        profile.Alter<DocumentsMetadata>(m =>
+        {
+            m.DocumentTopN = Model.DocumentTopN;
+        });
+
+        profile.Alter<AIProfileSessionDocumentsMetadata>(m =>
+        {
+            m.AllowSessionDocuments = Model.AllowSessionDocuments;
+        });
+
+        profile.AlterSettings<AIProfileDataExtractionSettings>(s =>
+        {
+            s.EnableDataExtraction = Model.EnableDataExtraction;
+            s.ExtractionCheckInterval = Model.ExtractionCheckInterval;
+            s.SessionInactivityTimeoutInMinutes = Model.SessionInactivityTimeoutInMinutes;
+            s.DataExtractionEntries = Model.DataExtractionEntries
+                .Where(e => !string.IsNullOrWhiteSpace(e.Name))
+                .Select(e => new DataExtractionEntry
+                {
+                    Name = e.Name,
+                    Description = e.Description,
+                    AllowMultipleValues = e.AllowMultipleValues,
+                    IsUpdatable = e.IsUpdatable,
+                })
+                .ToList();
+        });
+
+        profile.Alter<AnalyticsMetadata>(m =>
+        {
+            m.EnableSessionMetrics = Model.EnableSessionMetrics;
+            m.EnableAIResolutionDetection = Model.EnableAIResolutionDetection;
+            m.EnableConversionMetrics = Model.EnableConversionMetrics;
+            m.ConversionGoals = Model.ConversionGoals
+                .Where(g => !string.IsNullOrWhiteSpace(g.Name))
+                .Select(g => new ConversionGoal
+                {
+                    Name = g.Name,
+                    Description = g.Description,
+                    MinScore = g.MinScore,
+                    MaxScore = g.MaxScore > 0 ? g.MaxScore : 10,
+                })
+                .ToList();
+        });
+
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = Model.EnablePostSessionProcessing;
+            s.PostSessionTasks = Model.PostSessionTasks
+                .Where(t => !string.IsNullOrWhiteSpace(t.Name))
+                .Select(t => new PostSessionTask
+                {
+                    Name = t.Name,
+                    Type = t.Type,
+                    Instructions = t.Instructions,
+                    AllowMultipleValues = t.AllowMultipleValues,
+                    Options = (t.Options ?? "")
+                        .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(o => new PostSessionTaskOption { Value = o.Trim() })
+                        .ToList(),
+                })
+                .ToList();
+        });
+
+        profile.AlterMemoryMetadata(m =>
+        {
+            m.EnableUserMemory = Model.EnableUserMemory;
+        });
+    }
+
+    // --- Form Model Classes ---
+
+    private sealed class ProfileFormModel
+    {
+        // Basic Info
+        public string? Name { get; set; }
+        public string? DisplayText { get; set; }
+        public AIProfileType Type { get; set; } = AIProfileType.Chat;
+        public AISessionTitleType? TitleType { get; set; }
+        public string? Description { get; set; }
+        public string? ChatDeploymentName { get; set; }
+        public string? UtilityDeploymentName { get; set; }
+        public string? OrchestratorName { get; set; }
+        public string? PromptSubject { get; set; }
+        public string? PromptTemplate { get; set; }
+        public string? WelcomeMessage { get; set; }
+        public bool AddInitialPrompt { get; set; }
+        public string? InitialPrompt { get; set; }
+
+        // AI Parameters
+        public string? SystemMessage { get; set; }
+        public float? Temperature { get; set; }
+        public float? TopP { get; set; }
+        public float? FrequencyPenalty { get; set; }
+        public float? PresencePenalty { get; set; }
+        public int? MaxTokens { get; set; }
+        public int? PastMessagesCount { get; set; }
+        public bool UseCaching { get; set; } = true;
+
+        // Knowledge
+        public bool EnableUserMemory { get; set; }
+        public string? DataSourceId { get; set; }
+        public int? DataSourceStrictness { get; set; }
+        public int? DataSourceTopNDocuments { get; set; }
+        public bool DataSourceIsInScope { get; set; }
+        public string? DataSourceFilter { get; set; }
+        public int? DocumentTopN { get; set; }
+        public bool AllowSessionDocuments { get; set; }
+
+        // Data Extraction
+        public bool EnableDataExtraction { get; set; }
+        public int ExtractionCheckInterval { get; set; } = 1;
+        public int SessionInactivityTimeoutInMinutes { get; set; } = 30;
+        public List<DataExtractionEntryModel> DataExtractionEntries { get; set; } = [];
+
+        // Session Metrics
+        public bool EnableSessionMetrics { get; set; }
+        public bool EnableAIResolutionDetection { get; set; } = true;
+        public bool EnableConversionMetrics { get; set; }
+        public List<ConversionGoalModel> ConversionGoals { get; set; } = [];
+
+        // Post Session Processing
+        public bool EnablePostSessionProcessing { get; set; }
+        public List<PostSessionTaskModel> PostSessionTasks { get; set; } = [];
+
+        // Settings
+        public bool LockSystemMessage { get; set; }
+        public bool IsListable { get; set; } = true;
+        public bool IsRemovable { get; set; } = true;
+    }
+
+    private sealed class DataExtractionEntryModel
+    {
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public bool AllowMultipleValues { get; set; }
+        public bool IsUpdatable { get; set; }
+    }
+
+    private sealed class ConversionGoalModel
+    {
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public int MinScore { get; set; }
+        public int MaxScore { get; set; } = 10;
+    }
+
+    private sealed class PostSessionTaskModel
+    {
+        public string? Name { get; set; }
+        public PostSessionTaskType Type { get; set; }
+        public string? Instructions { get; set; }
+        public bool AllowMultipleValues { get; set; }
+        public string? Options { get; set; }
+    }
+
+    private sealed class ToolInfo
+    {
+        public string Name { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public string Category { get; set; } = "Miscellaneous";
+    }
+}

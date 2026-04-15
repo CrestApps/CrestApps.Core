@@ -1,0 +1,123 @@
+@page "/Admin/Articles/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.Blazor.Web.Areas.Admin.Models
+@using CrestApps.Core.Blazor.Web.Services
+@inject ArticleService ArticleService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Article</PageTitle>
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Article not found.
+    </div>
+    <a href="/Admin/Articles" class="btn btn-outline-secondary">Back to Articles</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h2><i class="bi bi-journal-text"></i> Edit Article</h2>
+    <hr />
+
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditArticle">
+        <DataAnnotationsValidator />
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Article Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title</label>
+                            <InputText id="title" @bind-Value="Model.Title" class="form-control" />
+                            <ValidationMessage For="() => Model.Title" />
+                            @if (!string.IsNullOrEmpty(TitleError))
+                            {
+                                <div class="text-danger">@TitleError</div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <InputTextArea id="description" @bind-Value="Model.Description" class="form-control" rows="15" />
+                            <div class="form-text">
+                                Supports <a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noopener noreferrer">Markdown</a> formatting.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                    <a href="/Admin/Articles" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private ArticleFormModel? Model;
+    private bool NotFound;
+    private string? TitleError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var article = await ArticleService.FindByIdAsync(Id);
+
+        if (article is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        Model = new ArticleFormModel
+        {
+            Title = article.Title,
+            Description = article.Description,
+        };
+    }
+
+    private async Task HandleSubmit()
+    {
+        TitleError = null;
+
+        if (string.IsNullOrWhiteSpace(Model!.Title))
+        {
+            TitleError = "Title is required.";
+            return;
+        }
+
+        var article = await ArticleService.FindByIdAsync(Id);
+
+        if (article is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        article.Title = Model.Title.Trim();
+        article.Description = Model.Description?.Trim();
+
+        await ArticleService.UpdateAsync(article);
+
+        NavigationManager.NavigateTo("/Admin/Articles?success=Article updated successfully.");
+    }
+
+    private sealed class ArticleFormModel
+    {
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+    }
+}
