@@ -7,10 +7,13 @@
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Copilot.Models
 @using CrestApps.Core.AI.Mcp.Models
 @using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Chat.Handlers
 @using CrestApps.Core.Services
 @using CrestApps.Core.Blazor.Web.Services
+@using CrestApps.Core.Templates.Services
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.Extensions.Options
 @using System.Text.Json
@@ -23,6 +26,7 @@
 @inject IAIProfileManager ProfileManager
 @inject IOptions<OrchestratorOptions> OrchestratorOptions
 @inject IOptions<AIToolDefinitionOptions> ToolOptions
+@inject ITemplateService TemplateService
 @inject NavigationManager NavigationManager
 @inject SiteSettingsStore SiteSettingsStore
 
@@ -123,6 +127,81 @@ else
                             </select>
                         </div>
 
+                        @if (AvailablePromptTemplates.Any())
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Prompt templates</label>
+                                <div class="input-group input-group-sm mb-2">
+                                    <select class="form-select" @bind="PendingPromptTemplateId">
+                                        <option value="">Add prompt template...</option>
+                                        @foreach (var template in AvailablePromptTemplates)
+                                        {
+                                            <option value="@template.TemplateId">@template.Title</option>
+                                        }
+                                    </select>
+                                    <button type="button" class="btn btn-outline-primary" @onclick="AddPromptTemplateAsync" disabled="@string.IsNullOrWhiteSpace(PendingPromptTemplateId)">
+                                        <i class="bi bi-plus-lg"></i> Add
+                                    </button>
+                                </div>
+
+                                @if (!SelectedPromptTemplates.Any())
+                                {
+                                    <div class="text-muted small">No prompt templates selected.</div>
+                                }
+                                else
+                                {
+                                    @for (var index = 0; index < SelectedPromptTemplates.Count; index++)
+                                    {
+                                        var selection = SelectedPromptTemplates[index];
+                                        var option = GetPromptTemplateOption(selection.TemplateId);
+                                        <div class="card mb-2">
+                                            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                                <div>
+                                                    <div class="fw-semibold">@(option?.Title ?? selection.TemplateId)</div>
+                                                    @if (!string.IsNullOrWhiteSpace(option?.Description))
+                                                    {
+                                                        <div class="text-muted small">@option.Description</div>
+                                                    }
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemovePromptTemplateAsync(index)" title="Remove">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                            <div class="card-body">
+                                                <label class="form-label">Template parameters</label>
+                                                <textarea class="form-control" rows="3"
+                                                          placeholder='e.g., {"key1": "value1", "key2": "value2"}'
+                                                          @oninput="e => UpdatePromptParameters(index, e.Value?.ToString())">@selection.PromptParameters</textarea>
+                                                <div class="form-text">Optional JSON key-value pairs to pass as template arguments.</div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+
+                        @if (string.Equals(SettingsOrchestratorName, "copilot", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0"><i class="bi bi-github me-1"></i> Copilot Configuration</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <label class="form-label">Model override</label>
+                                        <input type="text" class="form-control" @bind="SettingsCopilotModel" @bind:after="DebounceSaveSettings" placeholder="Leave empty to use the default model from settings" />
+                                        <div class="form-text">Optionally override the configured Copilot model for this chat interaction.</div>
+                                    </div>
+
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" @bind="SettingsCopilotIsAllowAll" @bind:after="DebounceSaveSettings" />
+                                        <label class="form-check-label">Allow all tool executions</label>
+                                    </div>
+                                    <div class="form-text">When checked, the Copilot CLI runs with the --allow-all flag.</div>
+                                </div>
+                            </div>
+                        }
+
                         <div class="mb-2">
                             <label class="form-label">System message</label>
                             <textarea class="form-control" rows="3" @bind="SettingsSystemMessage" @bind:after="DebounceSaveSettings" placeholder="You are a helpful assistant..."></textarea>
@@ -183,6 +262,12 @@ else
                         <div class="mb-2">
                             <label class="form-label">Retrieved documents</label>
                             <input type="number" class="form-control" @bind="SettingsTopNDocuments" @bind:after="DebounceSaveSettings" min="1" max="20" placeholder="Default provider setting" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Filter</label>
+                            <input type="text" class="form-control" @bind="SettingsDataSourceFilter" @bind:after="DebounceSaveSettings" placeholder="Optional provider-specific filter" />
+                            <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
                         </div>
                     </div>
 
@@ -379,6 +464,9 @@ else
     private int? SettingsStrictness;
     private int? SettingsTopNDocuments;
     private bool SettingsIsInScope;
+    private string? SettingsDataSourceFilter;
+    private string? SettingsCopilotModel;
+    private bool SettingsCopilotIsAllowAll = true;
 
     private string? SaveIndicator;
     private string SaveIndicatorClass = "text-muted";
@@ -391,6 +479,9 @@ else
     private List<(string name, string title, string description, string category)> Tools = [];
     private List<A2AConnection> A2AConnections = [];
     private List<McpConnection> McpConnections = [];
+    private List<PromptTemplateOption> AvailablePromptTemplates = [];
+    private List<PromptTemplateSelection> SelectedPromptTemplates = [];
+    private string? PendingPromptTemplateId;
     private HashSet<string> SelectedAgentNames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> SelectedToolNames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> SelectedA2AConnectionIds = new(StringComparer.Ordinal);
@@ -473,6 +564,31 @@ else
         SelectedToolNames = new HashSet<string>(interaction.ToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         SelectedA2AConnectionIds = new HashSet<string>(interaction.A2AConnectionIds ?? [], StringComparer.Ordinal);
         SelectedMcpConnectionIds = new HashSet<string>(interaction.McpConnectionIds ?? [], StringComparer.Ordinal);
+
+        if (interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
+        {
+            SettingsDataSourceFilter = ragMetadata.Filter;
+        }
+
+        if (interaction.TryGet<PromptTemplateMetadata>(out var promptTemplateMetadata))
+        {
+            SelectedPromptTemplates = (promptTemplateMetadata.Templates ?? [])
+                .Where(template => !string.IsNullOrWhiteSpace(template.TemplateId))
+                .Select(template => new PromptTemplateSelection
+                {
+                    TemplateId = template.TemplateId,
+                    PromptParameters = template.Parameters is { Count: > 0 }
+                        ? JsonSerializer.Serialize(template.Parameters)
+                        : null,
+                })
+                .ToList();
+        }
+
+        if (interaction.TryGet<CopilotSessionMetadata>(out var copilotMetadata))
+        {
+            SettingsCopilotModel = copilotMetadata.CopilotModel;
+            SettingsCopilotIsAllowAll = copilotMetadata.IsAllowAll;
+        }
     }
 
     private async Task PopulateDropdownsAsync()
@@ -502,6 +618,19 @@ else
 
         var mcpConnections = await McpConnectionCatalog.GetAllAsync();
         McpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).ToList();
+
+        var promptTemplates = await TemplateService.ListAsync();
+        AvailablePromptTemplates = promptTemplates
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(template => new PromptTemplateOption
+            {
+                TemplateId = template.Id,
+                Title = template.Metadata.Title ?? template.Id,
+                Description = template.Metadata.Description,
+            })
+            .ToList();
     }
 
     private async Task SendMessage()
@@ -594,6 +723,14 @@ else
             ["strictness"] = SettingsStrictness,
             ["topNDocuments"] = SettingsTopNDocuments,
             ["isInScope"] = SettingsIsInScope,
+            ["filter"] = SettingsDataSourceFilter,
+            ["copilotModel"] = SettingsCopilotModel,
+            ["isAllowAll"] = SettingsCopilotIsAllowAll,
+            ["promptTemplates"] = SelectedPromptTemplates.Select(template => new
+            {
+                template.TemplateId,
+                template.PromptParameters,
+            }).ToArray(),
             ["toolNames"] = SelectedToolNames.ToArray(),
             ["agentNames"] = SelectedAgentNames.ToArray(),
             ["a2aConnectionIds"] = SelectedA2AConnectionIds.ToArray(),
@@ -643,6 +780,54 @@ else
         _ = DebounceSaveSettings();
     }
 
+    private PromptTemplateOption? GetPromptTemplateOption(string templateId)
+    {
+        return AvailablePromptTemplates.FirstOrDefault(template => string.Equals(template.TemplateId, templateId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task AddPromptTemplateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(PendingPromptTemplateId))
+        {
+            return;
+        }
+
+        if (SelectedPromptTemplates.Any(template => string.Equals(template.TemplateId, PendingPromptTemplateId, StringComparison.OrdinalIgnoreCase)))
+        {
+            PendingPromptTemplateId = null;
+            return;
+        }
+
+        SelectedPromptTemplates.Add(new PromptTemplateSelection
+        {
+            TemplateId = PendingPromptTemplateId,
+        });
+        PendingPromptTemplateId = null;
+        await DebounceSaveSettings();
+    }
+
+    private async Task RemovePromptTemplateAsync(int index)
+    {
+        if (index < 0 || index >= SelectedPromptTemplates.Count)
+        {
+            return;
+        }
+
+        SelectedPromptTemplates.RemoveAt(index);
+        await DebounceSaveSettings();
+    }
+
+    private void UpdatePromptParameters(int index, string? value)
+    {
+        if (index < 0 || index >= SelectedPromptTemplates.Count)
+        {
+            return;
+        }
+
+        SelectedPromptTemplates[index].PromptParameters = value;
+        _ = DebounceSaveSettings();
+    }
+
     private void HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey)
@@ -682,5 +867,18 @@ else
         public string Content { get; set; } = string.Empty;
         public bool IsStreaming { get; set; }
         public bool IsSystem { get; set; }
+    }
+
+    private sealed class PromptTemplateOption
+    {
+        public string TemplateId { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+    }
+
+    private sealed class PromptTemplateSelection
+    {
+        public string TemplateId { get; set; } = string.Empty;
+        public string? PromptParameters { get; set; }
     }
 }

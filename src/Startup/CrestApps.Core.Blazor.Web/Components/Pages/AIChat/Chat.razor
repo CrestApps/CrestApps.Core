@@ -1,4 +1,5 @@
 @page "/AIChat/Chat/{ProfileId}/{SessionId?}"
+@page "/AIChat/Test/{ProfileId}"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Chat
@@ -17,7 +18,7 @@
 {
     <div class="alert alert-danger">
         <i class="bi bi-exclamation-triangle"></i> The requested profile or session was not found.
-        <a href="/AIChat">Return to AI Chat</a>.
+        <a href="/AI/Profiles">Return to AI Profiles</a>.
     </div>
 }
 else if (_profile is null)
@@ -108,9 +109,9 @@ else
     </style>
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2><i class="bi bi-chat-dots"></i> @(_profile.DisplayText ?? _profile.Name)</h2>
-        <a href="/AIChat" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back
+        <h2><i class="bi @(_isTestMode ? "bi-play-circle" : "bi-chat-dots")"></i> @(_profile.DisplayText ?? _profile.Name)</h2>
+        <a href="/AI/Profiles" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Profiles
         </a>
     </div>
 
@@ -153,10 +154,12 @@ else
     private string _placeholderMessage = "What do you want to know?";
     private string _sessionId = string.Empty;
     private bool _notFound;
+    private bool _isTestMode;
     private bool _allowSessionDocuments;
 
     protected override async Task OnInitializedAsync()
     {
+        _isTestMode = NavigationManager.Uri.Contains("/AIChat/Test/", StringComparison.OrdinalIgnoreCase);
         _profile = await ProfileManager.FindByIdAsync(ProfileId);
         if (_profile is null)
         {
@@ -185,9 +188,13 @@ else
             _sessionId = _session.SessionId;
         }
 
-        _pageTitle = "Chat - " + (_profile.DisplayText ?? _profile.Name);
+        _pageTitle = (_isTestMode ? "Test - " : "Chat - ") + (_profile.DisplayText ?? _profile.Name);
 
-        if (!string.IsNullOrWhiteSpace(_profile.WelcomeMessage))
+        if (_isTestMode)
+        {
+            _placeholderMessage = $"Send a message to test this {_profile.Type.ToString().ToLowerInvariant()} profile.";
+        }
+        else if (!string.IsNullOrWhiteSpace(_profile.WelcomeMessage))
         {
             _placeholderMessage = _profile.WelcomeMessage;
         }

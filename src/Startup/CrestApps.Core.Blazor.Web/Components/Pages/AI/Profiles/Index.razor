@@ -3,7 +3,6 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
 @inject IAIProfileManager ProfileManager
-@inject NavigationManager NavigationManager
 
 <PageTitle>AI Profiles</PageTitle>
 
@@ -41,7 +40,7 @@ else
                     <th>Title</th>
                     <th>Technical Name</th>
                     <th>Type</th>
-                    <th style="width: 260px;">Actions</th>
+                    <th style="width: 380px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -56,6 +55,21 @@ else
                             </span>
                         </td>
                         <td>
+                            @if (profile.Type == AIProfileType.Chat)
+                            {
+                                <a href="/AIChat/Chat/@profile.ItemId" class="btn btn-sm btn-outline-success" title="Start a new chat session">
+                                    <i class="bi bi-chat-dots"></i> New Chat
+                                </a>
+                                <a href="/AIChat/Sessions/@profile.ItemId" class="btn btn-sm btn-outline-info" title="View chat history">
+                                    <i class="bi bi-clock-history"></i> Chat History
+                                </a>
+                            }
+                            else if (profile.Type == AIProfileType.Utility || profile.Type == AIProfileType.Agent)
+                            {
+                                <a href="/AIChat/Test/@profile.ItemId" class="btn btn-sm btn-outline-success" title="Test this profile">
+                                    <i class="bi bi-play-circle"></i> Test
+                                </a>
+                            }
                             <a href="/AI/Profiles/Edit/@profile.ItemId" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-pencil"></i> Edit
                             </a>
