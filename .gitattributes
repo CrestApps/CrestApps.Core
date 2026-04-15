@@ -5,3 +5,9 @@
 # Keep LF line endings in webroot assets files. Otherwise, building them under Windows would change the line endings to CLRF and cause changes without actually editing the source files.
 **/wwwroot/**/*.js text eol=lf
 **/wwwroot/**/*.css text eol=lf
+**/wwwroot/**/*.map text eol=lf
+
+# Keep LF line endings in source asset files so that generated source maps embed
+# LF content regardless of the platform and CI builds stay deterministic.
+**/Assets/**/*.js text eol=lf
+**/Assets/**/*.css text eol=lf

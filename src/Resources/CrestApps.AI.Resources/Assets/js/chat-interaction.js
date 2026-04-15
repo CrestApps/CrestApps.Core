@@ -24,6 +24,9 @@ window.chatInteractionManager = function () {
                             <h4 v-if="message.title">{{ message.title }}</h4>
                             <div v-html="message.htmlContent"></div>
                             <span class="message-buttons-container" v-if="!isIndicator(message)">
+                                <button v-if="textToSpeechEnabled && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
+                                    <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
+                                </button>
                                 <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" title="Click here to copy response to clipboard.">
                                     <i class="fa-solid fa-copy"></i>
                                 </button>
@@ -368,12 +371,14 @@ window.chatInteractionManager = function () {
                     preRecordingPrompt: '',
                     micButton: null,
                     speechToTextEnabled: config.chatMode === 'AudioInput' || config.chatMode === 'Conversation',
-                    textToSpeechEnabled: config.chatMode === 'Conversation',
+                    textToSpeechEnabled: config.chatMode === 'Conversation' || !!config.textToSpeechEnabled,
                     ttsVoiceName: config.ttsVoiceName || null,
                     audioChunks: [],
                     audioPlayQueue: [],
                     isPlayingAudio: false,
                     currentAudioElement: null,
+                    ttsPlayingMessageIndex: -1,
+                    ttsAudioCache: {},
                     conversationModeEnabled: config.chatMode === 'Conversation',
                     conversationButton: null,
                     isConversationMode: false,
@@ -1019,19 +1024,38 @@ window.chatInteractionManager = function () {
                         this.debouncedSaveSettings();
                     }
                 },
-                synthesizeSpeech(text) {
+                synthesizeSpeech(text, cacheIndex) {
                     if (!this.textToSpeechEnabled || !text || !this.connection) {
                         return;
                     }
 
                     this.audioChunks = [];
                     this.isPlayingAudio = true;
+                    this._ttsCacheIndex = cacheIndex !== undefined ? cacheIndex : -1;
 
                     this.connection.invoke("SynthesizeSpeech", this.getItemId(), text, this.ttsVoiceName)
                         .catch(err => {
                             console.error("TTS synthesis error:", err);
                             this.isPlayingAudio = false;
+                            this.ttsPlayingMessageIndex = -1;
+                            this._ttsCacheIndex = -1;
                         });
+                },
+                toggleMessageTts(message, index) {
+                    if (this.ttsPlayingMessageIndex === index) {
+                        this.stopAudio();
+                        return;
+                    }
+
+                    this.stopAudio();
+                    this.ttsPlayingMessageIndex = index;
+
+                    if (this.ttsAudioCache[index]) {
+                        this.playAudioBlob(this.ttsAudioCache[index]);
+                        return;
+                    }
+
+                    this.synthesizeSpeech(message.content, index);
                 },
                 playCollectedAudio() {
                     if (this.audioChunks.length === 0) {
@@ -1051,6 +1075,11 @@ window.chatInteractionManager = function () {
                     this.audioChunks = [];
 
                     const blob = new Blob([combined], { type: 'audio/mp3' });
+
+                    if (this._ttsCacheIndex >= 0) {
+                        this.ttsAudioCache[this._ttsCacheIndex] = blob;
+                        this._ttsCacheIndex = -1;
+                    }
 
                     // If audio is currently playing, queue this blob for later.
                     if (this.isPlayingAudio && this.currentAudioElement) {
@@ -1092,6 +1121,7 @@ window.chatInteractionManager = function () {
                         this.playAudioBlob(nextBlob);
                     } else {
                         this.isPlayingAudio = false;
+                        this.ttsPlayingMessageIndex = -1;
                         this.conversationModeOnAudioEnded();
                     }
                 },
@@ -1104,6 +1134,7 @@ window.chatInteractionManager = function () {
                     this.audioChunks = [];
                     this.audioPlayQueue = [];
                     this.isPlayingAudio = false;
+                    this.ttsPlayingMessageIndex = -1;
                 },
                 toggleConversationMode() {
                     if (this.isConversationMode) {

@@ -140,7 +140,7 @@
 
 .ai-chat-widget-messages .ai-chat-message-body {
     position: relative;
-    padding: 0 0 1.75rem 0;
+    padding: 0 0 0.25rem 0;
     overflow-wrap: break-word;
     word-break: break-word;
     min-width: 0;
@@ -154,16 +154,17 @@
 .ai-chat-widget-messages .message-buttons-container {
     position: absolute;
     right: 0;
-    bottom: 0.25rem;
+    top: 0;
     display: inline-flex;
     gap: 0.35rem;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s ease-in-out;
-    background: rgba(255, 255, 255, 0.92);
+    background: #fff;
     padding: 0.15rem 0.35rem;
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    z-index: 1;
 }
 
 .ai-chat-widget-messages .ai-chat-message-item:hover .message-buttons-container,
@@ -180,6 +181,12 @@
 .ai-chat-widget-messages .message-buttons-container > .button-message-toolbox:hover,
 .ai-chat-widget-messages .message-buttons-container > .button-message-toolbox:focus {
     color: var(--bs-body-color, #212529) !important;
+}
+
+.ai-chat-widget-messages .message-buttons-container > .button-message-toolbox.tts-playing {
+    color: var(--bs-primary, #0d6efd) !important;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 /* ── Notifications ── */

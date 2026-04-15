@@ -25,21 +25,11 @@ public sealed class AIChatController : Controller
         _promptStore = promptStore;
     }
 
-    public async Task<IActionResult> Index()
-    {
-        var profiles = await _profileManager.GetAsync(AIProfileType.Chat);
-        var sessions = await _sessionManager.PageAsync(1, 50);
-
-        ViewData["Sessions"] = sessions;
-
-        return View(profiles);
-    }
-
     public async Task<IActionResult> Chat(string sessionId)
     {
         if (string.IsNullOrEmpty(sessionId))
         {
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction("Index", "AIProfile", new { area = "AI" });
         }
 
         var session = await _sessionManager.FindByIdAsync(sessionId);
@@ -86,10 +76,74 @@ public sealed class AIChatController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteSession(string sessionId)
+    public async Task<IActionResult> DeleteSession(string sessionId, string returnProfileId = null)
     {
         await _sessionManager.DeleteAsync(sessionId);
 
-        return RedirectToAction(nameof(Index));
+        if (!string.IsNullOrEmpty(returnProfileId))
+        {
+            return RedirectToAction(nameof(Sessions), new { profileId = returnProfileId });
+        }
+
+        return RedirectToAction("Index", "AIProfile", new { area = "AI" });
+    }
+
+    public async Task<IActionResult> Sessions(string profileId)
+    {
+        if (string.IsNullOrEmpty(profileId))
+        {
+            return RedirectToAction("Index", "AIProfile", new { area = "AI" });
+        }
+
+        var profile = await _profileManager.FindByIdAsync(profileId);
+
+        if (profile == null)
+        {
+            return NotFound();
+        }
+
+        var sessions = await _sessionManager.PageAsync(1, 200, new AIChatSessionQueryContext
+        {
+            ProfileId = profileId,
+            Sorted = true,
+        });
+
+        ViewData["Profile"] = profile;
+
+        return View(sessions);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteAllSessions(string profileId)
+    {
+        if (!string.IsNullOrEmpty(profileId))
+        {
+            await _sessionManager.DeleteAllAsync(profileId);
+        }
+
+        return RedirectToAction(nameof(Sessions), new { profileId });
+    }
+
+    public async Task<IActionResult> Test(string profileId)
+    {
+        if (string.IsNullOrEmpty(profileId))
+        {
+            return RedirectToAction("Index", "AIProfile", new { area = "AI" });
+        }
+
+        var profile = await _profileManager.FindByIdAsync(profileId);
+
+        if (profile == null)
+        {
+            return NotFound();
+        }
+
+        if (profile.Type != AIProfileType.Utility && profile.Type != AIProfileType.Agent)
+        {
+            return RedirectToAction("Index", "AIProfile", new { area = "AI" });
+        }
+
+        return View(profile);
     }
 }

@@ -32,7 +32,8 @@ namespace CrestApps.Core.AI.Chat.Hubs;
 /// logic and then call the base implementation.
 /// </para>
 /// </summary>
-public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAIChatHubClient
+public class AIChatHubCore<TClient> : Hub<TClient>
+    where TClient : class, IAIChatHubClient
 {
     private const string _conversationCtsKey = "ConversationCts";
     private readonly IServiceProvider _services;
@@ -745,11 +746,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                     return;
                 }
 
-                if (!profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) || chatModeSettings.ChatMode != ChatMode.Conversation)
-                {
-                    await Clients.Caller.ReceiveError(GetTtsNotEnabledMessage());
-                    return;
-                }
+                profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
 
                 var deploymentSettings = await GetDeploymentSettingsAsync(services);
                 if (string.IsNullOrEmpty(deploymentSettings.DefaultTextToSpeechDeploymentName))
@@ -766,7 +763,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 }
 
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(deployment);
-                var effectiveVoiceName = !string.IsNullOrWhiteSpace(voiceName) ? voiceName : !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName) ? chatModeSettings.VoiceName : deploymentSettings.DefaultTextToSpeechVoiceId;
+                var effectiveVoiceName = !string.IsNullOrWhiteSpace(voiceName) ? voiceName : !string.IsNullOrWhiteSpace(chatModeSettings?.VoiceName) ? chatModeSettings.VoiceName : deploymentSettings.DefaultTextToSpeechVoiceId;
                 await StreamSpeechAsync(textToSpeechClient, sessionId ?? string.Empty, text, effectiveVoiceName, cancellationToken);
             });
         }

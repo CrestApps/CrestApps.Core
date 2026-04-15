@@ -50,6 +50,8 @@ public sealed class AIProfileViewModel
 
     public string VoiceName { get; set; }
 
+    public bool EnableTextToSpeechPlayback { get; set; }
+
     // AI Parameters (from AIProfileMetadata)
     public string SystemMessage { get; set; }
 
@@ -190,6 +192,7 @@ public sealed class AIProfileViewModel
 
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
             VoiceName = chatModeSettings?.VoiceName,
+            EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
 
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
@@ -372,6 +375,7 @@ public sealed class AIProfileViewModel
             settings.VoiceName = ChatMode == ChatMode.Conversation
                 ? VoiceName?.Trim()
                 : null;
+            settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;
         });
 
         var toolNames = SelectedToolNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();

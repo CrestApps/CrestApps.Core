@@ -22,6 +22,8 @@ public sealed class SettingsViewModel
 
     public ChatMode ChatInteractionChatMode { get; set; }
 
+    public bool ChatInteractionEnableTextToSpeechPlayback { get; set; }
+
     public string MemoryIndexProfileName { get; set; }
 
     public int MemoryTopN { get; set; } = 5;

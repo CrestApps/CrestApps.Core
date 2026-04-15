@@ -72,6 +72,7 @@ public sealed class SettingsController : Controller
             EnableDistributedCaching = settings.EnableDistributedCaching,
             EnableOpenTelemetry = settings.EnableOpenTelemetry,
             ChatInteractionChatMode = chatInteractionSettings.ChatMode,
+            ChatInteractionEnableTextToSpeechPlayback = chatInteractionSettings.EnableTextToSpeechPlayback,
             DefaultOrchestratorEnablePreemptiveRag = defaultOrchestratorSettings.EnablePreemptiveRag,
             MemoryIndexProfileName = memorySettings.IndexProfileName,
             MemoryTopN = memorySettings.TopN,
@@ -208,6 +209,7 @@ public sealed class SettingsController : Controller
         _siteSettings.Set<ChatInteractionSettings>(settings =>
         {
             settings.ChatMode = model.ChatInteractionChatMode;
+            settings.EnableTextToSpeechPlayback = model.ChatInteractionEnableTextToSpeechPlayback;
         });
 
         _siteSettings.Set(new DefaultOrchestratorSettings

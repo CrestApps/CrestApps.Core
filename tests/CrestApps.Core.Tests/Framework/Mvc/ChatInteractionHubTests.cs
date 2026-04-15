@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -23,9 +24,13 @@ public sealed class ChatInteractionHubTests
         callerMock.Setup(client => client.SettingsSaved(interaction.ItemId, "Updated title")).Returns(Task.CompletedTask);
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
-        var serviceProvider = new ServiceCollection().BuildServiceProvider();
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(managerMock.Object)
+            .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
+            .AddSingleton<IChatInteractionSettingsHandler>(new PromptTemplateChatInteractionSettingsHandler())
+            .BuildServiceProvider();
         var siteSettings = CreateSiteSettingsStore();
-        var hub = new ChatInteractionHub(managerMock.Object, new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object, new Mock<IOrchestrationContextBuilder>(MockBehavior.Strict).Object, new Mock<IOrchestratorResolver>(MockBehavior.Strict).Object, [new PromptTemplateChatInteractionSettingsHandler()], serviceProvider, TimeProvider.System, CreateCitationCollector(), new Mock<IAIDeploymentManager>(MockBehavior.Strict).Object, new Mock<IAIClientFactory>(MockBehavior.Strict).Object, siteSettings, new Mock<IServiceScopeFactory>(MockBehavior.Strict).Object, NullLogger<ChatInteractionHub>.Instance)
+        var hub = new ChatInteractionHub(serviceProvider, TimeProvider.System, CreateCitationCollector(), siteSettings, NullLogger<ChatInteractionHub>.Instance)
         {
             Clients = clientsMock.Object,
         };
@@ -67,13 +72,19 @@ public sealed class ChatInteractionHubTests
         managerMock.Setup(manager => manager.UpdateAsync(interaction, null)).Returns(ValueTask.CompletedTask);
         var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
         dataSourceCatalog.Setup(catalog => catalog.FindByIdAsync("datasource-1")).ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });
-        var serviceProvider = new ServiceCollection().AddSingleton(dataSourceCatalog.Object).BuildServiceProvider();
+        var services = new ServiceCollection()
+            .AddSingleton(managerMock.Object)
+            .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
+            .AddSingleton(dataSourceCatalog.Object)
+            .AddSingleton<IChatInteractionSettingsHandler, DataSourceChatInteractionSettingsHandler>()
+            .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        var serviceProvider = services.BuildServiceProvider();
         var callerMock = new Mock<IChatInteractionHubClient>();
         callerMock.Setup(client => client.SettingsSaved(interaction.ItemId, interaction.Title)).Returns(Task.CompletedTask);
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
         var siteSettings = CreateSiteSettingsStore();
-        var hub = new ChatInteractionHub(managerMock.Object, new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object, new Mock<IOrchestrationContextBuilder>(MockBehavior.Strict).Object, new Mock<IOrchestratorResolver>(MockBehavior.Strict).Object, [new DataSourceChatInteractionSettingsHandler(serviceProvider, NullLogger<DataSourceChatInteractionSettingsHandler>.Instance)], serviceProvider, TimeProvider.System, CreateCitationCollector(), new Mock<IAIDeploymentManager>(MockBehavior.Strict).Object, new Mock<IAIClientFactory>(MockBehavior.Strict).Object, siteSettings, new Mock<IServiceScopeFactory>(MockBehavior.Strict).Object, NullLogger<ChatInteractionHub>.Instance)
+        var hub = new ChatInteractionHub(serviceProvider, TimeProvider.System, CreateCitationCollector(), siteSettings, NullLogger<ChatInteractionHub>.Instance)
         {
             Clients = clientsMock.Object,
         };
