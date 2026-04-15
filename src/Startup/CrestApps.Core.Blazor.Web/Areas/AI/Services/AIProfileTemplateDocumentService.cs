@@ -240,7 +240,7 @@ public sealed class AIProfileTemplateDocumentService
         profile.Put(profileDocuments);
     }
 
-    private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIProfileTemplate template)
+    private async Task<IEmbeddingGenerator<string, Embedding<float>>?> CreateEmbeddingGeneratorAsync(AIProfileTemplate template)
     {
         var deployment = await ResolveEmbeddingDeploymentAsync(template);
 
@@ -274,7 +274,7 @@ public sealed class AIProfileTemplateDocumentService
         return await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
     }
 
-    private async Task<AIDeployment> ResolveTemplateDeploymentAsync(AIProfileTemplate template)
+    private async Task<AIDeployment?> ResolveTemplateDeploymentAsync(AIProfileTemplate template)
     {
         template.TryGet<ProfileTemplateMetadata>(out var metadata);
 

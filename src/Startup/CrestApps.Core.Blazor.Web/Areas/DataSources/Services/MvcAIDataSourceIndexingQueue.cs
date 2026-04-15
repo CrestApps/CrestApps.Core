@@ -48,7 +48,7 @@ public sealed class MvcAIDataSourceIndexingQueue : IMvcAIDataSourceIndexingQueue
 
 internal sealed class MvcAIDataSourceIndexingWorkItem
 {
-    public AIDataSource DataSource { get; private init; }
+    public AIDataSource? DataSource { get; private init; }
     public IReadOnlyCollection<string> DocumentIds { get; private init; } = [];
     public MvcAIDataSourceIndexingWorkItemType Type { get; private init; }
 

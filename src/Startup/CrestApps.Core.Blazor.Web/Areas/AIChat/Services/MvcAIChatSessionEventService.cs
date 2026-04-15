@@ -122,6 +122,6 @@ public sealed class MvcAIChatSessionEventService
         return await query.OrderByDescending(x => x.SessionStartedUtc).ToListAsync(cancellationToken);
     }
 
-    private async Task<AIChatSessionEvent> FindEventBySessionIdAsync(string sessionId)
+    private async Task<AIChatSessionEvent?> FindEventBySessionIdAsync(string sessionId)
         => await _dbContext.SessionEvents.FirstOrDefaultAsync(x => x.SessionId == sessionId);
 }

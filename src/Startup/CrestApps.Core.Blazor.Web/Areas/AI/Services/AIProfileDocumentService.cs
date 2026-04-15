@@ -172,7 +172,7 @@ public sealed class AIProfileDocumentService
         return RemoveDocumentsAsync(profile, documentIds, cancellationToken);
     }
 
-    private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIProfile profile)
+    private async Task<IEmbeddingGenerator<string, Embedding<float>>?> CreateEmbeddingGeneratorAsync(AIProfile profile)
     {
         var deployment = await ResolveEmbeddingDeploymentAsync(profile);
 
@@ -206,7 +206,7 @@ public sealed class AIProfileDocumentService
         return await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
     }
 
-    private async Task<AIDeployment> ResolveProfileDeploymentAsync(AIProfile profile)
+    private async Task<AIDeployment?> ResolveProfileDeploymentAsync(AIProfile profile)
     {
         if (!string.IsNullOrWhiteSpace(profile.ChatDeploymentName))
         {

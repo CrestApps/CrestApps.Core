@@ -31,7 +31,7 @@ public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
                 switch (workItem.Type)
                 {
                     case MvcAIChatDocumentIndexingWorkItemType.Index:
-                        await indexingService.IndexAsync(workItem.Document, workItem.Chunks, stoppingToken);
+                        await indexingService.IndexAsync(workItem.Document!, workItem.Chunks, stoppingToken);
                         break;
                     case MvcAIChatDocumentIndexingWorkItemType.DeleteChunks:
                         await indexingService.DeleteChunksAsync(workItem.ChunkIds, stoppingToken);

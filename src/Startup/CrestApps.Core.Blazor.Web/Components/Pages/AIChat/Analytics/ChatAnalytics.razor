@@ -303,7 +303,7 @@ else
 
     private async Task RunReportAsync()
     {
-        _events = await EventService.GetAsync(_filter.ProfileId, _filter.StartDateUtc, _filter.EndDateUtc);
+        _events = await EventService.GetAsync(_filter.ProfileId ?? string.Empty, _filter.StartDateUtc, _filter.EndDateUtc);
         _showReport = true;
         ApplyAnalytics(_events);
     }

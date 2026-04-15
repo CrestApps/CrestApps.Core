@@ -108,7 +108,7 @@ else
         }
 
         article.Title = Model.Title.Trim();
-        article.Description = Model.Description?.Trim();
+        article.Description = Model.Description?.Trim() ?? string.Empty;
 
         await ArticleService.UpdateAsync(article);
 

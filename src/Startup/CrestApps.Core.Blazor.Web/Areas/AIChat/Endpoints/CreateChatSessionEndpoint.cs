@@ -45,6 +45,6 @@ internal static class CreateChatSessionEndpoint
 
     private sealed class CreateChatSessionRequest
     {
-        public string ProfileId { get; set; }
+        public string ProfileId { get; set; } = string.Empty;
     }
 }

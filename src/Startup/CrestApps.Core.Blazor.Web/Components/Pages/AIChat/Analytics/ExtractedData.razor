@@ -147,7 +147,7 @@ else
             return;
         }
 
-        var records = await ExtractedDataService.GetAsync(_filter.ProfileId, _filter.StartDateUtc, _filter.EndDateUtc);
+        var records = await ExtractedDataService.GetAsync(_filter.ProfileId!, _filter.StartDateUtc, _filter.EndDateUtc);
         _rows = records.Select(r => new ExtractedDataRow
         {
             SessionId = r.SessionId,

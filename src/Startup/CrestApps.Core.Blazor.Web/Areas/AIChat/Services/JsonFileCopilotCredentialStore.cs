@@ -19,7 +19,7 @@ internal sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
         Directory.CreateDirectory(_credentialsPath);
     }
 
-    public async Task<CopilotProtectedCredential> GetProtectedCredentialAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<CopilotProtectedCredential?> GetProtectedCredentialAsync(string userId, CancellationToken cancellationToken = default)
     {
         var filePath = GetFilePath(userId);
 

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CrestApps.Core.Blazor.Web.Areas.Admin.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -149,8 +150,8 @@ public sealed class ArticleIndexingService
 
     private bool TryResolveSearchServices(
     string providerName,
-    out ISearchIndexManager indexManager,
-    out ISearchDocumentManager documentManager)
+    [NotNullWhen(true)] out ISearchIndexManager? indexManager,
+    [NotNullWhen(true)] out ISearchDocumentManager? documentManager)
     {
         try
         {

@@ -858,7 +858,7 @@ else
             SiteSettingsStore.Set(new AIMemorySettings
             {
                 IndexProfileName = string.IsNullOrWhiteSpace(MemoryIndexProfileName)
-                    ? null
+                    ? string.Empty
                     : MemoryIndexProfileName.Trim(),
                 TopN = MemoryTopN,
             });
@@ -894,14 +894,14 @@ else
             var copilotSettings = new CopilotSettings
             {
                 AuthenticationType = CopilotAuthenticationType,
-                ClientId = CopilotClientId?.Trim(),
+                ClientId = CopilotClientId?.Trim() ?? string.Empty,
                 ProtectedClientSecret = existingCopilot.ProtectedClientSecret,
-                ProviderType = CopilotProviderType,
-                BaseUrl = CopilotBaseUrl?.Trim(),
+                ProviderType = CopilotProviderType ?? string.Empty,
+                BaseUrl = CopilotBaseUrl?.Trim() ?? string.Empty,
                 ProtectedApiKey = existingCopilot.ProtectedApiKey,
-                WireApi = CopilotWireApi,
-                DefaultModel = CopilotDefaultModel?.Trim(),
-                AzureApiVersion = CopilotAzureApiVersion?.Trim(),
+                WireApi = CopilotWireApi ?? string.Empty,
+                DefaultModel = CopilotDefaultModel?.Trim() ?? string.Empty,
+                AzureApiVersion = CopilotAzureApiVersion?.Trim() ?? string.Empty,
             };
 
             if (!string.IsNullOrWhiteSpace(CopilotClientSecret))
@@ -923,7 +923,7 @@ else
 
             SiteSettingsStore.Set(new AIChatAdminWidgetSettings
             {
-                ProfileId = string.IsNullOrWhiteSpace(AdminWidgetProfileId) ? null : AdminWidgetProfileId.Trim(),
+                ProfileId = string.IsNullOrWhiteSpace(AdminWidgetProfileId) ? string.Empty : AdminWidgetProfileId.Trim(),
                 PrimaryColor = string.IsNullOrWhiteSpace(AdminWidgetPrimaryColor)
                     ? AIChatAdminWidgetSettings.DefaultSecondaryColor
                     : AdminWidgetPrimaryColor.Trim(),

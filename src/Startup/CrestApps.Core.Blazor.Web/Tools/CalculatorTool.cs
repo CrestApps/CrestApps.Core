@@ -21,26 +21,26 @@ public sealed class CalculatorTool : AIFunction
     public override string Name => TheName;
     public override string Description => "Performs basic arithmetic: add, subtract, multiply, or divide two numbers.";
     public override JsonElement JsonSchema => _jsonSchema;
-    public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object> { ["Strict"] = true };
+    public override IReadOnlyDictionary<string, object?> AdditionalProperties { get; } = new Dictionary<string, object?> { ["Strict"] = true };
 
-    protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+    protected override ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         if (!arguments.TryGetValue("operation", out var opVal) || opVal is not string operation)
-            return ValueTask.FromResult<object>("""{"error":"Missing required parameter: operation"}""");
+            return ValueTask.FromResult<object?>("""{"error":"Missing required parameter: operation"}""");
         if (!TryGetNumber(arguments, "a", out var a) || !TryGetNumber(arguments, "b", out var b))
-            return ValueTask.FromResult<object>("""{"error":"Parameters 'a' and 'b' must be numbers."}""");
+            return ValueTask.FromResult<object?>("""{"error":"Parameters 'a' and 'b' must be numbers."}""");
         var (result, error) = operation.ToLowerInvariant() switch
         {
-            "add" => (a + b, (string)null),
+            "add" => (a + b, (string?)null),
             "subtract" => (a - b, null),
             "multiply" => (a * b, null),
             "divide" when b != 0 => (a / b, null),
             "divide" => (0d, "Division by zero is not allowed."),
             _ => (0d, $"Unknown operation '{operation}'. Use: add, subtract, multiply, divide."),
         };
-        if (error != null) return ValueTask.FromResult<object>(JsonSerializer.Serialize(new { error }));
-        return ValueTask.FromResult<object>(JsonSerializer.Serialize(new { expression = $"{a} {GetSymbol(operation)} {b}", result }));
+        if (error != null) return ValueTask.FromResult<object?>(JsonSerializer.Serialize(new { error }));
+        return ValueTask.FromResult<object?>(JsonSerializer.Serialize(new { expression = $"{a} {GetSymbol(operation)} {b}", result }));
     }
 
     private static bool TryGetNumber(AIFunctionArguments arguments, string key, out double value)

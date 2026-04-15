@@ -21,23 +21,23 @@ public sealed class SendEmailTool : AIFunction
     public override string Name => TheName;
     public override string Description => "Logs an email request with recipient, subject, and message content.";
     public override JsonElement JsonSchema => _jsonSchema;
-    public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object> { ["Strict"] = true };
+    public override IReadOnlyDictionary<string, object?> AdditionalProperties { get; } = new Dictionary<string, object?> { ["Strict"] = true };
 
-    protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+    protected override ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         if (!TryGetRequiredString(arguments, "subject", out var subject) || !TryGetRequiredString(arguments, "message", out var message))
-            return ValueTask.FromResult<object>("""{"error":"Parameters 'subject' and 'message' are required."}""");
-        var logger = arguments.Services.GetRequiredService<ILogger<SendEmailTool>>();
+            return ValueTask.FromResult<object?>("""{"error":"Parameters 'subject' and 'message' are required."}""");
+        var logger = arguments.Services!.GetRequiredService<ILogger<SendEmailTool>>();
         if (logger.IsEnabled(LogLevel.Information))
             logger.LogInformation("Blazor sendEmail tool invoked. To: {To}; Subject: {Subject}; Message: {Message}", TryGetOptionalString(arguments, "to"), subject, message);
-        return ValueTask.FromResult<object>(JsonSerializer.Serialize(new { success = true, subject }));
+        return ValueTask.FromResult<object?>(JsonSerializer.Serialize(new { success = true, subject }));
     }
 
-    private static string TryGetOptionalString(AIFunctionArguments arguments, string key)
+    private static string? TryGetOptionalString(AIFunctionArguments arguments, string key)
         => arguments.TryGetValue(key, out var value) ? value?.ToString() : null;
 
-    private static bool TryGetRequiredString(AIFunctionArguments arguments, string key, out string value)
+    private static bool TryGetRequiredString(AIFunctionArguments arguments, string key, out string? value)
     {
         value = TryGetOptionalString(arguments, key);
         return !string.IsNullOrWhiteSpace(value);

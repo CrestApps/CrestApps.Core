@@ -33,12 +33,12 @@ public class BlazorAppDbContext : DbContext
             entity.HasIndex(e => e.SessionStartedUtc);
             entity.Ignore(e => e.Properties);
             entity.Property(e => e.ConversionGoalResults).HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
-                v => JsonSerializer.Deserialize<List<ConversionGoalResult>>(v, (JsonSerializerOptions)null),
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<ConversionGoalResult>>(v, (JsonSerializerOptions?)null)!,
                 new ValueComparer<List<ConversionGoalResult>>(
-                    (a, b) => JsonSerializer.Serialize(a, (JsonSerializerOptions)null) == JsonSerializer.Serialize(b, (JsonSerializerOptions)null),
-                    v => v == null ? 0 : JsonSerializer.Serialize(v, (JsonSerializerOptions)null).GetHashCode(),
-                    v => JsonSerializer.Deserialize<List<ConversionGoalResult>>(JsonSerializer.Serialize(v, (JsonSerializerOptions)null), (JsonSerializerOptions)null)));
+                    (a, b) => JsonSerializer.Serialize(a, (JsonSerializerOptions?)null) == JsonSerializer.Serialize(b, (JsonSerializerOptions?)null),
+                    v => v == null ? 0 : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null).GetHashCode(),
+                    v => JsonSerializer.Deserialize<List<ConversionGoalResult>>(JsonSerializer.Serialize(v, (JsonSerializerOptions?)null), (JsonSerializerOptions?)null)!));
         });
 
         modelBuilder.Entity<AIChatSessionExtractedDataRecord>(entity =>
@@ -49,12 +49,12 @@ public class BlazorAppDbContext : DbContext
             entity.HasIndex(e => e.ProfileId);
             entity.Ignore(e => e.Properties);
             entity.Property(e => e.Values).HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
-                v => JsonSerializer.Deserialize<Dictionary<string, List<string>>>(v, (JsonSerializerOptions)null),
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<Dictionary<string, List<string>>>(v, (JsonSerializerOptions?)null)!,
                 new ValueComparer<Dictionary<string, List<string>>>(
-                    (a, b) => JsonSerializer.Serialize(a, (JsonSerializerOptions)null) == JsonSerializer.Serialize(b, (JsonSerializerOptions)null),
-                    v => v == null ? 0 : JsonSerializer.Serialize(v, (JsonSerializerOptions)null).GetHashCode(),
-                    v => JsonSerializer.Deserialize<Dictionary<string, List<string>>>(JsonSerializer.Serialize(v, (JsonSerializerOptions)null), (JsonSerializerOptions)null)));
+                    (a, b) => JsonSerializer.Serialize(a, (JsonSerializerOptions?)null) == JsonSerializer.Serialize(b, (JsonSerializerOptions?)null),
+                    v => v == null ? 0 : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null).GetHashCode(),
+                    v => JsonSerializer.Deserialize<Dictionary<string, List<string>>>(JsonSerializer.Serialize(v, (JsonSerializerOptions?)null), (JsonSerializerOptions?)null)!));
         });
 
         modelBuilder.Entity<AICompletionUsageRecord>(entity =>

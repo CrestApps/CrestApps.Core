@@ -12,7 +12,7 @@ public sealed class ArticleCatalog : ICatalog<Article>
     public ArticleCatalog(BlazorAppDbContext dbContext) => _dbContext = dbContext;
 
     public async ValueTask<Article> FindByIdAsync(string id)
-        => await _dbContext.Articles.FirstOrDefaultAsync(a => a.ItemId == id);
+        => await _dbContext.Articles.FirstOrDefaultAsync(a => a.ItemId == id) ?? null!;
 
     public async ValueTask<IReadOnlyCollection<Article>> GetAllAsync()
         => await _dbContext.Articles.OrderByDescending(a => a.CreatedUtc).ToListAsync();

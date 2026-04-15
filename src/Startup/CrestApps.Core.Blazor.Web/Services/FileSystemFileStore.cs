@@ -16,7 +16,7 @@ public sealed class FileSystemFileStore
     public async Task<string> SaveFileAsync(string fileName, Stream content)
     {
         var filePath = GetSafePath(fileName);
-        var directory = Path.GetDirectoryName(filePath);
+        var directory = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(directory);
         using var fileStream = new FileStream(filePath, FileMode.Create);
         await content.CopyToAsync(fileStream);
@@ -26,7 +26,7 @@ public sealed class FileSystemFileStore
     public Task<Stream> GetFileAsync(string fileName)
     {
         var filePath = GetSafePath(fileName);
-        if (!File.Exists(filePath)) return Task.FromResult<Stream>(null);
+        if (!File.Exists(filePath)) return Task.FromResult<Stream>(null!);
         return Task.FromResult<Stream>(new FileStream(filePath, FileMode.Open, FileAccess.Read));
     }
 

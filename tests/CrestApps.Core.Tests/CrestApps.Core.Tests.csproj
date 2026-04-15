@@ -18,11 +18,13 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Stores/CrestApps.Core.Data.EntityCore/CrestApps.Core.Data.EntityCore.csproj" />
+    <ProjectReference Include="../../src/Stores/CrestApps.Core.Data.YesSql/CrestApps.Core.Data.YesSql.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.OpenXml/CrestApps.Core.AI.OpenXml.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Pdf/CrestApps.Core.AI.Pdf.csproj" />
     <ProjectReference Include="../../src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
+    <ProjectReference Include="..\..\src\Abstractions\CrestApps.Core.Infrastructure.Abstractions\CrestApps.Core.Infrastructure.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

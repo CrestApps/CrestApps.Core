@@ -17,7 +17,7 @@ public sealed class AccountController : Controller
 
     [HttpPost("LoginPost")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> LoginPost(string username, string password, string returnUrl = null)
+    public async Task<IActionResult> LoginPost(string username, string password, string? returnUrl = null)
     {
         var adminUsername = _configuration["CrestApps:Admin:Username"] ?? "admin";
         var adminPassword = _configuration["CrestApps:Admin:Password"] ?? "admin";

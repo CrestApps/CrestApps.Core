@@ -1,9 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
+    <TargetFrameworks />
+    <TargetFramework>$(DefaultTargetFramework)</TargetFramework>
     <RootNamespace>CrestApps.Core.Blazor.Web</RootNamespace>
     <UserSecretsId>CrestApps-Blazor-Web</UserSecretsId>
     <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
     <PackageTags>$(PackageTags) blazor sample host admin-ui signalr</PackageTags>
     <DefaultItemExcludes>$(DefaultItemExcludes);**\App_Data\**;node_modules\**</DefaultItemExcludes>
   </PropertyGroup>

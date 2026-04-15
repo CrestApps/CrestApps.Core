@@ -43,7 +43,7 @@ internal sealed class ArticleIndexProfileHandler : IndexProfileHandlerBase
     {
         if (!string.Equals(indexProfile.Type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase))
         {
-            return ValueTask.FromResult<IReadOnlyCollection<SearchIndexField>>(null);
+            return ValueTask.FromResult<IReadOnlyCollection<SearchIndexField>>(null!);
         }
 
         IReadOnlyCollection<SearchIndexField> fields = [new SearchIndexField

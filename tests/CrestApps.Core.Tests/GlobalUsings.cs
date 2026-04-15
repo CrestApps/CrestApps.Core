@@ -1,0 +1,61 @@
+global using CrestApps.Core;
+global using CrestApps.Core.Infrastructure;
+global using CrestApps.Core.Models;
+global using CrestApps.Core.Services;
+
+global using CrestApps.Core.AI;
+global using CrestApps.Core.AI.A2A.Models;
+global using CrestApps.Core.AI.Chat;
+global using CrestApps.Core.AI.Chat.Handlers;
+global using CrestApps.Core.AI.Chat.Hubs;
+global using CrestApps.Core.AI.Chat.Models;
+global using CrestApps.Core.AI.Chat.Services;
+global using CrestApps.Core.AI.Clients;
+global using CrestApps.Core.AI.Completions;
+global using CrestApps.Core.AI.Copilot.Models;
+global using CrestApps.Core.AI.Copilot.Services;
+global using CrestApps.Core.AI.DataSources;
+global using CrestApps.Core.AI.Deployments;
+global using CrestApps.Core.AI.Extensions;
+global using CrestApps.Core.AI.Handlers;
+global using CrestApps.Core.AI.Mcp;
+global using CrestApps.Core.AI.Mcp.Models;
+global using CrestApps.Core.AI.Mcp.Services;
+global using CrestApps.Core.AI.Memory;
+global using CrestApps.Core.AI.Models;
+global using CrestApps.Core.AI.OpenAI.Azure;
+global using CrestApps.Core.AI.OpenXml.Services;
+global using CrestApps.Core.AI.Orchestration;
+global using CrestApps.Core.AI.Pdf.Services;
+global using CrestApps.Core.AI.Profiles;
+global using CrestApps.Core.AI.ResponseHandling;
+global using CrestApps.Core.AI.Services;
+global using CrestApps.Core.AI.Speech;
+global using CrestApps.Core.AI.Tooling;
+global using CrestApps.Core.AI.Tools;
+
+global using CrestApps.Core.Infrastructure.Indexing;
+global using CrestApps.Core.Infrastructure.Indexing.Models;
+
+global using CrestApps.Core.Data.EntityCore;
+global using CrestApps.Core.Data.YesSql;
+global using CrestApps.Core.Data.YesSql.Services;
+
+global using CrestApps.Core.Templates;
+global using CrestApps.Core.Templates.Models;
+global using CrestApps.Core.Templates.Parsing;
+global using CrestApps.Core.Templates.Providers;
+global using CrestApps.Core.Templates.Rendering;
+global using CrestApps.Core.Templates.Services;
+
+global using CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
+global using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
+global using CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
+global using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
+global using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+global using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
+global using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
+global using CrestApps.Core.Mvc.Web.Areas.Indexing.Controllers;
+global using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
+global using CrestApps.Core.Mvc.Web.Areas.Indexing.ViewModels;
+global using CrestApps.Core.Mvc.Web.Services;

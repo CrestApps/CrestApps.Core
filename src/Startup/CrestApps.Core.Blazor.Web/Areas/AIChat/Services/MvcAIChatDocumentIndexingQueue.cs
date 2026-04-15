@@ -27,7 +27,7 @@ public sealed class MvcAIChatDocumentIndexingQueue : IMvcAIChatDocumentIndexingQ
 
 internal sealed class MvcAIChatDocumentIndexingWorkItem
 {
-    public AIDocument Document { get; private init; }
+    public AIDocument? Document { get; private init; }
     public IReadOnlyCollection<AIDocumentChunk> Chunks { get; private init; } = [];
     public IReadOnlyCollection<string> ChunkIds { get; private init; } = [];
     public MvcAIChatDocumentIndexingWorkItemType Type { get; private init; }

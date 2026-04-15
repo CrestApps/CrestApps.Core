@@ -176,7 +176,7 @@ public sealed class MvcAIDocumentIndexingService
         }
     }
 
-    private async Task<SearchIndexProfile> GetConfiguredIndexProfileAsync(CancellationToken cancellationToken)
+    private async Task<SearchIndexProfile?> GetConfiguredIndexProfileAsync(CancellationToken cancellationToken)
     {
         var settings = _options;
 

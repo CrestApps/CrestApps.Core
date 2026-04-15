@@ -19,7 +19,7 @@ public sealed class ArticleService
         return (items, total);
     }
 
-    public async Task<Article> FindByIdAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<Article?> FindByIdAsync(string id, CancellationToken cancellationToken = default)
         => await _dbContext.Articles.FirstOrDefaultAsync(a => a.ItemId == id, cancellationToken);
 
     public async Task CreateAsync(Article article, CancellationToken cancellationToken = default)

@@ -68,7 +68,7 @@
         var article = new Article
         {
             Title = Model.Title.Trim(),
-            Description = Model.Description?.Trim(),
+            Description = Model.Description?.Trim() ?? string.Empty,
             CreatedUtc = DateTime.UtcNow,
         };
 

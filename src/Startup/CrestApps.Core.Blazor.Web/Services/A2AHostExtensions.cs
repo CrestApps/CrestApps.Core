@@ -259,16 +259,16 @@ internal static class A2AHostExtensions
         }
     }
 
-    private static async Task<AIProfile> ResolveTargetProfileAsync(
+    private static async Task<AIProfile?> ResolveTargetProfileAsync(
         IServiceProvider services,
         IHttpContextAccessor httpContextAccessor,
-        AgentMessage lastMessage)
+        AgentMessage? lastMessage)
     {
         var options = services.GetRequiredService<IOptions<A2AHostOptions>>().Value;
         var profileManager = services.GetRequiredService<IAIProfileManager>();
         var profiles = await profileManager.GetAsync(AIProfileType.Agent);
 
-        AIProfile targetProfile = null;
+        AIProfile? targetProfile = null;
 
         if (!options.ExposeAgentsAsSkill)
         {
@@ -382,7 +382,7 @@ internal static class A2AHostExtensions
         }
     }
 
-    private static AIProfile ResolveAgentProfile(IEnumerable<AIProfile> profiles, string agentName)
+    private static AIProfile? ResolveAgentProfile(IEnumerable<AIProfile>? profiles, string? agentName)
     {
         if (string.IsNullOrEmpty(agentName) || profiles is null)
         {

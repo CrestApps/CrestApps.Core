@@ -31,10 +31,10 @@ public sealed class AIDataSourceIndexingBackgroundService : BackgroundService
                 switch (workItem.Type)
                 {
                     case MvcAIDataSourceIndexingWorkItemType.SyncDataSource:
-                        await indexingService.SyncDataSourceAsync(workItem.DataSource, stoppingToken);
+                        await indexingService.SyncDataSourceAsync(workItem.DataSource!, stoppingToken);
                         break;
                     case MvcAIDataSourceIndexingWorkItemType.DeleteDataSource:
-                        await indexingService.DeleteDataSourceDocumentsAsync(workItem.DataSource, stoppingToken);
+                        await indexingService.DeleteDataSourceDocumentsAsync(workItem.DataSource!, stoppingToken);
                         break;
                     case MvcAIDataSourceIndexingWorkItemType.SyncSourceDocuments:
                         await indexingService.SyncSourceDocumentsAsync(workItem.DocumentIds, stoppingToken);

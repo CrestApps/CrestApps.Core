@@ -56,7 +56,7 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
         var allPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
         var ratings = allPrompts
             .Where(prompt => prompt.UserRating.HasValue)
-            .Select(prompt => prompt.UserRating.Value)
+            .Select(prompt => prompt.UserRating!.Value)
             .ToList();
 
         if (ratings.Count > 0)
