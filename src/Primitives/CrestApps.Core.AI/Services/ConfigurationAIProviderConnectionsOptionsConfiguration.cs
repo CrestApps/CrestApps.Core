@@ -25,6 +25,13 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
 
     public void PostConfigure(string name, AIProviderOptions options)
     {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("PostConfiguring AIProviderOptions. ConnectionSections: [{ConnectionSections}]. ProviderSections: [{ProviderSections}].",
+                string.Join(", ", _catalogOptions.ConnectionSections),
+                string.Join(", ", _catalogOptions.ProviderSections));
+        }
+
         foreach (var sectionPath in _catalogOptions.ConnectionSections)
         {
             ReadTopLevelConnections(options, sectionPath);
@@ -34,6 +41,12 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
         {
             ReadProviderConnections(options, sectionPath);
         }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("PostConfigure complete. Providers: [{Providers}].",
+                string.Join(", ", options.Providers.Select(p => $"{p.Key}({p.Value.Connections?.Count ?? 0} connections)")));
+        }
     }
 
     private void ReadTopLevelConnections(AIProviderOptions options, string sectionPath)
@@ -41,6 +54,11 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
         var section = _configuration.GetSection(sectionPath);
         if (!section.Exists())
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Options: Connection section '{SectionPath}' does not exist.", sectionPath);
+            }
+
             return;
         }
 
@@ -67,15 +85,34 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
         var section = _configuration.GetSection(sectionPath);
         if (!section.Exists())
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Options: Provider section '{SectionPath}' does not exist.", sectionPath);
+            }
+
             return;
         }
 
-        foreach (var providerSection in section.GetChildren())
+        var providerChildren = section.GetChildren();
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Options: Provider section '{SectionPath}' found with {ProviderCount} provider(s): [{Providers}].",
+                sectionPath, providerChildren.Count(),
+                string.Join(", ", providerChildren.Select(c => c.Key)));
+        }
+
+        foreach (var providerSection in providerChildren)
         {
             var providerName = AIProviderNameNormalizer.Normalize(providerSection.Key);
             var connectionsSection = providerSection.GetSection("Connections");
             if (!connectionsSection.Exists())
             {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("Options: Provider '{ProviderName}' in '{SectionPath}' has no 'Connections' sub-section. Skipping.", providerName, sectionPath);
+                }
+
                 continue;
             }
 
@@ -162,9 +199,9 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
 
     private static object ReadValue(IConfigurationSection section)
     {
-        var children = section.GetChildren().ToArray();
+        var children = section.GetChildren();
 
-        if (children.Length == 0)
+        if (!children.Any())
         {
             return ParseScalar(section.Value);
         }
@@ -173,8 +210,7 @@ internal sealed class ConfigurationAIProviderConnectionsOptionsConfiguration : I
         {
             return children
                 .OrderBy(static child => int.Parse(child.Key, CultureInfo.InvariantCulture))
-                .Select(ReadValue)
-                .ToArray();
+                .Select(ReadValue);
         }
 
         return children.ToDictionary(static child => child.Key, ReadValue, StringComparer.OrdinalIgnoreCase);

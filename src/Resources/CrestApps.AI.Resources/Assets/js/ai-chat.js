@@ -5,7 +5,6 @@ window.openAIChatManager = function () {
         // UI defaults for generated media
         generatedImageAltText: 'Generated Image',
         generatedImageMaxWidth: 400,
-        generatedChartMaxWidth: 900,
         downloadImageTitle: 'Download image',
         downloadChartTitle: 'Download chart as image',
         downloadChartButtonText: 'Download',
@@ -176,10 +175,8 @@ window.openAIChatManager = function () {
     window.__chartConfigs = window.__chartConfigs || {};
 
     function createChartHtml(chartId) {
-        const chartMaxWidth = defaultConfig.generatedChartMaxWidth;
-
-        return `<div class="chart-container" style="position: relative; width: 100%; max-width: ${chartMaxWidth}px;">`
-            + `<canvas id="${chartId}" class="img-thumbnail"></canvas>`
+        return `<div class="chart-container" style="position: relative; width: 100%; max-width: 560px; min-height: 420px;">`
+            + `<canvas id="${chartId}"></canvas>`
             + `</div>`
             + `<div class="mt-2">`
             + `<button type="button" class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart-id="${chartId}" title="${defaultConfig.downloadChartTitle}">`
@@ -313,12 +310,21 @@ window.openAIChatManager = function () {
     function renderChartOnCanvas(chartId, config) {
         const canvas = document.getElementById(chartId);
         if (!canvas) {
-            return;
+            return false;
         }
 
         if (typeof Chart === 'undefined') {
             console.warn('Chart.js is not loaded. To render interactive charts, include the Chart.js library on the page (e.g., <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>).');
-            return;
+            return false;
+        }
+
+        // When the canvas is inside a hidden container (e.g., a widget panel with
+        // display:none), it has zero dimensions and Chart.js cannot render correctly.
+        // Keep the config in __chartConfigs so renderPendingCharts() can retry later
+        // once the container becomes visible.
+        if (canvas.offsetParent === null) {
+            window.__chartConfigs[chartId] = config;
+            return false;
         }
 
         try {
@@ -329,12 +335,15 @@ window.openAIChatManager = function () {
             const cfg = typeof config === 'string' ? JSON.parse(config) : config;
             cfg.options ??= {};
             cfg.options.responsive = true;
-            cfg.options.maintainAspectRatio = false;
+            cfg.options.maintainAspectRatio = true;
+            cfg.options.aspectRatio ??= 4 / 3;
 
             canvas._chartInstance = new Chart(canvas, cfg);
             delete window.__chartConfigs[chartId];
+            return true;
         } catch (e) {
             console.error('Error creating chart:', e);
+            return false;
         }
     }
 

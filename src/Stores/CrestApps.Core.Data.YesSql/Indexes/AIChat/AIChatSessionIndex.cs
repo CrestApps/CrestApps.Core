@@ -4,7 +4,7 @@ using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
 
-public sealed class AIChatSessionIndex : CatalogItemIndex
+public sealed class AIChatSessionIndex : MapIndex
 {
     public string SessionId { get; set; }
 
@@ -29,7 +29,6 @@ public sealed class AIChatSessionIndexProvider : IndexProvider<AIChatSession>
         context.For<AIChatSessionIndex>()
             .Map(session => new AIChatSessionIndex
             {
-                ItemId = session.SessionId,
                 SessionId = session.SessionId,
                 ProfileId = session.ProfileId,
                 UserId = session.UserId,

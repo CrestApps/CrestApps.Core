@@ -98,54 +98,135 @@
     font-size: 0.9rem;
 }
 
-.ai-chat-widget-messages .msg {
-    margin-bottom: 0.75rem;
+/* ── Widget message items (ai-chat.js Vue template) ── */
+.ai-chat-widget-messages .ai-chat-messages {
+    padding: 0.5rem;
+}
+
+.ai-chat-widget-messages .ai-chat-message-item {
+    position: relative;
+    padding: 0.5rem 0;
+}
+
+.ai-chat-widget-messages .ai-chat-message-item + .ai-chat-message-item::before {
+    content: '';
+    display: block;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    border-top: 1px solid rgba(33, 37, 41, 0.08);
+}
+
+.ai-chat-widget-messages .ai-chat-msg-role {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.ai-chat-widget-messages .ai-chat-msg-role-user {
+    color: #0d6efd;
+}
+
+.ai-chat-widget-messages .ai-chat-msg-role-assistant {
+    color: #6f42c1;
+}
+
+.ai-chat-widget-messages .ai-chat-msg-role-assistant i.ai-streaming-icon {
+    animation: ai-widget-pulse 1.5s infinite;
+}
+
+.ai-chat-widget-messages .ai-chat-msg-role-assistant i.ai-bot-icon {
+    color: #6f42c1;
+}
+
+.ai-chat-widget-messages .ai-chat-message-body {
+    position: relative;
+    padding: 0 0 1.75rem 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+}
+
+.ai-chat-widget-messages .ai-chat-message-body p:last-child {
+    margin-bottom: 0;
+}
+
+/* ── Message action buttons (copy, thumbs up/down) ── */
+.ai-chat-widget-messages .message-buttons-container {
+    position: absolute;
+    right: 0;
+    bottom: 0.25rem;
+    display: inline-flex;
+    gap: 0.35rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease-in-out;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.ai-chat-widget-messages .ai-chat-message-item:hover .message-buttons-container,
+.ai-chat-widget-messages .ai-chat-message-item:focus-within .message-buttons-container {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ai-chat-widget-messages .message-buttons-container > .button-message-toolbox {
+    color: var(--bs-secondary-color, #6c757d) !important;
+    text-decoration: none;
+}
+
+.ai-chat-widget-messages .message-buttons-container > .button-message-toolbox:hover,
+.ai-chat-widget-messages .message-buttons-container > .button-message-toolbox:focus {
+    color: var(--bs-body-color, #212529) !important;
+}
+
+/* ── Notifications ── */
+.ai-chat-widget-messages .ai-chat-notification {
+    margin: 0.75rem 0.5rem 0;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid rgba(33, 37, 41, 0.12);
+    border-radius: 0.5rem;
+    background: rgba(248, 249, 250, 0.98);
+}
+
+.ai-chat-widget-messages .ai-chat-notification-content {
     display: flex;
+    align-items: flex-start;
     gap: 0.5rem;
 }
 
-.ai-chat-widget-messages .msg.user {
-    flex-direction: row-reverse;
+.ai-chat-widget-messages .ai-chat-notification-icon {
+    margin-top: 0.1rem;
+    color: var(--bs-secondary-color, #6c757d);
 }
 
-.ai-chat-widget-messages .msg .bubble {
-    max-width: 80%;
-    padding: 0.5rem 0.75rem;
-    border-radius: 10px;
-    line-height: 1.4;
-    word-wrap: break-word;
+.ai-chat-widget-messages .ai-chat-notification-text {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
-.ai-chat-widget-messages .msg.user .bubble {
-    background: var(--ai-widget-primary);
-    color: white;
-    border-bottom-right-radius: 2px;
+.ai-chat-widget-messages .ai-chat-notification-dismiss {
+    margin-left: auto !important;
+    color: var(--bs-secondary-color, #6c757d) !important;
 }
 
-.ai-chat-widget-messages .msg.assistant .bubble {
-    background: #f1f3f5;
-    color: #212529;
-    border-bottom-left-radius: 2px;
+.ai-chat-widget-messages .ai-chat-notification-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
 }
 
-.ai-chat-widget-messages .msg.system .bubble {
-    background: #fff3cd;
-    color: #664d03;
-    font-size: 0.85rem;
+/* ── Chart containers inside widget ── */
+.ai-chat-widget-messages .chart-container {
     width: 100%;
-    text-align: center;
+    max-width: 100% !important;
+    min-height: 280px;
 }
 
-.ai-chat-widget-messages .msg .bubble.streaming::after {
-    content: '▌';
-    animation: blink 0.7s steps(1) infinite;
-}
-
-@keyframes blink {
-    50% { opacity: 0; }
-}
-
-.ai-chat-widget-messages .msg .bubble pre {
+/* ── Code blocks & inline code ── */
+.ai-chat-widget-messages .ai-chat-message-body pre {
     background: #2d2d2d;
     color: #f8f8f2;
     padding: 0.5rem;
@@ -154,12 +235,13 @@
     font-size: 0.8rem;
 }
 
-.ai-chat-widget-messages .msg .bubble code {
+.ai-chat-widget-messages .ai-chat-message-body code {
     font-size: 0.85em;
 }
 
-.ai-chat-widget-messages .msg .bubble p:last-child {
-    margin-bottom: 0;
+@keyframes ai-widget-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
 }
 
 .ai-chat-widget-input {
