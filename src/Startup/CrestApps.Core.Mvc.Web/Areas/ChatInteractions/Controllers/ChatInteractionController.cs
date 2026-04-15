@@ -249,7 +249,7 @@ public sealed class ChatInteractionController : Controller
             ChatMode = effectiveChatMode,
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
-            TextToSpeechEnabled = effectiveChatMode == ChatMode.Conversation,
+            TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
         };
 

@@ -34,6 +34,7 @@
         border-top: 1px solid var(--bs-border-color, #dee2e6);
     }
     .ai-chat-messages .ai-chat-message-item p:last-child { margin-bottom: 0; }
+    .ai-chat-messages .ai-chat-message-item .lh-base { position: relative; }
     .ai-chat-msg-role { font-size: 0.75rem; font-weight: 600; margin-bottom: 2px; }
     .ai-chat-msg-role-user { color: #0d6efd; }
     .ai-chat-msg-role-assistant { color: #6f42c1; }
@@ -41,12 +42,21 @@
     .ai-chat-msg-role-assistant i.ai-bot-icon { color: #6f42c1; }
     .ai-chat-messages .message-buttons-container {
         position: absolute;
-        bottom: 0.25rem;
-        right: 0.25rem;
+        right: 0;
+        top: 0;
         display: none;
+        background: #fff;
+        padding: 0.15rem 0.35rem;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        z-index: 1;
     }
     .ai-chat-messages .ai-chat-message-item:hover .message-buttons-container {
-        display: inline-block;
+        display: inline-flex;
+        gap: 0.35rem;
+    }
+    .ai-chat-messages .message-buttons-container > .tts-playing {
+        color: var(--bs-primary, #0d6efd) !important;
     }
     @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
@@ -551,7 +561,7 @@
 
 @section Scripts {
     <script src="~/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js" asp-append-version="true"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@latest/dist/browser/signalr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
@@ -1339,13 +1349,46 @@
                     },
                     copyResponse: function (content) {
                         navigator.clipboard.writeText(content);
+                    },
+                    toggleMessageTts: function (message, index) {
+                        if (this.ttsPlayingMessageIndex === index) {
+                            stopAudio();
+                            this.ttsPlayingMessageIndex = -1;
+                            return;
+                        }
+
+                        stopAudio();
+                        this.ttsPlayingMessageIndex = index;
+
+                        if (ttsAudioCache[index]) {
+                            playAudioBlob(ttsAudioCache[index]);
+                            return;
+                        }
+
+                        if (!textToSpeechEnabled || !message.content || !connection) {
+                            return;
+                        }
+
+                        audioChunks = [];
+                        isPlayingAudio = true;
+                        ttsCacheIndex = index;
+
+                        var self = this;
+                        connection.invoke("SynthesizeSpeech", itemId, message.content, ttsVoiceName)
+                            .catch(function (err) {
+                                console.error("TTS synthesis error:", err);
+                                isPlayingAudio = false;
+                                self.ttsPlayingMessageIndex = -1;
+                                ttsCacheIndex = -1;
+                            });
                     }
                 },
                 data: function () {
                     return {
                         messages: existingMessages.map(function (m) {
                             return createChatMessage(m.role, m.content, false, false, m.references || m.References);
-                        })
+                        }),
+                        ttsPlayingMessageIndex: -1
                     };
                 },
                 template:
@@ -1363,6 +1406,11 @@
                                 '<div class="lh-base">' +
                                     '<div v-html="message.htmlContent"></div>' +
                                     '<span class="message-buttons-container" v-if="message.role === \'assistant\' && !message.isStreaming">' +
+                                        (textToSpeechEnabled
+                                            ? '<button class="btn btn-sm btn-link text-secondary p-0 me-1" :class="{ \'tts-playing\': ttsPlayingMessageIndex === index }" v-on:click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? \'Pause audio\' : \'Read aloud\'">' +
+                                                '<i :class="ttsPlayingMessageIndex === index ? \'bi bi-pause-circle-fill\' : \'bi bi-play-circle-fill\'"></i>' +
+                                              '</button>'
+                                            : '') +
                                         '<button class="btn btn-sm btn-link text-secondary p-0" v-on:click="copyResponse(message.content)" title="Copy response">' +
                                             '<i class="bi bi-clipboard"></i>' +
                                         '</button>' +
@@ -1398,6 +1446,8 @@
             var audioPlayQueue = [];
             var isPlayingAudio = false;
             var currentAudioElement = null;
+            var ttsAudioCache = {};
+            var ttsCacheIndex = -1;
 
             function toggleDataSourceDependentFields() {
                 var hasDataSource = !!(dataSourceSelect && dataSourceSelect.value && dataSourceSelect.value.trim() !== '');
@@ -1495,6 +1545,7 @@
                 audioChunks = [];
                 audioPlayQueue = [];
                 isPlayingAudio = false;
+                vm.ttsPlayingMessageIndex = -1;
             }
 
             function playAudioBlob(blob) {
@@ -1514,6 +1565,7 @@
                     }
 
                     isPlayingAudio = false;
+                    vm.ttsPlayingMessageIndex = -1;
                 }
 
                 audio.addEventListener('ended', onEnded);
@@ -1544,6 +1596,11 @@
                 audioChunks = [];
 
                 var blob = new Blob([combined], { type: 'audio/mp3' });
+
+                if (ttsCacheIndex >= 0) {
+                    ttsAudioCache[ttsCacheIndex] = blob;
+                    ttsCacheIndex = -1;
+                }
 
                 if (currentAudioElement) {
                     audioPlayQueue.push(blob);

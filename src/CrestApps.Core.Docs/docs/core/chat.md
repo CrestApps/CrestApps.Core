@@ -743,6 +743,8 @@ Pin a specific version in production by appending `@<version>` after the package
 | `chat-widget.css` / `.min.css` | Styles for the floating AI Chat widget |
 | `document-drop-zone.css` / `.min.css` | Styles for the document drop-zone component |
 
+Each JavaScript and CSS file also ships with a companion `.map` source map file (e.g. `ai-chat.js.map`, `chat-widget.css.map`). Source maps are generated for both the dev and minified builds and are included in the `dist/` folder and npm package exports.
+
 ### Required Client-Side Dependencies
 
 Both widgets require the following libraries to be loaded on the page **before** the widget script:
@@ -760,4 +762,20 @@ Both widgets require the following libraries to be loaded on the page **before**
 |---------|---------|-------------|
 | [Chart.js](https://www.chartjs.org/) | Interactive chart rendering | `https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js` |
 | [highlight.js](https://highlightjs.org/) | Code syntax highlighting | `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js` |
+
+### Text-to-Speech Play Icon
+
+When a text-to-speech (TTS) deployment is configured, each assistant message shows a play icon that reads the message aloud via server-side speech synthesis. Clicking the icon calls `SynthesizeSpeech` on the SignalR hub, which streams audio chunks back to the client and plays them as MP3. Clicking the icon again pauses playback.
+
+To enable this feature, pass `textToSpeechEnabled: true` in the widget initialization config:
+
+```js
+window.openAIChatManager.initialize({
+    // ... other config ...
+    textToSpeechEnabled: true,
+    ttsVoiceName: 'alloy' // optional voice name override
+});
+```
+
+The play icon appears on all completed assistant messages regardless of whether the profile uses Conversation mode. The only requirement is that a TTS deployment is available on the server.
 

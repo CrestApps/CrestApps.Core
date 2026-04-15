@@ -3,36 +3,42 @@
     "inputs": [
       "Assets/js/ai-chat.js"
     ],
-    "output": "wwwroot/scripts/ai-chat.js"
+    "output": "wwwroot/scripts/ai-chat.js",
+    "generateSourceMaps": true
   },
   {
     "inputs": [
       "Assets/js/chat-interaction.js"
     ],
-    "output": "wwwroot/scripts/chat-interaction.js"
+    "output": "wwwroot/scripts/chat-interaction.js",
+    "generateSourceMaps": true
   },
   {
     "inputs": [
       "Assets/js/document-drop-zone.js"
     ],
-    "output": "wwwroot/scripts/document-drop-zone.js"
+    "output": "wwwroot/scripts/document-drop-zone.js",
+    "generateSourceMaps": true
   },
   {
     "inputs": [
       "Assets/js/technical-name-generator.js"
     ],
-    "output": "wwwroot/scripts/technical-name-generator.js"
+    "output": "wwwroot/scripts/technical-name-generator.js",
+    "generateSourceMaps": true
   },
   {
     "inputs": [
       "Assets/css/chat-widget.css"
     ],
-    "output": "wwwroot/styles/chat-widget.css"
+    "output": "wwwroot/styles/chat-widget.css",
+    "generateSourceMaps": true
   },
   {
     "inputs": [
       "Assets/css/document-drop-zone.css"
     ],
-    "output": "wwwroot/styles/document-drop-zone.css"
+    "output": "wwwroot/styles/document-drop-zone.css",
+    "generateSourceMaps": true
   }
 ]

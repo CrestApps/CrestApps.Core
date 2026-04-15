@@ -18,4 +18,12 @@ public class ChatModeProfileSettings
     /// When <c>null</c> or empty, the provider's default voice is used.
     /// </summary>
     public string VoiceName { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to show text-to-speech playback controls on
+    /// assistant messages. Disabled by default. When enabled the UI displays
+    /// a play button on each assistant message, allowing the user to listen
+    /// to the response via the configured TTS deployment.
+    /// </summary>
+    public bool EnableTextToSpeechPlayback { get; set; }
 }
