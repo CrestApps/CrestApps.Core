@@ -3,7 +3,7 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Services
-@using System.Text.RegularExpressions
+@using CrestApps.Core.Blazor.Web.Services
 @inject INamedSourceCatalog<AIProviderConnection> ConnectionCatalog
 @inject NavigationManager NavigationManager
 
@@ -109,7 +109,7 @@
     {
         if (!_nameManuallyEdited)
         {
-            Model.Name = GenerateTechnicalName(e.Value?.ToString());
+            Model.Name = TechnicalNameGenerator.Generate(e.Value?.ToString());
         }
     }
 
@@ -179,21 +179,6 @@
         {
             IsSubmitting = false;
         }
-    }
-
-    private static string GenerateTechnicalName(string? displayText)
-    {
-        if (string.IsNullOrWhiteSpace(displayText))
-        {
-            return string.Empty;
-        }
-
-        // Remove non-alphanumeric characters except spaces, then PascalCase it.
-        var cleaned = Regex.Replace(displayText.Trim(), @"[^a-zA-Z0-9\s]", "");
-        var parts = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        return string.Concat(parts.Select(p =>
-            char.ToUpperInvariant(p[0]) + p[1..].ToLowerInvariant()));
     }
 
     private sealed class ConnectionFormModel

@@ -8,6 +8,7 @@
 @using CrestApps.Core.AI.Mcp.Models
 @using CrestApps.Core.AI.DataSources
 @using CrestApps.Core.Services
+@using CrestApps.Core.Blazor.Web.Services
 @using Microsoft.Extensions.Options
 @inject IAIProfileManager ProfileManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
@@ -66,11 +67,14 @@
                 <div class="@(ActiveTab == "basic" ? "" : "d-none")">
                     <div class="mb-3">
                         <label for="displayText" class="form-label">Title <span class="text-danger">*</span></label>
-                        <InputText id="displayText" @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., My Chat Assistant" />
+                        <InputText id="displayText" @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., My Chat Assistant"
+                                   @oninput="OnDisplayTextChanged" />
                     </div>
                     <div class="mb-3">
                         <label for="name" class="form-label">Technical name <span class="text-danger">*</span></label>
-                        <InputText id="name" @bind-Value="Model.Name" class="form-control" placeholder="e.g., my-chat-assistant" />
+                        <InputText id="name" @bind-Value="Model.Name" class="form-control" placeholder="e.g., MyChatAssistant"
+                                   @oninput="@(() => _nameManuallyEdited = true)" />
+                        <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
                         @if (!string.IsNullOrEmpty(NameError))
                         {
                             <div class="text-danger">@NameError</div>
@@ -752,6 +756,15 @@
     private string? ErrorMessage;
     private string? NameError;
     private bool IsSubmitting;
+    private bool _nameManuallyEdited;
+
+    private void OnDisplayTextChanged(ChangeEventArgs e)
+    {
+        if (!_nameManuallyEdited)
+        {
+            Model.Name = TechnicalNameGenerator.Generate(e.Value?.ToString());
+        }
+    }
 
     // Dropdown data
     private List<AIDeployment> ChatDeployments = [];

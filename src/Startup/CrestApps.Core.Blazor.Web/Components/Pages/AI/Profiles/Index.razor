@@ -1,8 +1,11 @@
 @page "/AI/Profiles"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Profiles
 @inject IAIProfileManager ProfileManager
+@inject IAIChatSessionManager SessionManager
+@inject NavigationManager NavigationManager
 
 <PageTitle>AI Profiles</PageTitle>
 
@@ -57,9 +60,11 @@ else
                         <td>
                             @if (profile.Type == AIProfileType.Chat)
                             {
-                                <a href="/AIChat/Chat/@profile.ItemId" class="btn btn-sm btn-outline-success" title="Start a new chat session">
+                                <button type="button" class="btn btn-sm btn-outline-success"
+                                        title="Start a new chat session"
+                                        @onclick="() => CreateChatSession(profile.ItemId)">
                                     <i class="bi bi-chat-dots"></i> New Chat
-                                </a>
+                                </button>
                                 <a href="/AIChat/Sessions/@profile.ItemId" class="btn btn-sm btn-outline-info" title="View chat history">
                                     <i class="bi bi-clock-history"></i> Chat History
                                 </a>
@@ -140,6 +145,18 @@ else
     {
         DeleteTargetId = null;
         ShowDeleteConfirmation = false;
+    }
+
+    private async Task CreateChatSession(string profileId)
+    {
+        var profile = await ProfileManager.FindByIdAsync(profileId);
+        if (profile is null) return;
+
+        var session = await SessionManager.NewAsync(profile, new NewAIChatSessionContext());
+        session.Title = profile.DisplayText ?? profile.Name;
+        await SessionManager.SaveAsync(session);
+
+        NavigationManager.NavigateTo($"/AIChat/Chat/{profile.ItemId}/{session.SessionId}");
     }
 
     private async Task ExecuteDelete()

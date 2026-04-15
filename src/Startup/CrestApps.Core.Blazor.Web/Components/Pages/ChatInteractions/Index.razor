@@ -5,14 +5,15 @@
 @inject ICatalogManager<ChatInteraction> InteractionManager
 @inject IChatInteractionPromptStore PromptStore
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Chat Interactions</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-chat-left-dots"></i> Chat Interactions</h2>
-    <a href="/ChatInteractions/Create" class="btn btn-success">
+    <button type="button" class="btn btn-success" @onclick="CreateNewChat" disabled="@_isCreating">
         <i class="bi bi-plus-lg"></i> New Chat
-    </a>
+    </button>
 </div>
 
 @if (!string.IsNullOrEmpty(SuccessMessage))
@@ -102,10 +103,35 @@ else
     private IReadOnlyList<ChatInteraction>? Interactions;
     private bool ShowDeleteConfirmation;
     private string? DeleteTargetId;
+    private bool _isCreating;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadInteractionsAsync();
+    }
+
+    private async Task CreateNewChat()
+    {
+        if (_isCreating) return;
+        _isCreating = true;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userName = authState.User.Identity?.Name ?? "anonymous";
+
+            var interaction = await InteractionManager.NewAsync();
+            interaction.Title = "Untitled Chat";
+            interaction.OwnerId = userName;
+            interaction.Author = userName;
+            interaction.CreatedUtc = DateTime.UtcNow;
+            await InteractionManager.CreateAsync(interaction);
+            NavigationManager.NavigateTo($"/ChatInteractions/Chat/{interaction.ItemId}");
+        }
+        finally
+        {
+            _isCreating = false;
+        }
     }
 
     private async Task LoadInteractionsAsync()

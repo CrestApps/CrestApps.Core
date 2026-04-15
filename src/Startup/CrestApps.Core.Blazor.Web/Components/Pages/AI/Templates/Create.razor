@@ -11,6 +11,7 @@
 @using CrestApps.Core.AI.DataSources
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.Services
+@using CrestApps.Core.Blazor.Web.Services
 @using CrestApps.Core.Templates.Services
 @using Microsoft.Extensions.Options
 @inject ICatalog<AIProfileTemplate> Catalog
@@ -41,16 +42,18 @@
 
             <div class="mb-3">
                 <label for="displayText" class="form-label">Title <span class="text-danger">*</span></label>
-                <InputText id="displayText" @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., Customer Support Prompt" />
+                <InputText id="displayText" @bind-Value="Model.DisplayText" class="form-control" placeholder="e.g., Customer Support Prompt"
+                           @oninput="OnDisplayTextChanged" />
             </div>
             <div class="mb-3">
                 <label for="name" class="form-label">Technical name <span class="text-danger">*</span></label>
-                <InputText id="name" @bind-Value="Model.Name" class="form-control" placeholder="e.g., CustomerSupportPrompt" />
+                <InputText id="name" @bind-Value="Model.Name" class="form-control" placeholder="e.g., CustomerSupportPrompt"
+                           @oninput="@(() => _nameManuallyEdited = true)" />
                 @if (!string.IsNullOrEmpty(NameError))
                 {
                     <div class="text-danger">@NameError</div>
                 }
-                <div class="form-text">A unique technical identifier for this template.</div>
+                <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
             </div>
             <div class="row">
                 <div class="col-md-6">
@@ -724,6 +727,15 @@
     private string? ErrorMessage;
     private string? NameError;
     private string ActiveTab = "basic";
+    private bool _nameManuallyEdited;
+
+    private void OnDisplayTextChanged(ChangeEventArgs e)
+    {
+        if (!_nameManuallyEdited)
+        {
+            Model.Name = TechnicalNameGenerator.Generate(e.Value?.ToString());
+        }
+    }
 
     // Dropdown data
     private List<AIDeployment> ChatDeployments = [];

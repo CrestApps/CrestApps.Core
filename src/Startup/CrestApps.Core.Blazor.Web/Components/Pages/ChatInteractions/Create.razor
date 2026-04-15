@@ -1,30 +1,12 @@
 @page "/ChatInteractions/Create"
 @attribute [Authorize(Policy = "Admin")]
-@using CrestApps.Core.Services
-@inject ICatalogManager<ChatInteraction> InteractionManager
-@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
 
-<PageTitle>New Chat Interaction</PageTitle>
-
-<div class="d-flex align-items-center gap-2">
-    <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
-    <span>Creating chat interaction...</span>
-</div>
-
 @code {
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var userName = authState.User.Identity?.Name ?? "anonymous";
-
-        var interaction = await InteractionManager.NewAsync();
-        interaction.Title = "Untitled Chat";
-        interaction.OwnerId = userName;
-        interaction.Author = userName;
-        interaction.CreatedUtc = DateTime.UtcNow;
-
-        await InteractionManager.CreateAsync(interaction);
-        NavigationManager.NavigateTo($"/ChatInteractions/Chat/{interaction.ItemId}");
+        // Redirect to the index page which handles creation directly.
+        // This preserves backward compatibility if anyone bookmarked this URL.
+        NavigationManager.NavigateTo("/ChatInteractions", replace: true);
     }
 }

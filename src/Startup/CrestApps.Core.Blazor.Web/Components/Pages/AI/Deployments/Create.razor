@@ -4,7 +4,7 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Services
-@using System.Text.RegularExpressions
+@using CrestApps.Core.Blazor.Web.Services
 @inject IAIDeploymentStore DeploymentCatalog
 @inject INamedSourceCatalog<AIProviderConnection> ConnectionCatalog
 @inject NavigationManager NavigationManager
@@ -176,7 +176,7 @@
     {
         if (!_nameManuallyEdited)
         {
-            Model.TechnicalName = GenerateTechnicalName(e.Value?.ToString());
+            Model.TechnicalName = TechnicalNameGenerator.Generate(e.Value?.ToString());
         }
     }
 
@@ -287,19 +287,6 @@
         {
             IsSubmitting = false;
         }
-    }
-
-    private static string GenerateTechnicalName(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return string.Empty;
-        }
-
-        var cleaned = Regex.Replace(text.Trim(), @"[^a-zA-Z0-9\s\-_]", "");
-        var parts = cleaned.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries);
-        return string.Concat(parts.Select(p =>
-            char.ToUpperInvariant(p[0]) + p[1..].ToLowerInvariant()));
     }
 
     private sealed class DeploymentFormModel
