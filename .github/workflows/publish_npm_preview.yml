@@ -78,6 +78,6 @@ jobs:
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       run: |
-        PREVIEW_VERSION="$(node -p "require('./package.json').version")-preview.${{ github.run_number }}"
+        PREVIEW_VERSION="$(node -p "require('./package.json').version").${{ github.run_number }}"
         npm version "${PREVIEW_VERSION}" --no-git-tag-version --allow-same-version
         npm publish --access public --tag preview
