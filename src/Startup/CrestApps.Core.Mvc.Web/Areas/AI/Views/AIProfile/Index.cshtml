@@ -25,7 +25,7 @@ else
                     <th>Title</th>
                     <th>Technical Name</th>
                     <th>Type</th>
-                    <th style="width: 260px;">Actions</th>
+                    <th style="width: 380px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -45,9 +45,18 @@ else
                                 <form asp-area="AIChat" asp-controller="AIChat" asp-action="CreateSession" method="post" class="d-inline">
                                     <input type="hidden" name="profileId" value="@profile.ItemId" />
                                     <button type="submit" class="btn btn-sm btn-outline-success" title="Start a new chat session">
-                                        <i class="bi bi-chat-dots"></i> Chat
+                                        <i class="bi bi-chat-dots"></i> New Chat
                                     </button>
                                 </form>
+                                <a asp-area="AIChat" asp-controller="AIChat" asp-action="Sessions" asp-route-profileId="@profile.ItemId" class="btn btn-sm btn-outline-info" title="View chat history">
+                                    <i class="bi bi-clock-history"></i> Chat History
+                                </a>
+                            }
+                            else if (profile.Type == CrestApps.Core.AI.Models.AIProfileType.Utility || profile.Type == CrestApps.Core.AI.Models.AIProfileType.Agent)
+                            {
+                                <a asp-area="AIChat" asp-controller="AIChat" asp-action="Test" asp-route-profileId="@profile.ItemId" class="btn btn-sm btn-outline-success" title="Test this profile">
+                                    <i class="bi bi-play-circle"></i> Test
+                                </a>
                             }
                             <a asp-action="Edit" asp-route-id="@profile.ItemId" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-pencil"></i> Edit

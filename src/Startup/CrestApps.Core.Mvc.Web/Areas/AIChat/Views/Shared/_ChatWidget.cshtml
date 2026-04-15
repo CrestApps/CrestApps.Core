@@ -22,10 +22,11 @@
     }
     var configuredChatMode = profileChatModeSettings?.ChatMode ?? ChatMode.TextInput;
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
-    var textToSpeechEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
+    var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
+    var textToSpeechEnabled = (profileChatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
     var effectiveChatMode = configuredChatMode switch
     {
-        ChatMode.Conversation when speechToTextEnabled && textToSpeechEnabled => ChatMode.Conversation,
+        ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
         ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
         ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
         _ => ChatMode.TextInput,
@@ -113,7 +114,7 @@
             </div>
         </div>
 
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@latest/dist/browser/signalr.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>

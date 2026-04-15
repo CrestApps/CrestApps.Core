@@ -163,6 +163,14 @@
                         <div class="form-text">Select a voice for conversation mode. Leave this empty to use the site's default voice.</div>
                     </div>
 
+                    <div class="mb-3 profile-type profile-type-chat@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat ? " d-none" : "")">
+                        <div class="form-check form-switch">
+                            <input asp-for="EnableTextToSpeechPlayback" class="form-check-input" type="checkbox" />
+                            <label asp-for="EnableTextToSpeechPlayback" class="form-check-label">Enable text-to-speech playback</label>
+                        </div>
+                        <div class="form-text">When enabled, assistant messages show a play button that reads the response aloud using the configured text-to-speech deployment.</div>
+                    </div>
+
                     <!-- Agent-only: Description -->
                     <div class="mb-3 profile-type profile-type-agent@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Agent ? " d-none" : "")">
                         <label asp-for="Description" class="form-label">Description</label>

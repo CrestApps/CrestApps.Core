@@ -215,9 +215,6 @@ function buildCssPipeline(assetGroup, doConcat, doRebuild) {
         var ext = path.extname(inputPath).toLowerCase();
         return ext === ".less" || ext === ".scss";
     });
-    // Source maps are useless if neither concatenating nor transforming.
-    if ((!doConcat || assetGroup.inputPaths.length < 2) && !containsLessOrScss)
-        generateSourceMaps = false;
 
     var minifiedStream = gulp.src(assetGroup.inputPaths) // Minified output, source mapping completely disabled.
         .pipe(gulpif(!doRebuild,
@@ -271,7 +268,7 @@ function buildCssPipeline(assetGroup, doConcat, doRebuild) {
         })))
         .pipe(gulpif(doConcat, concat(assetGroup.outputFileName)))
         .pipe(gulpif(generateRTL, postcss([rtl()])))
-        .pipe(gulpif(generateSourceMaps, sourcemaps.write()))
+        .pipe(gulpif(generateSourceMaps, sourcemaps.write('.')))
         .pipe(eol('\n'))
         .pipe(gulp.dest(assetGroup.outputDir));
     // Uncomment to copy assets to wwwroot
@@ -286,9 +283,6 @@ function buildJsPipeline(assetGroup, doConcat, doRebuild) {
             throw "Input file '" + inputPath + "' is not of a valid type for output file '" + assetGroup.outputPath + "'.";
     });
     var generateSourceMaps = assetGroup.hasOwnProperty("generateSourceMaps") ? assetGroup.generateSourceMaps : false;
-    // Source maps are useless if neither concatenating nor transforming.
-    if ((!doConcat || assetGroup.inputPaths.length < 2) && !assetGroup.inputPaths.some(function (inputPath) { return path.extname(inputPath).toLowerCase() === ".ts"; }))
-        generateSourceMaps = false;
 
     var tsCompilerOptions = assetGroup.hasOwnProperty("tsCompilerOptions") ? assetGroup.tsCompilerOptions : {
         declaration: false,
@@ -329,16 +323,17 @@ function buildJsPipeline(assetGroup, doConcat, doRebuild) {
     }
 
     var devStream = createJsStream(generateSourceMaps)
-        .pipe(gulpif(generateSourceMaps, sourcemaps.write()))
+        .pipe(gulpif(generateSourceMaps, sourcemaps.write('.')))
         .pipe(gulp.dest(assetGroup.outputDir));
     // Uncomment to copy assets to wwwroot
     //.pipe(gulp.dest(assetGroup.webroot));
 
-    var minifiedStream = createJsStream(false)
+    var minifiedStream = createJsStream(generateSourceMaps)
         .pipe(terser())
         .pipe(rename({
             suffix: ".min"
         }))
+        .pipe(gulpif(generateSourceMaps, sourcemaps.write('.')))
         .pipe(eol('\n'))
         .pipe(gulp.dest(assetGroup.outputDir));
     // Uncomment to copy assets to wwwroot

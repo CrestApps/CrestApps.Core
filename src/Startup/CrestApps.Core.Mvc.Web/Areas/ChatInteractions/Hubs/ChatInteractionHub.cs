@@ -178,11 +178,6 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
         }
 
         var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
-        if (chatInteractionSettings.ChatMode != ChatMode.Conversation)
-        {
-            await Clients.Caller.ReceiveError("Text-to-speech is not enabled for chat interactions.");
-            return;
-        }
 
         var textToSpeechDeployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.TextToSpeech);
         if (textToSpeechDeployment is null)

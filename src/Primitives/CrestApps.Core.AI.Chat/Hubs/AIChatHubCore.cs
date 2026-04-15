@@ -745,11 +745,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                     return;
                 }
 
-                if (!profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) || chatModeSettings.ChatMode != ChatMode.Conversation)
-                {
-                    await Clients.Caller.ReceiveError(GetTtsNotEnabledMessage());
-                    return;
-                }
+                profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
 
                 var deploymentSettings = await GetDeploymentSettingsAsync(services);
                 if (string.IsNullOrEmpty(deploymentSettings.DefaultTextToSpeechDeploymentName))
@@ -766,7 +762,7 @@ public class AIChatHubCore<TClient> : Hub<TClient> where TClient : class, IAICha
                 }
 
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(deployment);
-                var effectiveVoiceName = !string.IsNullOrWhiteSpace(voiceName) ? voiceName : !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName) ? chatModeSettings.VoiceName : deploymentSettings.DefaultTextToSpeechVoiceId;
+                var effectiveVoiceName = !string.IsNullOrWhiteSpace(voiceName) ? voiceName : !string.IsNullOrWhiteSpace(chatModeSettings?.VoiceName) ? chatModeSettings.VoiceName : deploymentSettings.DefaultTextToSpeechVoiceId;
                 await StreamSpeechAsync(textToSpeechClient, sessionId ?? string.Empty, text, effectiveVoiceName, cancellationToken);
             });
         }
