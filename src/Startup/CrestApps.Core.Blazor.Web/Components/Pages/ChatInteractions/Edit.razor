@@ -1,0 +1,435 @@
+@page "/ChatInteractions/Edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Orchestration
+@using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Services
+@using CrestApps.Core.Blazor.Web.Services
+@using Microsoft.Extensions.Options
+@inject ICatalogManager<ChatInteraction> InteractionManager
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject ICatalog<A2AConnection> A2AConnectionCatalog
+@inject ICatalog<McpConnection> McpConnectionCatalog
+@inject ICatalog<AIDataSource> DataSourceCatalog
+@inject IAIProfileManager ProfileManager
+@inject IOptions<OrchestratorOptions> OrchestratorOptions
+@inject IOptions<AIToolDefinitionOptions> ToolOptions
+@inject NavigationManager NavigationManager
+@inject SiteSettingsStore SiteSettingsStore
+
+<PageTitle>Edit Chat Interaction</PageTitle>
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Chat interaction not found.
+    </div>
+    <a href="/ChatInteractions" class="btn btn-outline-secondary">Back to Chat Interactions</a>
+}
+else if (Model is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h2><i class="bi bi-pencil"></i> Edit Chat Interaction</h2>
+    <hr />
+
+    <EditForm Model="Model" OnValidSubmit="HandleSubmit" FormName="EditChatInteraction">
+
+        <div class="row">
+            <div class="col-md-8">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab">Settings</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="kb-tab" data-bs-toggle="tab" data-bs-target="#kb" type="button" role="tab">Knowledge</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="capabilities-tab" data-bs-toggle="tab" data-bs-target="#capabilities" type="button" role="tab">Capabilities</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-3 border border-top-0 rounded-bottom">
+                    @* Settings Tab *@
+                    <div class="tab-pane fade show active" id="settings" role="tabpanel">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title</label>
+                            <InputText id="title" @bind-Value="Model.Title" class="form-control" placeholder="e.g., Code Helper, Creative Writer" />
+                            <div class="form-text">An optional title for this chat interaction.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="deploymentName" class="form-label">Deployment</label>
+                            <InputSelect id="deploymentName" @bind-Value="Model.ChatDeploymentName" class="form-select">
+                                <option value="">Select deployment</option>
+                                @foreach (var d in Deployments)
+                                {
+                                    <option value="@d.Name">@FormatDeploymentName(d)</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">The AI model deployment to use for this chat.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="orchestratorName" class="form-label">Orchestrator</label>
+                            <InputSelect id="orchestratorName" @bind-Value="Model.OrchestratorName" class="form-select">
+                                <option value="">Use default orchestrator</option>
+                                @foreach (var o in Orchestrators)
+                                {
+                                    <option value="@o.Key">@(o.Value.Title ?? o.Key)</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">The orchestrator that manages AI interactions.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="systemMessage" class="form-label">System message</label>
+                            <InputTextArea id="systemMessage" @bind-Value="Model.SystemMessage" class="form-control" rows="4" placeholder="You are a helpful assistant..." />
+                            <div class="form-text">Instructions for the AI on how to behave.</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="maxTokens" class="form-label">
+                                    Max tokens
+                                    <span class="text-muted" title="The maximum number of tokens the AI can generate in a single response."><i class="bi bi-question-circle"></i></span>
+                                </label>
+                                <InputNumber id="maxTokens" @bind-Value="Model.MaxTokens" class="form-control" placeholder="4096" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="temperature" class="form-label">
+                                    Temperature
+                                    <span class="text-muted" title="Controls randomness. Lower = more focused, higher = more creative (0–2)."><i class="bi bi-question-circle"></i></span>
+                                </label>
+                                <InputNumber id="temperature" @bind-Value="Model.Temperature" class="form-control" placeholder="0.7" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="topP" class="form-label">
+                                    Top P
+                                    <span class="text-muted" title="Nucleus sampling. Controls diversity by limiting token probability sum."><i class="bi bi-question-circle"></i></span>
+                                </label>
+                                <InputNumber id="topP" @bind-Value="Model.TopP" class="form-control" placeholder="1.0" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="frequencyPenalty" class="form-label">
+                                    Frequency penalty
+                                    <span class="text-muted" title="Penalizes frequent tokens to reduce repetition."><i class="bi bi-question-circle"></i></span>
+                                </label>
+                                <InputNumber id="frequencyPenalty" @bind-Value="Model.FrequencyPenalty" class="form-control" placeholder="0" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="presencePenalty" class="form-label">
+                                    Presence penalty
+                                    <span class="text-muted" title="Penalizes tokens that have appeared to encourage new topics."><i class="bi bi-question-circle"></i></span>
+                                </label>
+                                <InputNumber id="presencePenalty" @bind-Value="Model.PresencePenalty" class="form-control" placeholder="0" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="pastMessages" class="form-label">
+                                    Past messages
+                                    <span class="text-muted" title="Number of previous messages to include as context."><i class="bi bi-question-circle"></i></span>
+                                </label>
+                                <InputNumber id="pastMessages" @bind-Value="Model.PastMessagesCount" class="form-control" placeholder="10" />
+                            </div>
+                        </div>
+                    </div>
+
+                    @* Knowledge Tab *@
+                    <div class="tab-pane fade" id="kb" role="tabpanel">
+                        <div class="mb-3">
+                            <label for="dataSourceId" class="form-label">Data source</label>
+                            <InputSelect id="dataSourceId" @bind-Value="Model.DataSourceId" class="form-select">
+                                <option value="">None</option>
+                                @foreach (var ds in DataSources)
+                                {
+                                    <option value="@ds.ItemId">@ds.DisplayText</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">External data source for AI context.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="strictness" class="form-label">Strictness</label>
+                            <InputNumber id="strictness" @bind-Value="Model.DataSourceStrictness" class="form-control" placeholder="Default provider setting" />
+                            <div class="form-text">Controls how strictly the AI should follow retrieved data-source matches (1–5).</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="topNDocuments" class="form-label">Retrieved documents</label>
+                            <InputNumber id="topNDocuments" @bind-Value="Model.DataSourceTopNDocuments" class="form-control" placeholder="Default provider setting" />
+                            <div class="form-text">How many data-source documents to retrieve for RAG (1–20).</div>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <InputCheckbox id="isInScope" @bind-Value="Model.DataSourceIsInScope" class="form-check-input" />
+                            <label class="form-check-label" for="isInScope">Restrict answers to retrieved data only</label>
+                        </div>
+                    </div>
+
+                    @* Capabilities Tab *@
+                    <div class="tab-pane fade" id="capabilities" role="tabpanel">
+                        @* AI Agents *@
+                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                        @if (!Agents.Any())
+                        {
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> No AI agent profiles are available.
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-3 small">Select the AI agents this interaction can delegate tasks to.</p>
+                            @foreach (var agent in Agents)
+                            {
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="agent_@agent.Name"
+                                           checked="@SelectedAgentNames.Contains(agent.Name)"
+                                           @onchange="e => ToggleSelection(SelectedAgentNames, agent.Name, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="agent_@agent.Name">
+                                        <strong>@(agent.DisplayText ?? agent.Name)</strong>
+                                    </label>
+                                </div>
+                            }
+                        }
+
+                        @* AI Tools *@
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                        @if (!Tools.Any())
+                        {
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> No selectable AI tools are registered.
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var group in Tools.GroupBy(t => t.category).OrderBy(g => g.Key))
+                            {
+                                <div class="text-muted small fw-semibold mt-2 mb-1">@group.Key</div>
+                                @foreach (var tool in group)
+                                {
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input" type="checkbox" id="tool_@tool.name"
+                                               checked="@SelectedToolNames.Contains(tool.name)"
+                                               @onchange="e => ToggleSelection(SelectedToolNames, tool.name, (bool)e.Value!)" />
+                                        <label class="form-check-label" for="tool_@tool.name">
+                                            @tool.title
+                                            @if (!string.IsNullOrEmpty(tool.description))
+                                            {
+                                                <br /><span class="text-muted" style="font-size:0.75rem;">@tool.description</span>
+                                            }
+                                        </label>
+                                    </div>
+                                }
+                            }
+                        }
+
+                        @* A2A Connections *@
+                        @if (A2AConnections.Any())
+                        {
+                            <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
+                            @foreach (var connection in A2AConnections)
+                            {
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="a2a_@connection.ItemId"
+                                           checked="@SelectedA2AConnectionIds.Contains(connection.ItemId)"
+                                           @onchange="e => ToggleSelection(SelectedA2AConnectionIds, connection.ItemId, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="a2a_@connection.ItemId">
+                                        @connection.DisplayText
+                                        <br /><span class="text-muted" style="font-size:0.75rem;">@connection.Endpoint</span>
+                                    </label>
+                                </div>
+                            }
+                        }
+
+                        @* MCP Connections *@
+                        @if (McpConnections.Any())
+                        {
+                            <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                            @foreach (var connection in McpConnections)
+                            {
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="mcp_@connection.ItemId"
+                                           checked="@SelectedMcpConnectionIds.Contains(connection.ItemId)"
+                                           @onchange="e => ToggleSelection(SelectedMcpConnectionIds, connection.ItemId, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="mcp_@connection.ItemId">
+                                        @connection.DisplayText
+                                        @if (!string.IsNullOrEmpty(connection.Source))
+                                        {
+                                            <br /><span class="text-muted" style="font-size:0.75rem;">@connection.Source</span>
+                                        }
+                                    </label>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                    <a href="/ChatInteractions" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private ChatInteractionFormModel? Model;
+    private bool NotFound;
+    private bool IsSubmitting;
+
+    private List<AIDeployment> Deployments = [];
+    private IReadOnlyDictionary<string, OrchestratorDescriptor> Orchestrators = new Dictionary<string, OrchestratorDescriptor>();
+    private List<AIDataSource> DataSources = [];
+    private List<(string Name, string DisplayText)> Agents = [];
+    private List<(string name, string title, string description, string category)> Tools = [];
+    private List<A2AConnection> A2AConnections = [];
+    private List<McpConnection> McpConnections = [];
+
+    private HashSet<string> SelectedAgentNames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> SelectedToolNames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> SelectedA2AConnectionIds = new(StringComparer.Ordinal);
+    private HashSet<string> SelectedMcpConnectionIds = new(StringComparer.Ordinal);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var interaction = await InteractionManager.FindByIdAsync(Id);
+        if (interaction is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        Model = new ChatInteractionFormModel
+        {
+            Title = interaction.Title,
+            ChatDeploymentName = interaction.ChatDeploymentName,
+            OrchestratorName = interaction.OrchestratorName,
+            SystemMessage = interaction.SystemMessage,
+            Temperature = interaction.Temperature,
+            TopP = interaction.TopP,
+            FrequencyPenalty = interaction.FrequencyPenalty,
+            PresencePenalty = interaction.PresencePenalty,
+            MaxTokens = interaction.MaxTokens,
+            PastMessagesCount = interaction.PastMessagesCount,
+        };
+
+        SelectedAgentNames = new HashSet<string>(interaction.AgentNames ?? [], StringComparer.OrdinalIgnoreCase);
+        SelectedToolNames = new HashSet<string>(interaction.ToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+        SelectedA2AConnectionIds = new HashSet<string>(interaction.A2AConnectionIds ?? [], StringComparer.Ordinal);
+        SelectedMcpConnectionIds = new HashSet<string>(interaction.McpConnectionIds ?? [], StringComparer.Ordinal);
+
+        await PopulateDropdownsAsync();
+    }
+
+    private async Task PopulateDropdownsAsync()
+    {
+        var deployments = await DeploymentCatalog.GetAllAsync();
+        Deployments = deployments.Where(d => d.Type.Supports(AIDeploymentType.Chat)).ToList();
+
+        Orchestrators = OrchestratorOptions.Value.GetOrchestratorDescriptors();
+
+        var dataSources = await DataSourceCatalog.GetAllAsync();
+        DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).ToList();
+
+        var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
+        Agents = agentProfiles
+            .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(p => (p.Name, DisplayText: p.DisplayText ?? p.Name))
+            .ToList();
+
+        Tools = ToolOptions.Value.Tools
+            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Select(kvp => (name: kvp.Key, title: kvp.Value.Title ?? kvp.Key, description: kvp.Value.Description, category: kvp.Value.Category ?? "Miscellaneous"))
+            .OrderBy(t => t.category)
+            .ThenBy(t => t.title)
+            .ToList();
+
+        var a2aConnections = await A2AConnectionCatalog.GetAllAsync();
+        A2AConnections = a2aConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).ToList();
+
+        var mcpConnections = await McpConnectionCatalog.GetAllAsync();
+        McpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (Model is null || IsSubmitting) return;
+        IsSubmitting = true;
+
+        try
+        {
+            var interaction = await InteractionManager.FindByIdAsync(Id);
+            if (interaction is null)
+            {
+                NotFound = true;
+                return;
+            }
+
+            interaction.Title = Model.Title;
+            interaction.ChatDeploymentName = Model.ChatDeploymentName;
+            interaction.OrchestratorName = Model.OrchestratorName;
+            interaction.SystemMessage = Model.SystemMessage;
+            interaction.Temperature = Model.Temperature;
+            interaction.TopP = Model.TopP;
+            interaction.FrequencyPenalty = Model.FrequencyPenalty;
+            interaction.PresencePenalty = Model.PresencePenalty;
+            interaction.MaxTokens = Model.MaxTokens;
+            interaction.PastMessagesCount = Model.PastMessagesCount;
+            interaction.ToolNames = SelectedToolNames.ToList();
+            interaction.AgentNames = SelectedAgentNames.ToList();
+            interaction.A2AConnectionIds = SelectedA2AConnectionIds.ToList();
+            interaction.McpConnectionIds = SelectedMcpConnectionIds.ToList();
+
+            await InteractionManager.UpdateAsync(interaction);
+            NavigationManager.NavigateTo("/ChatInteractions?success=Chat interaction updated successfully.");
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private static void ToggleSelection(HashSet<string> set, string value, bool isChecked)
+    {
+        if (isChecked)
+            set.Add(value);
+        else
+            set.Remove(value);
+    }
+
+    private static string FormatDeploymentName(AIDeployment d)
+    {
+        return string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? d.Name
+            : $"{d.Name} ({d.ModelName})";
+    }
+
+    private sealed class ChatInteractionFormModel
+    {
+        public string? Title { get; set; }
+        public string? ChatDeploymentName { get; set; }
+        public string? OrchestratorName { get; set; }
+        public string? SystemMessage { get; set; }
+        public float? Temperature { get; set; }
+        public float? TopP { get; set; }
+        public float? FrequencyPenalty { get; set; }
+        public float? PresencePenalty { get; set; }
+        public int? MaxTokens { get; set; }
+        public int? PastMessagesCount { get; set; }
+        public string? DataSourceId { get; set; }
+        public int? DataSourceStrictness { get; set; }
+        public int? DataSourceTopNDocuments { get; set; }
+        public bool DataSourceIsInScope { get; set; }
+    }
+}

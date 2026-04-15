@@ -1,0 +1,686 @@
+@page "/ChatInteractions/Chat/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@implements IAsyncDisposable
+@using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Chat.Models
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Orchestration
+@using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Services
+@using CrestApps.Core.Blazor.Web.Services
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.Extensions.Options
+@using System.Text.Json
+@inject ICatalogManager<ChatInteraction> InteractionManager
+@inject IChatInteractionPromptStore PromptStore
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject ICatalog<A2AConnection> A2AConnectionCatalog
+@inject ICatalog<McpConnection> McpConnectionCatalog
+@inject ICatalog<AIDataSource> DataSourceCatalog
+@inject IAIProfileManager ProfileManager
+@inject IOptions<OrchestratorOptions> OrchestratorOptions
+@inject IOptions<AIToolDefinitionOptions> ToolOptions
+@inject NavigationManager NavigationManager
+@inject SiteSettingsStore SiteSettingsStore
+
+<PageTitle>Chat - @(Title ?? "Untitled Chat")</PageTitle>
+
+<style>
+    .chat-page-wrapper { display: flex; flex-direction: column; height: calc(100vh - 180px); }
+    .ai-chat-messages { padding: 1rem; }
+    .ai-chat-message-item { position: relative; padding: 0.25rem 0; }
+    .ai-chat-message-item + .ai-chat-message-item { border-top: 1px solid var(--bs-border-color, #dee2e6); margin-top: 0.25rem; padding-top: 0.5rem; }
+    .ai-chat-msg-role { font-size: 0.75rem; font-weight: 600; margin-bottom: 2px; }
+    .ai-chat-msg-role-user { color: #0d6efd; }
+    .ai-chat-msg-role-assistant { color: #6f42c1; }
+    .chat-settings-sidebar { height: calc(100vh - 180px); overflow-y: auto; border-right: 1px solid var(--bs-border-color, #dee2e6); }
+    .settings-section label.form-label { font-weight: 600; margin-bottom: 0.25rem; }
+    .capability-section + .capability-section { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--bs-border-color, #dee2e6); }
+    @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .ai-streaming-icon { animation: pulse 1.5s infinite; }
+</style>
+
+@if (NotFound)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Chat interaction not found.
+    </div>
+    <a href="/ChatInteractions" class="btn btn-outline-secondary">Back to Chat Interactions</a>
+}
+else if (!IsLoaded)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-chat-left-dots"></i> @(Title ?? "Untitled Chat")</h5>
+        <a href="/ChatInteractions" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="row g-0 border rounded" style="height: calc(100vh - 180px);">
+        @* Left: Settings Sidebar *@
+        <div class="col-md-4 col-lg-3 chat-settings-sidebar bg-light">
+            <div class="p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong class="small text-uppercase text-muted">Settings</strong>
+                    @if (!string.IsNullOrEmpty(SaveIndicator))
+                    {
+                        <span class="small @SaveIndicatorClass">@SaveIndicator</span>
+                    }
+                </div>
+
+                <ul class="nav nav-pills nav-fill mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pane-settings" type="button" role="tab">
+                            <i class="bi bi-gear"></i> General
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-knowledge" type="button" role="tab">
+                            <i class="bi bi-database"></i> Knowledge
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-capabilities" type="button" role="tab">
+                            <i class="bi bi-lightning"></i> Capabilities
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content settings-section">
+                    @* General Settings *@
+                    <div class="tab-pane fade show active" id="pane-settings" role="tabpanel">
+                        <div class="mb-2">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" @bind="SettingsTitle" @bind:after="DebounceSaveSettings" placeholder="e.g., Code Helper" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Deployment</label>
+                            <select class="form-select" @bind="SettingsDeploymentName" @bind:after="DebounceSaveSettings">
+                                <option value="">Select deployment</option>
+                                @foreach (var d in Deployments)
+                                {
+                                    <option value="@d.Name">@FormatDeploymentName(d)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Orchestrator</label>
+                            <select class="form-select" @bind="SettingsOrchestratorName" @bind:after="DebounceSaveSettings">
+                                <option value="">Use default orchestrator</option>
+                                @foreach (var o in Orchestrators)
+                                {
+                                    <option value="@o.Key">@(o.Value.Title ?? o.Key)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">System message</label>
+                            <textarea class="form-control" rows="3" @bind="SettingsSystemMessage" @bind:after="DebounceSaveSettings" placeholder="You are a helpful assistant..."></textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6 mb-2">
+                                <label class="form-label">Max tokens</label>
+                                <input type="number" class="form-control" @bind="SettingsMaxTokens" @bind:after="DebounceSaveSettings" min="1" placeholder="4096" />
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label">Temperature</label>
+                                <input type="number" class="form-control" @bind="SettingsTemperature" @bind:after="DebounceSaveSettings" step="0.1" min="0" max="2" placeholder="0.7" />
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label">Top P</label>
+                                <input type="number" class="form-control" @bind="SettingsTopP" @bind:after="DebounceSaveSettings" step="0.1" min="0" max="1" placeholder="1.0" />
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label">Frequency penalty</label>
+                                <input type="number" class="form-control" @bind="SettingsFrequencyPenalty" @bind:after="DebounceSaveSettings" step="0.1" min="-2" max="2" placeholder="0" />
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label">Presence penalty</label>
+                                <input type="number" class="form-control" @bind="SettingsPresencePenalty" @bind:after="DebounceSaveSettings" step="0.1" min="-2" max="2" placeholder="0" />
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label">Past messages</label>
+                                <input type="number" class="form-control" @bind="SettingsPastMessagesCount" @bind:after="DebounceSaveSettings" min="0" placeholder="10" />
+                            </div>
+                        </div>
+                    </div>
+
+                    @* Knowledge *@
+                    <div class="tab-pane fade" id="pane-knowledge" role="tabpanel">
+                        <div class="mb-2">
+                            <label class="form-label">Data source</label>
+                            <select class="form-select" @bind="SettingsDataSourceId" @bind:after="DebounceSaveSettings">
+                                <option value="">None</option>
+                                @foreach (var ds in DataSources)
+                                {
+                                    <option value="@ds.ItemId">@ds.DisplayText</option>
+                                }
+                            </select>
+                            <div class="form-text">External data source for AI context.</div>
+                        </div>
+
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" @bind="SettingsIsInScope" @bind:after="DebounceSaveSettings" />
+                            <label class="form-check-label">Restrict answers to retrieved data only</label>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Strictness</label>
+                            <input type="number" class="form-control" @bind="SettingsStrictness" @bind:after="DebounceSaveSettings" min="1" max="5" placeholder="Default provider setting" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Retrieved documents</label>
+                            <input type="number" class="form-control" @bind="SettingsTopNDocuments" @bind:after="DebounceSaveSettings" min="1" max="20" placeholder="Default provider setting" />
+                        </div>
+                    </div>
+
+                    @* Capabilities *@
+                    <div class="tab-pane fade" id="pane-capabilities" role="tabpanel">
+                        @if (Agents.Any())
+                        {
+                            <div class="capability-section">
+                                <h6 class="small fw-bold mb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                                @foreach (var agent in Agents)
+                                {
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input" type="checkbox"
+                                               checked="@SelectedAgentNames.Contains(agent.Name)"
+                                               @onchange="e => { ToggleSelection(SelectedAgentNames, agent.Name, (bool)e.Value!); _ = DebounceSaveSettings(); }" />
+                                        <label class="form-check-label">@(agent.DisplayText ?? agent.Name)</label>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (Tools.Any())
+                        {
+                            <div class="capability-section">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="small fw-bold mb-0"><i class="bi bi-tools"></i> AI Tools</h6>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size:0.7rem;" @onclick="SelectAllTools">All</button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:0.7rem;" @onclick="DeselectAllTools">None</button>
+                                    </div>
+                                </div>
+                                @foreach (var group in Tools.GroupBy(t => t.category).OrderBy(g => g.Key))
+                                {
+                                    <div class="text-muted small fw-semibold mt-2 mb-1">@group.Key</div>
+                                    @foreach (var tool in group)
+                                    {
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox"
+                                                   checked="@SelectedToolNames.Contains(tool.name)"
+                                                   @onchange="e => { ToggleSelection(SelectedToolNames, tool.name, (bool)e.Value!); _ = DebounceSaveSettings(); }" />
+                                            <label class="form-check-label">
+                                                @tool.title
+                                                @if (!string.IsNullOrEmpty(tool.description))
+                                                {
+                                                    <br /><span class="text-muted" style="font-size:0.7rem;">@tool.description</span>
+                                                }
+                                            </label>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+
+                        @if (A2AConnections.Any())
+                        {
+                            <div class="capability-section">
+                                <h6 class="small fw-bold mb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
+                                @foreach (var connection in A2AConnections)
+                                {
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input" type="checkbox"
+                                               checked="@SelectedA2AConnectionIds.Contains(connection.ItemId)"
+                                               @onchange="e => { ToggleSelection(SelectedA2AConnectionIds, connection.ItemId, (bool)e.Value!); _ = DebounceSaveSettings(); }" />
+                                        <label class="form-check-label">
+                                            @connection.DisplayText
+                                            <br /><span class="text-muted" style="font-size:0.7rem;">@connection.Endpoint</span>
+                                        </label>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (McpConnections.Any())
+                        {
+                            <div class="capability-section">
+                                <h6 class="small fw-bold mb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                                @foreach (var connection in McpConnections)
+                                {
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input" type="checkbox"
+                                               checked="@SelectedMcpConnectionIds.Contains(connection.ItemId)"
+                                               @onchange="e => { ToggleSelection(SelectedMcpConnectionIds, connection.ItemId, (bool)e.Value!); _ = DebounceSaveSettings(); }" />
+                                        <label class="form-check-label">
+                                            @connection.DisplayText
+                                            @if (!string.IsNullOrEmpty(connection.Source))
+                                            {
+                                                <br /><span class="text-muted" style="font-size:0.7rem;">@connection.Source</span>
+                                            }
+                                        </label>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (!Agents.Any() && !Tools.Any() && !A2AConnections.Any() && !McpConnections.Any())
+                        {
+                            <div class="text-muted small text-center py-3">
+                                <i class="bi bi-info-circle"></i> No capabilities are available to configure.
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Right: Chat Area *@
+        <div class="col-md-8 col-lg-9 d-flex flex-column" style="height: 100%;">
+            @* Chat header *@
+            <div class="d-flex justify-content-between align-items-center border-bottom px-3 py-2 bg-white">
+                <span class="text-muted small">
+                    <i class="bi bi-chat-left-dots"></i> @(Title ?? "Untitled Chat")
+                </span>
+                <button type="button" class="btn btn-outline-danger btn-sm" @onclick="ClearHistory" disabled="@IsSending">
+                    <i class="bi bi-trash3"></i> Clear history
+                </button>
+            </div>
+
+            @* Messages container *@
+            <div class="flex-grow-1 overflow-auto p-3" id="chat-container">
+                @if (!Messages.Any())
+                {
+                    <div class="text-muted">
+                        <i class="bi bi-robot"></i> Start chatting! Your messages are sent directly to the AI with the parameters you configured.
+                    </div>
+                }
+                else
+                {
+                    <div class="ai-chat-messages">
+                        @foreach (var message in Messages)
+                        {
+                            <div class="ai-chat-message-item">
+                                @if (message.IsSystem)
+                                {
+                                    <div class="text-center py-2">
+                                        <span class="badge text-bg-secondary"><i class="bi bi-info-circle"></i> @message.Content</span>
+                                    </div>
+                                }
+                                else if (message.Role == "user")
+                                {
+                                    <div class="ai-chat-msg-role ai-chat-msg-role-user">You</div>
+                                    <div class="lh-base">@message.Content</div>
+                                }
+                                else
+                                {
+                                    <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
+                                        <i class="bi bi-robot @(message.IsStreaming ? "ai-streaming-icon" : "")"></i> Assistant
+                                    </div>
+                                    <div class="lh-base" style="white-space: pre-wrap;">@message.Content</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* Input area *@
+            <div class="border-top p-3 bg-white">
+                <div class="d-flex gap-2">
+                    <textarea class="form-control" rows="1" placeholder="Type a message..."
+                              @bind="UserInput"
+                              @onkeydown="HandleKeyDown"
+                              disabled="@IsSending"></textarea>
+                    <button type="button" class="btn btn-primary" @onclick="SendMessage" disabled="@(IsSending || string.IsNullOrWhiteSpace(UserInput))">
+                        <i class="bi bi-send"></i> Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private bool NotFound;
+    private bool IsLoaded;
+    private string? Title;
+    private bool IsSending;
+    private string? UserInput;
+
+    // Settings fields
+    private string? SettingsTitle;
+    private string? SettingsDeploymentName;
+    private string? SettingsOrchestratorName;
+    private string? SettingsSystemMessage;
+    private int? SettingsMaxTokens;
+    private float? SettingsTemperature;
+    private float? SettingsTopP;
+    private float? SettingsFrequencyPenalty;
+    private float? SettingsPresencePenalty;
+    private int? SettingsPastMessagesCount;
+    private string? SettingsDataSourceId;
+    private int? SettingsStrictness;
+    private int? SettingsTopNDocuments;
+    private bool SettingsIsInScope;
+
+    private string? SaveIndicator;
+    private string SaveIndicatorClass = "text-muted";
+
+    // Dropdown data
+    private List<AIDeployment> Deployments = [];
+    private IReadOnlyDictionary<string, OrchestratorDescriptor> Orchestrators = new Dictionary<string, OrchestratorDescriptor>();
+    private List<AIDataSource> DataSources = [];
+    private List<(string Name, string DisplayText)> Agents = [];
+    private List<(string name, string title, string description, string category)> Tools = [];
+    private List<A2AConnection> A2AConnections = [];
+    private List<McpConnection> McpConnections = [];
+    private HashSet<string> SelectedAgentNames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> SelectedToolNames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> SelectedA2AConnectionIds = new(StringComparer.Ordinal);
+    private HashSet<string> SelectedMcpConnectionIds = new(StringComparer.Ordinal);
+
+    // Chat
+    private List<ChatMessage> Messages = [];
+    private HubConnection? _hubConnection;
+    private CancellationTokenSource? _saveCts;
+    private CancellationTokenSource? _indicatorCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var interaction = await InteractionManager.FindByIdAsync(Id);
+        if (interaction is null)
+        {
+            NotFound = true;
+            return;
+        }
+
+        Title = interaction.Title;
+        PopulateSettingsFromInteraction(interaction);
+
+        // Load existing prompts
+        var prompts = await PromptStore.GetPromptsAsync(Id);
+        Messages = prompts
+            .Where(p => p.Role.Value is "user" or "assistant")
+            .Select(p => new ChatMessage { Role = p.Role.Value, Content = p.Text ?? string.Empty })
+            .ToList();
+
+        await PopulateDropdownsAsync();
+
+        // Build SignalR connection
+        var hubUrl = NavigationManager.ToAbsoluteUri("/hubs/chat-interaction");
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(hubUrl)
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<string>("ReceiveError", error =>
+        {
+            Messages.Add(new ChatMessage { Role = "assistant", Content = $"⚠️ {error}" });
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<string, string>("SettingsSaved", (itemId, title) =>
+        {
+            if (!string.IsNullOrEmpty(title))
+            {
+                Title = title;
+            }
+            ShowSaveIndicator("Saved ✓", "text-success");
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<string>("HistoryCleared", itemId =>
+        {
+            Messages.Clear();
+            Messages.Add(new ChatMessage { Role = "system", Content = "Chat history cleared.", IsSystem = true });
+            InvokeAsync(StateHasChanged);
+        });
+
+        await _hubConnection.StartAsync();
+        IsLoaded = true;
+    }
+
+    private void PopulateSettingsFromInteraction(ChatInteraction interaction)
+    {
+        SettingsTitle = interaction.Title;
+        SettingsDeploymentName = interaction.ChatDeploymentName;
+        SettingsOrchestratorName = interaction.OrchestratorName;
+        SettingsSystemMessage = interaction.SystemMessage;
+        SettingsMaxTokens = interaction.MaxTokens;
+        SettingsTemperature = interaction.Temperature;
+        SettingsTopP = interaction.TopP;
+        SettingsFrequencyPenalty = interaction.FrequencyPenalty;
+        SettingsPresencePenalty = interaction.PresencePenalty;
+        SettingsPastMessagesCount = interaction.PastMessagesCount;
+        SelectedAgentNames = new HashSet<string>(interaction.AgentNames ?? [], StringComparer.OrdinalIgnoreCase);
+        SelectedToolNames = new HashSet<string>(interaction.ToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+        SelectedA2AConnectionIds = new HashSet<string>(interaction.A2AConnectionIds ?? [], StringComparer.Ordinal);
+        SelectedMcpConnectionIds = new HashSet<string>(interaction.McpConnectionIds ?? [], StringComparer.Ordinal);
+    }
+
+    private async Task PopulateDropdownsAsync()
+    {
+        var deployments = await DeploymentCatalog.GetAllAsync();
+        Deployments = deployments.Where(d => d.Type.Supports(AIDeploymentType.Chat)).ToList();
+        Orchestrators = OrchestratorOptions.Value.GetOrchestratorDescriptors();
+
+        var dataSources = await DataSourceCatalog.GetAllAsync();
+        DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).ToList();
+
+        var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
+        Agents = agentProfiles
+            .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(p => (p.Name, DisplayText: p.DisplayText ?? p.Name))
+            .ToList();
+
+        Tools = ToolOptions.Value.Tools
+            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Select(kvp => (name: kvp.Key, title: kvp.Value.Title ?? kvp.Key, description: kvp.Value.Description, category: kvp.Value.Category ?? "Miscellaneous"))
+            .OrderBy(t => t.category)
+            .ThenBy(t => t.title)
+            .ToList();
+
+        var a2aConnections = await A2AConnectionCatalog.GetAllAsync();
+        A2AConnections = a2aConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).ToList();
+
+        var mcpConnections = await McpConnectionCatalog.GetAllAsync();
+        McpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private async Task SendMessage()
+    {
+        var prompt = UserInput?.Trim();
+        if (string.IsNullOrEmpty(prompt) || IsSending || _hubConnection?.State != HubConnectionState.Connected)
+            return;
+
+        IsSending = true;
+        UserInput = string.Empty;
+
+        Messages.Add(new ChatMessage { Role = "user", Content = prompt });
+        var assistantMessage = new ChatMessage { Role = "assistant", Content = string.Empty, IsStreaming = true };
+        Messages.Add(assistantMessage);
+        StateHasChanged();
+
+        try
+        {
+            var stream = _hubConnection.StreamAsync<CompletionPartialMessage>("SendMessage", Id, prompt);
+            await foreach (var chunk in stream)
+            {
+                if (!string.IsNullOrEmpty(chunk.Content))
+                {
+                    assistantMessage.Content += chunk.Content;
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (string.IsNullOrEmpty(assistantMessage.Content))
+            {
+                assistantMessage.Content = $"⚠️ {ex.Message}";
+            }
+        }
+        finally
+        {
+            assistantMessage.IsStreaming = false;
+            IsSending = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearHistory()
+    {
+        if (_hubConnection?.State != HubConnectionState.Connected)
+            return;
+
+        await _hubConnection.InvokeAsync("ClearHistory", Id);
+    }
+
+    private async Task DebounceSaveSettings()
+    {
+        _saveCts?.Cancel();
+        _saveCts = new CancellationTokenSource();
+        var token = _saveCts.Token;
+
+        ShowSaveIndicator("Saving...", "text-warning");
+
+        try
+        {
+            await Task.Delay(500, token);
+            if (token.IsCancellationRequested) return;
+            await SaveSettingsAsync();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (_hubConnection?.State != HubConnectionState.Connected)
+        {
+            ShowSaveIndicator("Not connected", "text-danger");
+            return;
+        }
+
+        var settings = new Dictionary<string, object?>
+        {
+            ["title"] = SettingsTitle,
+            ["deploymentName"] = SettingsDeploymentName,
+            ["orchestratorName"] = SettingsOrchestratorName,
+            ["systemMessage"] = SettingsSystemMessage,
+            ["maxTokens"] = SettingsMaxTokens,
+            ["temperature"] = SettingsTemperature,
+            ["topP"] = SettingsTopP,
+            ["frequencyPenalty"] = SettingsFrequencyPenalty,
+            ["presencePenalty"] = SettingsPresencePenalty,
+            ["pastMessagesCount"] = SettingsPastMessagesCount,
+            ["dataSourceId"] = SettingsDataSourceId,
+            ["strictness"] = SettingsStrictness,
+            ["topNDocuments"] = SettingsTopNDocuments,
+            ["isInScope"] = SettingsIsInScope,
+            ["toolNames"] = SelectedToolNames.ToArray(),
+            ["agentNames"] = SelectedAgentNames.ToArray(),
+            ["a2aConnectionIds"] = SelectedA2AConnectionIds.ToArray(),
+            ["mcpConnectionIds"] = SelectedMcpConnectionIds.ToArray(),
+        };
+
+        try
+        {
+            var json = JsonSerializer.SerializeToElement(settings);
+            await _hubConnection.InvokeAsync("SaveSettings", Id, json);
+        }
+        catch (Exception)
+        {
+            ShowSaveIndicator("Save failed", "text-danger");
+        }
+    }
+
+    private void ShowSaveIndicator(string text, string cssClass)
+    {
+        SaveIndicator = text;
+        SaveIndicatorClass = cssClass;
+
+        _indicatorCts?.Cancel();
+        _indicatorCts = new CancellationTokenSource();
+        var token = _indicatorCts.Token;
+
+        _ = Task.Delay(3000, token).ContinueWith(_ =>
+        {
+            if (!token.IsCancellationRequested)
+            {
+                SaveIndicator = null;
+                InvokeAsync(StateHasChanged);
+            }
+        }, TaskScheduler.Default);
+    }
+
+    private void SelectAllTools()
+    {
+        foreach (var tool in Tools)
+            SelectedToolNames.Add(tool.name);
+        _ = DebounceSaveSettings();
+    }
+
+    private void DeselectAllTools()
+    {
+        SelectedToolNames.Clear();
+        _ = DebounceSaveSettings();
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            _ = SendMessage();
+        }
+    }
+
+    private static void ToggleSelection(HashSet<string> set, string value, bool isChecked)
+    {
+        if (isChecked) set.Add(value); else set.Remove(value);
+    }
+
+    private static string FormatDeploymentName(AIDeployment d)
+    {
+        return string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? d.Name
+            : $"{d.Name} ({d.ModelName})";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _saveCts?.Cancel();
+        _saveCts?.Dispose();
+        _indicatorCts?.Cancel();
+        _indicatorCts?.Dispose();
+
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+    private sealed class ChatMessage
+    {
+        public string Role { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public bool IsStreaming { get; set; }
+        public bool IsSystem { get; set; }
+    }
+}
