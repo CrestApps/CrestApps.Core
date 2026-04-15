@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Web;
 using CrestApps.Core.AI.Copilot.Models;
+using GitHub.Copilot.SDK;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -264,47 +265,26 @@ public sealed class GitHubOAuthService
 
         try
         {
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CrestApps-OrchardCore-Copilot/1.0");
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            httpClient.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
-
-            var response = await httpClient.GetAsync("https://models.github.ai/catalog/models", cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
+            // Use the Copilot SDK to list models. The SDK's CLI server handles
+            // authentication and returns only models the user actually has access to.
+            var clientOptions = new CopilotClientOptions
             {
-                _logger.LogWarning(
-                    "Failed to list Copilot models from GitHub API. Status: {StatusCode}",
-                    response.StatusCode);
+                GitHubToken = accessToken,
+                Logger = _logger,
+            };
 
-                return [];
-            }
+            await using var client = new CopilotClient(clientOptions);
 
-            var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
+            var models = await client.ListModelsAsync(cancellationToken);
 
-            var models = new List<CopilotModelInfo>();
-
-            // The response could be a direct array or an object wrapping the array (e.g., { "data": [...] }).
-            var items = json.ValueKind == JsonValueKind.Array
-            ? json.EnumerateArray()
-            : json.TryGetProperty("data", out var dataProp) && dataProp.ValueKind == JsonValueKind.Array
-            ? dataProp.EnumerateArray()
-            : default;
-
-            foreach (var item in items)
-            {
-                var id = item.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
-                var name = item.TryGetProperty("friendly_name", out var fnProp) ? fnProp.GetString() : null;
-                name ??= item.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : id;
-
-                if (!string.IsNullOrEmpty(id))
+            return models
+                .Where(m => !string.IsNullOrEmpty(m.Id))
+                .Select(m => new CopilotModelInfo
                 {
-                    models.Add(new CopilotModelInfo { Id = id, Name = name ?? id });
-                }
-            }
-
-            return models;
+                    Id = m.Id,
+                    Name = !string.IsNullOrEmpty(m.Name) ? m.Name : m.Id,
+                })
+                .ToList();
         }
         catch (Exception ex)
         {
