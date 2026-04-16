@@ -526,6 +526,55 @@ else
                     </div>
                 </div>
 
+                @* ─── Claude ─── *@
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-chat-square-dots me-1"></i> Claude</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">
+                            Configure direct Claude access for the Claude orchestrator. No external executable or separate Anthropic installation is required.
+                        </p>
+
+                        <div class="mb-3">
+                            <label for="claudeAuthType" class="form-label">Authentication type</label>
+                            <select id="claudeAuthType" @bind="ClaudeAuthenticationType" class="form-select">
+                                <option value="@Areas.AIChat.Models.ClaudeAuthenticationType.NotConfigured">Not configured</option>
+                                <option value="@Areas.AIChat.Models.ClaudeAuthenticationType.ApiKey">API key</option>
+                            </select>
+                            <div class="form-text">Choose how the Claude orchestrator authenticates. "Not configured" keeps Claude disabled until you explicitly enable API key authentication.</div>
+                        </div>
+
+                        @if (ClaudeAuthenticationType == Areas.AIChat.Models.ClaudeAuthenticationType.ApiKey)
+                        {
+                            <div class="mb-3">
+                                <label for="claudeBaseUrl" class="form-label">Base URL</label>
+                                <InputText id="claudeBaseUrl" @bind-Value="ClaudeBaseUrl" class="form-control" placeholder="https://api.anthropic.com" />
+                                <div class="form-text">Use the standard Anthropic API base URL unless you have a custom gateway.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="claudeApiKey" class="form-label">API key</label>
+                                <InputText id="claudeApiKey" @bind-Value="ClaudeApiKey" type="password" class="form-control" placeholder="Enter API key" />
+                                @if (ClaudeHasApiKey)
+                                {
+                                    <div class="form-text text-success">A Claude API key has been securely stored. Enter a new value to replace it, or leave empty to keep the existing key.</div>
+                                }
+                                else
+                                {
+                                    <div class="form-text">The Claude API key used for live model discovery and Claude-orchestrated chats.</div>
+                                }
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="claudeDefaultModel" class="form-label">Default model</label>
+                                <InputText id="claudeDefaultModel" @bind-Value="ClaudeDefaultModel" class="form-control" placeholder="claude-sonnet-4-6" />
+                                <div class="form-text">Optionally set the Claude model ID used when a profile or interaction does not override it.</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
                 @* ─── MCP Server ─── *@
                 <div class="card mb-4">
                     <div class="card-header">
@@ -643,6 +692,14 @@ else
     private string? CopilotDefaultModel;
     private string? CopilotAzureApiVersion;
 
+    // Claude
+    private const string ClaudeProtectorPurpose = "CrestApps.Core.Mvc.Web.ClaudeSettings";
+    private ClaudeAuthenticationType ClaudeAuthenticationType;
+    private string? ClaudeBaseUrl;
+    private string? ClaudeApiKey;
+    private bool ClaudeHasApiKey;
+    private string? ClaudeDefaultModel;
+
     // Pagination
     private int AdminPageSize = 25;
 
@@ -727,6 +784,13 @@ else
         CopilotDefaultModel = copilotSettings.DefaultModel;
         CopilotAzureApiVersion = copilotSettings.AzureApiVersion;
 
+        // Claude
+        var claudeSettings = SiteSettingsStore.Get<ClaudeSettings>();
+        ClaudeAuthenticationType = claudeSettings.AuthenticationType;
+        ClaudeBaseUrl = claudeSettings.BaseUrl;
+        ClaudeHasApiKey = !string.IsNullOrWhiteSpace(claudeSettings.ProtectedApiKey);
+        ClaudeDefaultModel = claudeSettings.DefaultModel;
+
         // Pagination
         AdminPageSize = paginationSettings.AdminPageSize;
 
@@ -805,6 +869,18 @@ else
         {
             ErrorMessage = "API key is required when the MCP server uses API key authentication.";
             return;
+        }
+
+        // Claude validation
+        if (ClaudeAuthenticationType == Areas.AIChat.Models.ClaudeAuthenticationType.ApiKey)
+        {
+            var existingClaudeForValidation = SiteSettingsStore.Get<ClaudeSettings>();
+            if (string.IsNullOrWhiteSpace(ClaudeApiKey) &&
+                string.IsNullOrWhiteSpace(existingClaudeForValidation.ProtectedApiKey))
+            {
+                ErrorMessage = "API key is required when Claude uses API key authentication.";
+                return;
+            }
         }
 
         if (AdminPageSize < 1 || AdminPageSize > 200)
@@ -916,6 +992,27 @@ else
 
             SiteSettingsStore.Set(copilotSettings);
 
+            // Save Claude settings, preserving existing protected API key.
+            var existingClaude = SiteSettingsStore.Get<ClaudeSettings>();
+            var claudeProtector = DataProtectionProvider.CreateProtector(ClaudeProtectorPurpose);
+
+            var claudeSettings = new ClaudeSettings
+            {
+                AuthenticationType = ClaudeAuthenticationType,
+                BaseUrl = string.IsNullOrWhiteSpace(ClaudeBaseUrl)
+                    ? "https://api.anthropic.com"
+                    : ClaudeBaseUrl.Trim(),
+                ProtectedApiKey = existingClaude.ProtectedApiKey,
+                DefaultModel = ClaudeDefaultModel?.Trim(),
+            };
+
+            if (!string.IsNullOrWhiteSpace(ClaudeApiKey))
+            {
+                claudeSettings.ProtectedApiKey = claudeProtector.Protect(ClaudeApiKey.Trim());
+            }
+
+            SiteSettingsStore.Set(claudeSettings);
+
             SiteSettingsStore.Set(new PaginationSettings
             {
                 AdminPageSize = AdminPageSize,
@@ -936,6 +1033,9 @@ else
             CopilotApiKey = null;
             CopilotHasSecret = !string.IsNullOrWhiteSpace(copilotSettings.ProtectedClientSecret);
             CopilotHasApiKey = !string.IsNullOrWhiteSpace(copilotSettings.ProtectedApiKey);
+
+            ClaudeApiKey = null;
+            ClaudeHasApiKey = !string.IsNullOrWhiteSpace(claudeSettings.ProtectedApiKey);
 
             SuccessMessage = "Settings saved successfully.";
         }

@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Blazor.Web.Areas.Admin.Models;
 using Microsoft.Extensions.Options;
@@ -66,5 +67,32 @@ internal sealed class SiteSettingsConfigureChatInteractionMemoryOptions : IConfi
     {
         var settings = _siteSettings.Get<MemoryMetadata>();
         options.EnableUserMemory = settings.EnableUserMemory ?? true;
+    }
+}
+
+/// <summary>
+/// Populates <see cref="DefaultAIDeploymentSettings"/> from the admin-managed
+/// settings stored in <see cref="SiteSettingsStore"/> so that framework services
+/// (e.g. <c>AIChatHubCore</c>) can resolve default deployment names via IOptions.
+/// </summary>
+internal sealed class SiteSettingsConfigureDefaultDeploymentOptions : IConfigureOptions<DefaultAIDeploymentSettings>
+{
+    private readonly SiteSettingsStore _siteSettings;
+
+    public SiteSettingsConfigureDefaultDeploymentOptions(SiteSettingsStore siteSettings)
+    {
+        _siteSettings = siteSettings;
+    }
+
+    public void Configure(DefaultAIDeploymentSettings options)
+    {
+        var settings = _siteSettings.Get<DefaultAIDeploymentSettings>();
+        options.DefaultChatDeploymentName = settings.DefaultChatDeploymentName;
+        options.DefaultUtilityDeploymentName = settings.DefaultUtilityDeploymentName;
+        options.DefaultEmbeddingDeploymentName = settings.DefaultEmbeddingDeploymentName;
+        options.DefaultImageDeploymentName = settings.DefaultImageDeploymentName;
+        options.DefaultSpeechToTextDeploymentName = settings.DefaultSpeechToTextDeploymentName;
+        options.DefaultTextToSpeechDeploymentName = settings.DefaultTextToSpeechDeploymentName;
+        options.DefaultTextToSpeechVoiceId = settings.DefaultTextToSpeechVoiceId;
     }
 }

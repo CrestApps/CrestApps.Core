@@ -18,6 +18,7 @@ public sealed class SiteSettingsStore
         ["ChatInteraction"] = "ChatInteractionSettings",
         ["ChatInteractionMemory"] = "MemoryMetadata",
         ["Copilot"] = "CopilotSettings",
+        ["Anthropic"] = "ClaudeSettings",
     };
 
     private static readonly Dictionary<string, Dictionary<string, string>> _nestedKeyMigrations = new(StringComparer.OrdinalIgnoreCase)

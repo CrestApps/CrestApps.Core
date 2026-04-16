@@ -2,6 +2,7 @@ using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.AzureAIInference;
+using CrestApps.Core.AI.Claude;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Endpoints;
 using CrestApps.Core.AI.Completions;
@@ -111,6 +112,7 @@ builder.Services.AddSingleton<IConfigureOptions<AIMemoryOptions>, SiteSettingsCo
 builder.Services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, SiteSettingsConfigureInteractionDocumentOptions>();
 builder.Services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
 builder.Services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
+builder.Services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
 
 // =============================================================================
 // 4. BLAZOR SERVER SETUP
@@ -149,6 +151,7 @@ builder.Services
     .AddAISuite(ai => ai
         .AddEntityCoreStores()
         .AddMarkdown()
+        .AddClaudeOrchestrator()
         .AddCopilotOrchestrator()
         .AddChatInteractions(chatInteractions => chatInteractions
             .AddEntityCoreStores()
@@ -291,6 +294,7 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 builder.Services.AddSingleton(new FileSystemFileStore(Path.Combine(appDataPath, "Documents")));
 builder.Services.AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 builder.Services.ConfigureOptions<MvcCopilotOptionsConfiguration>();
+builder.Services.ConfigureOptions<MvcClaudeOptionsConfiguration>();
 
 // =============================================================================
 // 13. BACKGROUND TASKS
