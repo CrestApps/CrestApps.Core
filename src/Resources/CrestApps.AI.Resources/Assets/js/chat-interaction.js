@@ -20,11 +20,11 @@ window.chatInteractionManager = function () {
                             <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
                             {{ getAssistantLabel(message) }}
                         </div>
-                        <div class="lh-base">
+                        <div class="ai-chat-message-body lh-base">
                             <h4 v-if="message.title">{{ message.title }}</h4>
                             <div v-html="message.htmlContent"></div>
                             <span class="message-buttons-container" v-if="!isIndicator(message)">
-                                <button v-if="textToSpeechEnabled && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
+                                <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
                                     <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
                                 </button>
                                 <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" title="Click here to copy response to clipboard.">
@@ -377,8 +377,10 @@ window.chatInteractionManager = function () {
                     audioPlayQueue: [],
                     isPlayingAudio: false,
                     currentAudioElement: null,
+                    currentAudioUrl: null,
                     ttsPlayingMessageIndex: -1,
                     ttsAudioCache: {},
+                    ttsInstanceId: 'chat-interaction-' + Math.random().toString(36).slice(2),
                     conversationModeEnabled: config.chatMode === 'Conversation',
                     conversationButton: null,
                     isConversationMode: false,
@@ -1024,6 +1026,13 @@ window.chatInteractionManager = function () {
                         this.debouncedSaveSettings();
                     }
                 },
+                handleExternalTtsStop(e) {
+                    if (e?.detail?.sourceId === this.ttsInstanceId) {
+                        return;
+                    }
+
+                    this.stopAudio(false);
+                },
                 synthesizeSpeech(text, cacheIndex) {
                     if (!this.textToSpeechEnabled || !text || !this.connection) {
                         return;
@@ -1047,7 +1056,10 @@ window.chatInteractionManager = function () {
                         return;
                     }
 
-                    this.stopAudio();
+                    this.stopAudio(false);
+                    window.dispatchEvent(new CustomEvent('crestapps-ai-chat-stop-tts', {
+                        detail: { sourceId: this.ttsInstanceId }
+                    }));
                     this.ttsPlayingMessageIndex = index;
 
                     if (this.ttsAudioCache[index]) {
@@ -1061,6 +1073,7 @@ window.chatInteractionManager = function () {
                     if (this.audioChunks.length === 0) {
                         if (!this.isPlayingAudio && this.audioPlayQueue.length === 0) {
                             this.isPlayingAudio = false;
+                            this.ttsPlayingMessageIndex = -1;
                         }
                         return;
                     }
@@ -1093,26 +1106,32 @@ window.chatInteractionManager = function () {
                     const url = URL.createObjectURL(blob);
                     const audio = new Audio(url);
 
+                    this.currentAudioUrl = url;
                     this.currentAudioElement = audio;
                     this.isPlayingAudio = true;
 
                     audio.addEventListener('ended', () => {
-                        URL.revokeObjectURL(url);
                         this.currentAudioElement = null;
+                        this.currentAudioUrl = null;
+                        URL.revokeObjectURL(url);
                         this.playNextInQueue();
                     });
 
                     audio.addEventListener('error', () => {
-                        URL.revokeObjectURL(url);
                         this.currentAudioElement = null;
+                        this.currentAudioUrl = null;
+                        URL.revokeObjectURL(url);
                         this.playNextInQueue();
                     });
 
                     audio.play().catch(err => {
                         console.error("Audio playback error:", err);
-                        URL.revokeObjectURL(url);
                         this.currentAudioElement = null;
+                        this.currentAudioUrl = null;
+                        URL.revokeObjectURL(url);
+                        this.audioPlayQueue = [];
                         this.isPlayingAudio = false;
+                        this.ttsPlayingMessageIndex = -1;
                     });
                 },
                 playNextInQueue() {
@@ -1130,6 +1149,10 @@ window.chatInteractionManager = function () {
                         this.currentAudioElement.pause();
                         this.currentAudioElement.currentTime = 0;
                         this.currentAudioElement = null;
+                    }
+                    if (this.currentAudioUrl) {
+                        URL.revokeObjectURL(this.currentAudioUrl);
+                        this.currentAudioUrl = null;
                     }
                     this.audioChunks = [];
                     this.audioPlayQueue = [];
@@ -2075,9 +2098,13 @@ window.chatInteractionManager = function () {
                 })();
 
                 window.addEventListener('beforeunload', this.handleBeforeUnload);
+                window.addEventListener('crestapps-ai-chat-stop-tts', this.handleExternalTtsStop);
             },
             beforeUnmount() {
                 window.removeEventListener('beforeunload', this.handleBeforeUnload);
+                window.removeEventListener('crestapps-ai-chat-stop-tts', this.handleExternalTtsStop);
+
+                this.stopAudio(false);
 
                 if (this.stream) {
                     this.stream.dispose();

@@ -75,8 +75,7 @@ At minimum, provide a connection and a deployment through configuration or your 
           "Name": "gpt-4.1",
           "ClientName": "OpenAI",
           "Type": "Chat",
-          "ModelName": "gpt-4.1",
-          "IsDefault": true
+          "ModelName": "gpt-4.1"
         }
       ]
     }

@@ -107,8 +107,7 @@ By default, provider connections are loaded from `CrestApps:AI:Connections` and 
           "Name": "gpt-4.1",
           "ClientName": "OpenAI",
           "ModelName": "gpt-4.1",
-          "Type": "Chat",
-          "IsDefault": true
+          "Type": "Chat"
         }
       ]
     }

@@ -1,0 +1,30 @@
+<Project>
+
+  <!--
+    Re-imports GitHub.Copilot.SDK build targets for consumers of this package.
+
+    The SDK ships its Copilot CLI download/extract logic in build/ targets, which
+    NuGet only imports for direct package references. Because consumers reference
+    CrestApps.Core.AI.Copilot (not the SDK directly), the SDK becomes a transitive
+    dependency and its build targets are never imported. This buildTransitive bridge
+    re-imports those targets so the CLI binary is downloaded automatically.
+
+    IMPORTANT: Update _GitHubCopilotSdkVersion when the GitHub.Copilot.SDK
+    dependency version changes in Directory.Packages.props.
+  -->
+
+  <PropertyGroup>
+    <_GitHubCopilotSdkVersion Condition="'$(_GitHubCopilotSdkVersion)' == ''">0.2.2</_GitHubCopilotSdkVersion>
+    <_GitHubCopilotSdkBuildDir>$(NuGetPackageRoot)github.copilot.sdk/$(_GitHubCopilotSdkVersion)/build</_GitHubCopilotSdkBuildDir>
+  </PropertyGroup>
+
+  <Import Project="$(_GitHubCopilotSdkBuildDir)/GitHub.Copilot.SDK.targets"
+         Condition="Exists('$(_GitHubCopilotSdkBuildDir)/GitHub.Copilot.SDK.targets')" />
+
+  <Target Name="_ValidateCopilotSdkTargets" BeforeTargets="BeforeBuild"
+          Condition="'$(CopilotSkipCliDownload)' != 'true'">
+    <Error Condition="!Exists('$(_GitHubCopilotSdkBuildDir)/GitHub.Copilot.SDK.targets')"
+           Text="GitHub.Copilot.SDK build targets not found. Expected at '$(_GitHubCopilotSdkBuildDir)'. Ensure the GitHub.Copilot.SDK NuGet package (version $(_GitHubCopilotSdkVersion)) is restored." />
+  </Target>
+
+</Project>

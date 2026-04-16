@@ -14,6 +14,24 @@ window.openAIChatManager = function () {
         thumbsDownTitle: 'Thumbs down',
         copyTitle: 'Click here to copy response to clipboard.',
         codeCopiedText: 'Copied!',
+        widget: {
+            chatWidgetContainer: null,
+            chatWidgetStateName: null,
+            chatHistorySection: null,
+            showHistoryButton: null,
+            closeHistoryButton: null,
+            newChatButton: null,
+            toggleButtonSelector: null,
+            resetSizeButtonSelector: null,
+            dragHandleSelector: '.ai-chat-widget-header',
+            enableDragging: true,
+            enableResizing: true,
+            persistLayout: true,
+            defaultWidth: null,
+            defaultHeight: null,
+            minWidth: 320,
+            minHeight: 420
+        },
         messageTemplate: `
         <div class="ai-chat-messages">
             <div v-for="(message, index) in messages" :key="'msg-' + index" class="ai-chat-message-item">
@@ -37,7 +55,7 @@ window.openAIChatManager = function () {
                                     </button>
                                 </span>
                             </template>
-                            <button v-if="textToSpeechEnabled && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
+                            <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
                                 <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
                             </button>
                             <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" :title="copyTitle">
@@ -87,6 +105,23 @@ window.openAIChatManager = function () {
         var span = document.createElement('span');
         span.textContent = text;
         return span.innerHTML;
+    }
+
+    function parsePixelValue(value) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+
+        if (typeof value !== 'string') {
+            return null;
+        }
+
+        var parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
     }
 
     function normalizeReference(reference) {
@@ -383,6 +418,8 @@ window.openAIChatManager = function () {
     const initialize = (instanceConfig) => {
 
         const config = Object.assign({}, defaultConfig, instanceConfig);
+        config.widget = Object.assign({}, defaultConfig.widget || {}, instanceConfig && instanceConfig.widget ? instanceConfig.widget : {});
+        const hasWidgetConfig = !!(instanceConfig && instanceConfig.widget && instanceConfig.widget.chatWidgetContainer && instanceConfig.widget.chatWidgetStateName);
         // Keep defaultConfig in sync so renderers use overridden values
         defaultConfig = config;
 
@@ -422,7 +459,15 @@ window.openAIChatManager = function () {
                     isPlaceholderVisible: true,
                     chatWidgetStateName: null,
                     chatWidgetStateSession: null,
+                    chatWidgetLayoutKey: null,
                     chatHistorySection: null,
+                    widgetContainerElement: null,
+                    widgetToggleButtonElement: null,
+                    widgetResetSizeButtonElement: null,
+                    widgetResizeObserver: null,
+                    widgetViewportResizeHandler: null,
+                    widgetDefaultWidth: null,
+                    widgetDefaultHeight: null,
                     widgetIsInitialized: false,
                     isStreaming: false,
                     isNavigatingAway: false,
@@ -453,9 +498,11 @@ window.openAIChatManager = function () {
                     audioPlayQueue: [],
                     isPlayingAudio: false,
                     currentAudioElement: null,
+                    currentAudioUrl: null,
                     ttsButton: null,
                     ttsPlayingMessageIndex: -1,
                     ttsAudioCache: {},
+                    ttsInstanceId: 'ai-chat-' + Math.random().toString(36).slice(2),
                     singleResponseMode: !!config.singleResponseMode,
                     conversationModeEnabled: config.chatMode === 'Conversation',
                     conversationButton: null,
@@ -476,6 +523,314 @@ window.openAIChatManager = function () {
             methods: {
                 handleBeforeUnload() {
                     this.isNavigatingAway = true;
+                },
+                getStoredWidgetLayout() {
+                    if (!this.chatWidgetLayoutKey || !config.widget.persistLayout) {
+                        return {};
+                    }
+
+                    try {
+                        var storedLayout = localStorage.getItem(this.chatWidgetLayoutKey);
+                        return storedLayout ? JSON.parse(storedLayout) || {} : {};
+                    } catch (error) {
+                        console.warn('Failed to read widget layout state.', error);
+                        return {};
+                    }
+                },
+                saveStoredWidgetLayout(partialLayout) {
+                    if (!this.chatWidgetLayoutKey || !config.widget.persistLayout) {
+                        return;
+                    }
+
+                    var currentLayout = this.getStoredWidgetLayout();
+                    var nextLayout = Object.assign({}, currentLayout);
+
+                    if (partialLayout.panel !== undefined) {
+                        nextLayout.panel = Object.assign({}, currentLayout.panel || {}, partialLayout.panel || {});
+                    }
+
+                    if (partialLayout.toggle !== undefined) {
+                        nextLayout.toggle = Object.assign({}, currentLayout.toggle || {}, partialLayout.toggle || {});
+                    }
+
+                    localStorage.setItem(this.chatWidgetLayoutKey, JSON.stringify(nextLayout));
+                },
+                getElementSize(element, fallbackWidth, fallbackHeight) {
+                    if (!element) {
+                        return {
+                            width: fallbackWidth || 0,
+                            height: fallbackHeight || 0
+                        };
+                    }
+
+                    var rect = element.getBoundingClientRect();
+                    var computed = window.getComputedStyle(element);
+
+                    return {
+                        width: Math.round(rect.width || parsePixelValue(computed.width) || fallbackWidth || 0),
+                        height: Math.round(rect.height || parsePixelValue(computed.height) || fallbackHeight || 0)
+                    };
+                },
+                clampWidgetPosition(left, top, width, height) {
+                    var viewportPadding = 8;
+                    var maxLeft = Math.max(viewportPadding, window.innerWidth - width - viewportPadding);
+                    var maxTop = Math.max(viewportPadding, window.innerHeight - height - viewportPadding);
+
+                    return {
+                        left: Math.round(clamp(left, viewportPadding, maxLeft)),
+                        top: Math.round(clamp(top, viewportPadding, maxTop))
+                    };
+                },
+                applyAbsolutePosition(element, left, top) {
+                    if (!element) {
+                        return;
+                    }
+
+                    element.style.left = left + 'px';
+                    element.style.top = top + 'px';
+                    element.style.right = 'auto';
+                    element.style.bottom = 'auto';
+                },
+                getWidgetDefaultSize() {
+                    return {
+                        width: this.widgetDefaultWidth || parsePixelValue(config.widget.defaultWidth) || 380,
+                        height: this.widgetDefaultHeight || parsePixelValue(config.widget.defaultHeight) || 520
+                    };
+                },
+                persistWidgetPanelPosition() {
+                    if (!this.widgetContainerElement || !config.widget.persistLayout) {
+                        return;
+                    }
+
+                    var panelRect = this.widgetContainerElement.getBoundingClientRect();
+                    this.saveStoredWidgetLayout({
+                        panel: {
+                            left: Math.round(panelRect.left),
+                            top: Math.round(panelRect.top)
+                        }
+                    });
+                },
+                persistWidgetTogglePosition() {
+                    if (!this.widgetToggleButtonElement || !config.widget.persistLayout) {
+                        return;
+                    }
+
+                    var toggleRect = this.widgetToggleButtonElement.getBoundingClientRect();
+                    this.saveStoredWidgetLayout({
+                        toggle: {
+                            left: Math.round(toggleRect.left),
+                            top: Math.round(toggleRect.top)
+                        }
+                    });
+                },
+                persistWidgetPanelSize() {
+                    if (!this.widgetContainerElement || !config.widget.enableResizing || !config.widget.persistLayout) {
+                        return;
+                    }
+
+                    var defaultSize = this.getWidgetDefaultSize();
+                    var currentSize = this.getElementSize(this.widgetContainerElement, defaultSize.width, defaultSize.height);
+
+                    this.saveStoredWidgetLayout({
+                        panel: {
+                            width: Math.abs(currentSize.width - defaultSize.width) <= 1 ? null : currentSize.width,
+                            height: Math.abs(currentSize.height - defaultSize.height) <= 1 ? null : currentSize.height
+                        }
+                    });
+                },
+                updateWidgetResetSizeButtonVisibility() {
+                    if (!this.widgetResetSizeButtonElement) {
+                        return;
+                    }
+
+                    if (!config.widget.enableResizing || !this.widgetContainerElement) {
+                        this.widgetResetSizeButtonElement.classList.add('d-none');
+                        return;
+                    }
+
+                    var defaultSize = this.getWidgetDefaultSize();
+                    var currentSize = this.getElementSize(this.widgetContainerElement, defaultSize.width, defaultSize.height);
+                    var isResized =
+                        Math.abs(currentSize.width - defaultSize.width) > 1 ||
+                        Math.abs(currentSize.height - defaultSize.height) > 1 ||
+                        !!this.widgetContainerElement.style.width ||
+                        !!this.widgetContainerElement.style.height;
+
+                    this.widgetResetSizeButtonElement.classList.toggle('d-none', !isResized);
+                },
+                resetWidgetSize() {
+                    if (!this.widgetContainerElement || !config.widget.enableResizing) {
+                        return;
+                    }
+
+                    this.widgetContainerElement.style.removeProperty('width');
+                    this.widgetContainerElement.style.removeProperty('height');
+                    this.persistWidgetPanelSize();
+                    this.constrainWidgetElementsToViewport();
+                    this.updateWidgetResetSizeButtonVisibility();
+                },
+                restoreWidgetLayout() {
+                    var storedLayout = this.getStoredWidgetLayout();
+
+                    if (this.widgetContainerElement && config.widget.enableResizing) {
+                        if (Number.isFinite(storedLayout.panel && storedLayout.panel.width)) {
+                            this.widgetContainerElement.style.width = storedLayout.panel.width + 'px';
+                        } else {
+                            this.widgetContainerElement.style.removeProperty('width');
+                        }
+
+                        if (Number.isFinite(storedLayout.panel && storedLayout.panel.height)) {
+                            this.widgetContainerElement.style.height = storedLayout.panel.height + 'px';
+                        } else {
+                            this.widgetContainerElement.style.removeProperty('height');
+                        }
+                    }
+
+                    if (this.widgetContainerElement && config.widget.enableDragging &&
+                        Number.isFinite(storedLayout.panel && storedLayout.panel.left) &&
+                        Number.isFinite(storedLayout.panel && storedLayout.panel.top)) {
+                        this.applyAbsolutePosition(this.widgetContainerElement, storedLayout.panel.left, storedLayout.panel.top);
+                    }
+
+                    if (this.widgetToggleButtonElement && config.widget.enableDragging &&
+                        Number.isFinite(storedLayout.toggle && storedLayout.toggle.left) &&
+                        Number.isFinite(storedLayout.toggle && storedLayout.toggle.top)) {
+                        this.applyAbsolutePosition(this.widgetToggleButtonElement, storedLayout.toggle.left, storedLayout.toggle.top);
+                    }
+
+                    this.constrainWidgetElementsToViewport();
+                    this.updateWidgetResetSizeButtonVisibility();
+                },
+                attachDraggableWidgetElement(element, handle, layoutKey, suppressClickOnDrag) {
+                    if (!element || !handle || !config.widget.enableDragging) {
+                        return;
+                    }
+
+                    var activePointerId = null;
+                    var startX = 0;
+                    var startY = 0;
+                    var startLeft = 0;
+                    var startTop = 0;
+                    var dragged = false;
+                    var dragThreshold = 4;
+                    var interactiveSelector = 'button, a, input, textarea, select, option, label';
+
+                    var stopDragging = (event) => {
+                        if (activePointerId === null) {
+                            return;
+                        }
+
+                        if (event && event.pointerId !== undefined && event.pointerId !== activePointerId) {
+                            return;
+                        }
+
+                        document.removeEventListener('pointermove', onPointerMove);
+                        document.removeEventListener('pointerup', stopDragging);
+                        document.removeEventListener('pointercancel', stopDragging);
+                        element.classList.remove('ai-chat-widget-dragging');
+                        activePointerId = null;
+
+                        if (!dragged) {
+                            return;
+                        }
+
+                        if (layoutKey === 'panel') {
+                            this.persistWidgetPanelPosition();
+                        } else if (layoutKey === 'toggle') {
+                            this.persistWidgetTogglePosition();
+                        }
+
+                        if (suppressClickOnDrag) {
+                            element.dataset.dragSuppressClick = 'true';
+                            window.setTimeout(() => {
+                                if (element.dataset.dragSuppressClick === 'true') {
+                                    element.dataset.dragSuppressClick = 'false';
+                                }
+                            }, 0);
+                        }
+                    };
+
+                    var onPointerMove = (event) => {
+                        if (activePointerId === null || event.pointerId !== activePointerId) {
+                            return;
+                        }
+
+                        var deltaX = event.clientX - startX;
+                        var deltaY = event.clientY - startY;
+
+                        if (!dragged && Math.hypot(deltaX, deltaY) < dragThreshold) {
+                            return;
+                        }
+
+                        dragged = true;
+
+                        var defaultSize = this.getWidgetDefaultSize();
+                        var currentSize = this.getElementSize(
+                            element,
+                            layoutKey === 'panel' ? defaultSize.width : 52,
+                            layoutKey === 'panel' ? defaultSize.height : 52);
+                        var nextPosition = this.clampWidgetPosition(
+                            startLeft + deltaX,
+                            startTop + deltaY,
+                            currentSize.width,
+                            currentSize.height);
+
+                        this.applyAbsolutePosition(element, nextPosition.left, nextPosition.top);
+                    };
+
+                    handle.addEventListener('pointerdown', (event) => {
+                        if (event.button !== 0) {
+                            return;
+                        }
+
+                        if (layoutKey === 'panel' && event.target.closest(interactiveSelector)) {
+                            return;
+                        }
+
+                        var rect = element.getBoundingClientRect();
+                        startX = event.clientX;
+                        startY = event.clientY;
+                        startLeft = rect.left;
+                        startTop = rect.top;
+                        dragged = false;
+                        activePointerId = event.pointerId;
+                        element.classList.add('ai-chat-widget-dragging');
+
+                        if (handle.setPointerCapture) {
+                            handle.setPointerCapture(event.pointerId);
+                        }
+
+                        document.addEventListener('pointermove', onPointerMove);
+                        document.addEventListener('pointerup', stopDragging);
+                        document.addEventListener('pointercancel', stopDragging);
+                        event.preventDefault();
+                    });
+                },
+                constrainWidgetElementsToViewport() {
+                    if (this.widgetContainerElement && this.widgetContainerElement.style.left) {
+                        var panelDefaultSize = this.getWidgetDefaultSize();
+                        var panelSize = this.getElementSize(this.widgetContainerElement, panelDefaultSize.width, panelDefaultSize.height);
+                        var panelRect = this.widgetContainerElement.getBoundingClientRect();
+                        var clampedPanel = this.clampWidgetPosition(panelRect.left, panelRect.top, panelSize.width, panelSize.height);
+
+                        this.applyAbsolutePosition(this.widgetContainerElement, clampedPanel.left, clampedPanel.top);
+
+                        if (config.widget.persistLayout) {
+                            this.persistWidgetPanelPosition();
+                        }
+                    }
+
+                    if (this.widgetToggleButtonElement && this.widgetToggleButtonElement.style.left) {
+                        var toggleSize = this.getElementSize(this.widgetToggleButtonElement, 52, 52);
+                        var toggleRect = this.widgetToggleButtonElement.getBoundingClientRect();
+                        var clampedToggle = this.clampWidgetPosition(toggleRect.left, toggleRect.top, toggleSize.width, toggleSize.height);
+
+                        this.applyAbsolutePosition(this.widgetToggleButtonElement, clampedToggle.left, clampedToggle.top);
+
+                        if (config.widget.persistLayout) {
+                            this.persistWidgetTogglePosition();
+                        }
+                    }
                 },
                 handleDragOver(e) {
                     if (!config.sessionDocumentsEnabled) return;
@@ -1518,6 +1873,13 @@ window.openAIChatManager = function () {
                         }
                     }
                 },
+                handleExternalTtsStop(e) {
+                    if (e?.detail?.sourceId === this.ttsInstanceId) {
+                        return;
+                    }
+
+                    this.stopAudio(false);
+                },
                 synthesizeSpeech(text, cacheIndex) {
                     if (!this.textToSpeechEnabled || !text || !this.connection) {
                         return;
@@ -1541,7 +1903,10 @@ window.openAIChatManager = function () {
                         return;
                     }
 
-                    this.stopAudio();
+                    this.stopAudio(false);
+                    window.dispatchEvent(new CustomEvent('crestapps-ai-chat-stop-tts', {
+                        detail: { sourceId: this.ttsInstanceId }
+                    }));
                     this.ttsPlayingMessageIndex = index;
 
                     if (this.ttsAudioCache[index]) {
@@ -1555,6 +1920,7 @@ window.openAIChatManager = function () {
                     if (this.audioChunks.length === 0) {
                         if (!this.currentAudioElement && this.audioPlayQueue.length === 0) {
                             this.isPlayingAudio = false;
+                            this.ttsPlayingMessageIndex = -1;
                         }
                         return;
                     }
@@ -1587,26 +1953,32 @@ window.openAIChatManager = function () {
                     const url = URL.createObjectURL(blob);
                     const audio = new Audio(url);
 
+                    this.currentAudioUrl = url;
                     this.currentAudioElement = audio;
                     this.isPlayingAudio = true;
 
                     audio.addEventListener('ended', () => {
-                        URL.revokeObjectURL(url);
                         this.currentAudioElement = null;
+                        this.currentAudioUrl = null;
+                        URL.revokeObjectURL(url);
                         this.playNextInQueue();
                     });
 
                     audio.addEventListener('error', () => {
-                        URL.revokeObjectURL(url);
                         this.currentAudioElement = null;
+                        this.currentAudioUrl = null;
+                        URL.revokeObjectURL(url);
                         this.playNextInQueue();
                     });
 
                     audio.play().catch(err => {
                         console.error("Audio playback error:", err);
-                        URL.revokeObjectURL(url);
                         this.currentAudioElement = null;
+                        this.currentAudioUrl = null;
+                        URL.revokeObjectURL(url);
+                        this.audioPlayQueue = [];
                         this.isPlayingAudio = false;
+                        this.ttsPlayingMessageIndex = -1;
                     });
                 },
                 playNextInQueue() {
@@ -1624,6 +1996,10 @@ window.openAIChatManager = function () {
                         this.currentAudioElement.pause();
                         this.currentAudioElement.currentTime = 0;
                         this.currentAudioElement = null;
+                    }
+                    if (this.currentAudioUrl) {
+                        URL.revokeObjectURL(this.currentAudioUrl);
+                        this.currentAudioUrl = null;
                     }
                     this.audioChunks = [];
                     this.audioPlayQueue = [];
@@ -1985,9 +2361,9 @@ window.openAIChatManager = function () {
                     this.applyOrchestratorAvailability();
 
                     const sessionId = this.getSessionId();
-                    if (!config.widget && sessionId) {
+                    if (!hasWidgetConfig && sessionId) {
                         this.loadSession(sessionId);
-                    } else if (this.isOrchestratorAvailable() && config.autoCreateSession && !config.widget && !sessionId) {
+                    } else if (this.isOrchestratorAvailable() && config.autoCreateSession && !hasWidgetConfig && !sessionId) {
                         this.startNewSession();
                     }
 
@@ -2205,7 +2581,69 @@ window.openAIChatManager = function () {
 
                     this.chatWidgetStateName = config.widget.chatWidgetStateName;
                     this.chatWidgetStateSession = config.widget.chatWidgetStateName + 'Session';
+                    this.chatWidgetLayoutKey = config.widget.chatWidgetStateName + 'Layout';
+                    this.widgetContainerElement = chatWidgetContainer;
+                    this.widgetToggleButtonElement = config.widget.toggleButtonSelector
+                        ? document.querySelector(config.widget.toggleButtonSelector)
+                        : null;
+                    this.widgetResetSizeButtonElement = config.widget.resetSizeButtonSelector
+                        ? document.querySelector(config.widget.resetSizeButtonSelector)
+                        : null;
+                    this.widgetDefaultWidth = parsePixelValue(config.widget.defaultWidth) ||
+                        parsePixelValue(window.getComputedStyle(chatWidgetContainer).width) ||
+                        380;
+                    this.widgetDefaultHeight = parsePixelValue(config.widget.defaultHeight) ||
+                        parsePixelValue(window.getComputedStyle(chatWidgetContainer).height) ||
+                        520;
                     this.widgetIsInitialized = true;
+
+                    if (config.widget.enableResizing) {
+                        chatWidgetContainer.classList.add('ai-chat-widget-resizable');
+                        chatWidgetContainer.style.minWidth = (parsePixelValue(config.widget.minWidth) || 320) + 'px';
+                        chatWidgetContainer.style.minHeight = (parsePixelValue(config.widget.minHeight) || 420) + 'px';
+
+                        if (typeof ResizeObserver !== 'undefined') {
+                            this.widgetResizeObserver = new ResizeObserver(() => {
+                                this.persistWidgetPanelSize();
+                                this.constrainWidgetElementsToViewport();
+                                this.updateWidgetResetSizeButtonVisibility();
+                            });
+
+                            this.widgetResizeObserver.observe(chatWidgetContainer);
+                        }
+                    }
+
+                    var dragHandleSelector = config.widget.dragHandleSelector || '.ai-chat-widget-header';
+                    var dragHandle = chatWidgetContainer.querySelector(dragHandleSelector);
+
+                    if (config.widget.enableDragging && dragHandle) {
+                        dragHandle.classList.add('ai-chat-widget-drag-handle');
+                        chatWidgetContainer.classList.add('ai-chat-widget-draggable');
+                        this.attachDraggableWidgetElement(chatWidgetContainer, dragHandle, 'panel', false);
+                    }
+
+                    if (config.widget.enableDragging && this.widgetToggleButtonElement) {
+                        this.widgetToggleButtonElement.classList.add('ai-chat-widget-draggable');
+                        this.attachDraggableWidgetElement(this.widgetToggleButtonElement, this.widgetToggleButtonElement, 'toggle', true);
+                    }
+
+                    if (this.widgetResetSizeButtonElement) {
+                        this.widgetResetSizeButtonElement.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            this.resetWidgetSize();
+                        });
+                    }
+
+                    this.restoreWidgetLayout();
+
+                    if (!this.widgetViewportResizeHandler) {
+                        this.widgetViewportResizeHandler = () => {
+                            this.constrainWidgetElementsToViewport();
+                            this.updateWidgetResetSizeButtonVisibility();
+                        };
+
+                        window.addEventListener('resize', this.widgetViewportResizeHandler);
+                    }
 
                     // Auto-load the last session so the user always sees previous chat history.
                     this.reloadCurrentSession();
@@ -2386,15 +2824,19 @@ window.openAIChatManager = function () {
                 (async () => {
                     await this.startConnection();
                     this.initializeApp();
-                    if (config.widget) {
+                    if (hasWidgetConfig) {
                         this.initializeWidget();
                     }
                 })();
 
                 window.addEventListener('beforeunload', this.handleBeforeUnload);
+                window.addEventListener('crestapps-ai-chat-stop-tts', this.handleExternalTtsStop);
             },
             beforeUnmount() {
                 window.removeEventListener('beforeunload', this.handleBeforeUnload);
+                window.removeEventListener('crestapps-ai-chat-stop-tts', this.handleExternalTtsStop);
+
+                this.stopAudio(false);
 
                 if (this.stream) {
                     this.stream.dispose();
