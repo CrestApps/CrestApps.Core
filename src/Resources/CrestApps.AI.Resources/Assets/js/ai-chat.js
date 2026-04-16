@@ -38,7 +38,7 @@ window.openAIChatManager = function () {
                 <div>
                     <div v-if="message.role === 'user'" class="ai-chat-msg-role ai-chat-msg-role-user">{{ userLabel }}</div>
                     <div v-else-if="message.role !== 'indicator'" :class="getAssistantRoleClasses(message)">
-                        <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                        <span :class="getAssistantIconClasses(message, index)"><span :class="getAssistantIcon(message)"></span></span>
                         {{ getAssistantLabel(message) }}
                     </div>
                     <div class="ai-chat-message-body lh-base">
@@ -48,18 +48,18 @@ window.openAIChatManager = function () {
                             <template v-if="metricsEnabled && message.role === 'assistant'">
                                 <span class="ai-chat-message-assistant-feedback" :data-message-id="message.id">
                                     <button class="btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn" @click="rateMessage(message, true, $event)" :title="thumbsUpTitle">
-                                        <i class="fa-regular fa-thumbs-up"></i>
+                                        <span class="fa-regular fa-thumbs-up"></span>
                                     </button>
                                     <button class="btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn" @click="rateMessage(message, false, $event)" :title="thumbsDownTitle">
-                                        <i class="fa-regular fa-thumbs-down"></i>
+                                        <span class="fa-regular fa-thumbs-down"></span>
                                     </button>
                                 </span>
                             </template>
-                            <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
-                                <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
+                            <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
+                                <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
                             </button>
                             <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" :title="copyTitle">
-                                <i class="fa-solid fa-copy"></i>
+                                <span class="fa-solid fa-copy"></span>
                             </button>
                         </span>
                     </div>
@@ -67,15 +67,15 @@ window.openAIChatManager = function () {
             </div>
             <div v-for="notification in notifications" :key="'notif-' + notification.type" class="ai-chat-notification" :class="'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')">
                 <div class="ai-chat-notification-content">
-                    <i v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></i>
+                    <span v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></span>
                     <span class="ai-chat-notification-text">{{ notification.content }}</span>
                     <button v-if="notification.dismissible" class="btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss" @click="dismissNotification(notification.type)" title="Dismiss">
-                        <i class="fa-solid fa-xmark"></i>
+                        <span class="fa-solid fa-xmark"></span>
                     </button>
                 </div>
                 <div v-if="notification.actions && notification.actions.length" class="ai-chat-notification-actions">
                     <button v-for="action in notification.actions" :key="action.name" class="btn btn-sm" :class="action.cssClass || 'btn-outline-secondary'" @click="handleNotificationAction(notification.type, action.name)">
-                        <i v-if="action.icon" :class="action.icon" class="me-1"></i>
+                        <span v-if="action.icon" :class="action.icon" class="me-1"></span>
                         {{ action.label }}
                     </button>
                 </div>
@@ -84,7 +84,7 @@ window.openAIChatManager = function () {
     `,
         indicatorTemplate: `
         <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-            <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
+            <span class="ai-streaming-icon"><span class="fa fa-robot" style="display: inline-block;"></span></span>
             Assistant
         </div>
     `
@@ -181,7 +181,7 @@ window.openAIChatManager = function () {
         }
 
         var langDisplay = lang ? escapeHtmlEntities(lang) : 'code';
-        return `<div class="ai-code-block"><div class="ai-code-header"><span class="ai-code-lang"><i class="fa-solid fa-code"></i> ${langDisplay}</span><button type="button" class="ai-code-copy-btn" title="Copy code"><i class="fa-regular fa-copy"></i></button></div><pre><code class="hljs${lang ? ' language-' + lang : ''}">${highlighted}</code></pre></div>`;
+        return `<div class="ai-code-block"><div class="ai-code-header"><span class="ai-code-lang"><span class="fa-solid fa-code"></span> ${langDisplay}</span><button type="button" class="ai-code-copy-btn" title="Copy code"><span class="fa-regular fa-copy"></span></button></div><pre><code class="hljs${lang ? ' language-' + lang : ''}">${highlighted}</code></pre></div>`;
     };
 
     // Custom image renderer for generated images with thumbnail styling and download button.
@@ -195,7 +195,7 @@ window.openAIChatManager = function () {
         <img src="${src}" alt="${alt}" class="img-thumbnail" style="max-width: ${maxWidth}px; height: auto;" />
         <div class="mt-2">
             <a href="${src}" target="_blank" download="${alt}" title="${defaultConfig.downloadImageTitle}" class="btn btn-sm btn-outline-secondary ai-download-image">
-                <i class="fa-solid fa-download"></i>
+                <span class="fa-solid fa-download"></span>
             </a>
         </div>
     </div>`;
@@ -218,7 +218,7 @@ window.openAIChatManager = function () {
             + `</div>`
             + `<div class="mt-2">`
             + `<button type="button" class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart-id="${chartId}" title="${defaultConfig.downloadChartTitle}">`
-            + `<i class="fa-solid fa-download"></i> ${defaultConfig.downloadChartButtonText}`
+            + `<span class="fa-solid fa-download"></span> ${defaultConfig.downloadChartButtonText}`
             + `</button>`
             + `</div>`;
     }
@@ -1091,7 +1091,7 @@ window.openAIChatManager = function () {
                         var name = doc.fileName || 'Document';
                         if (name.length > 20) name = name.substring(0, 17) + '...';
                         html += '<span class="badge bg-secondary bg-opacity-25 text-dark d-inline-flex align-items-center gap-1 px-2 py-1" style="font-size: 0.8rem;" title="' + this.escapeHtml(doc.fileName || '') + '">';
-                        html += '<i class="fa-solid fa-file-lines" style="font-size: 0.7rem;"></i> ';
+                        html += '<span class="fa-solid fa-file-lines" style="font-size: 0.7rem;"></span> ';
                         html += this.escapeHtml(name);
                         html += ' <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.5rem;" data-doc-index="' + i + '" aria-label="Remove"></button>';
                         html += '</span>';
@@ -1103,7 +1103,7 @@ window.openAIChatManager = function () {
                         var errorMsg = failedItem.error || 'Upload failed';
                         if (failedName.length > 15) failedName = failedName.substring(0, 12) + '...';
                         html += '<span class="badge bg-danger bg-opacity-25 text-danger d-inline-flex align-items-center gap-1 px-2 py-1" style="font-size: 0.8rem;" title="' + this.escapeHtml((failedItem.fileName || '') + ': ' + errorMsg) + '">';
-                        html += '<i class="fa-solid fa-circle-exclamation" style="font-size: 0.7rem;"></i> ';
+                        html += '<span class="fa-solid fa-circle-exclamation" style="font-size: 0.7rem;"></span> ';
                         html += this.escapeHtml(failedName);
                         html += ' <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.5rem;" data-error-index="' + m + '" aria-label="Dismiss"></button>';
                         html += '</span>';
@@ -1116,7 +1116,7 @@ window.openAIChatManager = function () {
                     }
 
                     html += '<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill ai-chat-doc-add-btn d-inline-flex align-items-center gap-1" style="font-size: 0.75rem; padding: 0.15rem 0.5rem;" title="Attach documents">';
-                    html += '<i class="fa-solid fa-paperclip"></i>';
+                    html += '<span class="fa-solid fa-paperclip"></span>';
                     if (this.documents.length === 0 && !this.isUploading) {
                         html += ' <span>Attach files</span>';
                     }
@@ -1731,10 +1731,10 @@ window.openAIChatManager = function () {
 
                     if (this.isRecording) {
                         this.micButton.classList.add('stt-recording');
-                        this.micButton.innerHTML = '<i class="fa-solid fa-stop"></i>';
+                        this.micButton.innerHTML = '<span class="fa-solid fa-stop"></span>';
                     } else {
                         this.micButton.classList.remove('stt-recording');
-                        this.micButton.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                        this.micButton.innerHTML = '<span class="fa-solid fa-microphone"></span>';
                     }
                 },
                 streamMessage(profileId, trimmedPrompt, sessionProfileId) {
@@ -1989,6 +1989,25 @@ window.openAIChatManager = function () {
 
                     this.stopAudio(false);
                 },
+                updateTtsPlaybackButtons() {
+                    if (!this.chatContainer) {
+                        return;
+                    }
+
+                    var buttons = this.chatContainer.querySelectorAll('[data-tts-message-index]');
+
+                    buttons.forEach(button => {
+                        var buttonIndex = Number(button.getAttribute('data-tts-message-index'));
+                        var isPlaying = buttonIndex === this.ttsPlayingMessageIndex;
+                        var iconHtml = isPlaying
+                            ? '<span class="fa-solid fa-circle-pause"></span>'
+                            : '<span class="fa-solid fa-circle-play"></span>';
+
+                        button.classList.toggle('tts-playing', isPlaying);
+                        button.setAttribute('title', isPlaying ? 'Pause audio' : 'Read aloud');
+                        button.replaceChildren(DOMPurify.sanitize(iconHtml, { RETURN_DOM_FRAGMENT: true }));
+                    });
+                },
                 synthesizeSpeech(text, cacheIndex) {
                     if (!this.textToSpeechEnabled || !text || !this.connection) {
                         return;
@@ -2004,6 +2023,7 @@ window.openAIChatManager = function () {
                             this.isPlayingAudio = false;
                             this.ttsPlayingMessageIndex = -1;
                             this._ttsCacheIndex = -1;
+                            this.$nextTick(() => this.updateTtsPlaybackButtons());
                         });
                 },
                 toggleMessageTts(message, index) {
@@ -2017,6 +2037,7 @@ window.openAIChatManager = function () {
                         detail: { sourceId: this.ttsInstanceId }
                     }));
                     this.ttsPlayingMessageIndex = index;
+                    this.$nextTick(() => this.updateTtsPlaybackButtons());
 
                     if (this.ttsAudioCache[index]) {
                         this.playAudioBlob(this.ttsAudioCache[index]);
@@ -2030,6 +2051,7 @@ window.openAIChatManager = function () {
                         if (!this.currentAudioElement && this.audioPlayQueue.length === 0) {
                             this.isPlayingAudio = false;
                             this.ttsPlayingMessageIndex = -1;
+                            this.$nextTick(() => this.updateTtsPlaybackButtons());
                         }
                         return;
                     }
@@ -2088,6 +2110,7 @@ window.openAIChatManager = function () {
                         this.audioPlayQueue = [];
                         this.isPlayingAudio = false;
                         this.ttsPlayingMessageIndex = -1;
+                        this.$nextTick(() => this.updateTtsPlaybackButtons());
                     });
                 },
                 playNextInQueue() {
@@ -2097,6 +2120,7 @@ window.openAIChatManager = function () {
                     } else {
                         this.isPlayingAudio = false;
                         this.ttsPlayingMessageIndex = -1;
+                        this.$nextTick(() => this.updateTtsPlaybackButtons());
                         this.conversationModeOnAudioEnded();
                     }
                 },
@@ -2114,6 +2138,7 @@ window.openAIChatManager = function () {
                     this.audioPlayQueue = [];
                     this.isPlayingAudio = false;
                     this.ttsPlayingMessageIndex = -1;
+                    this.$nextTick(() => this.updateTtsPlaybackButtons());
                 },
                 toggleConversationMode() {
                     if (this.isConversationMode) {
@@ -2615,9 +2640,9 @@ window.openAIChatManager = function () {
                             if (codeEl) {
                                 navigator.clipboard.writeText(codeEl.textContent);
                                 var copiedText = config.codeCopiedText || 'Copied!';
-                                btn.innerHTML = '<i class="fa-solid fa-check"></i> ' + copiedText;
+                                btn.innerHTML = '<span class="fa-solid fa-check"></span> ' + copiedText;
                                 setTimeout(() => {
-                                    btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+                                    btn.innerHTML = '<span class="fa-regular fa-copy"></span>';
                                 }, 2000);
                             }
                         });
@@ -2821,11 +2846,11 @@ window.openAIChatManager = function () {
                     var upBtn = container.querySelector('.rate-up-btn');
                     var downBtn = container.querySelector('.rate-down-btn');
 
-                    // Font Awesome SVG+JS replaces <i> with <svg>, so we must replace
-                    // the entire button content and let Font Awesome re-process.
+                    // Keep feedback icons as simple span-based Font Awesome markup so
+                    // later state updates do not depend on i2svg replacement.
                     if (upBtn) {
                         var upClass = userRating === true ? 'fa-solid fa-thumbs-up' : 'fa-regular fa-thumbs-up';
-                        var upIcon = document.createElement('i');
+                        var upIcon = document.createElement('span');
                         upIcon.className = upClass;
                         upIcon.style.fontSize = '0.9rem';
                         upBtn.textContent = '';
@@ -2834,16 +2859,11 @@ window.openAIChatManager = function () {
 
                     if (downBtn) {
                         var downClass = userRating === false ? 'fa-solid fa-thumbs-down' : 'fa-regular fa-thumbs-down';
-                        var downIcon = document.createElement('i');
+                        var downIcon = document.createElement('span');
                         downIcon.className = downClass;
                         downIcon.style.fontSize = '0.9rem';
                         downBtn.textContent = '';
                         downBtn.appendChild(downIcon);
-                    }
-
-                    // Trigger Font Awesome SVG+JS to convert the new <i> elements.
-                    if (window.FontAwesome && FontAwesome.dom && FontAwesome.dom.i2svg) {
-                        FontAwesome.dom.i2svg({ node: container });
                     }
                 },
                 refreshAllFeedbackIcons() {

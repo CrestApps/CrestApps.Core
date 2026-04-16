@@ -17,7 +17,7 @@ window.chatInteractionManager = function () {
                     <div>
                         <div v-if="message.role === 'user'" class="ai-chat-msg-role ai-chat-msg-role-user">You</div>
                         <div v-else-if="message.role !== 'indicator'" :class="getAssistantRoleClasses(message)">
-                            <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                            <span :class="getAssistantIconClasses(message, index)"><span :class="getAssistantIcon(message)"></span></span>
                             {{ getAssistantLabel(message) }}
                         </div>
                         <div class="ai-chat-message-body lh-base">
@@ -25,10 +25,10 @@ window.chatInteractionManager = function () {
                             <div v-html="message.htmlContent"></div>
                             <span class="message-buttons-container" v-if="!isIndicator(message)">
                                 <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
-                                    <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
+                                    <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
                                 </button>
                                 <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" title="Click here to copy response to clipboard.">
-                                    <i class="fa-solid fa-copy"></i>
+                                    <span class="fa-solid fa-copy"></span>
                                 </button>
                             </span>
                         </div>
@@ -36,15 +36,15 @@ window.chatInteractionManager = function () {
                 </div>
                 <div v-for="notification in notifications" :key="'notif-' + notification.type" class="ai-chat-notification" :class="'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')">
                     <div class="ai-chat-notification-content">
-                        <i v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></i>
+                        <span v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></span>
                         <span class="ai-chat-notification-text">{{ notification.content }}</span>
                         <button v-if="notification.dismissible" class="btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss" @click="dismissNotification(notification.type)" title="Dismiss">
-                            <i class="fa-solid fa-xmark"></i>
+                            <span class="fa-solid fa-xmark"></span>
                         </button>
                     </div>
                     <div v-if="notification.actions && notification.actions.length" class="ai-chat-notification-actions">
                         <button v-for="action in notification.actions" :key="action.name" class="btn btn-sm" :class="action.cssClass || 'btn-outline-secondary'" @click="handleNotificationAction(notification.type, action.name)">
-                            <i v-if="action.icon" :class="action.icon" class="me-1"></i>
+                            <span v-if="action.icon" :class="action.icon" class="me-1"></span>
                             {{ action.label }}
                         </button>
                     </div>
@@ -53,7 +53,7 @@ window.chatInteractionManager = function () {
         `,
         indicatorTemplate: `
             <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-                <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
+                <span class="ai-streaming-icon"><span class="fa fa-robot" style="display: inline-block;"></span></span>
                 Assistant
             </div>
         `,
@@ -112,7 +112,7 @@ window.chatInteractionManager = function () {
         }
 
         var langDisplay = lang ? escapeHtmlEntities(lang) : 'code';
-        return `<div class="ai-code-block"><div class="ai-code-header"><span class="ai-code-lang"><i class="fa-solid fa-code"></i> ${langDisplay}</span><button type="button" class="ai-code-copy-btn" title="Copy code"><i class="fa-regular fa-copy"></i></button></div><pre><code class="hljs${lang ? ' language-' + lang : ''}">${highlighted}</code></pre></div>`;
+        return `<div class="ai-code-block"><div class="ai-code-header"><span class="ai-code-lang"><span class="fa-solid fa-code"></span> ${langDisplay}</span><button type="button" class="ai-code-copy-btn" title="Copy code"><span class="fa-regular fa-copy"></span></button></div><pre><code class="hljs${lang ? ' language-' + lang : ''}">${highlighted}</code></pre></div>`;
     };
 
     // Custom image renderer for generated images with thumbnail styling and download button.
@@ -126,7 +126,7 @@ window.chatInteractionManager = function () {
             <img src="${src}" alt="${alt}" class="img-thumbnail" style="max-width: ${maxWidth}px; height: auto;" />
             <div class="mt-2">
                 <a href="${src}" target="_blank" download="${alt}" title="${defaultConfig.downloadImageTitle}" class="btn btn-sm btn-outline-secondary ai-download-image">
-                    <i class="fa-solid fa-download"></i>
+                    <span class="fa-solid fa-download"></span>
                 </a>
             </div>
         </div>`;
@@ -147,7 +147,7 @@ window.chatInteractionManager = function () {
             + `</div>`
             + `<div class="mt-2">`
             + `<button type="button" class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart-id="${chartId}" title="${defaultConfig.downloadChartTitle}">`
-            + `<i class="fa-solid fa-download"></i> ${defaultConfig.downloadChartButtonText}`
+            + `<span class="fa-solid fa-download"></span> ${defaultConfig.downloadChartButtonText}`
             + `</button>`
             + `</div>`;
     }
@@ -1767,9 +1767,9 @@ window.chatInteractionManager = function () {
                             if (codeEl) {
                                 navigator.clipboard.writeText(codeEl.textContent);
                                 var copiedText = config.codeCopiedText || 'Copied!';
-                                btn.innerHTML = '<i class="fa-solid fa-check"></i> ' + copiedText;
+                                btn.innerHTML = '<span class="fa-solid fa-check"></span> ' + copiedText;
                                 setTimeout(() => {
-                                    btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+                                    btn.innerHTML = '<span class="fa-regular fa-copy"></span>';
                                 }, 2000);
                             }
                         });
@@ -2062,10 +2062,10 @@ window.chatInteractionManager = function () {
 
                     if (this.isRecording) {
                         this.micButton.classList.add('stt-recording');
-                        this.micButton.innerHTML = '<i class="fa-solid fa-stop"></i>';
+                        this.micButton.innerHTML = '<span class="fa-solid fa-stop"></span>';
                     } else {
                         this.micButton.classList.remove('stt-recording');
-                        this.micButton.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                        this.micButton.innerHTML = '<span class="fa-solid fa-microphone"></span>';
                     }
                 }
             },
