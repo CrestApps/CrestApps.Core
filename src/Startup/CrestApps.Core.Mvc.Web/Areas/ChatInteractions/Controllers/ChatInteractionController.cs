@@ -3,6 +3,8 @@ using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Claude.Models;
+using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Deployments;
@@ -54,6 +56,8 @@ public sealed class ChatInteractionController : Controller
     private readonly ITemplateService _aiTemplateService;
     private readonly OrchestratorOptions _orchestratorOptions;
 
+    private readonly ClaudeOptions _anthropicOptions;
+    private readonly ClaudeClientService _anthropicClientService;
     private readonly CopilotOptions _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
@@ -79,6 +83,8 @@ public sealed class ChatInteractionController : Controller
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService aiTemplateService,
         IOptions<OrchestratorOptions> orchestratorOptions,
+        IOptions<ClaudeOptions> anthropicOptions,
+        ClaudeClientService anthropicClientService,
         IOptions<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions)
@@ -103,6 +109,8 @@ public sealed class ChatInteractionController : Controller
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;
         _orchestratorOptions = orchestratorOptions.Value;
+        _anthropicOptions = anthropicOptions.Value;
+        _anthropicClientService = anthropicClientService;
         _copilotOptions = copilotOptions.Value;
 
         _oauthService = oauthService;
@@ -197,6 +205,7 @@ public sealed class ChatInteractionController : Controller
         interaction.TryGet<DataSourceMetadata>(out var dataSourceMetadata);
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
         interaction.TryGet<PromptTemplateMetadata>(out var promptMetadata);
+        interaction.TryGet<ClaudeSessionMetadata>(out var anthropicMetadata);
 
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
@@ -228,6 +237,7 @@ public sealed class ChatInteractionController : Controller
             DataSourceTopNDocuments = ragMetadata?.TopNDocuments,
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
             DataSourceFilter = ragMetadata?.Filter,
+            ClaudeModel = anthropicMetadata?.ClaudeModel,
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
             SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
             SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],
@@ -293,6 +303,10 @@ public sealed class ChatInteractionController : Controller
         // Orchestrators
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
+
+        // Anthropic
+        model.ClaudeIsConfigured = _anthropicOptions.IsConfigured();
+        await PopulateClaudeModelsAsync(model);
 
         // Copilot
 
@@ -426,6 +440,10 @@ public sealed class ChatInteractionController : Controller
         model.Orchestrators = orchestrators
             .Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key))
             .ToList();
+
+        // Anthropic
+        model.ClaudeIsConfigured = _anthropicOptions.IsConfigured();
+        await PopulateClaudeModelsAsync(model);
 
         // Copilot
 
@@ -561,6 +579,18 @@ public sealed class ChatInteractionController : Controller
         {
             metadata.SetSelections(BuildPromptTemplateSelections(model.PromptTemplates));
         });
+
+        if (string.Equals(model.OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
+        {
+            interaction.Alter<ClaudeSessionMetadata>(metadata =>
+            {
+                metadata.ClaudeModel = model.ClaudeModel;
+            });
+        }
+        else
+        {
+            interaction.Remove<ClaudeSessionMetadata>();
+        }
 
         if (string.Equals(model.OrchestratorName, CopilotOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
         {
@@ -757,6 +787,18 @@ public sealed class ChatInteractionController : Controller
         }
     }
 
+    private async Task PopulateClaudeModelsAsync(ChatInteractionViewModel model)
+    {
+        if (!_anthropicOptions.IsConfigured())
+        {
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, _anthropicOptions.DefaultModel);
+            return;
+        }
+
+        var models = await _anthropicClientService.ListModelsAsync();
+        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, _anthropicOptions.DefaultModel);
+    }
+
     private async Task<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>> CreateEmbeddingGeneratorAsync()
     {
         var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
@@ -798,6 +840,18 @@ public sealed class ChatInteractionController : Controller
 
             model.CopilotIsAllowAll = copilotMeta.IsAllowAll;
         }
+    }
+
+    private async Task PopulateClaudeModelsAsync(ChatInteractionChatViewModel model)
+    {
+        if (!_anthropicOptions.IsConfigured())
+        {
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, _anthropicOptions.DefaultModel);
+            return;
+        }
+
+        var models = await _anthropicClientService.ListModelsAsync();
+        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, _anthropicOptions.DefaultModel);
     }
 
     private bool IsCopilotConfigured() => _copilotOptions.IsConfigured();

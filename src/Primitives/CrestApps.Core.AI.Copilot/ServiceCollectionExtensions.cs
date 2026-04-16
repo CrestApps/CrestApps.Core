@@ -18,7 +18,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient();
 
         services.AddOrchestrator<CopilotOrchestrator>(CopilotOrchestrator.OrchestratorName)
-            .WithTitle("GitHub Copilot Orchestrator");
+            .WithTitle("Copilot");
 
         services.TryAddScoped<GitHubOAuthService>();
 

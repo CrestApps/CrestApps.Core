@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Claude</RootNamespace>
+    <Title>CrestApps AI Anthropic</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Anthropic SDK-based orchestrator for Claude chat sessions.
+    </Description>
+    <PackageTags>$(PackageTags) ai anthropic claude orchestration</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Anthropic" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+  </ItemGroup>
+
+</Project>

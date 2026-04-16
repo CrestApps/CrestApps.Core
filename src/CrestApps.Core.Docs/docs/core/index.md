@@ -78,7 +78,8 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | Templates | `AddTemplating()` | `CrestApps.Core.Templates` | [AI Templates](./ai-templates.md) |
 | Custom tools | `AddCoreAITool<T>()` | `CrestApps.Core.AI` | [Custom AI Tools](./tools.md) |
 | Agents | Agent and orchestration registrations | `CrestApps.Core.AI` | [AI Agents](./agents.md) |
-| Copilot orchestration | `AddCoreAICopilotOrchestrator()` | `CrestApps.Core.AI.Copilot` | [GitHub Copilot Orchestrator](./copilot.md) |
+| Copilot orchestration | `AddCoreAICopilotOrchestrator()` | `CrestApps.Core.AI.Copilot` | [Copilot Orchestrator](./copilot.md) |
+| Claude orchestration | `AddCoreAIClaudeOrchestrator()` | `CrestApps.Core.AI.Claude` | [Claude Orchestrator](./claude.md) |
 | SignalR and widgets | `AddCoreSignalR()` | `CrestApps.Core.SignalR` | [SignalR](./signalr.md) |
 | Data storage | Store registration extensions | `CrestApps.Core.Data.YesSql` | [Data Storage](./data-storage.md) |
 | Providers | Provider-specific extensions | Provider packages | [AI Providers](../providers/index.md) |

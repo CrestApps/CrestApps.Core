@@ -1,6 +1,8 @@
 using CrestApps.Core.AI.Copilot.Models;
+using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
@@ -82,6 +84,17 @@ public sealed class SettingsViewModel
 
     public string CopilotAzureApiVersion { get; set; }
 
+    // Claude settings.
+    public ClaudeAuthenticationType AnthropicAuthenticationType { get; set; }
+
+    public string AnthropicBaseUrl { get; set; } = "https://api.anthropic.com";
+
+    public string AnthropicApiKey { get; set; }
+
+    public bool AnthropicHasApiKey { get; set; }
+
+    public string AnthropicDefaultModel { get; set; }
+
     // Pagination settings.
     public int AdminPageSize { get; set; } = 25;
 
@@ -122,4 +135,7 @@ public sealed class SettingsViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> AdminWidgetProfiles { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
 }

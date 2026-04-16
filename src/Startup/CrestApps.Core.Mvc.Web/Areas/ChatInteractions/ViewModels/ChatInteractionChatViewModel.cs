@@ -85,6 +85,11 @@ internal sealed class ChatInteractionChatViewModel
 
     public int CopilotAuthenticationType { get; set; }
 
+    // Anthropic
+    public string ClaudeModel { get; set; }
+
+    public bool ClaudeIsConfigured { get; set; }
+
     // Existing messages for the chat
     public object[] ExistingMessages { get; set; } = [];
 
@@ -109,4 +114,7 @@ internal sealed class ChatInteractionChatViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> CopilotAvailableModels { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
 }
