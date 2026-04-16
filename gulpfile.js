@@ -19,6 +19,7 @@ var fs = require("graceful-fs"),
     postcss = require('gulp-postcss'),
     rtl = require('postcss-rtl'),
     babel = require('gulp-babel');
+const { Transform } = require("stream");
 const { finished } = require("stream/promises");
 
 // For compat with older versions of Node.js.
@@ -176,6 +177,37 @@ function waitForTaskCompletion(task) {
     return typeof task.then === "function" ? task : finished(task);
 }
 
+function normalizeSourceMapContents() {
+    return new Transform({
+        objectMode: true,
+        transform(file, encoding, callback) {
+            if (!file || file.isNull() || path.extname(file.path).toLowerCase() !== ".map") {
+                callback(null, file);
+                return;
+            }
+
+            try {
+                var sourceMap = JSON.parse(file.contents.toString("utf8"));
+
+                if (Array.isArray(sourceMap.sourcesContent)) {
+                    sourceMap.sourcesContent = sourceMap.sourcesContent.map(function (content) {
+                        return typeof content === "string"
+                            ? content.replace(/\r\n/g, "\n")
+                            : content;
+                    });
+
+                    file.contents = Buffer.from(JSON.stringify(sourceMap), "utf8");
+                }
+
+                callback(null, file);
+            }
+            catch (error) {
+                callback(error);
+            }
+        }
+    });
+}
+
 function createAssetGroupTask(assetGroup, doRebuild) {
     var outputExt = path.extname(assetGroup.output).toLowerCase();
     var doConcat = path.basename(assetGroup.outputFileName, outputExt) !== "@";
@@ -269,6 +301,7 @@ function buildCssPipeline(assetGroup, doConcat, doRebuild) {
         .pipe(gulpif(doConcat, concat(assetGroup.outputFileName)))
         .pipe(gulpif(generateRTL, postcss([rtl()])))
         .pipe(gulpif(generateSourceMaps, sourcemaps.write('.')))
+        .pipe(normalizeSourceMapContents())
         .pipe(eol('\n'))
         .pipe(gulp.dest(assetGroup.outputDir));
     // Uncomment to copy assets to wwwroot
@@ -324,6 +357,8 @@ function buildJsPipeline(assetGroup, doConcat, doRebuild) {
 
     var devStream = createJsStream(generateSourceMaps)
         .pipe(gulpif(generateSourceMaps, sourcemaps.write('.')))
+        .pipe(normalizeSourceMapContents())
+        .pipe(eol('\n'))
         .pipe(gulp.dest(assetGroup.outputDir));
     // Uncomment to copy assets to wwwroot
     //.pipe(gulp.dest(assetGroup.webroot));
@@ -334,6 +369,7 @@ function buildJsPipeline(assetGroup, doConcat, doRebuild) {
             suffix: ".min"
         }))
         .pipe(gulpif(generateSourceMaps, sourcemaps.write('.')))
+        .pipe(normalizeSourceMapContents())
         .pipe(eol('\n'))
         .pipe(gulp.dest(assetGroup.outputDir));
     // Uncomment to copy assets to wwwroot
