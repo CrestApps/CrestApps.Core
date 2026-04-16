@@ -108,7 +108,6 @@ public abstract class AIClientProviderBase : IAIClientProvider
 
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-
     public virtual Task<SpeechVoice[]> GetSpeechVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
     {
         return Task.FromResult(Array.Empty<SpeechVoice>());

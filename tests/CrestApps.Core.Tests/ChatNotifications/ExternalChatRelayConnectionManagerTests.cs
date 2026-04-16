@@ -4,7 +4,7 @@ using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.ChatNotifications;
+namespace CrestApps.Core.Tests.ChatNotifications;
 
 public sealed class ExternalChatRelayConnectionManagerTests
 {

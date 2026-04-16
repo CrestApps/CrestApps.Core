@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Framework.Mvc;
+namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class ChatInteractionHubTests
 {

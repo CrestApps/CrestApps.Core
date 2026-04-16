@@ -482,8 +482,8 @@ window.openAIChatManager = function () {
           if (partialLayout.panel !== undefined) {
             nextLayout.panel = Object.assign({}, currentLayout.panel || {}, partialLayout.panel || {});
           }
-          if (partialLayout.toggle !== undefined) {
-            nextLayout.toggle = Object.assign({}, currentLayout.toggle || {}, partialLayout.toggle || {});
+          if (partialLayout.position !== undefined) {
+            nextLayout.position = Object.assign({}, currentLayout.position || {}, partialLayout.position || {});
           }
           localStorage.setItem(this.chatWidgetLayoutKey, JSON.stringify(nextLayout));
         },
@@ -499,6 +499,25 @@ window.openAIChatManager = function () {
           return {
             width: Math.round(rect.width || parsePixelValue(computed.width) || fallbackWidth || 0),
             height: Math.round(rect.height || parsePixelValue(computed.height) || fallbackHeight || 0)
+          };
+        },
+        getElementPosition: function getElementPosition(element) {
+          if (!element) {
+            return {
+              left: 0,
+              top: 0
+            };
+          }
+          var rect = element.getBoundingClientRect();
+          var computed = window.getComputedStyle(element);
+          var inlineLeft = parsePixelValue(element.style.left);
+          var inlineTop = parsePixelValue(element.style.top);
+          var computedLeft = parsePixelValue(computed.left);
+          var computedTop = parsePixelValue(computed.top);
+          var isHidden = computed.display === 'none';
+          return {
+            left: Math.round(isHidden && Number.isFinite(inlineLeft) ? inlineLeft : rect.left || inlineLeft || computedLeft || 0),
+            top: Math.round(isHidden && Number.isFinite(inlineTop) ? inlineTop : rect.top || inlineTop || computedTop || 0)
           };
         },
         clampWidgetPosition: function clampWidgetPosition(left, top, width, height) {
@@ -525,15 +544,29 @@ window.openAIChatManager = function () {
             height: this.widgetDefaultHeight || parsePixelValue(config.widget.defaultHeight) || 520
           };
         },
+        getWidgetToggleGap: function getWidgetToggleGap() {
+          return 8;
+        },
+        isWidgetPanelVisible: function isWidgetPanelVisible() {
+          if (!this.widgetContainerElement) {
+            return false;
+          }
+          var computed = window.getComputedStyle(this.widgetContainerElement);
+          return this.widgetContainerElement.classList.contains('open') && computed.display !== 'none';
+        },
         persistWidgetPanelPosition: function persistWidgetPanelPosition() {
           if (!this.widgetContainerElement || !config.widget.persistLayout) {
             return;
           }
-          var panelRect = this.widgetContainerElement.getBoundingClientRect();
+          var panelDefaultSize = this.getWidgetDefaultSize();
+          var panelPosition = this.getElementPosition(this.widgetContainerElement);
+          var panelSize = this.getElementSize(this.widgetContainerElement, panelDefaultSize.width, panelDefaultSize.height);
+          var toggleSize = this.getElementSize(this.widgetToggleButtonElement, 52, 52);
+          var linkedPosition = this.clampWidgetPosition(panelPosition.left + panelSize.width - toggleSize.width, panelPosition.top + panelSize.height + this.getWidgetToggleGap(), toggleSize.width, toggleSize.height);
           this.saveStoredWidgetLayout({
-            panel: {
-              left: Math.round(panelRect.left),
-              top: Math.round(panelRect.top)
+            position: {
+              left: linkedPosition.left,
+              top: linkedPosition.top
             }
           });
         },
@@ -543,9 +576,9 @@ window.openAIChatManager = function () {
           }
           var toggleRect = this.widgetToggleButtonElement.getBoundingClientRect();
           this.saveStoredWidgetLayout({
-            toggle: {
-              left: Math.round(toggleRect.left),
-              top: Math.round(toggleRect.top)
+            position: {
+              left: this.getElementPosition(this.widgetToggleButtonElement).left,
+              top: this.getElementPosition(this.widgetToggleButtonElement).top
             }
           });
         },
@@ -561,6 +594,36 @@ window.openAIChatManager = function () {
               height: Math.abs(currentSize.height - defaultSize.height) <= 1 ? null : currentSize.height
             }
           });
+        },
+        syncTogglePositionToPanel: function syncTogglePositionToPanel() {
+          var persistLayout = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+          if (!this.widgetContainerElement || !this.widgetToggleButtonElement) {
+            return;
+          }
+          var panelDefaultSize = this.getWidgetDefaultSize();
+          var panelSize = this.getElementSize(this.widgetContainerElement, panelDefaultSize.width, panelDefaultSize.height);
+          var toggleSize = this.getElementSize(this.widgetToggleButtonElement, 52, 52);
+          var panelPosition = this.getElementPosition(this.widgetContainerElement);
+          var linkedPosition = this.clampWidgetPosition(panelPosition.left + panelSize.width - toggleSize.width, panelPosition.top + panelSize.height + this.getWidgetToggleGap(), toggleSize.width, toggleSize.height);
+          this.applyAbsolutePosition(this.widgetToggleButtonElement, linkedPosition.left, linkedPosition.top);
+          if (persistLayout && config.widget.persistLayout) {
+            this.persistWidgetTogglePosition();
+          }
+        },
+        syncPanelPositionToToggle: function syncPanelPositionToToggle() {
+          var persistLayout = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+          if (!this.widgetContainerElement || !this.widgetToggleButtonElement) {
+            return;
+          }
+          var panelDefaultSize = this.getWidgetDefaultSize();
+          var panelSize = this.getElementSize(this.widgetContainerElement, panelDefaultSize.width, panelDefaultSize.height);
+          var toggleSize = this.getElementSize(this.widgetToggleButtonElement, 52, 52);
+          var togglePosition = this.getElementPosition(this.widgetToggleButtonElement);
+          var linkedPosition = this.clampWidgetPosition(togglePosition.left + toggleSize.width - panelSize.width, togglePosition.top - panelSize.height - this.getWidgetToggleGap(), panelSize.width, panelSize.height);
+          this.applyAbsolutePosition(this.widgetContainerElement, linkedPosition.left, linkedPosition.top);
+          if (persistLayout && config.widget.persistLayout) {
+            this.persistWidgetPanelPosition();
+          }
         },
         updateWidgetResetSizeButtonVisibility: function updateWidgetResetSizeButtonVisibility() {
           if (!this.widgetResetSizeButtonElement) {
@@ -599,11 +662,15 @@ window.openAIChatManager = function () {
               this.widgetContainerElement.style.removeProperty('height');
             }
           }
-          if (this.widgetContainerElement && config.widget.enableDragging && Number.isFinite(storedLayout.panel && storedLayout.panel.left) && Number.isFinite(storedLayout.panel && storedLayout.panel.top)) {
-            this.applyAbsolutePosition(this.widgetContainerElement, storedLayout.panel.left, storedLayout.panel.top);
-          }
-          if (this.widgetToggleButtonElement && config.widget.enableDragging && Number.isFinite(storedLayout.toggle && storedLayout.toggle.left) && Number.isFinite(storedLayout.toggle && storedLayout.toggle.top)) {
+          if (this.widgetToggleButtonElement && config.widget.enableDragging && Number.isFinite(storedLayout.position && storedLayout.position.left) && Number.isFinite(storedLayout.position && storedLayout.position.top)) {
+            this.applyAbsolutePosition(this.widgetToggleButtonElement, storedLayout.position.left, storedLayout.position.top);
+            this.syncPanelPositionToToggle(false);
+          } else if (this.widgetToggleButtonElement && config.widget.enableDragging && Number.isFinite(storedLayout.toggle && storedLayout.toggle.left) && Number.isFinite(storedLayout.toggle && storedLayout.toggle.top)) {
             this.applyAbsolutePosition(this.widgetToggleButtonElement, storedLayout.toggle.left, storedLayout.toggle.top);
+            this.syncPanelPositionToToggle(false);
+          } else if (this.widgetContainerElement && config.widget.enableDragging && Number.isFinite(storedLayout.panel && storedLayout.panel.left) && Number.isFinite(storedLayout.panel && storedLayout.panel.top)) {
+            this.applyAbsolutePosition(this.widgetContainerElement, storedLayout.panel.left, storedLayout.panel.top);
+            this.syncTogglePositionToPanel(false);
           }
           this.constrainWidgetElementsToViewport();
           this.updateWidgetResetSizeButtonVisibility();
@@ -637,8 +704,14 @@ window.openAIChatManager = function () {
               return;
             }
             if (layoutKey === 'panel') {
+              _this.syncTogglePositionToPanel(false);
               _this.persistWidgetPanelPosition();
             } else if (layoutKey === 'toggle') {
+              _this.syncPanelPositionToToggle(false);
+              _this.persistWidgetTogglePosition();
+            }
+            if (config.widget.persistLayout) {
+              _this.persistWidgetPanelPosition();
               _this.persistWidgetTogglePosition();
             }
             if (suppressClickOnDrag) {
@@ -664,6 +737,11 @@ window.openAIChatManager = function () {
             var currentSize = _this.getElementSize(element, layoutKey === 'panel' ? defaultSize.width : 52, layoutKey === 'panel' ? defaultSize.height : 52);
             var nextPosition = _this.clampWidgetPosition(startLeft + deltaX, startTop + deltaY, currentSize.width, currentSize.height);
             _this.applyAbsolutePosition(element, nextPosition.left, nextPosition.top);
+            if (layoutKey === 'panel') {
+              _this.syncTogglePositionToPanel(false);
+            } else if (layoutKey === 'toggle') {
+              _this.syncPanelPositionToToggle(false);
+            }
           };
           handle.addEventListener('pointerdown', function (event) {
             if (event.button !== 0) {
@@ -690,23 +768,26 @@ window.openAIChatManager = function () {
           });
         },
         constrainWidgetElementsToViewport: function constrainWidgetElementsToViewport() {
-          if (this.widgetContainerElement && this.widgetContainerElement.style.left) {
+          if (this.widgetContainerElement && this.widgetContainerElement.style.left && this.isWidgetPanelVisible()) {
             var panelDefaultSize = this.getWidgetDefaultSize();
             var panelSize = this.getElementSize(this.widgetContainerElement, panelDefaultSize.width, panelDefaultSize.height);
-            var panelRect = this.widgetContainerElement.getBoundingClientRect();
-            var clampedPanel = this.clampWidgetPosition(panelRect.left, panelRect.top, panelSize.width, panelSize.height);
+            var panelPosition = this.getElementPosition(this.widgetContainerElement);
+            var clampedPanel = this.clampWidgetPosition(panelPosition.left, panelPosition.top, panelSize.width, panelSize.height);
             this.applyAbsolutePosition(this.widgetContainerElement, clampedPanel.left, clampedPanel.top);
+            this.syncTogglePositionToPanel(false);
             if (config.widget.persistLayout) {
               this.persistWidgetPanelPosition();
+              this.persistWidgetTogglePosition();
             }
-          }
-          if (this.widgetToggleButtonElement && this.widgetToggleButtonElement.style.left) {
+          } else if (this.widgetToggleButtonElement && this.widgetToggleButtonElement.style.left) {
             var toggleSize = this.getElementSize(this.widgetToggleButtonElement, 52, 52);
-            var toggleRect = this.widgetToggleButtonElement.getBoundingClientRect();
-            var clampedToggle = this.clampWidgetPosition(toggleRect.left, toggleRect.top, toggleSize.width, toggleSize.height);
+            var togglePosition = this.getElementPosition(this.widgetToggleButtonElement);
+            var clampedToggle = this.clampWidgetPosition(togglePosition.left, togglePosition.top, toggleSize.width, toggleSize.height);
             this.applyAbsolutePosition(this.widgetToggleButtonElement, clampedToggle.left, clampedToggle.top);
+            this.syncPanelPositionToToggle(false);
             if (config.widget.persistLayout) {
               this.persistWidgetTogglePosition();
+              this.persistWidgetPanelPosition();
             }
           }
         },

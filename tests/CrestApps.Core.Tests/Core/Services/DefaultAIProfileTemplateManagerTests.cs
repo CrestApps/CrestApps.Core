@@ -6,7 +6,7 @@ using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Core.Services;
+namespace CrestApps.Core.Tests.Core.Services;
 
 public sealed class DefaultAIProfileTemplateManagerTests
 {

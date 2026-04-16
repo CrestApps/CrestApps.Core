@@ -15,7 +15,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 
 #pragma warning disable MEAI001
-namespace CrestApps.OrchardCore.Tests.Core.Chat;
+namespace CrestApps.Core.Tests.Core.Chat;
 
 public sealed class DocumentPreemptiveRagHandlerTests
 {

@@ -1,6 +1,6 @@
 using CrestApps.Core.Models;
 
-namespace CrestApps.OrchardCore.Tests.Core.Services.Catalogs.Services;
+namespace CrestApps.Core.Tests.Core.Services.Catalogs.Services;
 
 public sealed class TestCatalogEntry : CatalogItem
 {

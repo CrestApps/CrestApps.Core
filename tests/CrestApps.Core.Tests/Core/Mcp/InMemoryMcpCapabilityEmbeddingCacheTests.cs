@@ -3,7 +3,7 @@ using CrestApps.Core.AI.Mcp.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CrestApps.OrchardCore.Tests.Core.Mcp;
+namespace CrestApps.Core.Tests.Core.Mcp;
 
 public sealed class InMemoryMcpCapabilityEmbeddingCacheTests
 {

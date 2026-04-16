@@ -5,7 +5,7 @@ using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CrestApps.OrchardCore.Tests.AI.Prompting;
+namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
 public sealed class DefaultAITemplateServiceTests
 {

@@ -8,7 +8,7 @@ using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 
-namespace CrestApps.OrchardCore.Tests.Framework.Mvc;
+namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class AIProfileViewModelTests
 {

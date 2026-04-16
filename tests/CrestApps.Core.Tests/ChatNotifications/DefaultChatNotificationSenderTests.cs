@@ -4,7 +4,7 @@ using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.ChatNotifications;
+namespace CrestApps.Core.Tests.ChatNotifications;
 
 public sealed class DefaultChatNotificationSenderTests
 {

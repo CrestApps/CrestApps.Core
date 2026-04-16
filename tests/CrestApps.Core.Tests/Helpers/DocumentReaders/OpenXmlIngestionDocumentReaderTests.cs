@@ -10,7 +10,7 @@ using WpParagraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
 using WpRun = DocumentFormat.OpenXml.Wordprocessing.Run;
 using WpText = DocumentFormat.OpenXml.Wordprocessing.Text;
 
-namespace CrestApps.OrchardCore.Tests.Helpers.DocumentReaders;
+namespace CrestApps.Core.Tests.Helpers.DocumentReaders;
 
 public sealed class OpenXmlIngestionDocumentReaderTests
 {

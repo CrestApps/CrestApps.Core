@@ -6,7 +6,7 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Framework.Mvc;
+namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class ChatExtractedDataControllerTests
 {

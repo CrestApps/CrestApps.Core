@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Core.Chat;
+namespace CrestApps.Core.Tests.Core.Chat;
 
 public sealed class DataSourceChatInteractionSettingsHandlerTests
 {

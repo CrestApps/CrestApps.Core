@@ -31,6 +31,9 @@ csharp_new_line_before_finally                             = true
 csharp_new_line_before_members_in_object_initializers      = true
 csharp_new_line_before_members_in_anonymous_types          = true
 
+# Limit consecutive empty lines (not always respected everywhere)
+csharp_style_allow_multiple_blank_lines_experimental       = false
+
 dotnet_diagnostic.IDE0290.severity                         = none
 dotnet_diagnostic.IDE0305.severity                         = none
 

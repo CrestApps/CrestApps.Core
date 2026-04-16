@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Services;
 
-namespace CrestApps.OrchardCore.Tests.Core.Mcp;
+namespace CrestApps.Core.Tests.Core.Mcp;
 
 public sealed class DefaultMcpMetadataPromptGeneratorTests
 {

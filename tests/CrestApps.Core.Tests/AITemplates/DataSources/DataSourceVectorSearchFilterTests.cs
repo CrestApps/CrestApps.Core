@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text;
 
-namespace CrestApps.OrchardCore.Tests.AI.DataSources;
+namespace CrestApps.Core.Tests.AITemplates.DataSources;
 
 public sealed class DataSourceVectorSearchFilterTests
 {

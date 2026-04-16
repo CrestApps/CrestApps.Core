@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Services;
 
 namespace CrestApps.Core.Mvc.Web.Areas.DataSources.BackgroundServices;
 
-
 /// <summary>
 /// Periodically synchronizes AI data source documents with their configured search indexes.
 /// Runs every 5 minutes to detect new, updated, or removed data source documents.

@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class OrchestrationContextTests
 {

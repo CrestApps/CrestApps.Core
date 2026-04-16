@@ -1,7 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.OrchardCore.Tests.Abstractions.Models;
+namespace CrestApps.Core.Tests.Abstractions.Models;
 
 public sealed class AIDeploymentTests
 {

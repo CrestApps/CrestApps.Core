@@ -1,8 +1,7 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 
-namespace CrestApps.OrchardCore.Tests.AI;
-
+namespace CrestApps.Core.Tests.AITemplates;
 
 /// <summary>
 /// Tests that <see cref="AIInvocationScope"/> provides true per-invocation isolation

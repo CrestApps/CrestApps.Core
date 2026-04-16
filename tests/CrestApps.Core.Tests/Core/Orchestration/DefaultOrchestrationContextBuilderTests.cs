@@ -3,7 +3,7 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class DefaultOrchestrationContextBuilderTests
 {

@@ -2,7 +2,7 @@ using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 
-namespace CrestApps.OrchardCore.Tests.Framework.Chat.Claude;
+namespace CrestApps.Core.Tests.Framework.Chat.Claude;
 
 public sealed class MvcClaudeSettingsExtensionsTests
 {

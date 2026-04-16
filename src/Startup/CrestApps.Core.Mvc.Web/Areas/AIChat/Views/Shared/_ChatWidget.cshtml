@@ -12,18 +12,28 @@
 @{
     var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
     var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();
+
     var selectedProfile = string.IsNullOrWhiteSpace(adminWidgetSettings.ProfileId)
         ? null
         : await ProfileManager.FindByIdAsync(adminWidgetSettings.ProfileId);
-    ChatModeProfileSettings profileChatModeSettings = null;
-    if (selectedProfile is not null)
-    {
-        selectedProfile.TryGetSettings<ChatModeProfileSettings>(out profileChatModeSettings);
-    }
-    var configuredChatMode = profileChatModeSettings?.ChatMode ?? ChatMode.TextInput;
-    var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
+
+    var configuredChatMode = ChatMode.TextInput;
     var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
-    var textToSpeechEnabled = (profileChatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
+    var textToSpeechEnabled = false;
+    var ttsVoiceName = defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
+
+    if (selectedProfile?.TryGetSettings<ChatModeProfileSettings>(out var profileChatModeSettings) == true)
+    {
+        configuredChatMode = profileChatModeSettings.ChatMode;
+        textToSpeechEnabled = (profileChatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
+
+        if (!string.IsNullOrEmpty(profileChatModeSettings?.VoiceName))
+        {
+            ttsVoiceName = profileChatModeSettings.VoiceName;
+        }
+    }
+
+    var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
     var effectiveChatMode = configuredChatMode switch
     {
         ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
@@ -31,6 +41,7 @@
         ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
         _ => ChatMode.TextInput,
     };
+
     var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
     var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
     var profile = selectedProfile is null || selectedProfile.Type != AIProfileType.Chat
@@ -38,7 +49,7 @@
         : new
         {
             chatMode = effectiveChatMode.ToString(),
-            ttsVoiceName = profileChatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultTextToSpeechVoiceId,
+            ttsVoiceName = ttsVoiceName,
             id = selectedProfile.ItemId,
             name = selectedProfile.Name,
             displayText = selectedProfile.DisplayText ?? selectedProfile.Name,
@@ -46,173 +57,340 @@
             enableSessionMetrics = selectedProfile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics,
             allowSessionDocuments = selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata) && sessionDocMetadata.AllowSessionDocuments,
         };
+
+    if (profile == null)
+    {
+        return;
+    }
+
     var widgetStyle = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
         ? null
         : $"--ai-widget-primary: {adminWidgetSettings.PrimaryColor.Trim()};";
+    var widgetShellStyle = string.IsNullOrWhiteSpace(widgetStyle)
+        ? "visibility:hidden;"
+        : $"{widgetStyle}visibility:hidden;";
 }
 
+<div id="ai-chat-admin-widget-shell" class="ai-chat-admin-widget-shell" style="@widgetShellStyle">
+    <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/chat-widget.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
 
-@if (profile != null)
-{
-    <div class="ai-chat-admin-widget-shell" style="@widgetStyle">
-        <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/chat-widget.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
+    <!-- Floating toggle button -->
+    <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open AI Chat">
+        <i class="bi bi-chat-dots-fill"></i>
+    </button>
 
-        <!-- Floating toggle button -->
-        <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open AI Chat">
-            <i class="bi bi-chat-dots-fill"></i>
-        </button>
-
-        <!-- Widget container -->
-        <div id="widget-panel" class="ai-chat-widget-container">
-            <div class="ai-chat-widget-header">
-                <span class="title">AI Chat</span>
-                <div class="ai-chat-widget-header-actions">
-                    <button id="widget-new-chat" title="New Chat"><i class="bi bi-plus-lg"></i></button>
-                    <button id="widget-reset-size" class="d-none" title="Reset size"><i class="bi bi-arrows-angle-contract"></i></button>
-                    <button id="widget-close" title="Close"><i class="bi bi-x-lg"></i></button>
-                </div>
-            </div>
-
-            <div id="widget-chat-container" class="ai-chat-widget-messages">
-                <div id="widget-placeholder">
-                    <div class="ai-chat-widget-welcome">
-                        <i class="bi bi-robot" style="font-size: 2rem;"></i><br>
-                        @(string.IsNullOrWhiteSpace(profile.welcomeMessage) ? "What do you want to know?" : profile.welcomeMessage)
-                    </div>
-                </div>
-                <div id="widget-chat-app"></div>
-            </div>
-
-            <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
-
-            <div class="ai-chat-widget-input">
-                <textarea id="widget-chat-input"
-                          placeholder="Type a message..."
-                          rows="1"
-                          data-session-id=""
-                          data-profile-id="@profile.id"></textarea>
-                <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
-                    <i class="bi bi-mic-fill"></i>
-                </button>
-                @if (profile.chatMode == nameof(ChatMode.Conversation))
-                {
-                    <button type="button"
-                            id="widget-conversation-btn"
-                            class="btn btn-outline-dark btn-sm"
-                            title="Start Conversation"
-                            data-start-title="Start Conversation"
-                            data-end-title="End Conversation"
-                            data-start-html="<i class='bi bi-soundwave'></i>"
-                            data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
-                        <i class="bi bi-soundwave"></i>
-                    </button>
-                }
-                <button type="button" id="widget-send-btn">
-                    <i class="bi bi-send"></i>
-                </button>
+    <!-- Widget container -->
+    <div id="widget-panel" class="ai-chat-widget-container">
+        <div class="ai-chat-widget-header">
+            <span class="title">AI Chat</span>
+            <div class="ai-chat-widget-header-actions">
+                <button id="widget-new-chat" title="New Chat"><i class="bi bi-plus-lg"></i></button>
+                <button id="widget-reset-size" class="d-none" title="Reset size"><i class="bi bi-arrows-angle-contract"></i></button>
+                <button id="widget-close" title="Close"><i class="bi bi-x-lg"></i></button>
             </div>
         </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@latest/dist/browser/signalr.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-        <script src="~/_content/CrestApps.AI.Resources/scripts/ai-chat.js"></script>
+        <div id="widget-chat-container" class="ai-chat-widget-messages">
+            <div id="widget-placeholder">
+                <div class="ai-chat-widget-welcome">
+                    <i class="bi bi-robot" style="font-size: 2rem;"></i><br>
+                    @(string.IsNullOrWhiteSpace(profile.welcomeMessage) ? "What do you want to know?" : profile.welcomeMessage)
+                </div>
+            </div>
+            <div id="widget-chat-app"></div>
+        </div>
 
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-            var selectedProfile = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(profile));
+        <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
+
+        <div class="ai-chat-widget-input">
+            <textarea id="widget-chat-input"
+                      placeholder="Type a message..."
+                      rows="1"
+                      data-session-id=""
+                      data-profile-id="@profile.id"></textarea>
+            <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
+                <i class="bi bi-mic-fill"></i>
+            </button>
+            @if (profile.chatMode == nameof(ChatMode.Conversation))
+            {
+                <button type="button"
+                        id="widget-conversation-btn"
+                        class="btn btn-outline-dark btn-sm"
+                        title="Start Conversation"
+                        data-start-title="Start Conversation"
+                        data-end-title="End Conversation"
+                        data-start-html="<i class='bi bi-soundwave'></i>"
+                        data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
+                    <i class="bi bi-soundwave"></i>
+                </button>
+            }
+            <button type="button" id="widget-send-btn">
+                <i class="bi bi-send"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+            var widgetStateName = 'mvc-admin-chat-widget-' + @Html.Raw(System.Text.Json.JsonSerializer.Serialize(profile.id));
+            var widgetOpenStateKey = widgetStateName + 'Open';
+            var widgetLayoutKey = widgetStateName + 'Layout';
+            var shell = document.getElementById('ai-chat-admin-widget-shell');
             var panel = document.getElementById('widget-panel');
             var toggle = document.getElementById('widget-toggle');
-            var closeBtn = document.getElementById('widget-close');
-            var newChatBtn = document.getElementById('widget-new-chat');
-            var chatInput = document.getElementById('widget-chat-input');
-            var placeholder = document.getElementById('widget-placeholder');
-            var widgetStateName = 'mvc-admin-chat-widget-' + selectedProfile.id;
-            var widgetOpenStateKey = widgetStateName + 'Open';
 
-            function setPlaceholder(profile) {
-            if (!placeholder) {
-            return;
+            try {
+            var storedLayout = localStorage.getItem(widgetLayoutKey);
+            var layout = storedLayout ? JSON.parse(storedLayout) || {} : {};
+            var position = layout.position || {};
+            var panelLayout = layout.panel || {};
+            var toggleLeft = Number(position.left);
+            var toggleTop = Number(position.top);
+            var isOpen = localStorage.getItem(widgetOpenStateKey) === 'true';
+
+            if (shell) {
+            shell.dataset.deferReveal = isOpen ? 'true' : 'false';
+            shell.dataset.initialOpen = isOpen ? 'true' : 'false';
             }
 
-            var welcome = profile && profile.welcomeMessage ? profile.welcomeMessage : 'What do you want to know?';
-            placeholder.innerHTML = '<div class="ai-chat-widget-welcome"><i class="bi bi-robot" style="font-size: 2rem;"></i><br>' + welcome + '</div>';
+            if (Number.isFinite(toggleLeft) && Number.isFinite(toggleTop)) {
+            toggle.style.left = toggleLeft + 'px';
+            toggle.style.top = toggleTop + 'px';
+            toggle.style.right = 'auto';
+            toggle.style.bottom = 'auto';
+
+            var toggleSize = 52;
+            var toggleGap = 8;
+            var panelWidth = Number.isFinite(Number(panelLayout.width))
+            ? Number(panelLayout.width)
+            : Math.round(parseFloat(window.getComputedStyle(panel).width) || 380);
+            var panelHeight = Number.isFinite(Number(panelLayout.height))
+            ? Number(panelLayout.height)
+            : Math.round(parseFloat(window.getComputedStyle(panel).height) || 520);
+
+            panel.style.left = (toggleLeft + toggleSize - panelWidth) + 'px';
+            panel.style.top = (toggleTop - panelHeight - toggleGap) + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
             }
 
-            function setPanelOpen(isOpen) {
-            panel.classList.toggle('open', isOpen);
+            panel.classList.remove('open');
+            panel.style.display = 'none';
+            panel.setAttribute('aria-hidden', 'true');
             toggle.innerHTML = isOpen
             ? '<i class="bi bi-x-lg"></i>'
             : '<i class="bi bi-chat-dots-fill"></i>';
-            localStorage.setItem(widgetOpenStateKey, isOpen ? 'true' : 'false');
-
-            // When the panel becomes visible, render any charts that were
-            // deferred because the canvas had zero dimensions while hidden.
-            if (isOpen && typeof window.renderPendingCharts === 'function') {
-            setTimeout(function () { window.renderPendingCharts(); }, 100);
+            } catch (error) {
+            console.warn('Failed to restore widget layout before initialization.', error);
+            } finally {
+            if (shell && shell.dataset.deferReveal !== 'true') {
+            shell.style.visibility = '';
             }
             }
+            })();
+    </script>
 
-            setPlaceholder(selectedProfile);
-            chatInput.setAttribute('data-profile-id', selectedProfile.id);
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@latest/dist/browser/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="~/_content/CrestApps.AI.Resources/scripts/ai-chat.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+        var selectedProfile = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(profile));
+        var panel = document.getElementById('widget-panel');
+        var toggle = document.getElementById('widget-toggle');
+        var closeBtn = document.getElementById('widget-close');
+        var newChatBtn = document.getElementById('widget-new-chat');
+        var chatInput = document.getElementById('widget-chat-input');
+        var placeholder = document.getElementById('widget-placeholder');
+        var widgetStateName = 'mvc-admin-chat-widget-' + selectedProfile.id;
+        var widgetOpenStateKey = widgetStateName + 'Open';
+        var shell = document.getElementById('ai-chat-admin-widget-shell');
 
-            var widgetApp = window.openAIChatManager.initialize({
-            signalRHubUrl: '/hubs/ai-chat',
-            appElementSelector: '#widget-chat-app',
-            chatContainerElementSelector: '#widget-chat-container',
-            inputElementSelector: '#widget-chat-input',
-            sendButtonElementSelector: '#widget-send-btn',
-            placeholderElementSelector: '#widget-placeholder',
-            messages: [],
-            autoCreateSession: true,
-            metricsEnabled: selectedProfile.enableSessionMetrics,
-            chatMode: selectedProfile.chatMode,
-            micButtonElementSelector: '#widget-mic-btn',
-            conversationButtonElementSelector: '#widget-conversation-btn',
-            ttsVoiceName: selectedProfile.ttsVoiceName || null,
-            sessionDocumentsEnabled: selectedProfile.allowSessionDocuments,
-            existingDocuments: [],
-            documentBarSelector: '#widget-chat-document-bar',
-            uploadDocumentUrl: '@Url.Content("~/ai/chat-sessions/upload-document")',
-            removeDocumentUrl: '@Url.Content("~/ai/chat-sessions/remove-document")',
-            allowedExtensions: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(supportedExtensionsAccept)),
-            supportedExtensionsText: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(supportedExtensionsDisplay)),
-            widget: {
-            chatWidgetContainer: '#widget-panel',
-            chatWidgetStateName: widgetStateName,
-            toggleButtonSelector: '#widget-toggle',
-            resetSizeButtonSelector: '#widget-reset-size',
-            enableDragging: true,
-            enableResizing: true,
-            persistLayout: true
-            }
-            });
+        function revealShell() {
+        if (!shell) {
+        return;
+        }
 
-            widgetApp.metricsEnabled = !!selectedProfile.enableSessionMetrics;
+        shell.style.visibility = '';
+        shell.dataset.deferReveal = 'false';
+        }
 
-            setPanelOpen(localStorage.getItem(widgetOpenStateKey) === 'true');
+        function syncOpenPanelPosition() {
+        if (!widgetApp) {
+        return;
+        }
 
-            toggle.addEventListener('click', function () {
-            if (toggle.dataset.dragSuppressClick === 'true') {
-            toggle.dataset.dragSuppressClick = 'false';
-            return;
-            }
-            setPanelOpen(!panel.classList.contains('open'));
-            });
+        if (typeof widgetApp.syncPanelPositionToToggle === 'function') {
+        widgetApp.syncPanelPositionToToggle(false);
+        }
+        }
 
-            closeBtn.addEventListener('click', function () {
-            setPanelOpen(false);
-            });
+        function revealShellWhenStable(initialOpen) {
+        if (!shell || shell.dataset.deferReveal !== 'true' || !initialOpen) {
+        revealShell();
+        return;
+        }
 
-            newChatBtn.addEventListener('click', function () {
-            setPlaceholder(selectedProfile);
-            widgetApp.resetSession();
-            });
-            });
-        </script>
-    </div>
-}
+        var hasRevealed = false;
+        var resizeObserver = null;
+
+        function finalizeReveal() {
+        if (hasRevealed) {
+        return;
+        }
+
+        hasRevealed = true;
+
+        if (resizeObserver) {
+        resizeObserver.disconnect();
+        }
+
+        requestAnimationFrame(function () {
+        syncOpenPanelPosition();
+        requestAnimationFrame(function () {
+        revealShell();
+        });
+        });
+        }
+
+        if (typeof ResizeObserver === 'undefined') {
+        window.setTimeout(finalizeReveal, 0);
+        return;
+        }
+
+        var lastWidth = 0;
+        var lastHeight = 0;
+        var stablePasses = 0;
+
+        resizeObserver = new ResizeObserver(function (entries) {
+        var entry = entries && entries[0];
+
+        if (!entry) {
+        return;
+        }
+
+        var width = Math.round(entry.contentRect.width);
+        var height = Math.round(entry.contentRect.height);
+
+        if (!width || !height) {
+        return;
+        }
+
+        syncOpenPanelPosition();
+
+        if (width === lastWidth && height === lastHeight) {
+        stablePasses++;
+        } else {
+        lastWidth = width;
+        lastHeight = height;
+        stablePasses = 0;
+        }
+
+        if (stablePasses >= 1) {
+        finalizeReveal();
+        }
+        });
+
+        resizeObserver.observe(panel);
+
+        window.setTimeout(finalizeReveal, 150);
+        }
+
+        function setPlaceholder(profile) {
+        if (!placeholder) {
+        return;
+        }
+
+        var welcome = profile && profile.welcomeMessage ? profile.welcomeMessage : 'What do you want to know?';
+        placeholder.innerHTML = '<div class="ai-chat-widget-welcome"><i class="bi bi-robot" style="font-size: 2rem;"></i><br>' + welcome + '</div>';
+        }
+
+        function setPanelOpen(isOpen) {
+        if (widgetApp) {
+        var isCurrentlyOpen = panel.classList.contains('open');
+        if (isOpen && !isCurrentlyOpen && typeof widgetApp.syncPanelPositionToToggle === 'function') {
+        widgetApp.syncPanelPositionToToggle();
+        } else if (!isOpen && isCurrentlyOpen && typeof widgetApp.syncTogglePositionToPanel === 'function') {
+        widgetApp.syncTogglePositionToPanel();
+        }
+        }
+        panel.classList.toggle('open', isOpen);
+        panel.style.display = isOpen ? 'flex' : 'none';
+        panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+        toggle.innerHTML = isOpen
+        ? '<i class="bi bi-x-lg"></i>'
+        : '<i class="bi bi-chat-dots-fill"></i>';
+        localStorage.setItem(widgetOpenStateKey, isOpen ? 'true' : 'false');
+
+        // When the panel becomes visible, render any charts that were
+        // deferred because the canvas had zero dimensions while hidden.
+        if (isOpen && typeof window.renderPendingCharts === 'function') {
+        setTimeout(function () { window.renderPendingCharts(); }, 100);
+        }
+        }
+
+        setPlaceholder(selectedProfile);
+        chatInput.setAttribute('data-profile-id', selectedProfile.id);
+
+        var widgetApp = window.openAIChatManager.initialize({
+        signalRHubUrl: '/hubs/ai-chat',
+        appElementSelector: '#widget-chat-app',
+        chatContainerElementSelector: '#widget-chat-container',
+        inputElementSelector: '#widget-chat-input',
+        sendButtonElementSelector: '#widget-send-btn',
+        placeholderElementSelector: '#widget-placeholder',
+        messages: [],
+        autoCreateSession: true,
+        metricsEnabled: selectedProfile.enableSessionMetrics,
+        chatMode: selectedProfile.chatMode,
+        micButtonElementSelector: '#widget-mic-btn',
+        conversationButtonElementSelector: '#widget-conversation-btn',
+        ttsVoiceName: selectedProfile.ttsVoiceName || null,
+        sessionDocumentsEnabled: selectedProfile.allowSessionDocuments,
+        existingDocuments: [],
+        documentBarSelector: '#widget-chat-document-bar',
+        uploadDocumentUrl: '@Url.Content("~/ai/chat-sessions/upload-document")',
+        removeDocumentUrl: '@Url.Content("~/ai/chat-sessions/remove-document")',
+        allowedExtensions: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(supportedExtensionsAccept)),
+        supportedExtensionsText: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(supportedExtensionsDisplay)),
+        widget: {
+        chatWidgetContainer: '#widget-panel',
+        chatWidgetStateName: widgetStateName,
+        toggleButtonSelector: '#widget-toggle',
+        resetSizeButtonSelector: '#widget-reset-size',
+        enableDragging: true,
+        enableResizing: true,
+        persistLayout: true
+        }
+        });
+
+        widgetApp.metricsEnabled = !!selectedProfile.enableSessionMetrics;
+
+        var initialOpen = shell && shell.dataset.initialOpen === 'true';
+        setPanelOpen(initialOpen);
+        revealShellWhenStable(initialOpen);
+
+        toggle.addEventListener('click', function () {
+        if (toggle.dataset.dragSuppressClick === 'true') {
+        toggle.dataset.dragSuppressClick = 'false';
+        return;
+        }
+        setPanelOpen(!panel.classList.contains('open'));
+        });
+
+        closeBtn.addEventListener('click', function () {
+        setPanelOpen(false);
+        });
+
+        newChatBtn.addEventListener('click', function () {
+        setPlaceholder(selectedProfile);
+        widgetApp.resetSession();
+        });
+        });
+    </script>
+</div>

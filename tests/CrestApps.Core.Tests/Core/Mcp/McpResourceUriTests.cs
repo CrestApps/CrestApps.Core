@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Mcp;
 
-namespace CrestApps.OrchardCore.Tests.Core.Mcp;
+namespace CrestApps.Core.Tests.Core.Mcp;
 
 public sealed class McpResourceUriTests
 {

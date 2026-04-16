@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Services;
 
 namespace CrestApps.Core.Mvc.Web.Areas.DataSources.BackgroundServices;
 
-
 /// <summary>
 /// Daily alignment task that ensures AI data source indexes are fully consistent.
 /// Upserts missing documents from data sources and removes orphaned records.

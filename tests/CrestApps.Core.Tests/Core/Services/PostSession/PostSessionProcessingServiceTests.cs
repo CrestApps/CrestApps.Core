@@ -8,7 +8,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Core.Services.PostSession;
+namespace CrestApps.Core.Tests.Core.Services.PostSession;
 
 public sealed class PostSessionProcessingServiceTests
 {

@@ -2,7 +2,7 @@ using CrestApps.Core.Templates.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CrestApps.OrchardCore.Tests.AI.Prompting;
+namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
 public sealed class FluidAITemplateEngineTests
 {

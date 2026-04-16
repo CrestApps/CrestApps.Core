@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Client;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Mcp;
+namespace CrestApps.Core.Tests.Mcp;
 
 public sealed class SseClientTransportProviderTests
 {
