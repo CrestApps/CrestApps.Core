@@ -20,6 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="buildTransitive\**" Pack="true" PackagePath="buildTransitive\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../Abstractions/CrestApps.Core.AI.Abstractions/CrestApps.Core.AI.Abstractions.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
