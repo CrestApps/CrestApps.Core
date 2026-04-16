@@ -1,6 +1,6 @@
 {
   "name": "@crestapps/ai-chat-ui",
-  "version": "1.0.0-preview-22",
+  "version": "1.0.0-preview",
   "description": "Browser-ready JavaScript widgets and CSS for CrestApps AI chat sessions and chat interactions. Supports streaming responses, image generation, Chart.js interactive charts, document uploads, copy-to-clipboard, and feedback buttons.",
   "license": "MIT",
   "author": "CrestApps",

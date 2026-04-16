@@ -45,6 +45,14 @@
     overflow: hidden;
 }
 
+.ai-chat-widget-container.ai-chat-widget-resizable {
+    resize: both;
+    min-width: 320px;
+    min-height: 420px;
+    max-width: min(90vw, 960px);
+    max-height: min(90vh, 960px);
+}
+
 .ai-chat-widget-container.open {
     display: flex;
 }
@@ -56,6 +64,31 @@
     padding: 0.75rem 1rem;
     background: var(--ai-widget-primary);
     color: white;
+}
+
+.ai-chat-widget-header.ai-chat-widget-drag-handle {
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+}
+
+.ai-chat-widget-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.ai-chat-widget-toggle.ai-chat-widget-draggable {
+    touch-action: none;
+}
+
+.ai-chat-widget-container.ai-chat-widget-dragging,
+.ai-chat-widget-toggle.ai-chat-widget-dragging {
+    transition: none;
+}
+
+.ai-chat-widget-toggle.ai-chat-widget-dragging:hover {
+    transform: none;
 }
 
 .ai-chat-widget-header .title {
@@ -140,7 +173,7 @@
 
 .ai-chat-widget-messages .ai-chat-message-body {
     position: relative;
-    padding: 0 0 0.25rem 0;
+    padding: 0;
     overflow-wrap: break-word;
     word-break: break-word;
     min-width: 0;
@@ -153,17 +186,22 @@
 /* ── Message action buttons (copy, thumbs up/down) ── */
 .ai-chat-widget-messages .message-buttons-container {
     position: absolute;
-    right: 0;
-    top: 0;
+    right: 0.1rem;
+    bottom: 0;
     display: inline-flex;
+    align-items: center;
     gap: 0.35rem;
+    width: auto;
+    max-width: max-content;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s ease-in-out;
-    background: #fff;
-    padding: 0.15rem 0.35rem;
-    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.96);
+    padding: 0.2rem 0.35rem;
+    border-radius: 999px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1rem;
+    transform: translateY(50%);
     z-index: 1;
 }
 
@@ -174,8 +212,23 @@
 }
 
 .ai-chat-widget-messages .message-buttons-container > .button-message-toolbox {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 1.75rem;
+    height: 1.75rem;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 50%;
     color: var(--bs-secondary-color, #6c757d) !important;
     text-decoration: none;
+}
+
+.ai-chat-widget-messages .message-buttons-container .ai-chat-message-assistant-feedback {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .ai-chat-widget-messages .message-buttons-container > .button-message-toolbox:hover,
