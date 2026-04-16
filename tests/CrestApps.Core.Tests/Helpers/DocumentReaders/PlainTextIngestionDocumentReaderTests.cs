@@ -1,7 +1,7 @@
 using System.Text;
 using CrestApps.Core.AI.Chat.Services;
 
-namespace CrestApps.OrchardCore.Tests.Helpers.DocumentReaders;
+namespace CrestApps.Core.Tests.Helpers.DocumentReaders;
 
 public sealed class PlainTextIngestionDocumentReaderTests
 {

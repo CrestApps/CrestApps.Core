@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.ChatNotifications;
+namespace CrestApps.Core.Tests.ChatNotifications;
 
 public sealed class CancelTransferNotificationActionHandlerTests
 {

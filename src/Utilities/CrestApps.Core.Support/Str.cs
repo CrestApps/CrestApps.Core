@@ -101,7 +101,6 @@ public partial class Str
         };
     }
 
-
     public static string Truncate(string value, int maxLength)
     {
         if (string.IsNullOrEmpty(value))
@@ -111,7 +110,6 @@ public partial class Str
 
         return value.Length <= maxLength ? value : value.Substring(0, maxLength);
     }
-
 
     public static string TrimEnd(string subject, string pattern)
     {
@@ -211,7 +209,6 @@ public partial class Str
         return subject;
     }
 
-
     public static int CountOccurrences(string text, string pattern)
     {
         var count = 0;
@@ -269,7 +266,6 @@ public partial class Str
 
         return original + toAppend;
     }
-
 
     public static string PrependOnce(string original, string toPrefix = "/")
     {
@@ -336,7 +332,6 @@ public partial class Str
 
         return substring;
     }
-
 
     public static string AfterLastInstance(string str, string lastString)
     {

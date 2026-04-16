@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Services;
 
-namespace CrestApps.OrchardCore.Tests.AI;
+namespace CrestApps.Core.Tests.AITemplates;
 
 public sealed class RagTextNormalizerTests
 {
@@ -50,7 +50,6 @@ public sealed class RagTextNormalizerTests
         Assert.Contains("Paragraph one.", result);
         Assert.Contains("Paragraph two.", result);
     }
-
 
     [Fact]
     public async Task NormalizeContentAsync_StripsMarkdownFormatting()

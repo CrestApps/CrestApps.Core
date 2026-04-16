@@ -6,7 +6,7 @@ using Microsoft.Extensions.AI;
 
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class SystemToolRegistryProviderTests
 {

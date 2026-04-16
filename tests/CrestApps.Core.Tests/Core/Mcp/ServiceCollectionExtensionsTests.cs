@@ -6,7 +6,7 @@ using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.OrchardCore.Tests.Core.Mcp;
+namespace CrestApps.Core.Tests.Core.Mcp;
 
 public sealed class ServiceCollectionExtensionsTests
 {

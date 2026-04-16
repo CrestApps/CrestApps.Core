@@ -5,7 +5,7 @@ using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 
-namespace CrestApps.OrchardCore.Tests.Framework.Chat.Claude;
+namespace CrestApps.Core.Tests.Framework.Chat.Claude;
 
 public sealed class MvcAITemplateViewModelClaudeTests
 {

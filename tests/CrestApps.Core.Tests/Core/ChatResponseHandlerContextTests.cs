@@ -2,7 +2,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CrestApps.OrchardCore.Tests.Core;
+namespace CrestApps.Core.Tests.Core;
 
 public sealed class ChatResponseHandlerContextTests
 {

@@ -8,7 +8,6 @@ using ISession = YesSql.ISession;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 
-
 /// <summary>
 /// Periodically closes inactive AI chat sessions and marks them for post-session processing.
 /// Mirrors the behavior of Orchard Core's AIChatSessionCloseBackgroundTask.

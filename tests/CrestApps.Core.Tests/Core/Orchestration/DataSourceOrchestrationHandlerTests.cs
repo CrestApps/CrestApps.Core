@@ -7,7 +7,7 @@ using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class DataSourceOrchestrationHandlerTests
 {

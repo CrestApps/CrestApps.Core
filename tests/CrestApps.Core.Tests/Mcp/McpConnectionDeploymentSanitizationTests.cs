@@ -4,7 +4,7 @@ using CrestApps.Core;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
 
-namespace CrestApps.OrchardCore.Tests.Mcp;
+namespace CrestApps.Core.Tests.Mcp;
 
 /// <summary>
 /// Tests that deployment export never leaks sensitive credential data.

@@ -29,6 +29,13 @@
   },
   {
     "inputs": [
+      "Assets/css/ai-chat.css"
+    ],
+    "output": "wwwroot/styles/ai-chat.css",
+    "generateSourceMaps": true
+  },
+  {
+    "inputs": [
       "Assets/css/chat-widget.css"
     ],
     "output": "wwwroot/styles/chat-widget.css",

@@ -1,7 +1,7 @@
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 
-namespace CrestApps.OrchardCore.Tests.Core.Services.Catalogs.Services;
+namespace CrestApps.Core.Tests.Core.Services.Catalogs.Services;
 
 internal sealed class TestCatalogEntryHandler<T> : ICatalogEntryHandler<T>
 {

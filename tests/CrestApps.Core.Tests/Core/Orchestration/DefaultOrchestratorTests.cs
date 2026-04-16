@@ -14,7 +14,7 @@ using Moq;
 
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
-namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class DefaultOrchestratorTests
 {

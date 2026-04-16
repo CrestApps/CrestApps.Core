@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Services;
 
-namespace CrestApps.OrchardCore.Tests.Core.Services;
+namespace CrestApps.Core.Tests.Core.Services;
 
 public sealed class SpeechLanguageHelperTests
 {

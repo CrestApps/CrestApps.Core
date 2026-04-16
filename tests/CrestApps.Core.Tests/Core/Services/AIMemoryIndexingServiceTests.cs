@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Core.Services;
+namespace CrestApps.Core.Tests.Core.Services;
 
 public sealed class AIMemoryIndexingServiceTests
 {

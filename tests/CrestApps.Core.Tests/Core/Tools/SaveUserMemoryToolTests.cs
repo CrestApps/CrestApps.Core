@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Core.Tools;
+namespace CrestApps.Core.Tests.Core.Tools;
 
 public sealed class SaveUserMemoryToolTests
 {

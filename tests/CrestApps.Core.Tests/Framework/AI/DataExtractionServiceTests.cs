@@ -8,7 +8,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Framework.AI;
+namespace CrestApps.Core.Tests.Framework.AI;
 
 public sealed class DataExtractionServiceTests
 {

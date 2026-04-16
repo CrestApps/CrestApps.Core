@@ -2,7 +2,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Extensions;
 using Microsoft.Extensions.AI;
 
-namespace CrestApps.OrchardCore.Tests.Extensions;
+namespace CrestApps.Core.Tests.Extensions;
 
 public sealed class AIFunctionArgumentsExtensionsTests
 {
@@ -70,7 +70,6 @@ public sealed class AIFunctionArgumentsExtensionsTests
         Assert.True(result);
         Assert.Equal("Mike", value);
     }
-
 
     [Fact]
     public static void TryGetFirst_WhenNumberJsonElement_ReturnsTrueAndTheCorrectValue()

@@ -1,6 +1,8 @@
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Services;
-namespace CrestApps.Core.AI.Profiles;
+using CrestApps.Core.Services;
+
+namespace CrestApps.Core.AI.Profiles;
+
 /// <summary>
 /// Provides persistent storage for AI profiles, supporting CRUD operations,
 /// name-based lookup, and efficient type-filtered queries via index.

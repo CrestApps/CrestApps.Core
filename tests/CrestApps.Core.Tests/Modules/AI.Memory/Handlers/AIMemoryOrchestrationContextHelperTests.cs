@@ -2,7 +2,7 @@ using System.Security.Claims;
 using CrestApps.Core.AI.Handlers;
 using Microsoft.AspNetCore.Http;
 
-namespace CrestApps.OrchardCore.Tests.Modules.AI.Memory.Handlers;
+namespace CrestApps.Core.Tests.Modules.AI.Memory.Handlers;
 
 public sealed class AIMemoryOrchestrationContextHelperTests
 {

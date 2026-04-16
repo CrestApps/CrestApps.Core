@@ -14,7 +14,6 @@ public static class TypeExtensions
 
         var trueType = Nullable.GetUnderlyingType(type) ?? type;
 
-
         if (trueType == typeof(string))
         {
             return value;

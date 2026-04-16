@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace CrestApps.OrchardCore.Tests.Core.Orchestration;
+namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class PreemptiveRagOrchestrationHandlerTests
 {

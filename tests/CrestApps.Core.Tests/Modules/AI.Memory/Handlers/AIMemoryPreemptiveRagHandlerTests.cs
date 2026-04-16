@@ -11,7 +11,7 @@ using Moq;
 
 #pragma warning disable MEAI001
 
-namespace CrestApps.OrchardCore.Tests.Modules.AI.Memory.Handlers;
+namespace CrestApps.Core.Tests.Modules.AI.Memory.Handlers;
 
 public sealed class AIMemoryPreemptiveRagHandlerTests
 {

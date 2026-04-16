@@ -5,7 +5,7 @@ using CrestApps.Core.Templates.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.OrchardCore.Tests.AI.Prompting;
+namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
 public sealed class OptionsAITemplateProviderTests
 {
@@ -253,7 +253,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
     public async Task GetTemplatesAsync_FrameworkAssemblyIncludesDocumentContextHeader()
     {
         var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
-        var assembly = typeof(CrestApps.Core.AI.AITemplateIds).Assembly;
+        var assembly = typeof(AI.AITemplateIds).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
         var templates = await provider.GetTemplatesAsync();
@@ -267,7 +267,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
     public async Task GetTemplatesAsync_FrameworkAssemblyIncludesExtractedDataAvailability()
     {
         var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
-        var assembly = typeof(CrestApps.Core.AI.AITemplateIds).Assembly;
+        var assembly = typeof(AI.AITemplateIds).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
         var templates = await provider.GetTemplatesAsync();

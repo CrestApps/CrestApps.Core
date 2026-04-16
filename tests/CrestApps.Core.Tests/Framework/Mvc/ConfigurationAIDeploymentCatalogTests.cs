@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.OrchardCore.Tests.Framework.Mvc;
+namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class ConfigurationAIDeploymentCatalogTests
 {

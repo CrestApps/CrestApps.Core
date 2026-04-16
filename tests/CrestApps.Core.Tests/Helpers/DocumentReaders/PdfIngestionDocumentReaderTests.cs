@@ -2,7 +2,7 @@ using CrestApps.Core.AI.Pdf.Services;
 using Microsoft.AspNetCore.Http;
 using UglyToad.PdfPig.Writer;
 
-namespace CrestApps.OrchardCore.Tests.Helpers.DocumentReaders;
+namespace CrestApps.Core.Tests.Helpers.DocumentReaders;
 
 public sealed class PdfIngestionDocumentReaderTests
 {

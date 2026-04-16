@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.OrchardCore.Tests.Framework.Chat.Claude;
+namespace CrestApps.Core.Tests.Framework.Chat.Claude;
 
 public sealed class MvcClaudeOptionsConfigurationTests
 {
