@@ -1,7 +1,8 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 
-namespace CrestApps.Core.AI.Profiles;
+namespace CrestApps.Core.AI.Profiles;
+
 /// <summary>
 /// Manages AI profiles with CRUD operations, name-based lookup,
 /// and type-filtered retrieval. AI profiles define chat, agent, and embedding
