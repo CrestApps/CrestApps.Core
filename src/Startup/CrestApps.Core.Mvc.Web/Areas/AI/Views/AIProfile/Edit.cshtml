@@ -218,6 +218,12 @@
                         { "CopilotIsAllowAll", Model.CopilotIsAllowAll },
                         { "CopilotModels", Model.CopilotAvailableModels },
                     })
+                    @await Html.PartialAsync("_ClaudeConfig", null, new ViewDataDictionary(ViewData) {
+                        { "ClaudePrefix", "ap" },
+                        { "ClaudeIsConfigured", Model.ClaudeIsConfigured },
+                        { "ClaudeModel", Model.ClaudeModel },
+                        { "ClaudeModels", Model.AnthropicAvailableModels },
+                    })
 
                     <!-- Chat & TemplatePrompt: Prompt Subject -->
                     <div class="mb-3 profile-type profile-type-chat profile-type-template-prompt@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat && Model.Type != CrestApps.Core.AI.Models.AIProfileType.TemplatePrompt ? " d-none" : "")">

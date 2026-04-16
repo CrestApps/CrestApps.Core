@@ -1,0 +1,28 @@
+using CrestApps.Core.AI.Claude.Models;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
+
+namespace CrestApps.Core.AI.Claude.Handlers;
+
+internal sealed class ClaudeOrchestrationContextHandler : IOrchestrationContextBuilderHandler
+{
+    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    {
+        if (context.Resource is not ExtensibleEntity entity)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (entity.TryGet<ClaudeSessionMetadata>(out var metadata))
+        {
+            context.Context.Properties[nameof(ClaudeSessionMetadata)] = metadata;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task BuiltAsync(OrchestrationContextBuiltContext context)
+    {
+        return Task.CompletedTask;
+    }
+}

@@ -94,6 +94,7 @@ The core framework registration chain:
 builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddMarkdown()
+        .AddClaudeOrchestrator()
         .AddCopilotOrchestrator()
         .AddChatInteractions(chat => chat.ConfigureChatHubOptions<ChatInteractionHub>())
         .AddDocumentProcessing(documentProcessing => documentProcessing
@@ -133,6 +134,8 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 ```
 
 `AddAISuite(...)` always wires the shared foundation, AI runtime, and orchestration together. `AddChatInteractions()` inside that suite then registers the shared `DataSourceChatInteractionSettingsHandler`, so Chat Interactions persist the selected data source and RAG metadata through the framework settings pipeline instead of MVC-only wiring. The provider service blocks also pull in the shared data-source RAG registrations, which register both `DataSourceOrchestrationHandler` and `DataSourcePreemptiveRagHandler` at the framework level so source availability instructions and preemptive RAG stay aligned with the saved chat settings.
+
+The MVC sample now also registers both the **Claude** and **Copilot** orchestrators. Claude uses the official Anthropic SDK with a site-level authentication mode, API key, and live model discovery, while Copilot keeps its dedicated OAuth/BYOK flow. Admins can choose either orchestrator from the same AI Profile, AI Template, and Chat Interaction editors.
 
 Documents, memory, and data sources now remain fully independent orchestration sources in the shared framework. Each source injects its own availability instructions and preemptive-RAG context, so the orchestrator can compose them together without the document prompts needing to know whether memory or data sources are also attached.
 
@@ -192,7 +195,6 @@ Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:C
           "ProviderName": "AzureSpeech",
           "Name": "whisper",
           "Type": "SpeechToText",
-          "IsDefault": true,
           "Endpoint": "https://eastus.stt.speech.microsoft.com",
           "AuthenticationType": "ApiKey",
           "ApiKey": "YOUR_API_KEY"
@@ -201,7 +203,6 @@ Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:C
           "ProviderName": "AzureSpeech",
           "Name": "AzureTextToSpeech",
           "Type": "TextToSpeech",
-          "IsDefault": true,
           "Endpoint": "https://eastus.tts.speech.microsoft.com",
           "AuthenticationType": "ApiKey",
           "ApiKey": "YOUR_API_KEY"
@@ -262,7 +263,7 @@ If an administrator already deleted the remote index directly in Elasticsearch o
 
 
 
-The MVC admin chat widget now stays bound to the configured admin-chat profile instead of exposing a profile picker, restores its open/closed state and active session across page navigation, and reuses the stored session automatically when the next admin page loads. **Settings → AI Settings** now includes an **Admin widget** card where administrators choose that profile; leaving it empty disables the widget entirely. The same card also lets administrators change the widget accent color, which now defaults to the admin theme secondary color (`#6c757d`) instead of a hard-coded green. The widget now boots a real chat session immediately, so profiles with an **Initial prompt** show that assistant message first; otherwise it falls back to the welcome message and then **What do you want to know?** when no welcome text is configured.
+The MVC admin chat widget now stays bound to the configured admin-chat profile instead of exposing a profile picker, restores its open/closed state and active session across page navigation, and reuses the stored session automatically when the next admin page loads. **Settings → AI Settings** now includes an **Admin widget** card where administrators choose that profile; leaving it empty disables the widget entirely. The same card also lets administrators change the widget accent color, which now defaults to the admin theme secondary color (`#6c757d`) instead of a hard-coded green. The widget now boots a real chat session immediately, so profiles with an **Initial prompt** show that assistant message first; otherwise it falls back to the welcome message and then **What do you want to know?** when no welcome text is configured. The shared widget runtime also now lets users drag both the floating toggle button and the widget shell, resize the widget, restore the default size from the header, and persist that layout in browser storage unless a host opts out through the widget config.
 
 The MVC sample also now records provider usage in a dedicated **AI Usage Analytics** report. The report groups tracked completion calls by authenticated username or **Anonymous**, then breaks usage down by completion client and resolved model/deployment while showing total calls, distinct sessions, distinct chat interactions, token totals, and average latency. Session analytics now keep token totals and user-visible response latency separate so the main chat analytics page still shows per-session performance while the usage report captures provider activity more directly.
 

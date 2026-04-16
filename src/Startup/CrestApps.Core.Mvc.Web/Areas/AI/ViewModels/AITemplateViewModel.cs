@@ -1,5 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Claude.Models;
+using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Mcp.Models;
@@ -114,6 +116,11 @@ public sealed class AITemplateViewModel
     // Memory.
     public bool EnableUserMemory { get; set; }
 
+    // Anthropic.
+    public string ClaudeModel { get; set; }
+
+    public bool ClaudeIsConfigured { get; set; }
+
     // Settings.
     public bool IsRemovable { get; set; } = true;
     public bool LockSystemMessage { get; set; }
@@ -142,6 +149,9 @@ public sealed class AITemplateViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> CopilotAvailableModels { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
 
     [BindNever]
     public IEnumerable<SelectListItem> DataSources { get; set; } = [];
@@ -302,6 +312,11 @@ public sealed class AITemplateViewModel
             {
                 model.CopilotModel = copilotMetadata.CopilotModel;
                 model.CopilotIsAllowAll = copilotMetadata.IsAllowAll;
+            }
+
+            if (template.TryGet<ClaudeSessionMetadata>(out var anthropicMetadata))
+            {
+                model.ClaudeModel = anthropicMetadata.ClaudeModel;
             }
         }
 
@@ -501,6 +516,19 @@ public sealed class AITemplateViewModel
             });
 
             if (!string.IsNullOrEmpty(OrchestratorName) &&
+                string.Equals(OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
+            {
+                template.Put(new ClaudeSessionMetadata
+                {
+                    ClaudeModel = ClaudeModel,
+                });
+            }
+            else
+            {
+                template.Remove<ClaudeSessionMetadata>();
+            }
+
+            if (!string.IsNullOrEmpty(OrchestratorName) &&
                 string.Equals(OrchestratorName, CopilotOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
             {
                 template.Put(new CopilotSessionMetadata
@@ -516,6 +544,7 @@ public sealed class AITemplateViewModel
         }
         else
         {
+            template.Remove<ClaudeSessionMetadata>();
             template.Remove<CopilotSessionMetadata>();
         }
     }

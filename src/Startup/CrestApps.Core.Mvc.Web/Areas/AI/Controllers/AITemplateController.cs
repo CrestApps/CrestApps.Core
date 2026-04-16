@@ -1,5 +1,7 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Claude.Models;
+using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.DataSources;
@@ -40,10 +42,12 @@ public sealed class AITemplateController : Controller
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
     private readonly OrchestratorOptions _orchestratorOptions;
+    private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
+    private readonly ClaudeClientService _anthropicClientService;
     private readonly CopilotOptions _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-    public AITemplateController(ICatalog<AIProfileTemplate> catalog, ICatalog<AIDeployment> deploymentCatalog, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDataSourceStore dataSourceStore, IAIProfileManager profileManager, IAIDocumentStore documentStore, AIProfileTemplateDocumentService templateDocumentService, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptions<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions)
+    public AITemplateController(ICatalog<AIProfileTemplate> catalog, ICatalog<AIDeployment> deploymentCatalog, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDataSourceStore dataSourceStore, IAIProfileManager profileManager, IAIDocumentStore documentStore, AIProfileTemplateDocumentService templateDocumentService, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptions<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -57,6 +61,8 @@ public sealed class AITemplateController : Controller
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;
         _orchestratorOptions = orchestratorOptions.Value;
+        _anthropicOptions = anthropicOptions;
+        _anthropicClientService = anthropicClientService;
         _copilotOptions = copilotOptions.Value;
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
@@ -188,7 +194,10 @@ public sealed class AITemplateController : Controller
         model.ChatDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Utility) || d.Type.Supports(AIDeploymentType.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
+        var anthropicOptions = _anthropicOptions.Value;
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
+        model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
+        await PopulateClaudeModelsAsync(model);
         model.CopilotAuthenticationType = _copilotOptions.AuthenticationType;
         model.CopilotIsConfigured = IsCopilotConfigured();
         await PopulateCopilotStatusAsync(model);
@@ -288,6 +297,19 @@ public sealed class AITemplateController : Controller
     private static string BuildDeploymentLabel(AIDeployment deployment)
     {
         return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase) ? deployment.Name : $"{deployment.Name} ({deployment.ModelName})";
+    }
+
+    private async Task PopulateClaudeModelsAsync(AITemplateViewModel model)
+    {
+        var anthropicOptions = _anthropicOptions.Value;
+        if (!anthropicOptions.IsConfigured())
+        {
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions.DefaultModel);
+            return;
+        }
+
+        var models = await _anthropicClientService.ListModelsAsync();
+        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, anthropicOptions.DefaultModel);
     }
 
     private async Task PopulateCopilotStatusAsync(AITemplateViewModel model)

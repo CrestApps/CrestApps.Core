@@ -279,7 +279,7 @@
 
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Copilot</h5>
+                    <h5 class="card-title mb-0"><i class="fa-brands fa-github"></i> Copilot</h5>
                 </div>
                 <div class="card-body">
                     <p class="text-muted mb-3">
@@ -352,7 +352,8 @@
                     <div id="copilotApiKeySection">
                         <div class="mb-4">
                             <h6 class="mb-2">API key (BYOK) configuration</h6>
-                            <p class="text-muted">Use your own API key from a model provider. No GitHub Copilot subscription is required.
+                            <p class="text-muted">
+                                Use your own API key from a model provider. No GitHub Copilot subscription is required.
                                 <a href="https://github.com/github/copilot-sdk/blob/main/docs/auth/byok.md" target="_blank" rel="noopener noreferrer">Learn more about BYOK</a>
                             </p>
                         </div>
@@ -466,6 +467,67 @@
                 </div>
             </div>
 
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fa-brands fa-claude me-1"></i> Claude</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Configure direct Claude access for the Claude orchestrator. No external executable or separate Anthropic installation is required.
+                    </p>
+
+                    <div class="mb-3">
+                        <label asp-for="AnthropicAuthenticationType" class="form-label">Authentication type</label>
+                        <select asp-for="AnthropicAuthenticationType" class="form-select" id="claudeAuthType">
+                            <option value="@((int)CrestApps.Core.Mvc.Web.Areas.AIChat.Models.ClaudeAuthenticationType.NotConfigured)">Not configured</option>
+                            <option value="@((int)CrestApps.Core.Mvc.Web.Areas.AIChat.Models.ClaudeAuthenticationType.ApiKey)">API key</option>
+                        </select>
+                        <div class="form-text">Choose how the Claude orchestrator authenticates. "Not configured" keeps Claude disabled until you explicitly enable API key authentication.</div>
+                    </div>
+
+                    <div id="claudeApiKeySection">
+                        <div class="mb-3">
+                            <label asp-for="AnthropicBaseUrl" class="form-label">Base URL</label>
+                            <input asp-for="AnthropicBaseUrl" class="form-control" placeholder="https://api.anthropic.com" />
+                            <div class="form-text">Use the standard Anthropic API base URL unless you have a custom gateway.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="AnthropicApiKey" class="form-label">API key</label>
+                            <input asp-for="AnthropicApiKey" type="password" class="form-control" placeholder="Enter API key" />
+                            <span asp-validation-for="AnthropicApiKey" class="text-danger"></span>
+                            @if (Model.AnthropicHasApiKey)
+                            {
+                                <div class="form-text text-success">A Claude API key has been securely stored. Enter a new value to replace it, or leave empty to keep the existing key.</div>
+                            }
+                            else
+                            {
+                                <div class="form-text">The Claude API key used for live model discovery and Claude-orchestrated chats.</div>
+                            }
+                        </div>
+
+                        @if (Model.AnthropicAvailableModels.Any())
+                        {
+                            <div class="mb-3">
+                                <label asp-for="AnthropicDefaultModel" class="form-label">Default model</label>
+                                <select asp-for="AnthropicDefaultModel" class="form-select" asp-items="Model.AnthropicAvailableModels">
+                                    <option value="">Use per-item override</option>
+                                </select>
+                                <div class="form-text">Available models are loaded from the Anthropic Models API using the configured API key.</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label asp-for="AnthropicDefaultModel" class="form-label">Default model</label>
+                                <input asp-for="AnthropicDefaultModel" class="form-control" placeholder="claude-sonnet-4-6" />
+                                <div class="form-text">Optionally set the Claude model ID used when a profile or interaction does not override it.</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-lg"></i> Save Settings
@@ -529,6 +591,23 @@
         if (copilotProviderType) {
             copilotProviderType.addEventListener('change', toggleCopilotProviderHints);
             toggleCopilotProviderHints();
+        }
+
+        var claudeAuthType = document.getElementById('claudeAuthType');
+        var claudeApiKeySection = document.getElementById('claudeApiKeySection');
+
+        function toggleClaudeAuthSections() {
+            if (!claudeAuthType || !claudeApiKeySection) {
+                return;
+            }
+
+            var isApiKey = claudeAuthType.value === '@((int)CrestApps.Core.Mvc.Web.Areas.AIChat.Models.ClaudeAuthenticationType.ApiKey)';
+            claudeApiKeySection.style.display = isApiKey ? '' : 'none';
+        }
+
+        if (claudeAuthType) {
+            claudeAuthType.addEventListener('change', toggleClaudeAuthSections);
+            toggleClaudeAuthSections();
         }
 
         var adminWidgetProfileSelect = document.querySelector('[data-admin-widget-profile-select="true"]');

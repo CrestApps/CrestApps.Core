@@ -762,10 +762,32 @@ Both widgets require the following libraries to be loaded on the page **before**
 |---------|---------|-------------|
 | [Chart.js](https://www.chartjs.org/) | Interactive chart rendering | `https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js` |
 | [highlight.js](https://highlightjs.org/) | Code syntax highlighting | `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js` |
+| [Font Awesome 7](https://fontawesome.com/) | Message action icons and brand icons such as Claude | `https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7/css/all.min.css` |
+
+### Widget layout behavior
+
+The AI Chat widget now supports draggable and resizable floating shells through the shared `widget` config. These behaviors are enabled by default for widgets, persist the user-selected position and size in `localStorage`, and can be turned off per host if needed.
+
+```js
+window.openAIChatManager.initialize({
+    // ... other config ...
+    widget: {
+        chatWidgetContainer: '#widget-panel',
+        chatWidgetStateName: 'support-chat',
+        toggleButtonSelector: '#widget-toggle',
+        resetSizeButtonSelector: '#widget-reset-size',
+        enableDragging: true,
+        enableResizing: true,
+        persistLayout: true
+    }
+});
+```
+
+When `enableDragging` is on, both the widget window and its floating toggle button can be repositioned. When `enableResizing` is on, the widget can be resized from the browser resize handle and the optional reset-size button can restore the default dimensions. Set either flag to `false` to opt out for a specific host.
 
 ### Text-to-Speech Play Icon
 
-When a text-to-speech (TTS) deployment is configured, each assistant message shows a play icon that reads the message aloud via server-side speech synthesis. Clicking the icon calls `SynthesizeSpeech` on the SignalR hub, which streams audio chunks back to the client and plays them as MP3. Clicking the icon again pauses playback.
+When a text-to-speech (TTS) deployment is configured, each completed assistant message shows a play icon that reads the message aloud via server-side speech synthesis. Clicking the icon calls `SynthesizeSpeech` on the SignalR hub, which streams audio chunks back to the client and plays them as MP3. While audio is active, the icon switches to pause, the action buttons stay anchored at the bottom-right of the message just above the divider, and starting playback on a different message automatically stops the current player.
 
 To enable this feature, pass `textToSpeechEnabled: true` in the widget initialization config:
 
@@ -777,5 +799,5 @@ window.openAIChatManager.initialize({
 });
 ```
 
-The play icon appears on all completed assistant messages regardless of whether the profile uses Conversation mode. The only requirement is that a TTS deployment is available on the server.
+The play icon appears on completed assistant messages when a TTS deployment is available on the server. In Conversation mode, the per-message playback icon is hidden so the live voice exchange is not interrupted by manual playback controls.
 

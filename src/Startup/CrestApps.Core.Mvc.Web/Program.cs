@@ -2,6 +2,7 @@ using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.AzureAIInference;
+using CrestApps.Core.AI.Claude;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Endpoints;
 using CrestApps.Core.AI.Copilot;
@@ -196,6 +197,7 @@ builder.Services
         // .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
         // Optional AI features layered on top of the core AI + orchestration runtime.
         .AddMarkdown()
+        .AddClaudeOrchestrator()
         .AddCopilotOrchestrator()
         .AddChatInteractions(chatInteractions => chatInteractions
             .AddYesSqlStores()
@@ -337,6 +339,7 @@ builder.Services.AddSingleton(new FileSystemFileStore(Path.Combine(appDataPath, 
 // Copilot orchestrator: credential store and options configuration.
 builder.Services.AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 builder.Services.ConfigureOptions<MvcCopilotOptionsConfiguration>();
+builder.Services.ConfigureOptions<MvcClaudeOptionsConfiguration>();
 
 // =============================================================================
 // 13. BACKGROUND TASKS

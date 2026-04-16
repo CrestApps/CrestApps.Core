@@ -35,6 +35,7 @@ public sealed class SiteSettingsStore
         ["ChatInteraction"] = "ChatInteractionSettings",
         ["ChatInteractionMemory"] = "MemoryMetadata",
         ["Copilot"] = "CopilotSettings",
+        ["Anthropic"] = "ClaudeSettings",
     };
 
     // Nested keys that must be extracted from a parent object and promoted to
