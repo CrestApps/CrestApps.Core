@@ -173,7 +173,7 @@ builder.Services
             .AddFtpResources()
             .AddSftpResources()
         )
-        .AddSignalR(addStoreCommitterFilter: true)
+        .AddSignalR(addStoreCommitterFilter: false)
         .AddA2AHost()
         .AddOpenAI()
         .AddAzureOpenAI()

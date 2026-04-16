@@ -34,13 +34,16 @@ public sealed class StoreCommitterHubFilter : IHubFilter
     {
         var result = await next(invocationContext);
 
-        var committer = invocationContext.ServiceProvider.GetRequiredService<IStoreCommitter>();
-        if (_logger.IsEnabled(LogLevel.Debug))
+        var committer = invocationContext.ServiceProvider.GetService<IStoreCommitter>();
+        if (committer is not null)
         {
-            _logger.LogDebug("StoreCommitterHubFilter committing after hub method '{HubMethod}' on hub '{HubName}'.", invocationContext.HubMethodName, invocationContext.Hub.GetType().Name);
-        }
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("StoreCommitterHubFilter committing after hub method '{HubMethod}' on hub '{HubName}'.", invocationContext.HubMethodName, invocationContext.Hub.GetType().Name);
+            }
 
-        await committer.CommitAsync();
+            await committer.CommitAsync();
+        }
 
         return result;
     }
