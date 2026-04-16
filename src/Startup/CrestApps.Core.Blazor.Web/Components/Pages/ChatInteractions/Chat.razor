@@ -29,6 +29,7 @@
 @inject ITemplateService TemplateService
 @inject NavigationManager NavigationManager
 @inject SiteSettingsStore SiteSettingsStore
+@inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>Chat - @(Title ?? "Untitled Chat")</PageTitle>
 
@@ -514,10 +515,17 @@ else
 
         await PopulateDropdownsAsync();
 
-        // Build SignalR connection
+        // Build SignalR connection — forward auth cookies so the [Authorize] hub accepts the request.
         var hubUrl = NavigationManager.ToAbsoluteUri("/hubs/chat-interaction");
+        var cookies = HttpContextAccessor.HttpContext?.Request.Headers["Cookie"].ToString();
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
+            .WithUrl(hubUrl, options =>
+            {
+                if (!string.IsNullOrEmpty(cookies))
+                {
+                    options.Headers.Add("Cookie", cookies);
+                }
+            })
             .WithAutomaticReconnect()
             .Build();
 
