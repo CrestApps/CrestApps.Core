@@ -113,8 +113,7 @@ By default:
           "Name": "gpt-4.1",
           "ClientName": "OpenAI",
           "ModelName": "gpt-4.1",
-          "Type": "Chat",
-          "IsDefault": true
+          "Type": "Chat"
         }
       ]
     }
