@@ -20,7 +20,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
 
     private readonly IToolRegistry _toolRegistry;
     private readonly ClaudeClientService _clientService;
-    private readonly ClaudeOptions _anthropicOptions;
+    private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
     private readonly DefaultAIOptions _defaultOptions;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<ClaudeOrchestrator> _logger;
@@ -28,14 +28,14 @@ public sealed class ClaudeOrchestrator : IOrchestrator
     public ClaudeOrchestrator(
         IToolRegistry toolRegistry,
         ClaudeClientService clientService,
-        IOptions<ClaudeOptions> anthropicOptions,
+        IOptionsSnapshot<ClaudeOptions> anthropicOptions,
         IOptions<DefaultAIOptions> defaultOptions,
         ILoggerFactory loggerFactory,
         ILogger<ClaudeOrchestrator> logger)
     {
         _toolRegistry = toolRegistry;
         _clientService = clientService;
-        _anthropicOptions = anthropicOptions.Value;
+        _anthropicOptions = anthropicOptions;
         _defaultOptions = defaultOptions.Value;
         _loggerFactory = loggerFactory;
         _logger = logger;
@@ -61,9 +61,10 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         var modelId = !string.IsNullOrWhiteSpace(metadata?.ClaudeModel)
             ? metadata.ClaudeModel
             : null;
-        modelId ??= _anthropicOptions.DefaultModel;
+        var anthropicOptions = _anthropicOptions.Value;
+        modelId ??= anthropicOptions.DefaultModel;
 
-        if (!IsConfigured(_anthropicOptions))
+        if (!IsConfigured(anthropicOptions))
         {
             yield return CreateTextResponse("Claude is not configured and cannot be used until it has been configured.");
             yield break;

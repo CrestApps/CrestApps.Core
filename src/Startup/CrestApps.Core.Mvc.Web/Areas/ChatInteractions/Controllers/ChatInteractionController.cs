@@ -56,7 +56,7 @@ public sealed class ChatInteractionController : Controller
     private readonly ITemplateService _aiTemplateService;
     private readonly OrchestratorOptions _orchestratorOptions;
 
-    private readonly ClaudeOptions _anthropicOptions;
+    private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
     private readonly ClaudeClientService _anthropicClientService;
     private readonly CopilotOptions _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
@@ -83,7 +83,7 @@ public sealed class ChatInteractionController : Controller
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService aiTemplateService,
         IOptions<OrchestratorOptions> orchestratorOptions,
-        IOptions<ClaudeOptions> anthropicOptions,
+        IOptionsSnapshot<ClaudeOptions> anthropicOptions,
         ClaudeClientService anthropicClientService,
         IOptions<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
@@ -109,7 +109,7 @@ public sealed class ChatInteractionController : Controller
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;
         _orchestratorOptions = orchestratorOptions.Value;
-        _anthropicOptions = anthropicOptions.Value;
+        _anthropicOptions = anthropicOptions;
         _anthropicClientService = anthropicClientService;
         _copilotOptions = copilotOptions.Value;
 
@@ -302,10 +302,11 @@ public sealed class ChatInteractionController : Controller
 
         // Orchestrators
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
+        var anthropicOptions = _anthropicOptions.Value;
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
 
         // Anthropic
-        model.ClaudeIsConfigured = _anthropicOptions.IsConfigured();
+        model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
         await PopulateClaudeModelsAsync(model);
 
         // Copilot
@@ -442,7 +443,8 @@ public sealed class ChatInteractionController : Controller
             .ToList();
 
         // Anthropic
-        model.ClaudeIsConfigured = _anthropicOptions.IsConfigured();
+        var anthropicOptions = _anthropicOptions.Value;
+        model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
         await PopulateClaudeModelsAsync(model);
 
         // Copilot
@@ -789,14 +791,15 @@ public sealed class ChatInteractionController : Controller
 
     private async Task PopulateClaudeModelsAsync(ChatInteractionViewModel model)
     {
-        if (!_anthropicOptions.IsConfigured())
+        var anthropicOptions = _anthropicOptions.Value;
+        if (!anthropicOptions.IsConfigured())
         {
-            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, _anthropicOptions.DefaultModel);
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions.DefaultModel);
             return;
         }
 
         var models = await _anthropicClientService.ListModelsAsync();
-        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, _anthropicOptions.DefaultModel);
+        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, anthropicOptions.DefaultModel);
     }
 
     private async Task<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>> CreateEmbeddingGeneratorAsync()
@@ -844,14 +847,15 @@ public sealed class ChatInteractionController : Controller
 
     private async Task PopulateClaudeModelsAsync(ChatInteractionChatViewModel model)
     {
-        if (!_anthropicOptions.IsConfigured())
+        var anthropicOptions = _anthropicOptions.Value;
+        if (!anthropicOptions.IsConfigured())
         {
-            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, _anthropicOptions.DefaultModel);
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions.DefaultModel);
             return;
         }
 
         var models = await _anthropicClientService.ListModelsAsync();
-        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, _anthropicOptions.DefaultModel);
+        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, anthropicOptions.DefaultModel);
     }
 
     private bool IsCopilotConfigured() => _copilotOptions.IsConfigured();

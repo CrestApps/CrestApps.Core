@@ -11,32 +11,33 @@ namespace CrestApps.Core.AI.Claude.Services;
 /// </summary>
 public sealed class ClaudeClientService
 {
-    private readonly ClaudeOptions _options;
+    private readonly IOptionsSnapshot<ClaudeOptions> _options;
     private readonly ILogger<ClaudeClientService> _logger;
 
     public ClaudeClientService(
-        IOptions<ClaudeOptions> options,
+        IOptionsSnapshot<ClaudeOptions> options,
         ILogger<ClaudeClientService> logger)
     {
-        _options = options.Value;
+        _options = options;
         _logger = logger;
     }
 
     public AnthropicClient CreateClient()
     {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        var options = _options.Value;
+        if (string.IsNullOrWhiteSpace(options.ApiKey))
         {
             throw new InvalidOperationException("Claude is not configured. Please configure an API key.");
         }
 
         var clientOptions = new ClientOptions
         {
-            ApiKey = _options.ApiKey,
+            ApiKey = options.ApiKey,
         };
 
-        if (!string.IsNullOrWhiteSpace(_options.BaseUrl))
+        if (!string.IsNullOrWhiteSpace(options.BaseUrl))
         {
-            clientOptions.BaseUrl = _options.BaseUrl;
+            clientOptions.BaseUrl = options.BaseUrl;
         }
 
         return new AnthropicClient(clientOptions);
@@ -44,7 +45,8 @@ public sealed class ClaudeClientService
 
     public async Task<IReadOnlyCollection<ClaudeModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        var options = _options.Value;
+        if (string.IsNullOrWhiteSpace(options.ApiKey))
         {
             return [];
         }
