@@ -72,6 +72,11 @@ public sealed class ChatInteractionViewModel
 
     public int CopilotAuthenticationType { get; set; }
 
+    // Anthropic
+    public string ClaudeModel { get; set; }
+
+    public bool ClaudeIsConfigured { get; set; }
+
     [BindNever]
     public IEnumerable<SelectListItem> DataSources { get; set; } = [];
 
@@ -83,6 +88,9 @@ public sealed class ChatInteractionViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> CopilotAvailableModels { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
 }
 
 public sealed class AgentSelectionItem

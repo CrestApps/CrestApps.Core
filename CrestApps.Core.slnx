@@ -21,6 +21,7 @@
   <Folder Name="/src/Primitives/">
     <Project Path="src/Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.AzureAIInference/CrestApps.Core.AI.AzureAIInference.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Claude/CrestApps.Core.AI.Claude.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Ftp/CrestApps.Core.AI.Ftp.csproj" />

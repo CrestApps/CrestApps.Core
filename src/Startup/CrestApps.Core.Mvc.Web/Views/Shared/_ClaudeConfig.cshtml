@@ -1,0 +1,77 @@
+@{
+    var prefix = ViewData["ClaudePrefix"] as string ?? "anthropic";
+    var isConfigured = (bool)(ViewData["ClaudeIsConfigured"] ?? false);
+    var anthropicModel = ViewData["ClaudeModel"] as string ?? "";
+    var anthropicModels = ViewData["ClaudeModels"] as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? [];
+    var orchestratorName = CrestApps.Core.AI.Claude.Services.ClaudeOrchestrator.OrchestratorName;
+}
+
+<div class="d-none orchestrator-dependent orchestrator-dependent-anthropic" id="@(prefix)-anthropic-panel">
+    <div class="card mb-3">
+        <div class="card-header">
+            <h6 class="card-title mb-0"><i class="fa-brands fa-claude me-1"></i> Claude Configuration</h6>
+        </div>
+        <div class="card-body">
+            @if (!isConfigured)
+            {
+                <div class="alert alert-warning mb-0">
+                    <strong>Claude is not configured and cannot be used until it has been configured.</strong>
+                    Go to <a href="@Url.Action("Index", "Settings", new { area = "Admin" })"><strong>Settings</strong></a>
+                    and complete the Claude section first.
+                </div>
+            }
+            else if (anthropicModels.Any())
+            {
+                <div class="mb-0">
+                    <label for="@(prefix)-ClaudeModel" class="form-label">Claude model</label>
+                    <select name="ClaudeModel" id="@(prefix)-ClaudeModel" class="form-select">
+                        <option value="">Use default model</option>
+                        @foreach (var item in anthropicModels)
+                        {
+                            <option value="@item.Value" selected="@(item.Value == anthropicModel ? "selected" : null)">@item.Text</option>
+                        }
+                    </select>
+                    <div class="form-text">Select a Claude model override for this item, or leave it on the configured default.</div>
+                </div>
+            }
+            else
+            {
+                <div class="mb-0">
+                    <label for="@(prefix)-ClaudeModel" class="form-label">Claude model</label>
+                    <input type="text" name="ClaudeModel" id="@(prefix)-ClaudeModel" class="form-control"
+                           value="@anthropicModel" placeholder="Leave empty to use the default model from settings" />
+                    <div class="form-text">Optionally override the Claude model. Leave empty to use the default model configured in settings.</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const prefix = '@prefix';
+        const anthropicName = '@orchestratorName';
+        const orchestratorSelect = document.querySelector('[name="OrchestratorName"]');
+
+        function toggleAnthropicPanel(selectedValue) {
+            const panel = document.getElementById(prefix + '-anthropic-panel');
+            if (!panel) {
+                return;
+            }
+
+            if (selectedValue === anthropicName) {
+                panel.classList.remove('d-none');
+            } else {
+                panel.classList.add('d-none');
+            }
+        }
+
+        if (orchestratorSelect) {
+            orchestratorSelect.addEventListener('change', function () {
+                toggleAnthropicPanel(this.value);
+            });
+
+            toggleAnthropicPanel(orchestratorSelect.value);
+        }
+    });
+</script>

@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using CrestApps.Core.AI.Claude.Models;
+using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
@@ -9,6 +11,7 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
 using CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
+using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Models;
 using CrestApps.Core.Mvc.Web.Services;
@@ -24,6 +27,7 @@ namespace CrestApps.Core.Mvc.Web.Areas.Admin.Controllers;
 public sealed class SettingsController : Controller
 {
     private const string CopilotProtectorPurpose = "CrestApps.Core.Mvc.Web.CopilotSettings";
+    private const string AnthropicProtectorPurpose = "CrestApps.Core.Mvc.Web.ClaudeSettings";
     private const string MemoryIndexProfileType = "AIMemory";
 
     private readonly SiteSettingsStore _siteSettings;
@@ -32,6 +36,7 @@ public sealed class SettingsController : Controller
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ISpeechVoiceResolver _speechVoiceResolver;
+    private readonly ClaudeClientService _anthropicClientService;
 
     public SettingsController(
         SiteSettingsStore siteSettings,
@@ -39,7 +44,8 @@ public sealed class SettingsController : Controller
         IAIProfileManager profileManager,
         ISearchIndexProfileStore indexProfileStore,
         IDataProtectionProvider dataProtectionProvider,
-        ISpeechVoiceResolver speechVoiceResolver)
+        ISpeechVoiceResolver speechVoiceResolver,
+        ClaudeClientService anthropicClientService)
     {
         _siteSettings = siteSettings;
         _deploymentManager = deploymentManager;
@@ -47,6 +53,7 @@ public sealed class SettingsController : Controller
         _indexProfileStore = indexProfileStore;
         _dataProtectionProvider = dataProtectionProvider;
         _speechVoiceResolver = speechVoiceResolver;
+        _anthropicClientService = anthropicClientService;
     }
 
     public async Task<IActionResult> Index()
@@ -61,6 +68,7 @@ public sealed class SettingsController : Controller
         var mcpServerSettings = _siteSettings.Get<McpServerOptions>();
         var chatInteractionMemorySettings = _siteSettings.Get<MemoryMetadata>();
         var copilotSettings = _siteSettings.Get<CopilotSettings>();
+        var anthropicSettings = _siteSettings.Get<ClaudeSettings>();
         var paginationSettings = _siteSettings.Get<PaginationSettings>();
         var adminWidgetSettings = _siteSettings.Get<AIChatAdminWidgetSettings>();
 
@@ -104,6 +112,12 @@ public sealed class SettingsController : Controller
             CopilotDefaultModel = copilotSettings.DefaultModel,
             CopilotAzureApiVersion = copilotSettings.AzureApiVersion,
             CopilotCallbackUrl = Url.Action("OAuthCallback", "CopilotAuth", new { area = "AIChat" }, Request.Scheme),
+
+            AnthropicAuthenticationType = anthropicSettings.AuthenticationType,
+            AnthropicBaseUrl = anthropicSettings.BaseUrl,
+            AnthropicHasApiKey = !string.IsNullOrWhiteSpace(anthropicSettings.ProtectedApiKey),
+            AnthropicDefaultModel = anthropicSettings.DefaultModel,
+
             AdminPageSize = paginationSettings.AdminPageSize,
             AdminWidgetProfileId = adminWidgetSettings.ProfileId,
             AdminWidgetPrimaryColor = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
@@ -114,6 +128,7 @@ public sealed class SettingsController : Controller
         await NormalizeDeploymentSelectorsAsync(model);
         await PopulateDeploymentDropdownsAsync(model);
         await PopulateAdminWidgetProfilesAsync(model);
+        await PopulateClaudeModelsAsync(model);
 
         return View(model);
     }
@@ -151,6 +166,14 @@ public sealed class SettingsController : Controller
             string.IsNullOrWhiteSpace(model.McpServerApiKey))
         {
             ModelState.AddModelError(nameof(model.McpServerApiKey), "API key is required when the MCP server uses API key authentication.");
+        }
+
+        var existingAnthropic = _siteSettings.Get<ClaudeSettings>();
+        if (model.AnthropicAuthenticationType == ClaudeAuthenticationType.ApiKey &&
+            string.IsNullOrWhiteSpace(model.AnthropicApiKey) &&
+            string.IsNullOrWhiteSpace(existingAnthropic.ProtectedApiKey))
+        {
+            ModelState.AddModelError(nameof(model.AnthropicApiKey), "API key is required when Claude uses API key authentication.");
         }
 
         if (model.AdminPageSize < 1 || model.AdminPageSize > 200)
@@ -192,6 +215,7 @@ public sealed class SettingsController : Controller
         {
             await PopulateDeploymentDropdownsAsync(model);
             await PopulateAdminWidgetProfilesAsync(model);
+            await PopulateClaudeModelsAsync(model);
 
             return View(nameof(Index), model);
         }
@@ -289,6 +313,24 @@ public sealed class SettingsController : Controller
 
         _siteSettings.Set(copilotSettings);
 
+        var anthropicProtector = _dataProtectionProvider.CreateProtector(AnthropicProtectorPurpose);
+        var anthropicSettings = new ClaudeSettings
+        {
+            AuthenticationType = model.AnthropicAuthenticationType,
+            BaseUrl = string.IsNullOrWhiteSpace(model.AnthropicBaseUrl)
+                ? "https://api.anthropic.com"
+                : model.AnthropicBaseUrl.Trim(),
+            ProtectedApiKey = existingAnthropic.ProtectedApiKey,
+            DefaultModel = model.AnthropicDefaultModel?.Trim(),
+        };
+
+        if (!string.IsNullOrWhiteSpace(model.AnthropicApiKey))
+        {
+            anthropicSettings.ProtectedApiKey = anthropicProtector.Protect(model.AnthropicApiKey.Trim());
+        }
+
+        _siteSettings.Set(anthropicSettings);
+
         _siteSettings.Set(new PaginationSettings
         {
             AdminPageSize = model.AdminPageSize,
@@ -354,6 +396,19 @@ public sealed class SettingsController : Controller
                 profile.DisplayText ?? profile.Name,
                 profile.ItemId,
                 profile.ItemId == model.AdminWidgetProfileId));
+    }
+
+    private async Task PopulateClaudeModelsAsync(SettingsViewModel model)
+    {
+        var settings = _siteSettings.Get<ClaudeSettings>();
+        if (!settings.IsConfigured())
+        {
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.AnthropicDefaultModel);
+            return;
+        }
+
+        var models = await _anthropicClientService.ListModelsAsync();
+        model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.AnthropicDefaultModel, settings.DefaultModel);
     }
 
     private static IEnumerable<SelectListItem> BuildGroupedDeploymentItems(IEnumerable<AIDeployment> deployments)

@@ -23,6 +23,7 @@
     var copilotModel = ViewData["CopilotModel"] as string ?? "";
     var isAllowAll = (bool)(ViewData["CopilotIsAllowAll"] ?? false);
     var copilotModels = ViewData["CopilotModels"] as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? [];
+    var orchestratorName = CrestApps.Core.AI.Copilot.Services.CopilotOrchestrator.OrchestratorName;
 }
 
 <div class="d-none orchestrator-dependent orchestrator-dependent-copilot" id="@(prefix)-copilot-panel">
@@ -127,7 +128,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const prefix = '@prefix';
-        const copilotName = 'copilot';
+        const copilotName = '@orchestratorName';
 
         const orchestratorSelect = document.querySelector('[name="OrchestratorName"]');
         if (orchestratorSelect) {
@@ -153,7 +154,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const prefix = '@prefix';
-            const copilotName = 'copilot';
+            const copilotName = '@orchestratorName';
             const connectBtn = document.getElementById(prefix + '-connect-github');
             const disconnectBtn = document.getElementById(prefix + '-disconnect-github');
             const connectedEl = document.getElementById(prefix + '-github-connected');

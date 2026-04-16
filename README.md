@@ -31,6 +31,7 @@ Most teams start AI integration with a provider SDK, then quickly run into the r
 - **MCP server and MCP client capabilities** including resource, prompt, and external host management
 - **Custom AI functions** for application-specific actions and tool calling
 - **Copilot orchestrator integration**
+- **Claude orchestrator integration**
 - **Template-driven prompts and profile definitions** for cleaner code and reusable system behavior
 - **Chat widgets and business workflows** including chat metrics, data extraction, goal conversion, post-session processing, and live-agent handoff
 - **Usage and lead reporting** for AI consumption and customer engagement scenarios

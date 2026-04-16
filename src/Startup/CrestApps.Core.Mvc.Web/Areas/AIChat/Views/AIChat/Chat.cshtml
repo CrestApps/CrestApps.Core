@@ -45,7 +45,6 @@
 }
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
 <style>
     .chat-page-wrapper {
@@ -64,7 +63,13 @@
         border-top: 1px solid rgba(33, 37, 41, 0.08);
     }
     .ai-chat-messages .ai-chat-message-item p:last-child { margin-bottom: 0; }
-    .ai-chat-messages .ai-chat-message-body { position: relative; padding: 0 0 0.25rem 0; }
+    .ai-chat-messages .ai-chat-message-body {
+        position: relative;
+        padding: 0;
+        overflow-wrap: break-word;
+        word-break: break-word;
+        min-width: 0;
+    }
     .ai-chat-msg-role { font-size: 0.75rem; font-weight: 600; margin-bottom: 2px; }
     .ai-chat-msg-role-user { color: #0d6efd; }
     .ai-chat-msg-role-assistant { color: #6f42c1; }
@@ -72,17 +77,22 @@
     .ai-chat-msg-role-assistant i.ai-bot-icon { color: #6f42c1; }
     .ai-chat-messages .message-buttons-container {
         position: absolute;
-        right: 0;
-        top: 0;
+        right: 0.1rem;
+        bottom: 0;
         display: inline-flex;
+        align-items: center;
         gap: 0.35rem;
+        width: auto;
+        max-width: max-content;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.15s ease-in-out;
-        background: #fff;
-        padding: 0.15rem 0.35rem;
-        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.96);
+        padding: 0.2rem 0.35rem;
+        border-radius: 999px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 1rem;
+        transform: translateY(50%);
         z-index: 1;
     }
     .ai-chat-messages .ai-chat-message-item:hover .message-buttons-container,
@@ -91,8 +101,22 @@
         pointer-events: auto;
     }
     .ai-chat-messages .message-buttons-container > .button-message-toolbox {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 1.75rem;
+        height: 1.75rem;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-radius: 50%;
         color: var(--bs-secondary-color, #6c757d) !important;
         text-decoration: none;
+    }
+    .ai-chat-messages .message-buttons-container .ai-chat-message-assistant-feedback {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
     }
     .ai-chat-messages .message-buttons-container > .button-message-toolbox:hover,
     .ai-chat-messages .message-buttons-container > .button-message-toolbox:focus {

@@ -1,5 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Claude.Models;
+using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Mcp.Models;
@@ -132,6 +134,11 @@ public sealed class AIProfileViewModel
     // Memory
     public bool EnableUserMemory { get; set; }
 
+    // Anthropic
+    public string ClaudeModel { get; set; }
+
+    public bool ClaudeIsConfigured { get; set; }
+
     // Copilot
     public string CopilotModel { get; set; }
 
@@ -165,6 +172,9 @@ public sealed class AIProfileViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> CopilotAvailableModels { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
 
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
@@ -327,6 +337,11 @@ public sealed class AIProfileViewModel
         {
             vm.CopilotModel = copilotMeta.CopilotModel;
             vm.CopilotIsAllowAll = copilotMeta.IsAllowAll;
+        }
+
+        if (profile.TryGet<ClaudeSessionMetadata>(out var anthropicMeta))
+        {
+            vm.ClaudeModel = anthropicMeta.ClaudeModel;
         }
 
         return vm;
@@ -526,6 +541,19 @@ public sealed class AIProfileViewModel
         {
             m.EnableUserMemory = EnableUserMemory;
         });
+
+        if (!string.IsNullOrEmpty(OrchestratorName) &&
+            string.Equals(OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
+        {
+            profile.Alter<ClaudeSessionMetadata>(metadata =>
+            {
+                metadata.ClaudeModel = ClaudeModel;
+            });
+        }
+        else
+        {
+            profile.Remove<ClaudeSessionMetadata>();
+        }
 
         // Copilot metadata
         if (!string.IsNullOrEmpty(OrchestratorName) &&

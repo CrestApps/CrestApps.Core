@@ -1,11 +1,11 @@
 ---
-sidebar_label: GitHub Copilot
+sidebar_label: Copilot
 sidebar_position: 16
-title: GitHub Copilot Orchestrator
+title: Copilot Orchestrator
 description: An alternative IOrchestrator implementation that uses the GitHub Copilot Extensions SDK for AI completions, supporting GitHub OAuth and Bring Your Own Key (BYOK) authentication modes.
 ---
 
-# GitHub Copilot Orchestrator
+# Copilot Orchestrator
 
 > An alternative orchestrator that uses the GitHub Copilot Extensions SDK instead of the default orchestration pipeline, supporting both GitHub OAuth and BYOK authentication modes.
 

@@ -398,7 +398,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, DataSourceAICompletionContextBuilderHandler>());
 
         services.AddOrchestrator<DefaultOrchestrator>(DefaultOrchestrator.OrchestratorName)
-            .WithTitle("Default Orchestrator");
+            .WithTitle("Default");
 
         services.AddScoped<IOrchestratorResolver, DefaultOrchestratorResolver>();
 

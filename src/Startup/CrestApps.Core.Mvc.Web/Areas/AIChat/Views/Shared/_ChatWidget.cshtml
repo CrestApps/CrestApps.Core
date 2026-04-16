@@ -57,7 +57,6 @@
     <div class="ai-chat-admin-widget-shell" style="@widgetStyle">
         <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/chat-widget.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
         <!-- Floating toggle button -->
         <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open AI Chat">
@@ -68,8 +67,9 @@
         <div id="widget-panel" class="ai-chat-widget-container">
             <div class="ai-chat-widget-header">
                 <span class="title">AI Chat</span>
-                <div>
+                <div class="ai-chat-widget-header-actions">
                     <button id="widget-new-chat" title="New Chat"><i class="bi bi-plus-lg"></i></button>
+                    <button id="widget-reset-size" class="d-none" title="Reset size"><i class="bi bi-arrows-angle-contract"></i></button>
                     <button id="widget-close" title="Close"><i class="bi bi-x-lg"></i></button>
                 </div>
             </div>
@@ -183,7 +183,12 @@
             supportedExtensionsText: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(supportedExtensionsDisplay)),
             widget: {
             chatWidgetContainer: '#widget-panel',
-            chatWidgetStateName: widgetStateName
+            chatWidgetStateName: widgetStateName,
+            toggleButtonSelector: '#widget-toggle',
+            resetSizeButtonSelector: '#widget-reset-size',
+            enableDragging: true,
+            enableResizing: true,
+            persistLayout: true
             }
             });
 
@@ -192,6 +197,10 @@
             setPanelOpen(localStorage.getItem(widgetOpenStateKey) === 'true');
 
             toggle.addEventListener('click', function () {
+            if (toggle.dataset.dragSuppressClick === 'true') {
+            toggle.dataset.dragSuppressClick = 'false';
+            return;
+            }
             setPanelOpen(!panel.classList.contains('open'));
             });
 
