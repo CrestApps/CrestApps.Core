@@ -283,7 +283,7 @@ public sealed class GitHubOAuthService
                 {
                     Id = m.Id,
                     Name = !string.IsNullOrEmpty(m.Name) ? m.Name : m.Id,
-                    CostMultiplier = (int)(m.Billing?.Multiplier ?? 0),
+                    CostMultiplier = m.Billing?.Multiplier ?? 0,
                 })
                 .ToList();
         }

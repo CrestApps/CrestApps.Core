@@ -40,4 +40,9 @@ public sealed class CopilotSessionMetadata
     /// When the access token expires.
     /// </summary>
     public DateTime? ExpiresAt { get; set; }
+
+    /// <summary>
+    /// The reasoning effort level for the session.
+    /// </summary>
+    public CopilotReasoningEffort ReasoningEffort { get; set; }
 }

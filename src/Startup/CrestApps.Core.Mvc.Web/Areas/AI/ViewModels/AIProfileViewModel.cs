@@ -145,6 +145,8 @@ public sealed class AIProfileViewModel
     // Copilot
     public string CopilotModel { get; set; }
 
+    public CopilotReasoningEffort CopilotReasoningEffort { get; set; }
+
     public bool CopilotIsAllowAll { get; set; }
 
     public bool CopilotIsConfigured { get; set; }
@@ -339,6 +341,7 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<CopilotSessionMetadata>(out var copilotMeta))
         {
             vm.CopilotModel = copilotMeta.CopilotModel;
+            vm.CopilotReasoningEffort = copilotMeta.ReasoningEffort;
             vm.CopilotIsAllowAll = copilotMeta.IsAllowAll;
         }
 
@@ -567,6 +570,7 @@ public sealed class AIProfileViewModel
             profile.Alter<CopilotSessionMetadata>(metadata =>
             {
                 metadata.CopilotModel = CopilotModel;
+                metadata.ReasoningEffort = CopilotReasoningEffort;
                 metadata.IsAllowAll = CopilotIsAllowAll;
             });
         }

@@ -131,6 +131,8 @@ public sealed class AITemplateViewModel
     // Copilot.
     public string CopilotModel { get; set; }
 
+    public CopilotReasoningEffort CopilotReasoningEffort { get; set; }
+
     public bool CopilotIsAllowAll { get; set; }
 
     public bool CopilotIsConfigured { get; set; }
@@ -314,6 +316,7 @@ public sealed class AITemplateViewModel
             if (template.TryGet<CopilotSessionMetadata>(out var copilotMetadata))
             {
                 model.CopilotModel = copilotMetadata.CopilotModel;
+                model.CopilotReasoningEffort = copilotMetadata.ReasoningEffort;
                 model.CopilotIsAllowAll = copilotMetadata.IsAllowAll;
             }
 
@@ -539,6 +542,7 @@ public sealed class AITemplateViewModel
                 template.Put(new CopilotSessionMetadata
                 {
                     CopilotModel = CopilotModel,
+                    ReasoningEffort = CopilotReasoningEffort,
                     IsAllowAll = CopilotIsAllowAll,
                 });
             }

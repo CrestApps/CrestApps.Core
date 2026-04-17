@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Claude.Models;
@@ -347,7 +348,7 @@ public sealed class AITemplateController : Controller
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
         return model.CostMultiplier > 0
-            ? $"{name} (x{model.CostMultiplier})"
+            ? $"{name} (x{model.CostMultiplier.ToString("0.##", CultureInfo.InvariantCulture)})"
             : name;
     }
 }

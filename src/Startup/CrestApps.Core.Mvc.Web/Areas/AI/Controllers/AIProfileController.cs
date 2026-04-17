@@ -428,7 +428,7 @@ public sealed class AIProfileController : Controller
 
         if (template.TryGet<CopilotSessionMetadata>(out var copilotMetadata))
         {
-            profile.Put(new CopilotSessionMetadata { CopilotModel = copilotMetadata.CopilotModel, IsAllowAll = copilotMetadata.IsAllowAll, });
+            profile.Put(new CopilotSessionMetadata { CopilotModel = copilotMetadata.CopilotModel, ReasoningEffort = copilotMetadata.ReasoningEffort, IsAllowAll = copilotMetadata.IsAllowAll, });
         }
         else
         {
@@ -492,7 +492,7 @@ public sealed class AIProfileController : Controller
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
         return model.CostMultiplier > 0
-            ? $"{name} (x{model.CostMultiplier})"
+            ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
             : name;
     }
 }

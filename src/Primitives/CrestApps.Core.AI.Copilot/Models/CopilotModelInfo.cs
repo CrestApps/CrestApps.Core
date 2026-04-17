@@ -16,8 +16,8 @@ public sealed class CopilotModelInfo
     public string Name { get; set; }
 
     /// <summary>
-    /// The premium request cost multiplier (e.g., 1 for standard, 3 for premium).
+    /// The premium request cost multiplier (e.g., 1 for standard, 0.33 for discounted, 3 for premium).
     /// A value of <c>0</c> means unknown.
     /// </summary>
-    public int CostMultiplier { get; set; }
+    public double CostMultiplier { get; set; }
 }

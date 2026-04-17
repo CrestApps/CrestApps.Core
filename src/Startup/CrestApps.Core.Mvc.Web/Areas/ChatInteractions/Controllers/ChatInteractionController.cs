@@ -595,6 +595,7 @@ public sealed class ChatInteractionController : Controller
             interaction.Alter<CopilotSessionMetadata>(metadata =>
             {
                 metadata.CopilotModel = model.CopilotModel;
+                metadata.ReasoningEffort = model.CopilotReasoningEffort;
                 metadata.IsAllowAll = model.CopilotIsAllowAll;
             });
         }
@@ -830,7 +831,7 @@ public sealed class ChatInteractionController : Controller
         if (interaction != null && interaction.TryGet<CopilotSessionMetadata>(out var copilotMeta))
         {
             model.CopilotModel = copilotMeta.CopilotModel;
-
+            model.CopilotReasoningEffort = copilotMeta.ReasoningEffort;
             model.CopilotIsAllowAll = copilotMeta.IsAllowAll;
         }
     }
@@ -855,7 +856,7 @@ public sealed class ChatInteractionController : Controller
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
         return model.CostMultiplier > 0
-            ? $"{name} (x{model.CostMultiplier})"
+            ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
             : name;
     }
 }

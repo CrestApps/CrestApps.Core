@@ -103,6 +103,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         {
             metadata = md;
             sessionConfig.Model = metadata.CopilotModel;
+            sessionConfig.ReasoningEffort = GetReasoningEffortValue(metadata.ReasoningEffort);
             sessionConfig.OnPermissionRequest = CreatePermissionRequestHandler(metadata.IsAllowAll);
         }
 
@@ -265,6 +266,17 @@ public sealed class CopilotOrchestrator : IOrchestrator
         }
 
         return (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser, });
+    }
+
+    private static string GetReasoningEffortValue(CopilotReasoningEffort reasoningEffort)
+    {
+        return reasoningEffort switch
+        {
+            CopilotReasoningEffort.Low => "low",
+            CopilotReasoningEffort.Medium => "medium",
+            CopilotReasoningEffort.High => "high",
+            _ => null,
+        };
     }
 
     /// <summary>
