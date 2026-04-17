@@ -114,7 +114,7 @@ public sealed class CopilotAuthController : Controller
 
         var models = await _oauthService.ListModelsAsync(userId);
 
-        return Json(models.Select(m => new { m.Id, m.Name }));
+        return Json(models.Select(m => new { m.Id, m.Name, m.CostMultiplier }));
     }
 
     [HttpPost]

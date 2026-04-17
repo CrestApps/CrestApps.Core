@@ -19,6 +19,7 @@ internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSet
         interaction.Alter<ClaudeSessionMetadata>(metadata =>
         {
             metadata.ClaudeModel = GetString(settings, "anthropicModel");
+            metadata.EffortLevel = GetEnum<ClaudeEffortLevel>(settings, "anthropicEffortLevel");
         });
 
         return Task.CompletedTask;
@@ -37,5 +38,23 @@ internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSet
         }
 
         return null;
+    }
+
+    private static T GetEnum<T>(JsonElement element, string propertyName) where T : struct, Enum
+    {
+        if (element.TryGetProperty(propertyName, out var prop))
+        {
+            if (prop.ValueKind == JsonValueKind.Number && Enum.IsDefined(typeof(T), prop.GetInt32()))
+            {
+                return (T)(object)prop.GetInt32();
+            }
+
+            if (prop.ValueKind == JsonValueKind.String && Enum.TryParse<T>(prop.GetString(), ignoreCase: true, out var result))
+            {
+                return result;
+            }
+        }
+
+        return default;
     }
 }

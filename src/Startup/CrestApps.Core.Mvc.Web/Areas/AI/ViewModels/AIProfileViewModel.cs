@@ -138,10 +138,14 @@ public sealed class AIProfileViewModel
     // Anthropic
     public string ClaudeModel { get; set; }
 
+    public ClaudeEffortLevel ClaudeEffortLevel { get; set; }
+
     public bool ClaudeIsConfigured { get; set; }
 
     // Copilot
     public string CopilotModel { get; set; }
+
+    public CopilotReasoningEffort CopilotReasoningEffort { get; set; }
 
     public bool CopilotIsAllowAll { get; set; }
 
@@ -337,12 +341,14 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<CopilotSessionMetadata>(out var copilotMeta))
         {
             vm.CopilotModel = copilotMeta.CopilotModel;
+            vm.CopilotReasoningEffort = copilotMeta.ReasoningEffort;
             vm.CopilotIsAllowAll = copilotMeta.IsAllowAll;
         }
 
         if (profile.TryGet<ClaudeSessionMetadata>(out var anthropicMeta))
         {
             vm.ClaudeModel = anthropicMeta.ClaudeModel;
+            vm.ClaudeEffortLevel = anthropicMeta.EffortLevel;
         }
 
         return vm;
@@ -549,6 +555,7 @@ public sealed class AIProfileViewModel
             profile.Alter<ClaudeSessionMetadata>(metadata =>
             {
                 metadata.ClaudeModel = ClaudeModel;
+                metadata.EffortLevel = ClaudeEffortLevel;
             });
         }
         else
@@ -563,6 +570,7 @@ public sealed class AIProfileViewModel
             profile.Alter<CopilotSessionMetadata>(metadata =>
             {
                 metadata.CopilotModel = CopilotModel;
+                metadata.ReasoningEffort = CopilotReasoningEffort;
                 metadata.IsAllowAll = CopilotIsAllowAll;
             });
         }

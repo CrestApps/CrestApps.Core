@@ -237,6 +237,7 @@ public sealed class ChatInteractionController : Controller
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
             DataSourceFilter = ragMetadata?.Filter,
             ClaudeModel = anthropicMetadata?.ClaudeModel,
+            ClaudeEffortLevel = anthropicMetadata?.EffortLevel ?? CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.None,
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
             SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
             SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],
@@ -581,6 +582,7 @@ public sealed class ChatInteractionController : Controller
             interaction.Alter<ClaudeSessionMetadata>(metadata =>
             {
                 metadata.ClaudeModel = model.ClaudeModel;
+                metadata.EffortLevel = model.ClaudeEffortLevel;
             });
         }
         else
@@ -593,6 +595,7 @@ public sealed class ChatInteractionController : Controller
             interaction.Alter<CopilotSessionMetadata>(metadata =>
             {
                 metadata.CopilotModel = model.CopilotModel;
+                metadata.ReasoningEffort = model.CopilotReasoningEffort;
                 metadata.IsAllowAll = model.CopilotIsAllowAll;
             });
         }
@@ -771,7 +774,7 @@ public sealed class ChatInteractionController : Controller
                     model.CopilotGitHubUsername = cred?.GitHubUsername;
                     var models = await _oauthService.ListModelsAsync(userId);
                     model.CopilotAvailableModels = models
-                        .Select(m => new SelectListItem(m.Name, m.Id))
+                        .Select(m => new SelectListItem(FormatCopilotModelName(m), m.Id))
                         .ToList();
                 }
             }
@@ -816,7 +819,7 @@ public sealed class ChatInteractionController : Controller
                     model.CopilotGitHubUsername = cred?.GitHubUsername;
                     var models = await _oauthService.ListModelsAsync(userId);
                     model.CopilotAvailableModels = models
-                        .Select(m => new SelectListItem(m.Name, m.Id))
+                        .Select(m => new SelectListItem(FormatCopilotModelName(m), m.Id))
                         .ToList();
                 }
             }
@@ -828,7 +831,7 @@ public sealed class ChatInteractionController : Controller
         if (interaction != null && interaction.TryGet<CopilotSessionMetadata>(out var copilotMeta))
         {
             model.CopilotModel = copilotMeta.CopilotModel;
-
+            model.CopilotReasoningEffort = copilotMeta.ReasoningEffort;
             model.CopilotIsAllowAll = copilotMeta.IsAllowAll;
         }
     }
@@ -847,4 +850,13 @@ public sealed class ChatInteractionController : Controller
     }
 
     private bool IsCopilotConfigured() => _copilotOptions.IsConfigured();
+
+    private static string FormatCopilotModelName(CopilotModelInfo model)
+    {
+        var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
+
+        return model.CostMultiplier > 0
+            ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
+            : name;
+    }
 }

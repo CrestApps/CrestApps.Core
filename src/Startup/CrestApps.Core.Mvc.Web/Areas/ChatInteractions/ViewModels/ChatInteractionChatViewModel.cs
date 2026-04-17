@@ -75,6 +75,8 @@ internal sealed class ChatInteractionChatViewModel
     // Copilot
     public string CopilotModel { get; set; }
 
+    public CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort CopilotReasoningEffort { get; set; }
+
     public bool CopilotIsAllowAll { get; set; }
 
     public bool CopilotIsConfigured { get; set; }
@@ -87,6 +89,8 @@ internal sealed class ChatInteractionChatViewModel
 
     // Anthropic
     public string ClaudeModel { get; set; }
+
+    public CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel ClaudeEffortLevel { get; set; }
 
     public bool ClaudeIsConfigured { get; set; }
 

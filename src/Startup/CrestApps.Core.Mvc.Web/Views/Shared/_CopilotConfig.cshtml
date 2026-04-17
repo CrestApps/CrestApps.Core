@@ -8,6 +8,7 @@
       - CopilotIsAuthenticated (bool)
       - CopilotGitHubUsername (string)
       - CopilotModel (string)
+      - CopilotReasoningEffort (enum)
       - CopilotIsAllowAll (bool)
       - CopilotAvailableModels (List<SelectListItem>)
 *@
@@ -21,6 +22,7 @@
     var isAuth = (bool)(ViewData["CopilotIsAuth"] ?? false);
     var username = ViewData["CopilotUsername"] as string ?? "";
     var copilotModel = ViewData["CopilotModel"] as string ?? "";
+    var copilotReasoningEffort = (CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort)(ViewData["CopilotReasoningEffort"] ?? CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.None);
     var isAllowAll = (bool)(ViewData["CopilotIsAllowAll"] ?? false);
     var copilotModels = ViewData["CopilotModels"] as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? [];
     var orchestratorName = CrestApps.Core.AI.Copilot.Services.CopilotOrchestrator.OrchestratorName;
@@ -91,6 +93,17 @@
                     <div class="form-text">Select the Copilot model to use.</div>
                 </div>
 
+                <div class="mb-3 @(isAuth ? "" : "d-none")" id="@(prefix)-copilot-effort-group">
+                    <label for="@(prefix)-CopilotReasoningEffort" class="form-label">Effort level</label>
+                    <select name="CopilotReasoningEffort" id="@(prefix)-CopilotReasoningEffort" class="form-select">
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.None)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.None ? "selected" : null)">Default</option>
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Low)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Low ? "selected" : null)">Low</option>
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Medium)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Medium ? "selected" : null)">Medium</option>
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.High)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.High ? "selected" : null)">High</option>
+                    </select>
+                    <div class="form-text">Select the reasoning effort level for the Copilot model.</div>
+                </div>
+
                 <div class="mb-3 @(isAuth ? "" : "d-none")" id="@(prefix)-copilot-flags-group">
                     <div class="form-check">
                         <input type="checkbox" name="CopilotIsAllowAll" value="true" class="form-check-input"
@@ -108,6 +121,17 @@
                     <input type="text" name="CopilotModel" id="@(prefix)-CopilotModel" class="form-control"
                            value="@copilotModel" placeholder="Leave empty to use the default model from settings" />
                     <div class="form-text">Optionally override the model name. Leave empty to use the default model configured in Copilot settings.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="@(prefix)-CopilotReasoningEffort" class="form-label">Effort level</label>
+                    <select name="CopilotReasoningEffort" id="@(prefix)-CopilotReasoningEffort" class="form-select">
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.None)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.None ? "selected" : null)">Default</option>
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Low)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Low ? "selected" : null)">Low</option>
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Medium)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.Medium ? "selected" : null)">Medium</option>
+                        <option value="@((int)CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.High)" selected="@(copilotReasoningEffort == CrestApps.Core.AI.Copilot.Models.CopilotReasoningEffort.High ? "selected" : null)">High</option>
+                    </select>
+                    <div class="form-text">Select the reasoning effort level for the Copilot model.</div>
                 </div>
 
                 <div class="mb-3">
@@ -163,6 +187,7 @@
             const usernameEl = document.getElementById(prefix + '-github-username');
             const modelSelect = document.getElementById(prefix + '-CopilotModel');
             const modelGroup = document.getElementById(prefix + '-copilot-model-group');
+            const effortGroup = document.getElementById(prefix + '-copilot-effort-group');
             const flagsGroup = document.getElementById(prefix + '-copilot-flags-group');
 
             const statusUrl = '@Url.Action("Status", "CopilotAuth", new { area = "AIChat" })';
@@ -182,6 +207,7 @@
                 disconnectedEl.classList.toggle('d-none', state !== 'disconnected');
                 loadingEl.classList.toggle('d-none', state !== 'loading');
                 if (modelGroup) modelGroup.classList.toggle('d-none', state !== 'connected');
+                if (effortGroup) effortGroup.classList.toggle('d-none', state !== 'connected');
                 if (flagsGroup) flagsGroup.classList.toggle('d-none', state !== 'connected');
             }
 
@@ -195,7 +221,10 @@
                     models.forEach(function (m) {
                         const opt = document.createElement('option');
                         opt.value = m.id;
-                        opt.textContent = m.name;
+                        const costMultiplier = typeof m.costMultiplier === 'number'
+                            ? m.costMultiplier.toFixed(2).replace(/\.?0+$/, '')
+                            : '';
+                        opt.textContent = m.costMultiplier > 0 ? m.name + ' (x' + costMultiplier + ')' : m.name;
                         modelSelect.appendChild(opt);
                     });
                     if (currentValue && modelSelect.querySelector('option[value="' + CSS.escape(currentValue) + '"]')) {
