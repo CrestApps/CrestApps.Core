@@ -10,6 +10,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAISftpMcpResources(this IServiceCollection services, Action<McpResourceTypeEntry> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return services.AddCoreAIMcpResourceType<SftpResourceTypeHandler>(SftpResourceConstants.Type, entry =>
         {
             entry.DisplayName = new LocalizedString("SFTP", "SFTP");
@@ -24,6 +26,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsMcpServerBuilder AddSftpResources(this CrestAppsMcpServerBuilder builder, Action<McpResourceTypeEntry> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAISftpMcpResources(configure);
         return builder;
     }

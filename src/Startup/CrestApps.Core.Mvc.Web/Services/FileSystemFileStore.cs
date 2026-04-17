@@ -16,6 +16,9 @@ public sealed class FileSystemFileStore : IDocumentFileStore
 
     public async Task<string> SaveFileAsync(string fileName, Stream content)
     {
+        ArgumentNullException.ThrowIfNull(fileName);
+        ArgumentNullException.ThrowIfNull(content);
+
         var filePath = GetSafePath(fileName);
         var directory = Path.GetDirectoryName(filePath);
         Directory.CreateDirectory(directory);
@@ -28,6 +31,8 @@ public sealed class FileSystemFileStore : IDocumentFileStore
 
     public Task<Stream> GetFileAsync(string fileName)
     {
+        ArgumentNullException.ThrowIfNull(fileName);
+
         var filePath = GetSafePath(fileName);
 
         if (!File.Exists(filePath))
@@ -40,6 +45,8 @@ public sealed class FileSystemFileStore : IDocumentFileStore
 
     public Task<bool> DeleteFileAsync(string fileName)
     {
+        ArgumentNullException.ThrowIfNull(fileName);
+
         var filePath = GetSafePath(fileName);
 
         if (File.Exists(filePath))

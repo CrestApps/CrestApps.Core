@@ -38,6 +38,8 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
 
     public async Task ConfigureAsync(CompletionServiceConfigureContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         if (!context.IsFunctionInvocationSupported ||
             context.CompletionContext is null ||
                 !context.CompletionContext.AdditionalProperties.TryGetValue(ScopedEntriesKey, out var entriesObj) ||

@@ -42,6 +42,8 @@ public sealed class GitHubOAuthService
 
     public string GetAuthorizationUrl(string callbackUrl, string returnUrl)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(callbackUrl);
+
         var settings = _options.Value;
 
         if (string.IsNullOrWhiteSpace(settings.ClientId))
@@ -67,6 +69,9 @@ public sealed class GitHubOAuthService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var settings = _options.Value;
 
         if (string.IsNullOrWhiteSpace(settings.ClientId) || string.IsNullOrWhiteSpace(settings.ClientSecret))
@@ -139,6 +144,8 @@ public sealed class GitHubOAuthService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var credential = await _credentialStore.GetProtectedCredentialAsync(userId, cancellationToken);
 
         if (credential is null || string.IsNullOrEmpty(credential.ProtectedAccessToken))
@@ -162,6 +169,8 @@ public sealed class GitHubOAuthService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var credential = await _credentialStore.GetProtectedCredentialAsync(userId, cancellationToken);
 
         if (credential is not null && !string.IsNullOrEmpty(credential.ProtectedAccessToken))
@@ -176,6 +185,8 @@ public sealed class GitHubOAuthService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var credential = await _credentialStore.GetProtectedCredentialAsync(userId, cancellationToken);
 
         if (credential is null || string.IsNullOrEmpty(credential.ProtectedAccessToken))
@@ -228,6 +239,8 @@ public sealed class GitHubOAuthService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         await _credentialStore.ClearCredentialAsync(userId, cancellationToken);
     }
 
@@ -235,6 +248,8 @@ public sealed class GitHubOAuthService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var credential = await GetCredentialAsync(userId, cancellationToken);
 
         if (credential == null)
@@ -256,6 +271,8 @@ public sealed class GitHubOAuthService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var accessToken = await GetValidAccessTokenAsync(userId, cancellationToken);
 
         if (string.IsNullOrEmpty(accessToken))

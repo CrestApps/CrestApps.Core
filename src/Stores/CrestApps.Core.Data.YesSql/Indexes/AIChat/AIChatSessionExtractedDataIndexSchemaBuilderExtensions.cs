@@ -6,6 +6,9 @@ public static class AIChatSessionExtractedDataIndexSchemaBuilderExtensions
 {
     public static async Task CreateAIChatSessionExtractedDataIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(options);
+
         await schemaBuilder.CreateMapIndexTableAsync<AIChatSessionExtractedDataIndex>(table => table
             .Column<string>(nameof(AIChatSessionExtractedDataIndex.SessionId), column => column.WithLength(26))
             .Column<string>(nameof(AIChatSessionExtractedDataIndex.ProfileId), column => column.WithLength(26))

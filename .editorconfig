@@ -17,6 +17,9 @@ indent_size = 4
 [*.{json,yml,csproj,props,targets}]
 indent_size = 2
 
+[*.cshtml]
+indent_size = 4
+
 [*.cs]
 # Prefer "var" everywhere
 csharp_style_var_for_built_in_types                        = true : suggestion

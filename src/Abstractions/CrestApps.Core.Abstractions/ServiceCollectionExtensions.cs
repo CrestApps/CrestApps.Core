@@ -11,6 +11,8 @@ public static class ServiceCollectionExtensions
          where TModel : CatalogItem
          where T : class, ICatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
 
         services.AddScoped<T>();
@@ -23,6 +25,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel
         where T : class, INamedCatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
         services.RemoveAll<INamedCatalog<TModel>>();
 
@@ -37,6 +41,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, ISourceAwareModel
         where T : class, ISourceCatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
         services.RemoveAll<ISourceCatalog<TModel>>();
 
@@ -51,6 +57,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where T : class, INamedSourceCatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
         services.RemoveAll<INamedCatalog<TModel>>();
         services.RemoveAll<ISourceCatalog<TModel>>();

@@ -6,6 +6,9 @@ public static class AIProfileTemplateIndexSchemaBuilderExtensions
 {
     public static async Task CreateAIProfileTemplateIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(options);
+
         await schemaBuilder.CreateMapIndexTableAsync<AIProfileTemplateIndex>(table => table
             .Column<string>(nameof(AIProfileTemplateIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIProfileTemplateIndex.Name), column => column.WithLength(255))

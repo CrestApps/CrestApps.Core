@@ -9,6 +9,8 @@ public static class OpenXmlServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIOpenXmlDocumentProcessing(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddCoreAIIngestionDocumentReader<OpenXmlIngestionDocumentReader>(
             ".docx",
             new ExtractorExtension(".xlsx", false),
@@ -19,6 +21,8 @@ public static class OpenXmlServiceCollectionExtensions
 
     public static CrestAppsDocumentProcessingBuilder AddOpenXml(this CrestAppsDocumentProcessingBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIOpenXmlDocumentProcessing();
         return builder;
     }

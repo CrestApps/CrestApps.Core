@@ -63,9 +63,17 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 
 - Follow `.editorconfig`
 - Prefer constructor injection
+- Do not add `ArgumentNullException.ThrowIf...` guards in constructors
+- Add null guards in public implementation methods when a non-nullable input is required and the method does not intentionally support `null`
+- Skip null guards for nullable or intentionally null-tolerant parameters
+- After the last null-check/argument-validation line in a method, add a blank line before the next statement
+- If a method has only one null-check/argument-validation line, still add a blank line after that final guard line
+- Add a blank line before a `return` statement unless the `return` is the first statement inside a `{ ... }` block
+- Add a blank line before and after `if` blocks, `switch` statements, and loops unless the block is immediately preceded by `{`
+- Do not add a blank line between an `if`/`else`/`switch`/loop condition and its opening `{`
 - Use `var` consistently with repository style
 - Only use expression-bodied members when the entire member fits on a single short line; use a full block body for anything longer or split across lines
-- Avoid `DateTime.UtcNow`; prefer injected time abstractions when the surrounding code already uses them
+- Avoid `DateTime.UtcNow`; prefer injected `TimeProvider`.
 - Keep public docs and comments honest to the current code
 
 ## Runtime notes

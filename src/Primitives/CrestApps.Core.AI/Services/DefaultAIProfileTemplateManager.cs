@@ -16,6 +16,11 @@ public sealed class DefaultAIProfileTemplateManager : NamedSourceCatalogManager<
         ILogger<DefaultAIProfileTemplateManager> logger)
         : base(catalog, handlers, logger)
     {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(handlers);
+        ArgumentNullException.ThrowIfNull(providers);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _providers = providers;
     }
 
@@ -28,6 +33,8 @@ public sealed class DefaultAIProfileTemplateManager : NamedSourceCatalogManager<
 
     public new async ValueTask<AIProfileTemplate> FindByIdAsync(string id)
     {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+
         var template = await base.FindByIdAsync(id);
 
         if (template is not null)
@@ -51,6 +58,8 @@ public sealed class DefaultAIProfileTemplateManager : NamedSourceCatalogManager<
 
     public new async ValueTask<IEnumerable<AIProfileTemplate>> GetAsync(string source)
     {
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
         var dbTemplates = await base.GetAsync(source);
 
         return await MergeWithProvidersAsync(dbTemplates, source);
@@ -58,6 +67,8 @@ public sealed class DefaultAIProfileTemplateManager : NamedSourceCatalogManager<
 
     public new async ValueTask<IEnumerable<AIProfileTemplate>> FindBySourceAsync(string source)
     {
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
         var dbTemplates = await base.FindBySourceAsync(source);
 
         return await MergeWithProvidersAsync(dbTemplates, source);

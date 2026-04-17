@@ -25,6 +25,8 @@ public sealed class HubRouteManager
     public static void MapHub<T>(IEndpointRouteBuilder builder)
         where T : Hub
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.MapHub<T>(DefaultPath + typeof(T).Name);
     }
 
@@ -43,6 +45,7 @@ public sealed class HubRouteManager
 
     public string GetUriByRoute(HttpContext httpContext, string pattern)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentException.ThrowIfNullOrEmpty(pattern);
 
         return BuildAbsoluteUri(httpContext, $"{_hubPrefix}/{pattern.TrimStart('/')}");
@@ -51,6 +54,8 @@ public sealed class HubRouteManager
     public string GetUriByHub<T>(HttpContext httpContext)
         where T : Hub
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         return BuildAbsoluteUri(httpContext, $"{_hubPrefix}{DefaultPath}{typeof(T).Name}");
     }
 

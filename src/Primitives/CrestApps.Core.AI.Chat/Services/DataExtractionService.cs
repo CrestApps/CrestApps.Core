@@ -41,6 +41,10 @@ public sealed class DataExtractionService
         IReadOnlyList<AIChatSessionPrompt> prompts,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(prompts);
+
         var settings = profile.GetSettings<AIProfileDataExtractionSettings>();
         var promptCount = prompts.Count(p => p.Role == ChatRole.User);
 

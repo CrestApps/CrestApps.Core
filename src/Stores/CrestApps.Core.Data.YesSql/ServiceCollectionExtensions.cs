@@ -33,6 +33,9 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreYesSqlDataStore(this IServiceCollection services, Func<Configuration, IConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
         services.AddOptions<YesSqlStoreOptions>();
 
         services.AddSingleton(sp =>
@@ -53,6 +56,9 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsCoreBuilder AddYesSqlDataStore(this CrestAppsCoreBuilder builder, Func<Configuration, IConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
         builder.Services.AddCoreYesSqlDataStore(configure);
 
         return builder;
@@ -66,6 +72,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsAISuiteBuilder AddYesSqlStores(this CrestAppsAISuiteBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIServicesStoresYesSql();
         builder.Services.AddCoreAIProfileTemplateStoresYesSql();
         builder.Services.AddCoreAIChatSessionStoresYesSql();
@@ -79,6 +87,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsA2AClientBuilder AddYesSqlStores(this CrestAppsA2AClientBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIA2AClientStoresYesSql();
 
         return builder;
@@ -90,6 +100,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsMcpClientBuilder AddYesSqlStores(this CrestAppsMcpClientBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIMcpClientStoresYesSql();
 
         return builder;
@@ -101,6 +113,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsMcpServerBuilder AddYesSqlStores(this CrestAppsMcpServerBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIMcpServerStoresYesSql();
 
         return builder;
@@ -112,6 +126,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsChatInteractionsBuilder AddYesSqlStores(this CrestAppsChatInteractionsBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIChatInteractionStoresYesSql();
 
         return builder;
@@ -124,6 +140,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsDocumentProcessingBuilder AddYesSqlStores(this CrestAppsDocumentProcessingBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIDocumentProcessingStoresYesSql();
         builder.Services.AddCoreAIDataSourceStoresYesSql();
 
@@ -136,6 +154,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsAIMemoryBuilder AddYesSqlStores(this CrestAppsAIMemoryBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIMemoryStoresYesSql();
 
         return builder;
@@ -147,6 +167,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static CrestAppsIndexingBuilder AddYesSqlStores(this CrestAppsIndexingBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreIndexingStoresYesSql();
 
         return builder;
@@ -159,6 +181,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIServicesStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(services, static o => o.AICollectionName);
@@ -176,6 +200,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIProfileTemplateStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileTemplateIndexProvider>());
@@ -189,6 +215,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreIndexingStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, SearchIndexProfileIndexProvider>());
@@ -202,6 +230,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIA2AClientStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         AddYesSqlDocumentCatalog<A2AConnection, A2AConnectionIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, A2AConnectionIndexProvider>());
@@ -215,6 +245,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIMcpClientStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         AddYesSqlSourceDocumentCatalog<McpConnection, McpConnectionIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpConnectionIndexProvider>());
@@ -228,6 +260,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIMcpServerStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         AddYesSqlNamedDocumentCatalog<McpPrompt, McpPromptIndex>(services, static o => o.AICollectionName);
         AddYesSqlSourceDocumentCatalog<McpResource, McpResourceIndex>(services, static o => o.AICollectionName);
 
@@ -247,6 +281,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatSessionStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddCoreAIChatSessionBaseStoresYesSql();
         services.AddCoreAIChatSessionMetricsStoresYesSql();
         services.AddCoreAICompletionUsageStoresYesSql();
@@ -262,6 +298,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatSessionBaseStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>();
         services.AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>();
 
@@ -276,6 +314,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatSessionMetricsStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionMetricsIndexProvider>());
 
         return services;
@@ -286,6 +326,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAICompletionUsageStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AICompletionUsageIndexProvider>());
 
         return services;
@@ -296,6 +338,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatSessionExtractedDataStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionExtractedDataIndexProvider>());
 
         return services;
@@ -307,6 +351,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIDocumentProcessingStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>();
         services.AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>();
 
@@ -322,6 +368,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIDataSourceStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>();
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
@@ -336,6 +384,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIMemoryStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddScoped<IAIMemoryStore, YesSqlAIMemoryStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIMemoryEntryIndexProvider>());
@@ -350,6 +400,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatInteractionStoresYesSql(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         AddYesSqlDocumentCatalog<ChatInteraction, ChatInteractionIndex>(services, static o => o.AICollectionName);
         services.AddScoped<IChatInteractionPromptStore, YesSqlChatInteractionPromptStore>();
 
@@ -361,6 +413,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddYesSqlDocumentCatalogs(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped(typeof(ICatalog<>), typeof(DocumentCatalog<,>));
         services.TryAddScoped(typeof(INamedCatalog<>), typeof(NamedDocumentCatalog<,>));
         services.TryAddScoped(typeof(ISourceCatalog<>), typeof(SourceDocumentCatalog<,>));
@@ -377,6 +431,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem
         where TIndex : CatalogItemIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return AddYesSqlDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
@@ -388,6 +444,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem
         where TIndex : CatalogItemIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
         services.AddScoped<ICatalog<TModel>>(sp =>
         {
@@ -407,6 +465,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return AddYesSqlNamedDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
@@ -418,6 +478,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
         services.RemoveAll<INamedCatalog<TModel>>();
 
@@ -441,6 +503,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, ISourceAwareModel
         where TIndex : CatalogItemIndex, ISourceAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return AddYesSqlSourceDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
@@ -452,6 +516,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, ISourceAwareModel
         where TIndex : CatalogItemIndex, ISourceAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
         services.RemoveAll<ISourceCatalog<TModel>>();
 
@@ -475,6 +541,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
@@ -486,6 +554,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.RemoveAll<ICatalog<TModel>>();
         services.RemoveAll<INamedCatalog<TModel>>();
         services.RemoveAll<ISourceCatalog<TModel>>();
@@ -510,6 +580,8 @@ public static class ServiceCollectionExtensions
         where TIndex : CatalogItemIndex, INameAwareIndex
         where TService : class, ICatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services
             .RemoveAll<ICatalog<TModel>>();
 
@@ -526,6 +598,8 @@ public static class ServiceCollectionExtensions
         where TIndex : CatalogItemIndex
         where TService : class, ICatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services
             .RemoveAll<ICatalog<TModel>>();
 
@@ -541,6 +615,8 @@ public static class ServiceCollectionExtensions
         where TIndex : CatalogItemIndex, ISourceAwareIndex
         where TService : class, ISourceCatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services
             .RemoveAll<ICatalog<TModel>>()
             .RemoveAll<ISourceCatalog<TModel>>();
@@ -559,6 +635,8 @@ public static class ServiceCollectionExtensions
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
         where TService : class, INamedSourceCatalog<TModel>
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services
             .RemoveAll<ICatalog<TModel>>()
             .RemoveAll<INamedCatalog<TModel>>()
@@ -585,6 +663,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return AddYesSqlNamedSourceBindingSource<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
@@ -597,6 +677,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddScoped(sp =>
         {
             var session = sp.GetRequiredService<ISession>();
@@ -618,6 +700,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddScoped<NamedDocumentCatalog<TModel, TIndex>>();
         services.AddScoped<INamedCatalogSource<TModel>>(sp =>
             new WritableNamedCatalogBindingSource<TModel>(sp.GetRequiredService<NamedDocumentCatalog<TModel, TIndex>>()));
@@ -634,6 +718,8 @@ public static class ServiceCollectionExtensions
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddScoped(sp =>
         {
             var session = sp.GetRequiredService<ISession>();

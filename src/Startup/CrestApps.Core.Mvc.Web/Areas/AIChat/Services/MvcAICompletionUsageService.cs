@@ -32,6 +32,8 @@ public sealed class MvcAICompletionUsageService : IAICompletionUsageObserver
 
     public async Task UsageRecordedAsync(AICompletionUsageRecord record, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(record);
+
         if (!_generalAIOptions.EnableAIUsageTracking)
         {
             return;

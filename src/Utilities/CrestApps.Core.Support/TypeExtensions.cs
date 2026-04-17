@@ -7,6 +7,8 @@ public static class TypeExtensions
 {
     public static object GetSafeObject(this Type type, string value)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         if (Nullable.GetUnderlyingType(type) != null && string.IsNullOrWhiteSpace(value))
         {
             return null;
@@ -69,6 +71,8 @@ public static class TypeExtensions
     /// <returns></returns>
     public static IEnumerable<Type> BaseTypes(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var baseType = type;
         while (true)
         {
@@ -90,12 +94,18 @@ public static class TypeExtensions
     /// <returns></returns>
     public static bool AnyBaseType(this Type type, Func<Type, bool> predicate)
     {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(predicate);
+
         return type.BaseTypes()
             .Any(predicate);
     }
 
     public static Type FirstParticularType(this Type type, Type generic)
     {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(generic);
+
         return type.BaseTypes()
             .FirstOrDefault(generic.IsAssignableFrom);
     }
@@ -107,6 +117,9 @@ public static class TypeExtensions
     /// <returns></returns>
     public static bool IsParticularGeneric(this Type type, Type generic)
     {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(generic);
+
         return type.IsGenericType && type.GetGenericTypeDefinition() == generic;
     }
     /// <summary>
@@ -120,6 +133,8 @@ public static class TypeExtensions
     /// </returns>
     public static bool IsNumeric(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         return _integralNumericTypes.Contains(t) || _fractionalNumericTypes.Contains(t);
@@ -135,6 +150,8 @@ public static class TypeExtensions
     /// </returns>
     public static bool IsIntegralNumeric(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         return _integralNumericTypes.Contains(t);
@@ -150,6 +167,8 @@ public static class TypeExtensions
     /// </returns>
     public static bool IsFractionalNumeric(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         return _fractionalNumericTypes.Contains(t);
@@ -157,6 +176,8 @@ public static class TypeExtensions
 
     public static bool IsDateTime(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         return t == typeof(DateTime);
@@ -164,6 +185,8 @@ public static class TypeExtensions
 
     public static bool IsTrueEnum(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         return t.IsEnum;
@@ -171,6 +194,8 @@ public static class TypeExtensions
 
     public static bool IsBoolean(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         return t == typeof(bool);
@@ -178,6 +203,8 @@ public static class TypeExtensions
 
     public static bool IsString(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         return t == typeof(string);
@@ -185,6 +212,8 @@ public static class TypeExtensions
 
     public static bool IsSingleValueType(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         return type.IsNumeric()
             || type.IsBoolean()
                 || type.IsDateTime()
@@ -194,6 +223,9 @@ public static class TypeExtensions
 
     public static Type ExtractGenericInterface(this Type queryType, Type interfaceType)
     {
+        ArgumentNullException.ThrowIfNull(queryType);
+        ArgumentNullException.ThrowIfNull(interfaceType);
+
         bool matchesInterface(Type t) => t.IsGenericType && t.GetGenericTypeDefinition() == interfaceType;
 
         return matchesInterface(queryType) ? queryType : queryType.GetInterfaces().FirstOrDefault(matchesInterface);
@@ -201,6 +233,9 @@ public static class TypeExtensions
 
     public static Type[] GetTypeArgumentsIfMatch(this Type closedType, Type matchingOpenType)
     {
+        ArgumentNullException.ThrowIfNull(closedType);
+        ArgumentNullException.ThrowIfNull(matchingOpenType);
+
         if (!closedType.IsGenericType)
         {
             return null;
@@ -213,21 +248,29 @@ public static class TypeExtensions
 
     public static bool IsCompatibleObject(this Type type, object value)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         return (value == null && TypeAllowsNullValue(type)) || type.IsInstanceOfType(value);
     }
 
     public static bool IsNullableValueType(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         return Nullable.GetUnderlyingType(type) != null;
     }
 
     public static bool TypeAllowsNullValue(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         return !type.IsValueType || IsNullableValueType(type);
     }
 
     public static bool IsTrueGenericType(this Type type)
     {
+        ArgumentNullException.ThrowIfNull(type);
+
         if (type.IsString())
         {
             return false;

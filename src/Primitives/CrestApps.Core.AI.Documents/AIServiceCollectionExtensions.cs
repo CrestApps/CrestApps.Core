@@ -17,6 +17,9 @@ public static class AIServiceCollectionExtensions
     public static IServiceCollection AddCoreAIIngestionDocumentReader<T>(this IServiceCollection services, params ExtractorExtension[] supportedExtensions)
         where T : IngestionDocumentReader
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(supportedExtensions);
+
         services.Configure<ChatDocumentsOptions>(options =>
         {
             foreach (var extension in supportedExtensions)

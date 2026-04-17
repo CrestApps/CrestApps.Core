@@ -47,6 +47,8 @@ public class DefaultTemplateService : ITemplateService
 
     public virtual async Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
         var template = await GetAsync(id)
             ?? throw new KeyNotFoundException($"template with ID '{id}' was not found.");
 

@@ -55,6 +55,8 @@ public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
 
     public async Task<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> request, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var entry = (await _catalog.GetAllAsync()).FirstOrDefault(entry => entry.Prompt?.Name == request.Params.Name);
 
         if (entry?.Prompt is not null)

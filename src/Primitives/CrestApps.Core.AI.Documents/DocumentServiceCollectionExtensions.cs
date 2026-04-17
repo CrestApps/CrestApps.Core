@@ -23,6 +23,8 @@ public static class DocumentServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIDocumentProcessing(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddOptions<InteractionDocumentOptions>();
         services.AddCoreAIDocumentIndexProfileHandler();
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
@@ -66,6 +68,8 @@ public static class DocumentServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddDocumentProcessing(this CrestAppsAISuiteBuilder builder, Action<CrestAppsDocumentProcessingBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIDocumentProcessing();
 
         if (configure is not null)
@@ -79,6 +83,8 @@ public static class DocumentServiceCollectionExtensions
     [Obsolete("Use AddAISuite(ai => ai.AddDocumentProcessing(...)).")]
     public static CrestAppsCoreBuilder AddDocumentProcessing(this CrestAppsCoreBuilder builder, Action<CrestAppsDocumentProcessingBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIDocumentProcessing();
 
         if (configure is not null)

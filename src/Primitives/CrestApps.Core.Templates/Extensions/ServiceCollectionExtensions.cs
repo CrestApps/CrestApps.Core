@@ -27,6 +27,8 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<TemplateOptions> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         // Register the built-in Markdown parser. Additional parsers can be added
         // by registering more ITemplateParser implementations.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateParser, DefaultMarkdownTemplateParser>());
@@ -58,6 +60,9 @@ public static class ServiceCollectionExtensions
         string source = null,
         string featureId = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(assembly);
+
         services.AddSingleton<ITemplateProvider>(sp =>
         {
             var parsers = sp.GetServices<ITemplateParser>();

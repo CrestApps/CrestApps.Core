@@ -39,6 +39,7 @@ internal static class GetChatSessionEndpoint
             {
                 id = session.ProfileId,
             },
+            documents = session.Documents ?? [],
             messages = prompts.Select(message => new
             {
                 id = message.ItemId,

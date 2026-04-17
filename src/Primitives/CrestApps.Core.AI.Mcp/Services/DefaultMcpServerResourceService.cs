@@ -43,6 +43,8 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
 
     public async Task<ReadResourceResult> ReadAsync(RequestContext<ReadResourceRequestParams> request, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         // Try resources from registered providers first.
         foreach (var provider in _resourceProviders)
         {

@@ -25,12 +25,15 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     public async Task<AIChatSession> FindByIdAsync(string id)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
+
         var record = await _dbContext.AIChatSessionRecords.AsNoTracking().FirstOrDefaultAsync(x => x.SessionId == id);
         return record is null ? null : Materialize(record);
     }
 
     public Task<AIChatSession> FindAsync(string id)
     {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+
         return FindByIdAsync(id);
     }
 
@@ -45,6 +48,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         var skip = (page - 1) * pageSize;
         var total = await query.CountAsync();
         var records = await query.OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.LastActivityUtc).Skip(skip).Take(pageSize).ToListAsync();
+
         return new AIChatSessionResult
         {
             Count = total,
@@ -55,6 +59,8 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     public Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context)
     {
         ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(context);
+
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var session = new AIChatSession
         {
@@ -66,6 +72,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         };
         var user = _httpContextAccessor.HttpContext?.User;
         var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier) ?? user?.Identity?.Name;
+
         if (!string.IsNullOrEmpty(userId))
         {
             session.UserId = userId;
@@ -93,6 +100,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
             }
 
             var handlerSettings = profile.GetSettings<ResponseHandlerProfileSettings>();
+
             if (!string.IsNullOrEmpty(handlerSettings.InitialResponseHandlerName))
             {
                 session.ResponseHandlerName = handlerSettings.InitialResponseHandlerName;
@@ -105,8 +113,10 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     public async Task SaveAsync(AIChatSession chatSession)
     {
         ArgumentNullException.ThrowIfNull(chatSession);
+
         chatSession.LastActivityUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == chatSession.SessionId);
+
         if (record is null)
         {
             _dbContext.AIChatSessionRecords.Add(CreateRecord(chatSession));
@@ -122,7 +132,9 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     public async Task<bool> DeleteAsync(string sessionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
+
         var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == sessionId);
+
         if (record is null)
         {
             return false;
@@ -140,13 +152,16 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
         _dbContext.AIChatSessionRecords.Remove(record);
         await _dbContext.SaveChangesAsync();
+
         return true;
     }
 
     public async Task<int> DeleteAllAsync(string profileId)
     {
         ArgumentException.ThrowIfNullOrEmpty(profileId);
+
         var records = await _dbContext.AIChatSessionRecords.Where(x => x.ProfileId == profileId).ToListAsync();
+
         if (records.Count == 0)
         {
             return 0;
@@ -164,7 +179,9 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         }
 
         _dbContext.AIChatSessionRecords.RemoveRange(records);
+
         await _dbContext.SaveChangesAsync();
+
         return records.Count;
     }
 

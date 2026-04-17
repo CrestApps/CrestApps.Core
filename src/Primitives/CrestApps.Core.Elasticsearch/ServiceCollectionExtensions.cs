@@ -16,6 +16,9 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreElasticsearchServices(this IServiceCollection services, IConfigurationSection configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.Configure<ElasticsearchConnectionOptions>(configuration);
         var options = new ElasticsearchConnectionOptions();
         configuration.Bind(options);
@@ -40,6 +43,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreElasticsearchServices(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddKeyedScoped<IDataSourceContentManager>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchDataSourceContentManager(sp.GetRequiredService<ElasticsearchClient>(), sp.GetRequiredService<ILogger<ElasticsearchDataSourceContentManager>>()));
 
@@ -60,6 +65,9 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsIndexingBuilder AddElasticsearch(this CrestAppsIndexingBuilder builder, IConfigurationSection configuration, Action<CrestAppsElasticsearchBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         builder.Services.AddCoreElasticsearchServices(configuration);
 
         if (configure is not null)
@@ -72,6 +80,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsIndexingBuilder AddElasticsearch(this CrestAppsIndexingBuilder builder, Action<CrestAppsElasticsearchBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreElasticsearchServices();
 
         if (configure is not null)

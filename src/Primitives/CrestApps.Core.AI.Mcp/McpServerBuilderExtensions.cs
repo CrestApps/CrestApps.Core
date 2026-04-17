@@ -20,6 +20,8 @@ public static class McpServerBuilderExtensions
     /// </summary>
     public static IMcpServerBuilder WithCrestAppsHandlers(this IMcpServerBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         return builder
             .WithListToolsHandler((request, cancellationToken) =>
             {

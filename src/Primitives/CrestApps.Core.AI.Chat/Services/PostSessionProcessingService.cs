@@ -59,6 +59,9 @@ public sealed class PostSessionProcessingService
         IReadOnlyList<AIChatSessionPrompt> prompts,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(prompts);
+
         if (!prompts.Any(p => p.Role == ChatRole.User))
         {
             return false;
@@ -101,6 +104,9 @@ public sealed class PostSessionProcessingService
         List<ConversionGoal> goals,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(prompts);
+
         if (goals is null || goals.Count == 0 || !prompts.Any(p => p.Role == ChatRole.User))
         {
             return null;
@@ -188,6 +194,10 @@ public sealed class PostSessionProcessingService
         IReadOnlyList<AIChatSessionPrompt> prompts,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(prompts);
+
         var settings = profile.GetSettings<AIProfilePostSessionSettings>();
 
         if (!settings.EnablePostSessionProcessing || settings.PostSessionTasks.Count == 0)

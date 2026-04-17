@@ -21,6 +21,8 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
 
     public async Task<CopilotProtectedCredential> GetProtectedCredentialAsync(string userId, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var filePath = GetFilePath(userId);
 
         if (!File.Exists(filePath))
@@ -35,6 +37,9 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
 
     public async Task SaveProtectedCredentialAsync(string userId, CopilotProtectedCredential credential, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        ArgumentNullException.ThrowIfNull(credential);
+
         var filePath = GetFilePath(userId);
         var json = JsonSerializer.Serialize(credential, _jsonOptions);
 
@@ -43,6 +48,8 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
 
     public Task ClearCredentialAsync(string userId, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
         var filePath = GetFilePath(userId);
 
         if (File.Exists(filePath))

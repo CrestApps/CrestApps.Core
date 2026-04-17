@@ -46,6 +46,9 @@ internal static class YesSqlServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreYesSqlDataStore(this IServiceCollection services, string appDataPath)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(appDataPath);
+
         var dbPath = Path.Combine(appDataPath, "crestapps.db");
 
         var connectionStringBuilder = new SqliteConnectionStringBuilder
@@ -122,6 +125,8 @@ internal static class YesSqlServiceCollectionExtensions
     /// </summary>
     public static async Task InitializeYesSqlSchemaAsync(this IServiceProvider services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         var store = services.GetRequiredService<IStore>();
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("CrestApps.Core.Mvc.Web.YesSql");
         var storeOptions = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<YesSqlStoreOptions>>().Value;
@@ -280,6 +285,8 @@ internal static class YesSqlServiceCollectionExtensions
     /// </summary>
     public static async Task SeedArticlesAsync(this IServiceProvider services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         using var scope = services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<ICatalog<Article>>();
         var existing = await catalog.GetAllAsync();

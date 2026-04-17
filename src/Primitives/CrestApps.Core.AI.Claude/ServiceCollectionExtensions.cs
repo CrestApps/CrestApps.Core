@@ -15,6 +15,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIClaudeOrchestrator(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddOrchestrator<ClaudeOrchestrator>(ClaudeOrchestrator.OrchestratorName)
             .WithTitle("Claude");
 
@@ -27,6 +29,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddClaudeOrchestrator(this CrestAppsAISuiteBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIClaudeOrchestrator();
         return builder;
     }
@@ -34,6 +38,8 @@ public static class ServiceCollectionExtensions
     [Obsolete("Use AddAISuite(ai => ai.AddClaudeOrchestrator()).")]
     public static CrestAppsCoreBuilder AddClaudeOrchestrator(this CrestAppsCoreBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIClaudeOrchestrator();
         return builder;
     }

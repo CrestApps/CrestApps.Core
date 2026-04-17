@@ -6,11 +6,15 @@ public static class DictionaryExtensions
 {
     public static string GetApiKey(this IDictionary<string, object> entry, bool throwException = true)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+
         return entry.GetStringValue("ApiKey", throwException);
     }
 
     public static Uri GetEndpoint(this IDictionary<string, object> entry, bool throwException = true)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+
         var endpoint = entry.GetStringValue("Endpoint", throwException);
         Uri uri = null;
         if (throwException)
@@ -27,6 +31,9 @@ public static class DictionaryExtensions
 
     public static string GetStringValue(this IDictionary<string, object> entry, string key, bool throwException = false)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(key);
+
         if (entry.TryGetValue(key, out var value))
         {
             string stringValue;
@@ -61,6 +68,9 @@ public static class DictionaryExtensions
 
     public static bool GetBooleanOrFalseValue(this IDictionary<string, object> entry, string key, bool throwException = false)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(key);
+
         if (entry.TryGetValue(key, out var value))
         {
             if (value is bool booleanValue)

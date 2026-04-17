@@ -15,12 +15,19 @@ public static class StringExtensions
 
     public static bool Like(this string toSearch, string toFind)
     {
+        ArgumentNullException.ThrowIfNull(toSearch);
+        ArgumentNullException.ThrowIfNull(toFind);
+
         var match = new Regex(@"\.|\$|\^|\{|\[|\(|\||\)|\*|\+|\?|\\").Replace(toFind, ch => @"\" + ch).Replace('_', '.').Replace("%", ".*");
+
         return new Regex(@"\A" + match + @"\z", RegexOptions.Singleline).IsMatch(toSearch);
     }
 
     public static bool Like(this string toSearch, string toFind, StringComparison comparison)
     {
+        ArgumentNullException.ThrowIfNull(toSearch);
+        ArgumentNullException.ThrowIfNull(toFind);
+
         if (comparison == StringComparison.CurrentCultureIgnoreCase || comparison == StringComparison.OrdinalIgnoreCase || comparison == StringComparison.InvariantCultureIgnoreCase)
         {
             return Like(toSearch.ToLower(), toFind.ToLower());
