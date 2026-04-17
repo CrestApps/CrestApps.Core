@@ -435,7 +435,6 @@ public sealed class SettingsController : Controller
                 : $"{d.Name} ({d.ModelName})";
 
                 return new SelectListItem(label, d.Name) { Group = group };
-
             });
     }
 

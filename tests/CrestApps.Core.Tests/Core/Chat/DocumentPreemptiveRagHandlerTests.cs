@@ -27,14 +27,54 @@ public sealed class DocumentPreemptiveRagHandlerTests
             Name = "docs-index",
             ProviderName = "test-provider",
         };
-        indexProfile.Put(new DataSourceIndexProfileMetadata { EmbeddingDeploymentId = "embedding-id", });
+        indexProfile.Put(new DataSourceIndexProfileMetadata
+        {
+            EmbeddingDeploymentId = "embedding-id",
+        });
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
-        indexProfileStore.Setup(store => store.FindByNameAsync("docs-index")).ReturnsAsync(indexProfile);
+        indexProfileStore.Setup(store => store
+            .FindByNameAsync("docs-index"))
+            .ReturnsAsync(indexProfile);
         var deploymentManager = new Mock<IAIDeploymentManager>();
-        deploymentManager.Setup(manager => manager.FindByIdAsync("embedding-id")).ReturnsAsync(new AIDeployment { ItemId = "embedding-id", Name = "embedding", ModelName = "embedding", ClientName = "OpenAI", ConnectionName = "Default", Type = AIDeploymentType.Embedding, });
+        deploymentManager.Setup(manager => manager
+            .FindByIdAsync("embedding-id"))
+            .ReturnsAsync(new AIDeployment
+            {
+                ItemId = "embedding-id",
+                Name = "embedding",
+                ModelName = "embedding",
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                Type = AIDeploymentType.Embedding,
+            });
         var vectorSearchService = new Mock<IVectorSearchService>();
-        vectorSearchService.Setup(service => service.SearchAsync(indexProfile, It.IsAny<float[]>(), "profile-1", AIReferenceTypes.Document.Profile, 3, It.IsAny<CancellationToken>())).ReturnsAsync([new DocumentChunkSearchResult { DocumentKey = "doc-1", FileName = "race.pdf", Score = 0.95f, Chunk = new ChatInteractionDocumentChunk { Index = 0, Text = "Carla and Mark race their go carts, and Carla wins the race.", }, },]);
-        var services = new ServiceCollection().AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f, 0.2f]))).AddSingleton<IAIDeploymentManager>(deploymentManager.Object).AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object).AddSingleton<ITemplateService, FakeTemplateService>().AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions { IndexProfileName = "docs-index", TopN = 3, })).AddLogging().AddKeyedSingleton<IVectorSearchService>("test-provider", vectorSearchService.Object).AddCoreAIDocumentProcessing().BuildServiceProvider();
+        vectorSearchService.Setup(service => service
+            .SearchAsync(indexProfile, It.IsAny<float[]>(), "profile-1", AIReferenceTypes.Document.Profile, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new DocumentChunkSearchResult
+            {
+                DocumentKey = "doc-1",
+                FileName = "race.pdf",
+                Score = 0.95f,
+                Chunk = new ChatInteractionDocumentChunk
+                {
+                    Index = 0,
+                    Text = "Carla and Mark race their go carts, and Carla wins the race.",
+                },
+            },]);
+        var services = new ServiceCollection()
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f, 0.2f])))
+            .AddSingleton<IAIDeploymentManager>(deploymentManager.Object)
+            .AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object)
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions
+            {
+                IndexProfileName = "docs-index",
+                TopN = 3,
+            }))
+            .AddLogging()
+            .AddKeyedSingleton<IVectorSearchService>("test-provider", vectorSearchService.Object)
+            .AddCoreAIDocumentProcessing()
+            .BuildServiceProvider();
         var handler = services.GetServices<IPreemptiveRagHandler>().Single();
         var profile = new AIProfile
         {
@@ -61,7 +101,15 @@ public sealed class DocumentPreemptiveRagHandlerTests
     [Fact]
     public async Task HandleAsync_NoIndexProfileConfigured_DoesNotModifySystemMessage()
     {
-        var services = new ServiceCollection().AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f]))).AddSingleton<IAIDeploymentManager>(Mock.Of<IAIDeploymentManager>()).AddSingleton<ISearchIndexProfileStore>(Mock.Of<ISearchIndexProfileStore>()).AddSingleton<ITemplateService, FakeTemplateService>().AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions())).AddLogging().AddCoreAIDocumentProcessing().BuildServiceProvider();
+        var services = new ServiceCollection()
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f])))
+            .AddSingleton<IAIDeploymentManager>(Mock.Of<IAIDeploymentManager>())
+            .AddSingleton<ISearchIndexProfileStore>(Mock.Of<ISearchIndexProfileStore>())
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions()))
+            .AddLogging()
+            .AddCoreAIDocumentProcessing()
+            .BuildServiceProvider();
         var handler = services.GetServices<IPreemptiveRagHandler>().Single();
         var profile = new AIProfile
         {

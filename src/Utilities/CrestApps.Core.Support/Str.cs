@@ -226,7 +226,6 @@ public partial class Str
 
     public static string StringOrNull(string str, bool trim = true)
     {
-
         if (string.IsNullOrWhiteSpace(str))
         {
             return null;

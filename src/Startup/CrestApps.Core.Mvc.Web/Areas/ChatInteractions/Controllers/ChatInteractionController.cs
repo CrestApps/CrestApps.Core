@@ -121,8 +121,7 @@ public sealed class ChatInteractionController : Controller
 
     public async Task<IActionResult> Index()
     {
-
-        var interactions = await _interactionManager.GetAllAsync();
+        var interactions= await _interactionManager.GetAllAsync();
 
         return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
     }
@@ -177,10 +176,8 @@ public sealed class ChatInteractionController : Controller
         await _interactionManager.CreateAsync(interaction);
 
         if (Documents != null && Documents.Count > 0)
-
         {
             await UploadDocumentsAsync(interaction, Documents);
-
         }
 
         return RedirectToAction(nameof(Chat), new { id = interaction.ItemId });
@@ -278,7 +275,6 @@ public sealed class ChatInteractionController : Controller
         var interaction = await _interactionManager.FindByIdAsync(id);
 
         if (interaction == null)
-
         {
             return NotFound();
         }
@@ -410,7 +406,6 @@ public sealed class ChatInteractionController : Controller
                 string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
         }
         else
-
         {
             model.HasDocumentIndexConfiguration = false;
         }
@@ -419,7 +414,6 @@ public sealed class ChatInteractionController : Controller
         var dataSources = await _dataSourceCatalog.GetAllAsync();
         model.DataSources = dataSources
             .OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase)
-
             .Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId, string.Equals(ds.ItemId, model.DataSourceId, StringComparison.Ordinal)))
             .ToList();
     }
@@ -548,7 +542,6 @@ public sealed class ChatInteractionController : Controller
                 string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
         }
         else
-
         {
             model.HasDocumentIndexConfiguration = false;
         }
@@ -557,7 +550,6 @@ public sealed class ChatInteractionController : Controller
         var dataSources = await _dataSourceCatalog.GetAllAsync();
         model.DataSources = dataSources
             .OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase)
-
             .Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId, string.Equals(ds.ItemId, model.DataSourceId, StringComparison.Ordinal)))
             .ToList();
     }
@@ -662,8 +654,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<List<string>> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
-
-        var allIds = (await _a2aConnectionCatalog.GetAllAsync())
+        var allIds= (await _a2aConnectionCatalog.GetAllAsync())
             .Select(connection => connection.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -676,8 +667,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<List<string>> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
-
-        var allIds = (await _mcpConnectionCatalog.GetAllAsync())
+        var allIds= (await _mcpConnectionCatalog.GetAllAsync())
             .Select(c => c.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -719,9 +709,7 @@ public sealed class ChatInteractionController : Controller
         foreach (var file in files)
         {
             if (file.Length == 0)
-
             {
-
                 continue;
             }
 
@@ -733,9 +721,7 @@ public sealed class ChatInteractionController : Controller
                 embeddingGenerator);
 
             if (!result.Success)
-
             {
-
                 continue;
             }
 
@@ -745,7 +731,6 @@ public sealed class ChatInteractionController : Controller
                 file.FileName);
 
             using (var stream = file.OpenReadStream())
-
             {
                 await _fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
             }
@@ -756,9 +741,7 @@ public sealed class ChatInteractionController : Controller
             await _documentStore.CreateAsync(result.Document);
 
             foreach (var chunk in result.Chunks)
-
             {
-
                 await _chunkStore.CreateAsync(chunk);
             }
 
@@ -791,7 +774,6 @@ public sealed class ChatInteractionController : Controller
                         .Select(m => new SelectListItem(m.Name, m.Id))
                         .ToList();
                 }
-
             }
         }
     }
@@ -836,7 +818,6 @@ public sealed class ChatInteractionController : Controller
                     model.CopilotAvailableModels = models
                         .Select(m => new SelectListItem(m.Name, m.Id))
                         .ToList();
-
                 }
             }
         }

@@ -235,7 +235,6 @@ public sealed class PostSessionProcessingService
                 settings.PostSessionTasks.Count,
 
                 string.Join(", ", tasksToProcess.Select(t => t.Name)));
-
         }
 
         var chatClient = await GetChatClientAsync(profile);
@@ -259,7 +258,6 @@ public sealed class PostSessionProcessingService
             }).ToList(),
 
             ["prompts"] = ProjectPrompts(prompts),
-
         };
 
         var prompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysisPrompt, arguments);
@@ -273,7 +271,6 @@ public sealed class PostSessionProcessingService
                 AITemplateIds.PostSessionAnalysisPrompt);
 
             return null;
-
         }
 
         var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysis);
@@ -436,7 +433,6 @@ public sealed class PostSessionProcessingService
 
         if (recoveredResults is not null && recoveredResults.Count > 0)
         {
-
             return recoveredResults;
         }
 
@@ -454,7 +450,6 @@ public sealed class PostSessionProcessingService
         // Strategy 1: Direct JSON deserialization.
         try
         {
-
             var result = JsonSerializer.Deserialize<PostSessionProcessingResponse>(
                 responseText, JSOptions.CaseInsensitive);
 
@@ -470,7 +465,6 @@ public sealed class PostSessionProcessingService
                 _logger.LogDebug(
                     "Post-session response for session '{SessionId}' is not valid JSON. Trying fallback extraction.",
                     sessionId);
-
             }
         }
 
@@ -481,7 +475,6 @@ public sealed class PostSessionProcessingService
         {
             try
             {
-
                 var result = JsonSerializer.Deserialize<PostSessionProcessingResponse>(
                     jsonBlock, JSOptions.CaseInsensitive);
 
@@ -501,7 +494,6 @@ public sealed class PostSessionProcessingService
             catch (JsonException)
             {
                 // Code fence content wasn't valid JSON either, continue to next strategy.
-
             }
         }
 
@@ -512,7 +504,6 @@ public sealed class PostSessionProcessingService
         {
             try
             {
-
                 var result = JsonSerializer.Deserialize<PostSessionProcessingResponse>(
                     jsonObject, JSOptions.CaseInsensitive);
 
@@ -532,7 +523,6 @@ public sealed class PostSessionProcessingService
             catch (JsonException)
             {
                 // Extracted text wasn't valid JSON either.
-
             }
         }
 
@@ -566,12 +556,10 @@ public sealed class PostSessionProcessingService
             {
                 if (ReferenceEquals(responseMessage, trailingAssistantText))
                 {
-
                     continue;
                 }
 
                 followUpMessages.Add(responseMessage);
-
             }
         }
 
@@ -586,7 +574,6 @@ public sealed class PostSessionProcessingService
 
         var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(followUpMessages, new ChatOptions
         {
-
             Temperature = 0f,
         }, null, cancellationToken);
 
@@ -602,7 +589,6 @@ public sealed class PostSessionProcessingService
                 sessionId,
 
                 CreateResponseLogPreview(recoveryResponseText));
-
         }
 
         PostSessionProcessingResponse result;
@@ -696,7 +682,6 @@ public sealed class PostSessionProcessingService
     {
         if (string.IsNullOrEmpty(responseText))
         {
-
             return "(empty)";
         }
 
@@ -712,7 +697,6 @@ public sealed class PostSessionProcessingService
         List<PostSessionTask> tasks,
         List<PostSessionTaskResult> results)
     {
-
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var applied = new Dictionary<string, PostSessionResult>(StringComparer.OrdinalIgnoreCase);
 
@@ -750,7 +734,6 @@ public sealed class PostSessionProcessingService
 
             // For PredefinedOptions type, validate the value(s) against the configured options.
             if (task.Type == PostSessionTaskType.PredefinedOptions && task.Options.Count > 0)
-
             {
                 var optionValues = task.Options.Select(o => o.Value).ToList();
 
@@ -769,7 +752,6 @@ public sealed class PostSessionProcessingService
 
                     if (validValues.Count == 0)
                     {
-
                         continue;
                     }
 
@@ -777,18 +759,15 @@ public sealed class PostSessionProcessingService
                 }
                 else
                 {
-
                     var matchedOption = optionValues.FirstOrDefault(o =>
                     string.Equals(o, result.Value, StringComparison.OrdinalIgnoreCase));
 
                     if (matchedOption == null)
                     {
-
                         continue;
                     }
 
                     result.Value = matchedOption;
-
                 }
             }
 
@@ -807,7 +786,6 @@ public sealed class PostSessionProcessingService
                     "Post-session task '{TaskName}' applied successfully (ValueLength={ValueLength}).",
                     task.Name,
                     result.Value.Length);
-
             }
         }
 
@@ -826,7 +804,6 @@ public sealed class PostSessionProcessingService
             if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
             {
                 return await _clientFactory.CreateChatClientAsync(deployment);
-
             }
         }
 
@@ -856,13 +833,11 @@ public sealed class PostSessionProcessingService
                 sessionId,
 
                 string.Join(", ", toolNames));
-
         }
 
         var tools = new List<AITool>();
 
         foreach (var name in toolNames)
-
         {
             var tool = await _toolsService.GetByNameAsync(name);
 
@@ -876,7 +851,6 @@ public sealed class PostSessionProcessingService
                     "Post-session tool '{ToolName}' could not be resolved for session '{SessionId}'. Ensure the tool is registered and its feature is enabled.",
                     name,
                     sessionId);
-
             }
         }
 
@@ -890,7 +864,6 @@ public sealed class PostSessionProcessingService
     {
         var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
-
             ["prompts"] = ProjectPrompts(prompts),
         };
 
@@ -899,7 +872,6 @@ public sealed class PostSessionProcessingService
             foreach (var kvp in extraArguments)
             {
                 arguments[kvp.Key] = kvp.Value;
-
             }
         }
 
@@ -917,7 +889,6 @@ public sealed class PostSessionProcessingService
             })
         .Cast<object>()
         .ToList();
-
     }
     private sealed class PostSessionProcessingResponse
     {

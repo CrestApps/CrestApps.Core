@@ -147,7 +147,6 @@ public sealed class MvcAIDocumentIndexingService
 
         if (ids.Length == 0)
         {
-
             return;
         }
 

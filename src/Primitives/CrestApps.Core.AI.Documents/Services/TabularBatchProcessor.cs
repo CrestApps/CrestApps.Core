@@ -46,16 +46,13 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         if (string.IsNullOrWhiteSpace(content))
         {
-
             return batches;
-
         }
 
         var lines = content.Split('\n', StringSplitOptions.None);
 
         if (lines.Length == 0)
         {
-
             return batches;
         }
 
@@ -78,7 +75,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         if (dataLines.Count == 0)
         {
-
             return batches;
         }
 
@@ -86,14 +82,12 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         if (batchSize <= 0)
         {
-
             batchSize = 25; // Default fallback
         }
 
         var batchIndex = 0;
 
         for (var i = 0; i < dataLines.Count; i += batchSize)
-
         {
             var batchRows = dataLines.Skip(i).Take(batchSize).ToList();
 
@@ -130,7 +124,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
     {
         if (batches is null || batches.Count == 0)
         {
-
             return [];
         }
 
@@ -158,7 +151,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                     "Processing stopped due to previous batch failure.");
 
                 return;
-
             }
 
             await semaphore.WaitAsync(cancellationToken);
@@ -181,7 +173,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                 // Add delay between batch submissions to avoid rate limiting
                 if (delayBetweenBatches > 0 && Interlocked.Increment(ref processedCount) > 1)
                 {
-
                     await Task.Delay(delayBetweenBatches, cancellationToken);
                 }
 
@@ -196,7 +187,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
             finally
             {
                 semaphore.Release();
-
             }
 
         }).ToArray();
@@ -210,7 +200,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
     {
         if (results is null || results.Count == 0)
         {
-
             return string.Empty;
         }
 
@@ -237,7 +226,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
             else if (!result.Success)
             {
                 failedBatches.Add(result);
-
             }
         }
 
@@ -258,7 +246,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                 builder.Append(failed.RowEndIndex);
                 builder.Append(": ");
                 builder.AppendLine(failed.ErrorMessage ?? "Unknown error");
-
             }
         }
 
@@ -301,7 +288,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                 PresencePenalty = sourceContext.PresencePenalty,
                 MaxTokens = sourceContext.MaxTokens,
                 DisableTools = true, // Disable tools for batch processing
-
             };
 
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(_settings.BatchTimeoutSeconds));
@@ -367,7 +353,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
         }
         catch (Exception ex)
         {
-
             _logger.LogError(ex,
             "Error processing batch {BatchIndex} (rows {StartRow}-{EndRow}) from '{FileName}'.",
             batch.BatchIndex, batch.RowStartIndex, batch.RowEndIndex, batch.FileName);
@@ -414,7 +399,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
         var arguments = new Dictionary<string, object>();
 
         if (!string.IsNullOrWhiteSpace(baseSystemMessage))
-
         {
             arguments["baseSystemMessage"] = baseSystemMessage;
         }

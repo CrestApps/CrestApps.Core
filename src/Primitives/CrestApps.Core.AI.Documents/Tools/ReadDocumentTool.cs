@@ -44,18 +44,19 @@ public sealed class ReadDocumentTool : AIFunction
     public override JsonElement JsonSchema => _jsonSchema;
 
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } =
-        new Dictionary<string, object>() { ["Strict"] = false };
+        new Dictionary<string, object>()
+        {
+            ["Strict"] = false,
+        };
 
     protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)
-
     {
         var logger = arguments.Services.GetRequiredService<ILogger<ReadDocumentTool>>();
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
-
             logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
         }
 
@@ -64,14 +65,12 @@ public sealed class ReadDocumentTool : AIFunction
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'document_id'.", Name);
 
             return "Unable to find a 'document_id' argument in the arguments parameter.";
-
         }
 
         var executionContext = AIInvocationScope.Current?.ToolExecutionContext;
 
         if (executionContext?.Resource is ChatInteraction interaction)
         {
-
             var chatInteractionId = interaction.ItemId;
             var documentStore = arguments.Services.GetService<IAIDocumentStore>();
 
@@ -80,7 +79,6 @@ public sealed class ReadDocumentTool : AIFunction
                 logger.LogWarning("AI tool '{ToolName}' failed: document store is not available.", Name);
 
                 return "Document store is not available.";
-
             }
 
             var document = await documentStore.FindByIdAsync(documentId);
@@ -94,7 +92,6 @@ public sealed class ReadDocumentTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-
                 logger.LogDebug("AI tool '{ToolName}' completed.", Name);
             }
 
@@ -102,7 +99,6 @@ public sealed class ReadDocumentTool : AIFunction
         }
 
         if (executionContext?.Resource is AIProfile profile)
-
         {
             var documentStore = arguments.Services.GetService<IAIDocumentStore>();
 
@@ -116,7 +112,6 @@ public sealed class ReadDocumentTool : AIFunction
             // The document could belong to either the profile or a chat session.
             var validReferenceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-
                 profile.ItemId,
             };
 
@@ -124,9 +119,7 @@ public sealed class ReadDocumentTool : AIFunction
                 sessionObj is AIChatSession session &&
                     session.Documents is { Count: > 0 })
             {
-
                 validReferenceIds.Add(session.SessionId);
-
             }
 
             var document = await documentStore.FindByIdAsync(documentId);
@@ -140,12 +133,10 @@ public sealed class ReadDocumentTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-
                 logger.LogDebug("AI tool '{ToolName}' completed.", Name);
             }
 
             return await FormatDocumentTextFromChunksAsync(arguments.Services, document);
-
         }
 
         logger.LogWarning("AI tool '{ToolName}' failed: no active chat interaction session or AI profile.", Name);
@@ -159,18 +150,14 @@ public sealed class ReadDocumentTool : AIFunction
 
         if (chunkStore is null)
         {
-
             return $"Document '{document.FileName}' has no extractable text content.";
-
         }
 
         var chunks = await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId);
 
         if (chunks.Count == 0)
         {
-
             return $"Document '{document.FileName}' has no extractable text content.";
-
         }
 
         var text = string.Join(Environment.NewLine, chunks.OrderBy(c => c.Index).Select(c => c.Content));
@@ -182,16 +169,13 @@ public sealed class ReadDocumentTool : AIFunction
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-
             return $"Document '{fileName}' has no extractable text content.";
-
         }
 
         const int maxLength = 50_000;
 
         if (text.Length > maxLength)
         {
-
             text = string.Concat(text.AsSpan(0, maxLength), "\n\n... [content truncated at 50KB]");
         }
 

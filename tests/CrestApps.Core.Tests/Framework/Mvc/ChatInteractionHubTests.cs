@@ -26,10 +26,14 @@ public sealed class ChatInteractionHubTests
             Title = "Original title",
         };
         var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
-        managerMock.Setup(manager => manager.FindByIdAsync(interaction.ItemId)).Returns(new ValueTask<ChatInteraction>(interaction));
+        managerMock.Setup(manager => manager
+            .FindByIdAsync(interaction.ItemId))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
         managerMock.Setup(manager => manager.UpdateAsync(interaction, null)).Returns(ValueTask.CompletedTask);
         var callerMock = new Mock<IChatInteractionHubClient>();
-        callerMock.Setup(client => client.SettingsSaved(interaction.ItemId, "Updated title")).Returns(Task.CompletedTask);
+        callerMock.Setup(client => client
+            .SettingsSaved(interaction.ItemId, "Updated title"))
+            .Returns(Task.CompletedTask);
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
         var serviceProvider = new ServiceCollection()
@@ -76,10 +80,14 @@ public sealed class ChatInteractionHubTests
             Title = "Knowledge chat",
         };
         var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
-        managerMock.Setup(manager => manager.FindByIdAsync(interaction.ItemId)).Returns(new ValueTask<ChatInteraction>(interaction));
+        managerMock.Setup(manager => manager
+            .FindByIdAsync(interaction.ItemId))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
         managerMock.Setup(manager => manager.UpdateAsync(interaction, null)).Returns(ValueTask.CompletedTask);
         var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
-        dataSourceCatalog.Setup(catalog => catalog.FindByIdAsync("datasource-1")).ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });
+        dataSourceCatalog.Setup(catalog => catalog
+            .FindByIdAsync("datasource-1"))
+            .ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });
         var services = new ServiceCollection()
             .AddSingleton(managerMock.Object)
             .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
@@ -88,7 +96,9 @@ public sealed class ChatInteractionHubTests
             .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var serviceProvider = services.BuildServiceProvider();
         var callerMock = new Mock<IChatInteractionHubClient>();
-        callerMock.Setup(client => client.SettingsSaved(interaction.ItemId, interaction.Title)).Returns(Task.CompletedTask);
+        callerMock.Setup(client => client
+            .SettingsSaved(interaction.ItemId, interaction.Title))
+            .Returns(Task.CompletedTask);
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
         var siteSettings = CreateSiteSettingsStore();

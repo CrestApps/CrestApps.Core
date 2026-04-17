@@ -140,6 +140,7 @@ public static partial class AIChatDocumentEndpoints
         }
 
         await interactionManager.UpdateAsync(interaction);
+
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation("Chat interaction '{InteractionId}' document metadata saved.", interaction.ItemId);
@@ -166,6 +167,10 @@ public static partial class AIChatDocumentEndpoints
             logger.LogInformation("Chat interaction document upload completed for interaction '{InteractionId}' with {UploadedCount} successful file(s) and {FailedCount} failed file(s).", interaction.ItemId, uploadedDocuments.Count, failedFiles.Count);
         }
 
-        return TypedResults.Ok(new { uploaded = uploadedDocuments.Select(document => document.DocumentInfo), failed = failedFiles, });
+        return TypedResults.Ok(new
+        {
+            uploaded = uploadedDocuments.Select(document => document.DocumentInfo),
+            failed = failedFiles,
+        });
     }
 }

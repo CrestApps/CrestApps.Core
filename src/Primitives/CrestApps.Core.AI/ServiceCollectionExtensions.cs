@@ -91,7 +91,6 @@ public static class ServiceCollectionExtensions
         });
 
         return new AIToolBuilder<TTool>(entry);
-
     }
 
     /// <summary>
@@ -184,14 +183,12 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string implementationName, string providerName, Action<AIProfileProviderEntry> configure = null)
-
         where TClient : class, IAICompletionClient
     {
         return services
             .Configure<AIOptions>(o =>
             {
                 o.AddProfileSource(implementationName, providerName, configure);
-
             })
             .AddCoreAICompletionClient<TClient>(implementationName);
     }
@@ -201,7 +198,6 @@ public static class ServiceCollectionExtensions
         services
             .Configure<AIOptions>(o =>
             {
-
                 o.AddDeploymentProvider(providerName, configure);
             });
 
@@ -305,7 +301,6 @@ public static class ServiceCollectionExtensions
     /// Adds the orchestration services including the default progressive tool orchestrator,
     /// tool registry, orchestration context builder, and orchestrator resolver.
     /// </summary>
-
     public static IServiceCollection AddCoreAIOrchestration(this IServiceCollection services)
     {
         // Register embedded templates from this assembly so they are available
