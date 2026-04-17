@@ -157,7 +157,6 @@ public sealed class GenerateImageTool : AIFunction
     private static string ExtractImageUri(AIContent contentItem)
     {
         if (contentItem is UriContent uriContent)
-
         {
             return uriContent.Uri?.ToString();
         }

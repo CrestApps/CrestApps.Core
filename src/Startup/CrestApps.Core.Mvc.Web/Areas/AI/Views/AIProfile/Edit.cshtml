@@ -1,9 +1,11 @@
+@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.Mvc.Web.Services
 @using Microsoft.Extensions.Options
 @model AIProfileViewModel
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
-@inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
+@inject SiteSettingsStore SiteSettings
 @{
     ViewData["Title"] = "Edit AI Profile";
     const string maxTokensHelp = "The maximum number of tokens (roughly words or word fragments) the AI can generate in a single response. Lower values produce shorter responses and reduce costs. Higher values allow for more detailed answers.";

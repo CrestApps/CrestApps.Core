@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.OpenXml.Services;
+using CrestApps.Core.AI.Documents.OpenXml.Services;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;

@@ -93,15 +93,46 @@ public sealed class DataExtractionServiceTests
             }, ];
         });
         profile.UtilityDeploymentName = "utility";
-        deploymentManager.Setup(manager => manager.ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null)).ReturnsAsync(new AIDeployment { ClientName = "OpenAI", ConnectionName = "Default", ModelName = "gpt-4.1", });
-        deploymentManager.Setup(manager => manager.ResolveOrDefaultAsync(AIDeploymentType.Chat, null, null)).ReturnsAsync(new AIDeployment { ClientName = "OpenAI", ConnectionName = "Default", ModelName = "gpt-4.1", });
-        clientFactory.Setup(factory => factory.CreateChatClientAsync(It.Is<AIDeployment>(d => d.ClientName == "OpenAI" && d.ConnectionName == "Default" && d.ModelName == "gpt-4.1"))).ReturnsAsync(chatClient.Object);
-        templateService.Setup(service => service.RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>())).ReturnsAsync("system prompt");
+        deploymentManager.Setup(manager => manager
+            .ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null))
+            .ReturnsAsync(new AIDeployment
+            {
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                ModelName = "gpt-4.1",
+            });
+        deploymentManager.Setup(manager => manager
+            .ResolveOrDefaultAsync(AIDeploymentType.Chat, null, null))
+            .ReturnsAsync(new AIDeployment
+            {
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                ModelName = "gpt-4.1",
+            });
+        clientFactory.Setup(factory => factory
+            .CreateChatClientAsync(It.Is<AIDeployment>(d => d.ClientName == "OpenAI" && d.ConnectionName == "Default" && d.ModelName == "gpt-4.1")))
+            .ReturnsAsync(chatClient.Object);
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>()))
+            .ReturnsAsync("system prompt");
         IDictionary<string, object> promptArguments = null;
-        templateService.Setup(service => service.RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>())).Callback<string, IDictionary<string, object>>((_, arguments) => promptArguments = arguments).ReturnsAsync("rendered prompt");
-        chatClient.Setup(client => client.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"fields\":[],\"sessionEnded\":false}")));
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>()))
+            .Callback<string, IDictionary<string, object>>((_, arguments) => promptArguments = arguments)
+            .ReturnsAsync("rendered prompt");
+        chatClient.Setup(client => client
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"fields\":[],\"sessionEnded\":false}")));
         var service = new DataExtractionService(clientFactory.Object, templateService.Object, TimeProvider.System, NullLogger<DataExtractionService>.Instance, deploymentManager.Object);
-        await service.ProcessAsync(profile, new AIChatSession(), [new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your email?" }, new AIChatSessionPrompt { Role = ChatRole.User, Content = "My email is test@example.com" },], TestContext.Current.CancellationToken);
+        await service.ProcessAsync(profile, new AIChatSession(), [new AIChatSessionPrompt
+        {
+            Role = ChatRole.Assistant,
+            Content = "What is your email?",
+        }, new AIChatSessionPrompt
+        {
+            Role = ChatRole.User,
+            Content = "My email is test@example.com",
+        },], TestContext.Current.CancellationToken);
         templateService.Verify(service => service.RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>()), Times.Once);
         Assert.NotNull(promptArguments);
         Assert.Equal("My email is test@example.com", promptArguments["lastUserMessage"]);
@@ -125,6 +156,10 @@ public sealed class DataExtractionServiceTests
 
     private static AIChatSessionPrompt[] CreatePrompts(params string[] userMessages)
     {
-        return userMessages.Select(message => new AIChatSessionPrompt { Role = ChatRole.User, Content = message, }).ToArray();
+        return userMessages.Select(message => new AIChatSessionPrompt
+        {
+            Role = ChatRole.User,
+            Content = message,
+        }).ToArray();
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
@@ -44,7 +45,7 @@ public sealed class IndexProfileTypeRulesTests
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
-            ProviderName = CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName,
+            ProviderName = ElasticsearchConstants.ProviderName,
             IndexName = "sample-index",
             IndexFullName = "sample-index",
             Type = IndexProfileTypes.Articles,
@@ -66,7 +67,7 @@ public sealed class IndexProfileTypeRulesTests
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
-            ProviderName = CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName,
+            ProviderName = ElasticsearchConstants.ProviderName,
             IndexName = "sample-index",
             IndexFullName = "sample-index",
             Type = IndexProfileTypes.Articles,
@@ -88,7 +89,7 @@ public sealed class IndexProfileTypeRulesTests
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
-            ProviderName = CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName,
+            ProviderName = ElasticsearchConstants.ProviderName,
             IndexName = null,
             IndexFullName = null,
             Type = IndexProfileTypes.Articles,
@@ -107,7 +108,7 @@ public sealed class IndexProfileTypeRulesTests
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
-            ProviderName = CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName,
+            ProviderName = ElasticsearchConstants.ProviderName,
             IndexName = "sample-index",
             IndexFullName = "sample-index",
             Type = IndexProfileTypes.Articles,
@@ -148,7 +149,7 @@ public sealed class IndexProfileTypeRulesTests
         var services = new ServiceCollection();
         if (remoteManager != null)
         {
-            services.AddKeyedSingleton<ISearchIndexManager>(CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName, remoteManager);
+            services.AddKeyedSingleton<ISearchIndexManager>(ElasticsearchConstants.ProviderName, remoteManager);
         }
 
         var serviceProvider = services.BuildServiceProvider();

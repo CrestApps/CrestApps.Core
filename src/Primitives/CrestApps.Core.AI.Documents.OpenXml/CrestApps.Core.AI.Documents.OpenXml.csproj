@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Documents.OpenXml</RootNamespace>
+    <Title>CrestApps AI Documents OpenXml</Title>
+    <Description>
+			$(CrestAppsDescription)
+
+			OpenXml document ingestion services for CrestApps AI documents.
+		</Description>
+    <PackageTags>$(PackageTags) ai openxml documents office docx xlsx pptx</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+  </ItemGroup>
+
+</Project>

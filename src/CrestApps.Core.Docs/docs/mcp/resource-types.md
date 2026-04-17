@@ -35,7 +35,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 
 ## Problem & Solution
 
-MCP resources represent files, URLs, or data that clients can read. FTP and SFTP handlers are available as optional packages (`CrestApps.Core.AI.Ftp` and `CrestApps.Core.AI.Sftp`), and applications often need additional resource types for databases, APIs, blob storage, or custom protocols. Resource type handlers provide a pluggable extension point.
+MCP resources represent files, URLs, or data that clients can read. FTP and SFTP handlers are available as optional packages (`CrestApps.Core.AI.Mcp.Ftp` and `CrestApps.Core.AI.Mcp.Sftp`), and applications often need additional resource types for databases, APIs, blob storage, or custom protocols. Resource type handlers provide a pluggable extension point.
 
 ## Built-in Resource Types
 

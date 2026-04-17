@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
@@ -27,7 +28,13 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         };
         var profileManager = new TestSearchIndexProfileManager();
         var controller = CreateController(profileManager, remoteManager);
-        var result = await controller.Create(new IndexProfileViewModel { Name = "articles", IndexName = "articles", ProviderName = CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName, Type = IndexProfileTypes.Articles, });
+        var result = await controller.Create(new IndexProfileViewModel
+        {
+            Name = "articles",
+            IndexName = "articles",
+            ProviderName = ElasticsearchConstants.ProviderName,
+            Type = IndexProfileTypes.Articles,
+        });
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(IndexProfileController.Index), redirect.ActionName);
         Assert.Equal("tenant-articles", remoteManager.CreatedIndexName);
@@ -45,7 +52,14 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             ExistsResult = true,
         };
         var controller = CreateController(new TestSearchIndexProfileManager(), remoteManager);
-        var result = await controller.Create(new IndexProfileViewModel { Name = "articles", IndexName = "articles", ProviderName = CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName, Type = IndexProfileTypes.Articles, });
+        var result = await controller.Create(
+            new IndexProfileViewModel
+            {
+                Name = "articles",
+                IndexName = "articles",
+                ProviderName = ElasticsearchConstants.ProviderName,
+                Type = IndexProfileTypes.Articles,
+            });
         var view = Assert.IsType<ViewResult>(result);
         Assert.IsType<IndexProfileViewModel>(view.Model);
         Assert.False(controller.ModelState.IsValid);
@@ -56,10 +70,10 @@ public sealed class SearchIndexProfileProvisioningServiceTests
     private static IndexProfileController CreateController(ISearchIndexProfileManager profileManager, TestRemoteSearchIndexManager remoteManager)
     {
         var services = new ServiceCollection();
-        services.AddKeyedSingleton<ISearchIndexManager>(CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName, remoteManager);
+        services.AddKeyedSingleton<ISearchIndexManager>(ElasticsearchConstants.ProviderName, remoteManager);
         var serviceProvider = services.BuildServiceProvider();
         var sourceOptions = new IndexProfileSourceOptions();
-        sourceOptions.Sources.Add(new IndexProfileSourceDescriptor { ProviderName = CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName, ProviderDisplayName = "Elasticsearch", Type = IndexProfileTypes.Articles, DisplayName = "Articles", Description = "Articles", });
+        sourceOptions.Sources.Add(new IndexProfileSourceDescriptor { ProviderName = ElasticsearchConstants.ProviderName, ProviderDisplayName = "Elasticsearch", Type = IndexProfileTypes.Articles, DisplayName = "Articles", Description = "Articles", });
         var controller = new IndexProfileController(profileManager, new TestDeploymentCatalog(), serviceProvider, Options.Create(sourceOptions), NullLogger<IndexProfileController>.Instance);
         controller.ControllerContext = new ControllerContext
         {

@@ -28,7 +28,10 @@ public sealed class EndSessionNotificationActionHandlerTests
         sessionManagerMock.Setup(m => m.SaveAsync(session)).Returns(Task.CompletedTask).Verifiable();
         ChatNotification captured = null;
         var senderMock = new Mock<IChatNotificationSender>();
-        senderMock.Setup(s => s.SendAsync("session-1", ChatContextType.AIChatSession, It.IsAny<ChatNotification>())).Callback<string, ChatContextType, ChatNotification>((_, _, n) => captured = n).Returns(Task.CompletedTask);
+        senderMock.Setup(s => s
+            .SendAsync("session-1", ChatContextType.AIChatSession, It.IsAny<ChatNotification>()))
+            .Callback<string, ChatContextType, ChatNotification>((_, _, n) => captured = n)
+            .Returns(Task.CompletedTask);
         var timeProviderMock = new Mock<TimeProvider>();
         timeProviderMock.Setup(t => t.GetUtcNow()).Returns(new DateTimeOffset(now));
         var services = BuildServiceProvider(sessionManager: sessionManagerMock.Object, notificationSender: senderMock.Object, timeProvider: timeProviderMock.Object);
@@ -70,7 +73,10 @@ public sealed class EndSessionNotificationActionHandlerTests
     {
         ChatNotification captured = null;
         var senderMock = new Mock<IChatNotificationSender>();
-        senderMock.Setup(s => s.SendAsync("i1", ChatContextType.ChatInteraction, It.IsAny<ChatNotification>())).Callback<string, ChatContextType, ChatNotification>((_, _, n) => captured = n).Returns(Task.CompletedTask);
+        senderMock.Setup(s => s
+            .SendAsync("i1", ChatContextType.ChatInteraction, It.IsAny<ChatNotification>()))
+            .Callback<string, ChatContextType, ChatNotification>((_, _, n) => captured = n)
+            .Returns(Task.CompletedTask);
         var services = BuildServiceProvider(notificationSender: senderMock.Object);
         var context = CreateContext("i1", ChatContextType.ChatInteraction, services);
         var handler = new EndSessionNotificationActionHandler();

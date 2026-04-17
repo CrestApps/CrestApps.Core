@@ -24,7 +24,6 @@
   <ItemGroup>
     <PackageReference Include="Lucene.Net.Analysis.Common" />
     <PackageReference Include="Microsoft.Extensions.AI" />
-    <PackageReference Include="Microsoft.Extensions.DataIngestion" />
     <PackageReference Include="ZString" />
   </ItemGroup>
 

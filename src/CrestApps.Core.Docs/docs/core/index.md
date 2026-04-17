@@ -58,7 +58,8 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | --- | --- | --- |
 | Foundation | `CrestApps.Core` | Shared models, validation, catalog helpers, and host utilities |
 | AI runtime | `CrestApps.Core.AI` | Deployments, profiles, completions, orchestration, tools, and memory |
-| Chat | `CrestApps.Core.AI.Chat` | Chat sessions, widgets, handlers, metrics, and document-aware chat |
+| Chat | `CrestApps.Core.AI.Chat` | Chat sessions, widgets, handlers, and metrics |
+| Documents | `CrestApps.Core.AI.Documents` | Uploaded-document ingestion, processing, storage abstractions, and document RAG |
 | Templates | `CrestApps.Core.Templates` | Reusable prompts and template-driven profile composition |
 | Providers | Provider packages | OpenAI, Azure OpenAI, Azure AI Inference, and Ollama integrations |
 | Protocols | `CrestApps.Core.AI.Mcp`, `CrestApps.Core.AI.A2A` | MCP and A2A client/server building blocks |
@@ -74,7 +75,7 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | AI services | `AddCoreAIServices()` | `CrestApps.Core.AI` | [AI Core](./ai-core.md) |
 | Orchestration | `AddCoreAIOrchestration()` | `CrestApps.Core.AI` | [Orchestration](./orchestration.md) |
 | Chat | `AddCoreAIChatInteractions()` | `CrestApps.Core.AI.Chat` | [Chat Interactions](./chat.md) |
-| Documents | `AddCoreAIDocumentProcessing()` | `CrestApps.Core.AI.Chat` | [Document Processing](./document-processing.md) |
+| Documents | `AddCoreAIDocumentProcessing()` | `CrestApps.Core.AI.Documents` | [Document Processing](./document-processing.md) |
 | Templates | `AddTemplating()` | `CrestApps.Core.Templates` | [AI Templates](./ai-templates.md) |
 | Custom tools | `AddCoreAITool<T>()` | `CrestApps.Core.AI` | [Custom AI Tools](./tools.md) |
 | Agents | Agent and orchestration registrations | `CrestApps.Core.AI` | [AI Agents](./agents.md) |

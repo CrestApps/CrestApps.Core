@@ -1,13 +1,15 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
-using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -45,7 +47,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IAIProfileManager _profileManager;
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
-    private readonly FileSystemFileStore _fileStore;
+    private readonly IDocumentFileStore _fileStore;
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
@@ -73,7 +75,7 @@ public sealed class ChatInteractionController : Controller
         IAIProfileManager profileManager,
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
-        FileSystemFileStore fileStore,
+        IDocumentFileStore fileStore,
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
@@ -119,8 +121,7 @@ public sealed class ChatInteractionController : Controller
 
     public async Task<IActionResult> Index()
     {
-
-        var interactions = await _interactionManager.GetAllAsync();
+        var interactions= await _interactionManager.GetAllAsync();
 
         return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
     }
@@ -175,10 +176,8 @@ public sealed class ChatInteractionController : Controller
         await _interactionManager.CreateAsync(interaction);
 
         if (Documents != null && Documents.Count > 0)
-
         {
             await UploadDocumentsAsync(interaction, Documents);
-
         }
 
         return RedirectToAction(nameof(Chat), new { id = interaction.ItemId });
@@ -276,7 +275,6 @@ public sealed class ChatInteractionController : Controller
         var interaction = await _interactionManager.FindByIdAsync(id);
 
         if (interaction == null)
-
         {
             return NotFound();
         }
@@ -408,7 +406,6 @@ public sealed class ChatInteractionController : Controller
                 string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
         }
         else
-
         {
             model.HasDocumentIndexConfiguration = false;
         }
@@ -417,7 +414,6 @@ public sealed class ChatInteractionController : Controller
         var dataSources = await _dataSourceCatalog.GetAllAsync();
         model.DataSources = dataSources
             .OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase)
-
             .Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId, string.Equals(ds.ItemId, model.DataSourceId, StringComparison.Ordinal)))
             .ToList();
     }
@@ -546,7 +542,6 @@ public sealed class ChatInteractionController : Controller
                 string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
         }
         else
-
         {
             model.HasDocumentIndexConfiguration = false;
         }
@@ -555,7 +550,6 @@ public sealed class ChatInteractionController : Controller
         var dataSources = await _dataSourceCatalog.GetAllAsync();
         model.DataSources = dataSources
             .OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase)
-
             .Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId, string.Equals(ds.ItemId, model.DataSourceId, StringComparison.Ordinal)))
             .ToList();
     }
@@ -660,8 +654,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<List<string>> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
-
-        var allIds = (await _a2aConnectionCatalog.GetAllAsync())
+        var allIds= (await _a2aConnectionCatalog.GetAllAsync())
             .Select(connection => connection.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -674,8 +667,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<List<string>> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
-
-        var allIds = (await _mcpConnectionCatalog.GetAllAsync())
+        var allIds= (await _mcpConnectionCatalog.GetAllAsync())
             .Select(c => c.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -717,19 +709,8 @@ public sealed class ChatInteractionController : Controller
         foreach (var file in files)
         {
             if (file.Length == 0)
-
             {
-
                 continue;
-            }
-
-            var ext = Path.GetExtension(file.FileName);
-
-            var storagePath = $"documents/{interaction.ItemId}/{UniqueId.GenerateId()}{ext}";
-            using (var stream = file.OpenReadStream())
-
-            {
-                await _fileStore.SaveFileAsync(storagePath, stream);
             }
 
             var result = await _documentProcessingService.ProcessFileAsync(
@@ -740,18 +721,27 @@ public sealed class ChatInteractionController : Controller
                 embeddingGenerator);
 
             if (!result.Success)
-
             {
-
                 continue;
             }
+
+            var storageLocation = DocumentFileStoragePath.Create(
+                AIReferenceTypes.Document.ChatInteraction,
+                interaction.ItemId,
+                file.FileName);
+
+            using (var stream = file.OpenReadStream())
+            {
+                await _fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
+            }
+
+            result.Document.StoredFileName = storageLocation.StoredFileName;
+            result.Document.StoredFilePath = storageLocation.StoragePath;
 
             await _documentStore.CreateAsync(result.Document);
 
             foreach (var chunk in result.Chunks)
-
             {
-
                 await _chunkStore.CreateAsync(chunk);
             }
 
@@ -784,7 +774,6 @@ public sealed class ChatInteractionController : Controller
                         .Select(m => new SelectListItem(m.Name, m.Id))
                         .ToList();
                 }
-
             }
         }
     }
@@ -829,7 +818,6 @@ public sealed class ChatInteractionController : Controller
                     model.CopilotAvailableModels = models
                         .Select(m => new SelectListItem(m.Name, m.Id))
                         .ToList();
-
                 }
             }
         }

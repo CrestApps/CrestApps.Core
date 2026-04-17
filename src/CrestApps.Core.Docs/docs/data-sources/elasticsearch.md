@@ -59,9 +59,10 @@ builder.Services.AddCoreElasticsearchServices();
 | `IODataFilterTranslator` | `ElasticsearchODataFilterTranslator` |
 | `ISearchIndexManager` | `ElasticsearchSearchIndexManager` |
 | `ISearchDocumentManager` | `ElasticsearchSearchDocumentManager` |
-| `IVectorSearchService` | `ElasticsearchVectorSearchService` |
 
 When the `Url` is provided, an `ElasticsearchClient` singleton is also registered.
+
+AI-specific Elasticsearch registrations now live in `CrestApps.Core.AI.Elasticsearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Elasticsearch-backed AI RAG/search flows.
 
 ## Docker Setup for Local Development
 

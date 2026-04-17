@@ -34,28 +34,22 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
 
     protected override IImageGenerator GetImageGenerator(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     {
         var client = GetOpenAIClient(connection);
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
         return client.GetImageClient(deploymentName).AsIImageGenerator();
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     protected override ISpeechToTextClient GetSpeechToTextClient(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     {
         var client = GetOpenAIClient(connection);
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
         return client.GetAudioClient(deploymentName).AsISpeechToTextClient();
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     }
 
     private static OpenAIClient GetOpenAIClient(AIProviderConnectionEntry connection)

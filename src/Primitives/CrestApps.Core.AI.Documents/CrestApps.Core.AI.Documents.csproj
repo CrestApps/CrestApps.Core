@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Documents</RootNamespace>
+    <Title>CrestApps AI Documents</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Document ingestion, processing, document RAG, and uploaded-document endpoint services for CrestApps AI.
+      Framework-independent, usable in any ASP.NET Core application.
+    </Description>
+    <PackageTags>$(PackageTags) ai documents rag uploads ingestion processing</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.DataIngestion" />
+    <PackageReference Include="ZString" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Abstractions/CrestApps.Core.Abstractions.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
+  </ItemGroup>
+</Project>

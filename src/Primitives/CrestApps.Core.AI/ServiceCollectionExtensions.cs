@@ -21,7 +21,6 @@ using CrestApps.Core.Templates.Parsing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
@@ -92,7 +91,6 @@ public static class ServiceCollectionExtensions
         });
 
         return new AIToolBuilder<TTool>(entry);
-
     }
 
     /// <summary>
@@ -185,14 +183,12 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string implementationName, string providerName, Action<AIProfileProviderEntry> configure = null)
-
         where TClient : class, IAICompletionClient
     {
         return services
             .Configure<AIOptions>(o =>
             {
                 o.AddProfileSource(implementationName, providerName, configure);
-
             })
             .AddCoreAICompletionClient<TClient>(implementationName);
     }
@@ -202,7 +198,6 @@ public static class ServiceCollectionExtensions
         services
             .Configure<AIOptions>(o =>
             {
-
                 o.AddDeploymentProvider(providerName, configure);
             });
 
@@ -303,40 +298,9 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers an <see cref="IngestionDocumentReader"/> implementation as a keyed singleton
-    /// for each supported file extension.
-    /// </summary>
-    public static IServiceCollection AddCoreAIIngestionDocumentReader<T>(this IServiceCollection services, params ExtractorExtension[] supportedExtensions)
-        where T : IngestionDocumentReader
-    {
-        services.Configure<ChatDocumentsOptions>(options =>
-        {
-            foreach (var extension in supportedExtensions)
-
-            {
-                options.Add(extension);
-            }
-        });
-
-        services.TryAddSingleton<T>();
-
-        foreach (var extension in supportedExtensions)
-        {
-
-            services.AddKeyedSingleton<IngestionDocumentReader>(
-                extension.Extension,
-
-                (sp, _) => sp.GetRequiredService<T>());
-        }
-
-        return services;
-    }
-
-    /// <summary>
     /// Adds the orchestration services including the default progressive tool orchestrator,
     /// tool registry, orchestration context builder, and orchestrator resolver.
     /// </summary>
-
     public static IServiceCollection AddCoreAIOrchestration(this IServiceCollection services)
     {
         // Register embedded templates from this assembly so they are available
@@ -349,7 +313,6 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<DefaultOrchestratorSettings>();
         services.AddOptions<DefaultAIDeploymentSettings>();
-        services.AddOptions<InteractionDocumentOptions>();
         services.AddOptions<AIDataSourceOptions>();
 
         // Register DefaultAIOptions as a scoped service that reads from IOptionsSnapshot

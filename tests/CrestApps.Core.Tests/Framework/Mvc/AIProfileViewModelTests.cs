@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using CrestApps.Core;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;

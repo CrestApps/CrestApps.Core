@@ -1,6 +1,4 @@
 using CrestApps.Core.AI.Chat.Hubs;
-using CrestApps.Core.AI.Chat.Models;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;

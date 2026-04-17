@@ -198,7 +198,6 @@ public sealed class DataSourceSearchTool : AIFunction
 
             foreach (var result in results)
             {
-
                 if (string.IsNullOrWhiteSpace(result.Content))
                 {
                     continue;
@@ -260,7 +259,6 @@ public sealed class DataSourceSearchTool : AIFunction
         }
         catch (Exception ex)
         {
-
             logger.LogError(ex, "Error during data source search.");
             return "An error occurred while searching the data source.";
         }

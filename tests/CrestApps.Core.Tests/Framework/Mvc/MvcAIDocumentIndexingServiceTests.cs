@@ -1,5 +1,7 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -220,8 +222,8 @@ public sealed class MvcAIDocumentIndexingServiceTests
         ISearchDocumentManager documentManager)
     {
         var services = new ServiceCollection();
-        services.AddKeyedSingleton<ISearchIndexManager>(CrestApps.Core.Azure.AISearch.ServiceCollectionExtensions.ProviderName, indexManager);
-        services.AddKeyedSingleton<ISearchDocumentManager>(CrestApps.Core.Azure.AISearch.ServiceCollectionExtensions.ProviderName, documentManager);
+        services.AddKeyedSingleton<ISearchIndexManager>(AISearchConstants.ProviderName, indexManager);
+        services.AddKeyedSingleton<ISearchDocumentManager>(AISearchConstants.ProviderName, documentManager);
 
         return new MvcAIDocumentIndexingService(
             Options.Create(new InteractionDocumentOptions { IndexProfileName = "chat-documents" }),
@@ -236,7 +238,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
         {
             ItemId = "profile-1",
             Name = "chat-documents",
-            ProviderName = CrestApps.Core.Azure.AISearch.ServiceCollectionExtensions.ProviderName,
+            ProviderName = AISearchConstants.ProviderName,
             Type = type,
             IndexFullName = "chat-documents-index",
         };

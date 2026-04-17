@@ -73,7 +73,6 @@ public sealed class AIDeploymentController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(AIDeploymentViewModel model)
     {
-
         if (string.IsNullOrWhiteSpace(model.TechnicalName))
         {
             ModelState.AddModelError(nameof(model.TechnicalName), "Technical name is required.");

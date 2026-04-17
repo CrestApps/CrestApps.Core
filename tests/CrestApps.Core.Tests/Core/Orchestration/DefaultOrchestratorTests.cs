@@ -66,12 +66,22 @@ public sealed class DefaultOrchestratorTests
         var tools = new List<ToolRegistryEntry>();
         for (var i = 0; i < 5; i++)
         {
-            tools.Add(new ToolRegistryEntry { Name = $"local_tool{i}", Description = $"Local tool {i} for Jira ticket management", Source = ToolRegistryEntrySource.Local, });
+            tools.Add(new ToolRegistryEntry
+            {
+                Name = $"local_tool{i}",
+                Description = $"Local tool {i} for Jira ticket management",
+                Source = ToolRegistryEntrySource.Local,
+            });
         }
 
         for (var i = 0; i < 30; i++)
         {
-            tools.Add(new ToolRegistryEntry { Name = $"mcp_tool{i}", Description = $"MCP tool {i} for {(i < 3 ? "Jira ticket management" : "unrelated tasks")}", Source = ToolRegistryEntrySource.McpServer, });
+            tools.Add(new ToolRegistryEntry
+            {
+                Name = $"mcp_tool{i}",
+                Description = $"MCP tool {i} for {(i < 3 ? "Jira ticket management" : "unrelated tasks")}",
+                Source = ToolRegistryEntrySource.McpServer,
+            });
         }
 
         var registry = new FakeToolRegistry(tools);
@@ -114,7 +124,12 @@ public sealed class DefaultOrchestratorTests
         var tools = new List<ToolRegistryEntry>();
         for (var i = 0; i < 35; i++)
         {
-            tools.Add(new ToolRegistryEntry { Name = $"sys_tool{i}", Description = i < 3 ? "Create content articles and pages" : $"System tool {i} for misc tasks", Source = ToolRegistryEntrySource.System, });
+            tools.Add(new ToolRegistryEntry
+            {
+                Name = $"sys_tool{i}",
+                Description = i < 3 ? "Create content articles and pages" : $"System tool {i} for misc tasks",
+                Source = ToolRegistryEntrySource.System,
+            });
         }
 
         var registry = new FakeToolRegistry(tools);
@@ -159,12 +174,22 @@ public sealed class DefaultOrchestratorTests
         var tools = new List<ToolRegistryEntry>();
         for (var i = 0; i < 10; i++)
         {
-            tools.Add(new ToolRegistryEntry { Name = $"local{i}", Description = $"Local tool {i}", Source = ToolRegistryEntrySource.Local, });
+            tools.Add(new ToolRegistryEntry
+            {
+                Name = $"local{i}",
+                Description = $"Local tool {i}",
+                Source = ToolRegistryEntrySource.Local,
+            });
         }
 
         for (var i = 0; i < 10; i++)
         {
-            tools.Add(new ToolRegistryEntry { Name = $"mcp{i}", Description = $"MCP tool {i}", Source = ToolRegistryEntrySource.McpServer, });
+            tools.Add(new ToolRegistryEntry
+            {
+                Name = $"mcp{i}",
+                Description = $"MCP tool {i}",
+                Source = ToolRegistryEntrySource.McpServer,
+            });
         }
 
         var orchestrator = CreateOrchestrator();
@@ -296,7 +321,12 @@ public sealed class DefaultOrchestratorTests
         };
         for (var i = 0; i < 5; i++)
         {
-            tools.Add(new ToolRegistryEntry { Name = $"mcp{i}", Description = $"MCP tool {i}", Source = ToolRegistryEntrySource.McpServer, });
+            tools.Add(new ToolRegistryEntry
+            {
+                Name = $"mcp{i}",
+                Description = $"MCP tool {i}",
+                Source = ToolRegistryEntrySource.McpServer,
+            });
         }
 
         var orchestrator = CreateOrchestrator();
@@ -334,7 +364,14 @@ public sealed class DefaultOrchestratorTests
     private static DefaultOrchestrator CreateOrchestrator(FakeCompletionService completionService = null, FakeToolRegistry toolRegistry = null)
     {
         var deploymentManager = new Mock<IAIDeploymentManager>();
-        deploymentManager.Setup(d => d.ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(new AIDeployment { ItemId = "test-dep", Name = "test-model", ClientName = "test-client" });
+        deploymentManager.Setup(d => d
+            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(new AIDeployment
+            {
+                ItemId = "test-dep",
+                Name = "test-model",
+                ClientName = "test-client",
+            });
         return new DefaultOrchestrator(completionService ?? new FakeCompletionService("default response"), new FakeAIClientFactory(), new FakeAITemplateService(), deploymentManager.Object, toolRegistry ?? new FakeToolRegistry([]), new LuceneTextTokenizer(), Options.Create(new DefaultOrchestratorOptions()), NullLogger<DefaultOrchestrator>.Instance);
     }
 
@@ -343,7 +380,12 @@ public sealed class DefaultOrchestratorTests
         var entries = new List<ToolRegistryEntry>();
         for (var i = 0; i < count; i++)
         {
-            entries.Add(new ToolRegistryEntry { Name = $"tool{i}", Description = $"Tool {i} description", Source = ToolRegistryEntrySource.Local, });
+            entries.Add(new ToolRegistryEntry
+            {
+                Name = $"tool{i}",
+                Description = $"Tool {i} description",
+                Source = ToolRegistryEntrySource.Local,
+            });
         }
 
         return entries;

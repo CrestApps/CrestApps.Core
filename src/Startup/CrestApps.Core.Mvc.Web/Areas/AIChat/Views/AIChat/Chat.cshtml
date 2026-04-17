@@ -1,13 +1,14 @@
 @using CrestApps.Core
+@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
 @model CrestApps.Core.AI.Models.AIProfile
-@inject IOptions<CrestApps.Core.AI.Models.ChatDocumentsOptions> ChatDocumentOptions
+@inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
 @{
-    var session = ViewData["Session"] as CrestApps.Core.AI.Models.AIChatSession;
-    var prompts = ViewData["Prompts"] as IReadOnlyList<CrestApps.Core.AI.Models.AIChatSessionPrompt>;
+    var session = ViewData["Session"] as AIChatSession;
+    var prompts = ViewData["Prompts"] as IReadOnlyList<AIChatSessionPrompt>;
     ViewData["Title"] = "Chat - " + (Model.DisplayText ?? Model.Name);
     var sessionId = session?.SessionId ?? "";
     var messages = prompts?.Select(m => new
@@ -23,7 +24,7 @@
         : "What do you want to know?";
     var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
     var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
-    var allowSessionDocuments = Model.TryGet<CrestApps.Core.AI.Models.AIProfileSessionDocumentsMetadata>(out var sessionDocumentsMetadata) && sessionDocumentsMetadata.AllowSessionDocuments;
+    var allowSessionDocuments = Model.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocumentsMetadata) && sessionDocumentsMetadata.AllowSessionDocuments;
     var metricsEnabled = Model.TryGet<AnalyticsMetadata>(out var analyticsMetadataVal) && analyticsMetadataVal.EnableSessionMetrics;
     var existingDocuments = session?.Documents ?? [];
     var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();

@@ -9,6 +9,8 @@ description: Document readers, semantic search, and tabular data extraction for 
 
 > Reads, chunks, and indexes uploaded documents so the AI can search and reference them during conversations.
 
+The document pipeline now lives in the dedicated `CrestApps.Core.AI.Documents` package. `CrestApps.Core.AI` and `CrestApps.Core.AI.Chat` remain focused on the core AI runtime and chat runtime.
+
 ## Quick Start
 
 ```csharp
@@ -48,9 +50,11 @@ The document processing system handles the full pipeline from upload to retrieva
 | `ITabularBatchResultCache` | `TabularBatchResultCache` | Singleton | Caches tabular query results |
 | `DocumentOrchestrationHandler` | — | Scoped | Injects document context into orchestration |
 
+`AddCoreAIDocumentProcessing()` and the `AddDocumentProcessing(...)` builder extension are provided by `CrestApps.Core.AI.Documents`.
+
 ### Built-in Document Readers
 
-`AddDocumentProcessing(...)` registers the plain-text and tabular readers. OpenXml and PDF readers now live in the dedicated `CrestApps.Core.AI.OpenXml` and `CrestApps.Core.AI.Pdf` packages, so hosts opt into those dependencies explicitly with the nested builder calls `AddOpenXml()` and `AddPdf()` or, if they prefer the raw `IServiceCollection` surface, `AddCoreAIOpenXmlDocumentProcessing()` and `AddCoreAIPdfDocumentProcessing()`. Markdown-aware normalization now also lives in its own `CrestApps.Core.AI.Markdown` package. `AddAISuite(...)` does not register it automatically, so hosts that want Markdig-backed normalization and chunking must opt in with `AddMarkdown()` or `AddCoreAIMarkdown()`.
+`AddDocumentProcessing(...)` registers the plain-text and tabular readers. OpenXml and PDF readers now live in the dedicated `CrestApps.Core.AI.Documents.OpenXml` and `CrestApps.Core.AI.Documents.Pdf` packages, so hosts opt into those dependencies explicitly with the nested builder calls `AddOpenXml()` and `AddPdf()` or, if they prefer the raw `IServiceCollection` surface, `AddCoreAIOpenXmlDocumentProcessing()` and `AddCoreAIPdfDocumentProcessing()`. Markdown-aware normalization now also lives in its own `CrestApps.Core.AI.Markdown` package. `AddAISuite(...)` does not register it automatically, so hosts that want Markdig-backed normalization and chunking must opt in with `AddMarkdown()` or `AddCoreAIMarkdown()`.
 
 | Reader | Supported Extensions | Embeddable |
 |--------|---------------------|------------|
@@ -95,7 +99,7 @@ The framework no longer asks `IAIDocumentProcessingService` to create embedding 
 Register a reader for additional file formats:
 
 ```csharp
-builder.Services.AddCrestAppsIngestionDocumentReader<MyCustomReader>(".custom", ".myformat");
+builder.Services.AddCoreAIIngestionDocumentReader<MyCustomReader>(".custom", ".myformat");
 ```
 
 Implement the reader:
@@ -170,5 +174,15 @@ Document metadata and chunks require store implementations. Register stores dire
 ```
 
 Both register `IAIDocumentStore`, `IAIDocumentChunkStore`, and `IAIDataSourceStore`. The `ISearchIndexProfileStore` is registered separately through the indexing services builder — see [Data Storage](data-storage.md) for the full per-feature store reference.
+
+Uploaded document files are stored through `IDocumentFileStore`, which extends the general `IFileStore` abstraction:
+
+```csharp
+builder.Services.AddSingleton<IDocumentFileStore, AzureBlobDocumentFileStore>();
+```
+
+The MVC sample host stores uploads on the local file system. Each upload gets a new GUID-based stored file name to avoid collisions, while the original user-facing file name remains in `AIDocument.FileName`. The persisted document record also keeps the GUID-based stored file name/path (`StoredFileName` / `StoredFilePath`) so hosts can trace and delete the physical file later.
+
+Replace `IDocumentFileStore` when you want uploaded profile, chat-interaction, or chat-session files to land in a different backend such as Azure Blob Storage instead of the local file system used by the MVC sample host.
 
 

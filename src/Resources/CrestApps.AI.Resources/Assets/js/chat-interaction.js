@@ -24,7 +24,7 @@ window.chatInteractionManager = function () {
                             <h4 v-if="message.title">{{ message.title }}</h4>
                             <div v-html="message.htmlContent"></div>
                             <span class="message-buttons-container" v-if="!isIndicator(message)">
-                                <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
+                                <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
                                     <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
                                 </button>
                                 <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" title="Click here to copy response to clipboard.">
@@ -1033,6 +1033,25 @@ window.chatInteractionManager = function () {
 
                     this.stopAudio(false);
                 },
+                updateTtsPlaybackButtons() {
+                    if (!this.chatContainer) {
+                        return;
+                    }
+
+                    var buttons = this.chatContainer.querySelectorAll('[data-tts-message-index]');
+
+                    buttons.forEach(button => {
+                        var buttonIndex = Number(button.getAttribute('data-tts-message-index'));
+                        var isPlaying = buttonIndex === this.ttsPlayingMessageIndex;
+                        var iconHtml = isPlaying
+                            ? '<span class="fa-solid fa-circle-pause"></span>'
+                            : '<span class="fa-solid fa-circle-play"></span>';
+
+                        button.classList.toggle('tts-playing', isPlaying);
+                        button.setAttribute('title', isPlaying ? 'Pause audio' : 'Read aloud');
+                        button.replaceChildren(DOMPurify.sanitize(iconHtml, { RETURN_DOM_FRAGMENT: true }));
+                    });
+                },
                 synthesizeSpeech(text, cacheIndex) {
                     if (!this.textToSpeechEnabled || !text || !this.connection) {
                         return;
@@ -1048,6 +1067,7 @@ window.chatInteractionManager = function () {
                             this.isPlayingAudio = false;
                             this.ttsPlayingMessageIndex = -1;
                             this._ttsCacheIndex = -1;
+                            this.$nextTick(() => this.updateTtsPlaybackButtons());
                         });
                 },
                 toggleMessageTts(message, index) {
@@ -1061,6 +1081,7 @@ window.chatInteractionManager = function () {
                         detail: { sourceId: this.ttsInstanceId }
                     }));
                     this.ttsPlayingMessageIndex = index;
+                    this.$nextTick(() => this.updateTtsPlaybackButtons());
 
                     if (this.ttsAudioCache[index]) {
                         this.playAudioBlob(this.ttsAudioCache[index]);
@@ -1074,6 +1095,7 @@ window.chatInteractionManager = function () {
                         if (!this.isPlayingAudio && this.audioPlayQueue.length === 0) {
                             this.isPlayingAudio = false;
                             this.ttsPlayingMessageIndex = -1;
+                            this.$nextTick(() => this.updateTtsPlaybackButtons());
                         }
                         return;
                     }
@@ -1132,6 +1154,7 @@ window.chatInteractionManager = function () {
                         this.audioPlayQueue = [];
                         this.isPlayingAudio = false;
                         this.ttsPlayingMessageIndex = -1;
+                        this.$nextTick(() => this.updateTtsPlaybackButtons());
                     });
                 },
                 playNextInQueue() {
@@ -1141,6 +1164,7 @@ window.chatInteractionManager = function () {
                     } else {
                         this.isPlayingAudio = false;
                         this.ttsPlayingMessageIndex = -1;
+                        this.$nextTick(() => this.updateTtsPlaybackButtons());
                         this.conversationModeOnAudioEnded();
                     }
                 },
@@ -1158,6 +1182,7 @@ window.chatInteractionManager = function () {
                     this.audioPlayQueue = [];
                     this.isPlayingAudio = false;
                     this.ttsPlayingMessageIndex = -1;
+                    this.$nextTick(() => this.updateTtsPlaybackButtons());
                 },
                 toggleConversationMode() {
                     if (this.isConversationMode) {
