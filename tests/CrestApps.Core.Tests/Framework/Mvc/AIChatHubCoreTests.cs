@@ -10,25 +10,9 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 public sealed class AIChatHubCoreTests
 {
     [Fact]
-    public async Task SaveChatSessionAsync_PreservesPersistedDocumentsAndCommits()
+    public async Task SaveChatSessionAsync_SavesSessionAndCommits()
     {
-        var sessionManager = new TestAIChatSessionManager
-        {
-            PersistedSession = new AIChatSession
-            {
-                SessionId = "session-1",
-                Documents =
-                [
-                    new ChatDocumentInfo
-                    {
-                        DocumentId = "doc-1",
-                        FileName = "brief.pdf",
-                        ContentType = "application/pdf",
-                        FileSize = 42,
-                    },
-                ],
-            },
-        };
+        var sessionManager = new TestAIChatSessionManager();
 
         var committer = new TestStoreCommitter();
 
@@ -39,17 +23,25 @@ public sealed class AIChatHubCoreTests
         var chatSession = new AIChatSession
         {
             SessionId = "session-1",
-            Documents = [],
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "brief.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 42,
+                },
+            ],
         };
 
         var hub = new TestAIChatHub(serviceProvider);
 
         await hub.SaveChatSessionForTestAsync(sessionManager, chatSession);
 
+        Assert.Same(chatSession, sessionManager.SavedSession);
         Assert.Single(chatSession.Documents);
         Assert.Equal("doc-1", chatSession.Documents[0].DocumentId);
-        Assert.Same(chatSession, sessionManager.SavedSession);
-        Assert.Equal(["session-1"], sessionManager.FindByIdRequests);
         Assert.True(committer.WasCommitted);
     }
 
@@ -80,11 +72,7 @@ public sealed class AIChatHubCoreTests
 
     private sealed class TestAIChatSessionManager : IAIChatSessionManager
     {
-        public AIChatSession PersistedSession { get; set; }
-
         public AIChatSession SavedSession { get; private set; }
-
-        public List<string> FindByIdRequests { get; } = [];
 
         public Task<bool> DeleteAsync(string sessionId)
         {
@@ -103,9 +91,7 @@ public sealed class AIChatHubCoreTests
 
         public Task<AIChatSession> FindByIdAsync(string id)
         {
-            FindByIdRequests.Add(id);
-
-            return Task.FromResult(PersistedSession);
+            throw new NotSupportedException();
         }
 
         public Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context)

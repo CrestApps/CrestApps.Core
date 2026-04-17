@@ -1126,13 +1126,6 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         ArgumentNullException.ThrowIfNull(sessionManager);
         ArgumentNullException.ThrowIfNull(chatSession);
 
-        var persistedSession = await sessionManager.FindByIdAsync(chatSession.SessionId);
-
-        if (persistedSession != null)
-        {
-            chatSession.Documents = persistedSession.Documents ?? [];
-        }
-
         await sessionManager.SaveAsync(chatSession);
 
         var committer = _services.GetService<IStoreCommitter>();
