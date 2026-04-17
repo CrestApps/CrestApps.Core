@@ -8,16 +8,49 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
+using CrestApps.Core.Infrastructure.Indexing;
+using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents;
 
 /// <summary>
-/// Extension methods for registering document processing services.
+/// Extension methods for registering document processing and ingestion services.
 /// </summary>
-public static class DocumentServiceCollectionExtensions
+public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers an <see cref="IngestionDocumentReader"/> implementation as a keyed singleton
+    /// for each supported file extension.
+    /// </summary>
+    public static IServiceCollection AddCoreAIIngestionDocumentReader<T>(this IServiceCollection services, params ExtractorExtension[] supportedExtensions)
+        where T : IngestionDocumentReader
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(supportedExtensions);
+
+        services.Configure<ChatDocumentsOptions>(options =>
+        {
+            foreach (var extension in supportedExtensions)
+            {
+                options.Add(extension);
+            }
+        });
+
+        services.TryAddSingleton<T>();
+
+        foreach (var extension in supportedExtensions)
+        {
+            services.AddKeyedSingleton<IngestionDocumentReader>(
+                extension.Extension,
+                (sp, _) => sp.GetRequiredService<T>());
+        }
+
+        return services;
+    }
+
     /// <summary>
     /// Adds the default document processing system tools and supporting services.
     /// </summary>
@@ -26,10 +59,18 @@ public static class DocumentServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddOptions<InteractionDocumentOptions>();
+        services.AddOptions<DocumentFileSystemFileStoreOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<DocumentFileSystemFileStoreOptions>, DocumentFileSystemFileStoreOptionsConfiguration>());
         services.AddCoreAIDocumentIndexProfileHandler();
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
-        services.TryAddScoped<IAIDocumentProcessingService, DefaultAIDocumentProcessingService>();
+        services.TryAddSingleton<IDocumentFileStore>(sp =>
+        {
+            var basePath = sp.GetRequiredService<IOptions<DocumentFileSystemFileStoreOptions>>().Value.BasePath;
 
+            return new FileSystemFileStore(basePath);
+        });
+
+        services.TryAddScoped<IAIDocumentProcessingService, DefaultAIDocumentProcessingService>();
         services.TryAddScoped<ITabularBatchProcessor, TabularBatchProcessor>();
         services.TryAddSingleton<ITabularBatchResultCache, TabularBatchResultCache>();
 
@@ -80,18 +121,12 @@ public static class DocumentServiceCollectionExtensions
         return builder;
     }
 
-    [Obsolete("Use AddAISuite(ai => ai.AddDocumentProcessing(...)).")]
-    public static CrestAppsCoreBuilder AddDocumentProcessing(this CrestAppsCoreBuilder builder, Action<CrestAppsDocumentProcessingBuilder> configure = null)
+    public static IServiceCollection AddCoreAIDocumentIndexProfileHandler(this IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(services);
 
-        builder.Services.AddCoreAIDocumentProcessing();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, AIDocumentSearchIndexProfileHandler>());
 
-        if (configure is not null)
-        {
-            configure(new CrestAppsDocumentProcessingBuilder(builder.Services));
-        }
-
-        return builder;
+        return services;
     }
 }

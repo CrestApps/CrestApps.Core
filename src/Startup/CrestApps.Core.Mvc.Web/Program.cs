@@ -344,8 +344,6 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 // can provide their own implementations as long as they satisfy the same
 // store/catalog abstractions.
 // =============================================================================
-// Default file-system store for uploaded documents. Replace IDocumentFileStore to use Azure Blob Storage or another backend.
-builder.Services.AddSingleton<IDocumentFileStore>(new FileSystemFileStore(Path.Combine(appDataPath, "Documents")));
 // Copilot orchestrator: credential store and options configuration.
 builder.Services.AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 builder.Services.ConfigureOptions<MvcCopilotOptionsConfiguration>();

@@ -119,13 +119,24 @@ The document processing system handles this full pipeline from upload to retriev
 | `ITabularBatchResultCache` | `CrestApps.Core.AI.Documents` | Caches tabular query results |
 | `IngestionDocumentReader` | `CrestApps.Core.AI.Documents` | Abstract base for format-specific file readers |
 
-Hosts can replace `IDocumentFileStore` to change where uploaded files are written:
+`AddCoreAIDocumentProcessing()` registers a default `FileSystemFileStore` automatically. By default it stores uploaded files under `App_Data\Documents`, and each upload gets a new GUID-based stored file name while `AIDocument.FileName` keeps the original user upload name.
+
+Configure a different local base path:
+
+```csharp
+builder.Services.Configure<DocumentFileSystemFileStoreOptions>(options =>
+{
+    options.BasePath = "App_Data/CustomDocuments";
+});
+```
+
+Hosts can replace `IDocumentFileStore` entirely to change where uploaded files are written:
 
 ```csharp
 builder.Services.AddSingleton<IDocumentFileStore, AzureBlobDocumentFileStore>();
 ```
 
-The default MVC host stores uploads on the local file system with a new GUID-based stored file name for each upload. `AIDocument.FileName` keeps the original user upload name, while `AIDocument.StoredFileName` and `AIDocument.StoredFilePath` preserve the backing file-store location.
+`IDocumentFileStore` extends the general `IFileStore` abstraction. `AIDocument.StoredFileName` and `AIDocument.StoredFilePath` preserve the backing file-store location so hosts can trace and delete the physical file later.
 
 ## Document Processing Pipeline
 

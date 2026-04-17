@@ -467,6 +467,8 @@ window.openAIChatManager = function () {
                     prompt: '',
                     documents: config.existingDocuments || [],
                     isUploading: false,
+                    isDocumentOperationPending: false,
+                    documentOperationQueue: null,
                     uploadErrors: [],
                     isDragOver: false,
                     documentBar: null,
@@ -497,6 +499,10 @@ window.openAIChatManager = function () {
                     conversationButton: null,
                     isConversationMode: false,
                     notificationDismissTimers: {},
+                    pendingSessionPromise: null,
+                    pendingSessionResolver: null,
+                    pendingSessionRejector: null,
+                    pendingSessionTimeoutId: null,
                 };
             },
             computed: {
@@ -537,108 +543,164 @@ window.openAIChatManager = function () {
                     var inputArea = this.inputElement ? this.inputElement.closest('.ai-admin-widget-input, .text-bg-light') : null;
                     if (inputArea) inputArea.classList.remove('ai-chat-drag-over');
                     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        this.uploadFiles(e.dataTransfer.files);
+                        this.uploadFiles(Array.from(e.dataTransfer.files));
                     }
                 },
                 triggerFileInput() {
-                    if (!config.sessionDocumentsEnabled) return;
+                    if (!config.sessionDocumentsEnabled || this.isDocumentOperationPending) return;
                     var fileInput = document.getElementById('ai-chat-doc-input');
                     if (fileInput) fileInput.click();
                 },
                 handleFileInputChange(e) {
-                    var files = e.target.files;
+                    var files = e.target.files ? Array.from(e.target.files) : [];
                     if (files && files.length > 0) {
                         this.uploadFiles(files);
                     }
                     e.target.value = '';
                 },
+                queueDocumentOperation(operation) {
+                    var self = this;
+                    var previousOperation = this.documentOperationQueue || Promise.resolve();
+                    var nextOperation = previousOperation
+                        .catch(function () { })
+                        .then(async function () {
+                            self.isDocumentOperationPending = true;
+                            try {
+                                return await operation();
+                            } finally {
+                                self.isDocumentOperationPending = false;
+                            }
+                        });
+
+                    this.documentOperationQueue = nextOperation.finally(function () {
+                        if (self.documentOperationQueue === nextOperation) {
+                            self.documentOperationQueue = null;
+                        }
+                    });
+
+                    return this.documentOperationQueue;
+                },
                 async uploadFiles(files) {
                     if (!config.uploadDocumentUrl) return;
 
-                    var sessionId = this.getSessionId();
-                    var profileId = this.getProfileId();
+                    var filesToUpload = Array.isArray(files) ? files.slice() : Array.from(files || []);
+                    if (filesToUpload.length === 0) return;
 
-                    if (!sessionId && !profileId) {
-                        console.warn('Cannot upload documents without a session or profile.');
-                        return;
-                    }
+                    return this.queueDocumentOperation(async () => {
+                        var sessionId = this.getSessionId();
+                        var profileId = this.getProfileId();
 
-                    this.isUploading = true;
-                    this.uploadErrors = [];
-                    this.renderDocumentBar();
-                    try {
-                        var formData = new FormData();
-                        if (sessionId) {
-                            formData.append('sessionId', sessionId);
-                        } else {
-                            formData.append('profileId', profileId);
-                        }
-                        for (var i = 0; i < files.length; i++) {
-                            formData.append('files', files[i]);
+                        if (!sessionId) {
+                            try {
+                                sessionId = await this.ensureSessionForDocuments(profileId);
+                            } catch (err) {
+                                console.error('Failed to create a chat session for document upload:', err);
+                                this.uploadErrors = [{ fileName: '', error: 'Could not create a chat session for the upload.' }];
+                                this.renderDocumentBar();
+                                return;
+                            }
                         }
 
-                        var response = await fetch(config.uploadDocumentUrl, {
-                            method: 'POST',
-                            body: formData
-                        });
-
-                        if (!response.ok) {
-                            var errorText = await response.text();
-                            var uploadError = this.extractReadableErrorMessage(errorText, 'Upload failed. Please try again.');
-                            console.error('Upload failed:', errorText);
-                            this.uploadErrors = [{ fileName: '', error: uploadError }];
+                        if (!sessionId) {
+                            console.warn('Cannot upload documents without a session or profile.');
+                            this.uploadErrors = [{ fileName: '', error: 'Could not create a chat session for the upload.' }];
+                            this.renderDocumentBar();
                             return;
                         }
 
-                        var result = await response.json();
-
-                        // If the server created a new session, initialize it.
-                        if (result.sessionId && !sessionId) {
-                            this.initializeSession(result.sessionId);
-                        }
-
-                        if (result.uploaded && result.uploaded.length > 0) {
-                            for (var j = 0; j < result.uploaded.length; j++) {
-                                this.documents.push(result.uploaded[j]);
-                            }
-                        }
-                        if (result.failed && result.failed.length > 0) {
-                            this.uploadErrors = result.failed;
-                        }
-                    } catch (err) {
-                        console.error('Upload error:', err);
-                        this.uploadErrors = [{ fileName: '', error: 'Upload failed. Please try again.' }];
-                    } finally {
-                        this.isUploading = false;
+                        this.isUploading = true;
+                        this.uploadErrors = [];
                         this.renderDocumentBar();
-                    }
+                        try {
+                            var formData = new FormData();
+                            formData.append('sessionId', sessionId);
+                            for (var i = 0; i < filesToUpload.length; i++) {
+                                formData.append('files', filesToUpload[i]);
+                            }
+
+                            var response = await fetch(config.uploadDocumentUrl, {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!response.ok) {
+                                var errorText = await response.text();
+                                var uploadError = this.extractReadableErrorMessage(errorText, 'Upload failed. Please try again.');
+                                console.error('Upload failed:', errorText);
+                                this.uploadErrors = [{ fileName: '', error: uploadError }];
+                                return;
+                            }
+
+                            var result = await response.json();
+
+                            if (result.sessionId && result.sessionId !== this.getSessionId()) {
+                                this.initializeSession(result.sessionId);
+                            }
+
+                            if (Array.isArray(result.documents)) {
+                                this.documents = result.documents;
+                            } else if (result.uploaded && result.uploaded.length > 0) {
+                                this.documents = this.documents.concat(result.uploaded);
+                            }
+
+                            if (result.failed && result.failed.length > 0) {
+                                this.uploadErrors = result.failed;
+                            }
+                        } catch (err) {
+                            console.error('Upload error:', err);
+                            this.uploadErrors = [{ fileName: '', error: 'Upload failed. Please try again.' }];
+
+                            if (this.getSessionId()) {
+                                this.reloadCurrentSession();
+                            }
+                        } finally {
+                            this.isUploading = false;
+                            this.renderDocumentBar();
+                        }
+                    });
                 },
                 async removeDocument(doc) {
                     if (!config.removeDocumentUrl) return;
 
-                    try {
-                        var sessionId = this.getSessionId();
-                        var response = await fetch(config.removeDocumentUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ itemId: sessionId, documentId: doc.documentId })
-                        });
+                    return this.queueDocumentOperation(async () => {
+                        try {
+                            var sessionId = this.getSessionId();
+                            var response = await fetch(config.removeDocumentUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ itemId: sessionId, documentId: doc.documentId })
+                            });
 
-                        if (response.ok) {
-                            var idx = this.documents.indexOf(doc);
-                            if (idx > -1) this.documents.splice(idx, 1);
-                        } else {
-                            var errorText = await response.text();
-                            var removeError = this.extractReadableErrorMessage(errorText, 'Failed to remove document. Please try again.');
-                            console.error('Failed to remove document:', response.status, errorText);
-                            this.uploadErrors = [{ fileName: doc.fileName || '', error: removeError }];
+                            if (response.ok) {
+                                var result = await response.json();
+
+                                if (Array.isArray(result.documents)) {
+                                    this.documents = result.documents;
+                                } else {
+                                    var idx = this.documents.indexOf(doc);
+                                    if (idx > -1) {
+                                        this.documents.splice(idx, 1);
+                                    }
+                                }
+                            } else {
+                                var errorText = await response.text();
+                                var removeError = this.extractReadableErrorMessage(errorText, 'Failed to remove document. Please try again.');
+                                console.error('Failed to remove document:', response.status, errorText);
+                                this.uploadErrors = [{ fileName: doc.fileName || '', error: removeError }];
+                                if (sessionId) {
+                                    this.reloadCurrentSession();
+                                }
+                                this.renderDocumentBar();
+                            }
+                        } catch (err) {
+                            console.error('Remove document error:', err);
+                            this.uploadErrors = [{ fileName: doc.fileName || '', error: 'Failed to remove document. Please try again.' }];
+                            if (this.getSessionId()) {
+                                this.reloadCurrentSession();
+                            }
                             this.renderDocumentBar();
                         }
-                    } catch (err) {
-                        console.error('Remove document error:', err);
-                        this.uploadErrors = [{ fileName: doc.fileName || '', error: 'Failed to remove document. Please try again.' }];
-                        this.renderDocumentBar();
-                    }
+                    });
                 },
                 formatFileSize(bytes) {
                     if (bytes < 1024) return bytes + ' B';
@@ -665,7 +727,7 @@ window.openAIChatManager = function () {
                         html += '<span class="badge bg-secondary bg-opacity-25 text-dark d-inline-flex align-items-center gap-1 px-2 py-1" style="font-size: 0.8rem;" title="' + this.escapeHtml(doc.fileName || '') + '">';
                         html += '<span class="fa-solid fa-file-lines" style="font-size: 0.7rem;"></span> ';
                         html += this.escapeHtml(name);
-                        html += ' <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.5rem;" data-doc-index="' + i + '" aria-label="Remove"></button>';
+                        html += ' <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.5rem;" data-doc-index="' + i + '" aria-label="Remove"' + (this.isDocumentOperationPending ? ' disabled' : '') + '></button>';
                         html += '</span>';
                     }
 
@@ -687,7 +749,7 @@ window.openAIChatManager = function () {
                         html += '</span>';
                     }
 
-                    html += '<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill ai-chat-doc-add-btn d-inline-flex align-items-center gap-1" style="font-size: 0.75rem; padding: 0.15rem 0.5rem;" title="Attach documents">';
+                    html += '<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill ai-chat-doc-add-btn d-inline-flex align-items-center gap-1" style="font-size: 0.75rem; padding: 0.15rem 0.5rem;" title="Attach documents"' + (this.isDocumentOperationPending ? ' disabled' : '') + '>';
                     html += '<span class="fa-solid fa-paperclip"></span>';
                     if (this.documents.length === 0 && !this.isUploading) {
                         html += ' <span>Attach files</span>';
@@ -710,6 +772,10 @@ window.openAIChatManager = function () {
                             return function (e) {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                if (self.isDocumentOperationPending) {
+                                    return;
+                                }
+
                                 var docToRemove = self.documents[idx];
                                 if (docToRemove) self.removeDocument(docToRemove);
                             };
@@ -734,6 +800,9 @@ window.openAIChatManager = function () {
                     if (addBtn) {
                         addBtn.addEventListener('click', function (e) {
                             e.preventDefault();
+                            if (self.isDocumentOperationPending) {
+                                return;
+                            }
                             self.triggerFileInput();
                         });
                     }
@@ -2021,13 +2090,20 @@ window.openAIChatManager = function () {
                     this.prompt = event.target.value;
                 },
                 getProfileId() {
-                    return this.inputElement.getAttribute('data-profile-id');
+                    return this.inputElement
+                        ? this.inputElement.getAttribute('data-profile-id')
+                        : null;
                 },
                 setSessionId(sessionId) {
+                    if (!this.inputElement) {
+                        return;
+                    }
+
                     this.inputElement.setAttribute('data-session-id', sessionId || '');
                 },
                 resetSession() {
                     this.stopRecording();
+                    this.rejectPendingSessionRequest('Session was reset.');
                     this.setSessionId('');
                     this.isSessionStarted = false;
                     this.sessionRating = null;
@@ -2055,13 +2131,84 @@ window.openAIChatManager = function () {
                         return;
                     }
 
-                    this.connection.invoke("StartSession", profileId, null).catch(err => console.error(err));
+                    this.requestNewSession(profileId).catch(err => console.error(err));
+                },
+                async ensureSessionForDocuments(profileId) {
+                    var sessionId = this.getSessionId();
+                    if (sessionId) {
+                        return sessionId;
+                    }
+
+                    if (!profileId || !this.connection) {
+                        return null;
+                    }
+
+                    return await this.requestNewSession(profileId);
+                },
+                requestNewSession(profileId) {
+                    if (this.pendingSessionPromise) {
+                        return this.pendingSessionPromise;
+                    }
+
+                    if (!profileId || !this.connection) {
+                        return Promise.resolve(null);
+                    }
+
+                    this.pendingSessionPromise = new Promise((resolve, reject) => {
+                        this.pendingSessionResolver = resolve;
+                        this.pendingSessionRejector = reject;
+                        this.pendingSessionTimeoutId = window.setTimeout(() => {
+                            this.rejectPendingSessionRequest('Timed out while creating a chat session.');
+                        }, 15000);
+                    });
+
+                    this.connection.invoke("StartSession", profileId, null).catch(err => {
+                        this.rejectPendingSessionRequest(err);
+                    });
+
+                    return this.pendingSessionPromise;
+                },
+                resolvePendingSessionRequest(sessionId) {
+                    if (this.pendingSessionResolver) {
+                        this.pendingSessionResolver(sessionId);
+                    }
+
+                    this.clearPendingSessionRequest();
+                },
+                rejectPendingSessionRequest(error) {
+                    if (this.pendingSessionRejector) {
+                        this.pendingSessionRejector(error);
+                    }
+
+                    this.clearPendingSessionRequest();
+                },
+                clearPendingSessionRequest() {
+                    if (this.pendingSessionTimeoutId) {
+                        window.clearTimeout(this.pendingSessionTimeoutId);
+                    }
+
+                    this.pendingSessionPromise = null;
+                    this.pendingSessionResolver = null;
+                    this.pendingSessionRejector = null;
+                    this.pendingSessionTimeoutId = null;
                 },
                 initializeApp() {
                     this.inputElement = document.querySelector(config.inputElementSelector);
                     this.buttonElement = document.querySelector(config.sendButtonElementSelector);
                     this.chatContainer = document.querySelector(config.chatContainerElementSelector);
                     this.placeholder = document.querySelector(config.placeholderElementSelector);
+
+                    if (!this.inputElement || !this.buttonElement || !this.chatContainer || !this.placeholder) {
+                        console.error('AI chat app could not initialize because one or more required elements were not found.', {
+                            inputElementSelector: config.inputElementSelector,
+                            sendButtonElementSelector: config.sendButtonElementSelector,
+                            chatContainerElementSelector: config.chatContainerElementSelector,
+                            placeholderElementSelector: config.placeholderElementSelector
+                        });
+
+                        return false;
+                    }
+
                     this.applyOrchestratorAvailability();
 
                     const sessionId = this.getSessionId();
@@ -2238,6 +2385,8 @@ window.openAIChatManager = function () {
                             });
                         }
                     }
+
+                    return true;
                 },
                 loadSession(sessionId) {
                     this.connection.invoke("LoadSession", sessionId).catch(err => console.error(err));
@@ -2251,18 +2400,25 @@ window.openAIChatManager = function () {
                 },
                 initializeSession(sessionId, force) {
                     if (this.isSessionStarted && !force) {
+                        if (sessionId && this.getSessionId() === sessionId) {
+                            this.resolvePendingSessionRequest(sessionId);
+                        }
+
                         return
                     }
                     this.fireEvent(new CustomEvent("initializingSessionOpenAIChat", { detail: { sessionId: sessionId } }))
                     this.setSessionId(sessionId);
                     this.isSessionStarted = true;
+                    this.resolvePendingSessionRequest(sessionId);
 
                     if (widgetBehavior && typeof widgetBehavior.onSessionInitialized === 'function') {
                         widgetBehavior.onSessionInitialized(this, sessionId, config);
                     }
                 },
                 getSessionId() {
-                    let sessionId = this.inputElement.getAttribute('data-session-id');
+                    let sessionId = this.inputElement
+                        ? this.inputElement.getAttribute('data-session-id')
+                        : null;
 
                     if (!sessionId && widgetBehavior && typeof widgetBehavior.resolveSessionId === 'function') {
                         sessionId = widgetBehavior.resolveSessionId(this, config);
@@ -2365,6 +2521,7 @@ window.openAIChatManager = function () {
                     deep: true
                 },
                 isUploading() { this.renderDocumentBar(); },
+                isDocumentOperationPending() { this.renderDocumentBar(); },
                 isPlayingAudio() {
                     // Reserved for future use — volume-based interrupt detection
                     // no longer mutes tracks; browser echo cancellation handles echo.
@@ -2392,8 +2549,8 @@ window.openAIChatManager = function () {
             mounted() {
                 (async () => {
                     await this.startConnection();
-                    this.initializeApp();
-                    if (hasWidgetConfig && widgetBehavior && typeof widgetBehavior.onMounted === 'function') {
+                    const isInitialized = this.initializeApp();
+                    if (isInitialized && hasWidgetConfig && widgetBehavior && typeof widgetBehavior.onMounted === 'function') {
                         widgetBehavior.onMounted(this, config);
                     }
                 })();

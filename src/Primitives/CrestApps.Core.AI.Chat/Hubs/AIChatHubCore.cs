@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Extensions;
+using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
@@ -410,7 +411,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 chatSession.ResponseHandlerName = initialResponseHandlerName.Trim();
             }
 
-            await sessionManager.SaveAsync(chatSession);
+            await SaveChatSessionAsync(sessionManager, chatSession);
             var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId));
             await Clients.Caller.LoadSession(CreateSessionPayload(chatSession, profile, prompts));
@@ -918,7 +919,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (handlerResult.IsDeferred)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
-            await sessionManager.SaveAsync(chatSession);
+            await SaveChatSessionAsync(sessionManager, chatSession);
             return;
         }
 
@@ -984,7 +985,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         };
         await sessionHandlers.InvokeAsync((h, ctx) => h.MessageCompletedAsync(ctx), context, Logger);
         await OnMessageCompletedAsync(services, context);
-        await sessionManager.SaveAsync(chatSession);
+        await SaveChatSessionAsync(sessionManager, chatSession);
     }
 
     /// <summary>
@@ -1036,7 +1037,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         assistantMessage.ContentItemIds = contentItemIds.ToList();
         assistantMessage.References = references;
         await promptStore.CreateAsync(assistantMessage);
-        await sessionManager.SaveAsync(chatSession);
+        await SaveChatSessionAsync(sessionManager, chatSession);
     }
 
     /// <summary>
@@ -1106,8 +1107,40 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 Type = profile.Type.ToString(),
             },
             chatSession.Documents,
-            Messages = prompts.Select(message => new AIChatResponseMessageDetailed { Id = message.ItemId, Role = message.Role.Value, IsGeneratedPrompt = message.IsGeneratedPrompt, Title = message.Title, Content = message.Content, UserRating = message.UserRating, References = message.References, Appearance = message.TryGet<AssistantMessageAppearance>(out var appearance) ? appearance : null, })
+            Messages = prompts.Select(message => new AIChatResponseMessageDetailed
+            {
+                Id = message.ItemId,
+                Role = message.Role.Value,
+                IsGeneratedPrompt = message.IsGeneratedPrompt,
+                Title = message.Title,
+                Content = message.Content,
+                UserRating = message.UserRating,
+                References = message.References,
+                Appearance = message.TryGet<AssistantMessageAppearance>(out var appearance) ? appearance : null,
+            })
         };
+    }
+
+    protected virtual async Task SaveChatSessionAsync(IAIChatSessionManager sessionManager, AIChatSession chatSession)
+    {
+        ArgumentNullException.ThrowIfNull(sessionManager);
+        ArgumentNullException.ThrowIfNull(chatSession);
+
+        var persistedSession = await sessionManager.FindByIdAsync(chatSession.SessionId);
+
+        if (persistedSession != null)
+        {
+            chatSession.Documents = persistedSession.Documents ?? [];
+        }
+
+        await sessionManager.SaveAsync(chatSession);
+
+        var committer = _services.GetService<IStoreCommitter>();
+
+        if (committer != null)
+        {
+            await committer.CommitAsync();
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════

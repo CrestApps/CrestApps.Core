@@ -39,7 +39,14 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
     private string _cachedToken;
     private DateTimeOffset _tokenExpires;
-    public AzureSpeechServiceSpeechToTextClient(Uri endpoint, AzureAuthenticationType authType, string apiKey, string identityId, TimeProvider timeProvider, ILogger logger)
+
+    public AzureSpeechServiceSpeechToTextClient(
+        Uri endpoint,
+        AzureAuthenticationType authType,
+        string apiKey,
+        string identityId,
+        TimeProvider timeProvider,
+        ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         _endpoint = endpoint;

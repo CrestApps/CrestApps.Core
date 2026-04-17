@@ -187,6 +187,7 @@ public static class UploadChatSessionDocument
             {
                 sessionId = session.SessionId,
                 isNewSession,
+                documents = session.Documents ?? [],
                 uploaded = uploadedDocuments.Select(document => document.DocumentInfo),
                 failed = failedFiles,
             });

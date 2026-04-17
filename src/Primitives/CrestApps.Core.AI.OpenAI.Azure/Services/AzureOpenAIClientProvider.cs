@@ -27,13 +27,17 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
-        return GetClient(connection, connection.GetEndpoint()).GetChatClient(deploymentName).AsIChatClient();
+        return GetClient(connection, connection.GetEndpoint())
+            .GetChatClient(deploymentName)
+            .AsIChatClient();
     }
 
     protected override IEmbeddingGenerator<string, Embedding<float>> GetEmbeddingGenerator(AIProviderConnectionEntry connection, string deploymentName)
     {
         var endpoint = connection.GetEndpoint();
-        return GetClient(connection, endpoint).GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
+        return GetClient(connection, endpoint)
+            .GetEmbeddingClient(deploymentName)
+            .AsIEmbeddingGenerator();
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -41,13 +45,17 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     protected override IImageGenerator GetImageGenerator(AIProviderConnectionEntry connection, string deploymentName)
     {
         var endpoint = connection.GetEndpoint();
-        return GetClient(connection, endpoint).GetImageClient(deploymentName).AsIImageGenerator();
+        return GetClient(connection, endpoint)
+            .GetImageClient(deploymentName)
+            .AsIImageGenerator();
     }
 
     protected override ISpeechToTextClient GetSpeechToTextClient(AIProviderConnectionEntry connection, string deploymentName)
     {
         var endpoint = connection.GetEndpoint();
-        return GetClient(connection, endpoint).GetAudioClient(deploymentName).AsISpeechToTextClient();
+        return GetClient(connection, endpoint)
+            .GetAudioClient(deploymentName)
+            .AsISpeechToTextClient();
     }
 
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -64,6 +72,7 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
                 EnableMessageContentLogging = connection.GetBooleanOrFalseValue("EnableMessageContentLogging"),
             },
         };
+
         var identityId = connection.GetIdentityId();
         var azureClient = connection.GetAzureAuthenticationType() switch
         {
@@ -72,6 +81,7 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
             AzureAuthenticationType.Default => new AzureOpenAIClient(endpoint, new DefaultAzureCredential(), options),
             _ => throw new NotSupportedException("The provided authentication type is not supported.")
         };
+
         return azureClient;
     }
 }

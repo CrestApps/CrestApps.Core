@@ -28,8 +28,18 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     private readonly IEnumerable<IAICompletionServiceHandler> _completionServiceHandlers;
     private readonly DefaultAIOptions _defaultOptions;
     private readonly ILogger _logger;
+
     private AzureOpenAIClientOptions _clientOptions;
-    public AzureOpenAICompletionClient(IOptions<AIProviderOptions> providerOptions, IServiceProvider serviceProvider, ILoggerFactory loggerFactory, IEnumerable<IAICompletionServiceHandler> completionServiceHandlers, DefaultAIOptions defaultOptions, ITemplateService aiTemplateService, IAIDeploymentManager deploymentManager) : base(providerOptions.Value, aiTemplateService, deploymentManager)
+
+    public AzureOpenAICompletionClient(
+        IOptions<AIProviderOptions> providerOptions,
+        IServiceProvider serviceProvider,
+        ILoggerFactory loggerFactory,
+        IEnumerable<IAICompletionServiceHandler> completionServiceHandlers,
+        DefaultAIOptions defaultOptions,
+        ITemplateService aiTemplateService,
+        IAIDeploymentManager deploymentManager)
+        : base(providerOptions.Value, aiTemplateService, deploymentManager)
     {
         _serviceProvider = serviceProvider;
         _loggerFactory = loggerFactory;

@@ -190,6 +190,7 @@ public static class UploadChatInteractionDocument
 
             return TypedResults.Ok(new
             {
+                documents = interaction.Documents ?? [],
                 uploaded = uploadedDocuments.Select(document => document.DocumentInfo),
                 failed = failedFiles,
             });

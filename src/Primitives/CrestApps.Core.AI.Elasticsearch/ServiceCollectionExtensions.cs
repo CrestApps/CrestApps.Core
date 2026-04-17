@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Indexing;
+using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Elasticsearch.Services;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;

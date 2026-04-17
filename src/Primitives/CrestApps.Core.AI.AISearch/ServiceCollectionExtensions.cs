@@ -1,6 +1,6 @@
 using Azure.Search.Documents.Indexes;
 using CrestApps.Core.AI.AISearch.Services;
-using CrestApps.Core.AI.Documents.Indexing;
+using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.Azure.AISearch;
