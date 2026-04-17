@@ -11,6 +11,8 @@ public interface IToolRegistry
     /// <summary>
     /// Gets all tool entries scoped to the given completion context.
     /// </summary>
+    /// <param name="context">The completion context that scopes available tools.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     Task<IReadOnlyList<ToolRegistryEntry>> GetAllAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default);

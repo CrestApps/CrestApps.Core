@@ -11,6 +11,10 @@ public interface IAIChatSessionConversionGoalRecorder
     /// <summary>
     /// Records evaluated conversion-goal results for the specified chat session.
     /// </summary>
+    /// <param name="profile">The AI profile associated with the session.</param>
+    /// <param name="session">The chat session to record goals for.</param>
+    /// <param name="goalResults">The evaluated conversion-goal results.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     Task RecordConversionGoalsAsync(
         AIProfile profile,
         AIChatSession session,

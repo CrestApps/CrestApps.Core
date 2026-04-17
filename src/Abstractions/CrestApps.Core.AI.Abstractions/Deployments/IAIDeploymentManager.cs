@@ -35,6 +35,8 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// Returns the deployment marked as IsDefault for that type on the client,
     /// or the first deployment supporting that type on the client if none is marked as default.
     /// </summary>
+    /// <param name="clientName">The name of the client to resolve the default deployment for.</param>
+    /// <param name="type">The deployment type to filter by.</param>
     ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type);
 
     /// <summary>
@@ -44,11 +46,16 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// 3. Falls back to the first deployment supporting the requested type within the current scope.
     /// Returns <see langword="null"/> if no deployment can be resolved.
     /// </summary>
+    /// <param name="type">The deployment type to resolve.</param>
+    /// <param name="deploymentName">The optional deployment name to look up directly.</param>
+    /// <param name="clientName">The optional client name to scope the resolution.</param>
     ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null);
 
     /// <summary>
     /// Gets all deployments of a given type, optionally filtered by client.
     /// Results are suitable for dropdown population, grouped by connection.
     /// </summary>
+    /// <param name="type">The deployment type to filter by.</param>
+    /// <param name="clientName">The optional client name to further filter results.</param>
     ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null);
 }
