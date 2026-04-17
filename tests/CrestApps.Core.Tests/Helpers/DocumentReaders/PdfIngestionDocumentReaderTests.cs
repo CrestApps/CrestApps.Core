@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Pdf.Services;
+using CrestApps.Core.AI.Documents.Pdf.Services;
 using Microsoft.AspNetCore.Http;
 using UglyToad.PdfPig.Writer;
 

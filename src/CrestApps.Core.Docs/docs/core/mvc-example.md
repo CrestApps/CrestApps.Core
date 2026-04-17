@@ -135,6 +135,8 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 
 `AddAISuite(...)` always wires the shared foundation, AI runtime, and orchestration together. `AddChatInteractions()` inside that suite then registers the shared `DataSourceChatInteractionSettingsHandler`, so Chat Interactions persist the selected data source and RAG metadata through the framework settings pipeline instead of MVC-only wiring. The provider service blocks also pull in the shared data-source RAG registrations, which register both `DataSourceOrchestrationHandler` and `DataSourcePreemptiveRagHandler` at the framework level so source availability instructions and preemptive RAG stay aligned with the saved chat settings.
 
+`AddAIDocuments()`, `AddAIDataSources()`, and `AddAIMemory()` in those indexing blocks now come from the AI-specific provider packages: `CrestApps.Core.AI.Elasticsearch` and `CrestApps.Core.AI.AISearch`. The base `CrestApps.Core.Elasticsearch` and `CrestApps.Core.Azure.AISearch` packages now stay focused on the provider primitives and shared search infrastructure only.
+
 The MVC sample now also registers both the **Claude** and **Copilot** orchestrators. Claude uses the official Anthropic SDK with a site-level authentication mode, API key, and live model discovery, while Copilot keeps its dedicated OAuth/BYOK flow. Admins can choose either orchestrator from the same AI Profile, AI Template, and Chat Interaction editors.
 
 Documents, memory, and data sources now remain fully independent orchestration sources in the shared framework. Each source injects its own availability instructions and preemptive-RAG context, so the orchestrator can compose them together without the document prompts needing to know whether memory or data sources are also attached.

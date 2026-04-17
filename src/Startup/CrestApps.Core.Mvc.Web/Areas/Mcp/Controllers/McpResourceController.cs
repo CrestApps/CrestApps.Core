@@ -1,8 +1,8 @@
-using CrestApps.Core.AI.Ftp;
-using CrestApps.Core.AI.Ftp.Models;
+using CrestApps.Core.AI.Mcp.Ftp;
+using CrestApps.Core.AI.Mcp.Ftp.Models;
 using CrestApps.Core.AI.Mcp.Models;
-using CrestApps.Core.AI.Sftp;
-using CrestApps.Core.AI.Sftp.Models;
+using CrestApps.Core.AI.Mcp.Sftp;
+using CrestApps.Core.AI.Mcp.Sftp.Models;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;

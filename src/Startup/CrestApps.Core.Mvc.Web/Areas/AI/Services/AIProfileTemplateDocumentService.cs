@@ -1,10 +1,11 @@
 using CrestApps.Core.AI;
-using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
-using CrestApps.Core.Mvc.Web.Services;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AI.Services;
@@ -13,7 +14,7 @@ public sealed class AIProfileTemplateDocumentService
 {
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
-    private readonly FileSystemFileStore _fileStore;
+    private readonly IDocumentFileStore _fileStore;
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
@@ -23,7 +24,7 @@ public sealed class AIProfileTemplateDocumentService
     public AIProfileTemplateDocumentService(
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
-        FileSystemFileStore fileStore,
+        IDocumentFileStore fileStore,
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
@@ -58,14 +59,6 @@ public sealed class AIProfileTemplateDocumentService
 
             try
             {
-                var ext = Path.GetExtension(file.FileName);
-                var storagePath = $"documents/{template.ItemId}/{UniqueId.GenerateId()}{ext}";
-
-                using (var stream = file.OpenReadStream())
-                {
-                    await _fileStore.SaveFileAsync(storagePath, stream);
-                }
-
                 var result = await _documentProcessingService.ProcessFileAsync(
                     file,
                     template.ItemId,
@@ -77,6 +70,19 @@ public sealed class AIProfileTemplateDocumentService
                     _logger.LogWarning("Failed to process file '{FileName}': {Error}", file.FileName, result.Error);
                     continue;
                 }
+
+                var storageLocation = DocumentFileStoragePath.Create(
+                    AIReferenceTypes.Document.ProfileTemplate,
+                    template.ItemId,
+                    file.FileName);
+
+                using (var stream = file.OpenReadStream())
+                {
+                    await _fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
+                }
+
+                result.Document.StoredFileName = storageLocation.StoredFileName;
+                result.Document.StoredFilePath = storageLocation.StoragePath;
 
                 await _documentStore.CreateAsync(result.Document);
 
@@ -145,6 +151,11 @@ public sealed class AIProfileTemplateDocumentService
 
                 if (document != null)
                 {
+                    if (!string.IsNullOrWhiteSpace(document.StoredFilePath))
+                    {
+                        await _fileStore.DeleteFileAsync(document.StoredFilePath);
+                    }
+
                     await _documentStore.DeleteAsync(document);
                 }
             }
@@ -190,12 +201,41 @@ public sealed class AIProfileTemplateDocumentService
                 continue;
             }
 
+            string storedFileName = null;
+            string storedFilePath = null;
+
+            if (!string.IsNullOrWhiteSpace(templateDocument.StoredFilePath))
+            {
+                var storageLocation = DocumentFileStoragePath.Create(
+                    AIReferenceTypes.Document.Profile,
+                    profile.ItemId,
+                    templateDocument.FileName);
+
+                await using var sourceStream = await _fileStore.GetFileAsync(templateDocument.StoredFilePath);
+
+                if (sourceStream != null)
+                {
+                    await _fileStore.SaveFileAsync(storageLocation.StoragePath, sourceStream);
+                    storedFileName = storageLocation.StoredFileName;
+                    storedFilePath = storageLocation.StoragePath;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Template document '{DocumentId}' referenced stored file '{StoredFilePath}', but the file was not found.",
+                        templateDocument.ItemId,
+                        templateDocument.StoredFilePath);
+                }
+            }
+
             var clonedDocument = new AIDocument
             {
                 ItemId = UniqueId.GenerateId(),
                 ReferenceId = profile.ItemId,
                 ReferenceType = AIReferenceTypes.Document.Profile,
                 FileName = templateDocument.FileName,
+                StoredFileName = storedFileName,
+                StoredFilePath = storedFilePath,
                 ContentType = templateDocument.ContentType,
                 FileSize = templateDocument.FileSize,
                 UploadedUtc = templateDocument.UploadedUtc,

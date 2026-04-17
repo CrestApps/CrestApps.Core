@@ -1,4 +1,3 @@
-using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;

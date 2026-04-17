@@ -1,3 +1,4 @@
+@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
 @using Microsoft.Extensions.Options
@@ -265,7 +266,7 @@
                                     <div class="card mb-1 prompt-template-card" data-template-id="@selection.TemplateId">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
                                             <a class="btn btn-sm btn-link text-start text-decoration-none flex-grow-1 px-0"
-                                               data-bs-toggle="collapse" href="#promptCollapse_@i" role="button" aria-expanded="false">
+                                                   data-bs-toggle="collapse" href="#promptCollapse_@i" role="button" aria-expanded="false">
                                                 <i class="bi bi-chevron-right me-1"></i>
                                                 <span class="prompt-template-title fw-semibold">@title</span>
                                             </a>
@@ -827,101 +828,101 @@
     <script>initAutoGenerateTechnicalName('templateTitle', 'templateTechName');</script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            if (window.bootstrap && window.bootstrap.Tooltip) {
-                document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (element) {
-                    window.bootstrap.Tooltip.getOrCreateInstance(element);
-                });
-            }
+        if (window.bootstrap && window.bootstrap.Tooltip) {
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (element) {
+        window.bootstrap.Tooltip.getOrCreateInstance(element);
+        });
+        }
 
-            var sourceSelect = document.getElementById('sourceSelect');
-            var profileFields = document.getElementById('profileFields');
-            var systemPromptFields = document.getElementById('systemPromptFields');
-            var dataSourceSelect = document.getElementById('@Html.IdFor(m => m.DataSourceId)');
+        var sourceSelect = document.getElementById('sourceSelect');
+        var profileFields = document.getElementById('profileFields');
+        var systemPromptFields = document.getElementById('systemPromptFields');
+        var dataSourceSelect = document.getElementById('@Html.IdFor(m => m.DataSourceId)');
 
-            // --- Profile Type conditional visibility ---
-            var profileTypeSelect = document.getElementById('profileTypeSelect');
-            var addInitialPromptCheck = document.getElementById('addInitialPromptCheck');
-            var welcomeMessageGroup = document.getElementById('welcomeMessageGroup');
-            var initialPromptGroup = document.getElementById('initialPromptGroup');
+        // --- Profile Type conditional visibility ---
+        var profileTypeSelect = document.getElementById('profileTypeSelect');
+        var addInitialPromptCheck = document.getElementById('addInitialPromptCheck');
+        var welcomeMessageGroup = document.getElementById('welcomeMessageGroup');
+        var initialPromptGroup = document.getElementById('initialPromptGroup');
 
-            function normalizeProfileType(str) {
-                return (str || '')
-                    .trim()
-                    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-                    .replace(/\s+/g, '-')
-                    .toLowerCase();
-            }
+        function normalizeProfileType(str) {
+        return (str || '')
+        .trim()
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .replace(/\s+/g, '-')
+        .toLowerCase();
+        }
 
-            function getSelectedProfileTypeClassName() {
-                if (!profileTypeSelect || !profileTypeSelect.value) {
-                    return '';
-                }
+        function getSelectedProfileTypeClassName() {
+        if (!profileTypeSelect || !profileTypeSelect.value) {
+        return '';
+        }
 
-                var selectedOption = profileTypeSelect.options[profileTypeSelect.selectedIndex];
-                var profileType = selectedOption ? selectedOption.text : profileTypeSelect.value;
+        var selectedOption = profileTypeSelect.options[profileTypeSelect.selectedIndex];
+        var profileType = selectedOption ? selectedOption.text : profileTypeSelect.value;
 
-                return 'profile-type-' + normalizeProfileType(profileType);
-            }
+        return 'profile-type-' + normalizeProfileType(profileType);
+        }
 
-            function toggleProfileTypeFields() {
-                if (!profileTypeSelect) return;
-                var className = getSelectedProfileTypeClassName();
-                if (!className) {
-                    document.querySelectorAll('form .profile-type').forEach(function (el) { el.classList.add('d-none'); });
-                    return;
-                }
-                document.querySelectorAll('form .profile-type').forEach(function (el) {
-                    if (el.classList.contains(className)) {
-                        el.classList.remove('d-none');
-                    } else {
-                        el.classList.add('d-none');
-                    }
-                });
-                toggleInitialPromptFields();
-            }
+        function toggleProfileTypeFields() {
+        if (!profileTypeSelect) return;
+        var className = getSelectedProfileTypeClassName();
+        if (!className) {
+        document.querySelectorAll('form .profile-type').forEach(function (el) { el.classList.add('d-none'); });
+        return;
+        }
+        document.querySelectorAll('form .profile-type').forEach(function (el) {
+        if (el.classList.contains(className)) {
+        el.classList.remove('d-none');
+        } else {
+        el.classList.add('d-none');
+        }
+        });
+        toggleInitialPromptFields();
+        }
 
-            function toggleInitialPromptFields() {
-                if (!profileTypeSelect || !addInitialPromptCheck || !welcomeMessageGroup || !initialPromptGroup) return;
-                var isChatType = getSelectedProfileTypeClassName() === 'profile-type-chat';
-                var showInitialPrompt = addInitialPromptCheck.checked;
-                welcomeMessageGroup.classList.toggle('d-none', !isChatType || showInitialPrompt);
-                initialPromptGroup.classList.toggle('d-none', !isChatType || !showInitialPrompt);
-            }
+        function toggleInitialPromptFields() {
+        if (!profileTypeSelect || !addInitialPromptCheck || !welcomeMessageGroup || !initialPromptGroup) return;
+        var isChatType = getSelectedProfileTypeClassName() === 'profile-type-chat';
+        var showInitialPrompt = addInitialPromptCheck.checked;
+        welcomeMessageGroup.classList.toggle('d-none', !isChatType || showInitialPrompt);
+        initialPromptGroup.classList.toggle('d-none', !isChatType || !showInitialPrompt);
+        }
 
-            function toggleDataSourceDependentFields() {
-                var hasDataSource = !!(dataSourceSelect && dataSourceSelect.value && dataSourceSelect.value.trim() !== '');
-                document.querySelectorAll('.rag-data-source-filter-dependent').forEach(function (element) {
-                    element.classList.toggle('d-none', !hasDataSource);
-                });
-            }
+        function toggleDataSourceDependentFields() {
+        var hasDataSource = !!(dataSourceSelect && dataSourceSelect.value && dataSourceSelect.value.trim() !== '');
+        document.querySelectorAll('.rag-data-source-filter-dependent').forEach(function (element) {
+        element.classList.toggle('d-none', !hasDataSource);
+        });
+        }
 
-            function updateVisibility() {
-                var isProfile = sourceSelect.value === 'Profile';
-                profileFields.style.display = isProfile ? '' : 'none';
-                systemPromptFields.style.display = isProfile ? 'none' : '';
-                if (isProfile) {
-                    toggleProfileTypeFields();
-                } else {
-                    document.querySelectorAll('form .profile-type').forEach(function (el) { el.classList.add('d-none'); });
-                }
-            }
+        function updateVisibility() {
+        var isProfile = sourceSelect.value === 'Profile';
+        profileFields.style.display = isProfile ? '' : 'none';
+        systemPromptFields.style.display = isProfile ? 'none' : '';
+        if (isProfile) {
+        toggleProfileTypeFields();
+        } else {
+        document.querySelectorAll('form .profile-type').forEach(function (el) { el.classList.add('d-none'); });
+        }
+        }
 
-            sourceSelect.addEventListener('change', updateVisibility);
+        sourceSelect.addEventListener('change', updateVisibility);
 
-            if (profileTypeSelect) {
-                profileTypeSelect.addEventListener('change', toggleProfileTypeFields);
-            }
+        if (profileTypeSelect) {
+        profileTypeSelect.addEventListener('change', toggleProfileTypeFields);
+        }
 
-            if (addInitialPromptCheck) {
-                addInitialPromptCheck.addEventListener('change', toggleInitialPromptFields);
-            }
+        if (addInitialPromptCheck) {
+        addInitialPromptCheck.addEventListener('change', toggleInitialPromptFields);
+        }
 
-            if (dataSourceSelect) {
-                dataSourceSelect.addEventListener('change', toggleDataSourceDependentFields);
-            }
+        if (dataSourceSelect) {
+        dataSourceSelect.addEventListener('change', toggleDataSourceDependentFields);
+        }
 
-            updateVisibility();
-            toggleDataSourceDependentFields();
+        updateVisibility();
+        toggleDataSourceDependentFields();
 
         // --- Select All / Deselect All tools ---
         var selectAllBtn = document.getElementById('select-all-tools');
@@ -1162,27 +1163,27 @@
         var taskIndex = 0;
 
         var taskCapabilities = {
-            agents: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableAgents.Select(a => new { a.Name, a.DisplayText }))),
-            a2a: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableA2AConnections.Select(c => new { c.ItemId, c.DisplayText }))),
-            mcp: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableMcpConnections.Select(c => new { c.ItemId, c.DisplayText }))),
-            tools: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key).Select(g => new { Category = g.Key, Items = g.Select(t => new { t.Name, t.Title }) })))
+        agents: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableAgents.Select(a => new { a.Name, a.DisplayText }))),
+        a2a: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableA2AConnections.Select(c => new { c.ItemId, c.DisplayText }))),
+        mcp: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableMcpConnections.Select(c => new { c.ItemId, c.DisplayText }))),
+        tools: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key).Select(g => new { Category = g.Key, Items = g.Select(t => new { t.Name, t.Title }) })))
         };
 
         function buildTaskCapabilitiesHtml(idx) {
-            var html = '<p class="text-muted small mb-3">Select the capabilities available to this task.</p>';
-            html += '<h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>';
-            if (taskCapabilities.agents.length === 0) { html += '<p class="text-muted small">No agent profiles available.</p>'; }
-            else { taskCapabilities.agents.forEach(function (a) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedAgentNames" value="' + a.Name + '" id="task' + idx + '_agent_' + a.Name + '" /><label class="form-check-label" for="task' + idx + '_agent_' + a.Name + '">' + a.DisplayText + '</label></div>'; }); }
-            html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>';
-            if (taskCapabilities.a2a.length === 0) { html += '<p class="text-muted small">No A2A hosts configured.</p>'; }
-            else { taskCapabilities.a2a.forEach(function (c) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedA2AConnectionIds" value="' + c.ItemId + '" id="task' + idx + '_a2a_' + c.ItemId + '" /><label class="form-check-label" for="task' + idx + '_a2a_' + c.ItemId + '">' + c.DisplayText + '</label></div>'; }); }
-            html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>';
-            if (taskCapabilities.mcp.length === 0) { html += '<p class="text-muted small">No MCP hosts configured.</p>'; }
-            else { taskCapabilities.mcp.forEach(function (c) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedMcpConnectionIds" value="' + c.ItemId + '" id="task' + idx + '_mcp_' + c.ItemId + '" /><label class="form-check-label" for="task' + idx + '_mcp_' + c.ItemId + '">' + c.DisplayText + '</label></div>'; }); }
-            html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>';
-            if (taskCapabilities.tools.length === 0) { html += '<p class="text-muted small">No AI tools registered.</p>'; }
-            else { taskCapabilities.tools.forEach(function (g) { html += '<h6 class="text-secondary mt-2 mb-1 small"><i class="bi bi-folder"></i> ' + g.Category + '</h6>'; g.Items.forEach(function (t) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedToolNames" value="' + t.Name + '" id="task' + idx + '_tool_' + t.Name + '" /><label class="form-check-label" for="task' + idx + '_tool_' + t.Name + '">' + t.Title + '</label></div>'; }); }); }
-            return html;
+        var html = '<p class="text-muted small mb-3">Select the capabilities available to this task.</p>';
+        html += '<h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>';
+        if (taskCapabilities.agents.length === 0) { html += '<p class="text-muted small">No agent profiles available.</p>'; }
+        else { taskCapabilities.agents.forEach(function (a) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedAgentNames" value="' + a.Name + '" id="task' + idx + '_agent_' + a.Name + '" /><label class="form-check-label" for="task' + idx + '_agent_' + a.Name + '">' + a.DisplayText + '</label></div>'; }); }
+        html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>';
+        if (taskCapabilities.a2a.length === 0) { html += '<p class="text-muted small">No A2A hosts configured.</p>'; }
+        else { taskCapabilities.a2a.forEach(function (c) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedA2AConnectionIds" value="' + c.ItemId + '" id="task' + idx + '_a2a_' + c.ItemId + '" /><label class="form-check-label" for="task' + idx + '_a2a_' + c.ItemId + '">' + c.DisplayText + '</label></div>'; }); }
+        html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>';
+        if (taskCapabilities.mcp.length === 0) { html += '<p class="text-muted small">No MCP hosts configured.</p>'; }
+        else { taskCapabilities.mcp.forEach(function (c) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedMcpConnectionIds" value="' + c.ItemId + '" id="task' + idx + '_mcp_' + c.ItemId + '" /><label class="form-check-label" for="task' + idx + '_mcp_' + c.ItemId + '">' + c.DisplayText + '</label></div>'; }); }
+        html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>';
+        if (taskCapabilities.tools.length === 0) { html += '<p class="text-muted small">No AI tools registered.</p>'; }
+        else { taskCapabilities.tools.forEach(function (g) { html += '<h6 class="text-secondary mt-2 mb-1 small"><i class="bi bi-folder"></i> ' + g.Category + '</h6>'; g.Items.forEach(function (t) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedToolNames" value="' + t.Name + '" id="task' + idx + '_tool_' + t.Name + '" /><label class="form-check-label" for="task' + idx + '_tool_' + t.Name + '">' + t.Title + '</label></div>'; }); }); }
+        return html;
         }
 
         function updatePostSessionTaskOptionsVisibility(taskCard) {
@@ -1200,32 +1201,32 @@
         card.className = 'card mb-3 post-session-task-card';
         card.innerHTML =
         '<div class="card-header d-flex justify-content-between align-items-center py-2">' +
-            '<ul class="nav nav-tabs card-header-tabs" role="tablist">' +
-                '<li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#taskInfo_' + idx + '" role="tab">Task Info</a></li>' +
-                '<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#taskCaps_' + idx + '" role="tab">Capabilities</a></li>' +
-            '</ul>' +
-            '<button type="button" class="btn btn-sm btn-outline-danger remove-task-btn ms-2"><i class="bi bi-trash"></i></button>' +
+        '<ul class="nav nav-tabs card-header-tabs" role="tablist">' +
+        '<li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#taskInfo_' + idx + '" role="tab">Task Info</a></li>' +
+        '<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#taskCaps_' + idx + '" role="tab">Capabilities</a></li>' +
+        '</ul>' +
+        '<button type="button" class="btn btn-sm btn-outline-danger remove-task-btn ms-2"><i class="bi bi-trash"></i></button>' +
         '</div>' +
         '<div class="card-body"><div class="tab-content">' +
-            '<div class="tab-pane fade show active" id="taskInfo_' + idx + '" role="tabpanel">' +
-                '<div class="row">' +
-                '<div class="col-md-6"><div class="mb-2"><label class="form-label">Name <span class="text-danger">*</span></label>' +
-                '<input name="PostSessionTasks[' + idx + '].Name" class="form-control" placeholder="e.g., sentiment_analysis" required /></div></div>' +
-                '<div class="col-md-6"><div class="mb-2"><label class="form-label">Type</label>' +
-                '<select name="PostSessionTasks[' + idx + '].Type" class="form-select post-session-task-type">' +
-                '<option value="Semantic">Semantic (free text)</option>' +
-                '<option value="PredefinedOptions">Predefined Options</option>' +
-                '</select></div></div>' +
-                '</div>' +
-                '<div class="mb-2"><label class="form-label">Instructions</label>' +
-                '<textarea name="PostSessionTasks[' + idx + '].Instructions" class="form-control" rows="2" placeholder="Instructions for the AI model..."></textarea></div>' +
-                '<div class="mb-2"><div class="form-check">' +
-                '<input name="PostSessionTasks[' + idx + '].AllowMultipleValues" type="checkbox" class="form-check-input" value="true" />' +
-                '<label class="form-check-label">Allow multiple values</label></div></div>' +
-                '<div class="mb-0 post-session-options-group d-none"><label class="form-label">Options (one per line, for Predefined Options type)</label>' +
-                '<textarea name="PostSessionTasks[' + idx + '].Options" class="form-control" rows="3" placeholder="Option 1\nOption 2\nOption 3"></textarea></div>' +
-            '</div>' +
-            '<div class="tab-pane fade" id="taskCaps_' + idx + '" role="tabpanel">' + buildTaskCapabilitiesHtml(idx) + '</div>' +
+        '<div class="tab-pane fade show active" id="taskInfo_' + idx + '" role="tabpanel">' +
+        '<div class="row">' +
+        '<div class="col-md-6"><div class="mb-2"><label class="form-label">Name <span class="text-danger">*</span></label>' +
+        '<input name="PostSessionTasks[' + idx + '].Name" class="form-control" placeholder="e.g., sentiment_analysis" required /></div></div>' +
+        '<div class="col-md-6"><div class="mb-2"><label class="form-label">Type</label>' +
+        '<select name="PostSessionTasks[' + idx + '].Type" class="form-select post-session-task-type">' +
+        '<option value="Semantic">Semantic (free text)</option>' +
+        '<option value="PredefinedOptions">Predefined Options</option>' +
+        '</select></div></div>' +
+        '</div>' +
+        '<div class="mb-2"><label class="form-label">Instructions</label>' +
+        '<textarea name="PostSessionTasks[' + idx + '].Instructions" class="form-control" rows="2" placeholder="Instructions for the AI model..."></textarea></div>' +
+        '<div class="mb-2"><div class="form-check">' +
+        '<input name="PostSessionTasks[' + idx + '].AllowMultipleValues" type="checkbox" class="form-check-input" value="true" />' +
+        '<label class="form-check-label">Allow multiple values</label></div></div>' +
+        '<div class="mb-0 post-session-options-group d-none"><label class="form-label">Options (one per line, for Predefined Options type)</label>' +
+        '<textarea name="PostSessionTasks[' + idx + '].Options" class="form-control" rows="3" placeholder="Option 1\nOption 2\nOption 3"></textarea></div>' +
+        '</div>' +
+        '<div class="tab-pane fade" id="taskCaps_' + idx + '" role="tabpanel">' + buildTaskCapabilitiesHtml(idx) + '</div>' +
         '</div></div>';
         tasksContainer.appendChild(card);
         updatePostSessionTaskOptionsVisibility(card);

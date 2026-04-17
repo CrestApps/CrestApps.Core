@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Anthropic;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;

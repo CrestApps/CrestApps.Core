@@ -24,6 +24,16 @@ public sealed class AIDocument : CatalogItem
     public string FileName { get; set; }
 
     /// <summary>
+    /// Gets or sets the GUID-based file name used by the backing document file store.
+    /// </summary>
+    public string StoredFileName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the relative path used by the backing document file store.
+    /// </summary>
+    public string StoredFilePath { get; set; }
+
+    /// <summary>
     /// Gets or sets the content type (MIME type) of the document.
     /// </summary>
     public string ContentType { get; set; }

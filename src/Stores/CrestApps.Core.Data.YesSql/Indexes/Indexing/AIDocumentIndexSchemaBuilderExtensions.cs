@@ -22,4 +22,12 @@ public static class AIDocumentIndexSchemaBuilderExtensions
                 nameof(AIDocumentIndex.ReferenceType));
         }, collection: options?.AIDocsCollectionName);
     }
+
+    public static Task AddAIDocumentIndexExtensionColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
+    {
+        return schemaBuilder.AlterIndexTableAsync<AIDocumentIndex>(table =>
+        {
+            table.AddColumn<string>(nameof(AIDocumentIndex.Extension), column => column.WithLength(20));
+        }, collection: options?.AIDocsCollectionName);
+    }
 }

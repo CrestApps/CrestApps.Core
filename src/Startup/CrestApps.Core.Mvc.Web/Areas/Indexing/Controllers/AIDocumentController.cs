@@ -1,11 +1,12 @@
 using CrestApps.Core.AI;
-using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
-using CrestApps.Core.Mvc.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,7 +20,7 @@ public sealed class AIDocumentController : Controller
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IAIProfileManager _profileManager;
-    private readonly FileSystemFileStore _fileStore;
+    private readonly IDocumentFileStore _fileStore;
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
@@ -29,7 +30,7 @@ public sealed class AIDocumentController : Controller
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IAIProfileManager profileManager,
-        FileSystemFileStore fileStore,
+        IDocumentFileStore fileStore,
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
@@ -61,15 +62,6 @@ public sealed class AIDocumentController : Controller
             return NotFound(new { error = "Profile not found." });
         }
 
-        var ext = Path.GetExtension(file.FileName);
-
-        // Save the file to the file store.
-        var storagePath = $"documents/{profileId}/{UniqueId.GenerateId()}{ext}";
-        using (var stream = file.OpenReadStream())
-        {
-            await _fileStore.SaveFileAsync(storagePath, stream);
-        }
-
         var embeddingDeployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
         var embeddingGenerator = embeddingDeployment == null
             ? null
@@ -84,6 +76,19 @@ public sealed class AIDocumentController : Controller
         {
             return BadRequest(new { error = result.Error });
         }
+
+        var storageLocation = DocumentFileStoragePath.Create(
+            AIReferenceTypes.Document.Profile,
+            profileId,
+            file.FileName);
+
+        using (var stream = file.OpenReadStream())
+        {
+            await _fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
+        }
+
+        result.Document.StoredFileName = storageLocation.StoredFileName;
+        result.Document.StoredFilePath = storageLocation.StoragePath;
 
         await _documentStore.CreateAsync(result.Document);
 
@@ -129,6 +134,10 @@ public sealed class AIDocumentController : Controller
             var chunks = await _chunkStore.GetChunksByAIDocumentIdAsync(documentId);
             await _documentIndexingService.DeleteChunksAsync(chunks.Select(chunk => chunk.ItemId));
             await _chunkStore.DeleteByDocumentIdAsync(documentId);
+            if (!string.IsNullOrWhiteSpace(document.StoredFilePath))
+            {
+                await _fileStore.DeleteFileAsync(document.StoredFilePath);
+            }
             await _documentStore.DeleteAsync(document);
         }
 

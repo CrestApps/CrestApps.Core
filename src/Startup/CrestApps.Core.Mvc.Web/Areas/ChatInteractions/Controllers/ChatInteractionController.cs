@@ -1,13 +1,15 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
-using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -45,7 +47,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IAIProfileManager _profileManager;
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
-    private readonly FileSystemFileStore _fileStore;
+    private readonly IDocumentFileStore _fileStore;
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
@@ -73,7 +75,7 @@ public sealed class ChatInteractionController : Controller
         IAIProfileManager profileManager,
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
-        FileSystemFileStore fileStore,
+        IDocumentFileStore fileStore,
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
@@ -723,15 +725,6 @@ public sealed class ChatInteractionController : Controller
                 continue;
             }
 
-            var ext = Path.GetExtension(file.FileName);
-
-            var storagePath = $"documents/{interaction.ItemId}/{UniqueId.GenerateId()}{ext}";
-            using (var stream = file.OpenReadStream())
-
-            {
-                await _fileStore.SaveFileAsync(storagePath, stream);
-            }
-
             var result = await _documentProcessingService.ProcessFileAsync(
                 file,
 
@@ -745,6 +738,20 @@ public sealed class ChatInteractionController : Controller
 
                 continue;
             }
+
+            var storageLocation = DocumentFileStoragePath.Create(
+                AIReferenceTypes.Document.ChatInteraction,
+                interaction.ItemId,
+                file.FileName);
+
+            using (var stream = file.OpenReadStream())
+
+            {
+                await _fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
+            }
+
+            result.Document.StoredFileName = storageLocation.StoredFileName;
+            result.Document.StoredFilePath = storageLocation.StoragePath;
 
             await _documentStore.CreateAsync(result.Document);
 

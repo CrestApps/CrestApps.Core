@@ -3,7 +3,7 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 
 namespace CrestApps.Core.AI.Services;
 
-internal static class SearchIndexProfileEmbeddingMetadataAccessor
+public static class SearchIndexProfileEmbeddingMetadataAccessor
 {
     private const string ChatInteractionMetadataKey = "ChatInteractionIndexProfileMetadata";
     private const string AIMemoryMetadataKey = "AIMemoryIndexProfileMetadata";

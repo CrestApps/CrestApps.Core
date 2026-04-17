@@ -1,4 +1,3 @@
-using CrestApps.Core;
 using CrestApps.Core.Models;
 
 namespace CrestApps.Core.Tests.Core.Services.Catalogs.Services;

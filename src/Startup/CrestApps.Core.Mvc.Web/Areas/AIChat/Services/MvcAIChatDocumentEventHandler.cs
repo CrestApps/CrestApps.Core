@@ -1,4 +1,4 @@
-using CrestApps.Core.AI;
+using CrestApps.Core.AI.Documents;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 

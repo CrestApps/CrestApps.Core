@@ -6,7 +6,7 @@
     <Description>
 			$(CrestAppsDescription)
 
-			Chat services, SignalR hub contracts, and document processing tools for CrestApps AI.
+			Chat services and SignalR hub contracts for CrestApps AI.
 			Framework-independent, usable in any ASP.NET Core application.
 		</Description>
     <PackageTags>$(PackageTags) ai chat signalr sessions interactions</PackageTags>

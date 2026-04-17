@@ -1,6 +1,6 @@
-using CrestApps.Core;
 using CrestApps.Core.AI.Completions;
-using CrestApps.Core.AI.Handlers;
+using CrestApps.Core.AI.Documents.Handlers;
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Models;

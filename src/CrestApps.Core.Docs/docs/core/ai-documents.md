@@ -24,11 +24,15 @@ builder.Services.AddScoped<IAIDocumentStore, YesSqlAIDocumentStore>();
 builder.Services.AddScoped<IAIDocumentChunkStore, YesSqlAIDocumentChunkStore>();
 ```
 
+`AddCoreAIDocumentProcessing()` is shipped by `CrestApps.Core.AI.Documents`.
+
 Upload a file and process it:
 
 ```csharp
 public sealed class DocumentUploadController(
     IAIDocumentProcessingService processingService,
+    IAIClientFactory aiClientFactory,
+    IAIDeploymentManager deploymentManager,
     IAIDocumentStore documentStore) : Controller
 {
     [HttpPost]
@@ -37,8 +41,11 @@ public sealed class DocumentUploadController(
         string referenceId,
         string referenceType)
     {
-        var embeddingGenerator =
-            await processingService.CreateEmbeddingGeneratorAsync("OpenAI", "default");
+        var embeddingDeployment =
+            await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
+        var embeddingGenerator = embeddingDeployment is null
+            ? null
+            : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
 
         var result = await processingService.ProcessFileAsync(
             file, referenceId, referenceType, embeddingGenerator);
@@ -102,14 +109,23 @@ The document processing system handles this full pipeline from upload to retriev
 
 | Interface | Package | Purpose |
 |-----------|---------|---------|
-| `IAIDocumentStore` | `CrestApps.Core.AI` | CRUD for document records |
-| `IAIDocumentChunkStore` | `CrestApps.Core.AI` | CRUD for document chunks |
-| `IAIDocumentProcessingService` | `CrestApps.Core.AI.Chat` | Orchestrates file → chunk → embed → index |
+| `IAIDocumentStore` | `CrestApps.Core.AI.Documents` | CRUD for document records |
+| `IAIDocumentChunkStore` | `CrestApps.Core.AI.Documents` | CRUD for document chunks |
+| `IAIDocumentProcessingService` | `CrestApps.Core.AI.Documents` | Orchestrates file → chunk → embed → index |
+| `IDocumentFileStore` | `CrestApps.Core.AI.Documents` | Persists uploaded document files to a swappable storage backend |
 | `ISearchDocumentManager` | `CrestApps.Core.AI` | Manages documents in the vector search index |
 | `IVectorSearchService` | `CrestApps.Core.AI` | Performs vector similarity search at query time |
-| `ITabularBatchProcessor` | `CrestApps.Core.AI.Chat` | Splits and processes CSV/Excel batch queries |
-| `ITabularBatchResultCache` | `CrestApps.Core.AI.Chat` | Caches tabular query results |
-| `IngestionDocumentReader` | `CrestApps.Core.AI` | Abstract base for format-specific file readers |
+| `ITabularBatchProcessor` | `CrestApps.Core.AI.Documents` | Splits and processes CSV/Excel batch queries |
+| `ITabularBatchResultCache` | `CrestApps.Core.AI.Documents` | Caches tabular query results |
+| `IngestionDocumentReader` | `CrestApps.Core.AI.Documents` | Abstract base for format-specific file readers |
+
+Hosts can replace `IDocumentFileStore` to change where uploaded files are written:
+
+```csharp
+builder.Services.AddSingleton<IDocumentFileStore, AzureBlobDocumentFileStore>();
+```
+
+The default MVC host stores uploads on the local file system with a new GUID-based stored file name for each upload. `AIDocument.FileName` keeps the original user upload name, while `AIDocument.StoredFileName` and `AIDocument.StoredFilePath` preserve the backing file-store location.
 
 ## Document Processing Pipeline
 

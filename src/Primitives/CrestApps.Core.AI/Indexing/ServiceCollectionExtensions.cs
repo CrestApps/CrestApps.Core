@@ -6,13 +6,6 @@ namespace CrestApps.Core.AI.Indexing;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddCoreAIDocumentIndexProfileHandler(this IServiceCollection services)
-    {
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, AIDocumentSearchIndexProfileHandler>());
-
-        return services;
-    }
-
     public static IServiceCollection AddCoreAIDataSourceIndexProfileHandler(this IServiceCollection services)
     {
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, DataSourceSearchIndexProfileHandler>());

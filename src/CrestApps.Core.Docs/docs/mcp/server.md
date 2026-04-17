@@ -39,7 +39,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 );
 ```
 
-`AddCoreAIMcpServer()` registers the shared prompt and resource services. FTP and SFTP resource handlers now live in the optional `CrestApps.Core.AI.Ftp` and `CrestApps.Core.AI.Sftp` packages, so hosts opt into those transport dependencies explicitly.
+`AddCoreAIMcpServer()` registers the shared prompt and resource services. FTP and SFTP resource handlers now live in the optional `CrestApps.Core.AI.Mcp.Ftp` and `CrestApps.Core.AI.Mcp.Sftp` packages, so hosts opt into those transport dependencies explicitly.
 
 ### Registering MCP Server Stores
 
@@ -90,8 +90,8 @@ The MCP server framework:
 
 | Extension | Package | Purpose |
 |-----------|---------|---------|
-| `AddCoreAIFtpMcpResources()` | `CrestApps.Core.AI.Ftp` | Registers the FTP/FTPS MCP resource type handler |
-| `AddCoreAISftpMcpResources()` | `CrestApps.Core.AI.Sftp` | Registers the SFTP MCP resource type handler |
+| `AddCoreAIFtpMcpResources()` | `CrestApps.Core.AI.Mcp.Ftp` | Registers the FTP/FTPS MCP resource type handler |
+| `AddCoreAISftpMcpResources()` | `CrestApps.Core.AI.Mcp.Sftp` | Registers the SFTP MCP resource type handler |
 
 ## Server Endpoint Setup
 
@@ -240,8 +240,8 @@ Optional transport resource handlers:
 
 | Type | Handler | Description |
 |------|---------|-------------|
-| `ftp` | `FtpResourceTypeHandler` | Registered by `AddCoreAIFtpMcpResources()` from `CrestApps.Core.AI.Ftp` |
-| `sftp` | `SftpResourceTypeHandler` | Registered by `AddCoreAISftpMcpResources()` from `CrestApps.Core.AI.Sftp` |
+| `ftp` | `FtpResourceTypeHandler` | Registered by `AddCoreAIFtpMcpResources()` from `CrestApps.Core.AI.Mcp.Ftp` |
+| `sftp` | `SftpResourceTypeHandler` | Registered by `AddCoreAISftpMcpResources()` from `CrestApps.Core.AI.Mcp.Sftp` |
 
 ### Registering Custom Resource Types
 

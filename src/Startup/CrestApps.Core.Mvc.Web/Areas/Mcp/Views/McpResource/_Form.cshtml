@@ -63,7 +63,7 @@
             <div class="mb-3">
                 <label asp-for="Password" class="form-label">Password</label>
                 <input asp-for="Password" class="form-control" type="password" autocomplete="new-password" />
-                @if (Model.HasPassword && Model.Source == CrestApps.Core.AI.Ftp.FtpResourceConstants.Type)
+                @if (Model.HasPassword && Model.Source == CrestApps.Core.AI.Mcp.Ftp.FtpResourceConstants.Type)
                 {
                     <div class="form-text">Leave blank to keep the existing password.</div>
                 }
@@ -115,7 +115,7 @@
             <div class="mb-3">
                 <label asp-for="Password" class="form-label">Password</label>
                 <input asp-for="Password" class="form-control" type="password" autocomplete="new-password" />
-                @if (Model.HasPassword && Model.Source == CrestApps.Core.AI.Sftp.SftpResourceConstants.Type)
+                @if (Model.HasPassword && Model.Source == CrestApps.Core.AI.Mcp.Sftp.SftpResourceConstants.Type)
                 {
                     <div class="form-text">Leave blank to keep the existing password.</div>
                 }
@@ -188,8 +188,8 @@
         const sftpFields = document.getElementById('sftpFields');
 
         function updateVisibility() {
-            ftpFields.style.display = resourceType.value === '@CrestApps.Core.AI.Ftp.FtpResourceConstants.Type' ? '' : 'none';
-            sftpFields.style.display = resourceType.value === '@CrestApps.Core.AI.Sftp.SftpResourceConstants.Type' ? '' : 'none';
+            ftpFields.style.display = resourceType.value === '@CrestApps.Core.AI.Mcp.Ftp.FtpResourceConstants.Type' ? '' : 'none';
+            sftpFields.style.display = resourceType.value === '@CrestApps.Core.AI.Mcp.Sftp.SftpResourceConstants.Type' ? '' : 'none';
         }
 
         resourceType.addEventListener('change', updateVisibility);

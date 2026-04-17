@@ -1,24 +1,29 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
+using CrestApps.Core.AI.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
-using CrestApps.Core.AI.Chat.Endpoints;
 using CrestApps.Core.AI.Claude;
 using CrestApps.Core.AI.Copilot;
-using CrestApps.Core.AI.Ftp;
+using CrestApps.Core.AI.Copilot.Services;
+using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Documents.Endpoints;
+using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.OpenXml;
+using CrestApps.Core.AI.Documents.Pdf;
+using CrestApps.Core.AI.Elasticsearch;
 using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
+using CrestApps.Core.AI.Mcp.Ftp;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Mcp.Sftp;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
-using CrestApps.Core.AI.OpenXml;
-using CrestApps.Core.AI.Pdf;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
@@ -275,16 +280,21 @@ builder.Services.AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLink
 builder.Services.AddScoped<MvcCitationReferenceCollector>();
 builder.Services.AddScoped<CompositeAIReferenceLinkResolver>();
 builder.Services.AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
-builder.Services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(CrestApps.Core.Elasticsearch.ServiceCollectionExtensions.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
-{
-    descriptor.DisplayName = "Articles";
-    descriptor.Description = "Create an Elasticsearch index for sample article records managed in the MVC app.";
-}));
-builder.Services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(CrestApps.Core.Azure.AISearch.ServiceCollectionExtensions.ProviderName, "Azure AI Search", IndexProfileTypes.Articles, descriptor =>
-{
-    descriptor.DisplayName = "Articles";
-    descriptor.Description = "Create an Azure AI Search index for sample article records managed in the MVC app.";
-}));
+builder.Services.Configure<IndexProfileSourceOptions>(options => options
+    .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
+    {
+        descriptor.DisplayName = "Articles";
+        descriptor.Description = "Create an Elasticsearch index for sample article records managed in the MVC app.";
+    })
+);
+
+builder.Services.Configure<IndexProfileSourceOptions>(options => options
+    .AddOrUpdate(ElasticsearchConstants.ProviderName, "Azure AI Search", IndexProfileTypes.Articles, descriptor =>
+    {
+        descriptor.DisplayName = "Articles";
+        descriptor.Description = "Create an Azure AI Search index for sample article records managed in the MVC app.";
+    })
+);
 
 // =============================================================================
 // 10. MCP — MODEL CONTEXT PROTOCOL
@@ -334,8 +344,8 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 // can provide their own implementations as long as they satisfy the same
 // store/catalog abstractions.
 // =============================================================================
-// Local file store for uploaded documents.
-builder.Services.AddSingleton(new FileSystemFileStore(Path.Combine(appDataPath, "Documents")));
+// Default file-system store for uploaded documents. Replace IDocumentFileStore to use Azure Blob Storage or another backend.
+builder.Services.AddSingleton<IDocumentFileStore>(new FileSystemFileStore(Path.Combine(appDataPath, "Documents")));
 // Copilot orchestrator: credential store and options configuration.
 builder.Services.AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 builder.Services.ConfigureOptions<MvcCopilotOptionsConfiguration>();

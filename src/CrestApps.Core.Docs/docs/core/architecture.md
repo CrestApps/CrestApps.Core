@@ -52,14 +52,19 @@ This page describes the project architecture and how the major layers depend on 
 | `CrestApps.Core` | Default implementations of core abstractions, `IServiceCollection` extensions |
 | `CrestApps.Core.AI` | AI orchestration, `DefaultOrchestrator`, tool execution, completion services |
 | `CrestApps.Core.AI.Chat` | Chat session management, prompt storage, `IAIChatSessionManager` |
+| `CrestApps.Core.AI.Documents` | Document ingestion, uploaded-file storage abstraction, document tools, and document RAG |
 | `CrestApps.Core.AI.OpenAI` | OpenAI provider (`ChatClient`, streaming, tool calls) |
 | `CrestApps.Core.AI.OpenAI.Azure` | Azure OpenAI provider with data source integration |
 | `CrestApps.Core.AI.Ollama` | Ollama provider for locally hosted LLMs |
 | `CrestApps.Core.AI.AzureAIInference` | Azure AI Inference / GitHub Models provider |
 | `CrestApps.Core.AI.Copilot` | GitHub Copilot chat orchestration, OAuth flow, credential management |
-| `CrestApps.Core.Azure.AISearch` | Azure AI Search provider integration for indexing, document management, vector search, and OData filters |
-| `CrestApps.Core.Elasticsearch` | Elasticsearch provider integration for indexing, document management, vector search, and query/filter translation |
+| `CrestApps.Core.Azure.AISearch` | Azure AI Search provider primitives for client setup, index management, document management, and OData filters |
+| `CrestApps.Core.AI.AISearch` | Azure AI Search integration for AI document index profiles, AI memory search, and AI data-source registrations |
+| `CrestApps.Core.Elasticsearch` | Elasticsearch provider primitives for client setup, index management, document management, and query/filter translation |
+| `CrestApps.Core.AI.Elasticsearch` | Elasticsearch integration for AI document index profiles, AI memory search, and AI data-source registrations |
 | `CrestApps.Core.AI.Mcp` | Model Context Protocol (MCP) client and server |
+| `CrestApps.Core.AI.Mcp.Ftp` | FTP/FTPS MCP resource type handler |
+| `CrestApps.Core.AI.Mcp.Sftp` | SFTP MCP resource type handler |
 | `CrestApps.Core.Azure` | Azure-specific utilities and integration helpers |
 | `CrestApps.Core.SignalR` | SignalR hub abstractions for real-time AI chat |
 | `CrestApps.Core.Support` | General utility classes |

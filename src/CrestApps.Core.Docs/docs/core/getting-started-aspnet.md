@@ -18,6 +18,10 @@ Start with the smallest set that matches your scenario.
   <PackageReference Include="CrestApps.Core.AI" />
 
   <PackageReference Include="CrestApps.Core.AI.Chat" />
+  <!-- Add when you need uploaded-document ingestion, document RAG, or document endpoints -->
+  <PackageReference Include="CrestApps.Core.AI.Documents" />
+  <PackageReference Include="CrestApps.Core.AI.Documents.OpenXml" />
+  <PackageReference Include="CrestApps.Core.AI.Documents.Pdf" />
 
   <!-- Pick at least one provider -->
   <PackageReference Include="CrestApps.Core.AI.OpenAI" />

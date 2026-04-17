@@ -1,9 +1,6 @@
 using Azure;
 using Azure.Identity;
 using Azure.Search.Documents.Indexes;
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Indexing;
-using CrestApps.Core.AI.Memory;
 using CrestApps.Core.Azure.AISearch.Builders;
 using CrestApps.Core.Azure.AISearch.Services;
 using CrestApps.Core.Builders;
@@ -19,7 +16,6 @@ namespace CrestApps.Core.Azure.AISearch;
 
 public static class ServiceCollectionExtensions
 {
-    public const string ProviderName = "AzureAISearch";
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services, IConfigurationSection configuration)
     {
         services.Configure<AzureAISearchConnectionOptions>(configuration);
@@ -43,48 +39,21 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services)
     {
-        services.TryAddKeyedScoped<IDataSourceContentManager>(ProviderName, (sp, _) => new AzureAISearchDataSourceContentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDataSourceContentManager>>()));
-        services.TryAddKeyedScoped<IDataSourceDocumentReader>(ProviderName, (sp, _) => new DataSourceAzureAISearchDocumentReader(sp.GetRequiredService<SearchIndexClient>()));
-        services.TryAddKeyedSingleton<IODataFilterTranslator>(ProviderName, (_, _) => new AzureAIODataFilterTranslator());
-        services.TryAddKeyedScoped<ISearchIndexManager>(ProviderName, (sp, _) => new AzureAISearchIndexManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<IOptions<AzureAISearchConnectionOptions>>(), sp.GetRequiredService<ILogger<AzureAISearchIndexManager>>()));
-        services.TryAddKeyedScoped<ISearchDocumentManager>(ProviderName, (sp, _) => new AzureAISearchDocumentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDocumentManager>>()));
-        services.TryAddKeyedScoped<IVectorSearchService>(ProviderName, (sp, _) => new AzureAISearchVectorSearchService(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchVectorSearchService>>()));
-        services.TryAddKeyedScoped<IMemoryVectorSearchService>(ProviderName, (sp, _) => new AzureAISearchMemoryVectorSearchService(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchMemoryVectorSearchService>>()));
+        services.TryAddKeyedScoped<IDataSourceContentManager>(AISearchConstants.ProviderName, (sp, _)
+            => new AzureAISearchDataSourceContentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDataSourceContentManager>>()));
+
+        services.TryAddKeyedScoped<IDataSourceDocumentReader>(AISearchConstants.ProviderName, (sp, _)
+            => new DataSourceAzureAISearchDocumentReader(sp.GetRequiredService<SearchIndexClient>()));
+
+        services.TryAddKeyedSingleton<IODataFilterTranslator>(AISearchConstants.ProviderName, (_, _)
+            => new AzureAIODataFilterTranslator());
+
+        services.TryAddKeyedScoped<ISearchIndexManager>(AISearchConstants.ProviderName, (sp, _)
+            => new AzureAISearchIndexManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<IOptions<AzureAISearchConnectionOptions>>(), sp.GetRequiredService<ILogger<AzureAISearchIndexManager>>()));
+
+        services.TryAddKeyedScoped<ISearchDocumentManager>(AISearchConstants.ProviderName, (sp, _)
+            => new AzureAISearchDocumentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDocumentManager>>()));
         return services;
-    }
-
-    public static IServiceCollection AddCoreAzureAISearchSource(this IServiceCollection services, string type, Action<IndexProfileSourceDescriptor> configure = null)
-    {
-        services.AddCoreAIDefaultIndexProfileHandler();
-        services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(ProviderName, "Azure AI Search", type, configure));
-        return services;
-    }
-
-    public static IServiceCollection AddCoreAzureAISearchAIDocumentSource(this IServiceCollection services)
-    {
-        return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
-        {
-            descriptor.DisplayName = "AI Documents";
-            descriptor.Description = "Create an Azure AI Search index for uploaded and embedded AI document chunks.";
-        }).AddCoreAIDocumentIndexProfileHandler();
-    }
-
-    public static IServiceCollection AddCoreAzureAISearchAIDataSource(this IServiceCollection services)
-    {
-        return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
-        {
-            descriptor.DisplayName = "Data Source";
-            descriptor.Description = "Create an Azure AI Search index for AI knowledge base data source documents.";
-        }).AddCoreAIDataSourceRag().AddCoreAIDataSourceIndexProfileHandler();
-    }
-
-    public static IServiceCollection AddCoreAzureAISearchAIMemorySource(this IServiceCollection services)
-    {
-        return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
-        {
-            descriptor.DisplayName = "AI Memory";
-            descriptor.Description = "Create an Azure AI Search index for user and system memory records.";
-        }).AddCoreAIMemoryIndexProfileHandler();
     }
 
     public static CrestAppsIndexingBuilder AddAzureAISearch(this CrestAppsIndexingBuilder builder, IConfigurationSection configuration, Action<CrestAppsAzureAISearchBuilder> configure = null)
@@ -134,24 +103,6 @@ public static class ServiceCollectionExtensions
             configure(new CrestAppsAzureAISearchBuilder(builder.Services));
         }
 
-        return builder;
-    }
-
-    public static CrestAppsAzureAISearchBuilder AddAIDocuments(this CrestAppsAzureAISearchBuilder builder)
-    {
-        builder.Services.AddCoreAzureAISearchAIDocumentSource();
-        return builder;
-    }
-
-    public static CrestAppsAzureAISearchBuilder AddAIDataSources(this CrestAppsAzureAISearchBuilder builder)
-    {
-        builder.Services.AddCoreAzureAISearchAIDataSource();
-        return builder;
-    }
-
-    public static CrestAppsAzureAISearchBuilder AddAIMemory(this CrestAppsAzureAISearchBuilder builder)
-    {
-        builder.Services.AddCoreAzureAISearchAIMemorySource();
         return builder;
     }
 

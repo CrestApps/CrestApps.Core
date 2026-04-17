@@ -28,6 +28,7 @@ Optional - consumers can provide their own store implementations.
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
   </ItemGroup>
 
