@@ -13,14 +13,37 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     [Fact]
     public async Task GetAllAsync_ShouldMergeStoredAndConfiguredStandaloneDeployments()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string> { ["CrestApps:AI:Deployments:0:ClientName"] = "AzureSpeech", ["CrestApps:AI:Deployments:0:Name"] = "whisper", ["CrestApps:AI:Deployments:0:Type"] = "SpeechToText", ["CrestApps:AI:Deployments:0:IsDefault"] = "true", ["CrestApps:AI:Deployments:0:Endpoint"] = "https://eastus.stt.speech.microsoft.com", ["CrestApps:AI:Deployments:0:AuthenticationType"] = "ApiKey", ["CrestApps:AI:Deployments:0:ApiKey"] = "secret", }).Build();
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "AzureSpeech",
+            ["CrestApps:AI:Deployments:0:Name"] = "whisper",
+            ["CrestApps:AI:Deployments:0:Type"] = "SpeechToText",
+            ["CrestApps:AI:Deployments:0:IsDefault"] = "true",
+            ["CrestApps:AI:Deployments:0:Endpoint"] = "https://eastus.stt.speech.microsoft.com",
+            ["CrestApps:AI:Deployments:0:AuthenticationType"] = "ApiKey",
+            ["CrestApps:AI:Deployments:0:ApiKey"] = "secret",
+        }).Build();
         var aiOptions = new AIOptions();
         aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
         var store = CreateStore(
             configuration,
             aiOptions,
-            dbEntries: [new AIDeployment { ItemId = "ui-deployment", Name = "ui-chat", ClientName = "OpenAI", Type = AIDeploymentType.Chat, }]);
+            dbEntries:
+            [
+                new AIDeployment
+                {
+                    ItemId = "ui-deployment",
+                    Name = "ui-chat",
+                    ClientName = "OpenAI",
+                    Type = AIDeploymentType.Chat,
+                },
+            ]);
+
+        // Act
         var deployments = await store.GetAllAsync();
+
+        // Assert
         Assert.Contains(deployments, deployment => deployment.ItemId == "ui-deployment");
         var configuredDeployment = Assert.Single(deployments, deployment => deployment.Name == "whisper");
         Assert.Equal("AzureSpeech", configuredDeployment.ClientName);
@@ -34,11 +57,22 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     [Fact]
     public async Task FindByNameAsync_ShouldReturnConfiguredDeploymentWhenNotInStore()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string> { ["CrestApps:AI:Deployments:0:ClientName"] = "AzureSpeech", ["CrestApps:AI:Deployments:0:Name"] = "AzureTextToSpeech", ["CrestApps:AI:Deployments:0:Type"] = "TextToSpeech", ["CrestApps:AI:Deployments:0:IsDefault"] = "true", }).Build();
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "AzureSpeech",
+            ["CrestApps:AI:Deployments:0:Name"] = "AzureTextToSpeech",
+            ["CrestApps:AI:Deployments:0:Type"] = "TextToSpeech",
+            ["CrestApps:AI:Deployments:0:IsDefault"] = "true",
+        }).Build();
         var aiOptions = new AIOptions();
         aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
         var store = CreateStore(configuration, aiOptions);
+
+        // Act
         var deployment = await store.FindByNameAsync("AzureTextToSpeech");
+
+        // Assert
         Assert.NotNull(deployment);
         Assert.Equal("AzureSpeech", deployment.ClientName);
         Assert.Equal(AIDeploymentType.TextToSpeech, deployment.Type);
@@ -47,11 +81,21 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     [Fact]
     public async Task GetAllAsync_ShouldReadProviderGroupedStandaloneDeployments()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string> { ["CrestApps:AI:Deployments:AzureSpeech:0:Name"] = "grouped-whisper", ["CrestApps:AI:Deployments:AzureSpeech:0:Type"] = "SpeechToText", ["CrestApps:AI:Deployments:AzureSpeech:0:IsDefault"] = "true", }).Build();
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:AzureSpeech:0:Name"] = "grouped-whisper",
+            ["CrestApps:AI:Deployments:AzureSpeech:0:Type"] = "SpeechToText",
+            ["CrestApps:AI:Deployments:AzureSpeech:0:IsDefault"] = "true",
+        }).Build();
         var aiOptions = new AIOptions();
         aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
         var store = CreateStore(configuration, aiOptions);
+
+        // Act
         var deployment = Assert.Single(await store.GetAllAsync());
+
+        // Assert
         Assert.Equal("AzureSpeech", deployment.ClientName);
         Assert.Equal("grouped-whisper", deployment.Name);
         Assert.Equal(AIDeploymentType.SpeechToText, deployment.Type);
@@ -60,11 +104,25 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     [Fact]
     public async Task GetAllAsync_ShouldPreserveConfiguredClientName()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string> { ["CrestApps:AI:Deployments:0:ClientName"] = "AzureOpenAI", ["CrestApps:AI:Deployments:0:Name"] = "text-embedding-3-small", ["CrestApps:AI:Deployments:0:ModelName"] = "text-embedding-3-small", ["CrestApps:AI:Deployments:0:Type"] = "Embedding", ["CrestApps:AI:Deployments:0:Endpoint"] = "https://example.openai.azure.com/", ["CrestApps:AI:Deployments:0:AuthenticationType"] = "ApiKey", ["CrestApps:AI:Deployments:0:ApiKey"] = "secret", }).Build();
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "AzureOpenAI",
+            ["CrestApps:AI:Deployments:0:Name"] = "text-embedding-3-small",
+            ["CrestApps:AI:Deployments:0:ModelName"] = "text-embedding-3-small",
+            ["CrestApps:AI:Deployments:0:Type"] = "Embedding",
+            ["CrestApps:AI:Deployments:0:Endpoint"] = "https://example.openai.azure.com/",
+            ["CrestApps:AI:Deployments:0:AuthenticationType"] = "ApiKey",
+            ["CrestApps:AI:Deployments:0:ApiKey"] = "secret",
+        }).Build();
         var aiOptions = new AIOptions();
         aiOptions.AddDeploymentProvider("AzureOpenAI");
         var store = CreateStore(configuration, aiOptions);
+
+        // Act
         var deployment = Assert.Single(await store.GetAllAsync());
+
+        // Assert
         Assert.Equal("AzureOpenAI", deployment.ClientName);
         Assert.Equal(AIDeploymentType.Embedding, deployment.Type);
     }
@@ -72,6 +130,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     [Fact]
     public async Task GetAllAsync_ShouldLoadStandaloneDeploymentsForProvidersWithoutContainedConnections()
     {
+        // Arrange
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
         {
             ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
@@ -86,8 +145,10 @@ public sealed class ConfigurationAIDeploymentCatalogTests
 
         var store = CreateStore(configuration, aiOptions);
 
+        // Act
         var deployment = Assert.Single(await store.GetAllAsync());
 
+        // Assert
         Assert.Equal("OpenAI", deployment.ClientName);
         Assert.Equal("gpt-4.1", deployment.Name);
         Assert.Equal("gpt-4.1", deployment.ModelName);
@@ -97,6 +158,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     [Fact]
     public async Task GetAllAsync_ShouldReadEveryConfiguredDeploymentSectionAndPreserveConnectionNames()
     {
+        // Arrange
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
         {
             ["Primary:Deployments:0:ClientName"] = "OpenAI",
@@ -122,10 +184,12 @@ public sealed class ConfigurationAIDeploymentCatalogTests
 
         var store = CreateStore(configuration, aiOptions, catalogOptions: catalogOptions);
 
+        // Act
         var deployments = await store.GetAllAsync();
+
+        // Assert
         var sharedDeployment = Assert.Single(deployments, x => x.Name == "gpt-4.1");
         var containedDeployment = Assert.Single(deployments, x => x.Name == "speech-primary");
-
         Assert.Equal("shared-primary", sharedDeployment.ConnectionName);
         Assert.Equal(AIConfigurationRecordIds.CreateDeploymentId("OpenAI", "shared-primary", "gpt-4.1"), sharedDeployment.ItemId);
         Assert.Equal("shared-primary", sharedDeployment.Properties["ConnectionName"]?.ToString());
@@ -136,6 +200,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     [Fact]
     public async Task GetAllAsync_ShouldPreferStoredDeploymentWhenConfiguredNameConflicts()
     {
+        // Arrange
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
         {
             ["CrestApps:AI:Deployments:0:ClientName"] = "AzureSpeech",
@@ -159,8 +224,10 @@ public sealed class ConfigurationAIDeploymentCatalogTests
                 },
             ]);
 
+        // Act
         var deployments = await store.GetAllAsync();
 
+        // Assert
         Assert.Single(deployments);
         Assert.Equal("ui-deployment", deployments.Single().ItemId);
     }

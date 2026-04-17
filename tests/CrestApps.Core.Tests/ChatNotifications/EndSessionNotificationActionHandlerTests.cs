@@ -17,27 +17,36 @@ public sealed class EndSessionNotificationActionHandlerTests
     [Fact]
     public async Task HandleAsync_AIChatSession_ClosesSessionAndShowsSessionEndedNotification()
     {
+        // Arrange
         var now = new DateTime(2026, 3, 14, 22, 0, 0, DateTimeKind.Utc);
         var session = new AIChatSession
         {
             SessionId = "session-1",
             Status = ChatSessionStatus.Active,
         };
+
         var sessionManagerMock = new Mock<IAIChatSessionManager>();
         sessionManagerMock.Setup(m => m.FindByIdAsync("session-1")).ReturnsAsync(session);
         sessionManagerMock.Setup(m => m.SaveAsync(session)).Returns(Task.CompletedTask).Verifiable();
+
         ChatNotification captured = null;
         var senderMock = new Mock<IChatNotificationSender>();
         senderMock.Setup(s => s
             .SendAsync("session-1", ChatContextType.AIChatSession, It.IsAny<ChatNotification>()))
             .Callback<string, ChatContextType, ChatNotification>((_, _, n) => captured = n)
             .Returns(Task.CompletedTask);
+
         var timeProviderMock = new Mock<TimeProvider>();
         timeProviderMock.Setup(t => t.GetUtcNow()).Returns(new DateTimeOffset(now));
+
         var services = BuildServiceProvider(sessionManager: sessionManagerMock.Object, notificationSender: senderMock.Object, timeProvider: timeProviderMock.Object);
         var context = CreateContext("session-1", ChatContextType.AIChatSession, services);
         var handler = new EndSessionNotificationActionHandler();
+
+        // Act
         await handler.HandleAsync(context, CancellationToken.None);
+
+        // Assert
         Assert.Equal(ChatSessionStatus.Closed, session.Status);
         Assert.Equal(now, session.ClosedAtUtc);
         sessionManagerMock.Verify();
@@ -52,16 +61,22 @@ public sealed class EndSessionNotificationActionHandlerTests
     [Fact]
     public async Task HandleAsync_AIChatSession_SessionNotFound_DoesNotSendSessionEndedNotification()
     {
+        // Arrange
         var sessionManagerMock = new Mock<IAIChatSessionManager>();
         sessionManagerMock.Setup(m => m.FindByIdAsync("missing")).ReturnsAsync((AIChatSession)null);
+
         var senderMock = new Mock<IChatNotificationSender>();
+
         var services = BuildServiceProvider(sessionManager: sessionManagerMock.Object, notificationSender: senderMock.Object);
         var context = CreateContext("missing", ChatContextType.AIChatSession, services);
         var handler = new EndSessionNotificationActionHandler();
+
+        // Act
         await handler.HandleAsync(context, CancellationToken.None);
-        // SaveAsync should not be called when session is not found.
+
+        // Assert: SaveAsync should not be called when session is not found.
         sessionManagerMock.Verify(m => m.SaveAsync(It.IsAny<AIChatSession>()), Times.Never);
-        // Notification is not sent when session is not found (early return).
+        // Assert: Notification is not sent when session is not found (early return).
         senderMock.Verify(s => s.SendAsync(It.IsAny<string>(), It.IsAny<ChatContextType>(), It.IsAny<ChatNotification>()), Times.Never);
     }
 
@@ -71,16 +86,22 @@ public sealed class EndSessionNotificationActionHandlerTests
     [Fact]
     public async Task HandleAsync_ChatInteraction_ShowsSessionEndedNotification()
     {
+        // Arrange
         ChatNotification captured = null;
         var senderMock = new Mock<IChatNotificationSender>();
         senderMock.Setup(s => s
             .SendAsync("i1", ChatContextType.ChatInteraction, It.IsAny<ChatNotification>()))
             .Callback<string, ChatContextType, ChatNotification>((_, _, n) => captured = n)
             .Returns(Task.CompletedTask);
+
         var services = BuildServiceProvider(notificationSender: senderMock.Object);
         var context = CreateContext("i1", ChatContextType.ChatInteraction, services);
         var handler = new EndSessionNotificationActionHandler();
+
+        // Act
         await handler.HandleAsync(context, CancellationToken.None);
+
+        // Assert
         Assert.NotNull(captured);
         Assert.Equal(ChatNotificationTypes.SessionEnded, captured.Type);
     }

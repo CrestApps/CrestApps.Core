@@ -42,6 +42,7 @@ public sealed class IndexProfileTypeRulesTests
     [Fact]
     public async Task Delete_ShouldDeleteRemoteIndexForConfiguredProvider()
     {
+        // Arrange
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
@@ -50,13 +51,19 @@ public sealed class IndexProfileTypeRulesTests
             IndexFullName = "sample-index",
             Type = IndexProfileTypes.Articles,
         };
+
         var remoteManager = new TestRemoteSearchIndexManager
         {
             ExistsResult = true,
         };
+
         var profileManager = new TestSearchIndexProfileManager(profile);
         var controller = CreateController(profileManager, remoteManager);
+
+        // Act
         await controller.Delete(profile.ItemId);
+
+        // Assert
         Assert.Equal("sample-index", remoteManager.DeletedIndexName);
         Assert.True(profileManager.DeleteCalled);
     }
@@ -64,6 +71,7 @@ public sealed class IndexProfileTypeRulesTests
     [Fact]
     public async Task Delete_ShouldDeleteLocalProfileWhenRemoteIndexIsAlreadyMissing()
     {
+        // Arrange
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
@@ -76,9 +84,14 @@ public sealed class IndexProfileTypeRulesTests
         {
             ExistsResult = false,
         };
+
         var profileManager = new TestSearchIndexProfileManager(profile);
         var controller = CreateController(profileManager, remoteManager);
+
+        // Act
         await controller.Delete(profile.ItemId);
+
+        // Assert
         Assert.Null(remoteManager.DeletedIndexName);
         Assert.True(profileManager.DeleteCalled);
     }
@@ -86,6 +99,7 @@ public sealed class IndexProfileTypeRulesTests
     [Fact]
     public async Task Delete_ShouldDeleteLocalProfileWhenRemoteIndexNameCannotBeResolved()
     {
+        // Arrange
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
@@ -94,10 +108,15 @@ public sealed class IndexProfileTypeRulesTests
             IndexFullName = null,
             Type = IndexProfileTypes.Articles,
         };
+
         var remoteManager = new TestRemoteSearchIndexManager();
         var profileManager = new TestSearchIndexProfileManager(profile);
         var controller = CreateController(profileManager, remoteManager);
+
+        // Act
         await controller.Delete(profile.ItemId);
+
+        // Assert
         Assert.Null(remoteManager.DeletedIndexName);
         Assert.True(profileManager.DeleteCalled);
     }
@@ -105,6 +124,7 @@ public sealed class IndexProfileTypeRulesTests
     [Fact]
     public async Task Delete_ShouldKeepLocalProfileWhenRemoteDeleteFailsAndIndexExists()
     {
+        // Arrange
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
@@ -113,23 +133,32 @@ public sealed class IndexProfileTypeRulesTests
             IndexFullName = "sample-index",
             Type = IndexProfileTypes.Articles,
         };
+
         var remoteManager = new TestRemoteSearchIndexManager
         {
             ExistsResult = true,
             DeleteException = new InvalidOperationException("Delete failed."),
         };
+
         var profileManager = new TestSearchIndexProfileManager(profile);
         var controller = CreateController(profileManager, remoteManager);
+
+        // Act
         var result = await controller.Delete(profile.ItemId);
+
+        // Assert
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(IndexProfileController.Index), redirect.ActionName);
         Assert.False(profileManager.DeleteCalled);
-        Assert.Equal("Unable to delete the remote index 'sample-index'. The index profile was not removed.", controller.TempData["ErrorMessage"]);
+        Assert.Equal(
+            "Unable to delete the remote index 'sample-index'. The index profile was not removed.",
+            controller.TempData["ErrorMessage"]);
     }
 
     [Fact]
     public async Task Delete_ShouldIgnoreMissingProvider()
     {
+        // Arrange
         var profile = new SearchIndexProfile
         {
             ItemId = "1",
@@ -138,9 +167,14 @@ public sealed class IndexProfileTypeRulesTests
             IndexFullName = "sample-index",
             Type = IndexProfileTypes.Articles,
         };
+
         var profileManager = new TestSearchIndexProfileManager(profile);
         var controller = CreateController(profileManager, null);
+
+        // Act
         await controller.Delete(profile.ItemId);
+
+        // Assert
         Assert.True(profileManager.DeleteCalled);
     }
 
@@ -153,7 +187,12 @@ public sealed class IndexProfileTypeRulesTests
         }
 
         var serviceProvider = services.BuildServiceProvider();
-        var controller = new IndexProfileController(profileManager, new TestDeploymentCatalog(), serviceProvider, Options.Create(new IndexProfileSourceOptions()), NullLogger<IndexProfileController>.Instance);
+        var controller = new IndexProfileController(
+            profileManager,
+            new TestDeploymentCatalog(),
+            serviceProvider,
+            Options.Create(new IndexProfileSourceOptions()),
+            NullLogger<IndexProfileController>.Instance);
         controller.ControllerContext = new()
         {
             HttpContext = new DefaultHttpContext

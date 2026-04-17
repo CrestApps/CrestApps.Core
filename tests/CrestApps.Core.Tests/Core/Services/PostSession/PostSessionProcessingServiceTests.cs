@@ -15,6 +15,7 @@ public sealed class PostSessionProcessingServiceTests
     private const string TestProviderName = "TestProvider";
     private const string TestConnectionName = "TestConnection";
     private const string TestDeploymentName = "gpt-4o";
+
     [Fact]
     public async Task ProcessAsync_WhenProcessingDisabled_ShouldReturnNull()
     {
@@ -27,8 +28,10 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var service = CreateService();
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert
         Assert.Null(result);
     }
@@ -46,8 +49,10 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var service = CreateService();
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert
         Assert.Null(result);
     }
@@ -90,8 +95,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt text");
         var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: The structured output path was invoked via the chat client.
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -130,10 +137,13 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: tools service was asked to resolve the tool.
         mockToolsService.Verify(t => t.GetByNameAsync("sendEmail"), Times.Once);
+
         // Assert: the chat client was invoked with tools in the options.
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.Is<ChatOptions>(opts => opts.Tools != null && opts.Tools.Count > 0), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -167,10 +177,13 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: tool resolution was attempted.
         mockToolsService.Verify(t => t.GetByNameAsync("nonExistentTool"), Times.Once);
+
         // Assert: when no tools resolve, the structured output path is used (no tools in options).
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.Is<ChatOptions>(opts => opts.Tools == null || opts.Tools.Count == 0), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -193,6 +206,7 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var service = CreateService();
+
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken));
     }
@@ -224,8 +238,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(AITemplateIds.PostSessionAnalysisPrompt, It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync(string.Empty);
         var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: should return null without calling the chat client.
         Assert.Null(result);
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -273,8 +289,10 @@ public sealed class PostSessionProcessingServiceTests
         };
         var mockChatClient = new Mock<IChatClient>();
         var service = CreateService(chatClient: mockChatClient.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, CreatePrompts(), TestContext.Current.CancellationToken);
+
         // Assert: should return null since all tasks have already succeeded.
         Assert.Null(result);
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -328,8 +346,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, CreatePrompts(), TestContext.Current.CancellationToken);
+
         // Assert: the chat client was invoked (the failed task should be retried).
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -364,8 +384,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt text");
         var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: if the structured output path returns valid results, they should have Succeeded status.
         // Note: The structured output path uses GetResponseAsync<T> which is an extension method.
         // The mock returns a plain ChatResponse, so the generic extension may not parse as expected.
@@ -511,8 +533,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: result should be parsed from the code fence.
         Assert.NotNull(result);
         Assert.True(result.ContainsKey("summary"));
@@ -551,8 +575,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: result should be parsed from embedded JSON.
         Assert.NotNull(result);
         Assert.True(result.ContainsKey("summary"));
@@ -591,8 +617,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: the recovery pass should return a structured success result.
         Assert.NotNull(result);
         Assert.True(result.ContainsKey("summary"));
@@ -632,8 +660,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: malformed/non-structured output should fail the task instead of succeeding.
         Assert.NotNull(result);
         Assert.True(result.ContainsKey("summary"));
@@ -682,8 +712,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: every pending task should be marked failed when structured output never materializes.
         Assert.NotNull(result);
         Assert.Equal(2, result.Count);
@@ -723,8 +755,10 @@ public sealed class PostSessionProcessingServiceTests
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
         // Assert: empty response should fail the task instead of being treated as success.
         Assert.NotNull(result);
         Assert.True(result.ContainsKey("summary"));
