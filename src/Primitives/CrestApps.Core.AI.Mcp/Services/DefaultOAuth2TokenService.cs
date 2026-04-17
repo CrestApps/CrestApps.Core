@@ -1,8 +1,9 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
@@ -11,11 +12,17 @@ namespace CrestApps.Core.AI.Mcp.Services;
 public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 {
     private const int ExpirationBufferSeconds = 60;
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _cache;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultOAuth2TokenService> _logger;
-    public DefaultOAuth2TokenService(IHttpClientFactory httpClientFactory, IMemoryCache cache, TimeProvider timeProvider, ILogger<DefaultOAuth2TokenService> logger)
+
+    public DefaultOAuth2TokenService(
+        IHttpClientFactory httpClientFactory,
+        IMemoryCache cache,
+        TimeProvider timeProvider,
+        ILogger<DefaultOAuth2TokenService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _cache = cache;
@@ -179,13 +186,13 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 
     private sealed class OAuth2TokenResponse
     {
-        [System.Text.Json.Serialization.JsonPropertyName("access_token")]
+        [JsonPropertyName("access_token")]
         public string AccessToken { get; set; }
 
-        [System.Text.Json.Serialization.JsonPropertyName("token_type")]
+        [JsonPropertyName("token_type")]
         public string TokenType { get; set; }
 
-        [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
+        [JsonPropertyName("expires_in")]
         public int ExpiresIn { get; set; }
     }
 }

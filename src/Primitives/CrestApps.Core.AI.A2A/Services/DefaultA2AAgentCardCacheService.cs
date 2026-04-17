@@ -10,10 +10,12 @@ namespace CrestApps.Core.AI.A2A.Services;
 internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheService
 {
     private static readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(15);
+
     private readonly IMemoryCache _memoryCache;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger _logger;
+
     public DefaultA2AAgentCardCacheService(IMemoryCache memoryCache, IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor, ILogger<DefaultA2AAgentCardCacheService> logger)
     {
         _memoryCache = memoryCache;

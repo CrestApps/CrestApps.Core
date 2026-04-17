@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace CrestApps.Core.Support;
 
 public class NumberHelpers
@@ -6,7 +8,7 @@ public class NumberHelpers
 
     public static long GetRandomNumber(int length = 10)
     {
-        var values = System.Security.Cryptography.RandomNumberGenerator.GetItems<char>(_numericChars.AsSpan(), length);
+        var values = RandomNumberGenerator.GetItems<char>(_numericChars.AsSpan(), length);
 
         return Convert.ToInt64(new string(values));
     }

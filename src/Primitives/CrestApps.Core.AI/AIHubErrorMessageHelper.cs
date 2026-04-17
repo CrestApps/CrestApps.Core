@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI;
@@ -20,7 +21,7 @@ internal static class AIHubErrorMessageHelper
         var message = ex?.Message ?? string.Empty;
         var clientStatusCode = TryGetClientResultStatusCode(ex);
 
-        if (clientStatusCode == (int)System.Net.HttpStatusCode.TooManyRequests ||
+        if (clientStatusCode == (int)HttpStatusCode.TooManyRequests ||
             ContainsRateLimitIndicator(message))
         {
             var retryAfterMessage = ExtractRetryAfterMessage(message);
@@ -36,19 +37,19 @@ internal static class AIHubErrorMessageHelper
             {
                 return code switch
                 {
-                    System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden
+                    HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
                         => S["Authentication failed. Please check your API credentials."],
 
-                    System.Net.HttpStatusCode.BadRequest
+                    HttpStatusCode.BadRequest
                         => S["Invalid request. Please verify your connection settings."],
 
-                    System.Net.HttpStatusCode.NotFound
+                    HttpStatusCode.NotFound
                         => S["The provider endpoint could not be found. Please verify the API URL."],
 
-                    System.Net.HttpStatusCode.TooManyRequests
+                    HttpStatusCode.TooManyRequests
                         => S["Rate limit reached. Please wait and try again later."],
 
-                    >= System.Net.HttpStatusCode.InternalServerError
+                    >= HttpStatusCode.InternalServerError
                         => S["The provider service is currently unavailable. Please try again later."],
 
                     _ => S["An error occurred while communicating with the provider."]

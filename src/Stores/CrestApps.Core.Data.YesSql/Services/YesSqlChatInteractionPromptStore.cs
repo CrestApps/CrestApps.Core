@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Chat;
+﻿using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Models;
@@ -14,7 +14,9 @@ public sealed class YesSqlChatInteractionPromptStore : IChatInteractionPromptSto
     private readonly ISession _session;
     private readonly string _collection;
 
-    public YesSqlChatInteractionPromptStore(ISession session, IOptions<YesSqlStoreOptions> options)
+    public YesSqlChatInteractionPromptStore(
+        ISession session,
+        IOptions<YesSqlStoreOptions> options)
     {
         _session = session;
         _collection = options.Value.AICollectionName;
@@ -119,5 +121,4 @@ public sealed class YesSqlChatInteractionPromptStore : IChatInteractionPromptSto
 
         return ValueTask.FromResult(true);
     }
-
 }

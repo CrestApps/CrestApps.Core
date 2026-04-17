@@ -3,6 +3,9 @@
 ** Any changes made directly to this file will be overwritten next time its asset group is processed by Gulp.
 */
 
+function clampWidgetValue(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
 window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function () {
   function parsePixelValue(value) {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -13,9 +16,6 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
     }
     var parsed = parseFloat(value);
     return Number.isFinite(parsed) ? parsed : null;
-  }
-  function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
   }
   function attach(app, config) {
     if (!app || app.__aiChatWidgetAttached) {
@@ -136,32 +136,16 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
     app.clampWidgetPosition = function (left, top, width, height) {
       var range = this.getAvailableWidgetPositionRange(width, height);
       return {
-        left: Math.round(clamp(left, range.padding, range.maxLeft)),
-        top: Math.round(clamp(top, range.padding, range.maxTop))
+        left: Math.round(clampWidgetValue(left, range.padding, range.maxLeft)),
+        top: Math.round(clampWidgetValue(top, range.padding, range.maxTop))
       };
     };
     app.getStoredWidgetDocuments = function () {
-      if (!this.chatWidgetStateDocuments) {
-        return [];
-      }
-      try {
-        var storedDocuments = localStorage.getItem(this.chatWidgetStateDocuments);
-        var parsedDocuments = storedDocuments ? JSON.parse(storedDocuments) : [];
-        return Array.isArray(parsedDocuments) ? parsedDocuments : [];
-      } catch (error) {
-        console.warn('Failed to read widget documents state.', error);
-        return [];
-      }
+      this.clearStoredWidgetDocuments();
+      return [];
     };
-    app.saveStoredWidgetDocuments = function (documents) {
-      if (!this.chatWidgetStateDocuments) {
-        return;
-      }
-      try {
-        localStorage.setItem(this.chatWidgetStateDocuments, JSON.stringify(Array.isArray(documents) ? documents : []));
-      } catch (error) {
-        console.warn('Failed to persist widget documents state.', error);
-      }
+    app.saveStoredWidgetDocuments = function () {
+      this.clearStoredWidgetDocuments();
     };
     app.clearStoredWidgetDocuments = function () {
       if (!this.chatWidgetStateDocuments) {
@@ -468,7 +452,8 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
     app.widgetDefaultWidth = parsePixelValue(config.widget.defaultWidth) || parsePixelValue(window.getComputedStyle(chatWidgetContainer).width) || 380;
     app.widgetDefaultHeight = parsePixelValue(config.widget.defaultHeight) || parsePixelValue(window.getComputedStyle(chatWidgetContainer).height) || 520;
     app.widgetIsInitialized = true;
-    app.documents = app.getStoredWidgetDocuments();
+    app.clearStoredWidgetDocuments();
+    app.documents = [];
     if (config.widget.enableResizing) {
       chatWidgetContainer.classList.add('ai-chat-widget-resizable');
       chatWidgetContainer.style.minWidth = (parsePixelValue(config.widget.minWidth) || 320) + 'px';
@@ -661,8 +646,8 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
           toggleTop = viewportPadding + Math.max(0, maxTop - viewportPadding) * Number(position.topRatio);
         }
         if (Number.isFinite(toggleLeft) && Number.isFinite(toggleTop)) {
-          toggleLeft = Math.round(clamp(toggleLeft, viewportPadding, maxLeft));
-          toggleTop = Math.round(clamp(toggleTop, viewportPadding, maxTop));
+          toggleLeft = Math.round(clampWidgetValue(toggleLeft, viewportPadding, maxLeft));
+          toggleTop = Math.round(clampWidgetValue(toggleTop, viewportPadding, maxTop));
         }
         if (Number.isFinite(toggleLeft) && Number.isFinite(toggleTop)) {
           toggleButton.style.left = toggleLeft + 'px';

@@ -16,5 +16,6 @@ public interface IOrchestratorAvailabilityProvider
     /// <summary>
     /// Gets the current availability state for the orchestrator.
     /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     Task<OrchestratorAvailability> GetAvailabilityAsync(CancellationToken cancellationToken = default);
 }

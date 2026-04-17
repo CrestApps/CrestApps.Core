@@ -33,6 +33,7 @@ namespace CrestApps.Core.AI.Chat.Hubs;
 public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 {
     private const string _conversationCtsKey = "ConversationCts";
+
     private readonly IServiceProvider _services;
     private readonly TimeProvider _timeProvider;
 

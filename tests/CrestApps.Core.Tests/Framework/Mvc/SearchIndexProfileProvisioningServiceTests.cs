@@ -22,12 +22,16 @@ public sealed class SearchIndexProfileProvisioningServiceTests
     [Fact]
     public async Task Create_ShouldApplyProviderPrefixAndCreateRemoteIndex()
     {
+        // Arrange
         var remoteManager = new TestRemoteSearchIndexManager
         {
             Prefix = "tenant-",
         };
+
         var profileManager = new TestSearchIndexProfileManager();
         var controller = CreateController(profileManager, remoteManager);
+
+        // Act
         var result = await controller.Create(new IndexProfileViewModel
         {
             Name = "articles",
@@ -35,6 +39,8 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             ProviderName = ElasticsearchConstants.ProviderName,
             Type = IndexProfileTypes.Articles,
         });
+
+        // Assert
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(IndexProfileController.Index), redirect.ActionName);
         Assert.Equal("tenant-articles", remoteManager.CreatedIndexName);
@@ -46,12 +52,16 @@ public sealed class SearchIndexProfileProvisioningServiceTests
     [Fact]
     public async Task Create_ShouldRejectExistingRemoteIndex()
     {
+        // Arrange
         var remoteManager = new TestRemoteSearchIndexManager
         {
             Prefix = "tenant-",
             ExistsResult = true,
         };
+
         var controller = CreateController(new TestSearchIndexProfileManager(), remoteManager);
+
+        // Act
         var result = await controller.Create(
             new IndexProfileViewModel
             {
@@ -60,10 +70,14 @@ public sealed class SearchIndexProfileProvisioningServiceTests
                 ProviderName = ElasticsearchConstants.ProviderName,
                 Type = IndexProfileTypes.Articles,
             });
+
+        // Assert
         var view = Assert.IsType<ViewResult>(result);
         Assert.IsType<IndexProfileViewModel>(view.Model);
         Assert.False(controller.ModelState.IsValid);
-        Assert.Contains(controller.ModelState[nameof(IndexProfileViewModel.IndexName)].Errors, error => error.ErrorMessage.Contains("already exists", StringComparison.Ordinal));
+        Assert.Contains(
+            controller.ModelState[nameof(IndexProfileViewModel.IndexName)].Errors,
+            error => error.ErrorMessage.Contains("already exists", StringComparison.Ordinal));
         Assert.Null(remoteManager.CreatedIndexName);
     }
 
@@ -73,8 +87,21 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         services.AddKeyedSingleton<ISearchIndexManager>(ElasticsearchConstants.ProviderName, remoteManager);
         var serviceProvider = services.BuildServiceProvider();
         var sourceOptions = new IndexProfileSourceOptions();
-        sourceOptions.Sources.Add(new IndexProfileSourceDescriptor { ProviderName = ElasticsearchConstants.ProviderName, ProviderDisplayName = "Elasticsearch", Type = IndexProfileTypes.Articles, DisplayName = "Articles", Description = "Articles", });
-        var controller = new IndexProfileController(profileManager, new TestDeploymentCatalog(), serviceProvider, Options.Create(sourceOptions), NullLogger<IndexProfileController>.Instance);
+        sourceOptions.Sources.Add(new IndexProfileSourceDescriptor
+        {
+            ProviderName = ElasticsearchConstants.ProviderName,
+            ProviderDisplayName = "Elasticsearch",
+            Type = IndexProfileTypes.Articles,
+            DisplayName = "Articles",
+            Description = "Articles",
+        });
+
+        var controller = new IndexProfileController(
+            profileManager,
+            new TestDeploymentCatalog(),
+            serviceProvider,
+            Options.Create(sourceOptions),
+            NullLogger<IndexProfileController>.Instance);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext

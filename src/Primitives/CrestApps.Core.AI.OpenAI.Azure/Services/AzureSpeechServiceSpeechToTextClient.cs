@@ -29,6 +29,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
 {
     private const string CognitiveServicesScope = "https://cognitiveservices.azure.com/.default";
     private static readonly string[] _regionSuffixes = [".api.cognitive.microsoft.com", ".tts.speech.microsoft.com", ".stt.speech.microsoft.com",];
+
     private readonly Uri _endpoint;
     private readonly AzureAuthenticationType _authType;
     private readonly string _apiKey;
@@ -39,7 +40,14 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
     private string _cachedToken;
     private DateTimeOffset _tokenExpires;
-    public AzureSpeechServiceSpeechToTextClient(Uri endpoint, AzureAuthenticationType authType, string apiKey, string identityId, TimeProvider timeProvider, ILogger logger)
+
+    public AzureSpeechServiceSpeechToTextClient(
+        Uri endpoint,
+        AzureAuthenticationType authType,
+        string apiKey,
+        string identityId,
+        TimeProvider timeProvider,
+        ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         _endpoint = endpoint;

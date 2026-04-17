@@ -12,6 +12,7 @@ namespace CrestApps.Core.AI.Mcp.Sftp.Handlers;
 public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
 {
     private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();
+
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger<SftpResourceTypeHandler> _logger;
 

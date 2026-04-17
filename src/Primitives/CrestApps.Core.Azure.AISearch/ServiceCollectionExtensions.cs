@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddKeyedScoped<ISearchDocumentManager>(AISearchConstants.ProviderName, (sp, _)
             => new AzureAISearchDocumentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDocumentManager>>()));
+
         return services;
     }
 
@@ -89,36 +90,4 @@ public static class ServiceCollectionExtensions
 
         return builder;
     }
-
-    [Obsolete("Use AddIndexingServices(indexing => indexing.AddAzureAISearch(...)).")]
-    public static CrestAppsCoreBuilder AddAzureAISearch(this CrestAppsCoreBuilder builder, IConfigurationSection configuration, Action<CrestAppsAzureAISearchBuilder> configure = null)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(configuration);
-
-        builder.Services.AddCoreAzureAISearchServices(configuration);
-
-        if (configure is not null)
-        {
-            configure(new CrestAppsAzureAISearchBuilder(builder.Services));
-        }
-
-        return builder;
-    }
-
-    [Obsolete("Use AddIndexingServices(indexing => indexing.AddAzureAISearch(...)).")]
-    public static CrestAppsCoreBuilder AddAzureAISearch(this CrestAppsCoreBuilder builder, Action<CrestAppsAzureAISearchBuilder> configure = null)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Services.AddCoreAzureAISearchServices();
-
-        if (configure is not null)
-        {
-            configure(new CrestAppsAzureAISearchBuilder(builder.Services));
-        }
-
-        return builder;
-    }
-
 }

@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Memory;
+﻿using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.AIMemory;
 using CrestApps.Core.Models;
@@ -14,7 +14,9 @@ public sealed class YesSqlAIMemoryStore : IAIMemoryStore
     private readonly ISession _session;
     private readonly string _collection;
 
-    public YesSqlAIMemoryStore(ISession session, IOptions<YesSqlStoreOptions> options)
+    public YesSqlAIMemoryStore(
+        ISession session,
+        IOptions<YesSqlStoreOptions> options)
     {
         _session = session;
         _collection = options.Value.AIMemoryCollectionName;
@@ -113,5 +115,4 @@ public sealed class YesSqlAIMemoryStore : IAIMemoryStore
 
         return ValueTask.FromResult(true);
     }
-
 }

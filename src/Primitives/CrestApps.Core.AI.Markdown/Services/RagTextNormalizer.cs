@@ -13,8 +13,12 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public static partial class RagTextNormalizer
 {
+    private const int FallbackMaxChunkLength = 4000;
+    private const int FallbackChunkOverlapLength = 200;
+    private const int FallbackMinBoundarySearchLength = 2000;
     private static readonly MarkdownReader _reader = CreateMarkdownReader();
     private static readonly DocumentTokenChunker _defaultChunker = CreateDefaultChunker();
+
     public static async Task<string> NormalizeContentAsync(string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -22,9 +26,21 @@ public static partial class RagTextNormalizer
             return text;
         }
 
-        var document = await ParseDocumentAsync(StripHtml(text), cancellationToken);
-        var normalized = JoinDocumentText(document);
-        return NormalizeContentWhitespace(normalized).Trim();
+        var strippedText = StripHtml(text);
+
+        try
+        {
+            var document = await ParseDocumentAsync(strippedText, cancellationToken);
+            var normalized = JoinDocumentText(document);
+
+            return NormalizeContentWhitespace(normalized).Trim();
+        }
+        catch (NotSupportedException ex) when (IsUnsupportedMarkdownInline(ex))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return FallbackNormalizeContent(strippedText);
+        }
     }
 
     public static async Task<List<string>> NormalizeAndChunkAsync(string text, CancellationToken cancellationToken = default)
@@ -34,17 +50,28 @@ public static partial class RagTextNormalizer
             return [];
         }
 
-        var document = await ParseDocumentAsync(StripHtml(text), cancellationToken);
-        var chunks = new List<string>();
-        await foreach (var chunk in _defaultChunker.ProcessAsync(document, cancellationToken))
-        {
-            if (!string.IsNullOrWhiteSpace(chunk.Content))
-            {
-                chunks.Add(chunk.Content);
-            }
-        }
+        var strippedText = StripHtml(text);
 
-        return chunks;
+        try
+        {
+            var document = await ParseDocumentAsync(strippedText, cancellationToken);
+            var chunks = new List<string>();
+            await foreach (var chunk in _defaultChunker.ProcessAsync(document, cancellationToken))
+            {
+                if (!string.IsNullOrWhiteSpace(chunk.Content))
+                {
+                    chunks.Add(chunk.Content);
+                }
+            }
+
+            return chunks;
+        }
+        catch (NotSupportedException ex) when (IsUnsupportedMarkdownInline(ex))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return FallbackChunkText(FallbackNormalizeContent(strippedText), cancellationToken);
+        }
     }
 
     public static string NormalizeTitle(string title)
@@ -90,7 +117,94 @@ public static partial class RagTextNormalizer
     {
         text = HorizontalSpacesRegex().Replace(text, " ");
         text = MultipleNewlinesRegex().Replace(text, "\n\n");
+
         return text;
+    }
+
+    private static string FallbackNormalizeContent(string text)
+    {
+        return NormalizeContentWhitespace(text).Trim();
+    }
+
+    private static bool IsUnsupportedMarkdownInline(NotSupportedException ex)
+    {
+        return ex.Message.Contains("Inline type", StringComparison.Ordinal)
+            && ex.Message.Contains("is not supported", StringComparison.Ordinal);
+    }
+
+    private static List<string> FallbackChunkText(string text, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        var chunks = new List<string>();
+        var start = 0;
+
+        while (start < text.Length)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var remaining = text.Length - start;
+            var length = Math.Min(FallbackMaxChunkLength, remaining);
+            var end = start + length;
+
+            if (end < text.Length)
+            {
+                end = FindFallbackChunkBoundary(text, start, end);
+            }
+
+            var chunk = text.Substring(start, end - start).Trim();
+
+            if (!string.IsNullOrWhiteSpace(chunk))
+            {
+                chunks.Add(chunk);
+            }
+
+            if (end >= text.Length)
+            {
+                break;
+            }
+
+            start = Math.Max(end - FallbackChunkOverlapLength, start + 1);
+
+            while (start < text.Length && char.IsWhiteSpace(text[start]))
+            {
+                start++;
+            }
+        }
+
+        return chunks;
+    }
+
+    private static int FindFallbackChunkBoundary(string text, int start, int end)
+    {
+        var searchStart = Math.Max(start + FallbackMinBoundarySearchLength, start);
+        var paragraphBoundary = text.LastIndexOf("\n\n", end - 1, end - searchStart, StringComparison.Ordinal);
+
+        if (paragraphBoundary >= searchStart)
+        {
+            return paragraphBoundary;
+        }
+
+        for (var i = end - 1; i >= searchStart; i--)
+        {
+            if (text[i] == '.' || text[i] == '!' || text[i] == '?')
+            {
+                return i + 1;
+            }
+        }
+
+        for (var i = end - 1; i >= searchStart; i--)
+        {
+            if (char.IsWhiteSpace(text[i]))
+            {
+                return i;
+            }
+        }
+
+        return end;
     }
 
     [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase)]

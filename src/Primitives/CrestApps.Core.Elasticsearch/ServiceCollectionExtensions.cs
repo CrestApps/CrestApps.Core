@@ -21,7 +21,9 @@ public static class ServiceCollectionExtensions
 
         services.Configure<ElasticsearchConnectionOptions>(configuration);
         var options = new ElasticsearchConnectionOptions();
+
         configuration.Bind(options);
+
         if (!string.IsNullOrEmpty(options.Url))
         {
             var settings = new ElasticsearchClientSettings(new Uri(options.Url));

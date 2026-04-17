@@ -9,6 +9,7 @@ namespace CrestApps.Core.Templates.Providers;
 public sealed class OptionsTemplateProvider : ITemplateProvider
 {
     private readonly TemplateOptions _options;
+
     public OptionsTemplateProvider(IOptions<TemplateOptions> options)
     {
         _options = options.Value;

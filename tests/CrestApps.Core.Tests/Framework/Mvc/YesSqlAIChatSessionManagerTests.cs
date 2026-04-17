@@ -171,9 +171,6 @@ public sealed class YesSqlAIChatSessionManagerTests
         sessionStore
             .Setup(session => session.SaveAsync(It.IsAny<AIChatSession>(), It.IsAny<bool>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
-        sessionStore
-            .Setup(session => session.SaveChangesAsync())
-            .Returns(Task.CompletedTask);
 
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
@@ -191,7 +188,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         Assert.Equal(now, chatSession.LastActivityUtc);
         sessionStore.Verify(session => session.SaveAsync(chatSession, false, "AI"), Times.Once);
-        sessionStore.Verify(session => session.SaveChangesAsync(), Times.Once);
+        sessionStore.Verify(session => session.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

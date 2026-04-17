@@ -1,4 +1,4 @@
-namespace CrestApps.Core.Infrastructure;
+namespace CrestApps.Core.AI.Documents;
 
 /// <summary>
 /// Provides media type inference from file extensions for <see cref="Microsoft.Extensions.DataIngestion.IngestionDocumentReader"/> dispatch.

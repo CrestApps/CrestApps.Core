@@ -16,6 +16,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
 {
     private readonly SearchIndexClient _searchIndexClient;
     private readonly ILogger<AzureAISearchDocumentManager> _logger;
+
     public AzureAISearchDocumentManager(SearchIndexClient searchIndexClient, ILogger<AzureAISearchDocumentManager> logger)
     {
         _searchIndexClient = searchIndexClient;

@@ -1,3 +1,4 @@
+using System.Net;
 using CrestApps.Core.AI.Mcp.Ftp.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using FluentFTP;
@@ -58,7 +59,7 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
 
         if (!string.IsNullOrEmpty(metadata.Username))
         {
-            client.Credentials = new System.Net.NetworkCredential
+            client.Credentials = new NetworkCredential
             {
                 UserName = metadata.Username,
                 Password = password,

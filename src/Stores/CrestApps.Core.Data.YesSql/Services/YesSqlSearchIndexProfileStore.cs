@@ -1,4 +1,4 @@
-using CrestApps.Core.Data.YesSql.Indexes.Indexing;
+﻿using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
@@ -14,7 +14,9 @@ public sealed class YesSqlSearchIndexProfileStore : ISearchIndexProfileStore
     private readonly ISession _session;
     private readonly string _collection;
 
-    public YesSqlSearchIndexProfileStore(ISession session, IOptions<YesSqlStoreOptions> options)
+    public YesSqlSearchIndexProfileStore(
+        ISession session,
+        IOptions<YesSqlStoreOptions> options)
     {
         _session = session;
         _collection = options.Value.DefaultCollectionName;
@@ -103,5 +105,4 @@ public sealed class YesSqlSearchIndexProfileStore : ISearchIndexProfileStore
 
         return ValueTask.FromResult(true);
     }
-
 }

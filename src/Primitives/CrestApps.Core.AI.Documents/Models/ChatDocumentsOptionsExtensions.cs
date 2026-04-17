@@ -34,6 +34,9 @@ public static class ChatDocumentsOptionsExtensions
 
     private static string[] OrderExtensions(IEnumerable<string> extensions)
     {
-        return (extensions ?? []).Where(extension => !string.IsNullOrWhiteSpace(extension)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(extension => extension, StringComparer.OrdinalIgnoreCase).ToArray();
+        return (extensions ?? []).Where(extension => !string.IsNullOrWhiteSpace(extension))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(extension => extension, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

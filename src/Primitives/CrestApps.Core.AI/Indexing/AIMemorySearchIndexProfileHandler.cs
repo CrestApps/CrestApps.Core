@@ -16,6 +16,7 @@ public sealed class AIMemorySearchIndexProfileHandler : EmbeddingSearchIndexProf
     private const string _contentFieldName = "content";
     private const string _updatedUtcFieldName = "updatedUtc";
     private const string _embeddingFieldName = "embedding";
+
     public AIMemorySearchIndexProfileHandler(
         ICatalog<AIDeployment> deploymentCatalog,
         IAIClientFactory aiClientFactory,

@@ -17,6 +17,7 @@ public interface IAICompletionService
     /// <param name="deployment">The deployment that identifies which AI client and model to use.</param>
     /// <param name="messages">A collection of messages that are part of the chat conversation.</param>
     /// <param name="context">The context that may provide additional parameters or configurations for the chat request.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation, with the completion response as the result.</returns>
     Task<ChatResponse> CompleteAsync(AIDeployment deployment, IEnumerable<ChatMessage> messages, AICompletionContext context, CancellationToken cancellationToken = default);
 

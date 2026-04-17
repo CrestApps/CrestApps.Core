@@ -12,6 +12,7 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
     private readonly ISourceCatalog<McpResource> _catalog;
     private readonly IEnumerable<IMcpResourceProvider> _resourceProviders;
     private readonly IEnumerable<McpServerResource> _sdkResources;
+
     public DefaultMcpServerResourceService(
         ISourceCatalog<McpResource> catalog,
         IEnumerable<IMcpResourceProvider> resourceProviders,

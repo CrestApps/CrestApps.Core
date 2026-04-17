@@ -34,6 +34,7 @@ internal sealed class ListAvailableAgentsFunction : AIFunction
     }
 
     public override JsonElement JsonSchema => _jsonSchema;
+
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object>()
     {
         ["Strict"] = false,

@@ -54,26 +54,32 @@ public static class RemoveChatInteractionDocument
             }
 
             var interaction = await interactionManager.FindByIdAsync(requestModel.ItemId);
+
             if (interaction == null)
             {
                 return TypedResults.NotFound();
             }
 
             var authorization = await authorizationService.AuthorizeAsync(httpContext.User, interaction, [AIChatDocumentOperations.ManageDocuments]);
+
             if (!authorization.Succeeded)
             {
                 return TypedResults.Forbid();
             }
 
             var documentInfo = interaction.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
+
             if (documentInfo == null)
             {
                 return TypedResults.NotFound("Document not found.");
             }
 
             interaction.Documents.Remove(documentInfo);
+
             var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
+
             var chunkIds = new List<string>();
+
             if (document != null)
             {
                 var chunks = await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId);
@@ -88,6 +94,7 @@ public static class RemoveChatInteractionDocument
             }
 
             await interactionManager.UpdateAsync(interaction);
+
             var context = new AIChatDocumentRemoveContext
             {
                 HttpContext = httpContext,
@@ -98,9 +105,13 @@ public static class RemoveChatInteractionDocument
                 ReferenceId = interaction.ItemId,
                 ReferenceType = AIReferenceTypes.Document.ChatInteraction,
             };
+
             await InvokeRemovedHandlersAsync(eventHandlers, context, httpContext.RequestAborted);
 
-            return TypedResults.Ok();
+            return TypedResults.Ok(new
+            {
+                documents = interaction.Documents ?? [],
+            });
         }
     }
 }

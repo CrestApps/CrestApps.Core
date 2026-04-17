@@ -7,6 +7,7 @@ namespace CrestApps.Core.AI.Chat.Handlers;
 internal sealed class ChatInteractionCompletionContextBuilderHandler : IAICompletionContextBuilderHandler
 {
     private readonly ITemplateService _aiTemplateService;
+
     public ChatInteractionCompletionContextBuilderHandler(ITemplateService aiTemplateService)
     {
         _aiTemplateService = aiTemplateService;

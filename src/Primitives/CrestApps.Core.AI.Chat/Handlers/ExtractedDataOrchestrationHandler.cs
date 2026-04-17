@@ -12,6 +12,7 @@ public sealed class ExtractedDataOrchestrationHandler : IOrchestrationContextBui
 {
     private readonly ITemplateService _templateService;
     private readonly ILogger<ExtractedDataOrchestrationHandler> _logger;
+
     public ExtractedDataOrchestrationHandler(ITemplateService templateService, ILogger<ExtractedDataOrchestrationHandler> logger)
     {
         _templateService = templateService;

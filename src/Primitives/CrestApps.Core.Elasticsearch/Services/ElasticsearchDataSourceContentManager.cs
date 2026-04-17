@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Nodes;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -29,7 +30,7 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
 
         if (!string.IsNullOrWhiteSpace(filter))
         {
-            var filterBytes = System.Text.Encoding.UTF8.GetBytes(filter);
+            var filterBytes = Encoding.UTF8.GetBytes(filter);
 
             var filterBase64 = Convert.ToBase64String(filterBytes);
             list.Add(("wrapper", filterBase64));

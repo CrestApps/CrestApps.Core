@@ -15,6 +15,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
     private readonly ICatalog<AIDeployment> _deploymentCatalog;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly ILogger _logger;
+
     protected EmbeddingSearchIndexProfileHandlerBase(
         string type,
         ICatalog<AIDeployment> deploymentCatalog,

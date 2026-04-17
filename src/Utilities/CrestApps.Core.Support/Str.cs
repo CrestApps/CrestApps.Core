@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -179,7 +180,7 @@ public partial class Str
     public static string Random(int length = 40)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwzyz";
-        return new string(System.Security.Cryptography.RandomNumberGenerator.GetItems<char>(chars.AsSpan(), length));
+        return new string(RandomNumberGenerator.GetItems<char>(chars.AsSpan(), length));
     }
 
     public static string ToLower(string str, string defaultValue = "")
@@ -370,9 +371,9 @@ public partial class Str
             return plainText;
         }
 
-        var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(plainText);
+        var plainTextBytes = Encoding.UTF8.GetBytes(plainText);
 
-        return System.Convert.ToBase64String(plainTextBytes);
+        return Convert.ToBase64String(plainTextBytes);
     }
 
     public static string Base64Decode(string base64EncodedData)
@@ -382,9 +383,9 @@ public partial class Str
             return base64EncodedData;
         }
 
-        var base64EncodedBytes = System.Convert.FromBase64String(base64EncodedData);
+        var base64EncodedBytes = Convert.FromBase64String(base64EncodedData);
 
-        return System.Text.Encoding.UTF8.GetString(base64EncodedBytes);
+        return Encoding.UTF8.GetString(base64EncodedBytes);
     }
 
     [GeneratedRegex(@"^\d+$")]

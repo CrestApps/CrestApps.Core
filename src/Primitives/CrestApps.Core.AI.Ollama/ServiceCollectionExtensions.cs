@@ -40,14 +40,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIOllama();
         return builder;
     }
-
-    [Obsolete("Use AddAISuite(ai => ai.AddOllama()).")]
-    public static CrestAppsCoreBuilder AddOllama(this CrestAppsCoreBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Services.AddCoreAIOllama();
-        return builder;
-    }
-
 }

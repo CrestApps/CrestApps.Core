@@ -16,6 +16,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 {
     private const int BatchSize = 250;
     private const int MaxChunkIdsPerDocument = 1000;
+
     private readonly ICatalog<AIDataSource> _dataSourceCatalog;
     private readonly ISearchIndexProfileManager _indexProfileManager;
     private readonly IAIDeploymentManager _deploymentManager;
@@ -23,7 +24,8 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<DefaultAIDataSourceIndexingService> _logger;
+    private readonly ILogger _logger;
+
     public DefaultAIDataSourceIndexingService(ICatalog<AIDataSource> dataSourceCatalog, ISearchIndexProfileManager indexProfileManager, IAIDeploymentManager deploymentManager, IAIClientFactory aiClientFactory, IAITextNormalizer textNormalizer, IServiceProvider serviceProvider, TimeProvider timeProvider, ILogger<DefaultAIDataSourceIndexingService> logger)
     {
         _dataSourceCatalog = dataSourceCatalog;

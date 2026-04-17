@@ -12,6 +12,9 @@ public interface IAIChatSessionExtractedDataRecorder
     /// Records the current extracted-data snapshot for the specified chat session.
     /// Implementations should upsert an existing record when one already exists.
     /// </summary>
+    /// <param name="profile">The AI profile associated with the session.</param>
+    /// <param name="session">The chat session to record extracted data for.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     Task RecordExtractedDataAsync(
         AIProfile profile,
         AIChatSession session,

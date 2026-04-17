@@ -109,6 +109,17 @@ public sealed class RagTextNormalizerTests
         Assert.Equal(input, result);
     }
 
+    [Fact]
+    public async Task NormalizeContentAsync_InlineMath_DoesNotFailNormalization()
+    {
+        var input = "# Coverage\n\nFormula: $E=mc^2$ and $a^2+b^2=c^2$.";
+        var result = await RagTextNormalizer.NormalizeContentAsync(input, TestContext.Current.CancellationToken);
+
+        Assert.Contains("Coverage", result);
+        Assert.Contains("E=mc^2", result);
+        Assert.Contains("a^2+b^2=c^2", result);
+    }
+
     [Theory]
     [InlineData(null, null)]
     [InlineData("", "")]
@@ -247,5 +258,16 @@ public sealed class RagTextNormalizerTests
             Assert.DoesNotContain("<p>", chunk);
             Assert.DoesNotContain("<strong>", chunk);
         });
+    }
+
+    [Fact]
+    public async Task NormalizeAndChunkAsync_InlineMath_DoesNotFailChunking()
+    {
+        var input = string.Join("\n\n", Enumerable.Range(0, 10)
+            .Select(i => $"Section {i}: Formula $E=mc^{i}$ appears in the policy appendix."));
+        var result = await RagTextNormalizer.NormalizeAndChunkAsync(input, TestContext.Current.CancellationToken);
+
+        Assert.NotEmpty(result);
+        Assert.Contains(result, chunk => chunk.Contains("E=mc^", StringComparison.Ordinal));
     }
 }

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
@@ -200,7 +201,7 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
         else
         {
             // Fallback: serialize the full document as content.
-            content = System.Text.Json.JsonSerializer.Serialize(doc);
+            content = JsonSerializer.Serialize(doc);
         }
 
         if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(content))

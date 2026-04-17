@@ -20,32 +20,46 @@ public sealed class ChatInteractionHubTests
     [Fact]
     public async Task SaveSettings_PersistsCoreAndTemplateSettings()
     {
+        // Arrange
         var interaction = new ChatInteraction
         {
             ItemId = "chat-1",
             Title = "Original title",
         };
+
         var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
         managerMock.Setup(manager => manager
             .FindByIdAsync(interaction.ItemId))
             .Returns(new ValueTask<ChatInteraction>(interaction));
-        managerMock.Setup(manager => manager.UpdateAsync(interaction, null)).Returns(ValueTask.CompletedTask);
+        managerMock.Setup(manager => manager.UpdateAsync(interaction, null))
+            .Returns(ValueTask.CompletedTask);
+
         var callerMock = new Mock<IChatInteractionHubClient>();
         callerMock.Setup(client => client
             .SettingsSaved(interaction.ItemId, "Updated title"))
             .Returns(Task.CompletedTask);
+
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+
         var serviceProvider = new ServiceCollection()
             .AddSingleton(managerMock.Object)
             .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
             .AddSingleton<IChatInteractionSettingsHandler>(new PromptTemplateChatInteractionSettingsHandler())
             .BuildServiceProvider();
+
         var siteSettings = CreateSiteSettingsStore();
-        var hub = new ChatInteractionHub(serviceProvider, TimeProvider.System, CreateCitationCollector(), siteSettings, NullLogger<ChatInteractionHub>.Instance)
+
+        var hub = new ChatInteractionHub(
+            serviceProvider,
+            TimeProvider.System,
+            CreateCitationCollector(),
+            siteSettings,
+            NullLogger<ChatInteractionHub>.Instance)
         {
             Clients = clientsMock.Object,
         };
+
         using var json = JsonDocument.Parse("""
             {
               "title":"Updated title",
@@ -58,7 +72,11 @@ public sealed class ChatInteractionHubTests
               ]
             }
             """);
+
+        // Act
         await hub.SaveSettings(interaction.ItemId, json.RootElement.Clone());
+
+        // Assert
         Assert.Equal("Updated title", interaction.Title);
         Assert.Equal(["agent-a", "agent-b"], interaction.AgentNames);
         var promptTemplateMetadata = interaction.GetOrCreate<PromptTemplateMetadata>();
@@ -66,6 +84,7 @@ public sealed class ChatInteractionHubTests
         Assert.Equal("template-1", template.TemplateId);
         Assert.NotNull(template.Parameters);
         Assert.Equal("embeddings", Assert.IsType<string>(template.Parameters["topic"]));
+
         managerMock.Verify(manager => manager.FindByIdAsync(interaction.ItemId), Times.Once);
         managerMock.Verify(manager => manager.UpdateAsync(interaction, null), Times.Once);
         callerMock.Verify(client => client.SettingsSaved(interaction.ItemId, "Updated title"), Times.Once);
@@ -74,20 +93,24 @@ public sealed class ChatInteractionHubTests
     [Fact]
     public async Task SaveSettings_WithDataSourceSettings_PersistsRagMetadata()
     {
+        // Arrange
         var interaction = new ChatInteraction
         {
             ItemId = "chat-2",
             Title = "Knowledge chat",
         };
+
         var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
         managerMock.Setup(manager => manager
             .FindByIdAsync(interaction.ItemId))
             .Returns(new ValueTask<ChatInteraction>(interaction));
-        managerMock.Setup(manager => manager.UpdateAsync(interaction, null)).Returns(ValueTask.CompletedTask);
+        managerMock.Setup(manager => manager.UpdateAsync(interaction, null))
+            .Returns(ValueTask.CompletedTask);
         var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
         dataSourceCatalog.Setup(catalog => catalog
             .FindByIdAsync("datasource-1"))
             .ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });
+
         var services = new ServiceCollection()
             .AddSingleton(managerMock.Object)
             .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
@@ -95,17 +118,27 @@ public sealed class ChatInteractionHubTests
             .AddSingleton<IChatInteractionSettingsHandler, DataSourceChatInteractionSettingsHandler>()
             .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var serviceProvider = services.BuildServiceProvider();
+
         var callerMock = new Mock<IChatInteractionHubClient>();
         callerMock.Setup(client => client
             .SettingsSaved(interaction.ItemId, interaction.Title))
             .Returns(Task.CompletedTask);
+
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+
         var siteSettings = CreateSiteSettingsStore();
-        var hub = new ChatInteractionHub(serviceProvider, TimeProvider.System, CreateCitationCollector(), siteSettings, NullLogger<ChatInteractionHub>.Instance)
+
+        var hub = new ChatInteractionHub(
+            serviceProvider,
+            TimeProvider.System,
+            CreateCitationCollector(),
+            siteSettings,
+            NullLogger<ChatInteractionHub>.Instance)
         {
             Clients = clientsMock.Object,
         };
+
         using var json = JsonDocument.Parse("""
             {
               "dataSourceId":"datasource-1",
@@ -115,7 +148,11 @@ public sealed class ChatInteractionHubTests
               "filter":"category eq 'docs'"
             }
             """);
+
+        // Act
         await hub.SaveSettings(interaction.ItemId, json.RootElement.Clone());
+
+        // Assert
         var dataSourceMetadata = interaction.GetOrCreate<DataSourceMetadata>();
         Assert.Equal("datasource-1", dataSourceMetadata.DataSourceId);
         var ragMetadata = interaction.GetOrCreate<AIDataSourceRagMetadata>();
@@ -123,6 +160,7 @@ public sealed class ChatInteractionHubTests
         Assert.Equal(7, ragMetadata.TopNDocuments);
         Assert.False(ragMetadata.IsInScope);
         Assert.Equal("category eq 'docs'", ragMetadata.Filter);
+
         managerMock.Verify(manager => manager.FindByIdAsync(interaction.ItemId), Times.Once);
         managerMock.Verify(manager => manager.UpdateAsync(interaction, null), Times.Once);
         callerMock.Verify(client => client.SettingsSaved(interaction.ItemId, interaction.Title), Times.Once);

@@ -137,7 +137,6 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 
         chatSession.LastActivityUtc = _timeProvider.GetUtcNow().UtcDateTime;
         await _session.SaveAsync(chatSession, _collection);
-        await _session.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(string sessionId)
@@ -152,7 +151,6 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         }
 
         _session.Delete(session, _collection);
-        await _session.SaveChangesAsync();
 
         return true;
     }
@@ -169,8 +167,6 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
             _session.Delete(s, _collection);
             count++;
         }
-
-        await _session.SaveChangesAsync();
 
         return count;
     }

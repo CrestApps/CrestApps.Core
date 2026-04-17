@@ -36,6 +36,13 @@ public abstract class AIChatDocumentEndpointBase
             return (false, S["File type '{0}' is not supported.", extension].Value, null);
         }
 
+        if (fileStore == null)
+        {
+            logger.LogError("No IDocumentFileStore is registered for uploaded AI documents.");
+
+            return (false, S["Failed to process file."].Value, null);
+        }
+
         try
         {
             var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator);
@@ -96,6 +103,7 @@ public abstract class AIChatDocumentEndpointBase
         }
 
         var singleFile = form.Files.GetFile("file");
+
         return singleFile == null ? [] : [singleFile];
     }
 

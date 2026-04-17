@@ -1,11 +1,11 @@
 using System.Text.RegularExpressions;
-using CrestApps.Core.AI.Documents;
 
-namespace CrestApps.Core.Mvc.Web.Services;
+namespace CrestApps.Core.AI.Documents;
 
 public sealed class FileSystemFileStore : IDocumentFileStore
 {
     private static readonly Regex _safePathSegmentExpression = new("^[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
+
     private readonly string _basePath;
 
     public FileSystemFileStore(string basePath)
@@ -23,7 +23,7 @@ public sealed class FileSystemFileStore : IDocumentFileStore
         var directory = Path.GetDirectoryName(filePath);
         Directory.CreateDirectory(directory);
 
-        using var fileStream = new FileStream(filePath, FileMode.Create);
+        using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
         await content.CopyToAsync(fileStream);
 
         return filePath;
@@ -40,7 +40,7 @@ public sealed class FileSystemFileStore : IDocumentFileStore
             return Task.FromResult<Stream>(null);
         }
 
-        return Task.FromResult<Stream>(new FileStream(filePath, FileMode.Open, FileAccess.Read));
+        return Task.FromResult<Stream>(new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read));
     }
 
     public Task<bool> DeleteFileAsync(string fileName)

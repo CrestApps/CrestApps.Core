@@ -15,7 +15,10 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly TimeProvider _timeProvider;
-    public AzureSpeechClientProvider(ILoggerFactory loggerFactory, TimeProvider timeProvider)
+
+    public AzureSpeechClientProvider(
+        ILoggerFactory loggerFactory,
+        TimeProvider timeProvider)
     {
         _loggerFactory = loggerFactory;
         _timeProvider = timeProvider;

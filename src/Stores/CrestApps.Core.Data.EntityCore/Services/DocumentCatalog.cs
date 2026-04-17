@@ -8,6 +8,7 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
 {
     protected readonly CrestAppsEntityDbContext DbContext;
+
     public DocumentCatalog(CrestAppsEntityDbContext dbContext)
     {
         DbContext = dbContext;

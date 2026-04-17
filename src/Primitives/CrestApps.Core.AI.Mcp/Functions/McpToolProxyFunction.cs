@@ -28,6 +28,7 @@ internal sealed class McpToolProxyFunction : AIFunction
     public override string Name => _name;
     public override string Description => _description;
     public override JsonElement JsonSchema => _jsonSchema;
+
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object>
     {
         ["Strict"] = false,

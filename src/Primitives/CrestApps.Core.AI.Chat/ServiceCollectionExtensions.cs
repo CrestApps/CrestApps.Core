@@ -120,5 +120,4 @@ public static class ServiceCollectionExtensions
         builder.Services.ConfigureCrestAppsChatHubOptions<THub>();
         return builder;
     }
-
 }

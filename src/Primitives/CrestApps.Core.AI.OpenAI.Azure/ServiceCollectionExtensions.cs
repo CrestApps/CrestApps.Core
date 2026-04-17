@@ -48,14 +48,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIAzureOpenAI();
         return builder;
     }
-
-    [Obsolete("Use AddAISuite(ai => ai.AddAzureOpenAI()).")]
-    public static CrestAppsCoreBuilder AddAzureOpenAI(this CrestAppsCoreBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Services.AddCoreAIAzureOpenAI();
-        return builder;
-    }
-
 }
