@@ -20,8 +20,7 @@ public static class RemoveChatInteractionDocument
     /// <returns>The route builder.</returns>
     public static IEndpointRouteBuilder AddRemoveChatInteractionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
-        var endpointHandler = new RemoveChatInteractionDocumentEndpoint();
-        var endpoint = builder.MapPost("ai/chat-interactions/remove-document", endpointHandler.HandleAsync)
+        var endpoint = builder.MapPost("ai/chat-interactions/remove-document", RemoveChatInteractionDocumentEndpoint.HandleAsync)
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -31,10 +30,10 @@ public static class RemoveChatInteractionDocument
 
         return builder;
     }
-    
+
     private sealed class RemoveChatInteractionDocumentEndpoint : AIChatDocumentEndpointBase
     {
-        public async Task<IResult> HandleAsync(
+        public static async Task<IResult> HandleAsync(
             [FromBody] RemoveDocumentRequest requestModel,
             HttpContext httpContext,
             [FromServices] ICatalogManager<ChatInteraction> interactionManager,

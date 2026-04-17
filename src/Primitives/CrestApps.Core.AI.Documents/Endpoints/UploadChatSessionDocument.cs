@@ -27,8 +27,7 @@ public static class UploadChatSessionDocument
     /// <returns>The route builder.</returns>
     public static IEndpointRouteBuilder AddUploadChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
-        var endpointHandler = new UploadChatSessionDocumentEndpoint();
-        var endpoint = builder.MapPost("ai/chat-sessions/upload-document", endpointHandler.HandleAsync)
+        var endpoint = builder.MapPost("ai/chat-sessions/upload-document", UploadChatSessionDocumentEndpoint.HandleAsync)
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -38,10 +37,10 @@ public static class UploadChatSessionDocument
 
         return builder;
     }
-    
+
     private sealed class UploadChatSessionDocumentEndpoint : AIChatDocumentEndpointBase
     {
-        public async Task<IResult> HandleAsync(
+        public static async Task<IResult> HandleAsync(
             HttpRequest request,
             [FromServices] IAIChatSessionManager sessionManager,
             [FromServices] IAIProfileManager profileManager,

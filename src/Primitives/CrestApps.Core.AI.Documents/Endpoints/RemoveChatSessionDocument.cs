@@ -20,8 +20,7 @@ public static class RemoveChatSessionDocument
     /// <returns>The route builder.</returns>
     public static IEndpointRouteBuilder AddRemoveChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
-        var endpointHandler = new RemoveChatSessionDocumentEndpoint();
-        var endpoint = builder.MapPost("ai/chat-sessions/remove-document", endpointHandler.HandleAsync)
+        var endpoint = builder.MapPost("ai/chat-sessions/remove-document", RemoveChatSessionDocumentEndpoint.HandleAsync)
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -31,10 +30,10 @@ public static class RemoveChatSessionDocument
 
         return builder;
     }
-    
+
     private sealed class RemoveChatSessionDocumentEndpoint : AIChatDocumentEndpointBase
     {
-        public async Task<IResult> HandleAsync(
+        public static async Task<IResult> HandleAsync(
             [FromBody] RemoveDocumentRequest requestModel,
             HttpContext httpContext,
             [FromServices] IAIChatSessionManager sessionManager,

@@ -26,8 +26,7 @@ public static class UploadChatInteractionDocument
     /// <returns>The route builder.</returns>
     public static IEndpointRouteBuilder AddUploadChatInteractionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
-        var endpointHandler = new UploadChatInteractionDocumentEndpoint();
-        var endpoint = builder.MapPost("ai/chat-interactions/upload-document", endpointHandler.HandleAsync)
+        var endpoint = builder.MapPost("ai/chat-interactions/upload-document", UploadChatInteractionDocumentEndpoint.HandleAsync)
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -37,10 +36,10 @@ public static class UploadChatInteractionDocument
 
         return builder;
     }
-    
+
     private sealed class UploadChatInteractionDocumentEndpoint : AIChatDocumentEndpointBase
     {
-        public async Task<IResult> HandleAsync(
+        public static async Task<IResult> HandleAsync(
             HttpRequest request,
             [FromServices] ICatalogManager<ChatInteraction> interactionManager,
             [FromServices] IAIDeploymentManager deploymentManager,
