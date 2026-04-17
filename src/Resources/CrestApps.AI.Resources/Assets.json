@@ -8,6 +8,13 @@
   },
   {
     "inputs": [
+      "Assets/js/ai-chat-widget.js"
+    ],
+    "output": "wwwroot/scripts/ai-chat-widget.js",
+    "generateSourceMaps": true
+  },
+  {
+    "inputs": [
       "Assets/js/chat-interaction.js"
     ],
     "output": "wwwroot/scripts/chat-interaction.js",

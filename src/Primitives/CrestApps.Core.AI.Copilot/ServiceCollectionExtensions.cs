@@ -15,6 +15,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAICopilotOrchestrator(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddHttpClient();
 
         services.AddOrchestrator<CopilotOrchestrator>(CopilotOrchestrator.OrchestratorName)
@@ -30,6 +32,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddCopilotOrchestrator(this CrestAppsAISuiteBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAICopilotOrchestrator();
         return builder;
     }
@@ -37,6 +41,8 @@ public static class ServiceCollectionExtensions
     [Obsolete("Use AddAISuite(ai => ai.AddCopilotOrchestrator()).")]
     public static CrestAppsCoreBuilder AddCopilotOrchestrator(this CrestAppsCoreBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAICopilotOrchestrator();
         return builder;
     }

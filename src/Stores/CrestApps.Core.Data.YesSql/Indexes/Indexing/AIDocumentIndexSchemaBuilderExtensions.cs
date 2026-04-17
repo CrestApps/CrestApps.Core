@@ -6,6 +6,9 @@ public static class AIDocumentIndexSchemaBuilderExtensions
 {
     public static async Task CreateAIDocumentIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(options);
+
         await schemaBuilder.CreateMapIndexTableAsync<AIDocumentIndex>(table => table
             .Column<string>(nameof(AIDocumentIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIDocumentIndex.ReferenceId), column => column.WithLength(26))
@@ -25,6 +28,8 @@ public static class AIDocumentIndexSchemaBuilderExtensions
 
     public static Task AddAIDocumentIndexExtensionColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+
         return schemaBuilder.AlterIndexTableAsync<AIDocumentIndex>(table =>
         {
             table.AddColumn<string>(nameof(AIDocumentIndex.Extension), column => column.WithLength(20));

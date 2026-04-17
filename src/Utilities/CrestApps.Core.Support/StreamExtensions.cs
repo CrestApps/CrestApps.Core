@@ -4,6 +4,8 @@ public static class StreamExtensions
 {
     public static byte[] ReadAllBytes(this Stream instream)
     {
+        ArgumentNullException.ThrowIfNull(instream);
+
         if (instream is MemoryStream stream)
         {
             return stream.ToArray();

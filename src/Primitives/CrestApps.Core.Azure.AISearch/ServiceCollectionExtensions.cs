@@ -18,6 +18,9 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services, IConfigurationSection configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.Configure<AzureAISearchConnectionOptions>(configuration);
         var options = new AzureAISearchConnectionOptions();
         configuration.Bind(options);
@@ -39,6 +42,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddKeyedScoped<IDataSourceContentManager>(AISearchConstants.ProviderName, (sp, _)
             => new AzureAISearchDataSourceContentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDataSourceContentManager>>()));
 
@@ -58,6 +63,9 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsIndexingBuilder AddAzureAISearch(this CrestAppsIndexingBuilder builder, IConfigurationSection configuration, Action<CrestAppsAzureAISearchBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         builder.Services.AddCoreAzureAISearchServices(configuration);
 
         if (configure is not null)
@@ -70,6 +78,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsIndexingBuilder AddAzureAISearch(this CrestAppsIndexingBuilder builder, Action<CrestAppsAzureAISearchBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAzureAISearchServices();
 
         if (configure is not null)
@@ -83,6 +93,9 @@ public static class ServiceCollectionExtensions
     [Obsolete("Use AddIndexingServices(indexing => indexing.AddAzureAISearch(...)).")]
     public static CrestAppsCoreBuilder AddAzureAISearch(this CrestAppsCoreBuilder builder, IConfigurationSection configuration, Action<CrestAppsAzureAISearchBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         builder.Services.AddCoreAzureAISearchServices(configuration);
 
         if (configure is not null)
@@ -96,6 +109,8 @@ public static class ServiceCollectionExtensions
     [Obsolete("Use AddIndexingServices(indexing => indexing.AddAzureAISearch(...)).")]
     public static CrestAppsCoreBuilder AddAzureAISearch(this CrestAppsCoreBuilder builder, Action<CrestAppsAzureAISearchBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAzureAISearchServices();
 
         if (configure is not null)

@@ -9,9 +9,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
-public static partial class AIChatDocumentEndpoints
+public abstract class AIChatDocumentEndpointBase
 {
-    private static async Task<(bool Success, string Error, AIChatUploadedDocument UploadedDocument)> ProcessFileAsync(
+    protected static async Task<(bool Success, string Error, AIChatUploadedDocument UploadedDocument)> ProcessFileAsync(
         IFormFile file,
         string referenceId,
         string referenceType,
@@ -30,6 +30,7 @@ public static partial class AIChatDocumentEndpoints
         }
 
         var extension = Path.GetExtension(file.FileName);
+
         if (!documentOptions.AllowedFileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
         {
             return (false, S["File type '{0}' is not supported.", extension].Value, null);
@@ -38,28 +39,46 @@ public static partial class AIChatDocumentEndpoints
         try
         {
             var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator);
+            if (result == null)
+            {
+                logger.LogError("Document processing returned no result for file {FileName}", file.FileName);
+                return (false, S["Failed to process file."].Value, null);
+            }
+
             if (!result.Success)
             {
                 return (false, result.Error, null);
             }
 
-            var storageLocation = DocumentFileStoragePath.Create(referenceType, referenceId, file.FileName);
+            if (result.Document == null || result.DocumentInfo == null)
+            {
+                logger.LogError("Document processing returned an incomplete result for file {FileName}", file.FileName);
+                return (false, S["Failed to process file."].Value, null);
+            }
+
+            var (storedFileName, storagePath) = DocumentFileStoragePath.Create(referenceType, referenceId, file.FileName);
 
             using (var stream = file.OpenReadStream())
             {
-                await fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
+                await fileStore.SaveFileAsync(storagePath, stream);
             }
 
-            result.Document.StoredFileName = storageLocation.StoredFileName;
-            result.Document.StoredFilePath = storageLocation.StoragePath;
+            result.Document.StoredFileName = storedFileName;
+            result.Document.StoredFilePath = storagePath;
 
             await documentStore.CreateAsync(result.Document);
-            foreach (var chunk in result.Chunks)
+            foreach (var chunk in result.Chunks ?? [])
             {
                 await chunkStore.CreateAsync(chunk);
             }
 
-            return (true, null, new AIChatUploadedDocument { File = file, Document = result.Document, DocumentInfo = result.DocumentInfo, Chunks = result.Chunks, });
+            return (true, null, new AIChatUploadedDocument
+            {
+                File = file,
+                Document = result.Document,
+                DocumentInfo = result.DocumentInfo,
+                Chunks = result.Chunks ?? [],
+            });
         }
         catch (Exception ex)
         {
@@ -68,7 +87,7 @@ public static partial class AIChatDocumentEndpoints
         }
     }
 
-    private static IReadOnlyList<IFormFile> GetFiles(IFormCollection form)
+    protected static IReadOnlyList<IFormFile> GetFiles(IFormCollection form)
     {
         var files = form.Files.GetFiles("files");
         if (files.Count > 0)
@@ -80,27 +99,31 @@ public static partial class AIChatDocumentEndpoints
         return singleFile == null ? [] : [singleFile];
     }
 
-    private static bool IsSessionDocumentUploadEnabled(AIProfile profile)
+    protected static bool IsSessionDocumentUploadEnabled(AIProfile profile)
     {
         return profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata) && sessionDocMetadata.AllowSessionDocuments;
     }
 
-    private static async Task<AIDeployment> ResolveSessionDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
+    protected static async Task<AIDeployment> ResolveSessionDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
     {
-        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: profile.ChatDeploymentName) ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Utility, deploymentName: profile.UtilityDeploymentName);
+        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Utility, deploymentName: profile.UtilityDeploymentName);
     }
 
-    private static bool IsDuplicateDocument(ICollection<ChatDocumentInfo> documents, IFormFile file)
+    protected static bool IsDuplicateDocument(ICollection<ChatDocumentInfo> documents, IFormFile file)
     {
         if (documents == null || file == null)
         {
             return false;
         }
 
-        return documents.Any(document => document != null && string.Equals(document.FileName, file.FileName, StringComparison.OrdinalIgnoreCase) && document.FileSize == file.Length);
+        return documents.Any(document =>
+            document != null &&
+            string.Equals(document.FileName, file.FileName, StringComparison.OrdinalIgnoreCase) &&
+            document.FileSize == file.Length);
     }
 
-    private static async Task InvokeRemovedHandlersAsync(IEnumerable<IAIChatDocumentEventHandler> eventHandlers, AIChatDocumentRemoveContext context, CancellationToken cancellationToken)
+    protected static async Task InvokeRemovedHandlersAsync(IEnumerable<IAIChatDocumentEventHandler> eventHandlers, AIChatDocumentRemoveContext context, CancellationToken cancellationToken)
     {
         foreach (var handler in eventHandlers)
         {

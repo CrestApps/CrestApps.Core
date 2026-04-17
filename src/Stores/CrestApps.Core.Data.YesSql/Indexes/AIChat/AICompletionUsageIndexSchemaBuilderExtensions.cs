@@ -6,6 +6,9 @@ public static class AICompletionUsageIndexSchemaBuilderExtensions
 {
     public static async Task CreateAICompletionUsageIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(options);
+
         await schemaBuilder.CreateMapIndexTableAsync<AICompletionUsageIndex>(table => table
             .Column<string>(nameof(AICompletionUsageIndex.ContextType), column => column.WithLength(64))
             .Column<string>(nameof(AICompletionUsageIndex.SessionId), column => column.WithLength(26))

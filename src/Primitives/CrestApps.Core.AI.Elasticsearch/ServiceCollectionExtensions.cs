@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreElasticsearchAIDocumentSource(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddKeyedScoped<IVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchVectorSearchService(sp.GetRequiredService<ElasticsearchClient>(), sp.GetRequiredService<ILogger<ElasticsearchVectorSearchService>>()));
 
@@ -28,6 +30,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreElasticsearchAIDataSource(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return services.AddCoreElasticsearchSource(IndexProfileTypes.DataSource, descriptor =>
         {
             descriptor.DisplayName = "Data Source";
@@ -38,6 +42,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreElasticsearchAIMemorySource(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddKeyedScoped<IMemoryVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchMemoryVectorSearchService(sp.GetRequiredService<ElasticsearchClient>(), sp.GetRequiredService<ILogger<ElasticsearchMemoryVectorSearchService>>()));
 
@@ -50,6 +56,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreElasticsearchSource(this IServiceCollection services, string type, Action<IndexProfileSourceDescriptor> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(type);
+
         services.AddCoreAIDefaultIndexProfileHandler();
         services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", type, configure));
 
@@ -58,6 +67,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsElasticsearchBuilder AddAIDocuments(this CrestAppsElasticsearchBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreElasticsearchAIDocumentSource();
 
         return builder;
@@ -65,6 +76,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsElasticsearchBuilder AddAIDataSources(this CrestAppsElasticsearchBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreElasticsearchAIDataSource();
 
         return builder;
@@ -72,6 +85,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsElasticsearchBuilder AddAIMemory(this CrestAppsElasticsearchBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreElasticsearchAIMemorySource();
 
         return builder;

@@ -20,6 +20,8 @@ public sealed class MvcAIChatSessionEventService
 
     public async Task RecordSessionStartedAsync(AIChatSession chatSession)
     {
+        ArgumentNullException.ThrowIfNull(chatSession);
+
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var isAuthenticated = !string.IsNullOrEmpty(chatSession.UserId);
         var evt = new AIChatSessionEvent
@@ -41,6 +43,8 @@ public sealed class MvcAIChatSessionEventService
 
     public async Task RecordSessionEndedAsync(AIChatSession chatSession, int promptCount, bool isResolved)
     {
+        ArgumentNullException.ThrowIfNull(chatSession);
+
         var evt = await FindEventBySessionIdAsync(chatSession.SessionId);
         if (evt is null)
         {
@@ -75,6 +79,8 @@ public sealed class MvcAIChatSessionEventService
 
     public async Task RecordCompletionUsageAsync(string sessionId, int inputTokens, int outputTokens)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
         var evt = await FindEventBySessionIdAsync(sessionId);
         if (evt is null)
         {
@@ -88,6 +94,8 @@ public sealed class MvcAIChatSessionEventService
 
     public async Task RecordResponseLatencyAsync(string sessionId, double responseLatencyMs)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
         var evt = await FindEventBySessionIdAsync(sessionId);
         if (evt is null || responseLatencyMs <= 0)
         {
@@ -101,6 +109,9 @@ public sealed class MvcAIChatSessionEventService
 
     public async Task RecordConversionMetricsAsync(string sessionId, List<ConversionGoalResult> goalResults)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentNullException.ThrowIfNull(goalResults);
+
         var evt = await FindEventBySessionIdAsync(sessionId);
         if (evt is null)
         {
@@ -115,6 +126,8 @@ public sealed class MvcAIChatSessionEventService
 
     public async Task RecordUserRatingAsync(string sessionId, int thumbsUpCount, int thumbsDownCount)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
         var evt = await FindEventBySessionIdAsync(sessionId);
         if (evt is null)
         {

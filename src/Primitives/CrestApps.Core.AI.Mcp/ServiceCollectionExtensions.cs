@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIMcpServices(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddMemoryCache();
         services.AddDistributedMemoryCache();
         services.AddHttpClient();
@@ -38,6 +40,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAISseMcpClientTransport(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IMcpClientTransportProvider, SseClientTransportProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<McpConnection>, SseMcpConnectionSettingsHandler>());
 
@@ -57,6 +61,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAIStdIoMcpClientTransport(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IMcpClientTransportProvider, StdioClientTransportProvider>());
 
         services.Configure<McpClientAIOptions>(options =>
@@ -81,6 +87,8 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddCoreAIMcpClient(this IServiceCollection services, bool includeStdIoTransport = true)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddCoreAIMcpServices();
 
         if (includeStdIoTransport)
@@ -97,12 +105,16 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddMcpServices(this CrestAppsAISuiteBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIMcpServices();
         return builder;
     }
 
     public static CrestAppsAISuiteBuilder AddMcpClient(this CrestAppsAISuiteBuilder builder, Action<CrestAppsMcpClientBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIMcpClient();
 
         if (configure is not null)
@@ -121,6 +133,8 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddCoreAIMcpServer(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped<IMcpServerPromptService, DefaultMcpServerPromptService>();
         services.TryAddScoped<IMcpServerResourceService, DefaultMcpServerResourceService>();
 
@@ -129,6 +143,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddMcpServer(this CrestAppsAISuiteBuilder builder, Action<CrestAppsMcpServerBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIMcpServer();
 
         if (configure is not null)
@@ -153,6 +169,9 @@ public static class ServiceCollectionExtensions
         Action<McpResourceTypeEntry> configure = null)
         where THandler : class, IMcpResourceTypeHandler
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(type);
+
         services.Configure<McpOptions>(options =>
         {
             options.AddResourceType(type, configure);

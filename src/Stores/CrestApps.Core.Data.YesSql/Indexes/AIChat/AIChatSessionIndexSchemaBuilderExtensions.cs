@@ -6,6 +6,9 @@ public static class AIChatSessionIndexSchemaBuilderExtensions
 {
     public static async Task CreateAIChatSessionIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(options);
+
         await schemaBuilder.CreateMapIndexTableAsync<AIChatSessionIndex>(table => table
             .Column<string>(nameof(AIChatSessionIndex.SessionId), column => column.WithLength(26))
             .Column<string>(nameof(AIChatSessionIndex.ProfileId), column => column.WithLength(26))

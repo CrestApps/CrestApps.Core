@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
-public static partial class AIChatDocumentEndpoints
+public static class RemoveChatSessionDocument
 {
     /// <summary>
     /// Adds the chat session document removal endpoint.
@@ -20,7 +20,8 @@ public static partial class AIChatDocumentEndpoints
     /// <returns>The route builder.</returns>
     public static IEndpointRouteBuilder AddRemoveChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
-        var endpoint = builder.MapPost("ai/chat-sessions/remove-document", RemoveChatSessionDocumentAsync)
+        var endpointHandler = new RemoveChatSessionDocumentEndpoint();
+        var endpoint = builder.MapPost("ai/chat-sessions/remove-document", endpointHandler.HandleAsync)
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -30,81 +31,88 @@ public static partial class AIChatDocumentEndpoints
 
         return builder;
     }
-
-    private static async Task<IResult> RemoveChatSessionDocumentAsync(
-        [FromBody] RemoveDocumentRequest requestModel,
-        HttpContext httpContext,
-        [FromServices] IAIChatSessionManager sessionManager,
-        [FromServices] IAIProfileManager profileManager,
-        [FromServices] IAIDocumentStore documentStore,
-        [FromServices] IAIDocumentChunkStore chunkStore,
-        [FromServices] IDocumentFileStore fileStore,
-        [FromServices] IAuthorizationService authorizationService,
-        [FromServices] IEnumerable<IAIChatDocumentEventHandler> eventHandlers)
+    
+    private sealed class RemoveChatSessionDocumentEndpoint : AIChatDocumentEndpointBase
     {
-        if (requestModel == null)
+        public async Task<IResult> HandleAsync(
+            [FromBody] RemoveDocumentRequest requestModel,
+            HttpContext httpContext,
+            [FromServices] IAIChatSessionManager sessionManager,
+            [FromServices] IAIProfileManager profileManager,
+            [FromServices] IAIDocumentStore documentStore,
+            [FromServices] IAIDocumentChunkStore chunkStore,
+            [FromServices] IDocumentFileStore fileStore,
+            [FromServices] IAuthorizationService authorizationService,
+            [FromServices] IEnumerable<IAIChatDocumentEventHandler> eventHandlers)
         {
-            return TypedResults.BadRequest("Request body is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(requestModel.ItemId) || string.IsNullOrWhiteSpace(requestModel.DocumentId))
-        {
-            return TypedResults.BadRequest("Item ID and document ID are required.");
-        }
-
-        var session = await sessionManager.FindAsync(requestModel.ItemId);
-        if (session == null)
-        {
-            return TypedResults.NotFound();
-        }
-
-        var profile = await profileManager.FindByIdAsync(session.ProfileId);
-        if (profile == null)
-        {
-            return TypedResults.NotFound();
-        }
-
-        var authorization = await authorizationService.AuthorizeAsync(httpContext.User, new AIChatSessionDocumentAuthorizationContext(profile, session), [AIChatDocumentOperations.ManageDocuments]);
-        if (!authorization.Succeeded)
-        {
-            return TypedResults.Forbid();
-        }
-
-        var documentInfo = session.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
-        if (documentInfo == null)
-        {
-            return TypedResults.NotFound("Document not found.");
-        }
-
-        session.Documents.Remove(documentInfo);
-        var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
-        var chunkIds = new List<string>();
-        if (document != null)
-        {
-            var chunks = await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId);
-            chunkIds = chunks.Select(chunk => chunk.ItemId).ToList();
-            await chunkStore.DeleteByDocumentIdAsync(document.ItemId);
-            if (!string.IsNullOrWhiteSpace(document.StoredFilePath))
+            if (requestModel == null)
             {
-                await fileStore.DeleteFileAsync(document.StoredFilePath);
+                return TypedResults.BadRequest("Request body is required.");
             }
 
-            await documentStore.DeleteAsync(document);
-        }
+            if (string.IsNullOrWhiteSpace(requestModel.ItemId) || string.IsNullOrWhiteSpace(requestModel.DocumentId))
+            {
+                return TypedResults.BadRequest("Item ID and document ID are required.");
+            }
 
-        await sessionManager.SaveAsync(session);
-        var context = new AIChatDocumentRemoveContext
-        {
-            HttpContext = httpContext,
-            Session = session,
-            Profile = profile,
-            DocumentInfo = documentInfo,
-            Document = document,
-            ChunkIds = chunkIds,
-            ReferenceId = session.SessionId,
-            ReferenceType = AIReferenceTypes.Document.ChatSession,
-        };
-        await InvokeRemovedHandlersAsync(eventHandlers, context, httpContext.RequestAborted);
-        return TypedResults.Ok();
+            var session = await sessionManager.FindAsync(requestModel.ItemId);
+            if (session == null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            var profile = await profileManager.FindByIdAsync(session.ProfileId);
+            if (profile == null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            var authorization = await authorizationService.AuthorizeAsync(
+                httpContext.User,
+                new AIChatSessionDocumentAuthorizationContext(profile, session),
+                [AIChatDocumentOperations.ManageDocuments]);
+            if (!authorization.Succeeded)
+            {
+                return TypedResults.Forbid();
+            }
+
+            var documentInfo = session.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
+            if (documentInfo == null)
+            {
+                return TypedResults.NotFound("Document not found.");
+            }
+
+            session.Documents.Remove(documentInfo);
+            var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
+            var chunkIds = new List<string>();
+            if (document != null)
+            {
+                var chunks = await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId);
+                chunkIds = chunks.Select(chunk => chunk.ItemId).ToList();
+                await chunkStore.DeleteByDocumentIdAsync(document.ItemId);
+                if (!string.IsNullOrWhiteSpace(document.StoredFilePath))
+                {
+                    await fileStore.DeleteFileAsync(document.StoredFilePath);
+                }
+
+                await documentStore.DeleteAsync(document);
+            }
+
+            await sessionManager.SaveAsync(session);
+            var context = new AIChatDocumentRemoveContext
+            {
+                HttpContext = httpContext,
+                Session = session,
+                Profile = profile,
+                DocumentInfo = documentInfo,
+                Document = document,
+                ChunkIds = chunkIds,
+                ReferenceId = session.SessionId,
+                ReferenceType = AIReferenceTypes.Document.ChatSession,
+            };
+            await InvokeRemovedHandlersAsync(eventHandlers, context, httpContext.RequestAborted);
+
+            return TypedResults.Ok();
+        }
     }
 }

@@ -56,6 +56,8 @@ public class CatalogManager<T> : ICatalogManager<T>
 
     public async ValueTask<T> FindByIdAsync(string id)
     {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+
         var entry = await Catalog.FindByIdAsync(id);
 
         if (entry is not null)
@@ -94,6 +96,8 @@ public class CatalogManager<T> : ICatalogManager<T>
     public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
         where TQuery : QueryContext
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         var result = await Catalog.PageAsync(page, pageSize, context);
 
         foreach (var entry in result.Entries)

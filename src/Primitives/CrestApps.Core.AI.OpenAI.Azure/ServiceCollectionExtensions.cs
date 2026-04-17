@@ -14,6 +14,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIAzureOpenAI(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureOpenAIClientProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureSpeechClientProvider>());
 
@@ -41,6 +43,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddAzureOpenAI(this CrestAppsAISuiteBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIAzureOpenAI();
         return builder;
     }
@@ -48,6 +52,8 @@ public static class ServiceCollectionExtensions
     [Obsolete("Use AddAISuite(ai => ai.AddAzureOpenAI()).")]
     public static CrestAppsCoreBuilder AddAzureOpenAI(this CrestAppsCoreBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIAzureOpenAI();
         return builder;
     }

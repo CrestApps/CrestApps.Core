@@ -35,6 +35,8 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
 
     public async ValueTask<IEnumerable<T>> GetAsync(string source)
     {
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
         var entries = await SourceCatalog.GetAsync(source);
 
         foreach (var entry in entries)

@@ -8,6 +8,8 @@ public static class PdfServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIPdfDocumentProcessing(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddCoreAIIngestionDocumentReader<PdfIngestionDocumentReader>(".pdf");
 
         return services;
@@ -15,6 +17,8 @@ public static class PdfServiceCollectionExtensions
 
     public static CrestAppsDocumentProcessingBuilder AddPdf(this CrestAppsDocumentProcessingBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIPdfDocumentProcessing();
         return builder;
     }

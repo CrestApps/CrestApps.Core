@@ -37,6 +37,8 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<TemplateOptions> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services
             .AddTemplating(configure)
             .AddCoreAITemplateSource(AITemplateSources.Profile, entry =>
@@ -65,6 +67,7 @@ public static class ServiceCollectionExtensions
     public static AIToolBuilder<TTool> AddCoreAITool<TTool>(this IServiceCollection services, string name)
         where TTool : AITool
     {
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         services.AddCoreAIToolServices<TTool>(name);
@@ -101,6 +104,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAIToolServices<TTool>(this IServiceCollection services, string name)
         where TTool : AITool
     {
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         services.AddSingleton<TTool>();
@@ -115,6 +119,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIServices(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         // Ensure IHttpContextAccessor is available for services that need HTTP context.
 
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -169,6 +175,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsCoreBuilder AddAISuite(this CrestAppsCoreBuilder builder, Action<CrestAppsAISuiteBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services
             .AddCoreServices()
             .AddCoreAIServices()
@@ -185,6 +193,10 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string implementationName, string providerName, Action<AIProfileProviderEntry> configure = null)
         where TClient : class, IAICompletionClient
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(implementationName);
+        ArgumentNullException.ThrowIfNull(providerName);
+
         return services
             .Configure<AIOptions>(o =>
             {
@@ -195,6 +207,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAIDeploymentProvider(this IServiceCollection services, string providerName, Action<AIDeploymentProviderEntry> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(providerName);
+
         services
             .Configure<AIOptions>(o =>
             {
@@ -207,6 +222,9 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAICompletionClient<TClient>(this IServiceCollection services, string clientName)
         where TClient : class, IAICompletionClient
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(clientName);
+
         services.Configure<AIOptions>(o =>
         {
             o.AddClient<TClient>(clientName);
@@ -220,6 +238,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAIConnectionSource(this IServiceCollection services, string providerName, Action<AIProviderConnectionOptionsEntry> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(providerName);
+
         services.Configure<AIOptions>(o =>
         {
             o.AddConnectionSource(providerName, configure);
@@ -230,6 +251,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAITemplateSource(this IServiceCollection services, string sourceName, Action<AITemplateSourceEntry> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(sourceName);
+
         services.Configure<AIOptions>(o =>
         {
             o.AddTemplateSource(sourceName, configure);
@@ -240,6 +264,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAIDataSourceRag(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DataSourceOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DataSourcePreemptiveRagHandler>());
         services.AddCoreAITool<DataSourceSearchTool>(DataSourceSearchTool.TheName)
@@ -250,6 +276,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAIMemory(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddSingleton(TimeProvider.System);
         services.AddCatalogManagers();
         services.AddOptions<AIMemoryOptions>();
@@ -287,6 +315,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddAIMemory(this CrestAppsAISuiteBuilder builder, Action<CrestAppsAIMemoryBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIMemory();
 
         if (configure is not null)
@@ -303,6 +333,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIOrchestration(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         // Register embedded templates from this assembly so they are available
         // regardless of the host (OrchardCore, MVC, or any ASP.NET Core app).
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
@@ -391,6 +423,7 @@ public static class ServiceCollectionExtensions
     public static OrchestratorBuilder<TOrchestrator> AddOrchestrator<TOrchestrator>(this IServiceCollection services, string name)
         where TOrchestrator : class, IOrchestrator
     {
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         services.TryAddScoped<TOrchestrator>();

@@ -11,6 +11,8 @@ public static class DocumentIndexingServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIDocumentIndexProfileHandler(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, AIDocumentSearchIndexProfileHandler>());
 
         return services;

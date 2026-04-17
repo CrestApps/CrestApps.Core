@@ -60,6 +60,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     public async Task SyncDataSourceAsync(AIDataSource dataSource, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
+
         var context = await TryCreateContextAsync(dataSource, requireSourceProfile: true);
         if (context == null)
         {
@@ -122,6 +123,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     public async Task DeleteDataSourceDocumentsAsync(AIDataSource dataSource, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
+
         var context = await TryCreateContextAsync(dataSource, requireSourceProfile: false);
         if (context == null)
         {

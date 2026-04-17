@@ -6,6 +6,8 @@ public static class McpPromptIndexSchemaBuilderExtensions
 {
     public static async Task CreateMcpPromptIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+
         await schemaBuilder.CreateMapIndexTableAsync<McpPromptIndex>(table => table
             .Column<string>(nameof(McpPromptIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(McpPromptIndex.Name), column => column.WithLength(255)),

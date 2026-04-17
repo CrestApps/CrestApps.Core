@@ -14,6 +14,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIOllama(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OllamaAIClientProvider>());
 
         services.AddCoreAIProfile<OllamaCompletionClient>(OllamaConstants.ImplementationName, OllamaConstants.ProviderName, o =>
@@ -33,6 +35,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddOllama(this CrestAppsAISuiteBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIOllama();
         return builder;
     }
@@ -40,6 +44,8 @@ public static class ServiceCollectionExtensions
     [Obsolete("Use AddAISuite(ai => ai.AddOllama()).")]
     public static CrestAppsCoreBuilder AddOllama(this CrestAppsCoreBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIOllama();
         return builder;
     }

@@ -21,6 +21,9 @@ public sealed class MvcAIChatSessionExtractedDataService : IAIChatSessionExtract
 
     public async Task RecordExtractedDataAsync(AIProfile profile, AIChatSession session, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(session);
+
         var existing = await FindBySessionIdAsync(session.SessionId);
         if (session.ExtractedData.Count == 0)
         {
@@ -48,6 +51,8 @@ public sealed class MvcAIChatSessionExtractedDataService : IAIChatSessionExtract
 
     public async Task<IReadOnlyList<AIChatSessionExtractedDataRecord>> GetAsync(string profileId, DateTime? startDateUtc, DateTime? endDateUtc, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
+
         var query = _session.Query<AIChatSessionExtractedDataRecord, AIChatSessionExtractedDataIndex>(x => x.ProfileId == profileId);
         if (startDateUtc.HasValue)
         {

@@ -28,6 +28,8 @@ public class NamedCatalogManager<T> : CatalogManager<T>, INamedCatalogManager<T>
 
     public async ValueTask<T> FindByNameAsync(string name)
     {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
         var entry = await NamedCatalog.FindByNameAsync(name);
 
         if (entry is not null)

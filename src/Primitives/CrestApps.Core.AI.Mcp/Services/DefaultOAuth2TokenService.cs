@@ -28,6 +28,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpoint);
         ArgumentException.ThrowIfNullOrEmpty(clientId);
         ArgumentException.ThrowIfNullOrEmpty(clientSecret);
+
         var cacheKey = GetCacheKey("cc", tokenEndpoint, clientId, scopes);
         if (_cache.TryGetValue(cacheKey, out string cachedToken))
         {
@@ -54,6 +55,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpoint);
         ArgumentException.ThrowIfNullOrEmpty(clientId);
         ArgumentException.ThrowIfNullOrEmpty(privateKeyPem);
+
         var cacheKey = GetCacheKey("pkjwt", tokenEndpoint, clientId, scopes);
         if (_cache.TryGetValue(cacheKey, out string cachedToken))
         {
@@ -82,6 +84,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpoint);
         ArgumentException.ThrowIfNullOrEmpty(clientId);
         ArgumentNullException.ThrowIfNull(clientCertificateBytes);
+
         var cacheKey = GetCacheKey("mtls", tokenEndpoint, clientId, scopes);
         if (_cache.TryGetValue(cacheKey, out string cachedToken))
         {

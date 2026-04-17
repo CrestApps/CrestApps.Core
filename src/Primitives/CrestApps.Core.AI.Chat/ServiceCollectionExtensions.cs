@@ -25,6 +25,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatNotifications(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped<IChatNotificationSender, DefaultChatNotificationSender>();
         services.TryAddKeyedScoped<IChatNotificationActionHandler, CancelTransferNotificationActionHandler>(ChatNotificationActionNames.CancelTransfer);
         services.TryAddKeyedScoped<IChatNotificationActionHandler, EndSessionNotificationActionHandler>(ChatNotificationActionNames.EndSession);
@@ -38,6 +40,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection ConfigureCrestAppsChatHubOptions<THub>(this IServiceCollection services) where THub : Hub
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.Configure<HubOptions<THub>>(options =>
         {
             // Allow long-running operations (e.g., multi-step MCP tool calls)
@@ -58,6 +62,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatSessionProcessing(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped<DataExtractionService>();
         services.TryAddScoped<PostSessionProcessingService>();
         services.TryAddScoped<AIChatSessionPostCloseProcessor>();
@@ -78,6 +84,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreAIChatInteractions(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddCoreAIChatNotifications();
         services.AddCoreAIChatSessionProcessing();
 
@@ -93,6 +101,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddChatInteractions(this CrestAppsAISuiteBuilder builder, Action<CrestAppsChatInteractionsBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIChatInteractions();
 
         if (configure is not null)
@@ -105,6 +115,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsChatInteractionsBuilder ConfigureChatHubOptions<THub>(this CrestAppsChatInteractionsBuilder builder) where THub : Hub
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.ConfigureCrestAppsChatHubOptions<THub>();
         return builder;
     }

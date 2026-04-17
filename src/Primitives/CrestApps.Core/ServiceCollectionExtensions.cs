@@ -37,6 +37,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped<IODataValidator, ODataFilterValidator>();
 
         return services;
@@ -44,6 +46,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCatalogManagers(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped(typeof(ICatalogManager<>), typeof(CatalogManager<>));
         services.TryAddScoped(typeof(INamedCatalogManager<>), typeof(NamedCatalogManager<>));
         services.TryAddScoped(typeof(ISourceCatalogManager<>), typeof(SourceCatalogManager<>));
@@ -61,15 +65,11 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IMvcBuilder AddCrestAppsStoreCommitterFilter(this IMvcBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddScoped<StoreCommitterActionFilter>();
         builder.Services.Configure<MvcOptions>(options => options.Filters.AddService<StoreCommitterActionFilter>());
         return builder;
-    }
-
-    [Obsolete("Use AddCrestAppsStoreCommitterFilter().")]
-    public static IMvcBuilder AddStoreCommitterFilter(this IMvcBuilder builder)
-    {
-        return builder.AddCrestAppsStoreCommitterFilter();
     }
 
     /// <summary>
@@ -80,14 +80,10 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static ISignalRServerBuilder AddCrestAppsStoreCommitterFilter(this ISignalRServerBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.TryAddSingleton<StoreCommitterHubFilter>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<HubOptions>, StoreCommitterHubFilterOptionsSetup>());
         return builder;
-    }
-
-    [Obsolete("Use AddCrestAppsStoreCommitterFilter().")]
-    public static ISignalRServerBuilder AddStoreCommitterFilter(this ISignalRServerBuilder builder)
-    {
-        return builder.AddCrestAppsStoreCommitterFilter();
     }
 }

@@ -6,6 +6,9 @@ public static class AIDeploymentIndexSchemaBuilderExtensions
 {
     public static async Task CreateAIDeploymentIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(options);
+
         await schemaBuilder.CreateMapIndexTableAsync<AIDeploymentIndex>(table => table
             .Column<string>(nameof(AIDeploymentIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIDeploymentIndex.Name), column => column.WithLength(255))

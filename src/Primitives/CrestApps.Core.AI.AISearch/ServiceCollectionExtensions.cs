@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAzureAISearchAIDocumentSource(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddKeyedScoped<IVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchVectorSearchService(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchVectorSearchService>>()));
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
@@ -27,6 +29,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAzureAISearchAIDataSource(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
         {
             descriptor.DisplayName = "Data Source";
@@ -36,6 +40,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAzureAISearchAIMemorySource(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddKeyedScoped<IMemoryVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchMemoryVectorSearchService(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchMemoryVectorSearchService>>()));
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
@@ -47,6 +53,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddCoreAzureAISearchSource(this IServiceCollection services, string type, Action<IndexProfileSourceDescriptor> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(type);
+
         services.AddCoreAIDefaultIndexProfileHandler();
         services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(AISearchConstants.ProviderName, "Azure AI Search", type, configure));
         return services;
@@ -54,6 +63,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAzureAISearchBuilder AddAIDocuments(this CrestAppsAzureAISearchBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAzureAISearchAIDocumentSource();
 
         return builder;
@@ -61,6 +72,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAzureAISearchBuilder AddAIDataSources(this CrestAppsAzureAISearchBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAzureAISearchAIDataSource();
 
         return builder;
@@ -68,6 +81,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAzureAISearchBuilder AddAIMemory(this CrestAppsAzureAISearchBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAzureAISearchAIMemorySource();
 
         return builder;

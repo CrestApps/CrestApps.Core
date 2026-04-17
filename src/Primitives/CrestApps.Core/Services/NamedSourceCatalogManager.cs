@@ -19,6 +19,8 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
 
     public async ValueTask<T> FindByNameAsync(string name)
     {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
         var entry = await NamedSourceCatalog.FindByNameAsync(name);
 
         if (entry is not null)
@@ -31,6 +33,9 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
 
     public async ValueTask<T> GetAsync(string name, string source)
     {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
         var entry = await NamedSourceCatalog.GetAsync(name, source);
 
         if (entry is not null)

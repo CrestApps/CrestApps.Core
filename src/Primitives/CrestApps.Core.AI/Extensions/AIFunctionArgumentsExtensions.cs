@@ -7,11 +7,17 @@ public static class AIFunctionArgumentsExtensions
 {
     public static bool TryGetFirst(this AIFunctionArguments arguments, string key, out object value)
     {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(key);
+
         return arguments.TryGetValue(key, out value) && value is not null;
     }
 
     public static T GetFirstValueOrDefault<T>(this AIFunctionArguments arguments, string key, T fallbackValue = default)
     {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(key);
+
         if (arguments.TryGetFirst<T>(key, out var value))
         {
             return value;
@@ -22,11 +28,17 @@ public static class AIFunctionArgumentsExtensions
 
     public static bool TryGetFirstString(this AIFunctionArguments arguments, string key, out string value)
     {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(key);
+
         return arguments.TryGetFirstString(key, false, out value);
     }
 
     public static bool TryGetFirstString(this AIFunctionArguments arguments, string key, bool allowEmptyString, out string value)
     {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(key);
+
         if (arguments.TryGetFirst(key, out value))
         {
             if (!allowEmptyString && string.IsNullOrEmpty(value))
@@ -39,11 +51,15 @@ public static class AIFunctionArgumentsExtensions
         }
 
         value = null;
+
         return false;
     }
 
     public static bool TryGetFirst<T>(this AIFunctionArguments arguments, string key, out T value)
     {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(key);
+
         value = default;
         if (!arguments.TryGetValue(key, out var unsafeValue) || unsafeValue is null)
         {

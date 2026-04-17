@@ -7,6 +7,8 @@ public static class DictionaryExtensions
 {
     public static AzureAuthenticationType GetAzureAuthenticationType(this IDictionary<string, object> entry)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+
         var authenticationTypeString = entry.GetStringValue("AuthenticationType");
 
         if (string.IsNullOrEmpty(authenticationTypeString) ||
@@ -20,11 +22,16 @@ public static class DictionaryExtensions
 
     public static string GetIdentityId(this IDictionary<string, object> entry)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+
         return entry.GetStringValue("IdentityId", false);
     }
 
     public static string GetStringValue(this IDictionary<string, object> entry, string key, bool throwException = false)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(key);
+
         if (entry.TryGetValue(key, out var value))
         {
             string stringValue;

@@ -6,6 +6,9 @@ public static class ChatInteractionIndexSchemaBuilderExtensions
 {
     public static async Task CreateChatInteractionIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(options);
+
         await schemaBuilder.CreateMapIndexTableAsync<ChatInteractionIndex>(table => table
             .Column<string>(nameof(ChatInteractionIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(ChatInteractionIndex.UserId), column => column.WithLength(255))

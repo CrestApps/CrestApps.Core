@@ -6,6 +6,9 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 {
     public static async Task CreateAIChatSessionMetricsSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(storeOptions);
+
         options = NormalizeOptions(options, storeOptions);
         await schemaBuilder.CreateAIChatSessionMetricsIndexTableAsync(storeOptions, options);
         await schemaBuilder.CreateAIChatSessionMetricsNamedIndexesAsync(storeOptions, options);
@@ -13,6 +16,9 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 
     public static Task CreateAIChatSessionMetricsIndexTableAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(storeOptions);
+
         options = NormalizeOptions(options, storeOptions);
 
         return schemaBuilder.CreateMapIndexTableAsync<AIChatSessionMetricsIndex>(table => table
@@ -43,6 +49,9 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 
     public static Task CreateAIChatSessionMetricsNamedIndexesAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+        ArgumentNullException.ThrowIfNull(storeOptions);
+
         options = NormalizeOptions(options, storeOptions);
 
         if (!options.CreateNamedIndexes)
@@ -67,6 +76,8 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 
     public static Task AddAIChatSessionMetricsCompletionCountColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions)
     {
+        ArgumentNullException.ThrowIfNull(schemaBuilder);
+
         return schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(table =>
         {
             table.AddColumn<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0));

@@ -14,6 +14,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIA2AClient(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddHttpClient();
         services.AddMemoryCache();
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -31,6 +33,8 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddA2AClient(this CrestAppsAISuiteBuilder builder, Action<CrestAppsA2AClientBuilder> configure = null)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Services.AddCoreAIA2AClient();
 
         if (configure is not null)

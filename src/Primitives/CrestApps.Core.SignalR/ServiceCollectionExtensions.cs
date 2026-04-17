@@ -12,6 +12,9 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static ISignalRServerBuilder AddCoreSignalR(this IServiceCollection services, string pathPrefix = "")
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(pathPrefix);
+
         services.AddSingleton(new HubRouteManager(pathPrefix));
         return services.AddSignalR()
             .AddJsonProtocol(options =>
@@ -22,6 +25,9 @@ public static class ServiceCollectionExtensions
 
     public static CrestAppsAISuiteBuilder AddSignalR(this CrestAppsAISuiteBuilder builder, string pathPrefix = "", bool addStoreCommitterFilter = false)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(pathPrefix);
+
         var signalRBuilder = builder.Services.AddCoreSignalR(pathPrefix);
         if (addStoreCommitterFilter)
         {
@@ -34,6 +40,9 @@ public static class ServiceCollectionExtensions
     [Obsolete("Use AddAISuite(ai => ai.AddSignalR(...)).")]
     public static CrestAppsCoreBuilder AddSignalR(this CrestAppsCoreBuilder builder, string pathPrefix = "", bool addStoreCommitterFilter = false)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(pathPrefix);
+
         var signalRBuilder = builder.Services.AddCoreSignalR(pathPrefix);
         if (addStoreCommitterFilter)
         {
