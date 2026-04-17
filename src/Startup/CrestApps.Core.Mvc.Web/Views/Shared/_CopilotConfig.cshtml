@@ -195,7 +195,7 @@
                     models.forEach(function (m) {
                         const opt = document.createElement('option');
                         opt.value = m.id;
-                        opt.textContent = m.name;
+                        opt.textContent = m.costMultiplier > 0 ? m.name + ' (x' + m.costMultiplier + ')' : m.name;
                         modelSelect.appendChild(opt);
                     });
                     if (currentValue && modelSelect.querySelector('option[value="' + CSS.escape(currentValue) + '"]')) {

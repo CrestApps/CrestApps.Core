@@ -10,4 +10,9 @@ public sealed class ClaudeSessionMetadata
     /// The Anthropic model override for the session.
     /// </summary>
     public string ClaudeModel { get; set; }
+
+    /// <summary>
+    /// The reasoning effort level for the session.
+    /// </summary>
+    public ClaudeEffortLevel EffortLevel { get; set; }
 }

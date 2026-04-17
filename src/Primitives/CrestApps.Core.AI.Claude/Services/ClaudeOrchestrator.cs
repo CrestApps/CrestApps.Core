@@ -60,6 +60,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         var modelId = !string.IsNullOrWhiteSpace(metadata?.ClaudeModel)
             ? metadata.ClaudeModel
             : null;
+        var effortLevel = metadata?.EffortLevel ?? ClaudeEffortLevel.None;
         var anthropicOptions = _anthropicOptions.Value;
         modelId ??= anthropicOptions.DefaultModel;
 
@@ -90,7 +91,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         });
 
         var configuredClient = builder.Build(context.ServiceProvider);
-        var chatOptions = BuildChatOptions(context.CompletionContext, modelId);
+        var chatOptions = BuildChatOptions(context.CompletionContext, modelId, effortLevel);
         var prompts = BuildPrompts(context);
         ChatResponseUpdate errorResponse = null;
 
@@ -134,9 +135,9 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             !string.IsNullOrWhiteSpace(options.DefaultModel);
     }
 
-    private static ChatOptions BuildChatOptions(AICompletionContext context, string modelId)
+    private static ChatOptions BuildChatOptions(AICompletionContext context, string modelId, ClaudeEffortLevel effortLevel)
     {
-        return new ChatOptions
+        var options = new ChatOptions
         {
             ModelId = modelId,
             Temperature = context.Temperature,
@@ -145,6 +146,25 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             PresencePenalty = context.PresencePenalty,
             MaxOutputTokens = context.MaxTokens,
         };
+
+        if (effortLevel != ClaudeEffortLevel.None)
+        {
+            var effortValue = effortLevel switch
+            {
+                ClaudeEffortLevel.Low => "low",
+                ClaudeEffortLevel.Medium => "medium",
+                ClaudeEffortLevel.High => "high",
+                _ => null,
+            };
+
+            if (effortValue is not null)
+            {
+                options.AdditionalProperties ??= [];
+                options.AdditionalProperties["reasoning_effort"] = effortValue;
+            }
+        }
+
+        return options;
     }
 
     private static List<ChatMessage> BuildPrompts(OrchestrationContext context)

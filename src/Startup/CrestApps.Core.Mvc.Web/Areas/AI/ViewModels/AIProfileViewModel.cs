@@ -138,6 +138,8 @@ public sealed class AIProfileViewModel
     // Anthropic
     public string ClaudeModel { get; set; }
 
+    public ClaudeEffortLevel ClaudeEffortLevel { get; set; }
+
     public bool ClaudeIsConfigured { get; set; }
 
     // Copilot
@@ -343,6 +345,7 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<ClaudeSessionMetadata>(out var anthropicMeta))
         {
             vm.ClaudeModel = anthropicMeta.ClaudeModel;
+            vm.ClaudeEffortLevel = anthropicMeta.EffortLevel;
         }
 
         return vm;
@@ -549,6 +552,7 @@ public sealed class AIProfileViewModel
             profile.Alter<ClaudeSessionMetadata>(metadata =>
             {
                 metadata.ClaudeModel = ClaudeModel;
+                metadata.EffortLevel = ClaudeEffortLevel;
             });
         }
         else

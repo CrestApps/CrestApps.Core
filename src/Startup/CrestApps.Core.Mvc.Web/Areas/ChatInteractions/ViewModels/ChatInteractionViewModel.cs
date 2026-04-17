@@ -75,6 +75,8 @@ public sealed class ChatInteractionViewModel
     // Anthropic
     public string ClaudeModel { get; set; }
 
+    public CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel ClaudeEffortLevel { get; set; }
+
     public bool ClaudeIsConfigured { get; set; }
 
     [BindNever]

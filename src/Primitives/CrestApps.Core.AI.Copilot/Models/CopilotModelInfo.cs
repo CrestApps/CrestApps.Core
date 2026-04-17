@@ -14,4 +14,10 @@ public sealed class CopilotModelInfo
     /// The display name of the model.
     /// </summary>
     public string Name { get; set; }
+
+    /// <summary>
+    /// The premium request cost multiplier (e.g., 1 for standard, 3 for premium).
+    /// A value of <c>0</c> means unknown.
+    /// </summary>
+    public int CostMultiplier { get; set; }
 }

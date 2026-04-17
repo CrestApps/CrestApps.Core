@@ -120,6 +120,8 @@ public sealed class AITemplateViewModel
     // Anthropic.
     public string ClaudeModel { get; set; }
 
+    public ClaudeEffortLevel ClaudeEffortLevel { get; set; }
+
     public bool ClaudeIsConfigured { get; set; }
 
     // Settings.
@@ -318,6 +320,7 @@ public sealed class AITemplateViewModel
             if (template.TryGet<ClaudeSessionMetadata>(out var anthropicMetadata))
             {
                 model.ClaudeModel = anthropicMetadata.ClaudeModel;
+                model.ClaudeEffortLevel = anthropicMetadata.EffortLevel;
             }
         }
 
@@ -522,6 +525,7 @@ public sealed class AITemplateViewModel
                 template.Put(new ClaudeSessionMetadata
                 {
                     ClaudeModel = ClaudeModel,
+                    EffortLevel = ClaudeEffortLevel,
                 });
             }
             else

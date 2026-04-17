@@ -3,6 +3,7 @@
     var isConfigured = (bool)(ViewData["ClaudeIsConfigured"] ?? false);
     var anthropicModel = ViewData["ClaudeModel"] as string ?? "";
     var anthropicModels = ViewData["ClaudeModels"] as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? [];
+    var effortLevel = (CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel)(ViewData["ClaudeEffortLevel"] ?? CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.None);
     var orchestratorName = CrestApps.Core.AI.Claude.Services.ClaudeOrchestrator.OrchestratorName;
 }
 
@@ -22,7 +23,7 @@
             }
             else if (anthropicModels.Any())
             {
-                <div class="mb-0">
+                <div class="mb-3">
                     <label for="@(prefix)-ClaudeModel" class="form-label">Claude model</label>
                     <select name="ClaudeModel" id="@(prefix)-ClaudeModel" class="form-select">
                         <option value="">Use default model</option>
@@ -33,14 +34,36 @@
                     </select>
                     <div class="form-text">Select a Claude model override for this item, or leave it on the configured default.</div>
                 </div>
+
+                <div class="mb-0">
+                    <label for="@(prefix)-ClaudeEffortLevel" class="form-label">Effort level</label>
+                    <select name="ClaudeEffortLevel" id="@(prefix)-ClaudeEffortLevel" class="form-select">
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.None)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.None ? "selected" : null)">Default</option>
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Low)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Low ? "selected" : null)">Low</option>
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Medium)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Medium ? "selected" : null)">Medium</option>
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.High)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.High ? "selected" : null)">High</option>
+                    </select>
+                    <div class="form-text">Select the reasoning effort level. Higher effort produces more thorough responses but uses more tokens.</div>
+                </div>
             }
             else
             {
-                <div class="mb-0">
+                <div class="mb-3">
                     <label for="@(prefix)-ClaudeModel" class="form-label">Claude model</label>
                     <input type="text" name="ClaudeModel" id="@(prefix)-ClaudeModel" class="form-control"
                            value="@anthropicModel" placeholder="Leave empty to use the default model from settings" />
                     <div class="form-text">Optionally override the Claude model. Leave empty to use the default model configured in settings.</div>
+                </div>
+
+                <div class="mb-0">
+                    <label for="@(prefix)-ClaudeEffortLevel" class="form-label">Effort level</label>
+                    <select name="ClaudeEffortLevel" id="@(prefix)-ClaudeEffortLevel" class="form-select">
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.None)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.None ? "selected" : null)">Default</option>
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Low)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Low ? "selected" : null)">Low</option>
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Medium)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.Medium ? "selected" : null)">Medium</option>
+                        <option value="@((int)CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.High)" selected="@(effortLevel == CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.High ? "selected" : null)">High</option>
+                    </select>
+                    <div class="form-text">Select the reasoning effort level. Higher effort produces more thorough responses but uses more tokens.</div>
                 </div>
             }
         </div>

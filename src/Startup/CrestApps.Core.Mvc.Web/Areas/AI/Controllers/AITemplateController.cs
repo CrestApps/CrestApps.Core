@@ -337,8 +337,17 @@ public sealed class AITemplateController : Controller
         var credential = await _oauthService.GetCredentialAsync(userId);
         model.CopilotGitHubUsername = credential?.GitHubUsername;
         var models = await _oauthService.ListModelsAsync(userId);
-        model.CopilotAvailableModels = models.Select(m => new SelectListItem(m.Name, m.Id)).ToList();
+        model.CopilotAvailableModels = models.Select(m => new SelectListItem(FormatCopilotModelName(m), m.Id)).ToList();
     }
 
     private bool IsCopilotConfigured() => _copilotOptions.IsConfigured();
+
+    private static string FormatCopilotModelName(CopilotModelInfo model)
+    {
+        var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
+
+        return model.CostMultiplier > 0
+            ? $"{name} (x{model.CostMultiplier})"
+            : name;
+    }
 }
