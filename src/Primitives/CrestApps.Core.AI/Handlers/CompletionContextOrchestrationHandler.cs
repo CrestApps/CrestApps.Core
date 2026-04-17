@@ -11,6 +11,7 @@ namespace CrestApps.Core.AI.Handlers;
 internal sealed class CompletionContextOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
     private readonly IAICompletionContextBuilder _completionContextBuilder;
+
     public CompletionContextOrchestrationHandler(IAICompletionContextBuilder completionContextBuilder)
     {
         _completionContextBuilder = completionContextBuilder;

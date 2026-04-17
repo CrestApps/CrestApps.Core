@@ -12,10 +12,12 @@ namespace CrestApps.Core.AI.Mcp.Services;
 public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 {
     private const int ExpirationBufferSeconds = 60;
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _cache;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultOAuth2TokenService> _logger;
+
     public DefaultOAuth2TokenService(
         IHttpClientFactory httpClientFactory,
         IMemoryCache cache,

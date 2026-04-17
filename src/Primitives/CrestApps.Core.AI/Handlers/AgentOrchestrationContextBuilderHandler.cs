@@ -11,6 +11,7 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
     private readonly IAIProfileManager _profileManager;
     private readonly ITemplateService _templateService;
     private readonly ILogger _logger;
+
     public AgentOrchestrationContextBuilderHandler(IAIProfileManager profileManager, ITemplateService templateService, ILogger<AgentOrchestrationContextBuilderHandler> logger)
     {
         _profileManager = profileManager;

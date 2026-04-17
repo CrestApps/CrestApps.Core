@@ -27,6 +27,7 @@ public static class AIDeploymentConnectionEntryFactory
 
         return new AIProviderConnectionEntry(values);
     }
+
     private static void UnprotectApiKeys(IDictionary<string, object> values, IDataProtectionProvider dataProtectionProvider)
     {
         foreach (var (key, value) in values.ToList())

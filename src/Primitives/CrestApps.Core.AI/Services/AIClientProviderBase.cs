@@ -7,6 +7,7 @@ namespace CrestApps.Core.AI.Services;
 public abstract class AIClientProviderBase : IAIClientProvider
 {
     private readonly IServiceProvider _serviceProvider;
+
     protected AIClientProviderBase(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;

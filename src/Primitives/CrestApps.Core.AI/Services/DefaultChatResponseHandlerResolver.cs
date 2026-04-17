@@ -12,6 +12,7 @@ public sealed class DefaultChatResponseHandlerResolver : IChatResponseHandlerRes
 {
     private readonly IEnumerable<IChatResponseHandler> _handlers;
     private readonly ILogger _logger;
+
     public DefaultChatResponseHandlerResolver(IEnumerable<IChatResponseHandler> handlers, ILogger<DefaultChatResponseHandlerResolver> logger)
     {
         _handlers = handlers;

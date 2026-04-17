@@ -22,6 +22,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
     private readonly ITemplateService _templateService;
     private readonly DefaultOrchestratorSettings _settings;
     private readonly ILogger _logger;
+
     public PreemptiveRagOrchestrationHandler(IEnumerable<IPreemptiveRagHandler> handlers, PreemptiveSearchQueryProvider queryProvider, ITemplateService templateService, IOptions<DefaultOrchestratorSettings> settings, ILogger<PreemptiveRagOrchestrationHandler> logger)
     {
         _handlers = handlers;

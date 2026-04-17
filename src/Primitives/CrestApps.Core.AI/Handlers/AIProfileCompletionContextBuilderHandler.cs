@@ -11,6 +11,7 @@ namespace CrestApps.Core.AI.Handlers;
 internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionContextBuilderHandler
 {
     private readonly ITemplateService _aiTemplateService;
+
     public AIProfileCompletionContextBuilderHandler(ITemplateService aiTemplateService)
     {
         _aiTemplateService = aiTemplateService;

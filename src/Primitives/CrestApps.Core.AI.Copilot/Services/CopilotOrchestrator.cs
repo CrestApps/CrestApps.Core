@@ -31,12 +31,14 @@ public sealed class CopilotOrchestrator : IOrchestrator
 {
     public const string OrchestratorName = "copilot";
     private const string TokenProtectorPurpose = "CrestApps.Core.AI.Copilot.GitHubTokens";
+
     private readonly IToolRegistry _toolRegistry;
     private readonly GitHubOAuthService _oauthService;
     private readonly ICopilotCredentialStore _credentialStore;
     private readonly IOptions<CopilotOptions> _options;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger _logger;
+
     public CopilotOrchestrator(
         IToolRegistry toolRegistry,
         GitHubOAuthService oauthService,
@@ -545,6 +547,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
     {
         private readonly AIFunction _inner;
         private readonly IServiceProvider _services;
+
         public ServiceInjectedAIFunction(
             AIFunction inner,
             IServiceProvider services)

@@ -38,8 +38,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     where TClient : class, IAIChatHubClient
 {
     private const string _conversationCtsKey = "ConversationCts";
+
     private readonly IServiceProvider _services;
     private readonly TimeProvider _timeProvider;
+
     protected AIChatHubCore(
         IServiceProvider services,
         TimeProvider timeProvider,

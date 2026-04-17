@@ -29,6 +29,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
 {
     private const string CognitiveServicesScope = "https://cognitiveservices.azure.com/.default";
     private static readonly string[] _regionSuffixes = [".api.cognitive.microsoft.com", ".tts.speech.microsoft.com", ".stt.speech.microsoft.com",];
+
     private readonly Uri _endpoint;
     private readonly AzureAuthenticationType _authType;
     private readonly string _apiKey;

@@ -5,6 +5,7 @@ namespace CrestApps.Core.AI.Documents;
 public sealed class FileSystemFileStore : IDocumentFileStore
 {
     private static readonly Regex _safePathSegmentExpression = new("^[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
+
     private readonly string _basePath;
 
     public FileSystemFileStore(string basePath)

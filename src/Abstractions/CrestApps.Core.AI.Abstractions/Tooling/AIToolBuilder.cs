@@ -17,6 +17,7 @@ public sealed class AIToolBuilder<TTool>
     {
         _entry = entry;
     }
+
     /// <summary>
     /// Sets the display title for this tool.
     /// </summary>

@@ -9,6 +9,7 @@ public sealed class AIDataSourceOptions
     public const int MaxStrictness = 5;
     public const int MinTopNDocuments = 3;
     public const int MaxTopNDocuments = 20;
+
     public int DefaultStrictness { get; set; } = 3;
     public int DefaultTopNDocuments { get; set; } = 5;
 

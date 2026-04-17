@@ -10,6 +10,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _logger;
+
     public DataSourceChatInteractionSettingsHandler(IServiceProvider serviceProvider, ILogger<DataSourceChatInteractionSettingsHandler> logger)
     {
         _serviceProvider = serviceProvider;

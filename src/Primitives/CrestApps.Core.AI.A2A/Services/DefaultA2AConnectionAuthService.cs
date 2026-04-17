@@ -14,11 +14,13 @@ namespace CrestApps.Core.AI.A2A.Services;
 internal sealed class DefaultA2AConnectionAuthService : IA2AConnectionAuthService
 {
     private const int ExpirationBufferSeconds = 60;
+
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _cache;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
+
     public DefaultA2AConnectionAuthService(IDataProtectionProvider dataProtectionProvider, IHttpClientFactory httpClientFactory, IMemoryCache cache, TimeProvider timeProvider, ILogger<DefaultA2AConnectionAuthService> logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
