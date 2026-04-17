@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Services;
 using Microsoft.AspNetCore.DataProtection;

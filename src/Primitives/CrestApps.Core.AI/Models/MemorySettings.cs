@@ -1,4 +1,4 @@
-namespace CrestApps.Core.Mvc.Web.Models;
+namespace CrestApps.Core.AI.Models;
 
 public sealed class MemorySettings
 {

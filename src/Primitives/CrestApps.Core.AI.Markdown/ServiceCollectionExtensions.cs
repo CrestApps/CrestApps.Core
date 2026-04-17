@@ -23,13 +23,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIMarkdown();
         return builder;
     }
-
-    [Obsolete("Use AddAISuite(ai => ai.AddMarkdown()).")]
-    public static CrestAppsCoreBuilder AddMarkdown(this CrestAppsCoreBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Services.AddCoreAIMarkdown();
-        return builder;
-    }
 }

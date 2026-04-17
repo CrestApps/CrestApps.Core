@@ -37,13 +37,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAICopilotOrchestrator();
         return builder;
     }
-
-    [Obsolete("Use AddAISuite(ai => ai.AddCopilotOrchestrator()).")]
-    public static CrestAppsCoreBuilder AddCopilotOrchestrator(this CrestAppsCoreBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Services.AddCoreAICopilotOrchestrator();
-        return builder;
-    }
 }
