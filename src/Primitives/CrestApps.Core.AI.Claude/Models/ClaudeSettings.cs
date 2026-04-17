@@ -1,4 +1,4 @@
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
+namespace CrestApps.Core.AI.Claude.Models;
 
 public sealed class ClaudeSettings
 {

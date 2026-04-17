@@ -34,13 +34,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIClaudeOrchestrator();
         return builder;
     }
-
-    [Obsolete("Use AddAISuite(ai => ai.AddClaudeOrchestrator()).")]
-    public static CrestAppsCoreBuilder AddClaudeOrchestrator(this CrestAppsCoreBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Services.AddCoreAIClaudeOrchestrator();
-        return builder;
-    }
 }

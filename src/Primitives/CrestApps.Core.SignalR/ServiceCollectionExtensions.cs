@@ -37,19 +37,4 @@ public static class ServiceCollectionExtensions
 
         return builder;
     }
-
-    [Obsolete("Use AddAISuite(ai => ai.AddSignalR(...)).")]
-    public static CrestAppsCoreBuilder AddSignalR(this CrestAppsCoreBuilder builder, string pathPrefix = "", bool addStoreCommitterFilter = false)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(pathPrefix);
-
-        var signalRBuilder = builder.Services.AddCoreSignalR(pathPrefix);
-        if (addStoreCommitterFilter)
-        {
-            signalRBuilder.AddCrestAppsStoreCommitterFilter();
-        }
-
-        return builder;
-    }
 }

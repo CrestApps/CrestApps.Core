@@ -1,3 +1,4 @@
+@using CrestApps.Core.AI.Claude.Models
 @model CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels.SettingsViewModel
 @{
     ViewData["Title"] = "AI Settings";
@@ -479,8 +480,8 @@
                     <div class="mb-3">
                         <label asp-for="AnthropicAuthenticationType" class="form-label">Authentication type</label>
                         <select asp-for="AnthropicAuthenticationType" class="form-select" id="claudeAuthType">
-                            <option value="@((int)CrestApps.Core.Mvc.Web.Areas.AIChat.Models.ClaudeAuthenticationType.NotConfigured)">Not configured</option>
-                            <option value="@((int)CrestApps.Core.Mvc.Web.Areas.AIChat.Models.ClaudeAuthenticationType.ApiKey)">API key</option>
+                            <option value="@((int)ClaudeAuthenticationType.NotConfigured)">Not configured</option>
+                            <option value="@((int)ClaudeAuthenticationType.ApiKey)">API key</option>
                         </select>
                         <div class="form-text">Choose how the Claude orchestrator authenticates. "Not configured" keeps Claude disabled until you explicitly enable API key authentication.</div>
                     </div>
@@ -601,7 +602,7 @@
                 return;
             }
 
-            var isApiKey = claudeAuthType.value === '@((int)CrestApps.Core.Mvc.Web.Areas.AIChat.Models.ClaudeAuthenticationType.ApiKey)';
+            var isApiKey = claudeAuthType.value === '@((int)ClaudeAuthenticationType.ApiKey)';
             claudeApiKeySection.style.display = isApiKey ? '' : 'none';
         }
 

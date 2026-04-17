@@ -1,5 +1,4 @@
 using CrestApps.Core.AI.Copilot.Models;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 

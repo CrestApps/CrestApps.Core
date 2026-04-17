@@ -266,7 +266,7 @@ public sealed class AIProfileViewModelTests
     public void FromProfile_WhenLegacyMvcMemorySettingsExist_ShouldFallbackToLegacyValue()
     {
         var profile = new AIProfile();
-        profile.AlterSettings<CrestApps.Core.Mvc.Web.Models.MemorySettings>(settings =>
+        profile.AlterSettings<MemorySettings>(settings =>
         {
             settings.EnableUserMemory = true;
         });

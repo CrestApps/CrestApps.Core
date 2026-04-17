@@ -1,5 +1,4 @@
 using CrestApps.Core.AI.Claude.Models;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 
