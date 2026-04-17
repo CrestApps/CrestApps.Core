@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CrestApps.Core.Builders;
 using CrestApps.Core.SignalR.Services;
 using Microsoft.AspNetCore.SignalR;
@@ -19,7 +20,7 @@ public static class ServiceCollectionExtensions
         return services.AddSignalR()
             .AddJsonProtocol(options =>
             {
-                options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             });
     }
 

@@ -32,5 +32,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIMarkdown();
         return builder;
     }
-
 }

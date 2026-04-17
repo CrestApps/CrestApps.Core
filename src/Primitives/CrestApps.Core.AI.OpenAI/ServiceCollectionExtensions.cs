@@ -49,5 +49,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIOpenAI();
         return builder;
     }
-
 }

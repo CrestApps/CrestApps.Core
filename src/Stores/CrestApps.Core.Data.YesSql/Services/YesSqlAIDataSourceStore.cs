@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Models;
@@ -14,7 +14,9 @@ public sealed class YesSqlAIDataSourceStore : IAIDataSourceStore
     private readonly ISession _session;
     private readonly string _collection;
 
-    public YesSqlAIDataSourceStore(ISession session, IOptions<YesSqlStoreOptions> options)
+    public YesSqlAIDataSourceStore(
+        ISession session,
+        IOptions<YesSqlStoreOptions> options)
     {
         _session = session;
         _collection = options.Value.AIDocsCollectionName;
@@ -85,5 +87,4 @@ public sealed class YesSqlAIDataSourceStore : IAIDataSourceStore
 
         return ValueTask.FromResult(true);
     }
-
 }

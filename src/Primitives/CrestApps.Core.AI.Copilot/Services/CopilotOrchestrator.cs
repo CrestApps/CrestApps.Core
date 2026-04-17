@@ -1,5 +1,6 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Copilot.Models;
@@ -36,7 +37,13 @@ public sealed class CopilotOrchestrator : IOrchestrator
     private readonly IOptions<CopilotOptions> _options;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger _logger;
-    public CopilotOrchestrator(IToolRegistry toolRegistry, GitHubOAuthService oauthService, ICopilotCredentialStore credentialStore, IOptions<CopilotOptions> options, IDataProtectionProvider dataProtectionProvider, ILogger<CopilotOrchestrator> logger)
+    public CopilotOrchestrator(
+        IToolRegistry toolRegistry,
+        GitHubOAuthService oauthService,
+        ICopilotCredentialStore credentialStore,
+        IOptions<CopilotOptions> options,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger<CopilotOrchestrator> logger)
     {
         _toolRegistry = toolRegistry;
         _oauthService = oauthService;
@@ -205,7 +212,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
                 var user = httpContextAccessor?.HttpContext?.User;
                 if (user?.Identity?.IsAuthenticated == true)
                 {
-                    var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                     if (!string.IsNullOrEmpty(userId))
                     {
                         var credential = await _credentialStore.GetProtectedCredentialAsync(userId);
@@ -538,7 +545,9 @@ public sealed class CopilotOrchestrator : IOrchestrator
     {
         private readonly AIFunction _inner;
         private readonly IServiceProvider _services;
-        public ServiceInjectedAIFunction(AIFunction inner, IServiceProvider services)
+        public ServiceInjectedAIFunction(
+            AIFunction inner,
+            IServiceProvider services)
         {
             _inner = inner;
             _services = services;

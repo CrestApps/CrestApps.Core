@@ -31,5 +31,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIFtpMcpResources(configure);
         return builder;
     }
-
 }

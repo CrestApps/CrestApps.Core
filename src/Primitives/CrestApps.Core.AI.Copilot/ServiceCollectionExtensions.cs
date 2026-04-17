@@ -46,5 +46,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAICopilotOrchestrator();
         return builder;
     }
-
 }

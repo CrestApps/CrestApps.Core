@@ -31,5 +31,4 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAISftpMcpResources(configure);
         return builder;
     }
-
 }

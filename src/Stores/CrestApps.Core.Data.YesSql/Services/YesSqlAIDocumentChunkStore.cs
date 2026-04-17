@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents;
+﻿using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Models;
@@ -14,7 +14,9 @@ public sealed class YesSqlAIDocumentChunkStore : IAIDocumentChunkStore
     private readonly ISession _session;
     private readonly string _collection;
 
-    public YesSqlAIDocumentChunkStore(ISession session, IOptions<YesSqlStoreOptions> options)
+    public YesSqlAIDocumentChunkStore(
+        ISession session,
+        IOptions<YesSqlStoreOptions> options)
     {
         _session = session;
         _collection = options.Value.AIDocsCollectionName;
@@ -117,5 +119,4 @@ public sealed class YesSqlAIDocumentChunkStore : IAIDocumentChunkStore
 
         return ValueTask.FromResult(true);
     }
-
 }
