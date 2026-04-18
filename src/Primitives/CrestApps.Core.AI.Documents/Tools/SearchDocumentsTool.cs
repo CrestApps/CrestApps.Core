@@ -451,7 +451,7 @@ public sealed class SearchDocumentsTool : AIFunction
 
     private static string AddDocumentReferences(
         AIInvocationContext invocationContext,
-        IReadOnlyDictionary<string, (int Index, string FileName)> seenDocuments)
+        Dictionary<string, (int Index, string FileName)> seenDocuments)
     {
         using var builder = ZString.CreateStringBuilder();
 

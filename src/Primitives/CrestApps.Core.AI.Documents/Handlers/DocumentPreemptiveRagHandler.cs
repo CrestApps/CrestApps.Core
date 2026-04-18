@@ -284,7 +284,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         orchestrationContext.SystemMessageBuilder.Append(builder);
     }
 
-    private InteractionDocumentOptions ResolveSettings(object resource, InteractionDocumentOptions defaults)
+    private static InteractionDocumentOptions ResolveSettings(object resource, InteractionDocumentOptions defaults)
     {
         if (resource is AIProfile profile &&
             profile.TryGet<DocumentsMetadata>(out var metadata))
@@ -334,7 +334,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         bool showUserDocumentAwareness,
         bool keepProfileDocumentAwareness,
         AIInvocationContext invocationContext,
-        IDictionary<string, (int Index, string FileName)> seenDocuments)
+        Dictionary<string, (int Index, string FileName)> seenDocuments)
     {
         using var builder = ZString.CreateStringBuilder();
         var documentStore = _serviceProvider.GetService<IAIDocumentStore>();
@@ -398,7 +398,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         IEnumerable<(DocumentChunkSearchResult Result, string ReferenceType)> results,
         bool keepProfileDocumentAwareness,
         AIInvocationContext invocationContext,
-        IDictionary<string, (int Index, string FileName)> seenDocuments)
+        Dictionary<string, (int Index, string FileName)> seenDocuments)
     {
         using var builder = ZString.CreateStringBuilder();
 
@@ -434,7 +434,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
 
     private static string AddDocumentReferences(
         OrchestrationContext orchestrationContext,
-        IReadOnlyDictionary<string, (int Index, string FileName)> seenDocuments)
+        Dictionary<string, (int Index, string FileName)> seenDocuments)
     {
         using var builder = ZString.CreateStringBuilder();
 
