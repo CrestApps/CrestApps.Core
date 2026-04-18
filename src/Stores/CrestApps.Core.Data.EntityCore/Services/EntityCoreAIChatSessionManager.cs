@@ -125,8 +125,6 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         {
             UpdateRecord(record, chatSession);
         }
-
-        await _dbContext.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(string sessionId)
@@ -151,7 +149,6 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         }
 
         _dbContext.AIChatSessionRecords.Remove(record);
-        await _dbContext.SaveChangesAsync();
 
         return true;
     }
@@ -179,8 +176,6 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         }
 
         _dbContext.AIChatSessionRecords.RemoveRange(records);
-
-        await _dbContext.SaveChangesAsync();
 
         return records.Count;
     }

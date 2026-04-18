@@ -534,7 +534,16 @@
                                 <div class="mb-3">
                                     <label asp-for="DocumentTopN" class="form-label">Document Top N</label>
                                     <input asp-for="DocumentTopN" type="number" class="form-control" min="1" max="20" placeholder="Default: 3" />
-                                    <div class="form-text">Number of top matching document chunks to include as AI context.</div>
+                                    <div class="form-text">Number of top matching chunks or documents to include as AI context.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label asp-for="DocumentRetrievalMode" class="form-label">Document retrieval mode</label>
+                                    <select asp-for="DocumentRetrievalMode" asp-items="Html.GetEnumSelectList<CrestApps.Core.AI.Documents.Models.DocumentRetrievalMode>()" class="form-select">
+                                        <option value="">Default setting</option>
+                                    </select>
+                                    <div class="form-text">Chunk keeps chunk-level context. Hierarchical matches on chunks, then injects the full text of the matched documents.</div>
                                 </div>
                             </div>
                         </div>

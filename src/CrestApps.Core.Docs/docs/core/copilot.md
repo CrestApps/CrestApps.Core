@@ -68,7 +68,7 @@ Users authenticate through a standard GitHub OAuth flow. The framework exchanges
 
 ### BYOK (API Key) Mode
 
-The tenant admin configures a provider type, base URL, and API key. All users share the same credentials — no per-user authentication is needed. This mode supports any OpenAI-compatible endpoint (OpenAI, Azure OpenAI, Anthropic, or self-hosted).
+The tenant admin configures a provider type, base URL, and API key. All users share the same credentials — no per-user authentication is needed. This mode supports OpenAI-compatible endpoints such as OpenAI, Azure OpenAI, Google Gemini compatibility endpoints, Groq, OpenRouter, or self-hosted OpenAI-style servers.
 
 ## Configuration
 

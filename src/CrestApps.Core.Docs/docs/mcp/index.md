@@ -29,7 +29,7 @@ builder.Services
 - **Automatic tool discovery** — Discovered tools appear in the orchestrator's tool registry and are invoked transparently
 - **Capability resolution** — Semantic similarity filtering to select relevant tools from large MCP server catalogs
 
-📖 **[MCP Client →](./client.md)** — Full documentation with transport configuration, authentication, and integration details.
+📖 **[MCP Hosts →](./client.md)** — Full documentation with transport configuration, authentication, and integration details.
 
 ## Server — Expose Your AI Capabilities
 

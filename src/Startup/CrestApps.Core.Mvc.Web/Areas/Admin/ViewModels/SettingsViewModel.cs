@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Copilot.Models;
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -34,6 +35,8 @@ public sealed class SettingsViewModel
     public string DocumentIndexProfileName { get; set; }
 
     public int DocumentTopN { get; set; } = 3;
+
+    public DocumentRetrievalMode DocumentRetrievalMode { get; set; } = DocumentRetrievalMode.Chunk;
 
     public int DataSourceDefaultStrictness { get; set; } = AIDataSourceSettings.MinStrictness;
 

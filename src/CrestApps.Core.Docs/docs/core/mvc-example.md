@@ -25,19 +25,12 @@ CrestApps.Core.Mvc.Web/
 │   ├── DataSources/            ← Data source CRUD and storage
 │   └── Indexing/               ← Index profiles and AI document indexing
 ├── BackgroundTasks/            ← Hosted services for maintenance
-
 ├── Controllers/                ← Non-area MVC controllers such as Home and Account
-
 ├── Hubs/                       ← SignalR hubs for real-time chat
-
 ├── Indexes/                    ← YesSql index providers
-
 ├── Tools/                      ← Custom AI tools
-
 ├── Views/                      ← Non-area Razor views
-
 ├── App_Data/                   ← Runtime data (DB, logs, documents, settings)
-
 └── wwwroot/                    ← Static files
 ```
 
@@ -64,7 +57,6 @@ Configures NLog with daily log file rotation in `App_Data/logs/`. Replaceable wi
 Loads settings from the normal appsettings chain plus `App_Data/appsettings.json` as the highest-priority local override file with automatic reload-on-change:
 
 | Service | Purpose |
-
 |---------|---------|
 | `App_Data/appsettings.json` | Local machine overrides for infrastructure settings (AI connections, credentials, Elasticsearch, Azure AI Search) |
 | `App_Data/site-settings.json` | Mutable admin-managed settings (AI options, deployments, chat, admin widget, etc.) owned exclusively by `SiteSettingsStore` — not registered in the configuration pipeline |
@@ -135,7 +127,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 
 `AddAISuite(...)` always wires the shared foundation, AI runtime, and orchestration together. `AddChatInteractions()` inside that suite then registers the shared `DataSourceChatInteractionSettingsHandler`, so Chat Interactions persist the selected data source and RAG metadata through the framework settings pipeline instead of MVC-only wiring. The provider service blocks also pull in the shared data-source RAG registrations, which register both `DataSourceOrchestrationHandler` and `DataSourcePreemptiveRagHandler` at the framework level so source availability instructions and preemptive RAG stay aligned with the saved chat settings.
 
-`AddAIDocuments()`, `AddAIDataSources()`, and `AddAIMemory()` in those indexing blocks now come from the AI-specific provider packages: `CrestApps.Core.AI.Elasticsearch` and `CrestApps.Core.AI.AISearch`. The base `CrestApps.Core.Elasticsearch` and `CrestApps.Core.Azure.AISearch` packages now stay focused on the provider primitives and shared search infrastructure only.
+`AddAIDocuments()`, `AddAIDataSources()`, and `AddAIMemory()` in those indexing blocks now come from the AI-specific provider packages: `CrestApps.Core.AI.Elasticsearch` and `CrestApps.Core.AI.Azure.AISearch`. The base `CrestApps.Core.Elasticsearch` and `CrestApps.Core.Azure.AISearch` packages now stay focused on the provider primitives and shared search infrastructure only.
 
 The MVC sample now also registers both the **Claude** and **Copilot** orchestrators. Claude uses the official Anthropic SDK with a site-level authentication mode, API key, and live model discovery, while Copilot keeps its dedicated OAuth/BYOK flow. Admins can choose either orchestrator from the same AI Profile, AI Template, and Chat Interaction editors.
 
@@ -143,7 +135,7 @@ Documents, memory, and data sources now remain fully independent orchestration s
 
 The MVC sample explicitly calls `AddMarkdown()` inside `AddAISuite(...)`. That keeps Markdown-aware normalization opt-in at the host level instead of making `CrestApps.Core.AI` depend on the Markdig-backed package automatically.
 
-### Section 6 — AI Providers
+### Section 6 — AI Clients
 
 Registers all supported AI providers:
 

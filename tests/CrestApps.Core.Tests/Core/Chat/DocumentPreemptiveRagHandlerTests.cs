@@ -129,6 +129,118 @@ public sealed class DocumentPreemptiveRagHandlerTests
         Assert.False(context.Properties.ContainsKey("DocumentReferences"));
     }
 
+    [Fact]
+    public async Task HandleAsync_HierarchicalMode_InjectsFullMatchedDocumentText()
+    {
+        var indexProfile = new SearchIndexProfile
+        {
+            Name = "docs-index",
+            ProviderName = "test-provider",
+        };
+        indexProfile.Put(new DataSourceIndexProfileMetadata
+        {
+            EmbeddingDeploymentId = "embedding-id",
+        });
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore.Setup(store => store
+            .FindByNameAsync("docs-index"))
+            .ReturnsAsync(indexProfile);
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager.Setup(manager => manager
+            .FindByIdAsync("embedding-id"))
+            .ReturnsAsync(new AIDeployment
+            {
+                ItemId = "embedding-id",
+                Name = "embedding",
+                ModelName = "embedding",
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                Type = AIDeploymentType.Embedding,
+            });
+        var vectorSearchService = new Mock<IVectorSearchService>();
+        vectorSearchService.Setup(service => service
+            .SearchAsync(indexProfile, It.IsAny<float[]>(), "profile-1", AIReferenceTypes.Document.Profile, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new DocumentChunkSearchResult
+            {
+                DocumentKey = "doc-1",
+                FileName = "race.pdf",
+                Score = 0.95f,
+                Chunk = new ChatInteractionDocumentChunk
+                {
+                    Index = 0,
+                    Text = "Carla and Mark race their go carts.",
+                },
+            },]);
+        var documentStore = new Mock<IAIDocumentStore>();
+        documentStore.Setup(store => store.FindByIdAsync("doc-1"))
+            .Returns(new ValueTask<AIDocument>(new AIDocument
+            {
+                ItemId = "doc-1",
+                FileName = "race.pdf",
+            }));
+        var chunkStore = new Mock<IAIDocumentChunkStore>();
+        chunkStore.Setup(store => store.GetChunksByAIDocumentIdAsync("doc-1"))
+            .ReturnsAsync((IReadOnlyCollection<AIDocumentChunk>)[
+                new AIDocumentChunk
+                {
+                    AIDocumentId = "doc-1",
+                    Index = 0,
+                    Content = "Carla and Mark race their go carts.",
+                },
+                new AIDocumentChunk
+                {
+                    AIDocumentId = "doc-1",
+                    Index = 1,
+                    Content = "Carla wins the race by one lap.",
+                },
+            ]);
+        var services = new ServiceCollection()
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f, 0.2f])))
+            .AddSingleton<IAIDeploymentManager>(deploymentManager.Object)
+            .AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object)
+            .AddSingleton<IAIDocumentStore>(documentStore.Object)
+            .AddSingleton<IAIDocumentChunkStore>(chunkStore.Object)
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions
+            {
+                IndexProfileName = "docs-index",
+                TopN = 2,
+                RetrievalMode = DocumentRetrievalMode.Hierarchical,
+            }))
+            .AddLogging()
+            .AddKeyedSingleton<IVectorSearchService>("test-provider", vectorSearchService.Object)
+            .AddCoreAIDocumentProcessing()
+            .BuildServiceProvider();
+        var handler = services.GetServices<IPreemptiveRagHandler>().Single();
+        var profile = new AIProfile
+        {
+            ItemId = "profile-1"
+        };
+        profile.Put(new DocumentsMetadata
+        {
+            DocumentTopN = 2,
+            RetrievalMode = DocumentRetrievalMode.Hierarchical,
+        });
+        var context = new OrchestrationContext
+        {
+            CompletionContext = new AICompletionContext(),
+            Documents = [new ChatDocumentInfo
+            {
+                DocumentId = "doc-1",
+                FileName = "race.pdf",
+            }, ],
+        };
+
+        await handler.HandleAsync(new PreemptiveRagContext(context, profile, ["tell me about car race story"]));
+
+        documentStore.Verify(store => store.FindByIdAsync("doc-1"), Times.Once);
+        chunkStore.Verify(store => store.GetChunksByAIDocumentIdAsync("doc-1"), Times.Once);
+
+        var systemMessage = context.SystemMessageBuilder.ToString();
+        Assert.Contains("Carla and Mark race their go carts.", systemMessage);
+        Assert.Contains("Carla wins the race by one lap.", systemMessage);
+    }
+
     private sealed class FakeTemplateService : ITemplateService
     {
         public Task<IReadOnlyList<Template>> ListAsync() => Task.FromResult<IReadOnlyList<Template>>([]);

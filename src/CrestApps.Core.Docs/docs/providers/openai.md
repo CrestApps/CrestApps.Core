@@ -94,6 +94,30 @@ builder.Services.AddCoreAIConnectionSource("OpenAI", options =>
 });
 ```
 
+## OpenAI-compatible endpoints
+
+The OpenAI client is often useful beyond `api.openai.com`. It can also connect to providers that expose OpenAI-compatible chat and embedding endpoints.
+
+Common examples include:
+
+| Provider | Notes |
+|----------|-------|
+| OpenAI | Native target for this client |
+| Azure OpenAI | OpenAI-compatible request shape with Azure-specific endpoint and deployment conventions |
+| Anthropic | Provides OpenAI-compatible endpoints in addition to its native Claude API |
+| Google Gemini | Offers an OpenAI-compatibility layer for supported Gemini models |
+| Groq | OpenAI-compatible chat/completions API |
+| Mistral | OpenAI-compatible API surface for supported models |
+| xAI | OpenAI-compatible API for Grok models |
+| Together AI | OpenAI-compatible endpoints for hosted open-weight models |
+| Fireworks AI | OpenAI-compatible endpoints for hosted open-weight models |
+| OpenRouter | OpenAI-compatible multi-provider routing layer |
+| DeepSeek | OpenAI-compatible chat and embedding-style endpoints |
+| Perplexity | OpenAI-compatible chat/completions endpoint |
+| Ollama / vLLM / LocalAI | Common self-hosted OpenAI-compatible endpoints |
+
+Some providers expose both OpenAI-compatible and native APIs. Anthropic is one example: you can use its OpenAI-compatible endpoint through this client, or use the dedicated **[Claude Orchestrator](../core/claude.md)** when you want the native Claude-oriented integration path.
+
 :::tip
 Never commit API keys to source control. Use environment variables, user secrets, or a vault provider:
 ```bash

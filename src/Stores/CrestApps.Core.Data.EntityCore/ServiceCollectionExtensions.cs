@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddDbContext<CrestAppsEntityDbContext>(configure);
+        services.AddScoped<IStoreCommitter, EntityCoreStoreCommitter>();
 
         return services;
     }

@@ -1,5 +1,5 @@
-using CrestApps.Core.AI.Documents;
 using System.Text;
+using CrestApps.Core.AI.Documents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;

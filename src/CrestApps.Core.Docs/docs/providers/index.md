@@ -1,11 +1,11 @@
 ---
 sidebar_label: Overview
 sidebar_position: 1
-title: AI Providers
-description: Provider architecture and how to connect to OpenAI, Azure OpenAI, Ollama, and Azure AI Inference.
+title: AI Clients
+description: AI client architecture and how to connect to OpenAI, Azure OpenAI, Ollama, and Azure AI Inference.
 ---
 
-# AI Providers
+# AI Clients
 
 > Connect to one or more LLM providers. Each provider registers an `IAIClientProvider` that creates typed AI clients.
 

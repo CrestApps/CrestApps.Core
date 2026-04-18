@@ -83,7 +83,7 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | Claude orchestration | `AddCoreAIClaudeOrchestrator()` | `CrestApps.Core.AI.Claude` | [Claude Orchestrator](./claude.md) |
 | SignalR and widgets | `AddCoreSignalR()` | `CrestApps.Core.SignalR` | [SignalR](./signalr.md) |
 | Data storage | Store registration extensions | `CrestApps.Core.Data.YesSql` | [Data Storage](./data-storage.md) |
-| Providers | Provider-specific extensions | Provider packages | [AI Providers](../providers/index.md) |
+| AI clients | Provider-specific extensions | Provider packages | [AI Clients](../providers/index.md) |
 | Data sources | Backend-specific extensions | Search packages | [Data Sources](../data-sources/index.md) |
 | MCP | `AddCoreAIMcpClient()` / `AddCoreAIMcpServer()` | `CrestApps.Core.AI.Mcp` | [MCP](../mcp/index.md) |
 | A2A | `AddCoreAIA2AClient()` | `CrestApps.Core.AI.A2A` | [A2A](../a2a/index.md) |

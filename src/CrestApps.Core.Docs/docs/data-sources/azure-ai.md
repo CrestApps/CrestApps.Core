@@ -58,7 +58,7 @@ builder.Services.AddCoreAzureAISearchServices();
 
 When the `Endpoint` is provided, a `SearchIndexClient` singleton is also registered.
 
-AI-specific Azure AI Search registrations now live in `CrestApps.Core.AI.AISearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Azure AI Search-backed AI RAG/search flows.
+AI-specific Azure AI Search registrations now live in `CrestApps.Core.AI.Azure.AISearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Azure AI Search-backed AI RAG/search flows.
 
 ## Authentication
 

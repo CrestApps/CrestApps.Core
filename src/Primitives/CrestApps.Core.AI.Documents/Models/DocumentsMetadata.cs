@@ -18,4 +18,9 @@ public sealed class DocumentsMetadata
     /// Default is 3 if not specified.
     /// </summary>
     public int? DocumentTopN { get; set; }
+
+    /// <summary>
+    /// Gets or sets how retrieved document matches are added to AI context.
+    /// </summary>
+    public DocumentRetrievalMode? RetrievalMode { get; set; }
 }

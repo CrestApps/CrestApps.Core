@@ -94,6 +94,7 @@ public sealed class AITemplateViewModel
     public bool AllowSessionDocuments { get; set; }
 
     public int? DocumentTopN { get; set; }
+    public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
     public bool HasDocumentIndexConfiguration { get; set; }
     public string DocumentIndexProfileName { get; set; }
     public List<DocumentItem> AttachedDocuments { get; set; } = [];
@@ -252,6 +253,7 @@ public sealed class AITemplateViewModel
             if (template.TryGet<DocumentsMetadata>(out var docMetadata))
             {
                 model.DocumentTopN = docMetadata.DocumentTopN;
+                model.DocumentRetrievalMode = docMetadata.RetrievalMode;
             }
 
             if (template.TryGet<AIProfileDataExtractionSettings>(out var dataExtractionSettings))
@@ -451,6 +453,7 @@ public sealed class AITemplateViewModel
             template.Put(new DocumentsMetadata
             {
                 DocumentTopN = DocumentTopN,
+                RetrievalMode = DocumentRetrievalMode,
             });
 
             template.Put(new AIProfileDataExtractionSettings

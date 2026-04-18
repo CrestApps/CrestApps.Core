@@ -121,7 +121,7 @@ public sealed class ChatInteractionController : Controller
 
     public async Task<IActionResult> Index()
     {
-        var interactions= await _interactionManager.GetAllAsync();
+        var interactions = await _interactionManager.GetAllAsync();
 
         return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
     }
@@ -657,7 +657,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<List<string>> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
-        var allIds= (await _a2aConnectionCatalog.GetAllAsync())
+        var allIds = (await _a2aConnectionCatalog.GetAllAsync())
             .Select(connection => connection.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -670,7 +670,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<List<string>> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
-        var allIds= (await _mcpConnectionCatalog.GetAllAsync())
+        var allIds = (await _mcpConnectionCatalog.GetAllAsync())
             .Select(c => c.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 

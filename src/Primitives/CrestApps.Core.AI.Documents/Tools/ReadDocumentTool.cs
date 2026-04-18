@@ -1,13 +1,11 @@
 using System.Text.Json;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
-
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
-
 using Microsoft.Extensions.DependencyInjection;
-
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Tools;
@@ -146,39 +144,6 @@ public sealed class ReadDocumentTool : AIFunction
 
     private static async Task<string> FormatDocumentTextFromChunksAsync(IServiceProvider services, AIDocument document)
     {
-        var chunkStore = services.GetService<IAIDocumentChunkStore>();
-
-        if (chunkStore is null)
-        {
-            return $"Document '{document.FileName}' has no extractable text content.";
-        }
-
-        var chunks = await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId);
-
-        if (chunks.Count == 0)
-        {
-            return $"Document '{document.FileName}' has no extractable text content.";
-        }
-
-        var text = string.Join(Environment.NewLine, chunks.OrderBy(c => c.Index).Select(c => c.Content));
-
-        return FormatDocumentText(document.FileName, text);
-    }
-
-    private static string FormatDocumentText(string fileName, string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return $"Document '{fileName}' has no extractable text content.";
-        }
-
-        const int maxLength = 50_000;
-
-        if (text.Length > maxLength)
-        {
-            text = string.Concat(text.AsSpan(0, maxLength), "\n\n... [content truncated at 50KB]");
-        }
-
-        return $"[Document: {fileName}]\n\n{text}";
+        return await DocumentContextFormatter.FormatDocumentTextFromChunksAsync(services, document, 50_000);
     }
 }

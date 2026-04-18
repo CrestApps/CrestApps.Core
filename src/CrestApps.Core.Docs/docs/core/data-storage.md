@@ -79,7 +79,7 @@ public interface ICatalog<T> : IReadCatalog<T>
 }
 ```
 
-The YesSql implementation **stages** writes only. Hosts using `CrestApps.Core.Data.YesSql` must flush the YesSql session at the end of the HTTP request, SignalR hub method, or background operation that performed the write — see [Automatic store commit (`IStoreCommitter`)](#automatic-store-commit-istorecommitter) for how the framework handles this automatically. The Entity Framework Core implementation commits after each write operation via an individual `SaveChangesAsync()` call inside each store method. Every create, update, and delete is durable immediately; no request-level middleware is required or expected for the built-in stores.
+The first-party YesSql and Entity Framework Core implementations both use a scoped unit-of-work boundary and flush tracked writes through `IStoreCommitter`. Hosts should call that commit boundary at the end of MVC actions, Minimal API endpoints, SignalR hub methods, or background scopes that performed writes — see [Automatic store commit (`IStoreCommitter`)](#automatic-store-commit-istorecommitter) for the built-in filters and background-task pattern.
 
 ### `INamedCatalog<T>`
 
@@ -532,15 +532,7 @@ The package stores framework records in EF Core-managed tables and keeps the sam
 
 ## Automatic store commit (`IStoreCommitter`)
 
-:::info
-**If you are using Entity Framework Core**, you can skip this section entirely. The EntityCore stores commit on every individual write operation via `SaveChangesAsync()`, so no commit middleware or manual flush is required.
-:::
-
-### Why does YesSql need this?
-
-YesSql is a document store that **stages** all writes in memory during a request. Nothing is persisted to the database until the YesSql session is explicitly flushed with `ISession.SaveChangesAsync()`. This design gives you transactional consistency — all writes in a single request succeed or fail together — but it means you must call the flush at the end of every request that performs writes.
-
-Instead of requiring you to call that flush manually in every controller action, hub method, and endpoint, the framework provides `IStoreCommitter` — a thin abstraction that triggers the flush at the right time.
+The first-party YesSql and Entity Framework Core stores both use `IStoreCommitter` as their commit boundary. YesSql flushes the current `ISession`, while Entity Framework Core flushes the current `DbContext`. That keeps request, endpoint, and hub behavior consistent across the built-in store packages.
 
 ```csharp
 public interface IStoreCommitter
@@ -549,11 +541,11 @@ public interface IStoreCommitter
 }
 ```
 
-`AddCoreYesSqlDataStore()` registers `YesSqlStoreCommitter` as the scoped `IStoreCommitter`. The implementation calls `ISession.SaveChangesAsync()` to flush all staged writes to the database.
+`AddCoreYesSqlDataStore()` registers `YesSqlStoreCommitter`, and `AddCoreEntityCoreDataStore()` / `AddCoreEntityCoreSqliteDataStore()` register `EntityCoreStoreCommitter`. Both are scoped `IStoreCommitter` implementations.
 
 ### What happens if you forget to commit?
 
-If `IStoreCommitter.CommitAsync()` is never called during a YesSql request, all writes made during that request are silently lost. The data appears to be saved in memory (reads within the same request see the staged data), but nothing reaches the database. This is the most common pitfall when using YesSql stores.
+If `IStoreCommitter.CommitAsync()` is never called during a request or background scope that stages changes, those writes never become durable. Reads in the same scope may still see tracked changes, which can hide the problem until a later request.
 
 ### Automatic commit for MVC controllers
 
@@ -614,8 +606,8 @@ The filter infrastructure calls your committer automatically — no other wiring
 
 | Store package | Commit behavior | Middleware required? |
 |---------------|----------------|---------------------|
-| **Entity Framework Core** | Commits on every individual write (`SaveChangesAsync()` per operation) | No |
-| **YesSql** | Stages writes in memory; flushes on `IStoreCommitter.CommitAsync()` | Yes — use `AddCrestAppsStoreCommitterFilter()` for MVC/SignalR, or `StoreCommitterEndpointFilter` for Minimal APIs |
+| **Entity Framework Core** | Stages tracked `DbContext` changes and flushes on `IStoreCommitter.CommitAsync()` | Yes — use `AddCrestAppsStoreCommitterFilter()` for MVC/SignalR, or `StoreCommitterEndpointFilter` for Minimal APIs |
+| **YesSql** | Stages `ISession` writes in memory and flushes on `IStoreCommitter.CommitAsync()` | Yes — use `AddCrestAppsStoreCommitterFilter()` for MVC/SignalR, or `StoreCommitterEndpointFilter` for Minimal APIs |
 
 ## Multi-Source Binding Pattern
 

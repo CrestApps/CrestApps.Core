@@ -1,13 +1,13 @@
 ---
-sidebar_label: MCP Client
+sidebar_label: Hosts
 sidebar_position: 2
-title: MCP Client
-description: Connect to remote MCP servers to discover and use their tools, prompts, and resources in AI orchestration.
+title: MCP Hosts
+description: Connect to remote MCP hosts to discover and use their tools, prompts, and resources in AI orchestration.
 ---
 
-# MCP Client
+# MCP Hosts
 
-> Connect to remote MCP servers, discover their capabilities, and make their tools available to the AI orchestrator.
+> Connect to remote MCP hosts, discover their capabilities, and make their tools available to the AI orchestrator.
 
 ## Quick Start
 

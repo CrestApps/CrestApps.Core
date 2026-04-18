@@ -39,7 +39,6 @@ public sealed class EntityCoreAIChatSessionPromptStore : DocumentCatalog<AIChatS
         }
 
         DbContext.CatalogRecords.RemoveRange(records);
-        await DbContext.SaveChangesAsync();
 
         return records.Count;
     }

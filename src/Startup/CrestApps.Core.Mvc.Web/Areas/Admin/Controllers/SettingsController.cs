@@ -97,6 +97,7 @@ public sealed class SettingsController : Controller
 
             DocumentIndexProfileName = documentSettings.IndexProfileName,
             DocumentTopN = documentSettings.TopN,
+            DocumentRetrievalMode = documentSettings.RetrievalMode,
             DataSourceDefaultStrictness = dataSourceSettings.DefaultStrictness,
             DataSourceDefaultTopNDocuments = dataSourceSettings.DefaultTopNDocuments,
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
@@ -265,6 +266,7 @@ public sealed class SettingsController : Controller
         {
             IndexProfileName = model.DocumentIndexProfileName?.Trim(),
             TopN = model.DocumentTopN,
+            RetrievalMode = model.DocumentRetrievalMode,
         });
 
         _siteSettings.Set(new AIDataSourceSettings
