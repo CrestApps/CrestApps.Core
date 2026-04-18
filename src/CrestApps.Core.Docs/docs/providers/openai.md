@@ -104,6 +104,7 @@ Common examples include:
 |----------|-------|
 | OpenAI | Native target for this client |
 | Azure OpenAI | OpenAI-compatible request shape with Azure-specific endpoint and deployment conventions |
+| Anthropic | Provides OpenAI-compatible endpoints in addition to its native Claude API |
 | Google Gemini | Offers an OpenAI-compatibility layer for supported Gemini models |
 | Groq | OpenAI-compatible chat/completions API |
 | Mistral | OpenAI-compatible API surface for supported models |
@@ -115,7 +116,7 @@ Common examples include:
 | Perplexity | OpenAI-compatible chat/completions endpoint |
 | Ollama / vLLM / LocalAI | Common self-hosted OpenAI-compatible endpoints |
 
-Not every AI provider is OpenAI-compatible. For example, the official Anthropic Claude API uses its own native protocol, so CrestApps.Core exposes **[Claude Orchestrator](../core/claude.md)** as a dedicated integration instead of routing Claude through the OpenAI client.
+Some providers expose both OpenAI-compatible and native APIs. Anthropic is one example: you can use its OpenAI-compatible endpoint through this client, or use the dedicated **[Claude Orchestrator](../core/claude.md)** when you want the native Claude-oriented integration path.
 
 :::tip
 Never commit API keys to source control. Use environment variables, user secrets, or a vault provider:

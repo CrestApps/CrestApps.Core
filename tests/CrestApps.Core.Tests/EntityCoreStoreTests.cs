@@ -19,6 +19,8 @@ public sealed class EntityCoreStoreTests
     [Fact]
     public async Task Generic_named_source_catalog_supports_round_trip_queries()
     {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var harness = await EntityCoreTestHarness.CreateAsync();
         using var scope = harness.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<INamedSourceCatalog<AIProfile>>();
@@ -33,7 +35,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await catalog.CreateAsync(profile);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
 
         var byId = await catalog.FindByIdAsync(profile.ItemId);
         var byName = await catalog.FindByNameAsync(profile.Name);
@@ -56,6 +58,8 @@ public sealed class EntityCoreStoreTests
     [Fact]
     public async Task Entity_core_stores_support_specialized_queries()
     {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var harness = await EntityCoreTestHarness.CreateAsync();
         using var scope = harness.Services.CreateScope();
         var services = scope.ServiceProvider;
@@ -80,7 +84,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await deploymentStore.CreateAsync(deployment);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Equal(deployment.ItemId, (await deploymentStore.GetAsync(deployment.Name, deployment.Source))?.ItemId);
 
         var dataSource = new AIDataSource
@@ -90,7 +94,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await dataSourceStore.CreateAsync(dataSource);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Single(await dataSourceStore.GetAllAsync());
 
         var memory = new AIMemoryEntry
@@ -103,7 +107,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await memoryStore.CreateAsync(memory);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Equal(1, await memoryStore.CountByUserAsync("user-1"));
         Assert.Equal(memory.ItemId, (await memoryStore.FindByUserAndNameAsync("user-1", "favorite-language"))?.ItemId);
         Assert.Single(await memoryStore.GetByUserAsync("user-1"));
@@ -117,7 +121,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await documentStore.CreateAsync(document);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Single(await documentStore.GetDocumentsAsync("profile-1", "profile"));
 
         var chunk = new AIDocumentChunk
@@ -131,11 +135,11 @@ public sealed class EntityCoreStoreTests
         };
 
         await chunkStore.CreateAsync(chunk);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Single(await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId));
         Assert.Single(await chunkStore.GetChunksByReferenceAsync("profile-1", "profile"));
         await chunkStore.DeleteByDocumentIdAsync(document.ItemId);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Empty(await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId));
 
         var sessionPrompt = new AIChatSessionPrompt
@@ -147,11 +151,11 @@ public sealed class EntityCoreStoreTests
         };
 
         await sessionPromptStore.CreateAsync(sessionPrompt);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Equal(1, await sessionPromptStore.CountAsync("session-1"));
         Assert.Single(await sessionPromptStore.GetPromptsAsync("session-1"));
         Assert.Equal(1, await sessionPromptStore.DeleteAllPromptsAsync("session-1"));
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
 
         var interactionPrompt = new ChatInteractionPrompt
         {
@@ -162,10 +166,10 @@ public sealed class EntityCoreStoreTests
         };
 
         await interactionPromptStore.CreateAsync(interactionPrompt);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Single(await interactionPromptStore.GetPromptsAsync("interaction-1"));
         Assert.Equal(1, await interactionPromptStore.DeleteAllPromptsAsync("interaction-1"));
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
 
         var indexProfile = new SearchIndexProfile
         {
@@ -176,7 +180,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await indexProfileStore.CreateAsync(indexProfile);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Equal(indexProfile.ItemId, (await indexProfileStore.FindByNameAsync("docs-index"))?.ItemId);
         Assert.Single(await indexProfileStore.GetByTypeAsync("AIDocuments"));
 
@@ -189,13 +193,13 @@ public sealed class EntityCoreStoreTests
         };
 
         await profileCatalog.CreateAsync(profile);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
 
         var session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
         session.Title = "Welcome";
 
         await sessionManager.SaveAsync(session);
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
 
         var pagedSessions = await sessionManager.PageAsync(1, 10, new AIChatSessionQueryContext
         {
@@ -205,13 +209,15 @@ public sealed class EntityCoreStoreTests
         Assert.Equal(session.SessionId, (await sessionManager.FindByIdAsync(session.SessionId))?.SessionId);
         Assert.Single(pagedSessions.Sessions);
         Assert.Equal(1, await sessionManager.DeleteAllAsync(profile.ItemId));
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
         Assert.Null(await sessionManager.FindAsync(session.SessionId));
     }
 
     [Fact]
     public async Task Entity_core_store_committer_flushes_staged_changes()
     {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var harness = await EntityCoreTestHarness.CreateAsync();
         using var scope = harness.Services.CreateScope();
         var services = scope.ServiceProvider;
@@ -231,7 +237,7 @@ public sealed class EntityCoreStoreTests
 
         Assert.True(dbContext.ChangeTracker.HasChanges());
 
-        await committer.CommitAsync();
+        await committer.CommitAsync(cancellationToken);
 
         Assert.NotNull(await catalog.FindByNameAsync(profile.Name));
     }
