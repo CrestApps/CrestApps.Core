@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Services;

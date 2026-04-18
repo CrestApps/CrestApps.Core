@@ -1,6 +1,6 @@
-namespace CrestApps.Core.Mvc.Web.Areas.Admin.Models;
+namespace CrestApps.Core.AI.Models;
 
-public sealed class AIMemorySettings
+public sealed class AIMemoryOptions
 {
     public string IndexProfileName { get; set; }
 
