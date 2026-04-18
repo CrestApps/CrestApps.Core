@@ -8,7 +8,7 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 using Microsoft.Extensions.Logging;
 using AzureSearchDocument = Azure.Search.Documents.Models.SearchDocument;
 
-namespace CrestApps.Core.AI.AISearch.Services;
+namespace CrestApps.Core.AI.Azure.AISearch.Services;
 
 internal sealed class AzureAISearchMemoryVectorSearchService : IMemoryVectorSearchService
 {

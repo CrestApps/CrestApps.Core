@@ -59,7 +59,7 @@ This page describes the project architecture and how the major layers depend on 
 | `CrestApps.Core.AI.AzureAIInference` | Azure AI Inference / GitHub Models provider |
 | `CrestApps.Core.AI.Copilot` | GitHub Copilot chat orchestration, OAuth flow, credential management |
 | `CrestApps.Core.Azure.AISearch` | Azure AI Search provider primitives for client setup, index management, document management, and OData filters |
-| `CrestApps.Core.AI.AISearch` | Azure AI Search integration for AI document index profiles, AI memory search, and AI data-source registrations |
+| `CrestApps.Core.AI.Azure.AISearch` | Azure AI Search integration for AI document index profiles, AI memory search, and AI data-source registrations |
 | `CrestApps.Core.Elasticsearch` | Elasticsearch provider primitives for client setup, index management, document management, and query/filter translation |
 | `CrestApps.Core.AI.Elasticsearch` | Elasticsearch integration for AI document index profiles, AI memory search, and AI data-source registrations |
 | `CrestApps.Core.AI.Mcp` | Model Context Protocol (MCP) client and server |

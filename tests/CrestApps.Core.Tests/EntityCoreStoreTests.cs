@@ -22,6 +22,7 @@ public sealed class EntityCoreStoreTests
         await using var harness = await EntityCoreTestHarness.CreateAsync();
         using var scope = harness.Services.CreateScope();
         var catalog = scope.ServiceProvider.GetRequiredService<INamedSourceCatalog<AIProfile>>();
+        var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
 
         var profile = new AIProfile
         {
@@ -32,6 +33,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await catalog.CreateAsync(profile);
+        await committer.CommitAsync();
 
         var byId = await catalog.FindByIdAsync(profile.ItemId);
         var byName = await catalog.FindByNameAsync(profile.Name);
@@ -68,6 +70,7 @@ public sealed class EntityCoreStoreTests
         var indexProfileStore = services.GetRequiredService<ISearchIndexProfileStore>();
         var profileCatalog = services.GetRequiredService<INamedSourceCatalog<AIProfile>>();
         var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+        var committer = services.GetRequiredService<IStoreCommitter>();
 
         var deployment = new AIDeployment
         {
@@ -77,6 +80,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await deploymentStore.CreateAsync(deployment);
+        await committer.CommitAsync();
         Assert.Equal(deployment.ItemId, (await deploymentStore.GetAsync(deployment.Name, deployment.Source))?.ItemId);
 
         var dataSource = new AIDataSource
@@ -86,6 +90,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await dataSourceStore.CreateAsync(dataSource);
+        await committer.CommitAsync();
         Assert.Single(await dataSourceStore.GetAllAsync());
 
         var memory = new AIMemoryEntry
@@ -98,6 +103,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await memoryStore.CreateAsync(memory);
+        await committer.CommitAsync();
         Assert.Equal(1, await memoryStore.CountByUserAsync("user-1"));
         Assert.Equal(memory.ItemId, (await memoryStore.FindByUserAndNameAsync("user-1", "favorite-language"))?.ItemId);
         Assert.Single(await memoryStore.GetByUserAsync("user-1"));
@@ -111,6 +117,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await documentStore.CreateAsync(document);
+        await committer.CommitAsync();
         Assert.Single(await documentStore.GetDocumentsAsync("profile-1", "profile"));
 
         var chunk = new AIDocumentChunk
@@ -124,9 +131,11 @@ public sealed class EntityCoreStoreTests
         };
 
         await chunkStore.CreateAsync(chunk);
+        await committer.CommitAsync();
         Assert.Single(await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId));
         Assert.Single(await chunkStore.GetChunksByReferenceAsync("profile-1", "profile"));
         await chunkStore.DeleteByDocumentIdAsync(document.ItemId);
+        await committer.CommitAsync();
         Assert.Empty(await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId));
 
         var sessionPrompt = new AIChatSessionPrompt
@@ -138,9 +147,11 @@ public sealed class EntityCoreStoreTests
         };
 
         await sessionPromptStore.CreateAsync(sessionPrompt);
+        await committer.CommitAsync();
         Assert.Equal(1, await sessionPromptStore.CountAsync("session-1"));
         Assert.Single(await sessionPromptStore.GetPromptsAsync("session-1"));
         Assert.Equal(1, await sessionPromptStore.DeleteAllPromptsAsync("session-1"));
+        await committer.CommitAsync();
 
         var interactionPrompt = new ChatInteractionPrompt
         {
@@ -151,8 +162,10 @@ public sealed class EntityCoreStoreTests
         };
 
         await interactionPromptStore.CreateAsync(interactionPrompt);
+        await committer.CommitAsync();
         Assert.Single(await interactionPromptStore.GetPromptsAsync("interaction-1"));
         Assert.Equal(1, await interactionPromptStore.DeleteAllPromptsAsync("interaction-1"));
+        await committer.CommitAsync();
 
         var indexProfile = new SearchIndexProfile
         {
@@ -163,6 +176,7 @@ public sealed class EntityCoreStoreTests
         };
 
         await indexProfileStore.CreateAsync(indexProfile);
+        await committer.CommitAsync();
         Assert.Equal(indexProfile.ItemId, (await indexProfileStore.FindByNameAsync("docs-index"))?.ItemId);
         Assert.Single(await indexProfileStore.GetByTypeAsync("AIDocuments"));
 
@@ -175,11 +189,13 @@ public sealed class EntityCoreStoreTests
         };
 
         await profileCatalog.CreateAsync(profile);
+        await committer.CommitAsync();
 
         var session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
         session.Title = "Welcome";
 
         await sessionManager.SaveAsync(session);
+        await committer.CommitAsync();
 
         var pagedSessions = await sessionManager.PageAsync(1, 10, new AIChatSessionQueryContext
         {
@@ -189,7 +205,35 @@ public sealed class EntityCoreStoreTests
         Assert.Equal(session.SessionId, (await sessionManager.FindByIdAsync(session.SessionId))?.SessionId);
         Assert.Single(pagedSessions.Sessions);
         Assert.Equal(1, await sessionManager.DeleteAllAsync(profile.ItemId));
+        await committer.CommitAsync();
         Assert.Null(await sessionManager.FindAsync(session.SessionId));
+    }
+
+    [Fact]
+    public async Task Entity_core_store_committer_flushes_staged_changes()
+    {
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var catalog = services.GetRequiredService<INamedSourceCatalog<AIProfile>>();
+        var committer = services.GetRequiredService<IStoreCommitter>();
+        var dbContext = services.GetRequiredService<CrestAppsEntityDbContext>();
+
+        var profile = new AIProfile
+        {
+            Name = "staged-profile",
+            Source = "OpenAI",
+            DisplayText = "Staged profile",
+            CreatedUtc = DateTime.UtcNow,
+        };
+
+        await catalog.CreateAsync(profile);
+
+        Assert.True(dbContext.ChangeTracker.HasChanges());
+
+        await committer.CommitAsync();
+
+        Assert.NotNull(await catalog.FindByNameAsync(profile.Name));
     }
 
     private sealed class EntityCoreTestHarness : IAsyncDisposable

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>CrestApps.Core.AI.AISearch</RootNamespace>
+    <RootNamespace>CrestApps.Core.AI.Azure.AISearch</RootNamespace>
     <Title>CrestApps AI Azure AI Search</Title>
     <Description>
       $(CrestAppsDescription)

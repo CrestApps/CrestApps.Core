@@ -1,5 +1,5 @@
 using Azure.Search.Documents.Indexes;
-using CrestApps.Core.AI.AISearch.Services;
+using CrestApps.Core.AI.Azure.AISearch.Services;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.AISearch;
+namespace CrestApps.Core.AI.Azure.AISearch;
 
 public static class ServiceCollectionExtensions
 {

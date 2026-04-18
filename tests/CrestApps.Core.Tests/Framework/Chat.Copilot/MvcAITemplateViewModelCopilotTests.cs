@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
-using CrestApps.Core.Mvc.Web.Models;
 
 namespace CrestApps.Core.Tests.Framework.Chat.Copilot;
 

@@ -240,8 +240,23 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 ```
 
 :::tip
-YesSql stages writes in memory and flushes them as a single transaction at the end of a request. The framework provides `IStoreCommitter` and automatic commit filters to handle this. See [Data Storage — Automatic store commit](data-storage.md#automatic-store-commit-istorecommitter) for details. Entity Framework Core commits on every individual write, so no commit middleware is needed.
+Both Entity Framework Core and the built-in YesSql stores follow the same `IStoreCommitter` pattern. Register the MVC action filter, the Minimal API endpoint filter, and the existing SignalR store-committer filter when your store implementation uses a unit-of-work/session model. If your custom implementation persists immediately and does not stage tracked changes, you do not need `IStoreCommitter`.
 :::
+
+For MVC actions:
+
+```csharp
+builder.Services
+    .AddControllersWithViews()
+    .AddCrestAppsStoreCommitterFilter();
+```
+
+For Minimal APIs:
+
+```csharp
+app.MapGroup("/api")
+    .AddEndpointFilter<StoreCommitterEndpointFilter>();
+```
 
 If you already use another ORM or storage model, implement the same catalog/store abstractions against your preferred backend. See [Data Storage](data-storage.md) for the full per-feature store reference.
 

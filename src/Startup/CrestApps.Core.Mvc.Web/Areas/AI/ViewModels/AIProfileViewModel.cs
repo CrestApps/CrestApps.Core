@@ -106,6 +106,7 @@ public sealed class AIProfileViewModel
     // Documents
     public List<DocumentItem> AttachedDocuments { get; set; } = [];
     public int? DocumentTopN { get; set; }
+    public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     public bool AllowSessionDocuments { get; set; }
 
@@ -307,6 +308,7 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<DocumentsMetadata>(out var docMetadata))
         {
             vm.DocumentTopN = docMetadata.DocumentTopN;
+            vm.DocumentRetrievalMode = docMetadata.RetrievalMode;
             vm.AttachedDocuments = (docMetadata.Documents ?? []).Select(d => new DocumentItem
             {
                 DocumentId = d.DocumentId,
@@ -481,6 +483,7 @@ public sealed class AIProfileViewModel
         profile.Alter<DocumentsMetadata>(metadata =>
         {
             metadata.DocumentTopN = DocumentTopN;
+            metadata.RetrievalMode = DocumentRetrievalMode;
         });
 
         profile.Alter<AIProfileSessionDocumentsMetadata>(metadata =>

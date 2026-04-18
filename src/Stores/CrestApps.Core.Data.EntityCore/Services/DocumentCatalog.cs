@@ -25,7 +25,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         }
 
         DbContext.CatalogRecords.Remove(existing);
-        await DbContext.SaveChangesAsync();
+
         return true;
     }
 
@@ -122,8 +122,8 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         }
 
         await SavingAsync(record);
+
         DbContext.CatalogRecords.Add(CatalogRecordFactory.Create(record));
-        await DbContext.SaveChangesAsync();
     }
 
     public async ValueTask UpdateAsync(T record)
@@ -144,8 +144,6 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         {
             CatalogRecordFactory.Update(existing, record);
         }
-
-        await DbContext.SaveChangesAsync();
     }
 
     protected IQueryable<CatalogRecord> GetReadQuery()

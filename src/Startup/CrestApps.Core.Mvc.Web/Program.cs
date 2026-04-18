@@ -1,7 +1,7 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
-using CrestApps.Core.AI.AISearch;
+using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Claude;
@@ -60,7 +60,7 @@ using NLog.Web;
 //   4. ASP.NET Core MVC setup
 //   5. Authentication & Authorization
 //   6. CrestApps foundation + AI services
-//   7. AI Providers (OpenAI, Azure OpenAI, Ollama, Azure AI Inference)
+//   7. AI Clients (OpenAI, Azure OpenAI, Ollama, Azure AI Inference)
 //   8. Elasticsearch services
 //   9. Azure AI Search services
 //  10. MCP — Model Context Protocol (client + server)

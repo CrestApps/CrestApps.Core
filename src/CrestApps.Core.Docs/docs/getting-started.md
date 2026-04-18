@@ -111,15 +111,24 @@ By default:
       "Deployments": [
         {
           "Name": "gpt-4.1",
-          "ClientName": "OpenAI",
+          "ConnectionName": "primary-openai",
           "ModelName": "gpt-4.1",
           "Type": "Chat"
+        },
+        {
+          "Name": "standalone-utility",
+          "ClientName": "OpenAI",
+          "ModelName": "gpt-4.1-mini",
+          "Type": "Utility",
+          "ApiKey": "YOUR_OTHER_API_KEY"
         }
       ]
     }
   }
 }
 ```
+
+Use `ConnectionName` when a deployment should point at a shared entry from `CrestApps:AI:Connections`. Keep contained connection settings directly on the deployment only when you want a standalone deployment definition.
 
 Create an AI profile that uses your chat deployment, then use Chat Interactions to test it end to end.
 

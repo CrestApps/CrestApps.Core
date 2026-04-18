@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Chat.Models;
@@ -1220,7 +1220,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     {
         var pipe = new Pipe();
         using var errorCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var transcriptionTask = TranscribeConversationAsync(pipe.Reader, profile, sessionId,audioFormat, speechLanguage, speechToTextClient, textToSpeechClient, voiceName, services, errorCts, cancellationToken);
+        var transcriptionTask = TranscribeConversationAsync(pipe.Reader, profile, sessionId, audioFormat, speechLanguage, speechToTextClient, textToSpeechClient, voiceName, services, errorCts, cancellationToken);
         try
         {
             await foreach (var base64Chunk in audioChunks.WithCancellation(errorCts.Token))
@@ -1458,7 +1458,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     {
         var pipe = new Pipe();
         using var errorCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var transcriptionTask = TranscribeAudioInputAsync(sessionId, pipe,audioFormat, speechLanguage, speechToTextClient, errorCts, cancellationToken);
+        var transcriptionTask = TranscribeAudioInputAsync(sessionId, pipe, audioFormat, speechLanguage, speechToTextClient, errorCts, cancellationToken);
         try
         {
             await foreach (var base64Chunk in audioChunks.WithCancellation(errorCts.Token))

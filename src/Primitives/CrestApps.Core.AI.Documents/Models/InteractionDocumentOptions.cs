@@ -12,4 +12,9 @@ public sealed class InteractionDocumentOptions
     /// Default is 3.
     /// </summary>
     public int TopN { get; set; } = 3;
+
+    /// <summary>
+    /// Gets or sets how retrieved document matches are added to AI context.
+    /// </summary>
+    public DocumentRetrievalMode RetrievalMode { get; set; } = DocumentRetrievalMode.Chunk;
 }

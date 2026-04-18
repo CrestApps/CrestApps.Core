@@ -70,6 +70,7 @@ internal sealed class SiteSettingsConfigureInteractionDocumentOptions : IConfigu
         var settings = _siteSettings.Get<InteractionDocumentSettings>();
         options.IndexProfileName = settings.IndexProfileName;
         options.TopN = settings.TopN;
+        options.RetrievalMode = settings.RetrievalMode;
     }
 }
 

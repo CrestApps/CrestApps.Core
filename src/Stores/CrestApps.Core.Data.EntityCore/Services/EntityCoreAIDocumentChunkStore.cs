@@ -52,6 +52,5 @@ public sealed class EntityCoreAIDocumentChunkStore : DocumentCatalog<AIDocumentC
         }
 
         DbContext.CatalogRecords.RemoveRange(records);
-        await DbContext.SaveChangesAsync();
     }
 }

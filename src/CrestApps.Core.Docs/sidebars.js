@@ -40,7 +40,16 @@ const sidebars = {
                 'core/ai-templates',
                 'core/chat',
                 'core/context-builders',
-                'core/copilot',
+                {
+                    type: 'category',
+                    label: 'Orchestrators',
+                    items: [
+                        'core/default-orchestrator',
+                        'core/orchestration',
+                        'core/copilot',
+                        'core/claude',
+                    ],
+                },
                 {
                     type: 'category',
                     label: 'Data Sources',
@@ -62,10 +71,9 @@ const sidebars = {
                         'mcp/server',
                     ],
                 },
-                'core/orchestration',
                 {
                     type: 'category',
-                    label: 'AI Providers',
+                    label: 'AI Clients',
                     items: [
                         'providers/index',
                         'providers/azure-ai-inference',
