@@ -5,36 +5,18 @@ namespace CrestApps.Core.AI.Models;
 public sealed class AIDataSourceOptions
 {
     private readonly Dictionary<string, Dictionary<string, DataSourceFieldMapping>> _fieldMappings = new(StringComparer.OrdinalIgnoreCase);
+
     public const int MinStrictness = 1;
+
     public const int MaxStrictness = 5;
+
     public const int MinTopNDocuments = 3;
+
     public const int MaxTopNDocuments = 20;
 
     public int DefaultStrictness { get; set; } = 3;
+
     public int DefaultTopNDocuments { get; set; } = 5;
-
-    public AIDataSourceOptions Clone()
-    {
-        var clone = new AIDataSourceOptions
-        {
-            DefaultStrictness = DefaultStrictness,
-            DefaultTopNDocuments = DefaultTopNDocuments,
-        };
-        foreach (var (providerName, providerMappings) in _fieldMappings)
-        {
-            foreach (var (indexProfileType, mapping) in providerMappings)
-            {
-                clone.AddFieldMapping(providerName, indexProfileType, target =>
-                {
-                    target.DefaultKeyField = mapping.DefaultKeyField;
-                    target.DefaultTitleField = mapping.DefaultTitleField;
-                    target.DefaultContentField = mapping.DefaultContentField;
-                });
-            }
-        }
-
-        return clone;
-    }
 
     public void AddFieldMapping(string providerName, string indexProfileType, Action<DataSourceFieldMapping> configure)
     {
@@ -94,14 +76,5 @@ public sealed class AIDataSourceOptions
         }
 
         return 3;
-    }
-
-    public static AIDataSourceOptions FromSettings(AIDataSourceSettings settings)
-    {
-        return settings == null ? new AIDataSourceOptions() : new AIDataSourceOptions
-        {
-            DefaultStrictness = settings.DefaultStrictness,
-            DefaultTopNDocuments = settings.DefaultTopNDocuments,
-        };
     }
 }

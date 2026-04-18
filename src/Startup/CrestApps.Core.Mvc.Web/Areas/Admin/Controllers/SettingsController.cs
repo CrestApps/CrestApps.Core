@@ -10,7 +10,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
 using CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
