@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Azure.AI.OpenAI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -11,7 +10,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
-using CrestApps.Core.Support;
 using CrestApps.Core.Templates.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +24,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     private readonly IServiceProvider _serviceProvider;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IEnumerable<IAICompletionServiceHandler> _completionServiceHandlers;
+    private readonly IEnumerable<IAIProviderConnectionHandler> _connectionHandlers;
     private readonly DefaultAIOptions _defaultOptions;
     private readonly IAIProviderConnectionStore _connectionStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
@@ -37,6 +36,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
         IEnumerable<IAICompletionServiceHandler> completionServiceHandlers,
+        IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
         DefaultAIOptions defaultOptions,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentManager,
@@ -48,6 +48,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         _serviceProvider = serviceProvider;
         _loggerFactory = loggerFactory;
         _completionServiceHandlers = completionServiceHandlers;
+        _connectionHandlers = connectionHandlers;
         _defaultOptions = defaultOptions;
         _connectionStore = connectionStore;
         _dataProtectionProvider = dataProtectionProvider;
@@ -416,31 +417,10 @@ omit optional fields, or split the operation into multiple smaller calls.
                 return null;
             }
 
-            return CreateConnectionEntry(connection);
+            return AIProviderConnectionEntryFactory.Create(connection, _connectionHandlers);
         }
 
         return AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
-    }
-
-    private static AIProviderConnectionEntry CreateConnectionEntry(AIProviderConnection connection)
-    {
-        var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-
-        if (connection.Properties != null)
-        {
-            foreach (var property in connection.Properties)
-            {
-                values[property.Key] = property.Value is JsonNode jsonNode
-                    ? jsonNode.GetRawValue()
-                    : property.Value;
-            }
-        }
-
-        values["DisplayText"] = string.IsNullOrWhiteSpace(connection.DisplayText)
-            ? connection.Name
-            : connection.DisplayText;
-
-        return new AIProviderConnectionEntry(values);
     }
 
     private AzureOpenAIClient GetChatClient(AIProviderConnectionEntry connection)

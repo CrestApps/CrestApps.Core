@@ -9,15 +9,18 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
 {
     private readonly IEnumerable<IAIClientProvider> _clientProviders;
+    private readonly IEnumerable<IAIProviderConnectionHandler> _connectionHandlers;
     private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
 
     public DefaultSpeechVoiceResolver(
         IEnumerable<IAIClientProvider> clientProviders,
+        IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
         IDataProtectionProvider dataProtectionProvider,
         INamedSourceCatalog<AIProviderConnection> connectionCatalog)
     {
         _clientProviders = clientProviders;
+        _connectionHandlers = connectionHandlers;
         _dataProtectionProvider = dataProtectionProvider;
         _connectionCatalog = connectionCatalog;
     }
@@ -49,7 +52,7 @@ public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
             var connection = await _connectionCatalog.GetAsync(deployment.ConnectionName, deployment.ClientName);
             if (connection != null)
             {
-                return AIProviderConnectionEntryFactory.Create(connection);
+                return AIProviderConnectionEntryFactory.Create(connection, _connectionHandlers);
             }
 
             throw new InvalidOperationException(
