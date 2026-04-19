@@ -23,7 +23,10 @@ internal sealed class OpenAIConnectionHandler : AIProviderConnectionHandlerBase
             return;
         }
 
-        var metadata = context.Connection.GetOrCreate<OpenAIConnectionMetadata>();
+        if (!context.Connection.TryGet<OpenAIConnectionMetadata>(out var metadata))
+        {
+            return;
+        }
 
         if (!string.IsNullOrEmpty(metadata.ApiKey))
         {
