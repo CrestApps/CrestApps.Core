@@ -142,7 +142,7 @@ public sealed class AIProfileDocumentService
 
                 if (chunks.Count > 0)
                 {
-                    await _documentIndexingService.DeleteChunksAsync(chunks.Select(c => c.ItemId).ToArray(), cancellationToken);
+                    await _documentIndexingService.DeleteChunksAsync(chunks.Select(c => c.ItemId), cancellationToken);
                 }
 
                 await _chunkStore.DeleteByDocumentIdAsync(documentId);

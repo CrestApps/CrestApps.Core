@@ -265,7 +265,11 @@ public sealed class AITemplateController : Controller
     {
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var validNames = allAgents.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return (selectedNames ?? []).Where(name => !string.IsNullOrWhiteSpace(name) && validNames.Contains(name)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+        return (selectedNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name) && validNames.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)

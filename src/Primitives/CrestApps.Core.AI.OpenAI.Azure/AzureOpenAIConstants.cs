@@ -4,5 +4,5 @@ public static class AzureOpenAIConstants
 {
     public const string ClientName = "Azure";
 
-    public const string AzureSpeechProviderName = "AzureSpeech";
+    public const string AzureSpeechClientName = "AzureSpeech";
 }

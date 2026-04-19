@@ -700,7 +700,7 @@ The `GenerateChartTool` returns [Chart.js](https://www.chartjs.org/) configurati
 When Chart.js is loaded, chart responses are rendered as interactive `<canvas>` elements. When Chart.js is **not** loaded, the raw JSON is displayed instead and a warning is logged to the browser console so you know chart rendering is available.
 
 :::tip
-Both tools are registered automatically by the orchestration pipeline and listed under [Built-in System Tools](./orchestration.md#built-in-system-tools).
+Both tools are registered automatically by the orchestration pipeline and listed under [Built-in System Tools](../orchestration/index.md#built-in-system-tools).
 :::
 
 ## Client-Side Assets

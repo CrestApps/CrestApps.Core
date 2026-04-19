@@ -997,12 +997,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         await foreach (var update in textToSpeechClient.GetStreamingAudioAsync(speechText, options, cancellationToken))
         {
             var audioContent = update.Contents.OfType<DataContent>().FirstOrDefault();
+
             if (audioContent?.Data is not { Length: > 0 } audioData)
             {
                 continue;
             }
 
             var base64Audio = Convert.ToBase64String(audioData.ToArray());
+
             await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
         }
 
@@ -1051,10 +1053,6 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             await Clients.Caller.ReceiveAudioComplete(identifier);
         }
     }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  CONVERSATION LOOP — STT transcription + AI response + TTS
-    // ═══════════════════════════════════════════════════════════════════
 
     private async Task RunConversationLoopAsync(
         string itemId,

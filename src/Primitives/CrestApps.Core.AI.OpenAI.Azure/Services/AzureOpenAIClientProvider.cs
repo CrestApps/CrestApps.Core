@@ -1,41 +1,42 @@
-using System.ClientModel;
-using System.ClientModel.Primitives;
 using Azure.AI.OpenAI;
-using Azure.Identity;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Azure;
-using CrestApps.Core.Azure.Models;
-using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
 public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 {
     private readonly ILoggerFactory _loggerFactory;
+    private readonly AzureClientOptions _azureClientSettings;
+
     protected override string GetProviderName()
     {
         return AzureOpenAIConstants.ClientName;
     }
 
-    public AzureOpenAIClientProvider(IServiceProvider serviceProvider, ILoggerFactory loggerFactory) : base(serviceProvider)
+    public AzureOpenAIClientProvider(
+        IServiceProvider serviceProvider,
+        ILoggerFactory loggerFactory,
+        IOptionsSnapshot<AzureClientOptions> azureClientSettings) : base(serviceProvider)
     {
         _loggerFactory = loggerFactory;
+        _azureClientSettings = azureClientSettings.Value;
     }
 
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
-        return GetClient(connection, connection.GetEndpoint())
+        return GetClient(connection)
             .GetChatClient(deploymentName)
             .AsIChatClient();
     }
 
     protected override IEmbeddingGenerator<string, Embedding<float>> GetEmbeddingGenerator(AIProviderConnectionEntry connection, string deploymentName)
     {
-        var endpoint = connection.GetEndpoint();
-        return GetClient(connection, endpoint)
+        return GetClient(connection)
             .GetEmbeddingClient(deploymentName)
             .AsIEmbeddingGenerator();
     }
@@ -44,44 +45,22 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 
     protected override IImageGenerator GetImageGenerator(AIProviderConnectionEntry connection, string deploymentName)
     {
-        var endpoint = connection.GetEndpoint();
-        return GetClient(connection, endpoint)
+        return GetClient(connection)
             .GetImageClient(deploymentName)
             .AsIImageGenerator();
     }
 
     protected override ISpeechToTextClient GetSpeechToTextClient(AIProviderConnectionEntry connection, string deploymentName)
     {
-        var endpoint = connection.GetEndpoint();
-        return GetClient(connection, endpoint)
+        return GetClient(connection)
             .GetAudioClient(deploymentName)
             .AsISpeechToTextClient();
     }
 
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-    private AzureOpenAIClient GetClient(AIProviderConnectionEntry connection, Uri endpoint)
+    private AzureOpenAIClient GetClient(AIProviderConnectionEntry connection)
     {
-        var options = new AzureOpenAIClientOptions
-        {
-            ClientLoggingOptions = new ClientLoggingOptions
-            {
-                LoggerFactory = _loggerFactory,
-                EnableLogging = connection.GetBooleanOrFalseValue("EnableLogging"),
-                EnableMessageLogging = connection.GetBooleanOrFalseValue("EnableMessageLogging"),
-                EnableMessageContentLogging = connection.GetBooleanOrFalseValue("EnableMessageContentLogging"),
-            },
-        };
-
-        var identityId = connection.GetIdentityId();
-        var azureClient = connection.GetAzureAuthenticationType() switch
-        {
-            AzureAuthenticationType.ApiKey => new AzureOpenAIClient(endpoint, new ApiKeyCredential(connection.GetApiKey()), options),
-            AzureAuthenticationType.ManagedIdentity => new AzureOpenAIClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId)), options),
-            AzureAuthenticationType.Default => new AzureOpenAIClient(endpoint, new DefaultAzureCredential(), options),
-            _ => throw new NotSupportedException("The provided authentication type is not supported.")
-        };
-
-        return azureClient;
+        return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientSettings);
     }
 }

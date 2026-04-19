@@ -1,9 +1,11 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.OpenAI.Azure;
 
@@ -16,6 +18,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddOptions<AzureClientOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<AzureClientOptions>, AzureClientOptionsConfiguration>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureOpenAIClientProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureSpeechClientProvider>());
 
@@ -31,7 +35,7 @@ public static class ServiceCollectionExtensions
             o.Description = new LocalizedString("Azure OpenAI", "Use Azure OpenAI models for AI completion.");
         });
 
-        services.AddCoreAIDeploymentProvider(AzureOpenAIConstants.AzureSpeechProviderName, o =>
+        services.AddCoreAIDeploymentProvider(AzureOpenAIConstants.AzureSpeechClientName, o =>
         {
             o.SupportsContainedConnection = true;
             o.DisplayName = new LocalizedString("Azure AI Services", "Azure AI Services");
@@ -46,6 +50,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIAzureOpenAI();
+
         return builder;
     }
 }

@@ -1157,12 +1157,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         await foreach (var update in textToSpeechClient.GetStreamingAudioAsync(speechText, options, cancellationToken))
         {
             var audioContent = update.Contents.OfType<DataContent>().FirstOrDefault();
+
             if (audioContent?.Data is not { Length: > 0 } audioData)
             {
                 continue;
             }
 
             var base64Audio = Convert.ToBase64String(audioData.ToArray());
+
             await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
         }
 
@@ -1175,6 +1177,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     protected async Task StreamSentencesAsSpeechAsync(ITextToSpeechClient textToSpeechClient, Func<string> getIdentifier, ChannelReader<string> sentenceReader, string voiceName, CancellationToken cancellationToken)
     {
         var options = new TextToSpeechOptions();
+
         if (!string.IsNullOrWhiteSpace(voiceName))
         {
             options.VoiceId = voiceName;
@@ -1184,6 +1187,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             var identifier = getIdentifier();
             var speechText = SpeechTextSanitizer.Sanitize(sentence);
+
             if (string.IsNullOrWhiteSpace(speechText))
             {
                 continue;

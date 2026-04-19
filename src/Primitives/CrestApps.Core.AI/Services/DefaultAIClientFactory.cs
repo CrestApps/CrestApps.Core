@@ -49,7 +49,6 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
             return new AICompletionUsageTrackingChatClient(
                 client,
                 deployment.ClientName,
-                deployment.ClientName,
                 deployment.ConnectionName,
                 deployment.ModelName,
                 _serviceProvider,

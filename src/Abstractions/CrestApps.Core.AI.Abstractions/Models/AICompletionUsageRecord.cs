@@ -20,8 +20,6 @@ public sealed class AICompletionUsageRecord : ExtensibleEntity
 
     public bool IsAuthenticated { get; set; }
 
-    public string ProviderName { get; set; }
-
     public string ClientName { get; set; }
 
     public string ConnectionName { get; set; }

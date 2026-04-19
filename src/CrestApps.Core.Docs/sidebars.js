@@ -44,10 +44,10 @@ const sidebars = {
                     type: 'category',
                     label: 'Orchestrators',
                     items: [
-                        'core/default-orchestrator',
-                        'core/orchestration',
-                        'core/copilot',
-                        'core/claude',
+                        'orchestration/index',
+                        'orchestration/default-orchestrator',
+                        'orchestration/copilot',
+                        'orchestration/claude',
                     ],
                 },
                 {

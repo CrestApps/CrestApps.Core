@@ -10,6 +10,7 @@ public sealed class MvcAIChatDocumentIndexingQueue : IMvcAIChatDocumentIndexingQ
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(chunks);
+
         return _channel.Writer.WriteAsync(MvcAIChatDocumentIndexingWorkItem.ForIndex(document, chunks.ToArray()), cancellationToken);
     }
 

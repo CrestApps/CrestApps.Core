@@ -44,7 +44,13 @@ public sealed class UsageAnalyticsController : Controller
         model.TotalSessions = relevantRecords.Select(record => record.SessionId).Where(sessionId => !string.IsNullOrEmpty(sessionId)).Distinct(StringComparer.Ordinal).Count();
         model.TotalChatInteractions = relevantRecords.Select(record => record.InteractionId).Where(interactionId => !string.IsNullOrEmpty(interactionId)).Distinct(StringComparer.Ordinal).Count();
         model.TotalTokens = relevantRecords.Sum(record => (long)record.TotalTokenCount);
-        model.Rows = relevantRecords.GroupBy(record => new { UserLabel = GetUserLabel(record), record.IsAuthenticated, ClientName = record.ClientName ?? record.ProviderName ?? "Unknown", ModelName = record.ModelName ?? record.DeploymentName ?? "Unknown", }).Select(group =>
+        model.Rows = relevantRecords.GroupBy(record => new
+        {
+            UserLabel = GetUserLabel(record),
+            record.IsAuthenticated,
+            ClientName = record.ClientName ?? "Unknown",
+            ModelName = record.ModelName ?? record.DeploymentName ?? "Unknown",
+        }).Select(group =>
         {
             var latencySamples = group.Where(record => record.ResponseLatencyMs > 0).ToList();
             return new AICompletionUsageSummaryViewModel
@@ -61,7 +67,10 @@ public sealed class UsageAnalyticsController : Controller
                 TotalTokens = group.Sum(record => (long)record.TotalTokenCount),
                 AverageResponseLatencyMs = latencySamples.Count > 0 ? Math.Round(latencySamples.Average(record => record.ResponseLatencyMs), 0) : 0,
             };
-        }).OrderByDescending(row => row.TotalTokens).ThenByDescending(row => row.TotalCalls).ThenBy(row => row.UserLabel, StringComparer.OrdinalIgnoreCase).ToList();
+        }).OrderByDescending(row => row.TotalTokens)
+        .ThenByDescending(row => row.TotalCalls)
+        .ThenBy(row => row.UserLabel, StringComparer.OrdinalIgnoreCase)
+        .ToList();
     }
 
     private static string GetUserLabel(AICompletionUsageRecord record)

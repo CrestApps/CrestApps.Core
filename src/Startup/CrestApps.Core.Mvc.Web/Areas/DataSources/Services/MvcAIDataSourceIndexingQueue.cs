@@ -36,7 +36,11 @@ public sealed class MvcAIDataSourceIndexingQueue : IMvcAIDataSourceIndexingQueue
     private ValueTask QueueDocumentIdsAsync(IReadOnlyCollection<string> documentIds, Func<IReadOnlyCollection<string>, MvcAIDataSourceIndexingWorkItem> factory, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(documentIds);
-        var ids = documentIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+        var ids = documentIds.Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         if (ids.Length == 0)
         {
             return ValueTask.CompletedTask;

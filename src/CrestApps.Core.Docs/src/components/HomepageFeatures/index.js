@@ -37,10 +37,12 @@ const FeatureList = [
 
 function Feature({ emoji, title, description }) {
   return (
-    <div className={clsx('col col--4')}>
+    <div className={clsx('col col--4', styles.featureColumn)}>
       <div className={styles.featureCard}>
-        <div className={styles.featureEmoji}>{emoji}</div>
-        <Heading as="h3">{title}</Heading>
+        <div className={styles.featureHeader}>
+          <div className={styles.featureEmoji}>{emoji}</div>
+          <Heading as="h3" className={styles.featureTitle}>{title}</Heading>
+        </div>
         <p>{description}</p>
       </div>
     </div>

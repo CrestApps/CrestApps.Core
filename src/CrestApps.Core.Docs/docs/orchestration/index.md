@@ -1,11 +1,11 @@
 ---
-sidebar_label: Orchestration
+sidebar_label: Overview
 sidebar_position: 4
-title: Orchestration
+title: Overview
 description: The orchestration pipeline manages tool calling, progressive scoping, RAG, and the agentic execution loop.
 ---
 
-# Orchestration
+# Overview
 
 > High-level agentic pipeline that manages tool calling, progressive scoping, retrieval-augmented generation, and streaming responses.
 

@@ -78,10 +78,10 @@ public sealed class AIOptions
         _profileSources[clientName] = entry;
     }
 
-    public void AddDeploymentProvider(string providerName, Action<AIDeploymentProviderEntry> configure = null)
+    public void AddDeploymentProvider(string clientName, Action<AIDeploymentProviderEntry> configure = null)
     {
-        ArgumentException.ThrowIfNullOrEmpty(providerName);
-        if (!_deployments.TryGetValue(providerName, out var entry))
+        ArgumentException.ThrowIfNullOrEmpty(clientName);
+        if (!_deployments.TryGetValue(clientName, out var entry))
         {
             entry = new AIDeploymentProviderEntry();
         }
@@ -93,18 +93,18 @@ public sealed class AIOptions
 
         if (string.IsNullOrEmpty(entry.DisplayName))
         {
-            entry.DisplayName = new LocalizedString(providerName, providerName);
+            entry.DisplayName = new LocalizedString(clientName, clientName);
         }
 
-        _deployments[providerName] = entry;
+        _deployments[clientName] = entry;
     }
 
-    public void AddConnectionSource(string providerName, Action<AIProviderConnectionOptionsEntry> configure = null)
+    public void AddConnectionSource(string clientName, Action<AIProviderConnectionOptionsEntry> configure = null)
     {
-        ArgumentException.ThrowIfNullOrEmpty(providerName);
-        if (!_connectionSources.TryGetValue(providerName, out var entry))
+        ArgumentException.ThrowIfNullOrEmpty(clientName);
+        if (!_connectionSources.TryGetValue(clientName, out var entry))
         {
-            entry = new AIProviderConnectionOptionsEntry(providerName);
+            entry = new AIProviderConnectionOptionsEntry(clientName);
         }
 
         if (configure != null)
@@ -114,10 +114,10 @@ public sealed class AIOptions
 
         if (string.IsNullOrEmpty(entry.DisplayName))
         {
-            entry.DisplayName = new LocalizedString(providerName, providerName);
+            entry.DisplayName = new LocalizedString(clientName, clientName);
         }
 
-        _connectionSources[providerName] = entry;
+        _connectionSources[clientName] = entry;
     }
 
     public void AddTemplateSource(string name, Action<AITemplateSourceEntry> configure = null)

@@ -82,4 +82,4 @@ Provider packages add focused extension points for specific transports and SDKs:
 2. Open the owning package in `src\Abstractions` or `src\Primitives`.
 3. Use the source for the exact current signature.
 
-For end-to-end usage patterns, pair this page with **[Core Overview](./index.md)**, **[Core Services](./core-services.md)**, and **[Orchestration](./orchestration.md)**.
+For end-to-end usage patterns, pair this page with **[Core Overview](./index.md)**, **[Core Services](./core-services.md)**, and **[Orchestration Overview](../orchestration/index.md)**.

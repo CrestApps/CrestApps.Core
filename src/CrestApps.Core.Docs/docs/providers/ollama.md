@@ -36,13 +36,15 @@ Point to your Ollama instance:
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "Ollama": {
-          "Endpoint": "http://localhost:11434"
-        }
+        "Connections": [
+          {
+            "Name": "ollama-local",
+            "ClientName": "Ollama",
+            "Endpoint": "http://localhost:11434"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -50,8 +52,7 @@ Point to your Ollama instance:
 
 | Constant | Value |
 |----------|-------|
-| `OllamaConstants.ProviderName` | `"Ollama"` |
-| `OllamaConstants.ImplementationName` | `"Ollama"` |
+| `OllamaConstants.ClientName` | `"Ollama"` |
 
 ## Use Cases
 
@@ -130,13 +131,15 @@ Full `appsettings.json` configuration:
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "Ollama": {
-          "Endpoint": "http://localhost:11434"
-        }
+        "Connections": [
+          {
+            "Name": "ollama-local",
+            "ClientName": "Ollama",
+            "Endpoint": "http://localhost:11434"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -148,7 +151,7 @@ builder.Services.AddCoreAIConnectionSource("Ollama", options =>
     options.Connections.Add(new AIProviderConnectionEntry
     {
         Name = "ollama-local",
-        ProviderName = "Ollama",
+        ClientName = "Ollama",
         // Endpoint defaults to http://localhost:11434 if not set
     });
 });

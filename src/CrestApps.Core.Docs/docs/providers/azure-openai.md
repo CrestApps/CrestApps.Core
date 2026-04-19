@@ -37,23 +37,40 @@ Azure OpenAI requires an endpoint URL and either an API key or Azure AD credenti
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "Azure": {
-          "Endpoint": "https://my-resource.openai.azure.com/",
-          "ApiKey": "your-api-key"
-        }
+        "Connections": [
+          {
+            "Name": "azure-production",
+            "ClientName": "Azure",
+            "Endpoint": "https://my-resource.openai.azure.com/",
+            "ApiKey": "your-api-key"
+          }
+        ]
+      }
+    }
+}
+```
+
+### Constants and global client settings
+
+| Constant | Value |
+|----------|-------|
+| `AzureOpenAIConstants.ClientName` | `"Azure"` |
+
+Use `CrestApps:AI:AzureClient` for Azure SDK logging switches shared by all Azure OpenAI connections:
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "AzureClient": {
+        "EnableLogging": false,
+        "EnableMessageLogging": false,
+        "EnableMessageContentLogging": false
       }
     }
   }
 }
 ```
-
-### Constants
-
-| Constant | Value |
-|----------|-------|
-| `AzureOpenAIConstants.ProviderName` | `"Azure"` |
-| `AzureOpenAIConstants.ClientName` | `"Azure"` |
 
 ## Azure-Specific Behavior
 
@@ -88,20 +105,35 @@ The deployment name in Azure OpenAI is what you pass as the `deploymentName` par
 
 ## Configuration
 
-Full `appsettings.json` configuration with endpoint, API key, and deployment:
+Full `appsettings.json` configuration with endpoint, deployment, and optional global Azure SDK logging:
 
 ```json
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "Azure": {
-          "Endpoint": "https://my-resource.openai.azure.com/",
-          "ApiKey": "your-api-key-here"
-        }
+        "AzureClient": {
+          "EnableLogging": false,
+          "EnableMessageLogging": false,
+          "EnableMessageContentLogging": false
+        },
+        "Connections": [
+          {
+            "Name": "azure-production",
+            "ClientName": "Azure",
+            "Endpoint": "https://my-resource.openai.azure.com/",
+            "ApiKey": "your-api-key-here"
+          }
+        ],
+        "Deployments": [
+          {
+            "Name": "gpt-4o",
+            "ClientName": "Azure",
+            "ConnectionName": "azure-production",
+            "Type": "Chat"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -113,7 +145,7 @@ builder.Services.AddCoreAIConnectionSource("Azure", options =>
     options.Connections.Add(new AIProviderConnectionEntry
     {
         Name = "azure-production",
-        ProviderName = "Azure",
+        ClientName = "Azure",
         // Endpoint and API key are loaded from configuration
     });
 });
@@ -129,14 +161,16 @@ The simplest authentication method. Suitable for development and testing:
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "Azure": {
-          "Endpoint": "https://my-resource.openai.azure.com/",
-          "ApiKey": "your-api-key-here"
-        }
+        "Connections": [
+          {
+            "Name": "azure-production",
+            "ClientName": "Azure",
+            "Endpoint": "https://my-resource.openai.azure.com/",
+            "ApiKey": "your-api-key-here"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -154,7 +188,7 @@ builder.Services.AddCoreAIConnectionSource("Azure", options =>
     options.Connections.Add(new AIProviderConnectionEntry
     {
         Name = "azure-production",
-        ProviderName = "Azure",
+        ClientName = "Azure",
         // When no API key is set, the provider uses DefaultAzureCredential
     });
 });
@@ -180,13 +214,15 @@ To use managed identity in production (Azure App Service, Azure Container Apps, 
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "Azure": {
-          "Endpoint": "https://my-resource.openai.azure.com/"
-        }
+        "Connections": [
+          {
+            "Name": "azure-production",
+            "ClientName": "Azure",
+            "Endpoint": "https://my-resource.openai.azure.com/"
+          }
+        ]
       }
     }
-  }
 }
 ```
 

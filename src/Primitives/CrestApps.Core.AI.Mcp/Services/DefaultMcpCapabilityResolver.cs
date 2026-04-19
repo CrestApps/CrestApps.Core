@@ -188,6 +188,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         }
 
         var promptVector = NormalizeL2(promptEmbeddings[0].Vector.ToArray());
+
         var candidates = new List<McpCapabilityCandidate>();
 
         foreach (var embedding in capabilityEmbeddings)

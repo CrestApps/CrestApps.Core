@@ -49,7 +49,7 @@ IAIClientFactory
             └── Creates Azure.AI.Inference ChatClient
 ```
 
-## Provider Connection
+## Client Connection
 
 Each provider needs at least one **connection** that stores credentials:
 
@@ -57,7 +57,7 @@ Each provider needs at least one **connection** that stores credentials:
 public class AIProviderConnectionEntry
 {
     public string Name { get; set; }           // Unique connection name
-    public string ProviderName { get; set; }   // "OpenAI", "Azure", "Ollama", etc.
+    public string ClientName { get; set; }     // "OpenAI", "Azure", "Ollama", etc.
     public string GetApiKey();                 // API key
     public Uri GetEndpoint();                  // Endpoint URL (optional for OpenAI)
 }
@@ -75,12 +75,16 @@ Implement these interfaces:
 ```csharp
 public sealed class MyProviderClientProvider : IAIClientProvider
 {
-    public string ProviderName => "MyProvider";
+    public bool CanHandle(string clientName)
+    {
+        return string.Equals(clientName, "MyProvider", StringComparison.OrdinalIgnoreCase);
+    }
 
-    public IChatClient CreateChatClient(
+    public ValueTask<IChatClient> GetChatClientAsync(
         AIProviderConnectionEntry connection, string deploymentName)
     {
         // Create and return your chat client
+        return ValueTask.FromResult<IChatClient>(new MyProviderChatClient());
     }
 
     // Implement other client creation methods...
@@ -105,10 +109,10 @@ builder.Services.AddCoreAICompletionClient<MyProviderCompletionClient>("MyProvid
 builder.Services.AddCoreAIConnectionSource("MyProvider", configure => { /* ... */ });
 ```
 
-## Available Providers
+## Available Clients
 
-| Provider | Extension | Provider Name | Documentation |
-|----------|-----------|--------------|---------------|
+| Client | Extension | ClientName | Documentation |
+|--------|-----------|------------|---------------|
 | OpenAI | `AddCoreAIOpenAI()` | `"OpenAI"` | [OpenAI](./openai.md) |
 | Azure OpenAI | `AddCoreAIAzureOpenAI()` | `"Azure"` | [Azure OpenAI](./azure-openai.md) |
 | Ollama | `AddCoreAIOllama()` | `"Ollama"` | [Ollama](./ollama.md) |
@@ -158,9 +162,12 @@ The client provider creates typed AI clients (chat, embedding, image) from a con
 ```csharp
 public sealed class MyProviderClientProvider : IAIClientProvider
 {
-    public string ProviderName => "MyProvider";
+    public bool CanHandle(string clientName)
+    {
+        return string.Equals(clientName, "MyProvider", StringComparison.OrdinalIgnoreCase);
+    }
 
-    public IChatClient CreateChatClient(
+    public ValueTask<IChatClient> GetChatClientAsync(
         AIProviderConnectionEntry connection,
         string deploymentName)
     {
@@ -169,7 +176,8 @@ public sealed class MyProviderClientProvider : IAIClientProvider
             ?? new Uri("https://api.myprovider.com");
 
         // Use Microsoft.Extensions.AI abstractions
-        return new MyProviderChatClient(endpoint, apiKey, deploymentName);
+        return ValueTask.FromResult<IChatClient>(
+            new MyProviderChatClient(endpoint, apiKey, deploymentName));
     }
 
     public IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(
@@ -240,8 +248,8 @@ public static class MyProviderServiceExtensions
         // Register the client provider
         services.AddScoped<IAIClientProvider, MyProviderClientProvider>();
 
-        // Register the completion client for this provider name
-        services.AddAICompletionClient<MyProviderCompletionClient>("MyProvider");
+        // Register the completion client for this client name
+        services.AddCoreAICompletionClient<MyProviderCompletionClient>("MyProvider");
 
         // Register the connection source (how credentials are loaded)
         services.AddCoreAIConnectionSource("MyProvider", options =>
@@ -250,7 +258,7 @@ public static class MyProviderServiceExtensions
             options.Connections.Add(new AIProviderConnectionEntry
             {
                 Name = "my-connection",
-                ProviderName = "MyProvider",
+                ClientName = "MyProvider",
             });
         });
 

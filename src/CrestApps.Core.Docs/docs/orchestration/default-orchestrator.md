@@ -40,8 +40,3 @@ builder.Services
     .AddCoreAIOpenAI();
 ```
 
-## Relationship to the orchestration docs
-
-This page is the conceptual overview for the built-in orchestrator.
-
-Use **[Orchestration](./orchestration.md)** for the full pipeline details, registered services, progressive tool scoping, configuration knobs, and extension points.
