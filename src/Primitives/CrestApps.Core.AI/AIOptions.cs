@@ -57,12 +57,12 @@ public sealed class AIOptions
         _clients[name] = typeof(TClient);
     }
 
-    public void AddProfileSource(string name, string providerName, Action<AIProfileProviderEntry> configure = null)
+    public void AddProfileSource(string clientName, Action<AIProfileProviderEntry> configure = null)
     {
-        ArgumentException.ThrowIfNullOrEmpty(name);
-        if (!_profileSources.TryGetValue(name, out var entry))
+        ArgumentException.ThrowIfNullOrEmpty(clientName);
+        if (!_profileSources.TryGetValue(clientName, out var entry))
         {
-            entry = new AIProfileProviderEntry(providerName);
+            entry = new AIProfileProviderEntry(clientName);
         }
 
         if (configure != null)
@@ -72,10 +72,10 @@ public sealed class AIOptions
 
         if (string.IsNullOrEmpty(entry.DisplayName))
         {
-            entry.DisplayName = new LocalizedString(providerName, providerName);
+            entry.DisplayName = new LocalizedString(clientName, clientName);
         }
 
-        _profileSources[name] = entry;
+        _profileSources[clientName] = entry;
     }
 
     public void AddDeploymentProvider(string providerName, Action<AIDeploymentProviderEntry> configure = null)

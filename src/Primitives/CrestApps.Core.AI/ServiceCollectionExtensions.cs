@@ -190,30 +190,29 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
-    public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string implementationName, string providerName, Action<AIProfileProviderEntry> configure = null)
+    public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string clientName, Action<AIProfileProviderEntry> configure = null)
         where TClient : class, IAICompletionClient
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(implementationName);
-        ArgumentNullException.ThrowIfNull(providerName);
+        ArgumentNullException.ThrowIfNull(clientName);
 
         return services
             .Configure<AIOptions>(o =>
             {
-                o.AddProfileSource(implementationName, providerName, configure);
+                o.AddProfileSource(clientName, configure);
             })
-            .AddCoreAICompletionClient<TClient>(implementationName);
+            .AddCoreAICompletionClient<TClient>(clientName);
     }
 
-    public static IServiceCollection AddCoreAIDeploymentProvider(this IServiceCollection services, string providerName, Action<AIDeploymentProviderEntry> configure = null)
+    public static IServiceCollection AddCoreAIDeploymentProvider(this IServiceCollection services, string clientName, Action<AIDeploymentProviderEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(providerName);
+        ArgumentNullException.ThrowIfNull(clientName);
 
         services
             .Configure<AIOptions>(o =>
             {
-                o.AddDeploymentProvider(providerName, configure);
+                o.AddDeploymentProvider(clientName, configure);
             });
 
         return services;
@@ -236,14 +235,14 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddCoreAIConnectionSource(this IServiceCollection services, string providerName, Action<AIProviderConnectionOptionsEntry> configure = null)
+    public static IServiceCollection AddCoreAIConnectionSource(this IServiceCollection services, string clientName, Action<AIProviderConnectionOptionsEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(providerName);
+        ArgumentNullException.ThrowIfNull(clientName);
 
         services.Configure<AIOptions>(o =>
         {
-            o.AddConnectionSource(providerName, configure);
+            o.AddConnectionSource(clientName, configure);
         });
 
         return services;

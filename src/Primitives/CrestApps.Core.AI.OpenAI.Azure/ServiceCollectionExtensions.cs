@@ -19,13 +19,13 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureOpenAIClientProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureSpeechClientProvider>());
 
-        services.AddCoreAIProfile<AzureOpenAICompletionClient>(AzureOpenAIConstants.ProviderName, AzureOpenAIConstants.ProviderName, o =>
+        services.AddCoreAIProfile<AzureOpenAICompletionClient>(AzureOpenAIConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("Azure OpenAI", "Azure OpenAI");
             o.Description = new LocalizedString("Azure OpenAI", "Use Azure OpenAI models for AI completion.");
         });
 
-        services.AddCoreAIConnectionSource(AzureOpenAIConstants.ProviderName, o =>
+        services.AddCoreAIConnectionSource(AzureOpenAIConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("Azure OpenAI", "Azure OpenAI");
             o.Description = new LocalizedString("Azure OpenAI", "Use Azure OpenAI models for AI completion.");

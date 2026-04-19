@@ -12,15 +12,17 @@ namespace CrestApps.Core.AI.OpenAI.Services;
 
 public sealed class OpenAICompletionClient : NamedAICompletionClient
 {
-    public OpenAICompletionClient(IAIClientFactory aIClientFactory, ILoggerFactory loggerFactory, IDistributedCache distributedCache, IServiceProvider serviceProvider, IOptions<AIProviderOptions> providerOptions, IEnumerable<IAICompletionServiceHandler> handlers, IOptions<DefaultAIOptions> defaultOptions, ITemplateService aiTemplateService, IAIDeploymentManager deploymentManager) : base(OpenAIConstants.ImplementationName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, providerOptions.Value, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
+    public OpenAICompletionClient(
+        IAIClientFactory aIClientFactory,
+        ILoggerFactory loggerFactory,
+        IDistributedCache distributedCache,
+        IServiceProvider serviceProvider,
+        IOptions<AIProviderOptions> providerOptions,
+        IEnumerable<IAICompletionServiceHandler> handlers,
+        IOptions<DefaultAIOptions> defaultOptions,
+        ITemplateService aiTemplateService,
+        IAIDeploymentManager deploymentManager)
+        : base(OpenAIConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, providerOptions.Value, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
     {
-    }
-
-    protected override string ProviderName
-    {
-        get
-        {
-            return OpenAIConstants.ProviderName;
-        }
     }
 }

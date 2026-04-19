@@ -24,8 +24,8 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
     protected readonly ILogger Logger;
     protected readonly ILoggerFactory LoggerFactory;
 
-    public NamedAICompletionClient(
-        string name,
+    protected NamedAICompletionClient(
+        string clientName,
         IAIClientFactory aIClientFactory,
         IDistributedCache distributedCache,
         ILoggerFactory loggerFactory,
@@ -35,10 +35,11 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         IEnumerable<IAICompletionServiceHandler> handlers,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentManager)
-    : base(providerOptions, aiTemplateService, deploymentManager)
+        : base(providerOptions, aiTemplateService, deploymentManager)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        Name = name;
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientName);
+
+        ClientName = clientName;
         _aIClientFactory = aIClientFactory;
         _distributedCache = distributedCache;
         LoggerFactory = loggerFactory;
@@ -48,14 +49,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         _handlers = handlers;
     }
 
-    public string Name { get; }
-
-    protected abstract string ProviderName { get; }
-
-    [Obsolete("This method is obsolete and will be removed in future releases. Please use ConfigureChatOptionsAsync instead")]
-    protected virtual void ConfigureChatOptions(ChatOptions options, string modelName)
-    {
-    }
+    public string ClientName { get; }
 
     protected virtual ValueTask ConfigureChatOptionsAsync(CompletionServiceConfigureContext configureContext)
     {
@@ -93,16 +87,10 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!ProviderOptions.Providers.TryGetValue(ProviderName, out var provider))
-        {
-            throw new ArgumentException($"Provider '{ProviderName}' not found.");
-        }
-
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
         var deployment = await ResolveDeploymentAsync(
             AIDeploymentType.Chat,
-            provider,
-            ProviderName,
+            ClientName,
             deploymentName: context.ChatDeploymentName);
 
         if (deployment == null)
@@ -135,7 +123,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "An error occurred while chatting with the {Name} service.", Name);
+            Logger.LogError(ex, "An error occurred while chatting with the {Name} service.", ClientName);
         }
 
         return null;
@@ -146,16 +134,10 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!ProviderOptions.Providers.TryGetValue(ProviderName, out var provider))
-        {
-            throw new ArgumentException($"Provider '{ProviderName}' not found.");
-        }
-
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
         var deployment = await ResolveDeploymentAsync(
             AIDeploymentType.Chat,
-            provider,
-            ProviderName,
+            ClientName,
             deploymentName: context.ChatDeploymentName);
 
         if (deployment == null)
@@ -229,8 +211,8 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         var configureContext = new CompletionServiceConfigureContext(chatOptions, context, supportFunctions)
         {
             DeploymentName = deploymentName,
-            ProviderName = ProviderName,
-            ImplemenationName = Name,
+            ClientName = ClientName,
+            ImplemenationName = ClientName,
             IsStreaming = isStreaming,
         };
 
@@ -241,13 +223,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             chatOptions.Tools = null;
         }
 
-#pragma warning disable CS0618 // Type or member is obsolete
-        ConfigureChatOptions(chatOptions, deploymentName);
-#pragma warning restore CS0618 // Type or member is obsolete
-
         await ConfigureChatOptionsAsync(configureContext);
 
-        chatOptions.AddUsageTracking(context, clientName: Name);
+        chatOptions.AddUsageTracking(context, clientName: ClientName);
 
         return chatOptions;
     }

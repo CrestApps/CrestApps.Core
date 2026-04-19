@@ -48,7 +48,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         _logger = loggerFactory.CreateLogger<AzureOpenAICompletionClient>();
     }
 
-    public string Name
+    public string ClientName
     {
         get
         {
@@ -60,13 +60,14 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     {
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(context);
+
         if (!ProviderOptions.Providers.TryGetValue(AzureOpenAIConstants.ClientName, out var provider))
         {
             throw new ArgumentException($"Provider '{AzureOpenAIConstants.ClientName}' not found.");
         }
 
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
+        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
         var connectionName = deployment?.ConnectionName;
         if (string.IsNullOrEmpty(connectionName))
         {
@@ -173,14 +174,16 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     {
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(context);
+
         if (!ProviderOptions.Providers.TryGetValue(AzureOpenAIConstants.ClientName, out var provider))
         {
             throw new ArgumentException($"Provider '{AzureOpenAIConstants.ClientName}' not found.");
         }
 
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, provider, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
+        var deployment = await ResolveDeploymentAsync(AIDeploymentType.Chat, AzureOpenAIConstants.ClientName, deploymentName: context.ChatDeploymentName);
         var connectionName = deployment?.ConnectionName;
+
         if (string.IsNullOrEmpty(connectionName) || !provider.Connections.TryGetValue(connectionName, out var connection))
         {
             _logger.LogWarning("Unable to chat. Unable to find a deployment with a valid connection.");
@@ -194,7 +197,8 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         }
 
         var azureMessages = new List<ChatMessage>();
-        var currentPrompt = string.Empty;
+        string currentPrompt;
+
         foreach (var message in messages)
         {
             if (string.IsNullOrWhiteSpace(message.Text))
@@ -229,6 +233,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         Microsoft.Extensions.AI.UsageDetails usage = null;
         string responseId = null;
         string modelId = null;
+
         while (iterations <= _defaultOptions.MaximumIterationsPerRequest)
         {
             var hasToolCalls = false;
@@ -406,7 +411,9 @@ omit optional fields, or split the operation into multiple smaller calls.
                 LoggerFactory = _loggerFactory,
             },
         };
+
         var endpoint = connection.GetEndpoint();
+
         var azureClient = connection.GetAzureAuthenticationType() switch
         {
             AzureAuthenticationType.ApiKey => new AzureOpenAIClient(endpoint, new ApiKeyCredential(connection.GetApiKey()), _clientOptions),
@@ -414,6 +421,7 @@ omit optional fields, or split the operation into multiple smaller calls.
             AzureAuthenticationType.Default => new AzureOpenAIClient(endpoint, new DefaultAzureCredential(), _clientOptions),
             _ => throw new NotSupportedException("The specified authentication type is not supported.")
         };
+
         return azureClient;
     }
 
@@ -475,8 +483,8 @@ omit optional fields, or split the operation into multiple smaller calls.
         var configureContext = new CompletionServiceConfigureContext(chatOptions, context, isFunctionInvocationSupported: true)
         {
             DeploymentName = deploymentName,
-            ProviderName = Name,
-            ImplemenationName = Name,
+            ClientName = ClientName,
+            ImplemenationName = ClientName,
             IsStreaming = false,
         };
         foreach (var handler in _completionServiceHandlers)
@@ -522,7 +530,7 @@ omit optional fields, or split the operation into multiple smaller calls.
             return;
         }
 
-        var record = AICompletionUsageRecordFactory.Create(context, AzureOpenAIConstants.ClientName, Name, connectionName, deploymentName, modelName, responseId, usage?.InputTokenCount ?? 0, usage?.OutputTokenCount ?? 0, usage?.TotalTokenCount ?? 0, responseLatencyMs, isStreaming);
+        var record = AICompletionUsageRecordFactory.Create(context, AzureOpenAIConstants.ClientName, ClientName, connectionName, deploymentName, modelName, responseId, usage?.InputTokenCount ?? 0, usage?.OutputTokenCount ?? 0, usage?.TotalTokenCount ?? 0, responseLatencyMs, isStreaming);
         await observers.InvokeHandlersAsync((observer, usageRecord) => observer.UsageRecordedAsync(usageRecord, cancellationToken), record, _logger);
     }
 }

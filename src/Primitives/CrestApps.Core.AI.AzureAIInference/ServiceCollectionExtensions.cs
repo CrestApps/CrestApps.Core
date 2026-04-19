@@ -18,13 +18,13 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureAIInferenceClientProvider>());
 
-        services.AddCoreAIProfile<AzureAIInferenceCompletionClient>(AzureAIInferenceConstants.ImplementationName, AzureAIInferenceConstants.ProviderName, o =>
+        services.AddCoreAIProfile<AzureAIInferenceCompletionClient>(AzureAIInferenceConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("Azure AI Inference", "Azure AI Inference / GitHub Models");
             o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI completion.");
         });
 
-        services.AddCoreAIConnectionSource(AzureAIInferenceConstants.ProviderName, o =>
+        services.AddCoreAIConnectionSource(AzureAIInferenceConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("Azure AI Inference", "Azure AI Inference / GitHub Models");
             o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI completion.");
