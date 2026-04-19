@@ -14,6 +14,7 @@ public sealed class EntityCoreSearchIndexProfileStore : NamedDocumentCatalog<Sea
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
         var records = await GetReadQuery().Where(x => x.Type == type).ToListAsync();
+
         return records.Select(CatalogRecordFactory.Materialize<SearchIndexProfile>).ToArray();
     }
 }

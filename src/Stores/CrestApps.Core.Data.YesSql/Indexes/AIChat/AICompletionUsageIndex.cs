@@ -24,8 +24,6 @@ public sealed class AICompletionUsageIndex : MapIndex
 
     public bool IsAuthenticated { get; set; }
 
-    public string ProviderName { get; set; }
-
     public string ClientName { get; set; }
 
     public string ConnectionName { get; set; }
@@ -70,7 +68,6 @@ public sealed class AICompletionUsageIndexProvider : IndexProvider<AICompletionU
                 VisitorId = record.VisitorId,
                 ClientId = record.ClientId,
                 IsAuthenticated = record.IsAuthenticated,
-                ProviderName = record.ProviderName,
                 ClientName = record.ClientName,
                 ConnectionName = record.ConnectionName,
                 DeploymentName = record.DeploymentName,

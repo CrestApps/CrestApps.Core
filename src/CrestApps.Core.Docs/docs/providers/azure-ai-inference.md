@@ -34,14 +34,24 @@ builder.Services
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "AzureAIInference": {
-          "Endpoint": "https://models.inference.ai.azure.com",
-          "ApiKey": "your-github-token"
-        }
+        "Connections": [
+          {
+            "Name": "github-models",
+            "ClientName": "AzureAIInference",
+            "Endpoint": "https://models.inference.ai.azure.com",
+            "ApiKey": "your-github-token"
+          }
+        ],
+        "Deployments": [
+          {
+            "Name": "gpt-4o-mini",
+            "ClientName": "AzureAIInference",
+            "ConnectionName": "github-models",
+            "Type": "Chat"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -51,14 +61,16 @@ builder.Services
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "AzureAIInference": {
-          "Endpoint": "https://your-project.inference.ai.azure.com",
-          "ApiKey": "your-api-key"
-        }
+        "Connections": [
+          {
+            "Name": "azure-ai-inference",
+            "ClientName": "AzureAIInference",
+            "Endpoint": "https://your-project.inference.ai.azure.com",
+            "ApiKey": "your-api-key"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -66,7 +78,6 @@ builder.Services
 
 | Constant | Value |
 |----------|-------|
-| `AzureAIInferenceConstants.ProviderName` | `"AzureAIInference"` |
 | `AzureAIInferenceConstants.ClientName` | `"AzureAIInference"` |
 
 ## Use Cases
@@ -98,14 +109,16 @@ The Azure AI Inference provider is the gateway to the [GitHub Models marketplace
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "AzureAIInference": {
-          "Endpoint": "https://models.inference.ai.azure.com",
-          "ApiKey": "ghp_your-github-token"
-        }
+        "Connections": [
+          {
+            "Name": "github-models",
+            "ClientName": "AzureAIInference",
+            "Endpoint": "https://models.inference.ai.azure.com",
+            "ApiKey": "ghp_your-github-token"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -123,7 +136,7 @@ builder.Services.AddCoreAIConnectionSource("AzureAIInference", options =>
     options.Connections.Add(new AIProviderConnectionEntry
     {
         Name = "github-models",
-        ProviderName = "AzureAIInference",
+        ClientName = "AzureAIInference",
         // Endpoint and API key loaded from configuration
     });
 });
@@ -137,14 +150,16 @@ Use different endpoints for development vs. production:
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "AzureAIInference": {
-          "Endpoint": "https://models.inference.ai.azure.com",
-          "ApiKey": "ghp_your-github-token"
-        }
+        "Connections": [
+          {
+            "Name": "github-models",
+            "ClientName": "AzureAIInference",
+            "Endpoint": "https://models.inference.ai.azure.com",
+            "ApiKey": "ghp_your-github-token"
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -152,14 +167,16 @@ Use different endpoints for development vs. production:
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "AzureAIInference": {
-          "Endpoint": "https://your-project.inference.ai.azure.com",
-          "ApiKey": "your-azure-key"
-        }
+        "Connections": [
+          {
+            "Name": "production-models",
+            "ClientName": "AzureAIInference",
+            "Endpoint": "https://your-project.inference.ai.azure.com",
+            "ApiKey": "your-azure-key"
+          }
+        ]
       }
     }
-  }
 }
 ```
 

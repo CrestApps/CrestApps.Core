@@ -60,7 +60,9 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(type);
 
         services.AddCoreAIDefaultIndexProfileHandler();
-        services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", type, configure));
+        services.Configure<IndexProfileSourceOptions>(options => options
+            .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", type, configure)
+        );
 
         return services;
     }

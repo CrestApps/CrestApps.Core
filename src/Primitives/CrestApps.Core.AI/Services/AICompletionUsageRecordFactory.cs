@@ -5,16 +5,15 @@ namespace CrestApps.Core.AI.Services;
 
 public static class AICompletionUsageRecordFactory
 {
-    public static AICompletionUsageRecord Create(AICompletionContext completionContext, string providerName, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)
+    public static AICompletionUsageRecord Create(AICompletionContext completionContext, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)
     {
-        return Create(completionContext?.AdditionalProperties, providerName, clientName, connectionName, deploymentName, modelName, responseId, inputTokenCount, outputTokenCount, totalTokenCount, responseLatencyMs, isStreaming);
+        return Create(completionContext?.AdditionalProperties, clientName, connectionName, deploymentName, modelName, responseId, inputTokenCount, outputTokenCount, totalTokenCount, responseLatencyMs, isStreaming);
     }
 
-    public static AICompletionUsageRecord Create(IReadOnlyDictionary<string, object> additionalProperties, string providerName, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)
+    public static AICompletionUsageRecord Create(IReadOnlyDictionary<string, object> additionalProperties, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)
     {
         var record = new AICompletionUsageRecord
         {
-            ProviderName = providerName,
             ClientName = clientName,
             ConnectionName = connectionName,
             DeploymentName = deploymentName,

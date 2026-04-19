@@ -14,7 +14,7 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
 
     protected override string GetProviderName()
     {
-        return OllamaConstants.ProviderName;
+        return OllamaConstants.ClientName;
     }
 
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)

@@ -54,18 +54,18 @@ You can use both in the same application — A2A for agent delegation and MCP fo
 │  │ A2AToolRegistryProvider│     │          │  │   Agent Card Generator     │  │
 │  │  (discovers skills as  │     │          │  │  (profiles → agent cards)  │  │
 │  │   tool entries)        │     │          │  └───────────────────┬────────┘  │
-│  └─────┬──────────────────┘     │          │                     │           │
+│  └─────┬──────────────────┘     │          │                     │            │
 │        │                        │          │  ┌──────────────────▼─────────┐  │
-│  ┌─────▼──────────────────┐     │  fetch   │  │ /.well-known/agent.json   │  │
-│  │ A2AAgentProxyTool      ├─────┼──────────┼──► (Agent Card endpoint)     │  │
-│  │  (proxies messages     │     │          │  └───────────────────────────┘  │
-│  │   to remote agent)     │     │  send    │                                 │
-│  │                        ├─────┼──────────┼──► /a2a (message endpoint)      │
+│  ┌─────▼──────────────────┐     │  fetch   │  │ /.well-known/agent.json   │   │
+│  │ A2AAgentProxyTool      ├─────┼──────────┼──► (Agent Card endpoint)     │   │
+│  │  (proxies messages     │     │          │  └───────────────────────────┘   │
+│  │   to remote agent)     │     │  send    │                                  │
+│  │                        ├─────┼──────────┼──► /a2a (message endpoint)       │
 │  └────────────────────────┘     │          │                                  │
 │                                 │          │  Authentication:                 │
 │  Authentication:                │          │   • OpenID Connect               │
-│   • API Key, Basic, OAuth2,    │          │   • API Key                      │
-│     mTLS, Custom Headers       │          │   • None (dev only)              │
+│   • API Key, Basic, OAuth2,     │          │   • API Key                      │
+│     mTLS, Custom Headers        │          │   • None (dev only)              │
 └─────────────────────────────────┘          └──────────────────────────────────┘
 ```
 

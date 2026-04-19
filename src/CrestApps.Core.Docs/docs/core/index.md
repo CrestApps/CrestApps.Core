@@ -73,14 +73,14 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | Builder entrypoint | `AddCrestAppsCore(builder => ...)` | `CrestApps.Core` | [ASP.NET Core integration](./getting-started-aspnet.md) |
 | Core services | `AddCoreServices()` | `CrestApps.Core` | [Core Services](./core-services.md) |
 | AI services | `AddCoreAIServices()` | `CrestApps.Core.AI` | [AI Core](./ai-core.md) |
-| Orchestration | `AddCoreAIOrchestration()` | `CrestApps.Core.AI` | [Orchestration](./orchestration.md) |
+| Orchestration | `AddCoreAIOrchestration()` | `CrestApps.Core.AI` | [Orchestration Overview](../orchestration/index.md) |
 | Chat | `AddCoreAIChatInteractions()` | `CrestApps.Core.AI.Chat` | [Chat Interactions](./chat.md) |
 | Documents | `AddCoreAIDocumentProcessing()` | `CrestApps.Core.AI.Documents` | [Document Processing](./document-processing.md) |
 | Templates | `AddTemplating()` | `CrestApps.Core.Templates` | [AI Templates](./ai-templates.md) |
 | Custom tools | `AddCoreAITool<T>()` | `CrestApps.Core.AI` | [Custom AI Tools](./tools.md) |
 | Agents | Agent and orchestration registrations | `CrestApps.Core.AI` | [AI Agents](./agents.md) |
-| Copilot orchestration | `AddCoreAICopilotOrchestrator()` | `CrestApps.Core.AI.Copilot` | [Copilot Orchestrator](./copilot.md) |
-| Claude orchestration | `AddCoreAIClaudeOrchestrator()` | `CrestApps.Core.AI.Claude` | [Claude Orchestrator](./claude.md) |
+| Copilot orchestration | `AddCoreAICopilotOrchestrator()` | `CrestApps.Core.AI.Copilot` | [Copilot Orchestrator](../orchestration/copilot.md) |
+| Claude orchestration | `AddCoreAIClaudeOrchestrator()` | `CrestApps.Core.AI.Claude` | [Claude Orchestrator](../orchestration/claude.md) |
 | SignalR and widgets | `AddCoreSignalR()` | `CrestApps.Core.SignalR` | [SignalR](./signalr.md) |
 | Data storage | Store registration extensions | `CrestApps.Core.Data.YesSql` | [Data Storage](./data-storage.md) |
 | AI clients | Provider-specific extensions | Provider packages | [AI Clients](../providers/index.md) |

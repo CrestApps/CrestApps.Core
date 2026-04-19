@@ -41,9 +41,9 @@ A **deployment** maps a logical name to a specific model on a specific provider 
 2. Connection-level default deployment
 3. Global default deployment
 
-### Provider Connection
+### AI Connection
 
-A **provider connection** stores credentials and endpoint information for a specific AI provider (API key, endpoint URL, provider name).
+An **AI connection** stores credentials and endpoint information for a specific AI client (API key, endpoint URL, and `ClientName`).
 
 ## Services Registered by `AddCoreAIServices()`
 

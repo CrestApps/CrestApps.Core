@@ -116,5 +116,5 @@ These tools are intended for long-lived facts such as preferences, recurring pro
 
 ## Related guidance
 
-- Pair memory with **[Orchestration](./orchestration.md)** when you want automatic recall
+- Pair memory with **[Orchestration Overview](../orchestration/index.md)** when you want automatic recall
 - Pair memory with **[Data Sources](../data-sources/index.md)** when you also need document or index-backed RAG

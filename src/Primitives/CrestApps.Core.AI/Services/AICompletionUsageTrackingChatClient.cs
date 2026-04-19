@@ -13,7 +13,6 @@ namespace CrestApps.Core.AI.Services;
 
 internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
 {
-    private readonly string _providerName;
     private readonly string _clientName;
     private readonly string _connectionName;
     private readonly string _deploymentName;
@@ -22,7 +21,6 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
 
     public AICompletionUsageTrackingChatClient(
         IChatClient innerClient,
-        string providerName,
         string clientName,
         string connectionName,
         string deploymentName,
@@ -30,7 +28,6 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
         ILogger logger)
         : base(innerClient)
     {
-        _providerName = providerName;
         _clientName = clientName;
         _connectionName = connectionName;
         _deploymentName = deploymentName;
@@ -104,7 +101,6 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
 
         var record = AICompletionUsageRecordFactory.Create(
             additionalProperties,
-            _providerName,
             clientName,
             _connectionName,
             _deploymentName,

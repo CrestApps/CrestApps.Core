@@ -2,6 +2,7 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure;
+using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
@@ -27,7 +28,6 @@ public sealed class AIProviderConnectionOptionsTests
                 ["CrestApps:AI:Connections:0:Name"] = "config-primary",
                 ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
                 ["CrestApps:AI:Connections:0:ApiKey"] = "secret",
-                ["CrestApps:AI:Connections:0:EnableLogging"] = "true",
             })
             .Build();
 
@@ -43,7 +43,32 @@ public sealed class AIProviderConnectionOptionsTests
         var provider = options.Providers["OpenAI"];
         Assert.Contains("config-primary", provider.Connections.Keys);
         Assert.Equal("config-primary", provider.Connections["config-primary"].GetStringValue("DisplayText", false));
-        Assert.True(provider.Connections["config-primary"].GetBooleanOrFalseValue("EnableLogging"));
+    }
+
+    [Fact]
+    public void AddCoreAIAzureOpenAI_WhenAzureClientSettingsConfigured_ShouldBindAzureClientSettings()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:AzureClient:EnableLogging"] = "true",
+                ["CrestApps:AI:AzureClient:EnableMessageLogging"] = "true",
+                ["CrestApps:AI:AzureClient:EnableMessageContentLogging"] = "false",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddLogging();
+        services.AddCoreAIServices();
+        services.AddCoreAIAzureOpenAI();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var options = serviceProvider.GetRequiredService<IOptions<AzureClientOptions>>().Value;
+
+        Assert.True(options.EnableLogging);
+        Assert.True(options.EnableMessageLogging);
+        Assert.False(options.EnableMessageContentLogging);
     }
 
     [Fact]
@@ -313,8 +338,8 @@ public sealed class AIProviderConnectionOptionsTests
 
         var options = serviceProvider.GetRequiredService<IOptions<AIOptions>>().Value;
 
-        Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.AzureSpeechProviderName));
-        Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechProviderName].SupportsContainedConnection);
+        Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.AzureSpeechClientName));
+        Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechClientName].SupportsContainedConnection);
     }
 
     [Fact]

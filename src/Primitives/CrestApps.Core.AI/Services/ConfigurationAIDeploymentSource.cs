@@ -77,7 +77,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         foreach (var sectionPath in _catalogOptions.DeploymentSections)
         {
             var section = _configuration.GetSection(sectionPath);
-            var children = section.GetChildren().ToArray();
+            var children = section.GetChildren();
 
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -85,7 +85,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                     "Inspecting AI deployment section '{SectionPath}'. Exists: {SectionExists}. Child count: {ChildCount}. Child keys: [{ChildKeys}].",
                     sectionPath,
                     section.Exists(),
-                    children.Length,
+                    children.Count(),
                     string.Join(", ", children.Select(static child => child.Key)));
             }
 
@@ -283,8 +283,9 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
 
     private static JsonNode ReadConfigurationNode(IConfigurationSection section)
     {
-        var children = section.GetChildren().ToArray();
-        if (children.Length == 0)
+        var children = section.GetChildren();
+
+        if (!children.Any())
         {
             return section.Value is null ? null : JsonValue.Create(ParseScalar(section.Value));
         }

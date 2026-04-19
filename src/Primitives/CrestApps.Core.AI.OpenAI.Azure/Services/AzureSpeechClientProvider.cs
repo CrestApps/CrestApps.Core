@@ -26,7 +26,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
 
     public bool CanHandle(string providerName)
     {
-        return string.Equals(AzureOpenAIConstants.AzureSpeechProviderName, providerName, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(AzureOpenAIConstants.AzureSpeechClientName, providerName, StringComparison.OrdinalIgnoreCase);
     }
 
     public ValueTask<IChatClient> GetChatClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)

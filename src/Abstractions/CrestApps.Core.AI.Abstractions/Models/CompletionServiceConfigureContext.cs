@@ -4,7 +4,7 @@ namespace CrestApps.Core.AI.Models;
 
 public sealed class CompletionServiceConfigureContext
 {
-    public string ProviderName { get; set; }
+    public string ClientName { get; set; }
 
     public string ImplemenationName { get; set; }
 

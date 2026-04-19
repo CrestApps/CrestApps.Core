@@ -2,6 +2,5 @@ namespace CrestApps.Core.AI.Ollama;
 
 public static class OllamaConstants
 {
-    public const string ProviderName = "Ollama";
-    public const string ImplementationName = "Ollama";
+    public const string ClientName = "Ollama";
 }

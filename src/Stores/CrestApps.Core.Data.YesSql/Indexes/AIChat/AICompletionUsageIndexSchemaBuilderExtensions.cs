@@ -19,7 +19,6 @@ public static class AICompletionUsageIndexSchemaBuilderExtensions
             .Column<string>(nameof(AICompletionUsageIndex.VisitorId), column => column.WithLength(255))
             .Column<string>(nameof(AICompletionUsageIndex.ClientId), column => column.WithLength(255))
             .Column<bool>(nameof(AICompletionUsageIndex.IsAuthenticated))
-            .Column<string>(nameof(AICompletionUsageIndex.ProviderName), column => column.WithLength(128))
             .Column<string>(nameof(AICompletionUsageIndex.ClientName), column => column.WithLength(128))
             .Column<string>(nameof(AICompletionUsageIndex.ConnectionName), column => column.WithLength(255))
             .Column<string>(nameof(AICompletionUsageIndex.DeploymentName), column => column.WithLength(255))
@@ -35,8 +34,15 @@ public static class AICompletionUsageIndexSchemaBuilderExtensions
 
         await schemaBuilder.AlterIndexTableAsync<AICompletionUsageIndex>(table =>
         {
-            table.CreateIndex("IDX_AICompletionUsage_DocumentId", "DocumentId", nameof(AICompletionUsageIndex.SessionId), nameof(AICompletionUsageIndex.ProfileId));
-            table.CreateIndex("IDX_AICompletionUsage_UserId", "DocumentId", nameof(AICompletionUsageIndex.UserId), nameof(AICompletionUsageIndex.CreatedUtc));
+            table.CreateIndex("IDX_AICompletionUsage_DocumentId", "DocumentId",
+                nameof(AICompletionUsageIndex.SessionId),
+                nameof(AICompletionUsageIndex.ProfileId));
+
+            table.CreateIndex("IDX_AICompletionUsage_UserId",
+                "DocumentId",
+                nameof(AICompletionUsageIndex.UserId),
+                nameof(AICompletionUsageIndex.CreatedUtc));
+
         }, collection: options?.AICollectionName);
     }
 }

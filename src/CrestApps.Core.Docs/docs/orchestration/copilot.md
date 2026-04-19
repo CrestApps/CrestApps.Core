@@ -37,7 +37,7 @@ public class MyController(IOrchestratorResolver resolver)
 
 ## Problem & Solution
 
-The [default orchestrator](orchestration.md) manages the full agentic pipeline — tool calling, progressive scoping, RAG injection, and streaming — using `Microsoft.Extensions.AI`. This works well when you control the provider connection and model selection.
+The [default orchestrator](./index.md) manages the full agentic pipeline — tool calling, progressive scoping, RAG injection, and streaming — using `Microsoft.Extensions.AI`. This works well when you control the provider connection and model selection.
 
 However, some scenarios require a different execution model:
 
@@ -406,7 +406,7 @@ The session is executed and streaming updates are yielded back through the `IAsy
 
 ## MCP Integration
 
-The Copilot orchestrator handles MCP differently from the [default orchestrator](orchestration.md):
+The Copilot orchestrator handles MCP differently from the [default orchestrator](./index.md):
 
 | Aspect | Default Orchestrator | Copilot Orchestrator |
 |--------|---------------------|---------------------|

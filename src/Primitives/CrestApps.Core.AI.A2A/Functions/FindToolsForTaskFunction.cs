@@ -78,17 +78,29 @@ internal sealed class FindToolsForTaskFunction : AIFunction
         {
             var connectionStore = arguments.Services.GetRequiredService<ICatalog<A2AConnection>>();
             var toolRegistry = arguments.Services.GetRequiredService<IToolRegistry>();
+
             var context = new AICompletionContext
             {
-                A2AConnectionIds = (await connectionStore.GetAllAsync()).Where(connection => !string.IsNullOrWhiteSpace(connection.Endpoint)).Select(connection => connection.ItemId).ToArray(),
+                A2AConnectionIds = (await connectionStore.GetAllAsync())
+                .Where(connection => !string.IsNullOrWhiteSpace(connection.Endpoint))
+                .Select(connection => connection.ItemId)
+                .ToArray(),
             };
+
             var results = await toolRegistry.SearchAsync(taskDescription, maxResults, context, cancellationToken);
+
             if (results is null || results.Count == 0)
             {
                 return "No tools were found matching the given task description.";
             }
 
-            var tools = results.Select(r => new { name = r.Name, description = r.Description, source = r.Source.ToString(), }).ToList();
+            var tools = results.Select(r => new
+            {
+                name = r.Name,
+                description = r.Description,
+                source = r.Source.ToString(),
+            });
+
             return JsonSerializer.Serialize(tools);
         }
         catch (Exception ex)

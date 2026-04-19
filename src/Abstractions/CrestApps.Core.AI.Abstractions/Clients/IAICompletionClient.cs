@@ -15,7 +15,7 @@ public interface IAICompletionClient
     /// This name is used to distinguish between different implementations of the clients.
     /// Each implementation should return a distinct name that identifies it clearly.
     /// </summary>
-    string Name { get; }
+    string ClientName { get; }
 
     /// <summary>
     /// Sends a series of messages to the AI chat service and returns the completion response.

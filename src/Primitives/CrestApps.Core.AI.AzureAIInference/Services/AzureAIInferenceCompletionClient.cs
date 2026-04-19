@@ -12,15 +12,17 @@ namespace CrestApps.Core.AI.AzureAIInference.Services;
 
 public sealed class AzureAIInferenceCompletionClient : NamedAICompletionClient
 {
-    public AzureAIInferenceCompletionClient(IAIClientFactory aIClientFactory, ILoggerFactory loggerFactory, IDistributedCache distributedCache, IServiceProvider serviceProvider, IOptions<AIProviderOptions> providerOptions, IEnumerable<IAICompletionServiceHandler> handlers, IOptions<DefaultAIOptions> defaultOptions, ITemplateService aiTemplateService, IAIDeploymentManager deploymentManager) : base(AzureAIInferenceConstants.ImplementationName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, providerOptions.Value, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
+    public AzureAIInferenceCompletionClient(
+        IAIClientFactory aIClientFactory,
+        ILoggerFactory loggerFactory,
+        IDistributedCache distributedCache,
+        IServiceProvider serviceProvider,
+        IOptions<AIProviderOptions> providerOptions,
+        IEnumerable<IAICompletionServiceHandler> handlers,
+        IOptions<DefaultAIOptions> defaultOptions,
+        ITemplateService aiTemplateService,
+        IAIDeploymentManager deploymentManager)
+        : base(AzureAIInferenceConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, providerOptions.Value, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
     {
-    }
-
-    protected override string ProviderName
-    {
-        get
-        {
-            return AzureAIInferenceConstants.ProviderName;
-        }
     }
 }

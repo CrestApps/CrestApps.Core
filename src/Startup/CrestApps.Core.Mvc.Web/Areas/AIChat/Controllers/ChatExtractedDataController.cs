@@ -61,8 +61,13 @@ public sealed class ChatExtractedDataController : Controller
 
         var records = await _extractedDataService.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
         var rows = BuildRows(records);
-        var columns = rows.SelectMany(row => row.Values.Keys).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+
+        var columns = rows.SelectMany(row => row.Values.Keys).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         var fileName = $"chat-extracted-data-{_timeProvider.GetUtcNow():yyyyMMdd-HHmmss}.csv";
+
         return File(Encoding.UTF8.GetBytes(GenerateCsv(rows, columns)), "text/csv", fileName);
     }
 
@@ -78,7 +83,10 @@ public sealed class ChatExtractedDataController : Controller
     {
         var rows = BuildRows(records);
         model.Rows = rows;
-        model.Columns = rows.SelectMany(row => row.Values.Keys).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+        model.Columns = rows.SelectMany(row => row.Values.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static List<ChatExtractedDataRowViewModel> BuildRows(IReadOnlyList<AIChatSessionExtractedDataRecord> records)

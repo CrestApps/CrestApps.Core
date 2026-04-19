@@ -237,7 +237,7 @@ public sealed class ChatInteractionController : Controller
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
             DataSourceFilter = ragMetadata?.Filter,
             ClaudeModel = anthropicMetadata?.ClaudeModel,
-            ClaudeEffortLevel = anthropicMetadata?.EffortLevel ?? CrestApps.Core.AI.Claude.Models.ClaudeEffortLevel.None,
+            ClaudeEffortLevel = anthropicMetadata?.EffortLevel ?? ClaudeEffortLevel.None,
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
             SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
             SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],

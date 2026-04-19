@@ -46,6 +46,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         }
 
         var records = await GetReadQuery().Where(x => itemIds.Contains(x.ItemId)).ToListAsync();
+
         return records.Select(CatalogRecordFactory.Materialize<T>).ToArray();
     }
 

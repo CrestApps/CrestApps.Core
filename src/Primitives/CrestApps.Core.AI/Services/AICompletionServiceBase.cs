@@ -33,7 +33,6 @@ public abstract class AICompletionServiceBase
     /// </summary>
     protected virtual async ValueTask<AIDeployment> ResolveDeploymentAsync(
         AIDeploymentType type,
-        AIProvider provider,
         string providerName,
         string deploymentName = null)
     {

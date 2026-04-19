@@ -38,7 +38,7 @@ builder.Services.AddCoreAIConnectionSource("OpenAI", options =>
     options.Connections.Add(new AIProviderConnectionEntry
     {
         Name = "my-openai",
-        ProviderName = "OpenAI",
+        ClientName = "OpenAI",
         // Set API key and optional endpoint
     });
 });
@@ -48,7 +48,6 @@ builder.Services.AddCoreAIConnectionSource("OpenAI", options =>
 
 | Constant | Value |
 |----------|-------|
-| `OpenAIConstants.ProviderName` | `"OpenAI"` |
 | `OpenAIConstants.ClientName` | `"OpenAI"` |
 
 ## Capabilities
@@ -70,13 +69,15 @@ A full `appsettings.json` configuration for OpenAI:
 {
   "CrestApps": {
     "AI": {
-      "Providers": {
-        "OpenAI": {
-          "ApiKey": "sk-..."
-        }
+        "Connections": [
+          {
+            "Name": "openai-primary",
+            "ClientName": "OpenAI",
+            "ApiKey": "sk-..."
+          }
+        ]
       }
     }
-  }
 }
 ```
 
@@ -88,7 +89,7 @@ builder.Services.AddCoreAIConnectionSource("OpenAI", options =>
     options.Connections.Add(new AIProviderConnectionEntry
     {
         Name = "my-openai",
-        ProviderName = "OpenAI",
+        ClientName = "OpenAI",
         // API key is read from configuration or set directly
     });
 });
@@ -116,13 +117,10 @@ Common examples include:
 | Perplexity | OpenAI-compatible chat/completions endpoint |
 | Ollama / vLLM / LocalAI | Common self-hosted OpenAI-compatible endpoints |
 
-Some providers expose both OpenAI-compatible and native APIs. Anthropic is one example: you can use its OpenAI-compatible endpoint through this client, or use the dedicated **[Claude Orchestrator](../core/claude.md)** when you want the native Claude-oriented integration path.
+Some providers expose both OpenAI-compatible and native APIs. Anthropic is one example: you can use its OpenAI-compatible endpoint through this client, or use the dedicated **[Claude Orchestrator](../orchestration/claude.md)** when you want the native Claude-oriented integration path.
 
 :::tip
-Never commit API keys to source control. Use environment variables, user secrets, or a vault provider:
-```bash
-dotnet user-secrets set "CrestApps:AI:Providers:OpenAI:ApiKey" "sk-..."
-```
+Never commit API keys to source control. Use environment variables, user secrets, or a vault provider for the values you map into your `CrestApps:AI:Connections` configuration.
 :::
 
 ## Available Models

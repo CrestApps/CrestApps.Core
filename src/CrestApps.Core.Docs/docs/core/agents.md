@@ -66,25 +66,25 @@ User message
     │
     ▼
 ┌──────────────────┐
-│  Primary Model    │  ← Chat profile with tools + agents
-│  (Orchestrator)   │
+│  Primary Model   │  ← Chat profile with tools + agents
+│  (Orchestrator)  │
 └────────┬─────────┘
          │ calls agent tool
          ▼
 ┌──────────────────┐
-│  AgentProxyTool   │  ← Receives { "prompt": "Review this code..." }
+│  AgentProxyTool  │  ← Receives { "prompt": "Review this code..." }
 └────────┬─────────┘
          │ builds agent context
          ▼
 ┌──────────────────┐
-│  Agent Model      │  ← Agent profile (own system prompt, deployment)
-│  (tools disabled) │
+│  Agent Model     │  ← Agent profile (own system prompt, deployment)
+│  (tools disabled)│
 └────────┬─────────┘
          │ returns response
          ▼
 ┌──────────────────┐
-│  Primary Model    │  ← Incorporates agent's response and continues
-│  (continues)      │
+│  Primary Model   │  ← Incorporates agent's response and continues
+│  (continues)     │
 └──────────────────┘
 ```
 

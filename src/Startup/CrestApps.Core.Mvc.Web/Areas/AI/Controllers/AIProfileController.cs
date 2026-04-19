@@ -290,13 +290,21 @@ public sealed class AIProfileController : Controller
     private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _a2aConnectionCatalog.GetAllAsync()).Select(connection => connection.ItemId).ToHashSet(StringComparer.Ordinal);
-        return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
+
+        return (selectedIds ?? [])
+            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _mcpConnectionCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
-        return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
+
+        return (selectedIds ?? [])
+            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private async Task PopulateAttachedDocumentsAsync(AIProfileViewModel model, string referenceId, string referenceType)
@@ -307,7 +315,11 @@ public sealed class AIProfileController : Controller
         }
 
         var storedDocuments = await _documentStore.GetDocumentsAsync(referenceId, referenceType);
-        var documentsById = (model.AttachedDocuments ?? []).Where(d => !string.IsNullOrWhiteSpace(d.DocumentId)).ToDictionary(d => d.DocumentId, StringComparer.OrdinalIgnoreCase);
+
+        var documentsById = (model.AttachedDocuments ?? [])
+            .Where(d => !string.IsNullOrWhiteSpace(d.DocumentId))
+            .ToDictionary(d => d.DocumentId, StringComparer.OrdinalIgnoreCase);
+
         foreach (var document in storedDocuments)
         {
             if (string.IsNullOrWhiteSpace(document.ItemId))

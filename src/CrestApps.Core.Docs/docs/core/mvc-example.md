@@ -154,7 +154,7 @@ The MVC sample still binds static provider metadata from `CrestApps:AI:Providers
 
 `AddCoreAIAzureOpenAI()` also registers the `AzureSpeech` deployment provider used by MVC speech-to-text and text-to-speech selectors, so Azure AI Services deployments from `CrestApps:AI:Deployments` participate in the same merged deployment catalog as UI-managed deployments.
 
-The MVC runtime now reads connection definitions from `CrestApps:AI:Connections`, provider-grouped connections under `CrestApps:Providers:{ProviderName}:Connections:{ConnectionName}` or `CrestApps:AI:Providers:{ProviderName}:Connections:{ConnectionName}`, and UI-managed connection records from the store into one merged connection catalog. The deployment catalog layers together UI-managed typed deployments and `CrestApps:AI:Deployments` entries from every configured section. Those deployment entries can either reference a shared `ConnectionName` or carry contained-connection settings directly. That means dropdowns, deployment resolution, and connection resolution all see the same unified set without an app restart.
+The MVC runtime now reads connection definitions from `CrestApps:AI:Connections`, client-grouped connections under `CrestApps:Providers:{ClientName}:Connections:{ConnectionName}` or `CrestApps:AI:Providers:{ClientName}:Connections:{ConnectionName}`, and UI-managed connection records from the store into one merged connection catalog. The deployment catalog layers together UI-managed typed deployments and `CrestApps:AI:Deployments` entries from every configured section. Those deployment entries can either reference a shared `ConnectionName` or carry contained-connection settings directly. That means dropdowns, deployment resolution, and connection resolution all see the same unified set without an app restart.
 
 Both merged catalogs also expose configurable section lists through `AIProviderConnectionCatalogOptions` and `AIDeploymentCatalogOptions`, so a host can append additional configuration paths without replacing the MVC/UI store integration. By default, connection discovery reads `CrestApps:AI:Connections`, `CrestApps:Providers`, and `CrestApps:AI:Providers`, while deployment discovery reads `CrestApps:AI:Deployments`.
 
@@ -165,7 +165,7 @@ Both merged catalogs also expose configurable section lists through `AIProviderC
       "Connections": [
         {
           "Name": "WinnerWare",
-          "ClientName": "AzureOpenAI",
+          "ClientName": "Azure",
           "Endpoint": "https://winnerwareai.openai.azure.com/",
           "AuthenticationType": "ApiKey",
           "ApiKey": "YOUR_API_KEY",
@@ -177,7 +177,7 @@ Both merged catalogs also expose configurable section lists through `AIProviderC
 }
 ```
 
-Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:Connections:{ConnectionName}` and `CrestApps:AI:Providers:{ProviderName}:Connections:{ConnectionName}` still work too. The merged connection catalog keeps those provider-defined records and the `CrestApps:AI:Connections` array visible alongside UI-managed MVC connections, and the MVC AI Deployment editor reads that catalog directly when it builds the connection dropdown. Connection settings only describe the provider connection itself; deployment names and types belong in `CrestApps:AI:Deployments` or in the UI deployment editor, and config deployments can optionally point back to a shared connection by setting `ConnectionName`.
+Client-grouped connection settings under `CrestApps:Providers:{ClientName}:Connections:{ConnectionName}` and `CrestApps:AI:Providers:{ClientName}:Connections:{ConnectionName}` still work too. The merged connection catalog keeps those client-defined records and the `CrestApps:AI:Connections` array visible alongside UI-managed MVC connections, and the MVC AI Deployment editor reads that catalog directly when it builds the connection dropdown. Connection settings only describe the AI connection itself; deployment names and types belong in `CrestApps:AI:Deployments` or in the UI deployment editor, and config deployments can optionally point back to a shared connection by setting `ConnectionName`.
 
 
 ```json
@@ -186,7 +186,7 @@ Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:C
     "AI": {
       "Deployments": [
         {
-          "ProviderName": "AzureSpeech",
+          "ClientName": "AzureSpeech",
           "Name": "whisper",
           "Type": "SpeechToText",
           "Endpoint": "https://eastus.stt.speech.microsoft.com",
@@ -194,7 +194,7 @@ Provider-grouped connection settings under `CrestApps:Providers:{ProviderName}:C
           "ApiKey": "YOUR_API_KEY"
         },
         {
-          "ProviderName": "AzureSpeech",
+          "ClientName": "AzureSpeech",
           "Name": "AzureTextToSpeech",
           "Type": "TextToSpeech",
           "Endpoint": "https://eastus.tts.speech.microsoft.com",

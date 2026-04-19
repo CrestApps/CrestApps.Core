@@ -10,9 +10,10 @@ public interface IAIClientProvider
     /// <summary>
     /// Determines whether this provider can handle the specified provider name.
     /// </summary>
-    /// <param name = "providerName">The name of the provider to check.</param>
+    /// <param name = "clientName">The name of the provider to check.</param>
     /// <returns><c>true</c> if the provider can be handled; otherwise, <c>false</c>.</returns>
-    bool CanHandle(string providerName);
+    bool CanHandle(string clientName);
+
     /// <summary>
     /// Gets an AI chat client for the specified connection and deployment.
     /// </summary>
@@ -20,6 +21,7 @@ public interface IAIClientProvider
     /// <param name = "deploymentName">The optional deployment name to use.</param>
     /// <returns>A <see cref = "ValueTask{IChatClient}"/> representing the asynchronous operation.</returns>
     ValueTask<IChatClient> GetChatClientAsync(AIProviderConnectionEntry connection, string deploymentName = null);
+
     /// <summary>
     /// Gets an embedding generator for the specified connection and deployment.
     /// </summary>
@@ -27,6 +29,7 @@ public interface IAIClientProvider
     /// <param name = "deploymentName">The optional deployment name to use.</param>
     /// <returns>A <see cref = "ValueTask{IEmbeddingGenerator}"/> representing the asynchronous operation.</returns>
     ValueTask<IEmbeddingGenerator<string, Embedding<float>>> GetEmbeddingGeneratorAsync(AIProviderConnectionEntry connection, string deploymentName = null);
+
     /// <summary>
     /// Gets an image generator for the specified connection and deployment.
     /// </summary>
@@ -35,7 +38,6 @@ public interface IAIClientProvider
     /// <returns>A <see cref = "ValueTask{IImageGenerator}"/> representing the asynchronous operation.</returns>
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     ValueTask<IImageGenerator> GetImageGeneratorAsync(AIProviderConnectionEntry connection, string deploymentName = null);
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
@@ -45,9 +47,7 @@ public interface IAIClientProvider
     /// <param name = "connection">The connection entry containing provider configuration.</param>
     /// <param name = "deploymentName">The optional deployment name to use.</param>
     /// <returns>A <see cref = "ValueTask{ISpeechToTextClient}"/> representing the asynchronous operation.</returns>
-
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     ValueTask<ISpeechToTextClient> GetSpeechToTextClientAsync(AIProviderConnectionEntry connection, string deploymentName = null);
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
@@ -57,9 +57,7 @@ public interface IAIClientProvider
     /// <param name = "connection">The connection entry containing provider configuration.</param>
     /// <param name = "deploymentName">The optional deployment name to use.</param>
     /// <returns>A <see cref = "ValueTask{ITextToSpeechClient}"/> representing the asynchronous operation.</returns>
-
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     ValueTask<ITextToSpeechClient> GetTextToSpeechClientAsync(AIProviderConnectionEntry connection, string deploymentName = null);
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
