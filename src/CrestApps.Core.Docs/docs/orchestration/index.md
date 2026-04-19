@@ -412,5 +412,3 @@ Errors from AI providers (rate limits, authentication failures, server errors) p
 | `OperationCanceledException` | Re-thrown immediately |
 | Provider error (rate limit, auth, etc.) | Propagated to caller |
 | Tool execution error | Logged, tool result indicates failure, model continues |
-
-
