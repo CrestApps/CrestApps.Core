@@ -38,6 +38,29 @@ public sealed class AIProviderConnectionEntryFactoryTests
         Assert.Equal("eastus", entry["Region"]);
     }
 
+    [Fact]
+    public void Create_DoesNotOverwriteExistingValuesWithNullHandlerValues()
+    {
+        var connection = new AIProviderConnection
+        {
+            Name = "azure-connection",
+            DisplayText = "Azure Connection",
+            ClientName = "azure-openai",
+            Properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Endpoint"] = "https://flat.openai.azure.com/",
+                ["AuthenticationType"] = "ApiKey",
+                ["ApiKey"] = "flat-key",
+            },
+        };
+
+        var entry = AIProviderConnectionEntryFactory.Create(connection, [new TestAzureConnectionHandler()]);
+
+        Assert.Equal("https://flat.openai.azure.com/", entry["Endpoint"]);
+        Assert.Equal("ApiKey", entry["AuthenticationType"]);
+        Assert.Equal("flat-key", entry["ApiKey"]);
+    }
+
     private sealed class TestAzureConnectionHandler : IAIProviderConnectionHandler
     {
         public void Exporting(ExportingAIProviderConnectionContext context)
@@ -46,6 +69,11 @@ public sealed class AIProviderConnectionEntryFactoryTests
 
         public void Initializing(InitializingAIProviderConnectionContext context)
         {
+            if (!context.Connection.Has<AzureConnectionMetadata>())
+            {
+                return;
+            }
+
             var metadata = context.Connection.GetOrCreate<AzureConnectionMetadata>();
 
             context.Values["Endpoint"] = metadata.Endpoint?.ToString();

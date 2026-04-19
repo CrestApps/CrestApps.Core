@@ -35,6 +35,11 @@ internal static class AIProviderConnectionEntryFactory
 
             foreach (var value in context.Values)
             {
+                if (value.Value == null)
+                {
+                    continue;
+                }
+
                 values[value.Key] = value.Value;
             }
         }

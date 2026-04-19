@@ -23,6 +23,11 @@ internal sealed class AzureOpenAIConnectionHandler : AIProviderConnectionHandler
             return;
         }
 
+        if (!context.Connection.Has<AzureConnectionMetadata>())
+        {
+            return;
+        }
+
         var metadata = context.Connection.GetOrCreate<AzureConnectionMetadata>();
 
         context.Values["Endpoint"] = metadata.Endpoint?.ToString();
