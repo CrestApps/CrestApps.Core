@@ -1,4 +1,6 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI.Handlers;
 using CrestApps.Core.AI.OpenAI.Services;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +19,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OpenAIClientProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProviderConnectionHandler, OpenAIConnectionHandler>());
 
         services.AddCoreAIProfile<OpenAICompletionClient>(OpenAIConstants.ClientName, o =>
         {

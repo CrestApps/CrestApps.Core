@@ -1,6 +1,7 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
@@ -69,6 +70,36 @@ public sealed class AIProviderConnectionOptionsTests
         Assert.True(options.EnableLogging);
         Assert.True(options.EnableMessageLogging);
         Assert.False(options.EnableMessageContentLogging);
+    }
+
+    [Fact]
+    public void AddCoreAIAzureOpenAI_ShouldRegisterAzureConnectionHandler()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDataProtection();
+        services.AddCoreAIServices();
+        services.AddCoreAIAzureOpenAI();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var handlers = serviceProvider.GetServices<IAIProviderConnectionHandler>().ToArray();
+
+        Assert.Contains(handlers, handler => handler.GetType().FullName == "CrestApps.Core.AI.OpenAI.Azure.Handlers.AzureOpenAIConnectionHandler");
+    }
+
+    [Fact]
+    public void AddCoreAIOpenAI_ShouldRegisterOpenAIConnectionHandler()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDataProtection();
+        services.AddCoreAIServices();
+        services.AddCoreAIOpenAI();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var handlers = serviceProvider.GetServices<IAIProviderConnectionHandler>().ToArray();
+
+        Assert.Contains(handlers, handler => handler.GetType().FullName == "CrestApps.Core.AI.OpenAI.Handlers.OpenAIConnectionHandler");
     }
 
     [Fact]

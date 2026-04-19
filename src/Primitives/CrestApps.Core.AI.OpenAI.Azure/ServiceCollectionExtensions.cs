@@ -1,4 +1,6 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI.Azure.Handlers;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
 using CrestApps.Core.Builders;
@@ -22,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<AzureClientOptions>, AzureClientOptionsConfiguration>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureOpenAIClientProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureSpeechClientProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProviderConnectionHandler, AzureOpenAIConnectionHandler>());
 
         services.AddCoreAIProfile<AzureOpenAICompletionClient>(AzureOpenAIConstants.ClientName, o =>
         {
