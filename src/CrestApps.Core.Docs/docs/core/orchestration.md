@@ -1,11 +1,11 @@
 ---
-sidebar_label: Orchestration
+sidebar_label: Overview
 sidebar_position: 4
-title: Orchestration
+title: Overview
 description: The orchestration pipeline manages tool calling, progressive scoping, RAG, and the agentic execution loop.
 ---
 
-# Orchestration
+# Overview
 
 > High-level agentic pipeline that manages tool calling, progressive scoping, retrieval-augmented generation, and streaming responses.
 
@@ -412,5 +412,3 @@ Errors from AI providers (rate limits, authentication failures, server errors) p
 | `OperationCanceledException` | Re-thrown immediately |
 | Provider error (rate limit, auth, etc.) | Propagated to caller |
 | Tool execution error | Logged, tool result indicates failure, model continues |
-
-
