@@ -8,6 +8,11 @@ internal static class AIProviderConnectionEntryFactory
 {
     public static AIProviderConnectionEntry Create(AIProviderConnection connection)
     {
+        return Create(connection, []);
+    }
+
+    public static AIProviderConnectionEntry Create(AIProviderConnection connection, IEnumerable<IAIProviderConnectionHandler> handlers)
+    {
         ArgumentNullException.ThrowIfNull(connection);
 
         var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -19,6 +24,18 @@ internal static class AIProviderConnectionEntryFactory
                 values[property.Key] = property.Value is JsonNode jsonNode
                     ? jsonNode.GetRawValue()
                     : property.Value;
+            }
+        }
+
+        foreach (var handler in handlers)
+        {
+            var context = new InitializingAIProviderConnectionContext(connection);
+
+            handler.Initializing(context);
+
+            foreach (var value in context.Values)
+            {
+                values[value.Key] = value.Value;
             }
         }
 

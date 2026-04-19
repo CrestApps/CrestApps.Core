@@ -11,6 +11,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 {
     private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
     private readonly IEnumerable<IAIClientProvider> _clientProviders;
+    private readonly IEnumerable<IAIProviderConnectionHandler> _connectionHandlers;
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IServiceProvider _serviceProvider;
@@ -18,6 +19,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
     public DefaultAIClientFactory(
         IEnumerable<IAIClientProvider> clientProviders,
+        IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
         IDataProtectionProvider dataProtectionProvider,
         IServiceProvider serviceProvider,
         ILogger<DefaultAIClientFactory> logger,
@@ -25,6 +27,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     {
         _connectionCatalog = connectionCatalog;
         _clientProviders = clientProviders;
+        _connectionHandlers = connectionHandlers;
         _dataProtectionProvider = dataProtectionProvider;
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -155,7 +158,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
                 throw new ArgumentException($"Connection '{deployment.ConnectionName}' not found within the client '{deployment.ClientName}'.");
             }
 
-            return AIProviderConnectionEntryFactory.Create(connection);
+            return AIProviderConnectionEntryFactory.Create(connection, _connectionHandlers);
         }
 
         // Contained-connection deployment: build an AIProviderConnectionEntry from the deployment's Properties.
