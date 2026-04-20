@@ -146,6 +146,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
             yield return chunk;
         }
     }
+
     /// <summary>
     /// Runs the planning phase: a lightweight LLM call to identify required capabilities.
     /// Uses the utility model when configured, falling back to the default deployment.
@@ -230,6 +231,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
             return null;
         }
     }
+
     /// <summary>
     /// Scopes tools by matching a scoring text against the tool registry
     /// using the shared <see cref="ITextTokenizer"/> for consistent tokenization.
@@ -368,6 +370,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>(scopedEntries);
     }
+
     /// <summary>
     /// Builds the message list for the planning phase by including recent conversation
     /// history (user and assistant text messages only) so the planner understands
@@ -397,6 +400,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         return messages;
     }
+
     /// <summary>
     /// Builds a scoring context from the user's current message and recent conversation
     /// history for lightweight token-based tool scoping (no LLM call).
@@ -421,6 +425,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         return sb.ToString();
     }
+
     /// <summary>
     /// Attempts to create a chat client using the utility deployment,
     /// falling back to the chat deployment if no utility deployment is configured.
@@ -439,6 +444,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         return await _aiClientFactory.CreateChatClientAsync(deployment);
     }
+
     /// <summary>
     /// Resolves the chat deployment from the orchestration context.
     /// </summary>

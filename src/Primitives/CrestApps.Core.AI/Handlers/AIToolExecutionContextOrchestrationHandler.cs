@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 
 namespace CrestApps.Core.AI.Handlers;
+
 /// <summary>
 /// Sets the <see cref = "AIToolExecutionContext"/> on the current <see cref = "AIInvocationScope"/>
 /// after the orchestration context is fully built. This removes the need for individual

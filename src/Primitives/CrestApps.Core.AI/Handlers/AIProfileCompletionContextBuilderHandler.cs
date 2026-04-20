@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Handlers;
+
 /// <summary>
 /// Populates the <see cref = "AICompletionContext"/> from <see cref = "AIProfile"/> settings
 /// including connection, deployment, metadata parameters, and tool names.

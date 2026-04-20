@@ -324,7 +324,6 @@ public sealed class ChatInteractionController : Controller
                 ItemId = connection.ItemId,
                 DisplayText = connection.DisplayText,
                 Endpoint = connection.Endpoint,
-
                 IsSelected = selectedConnectionIds.Contains(connection.ItemId),
             })
         .ToList();
@@ -339,7 +338,6 @@ public sealed class ChatInteractionController : Controller
                 ItemId = c.ItemId,
                 DisplayText = c.DisplayText,
                 Source = c.Source,
-
                 IsSelected = selectedMcpIds.Contains(c.ItemId),
             })
         .ToList();
@@ -370,7 +368,6 @@ public sealed class ChatInteractionController : Controller
             {
                 Name = p.Name,
                 DisplayText = p.DisplayText ?? p.Name,
-
                 IsSelected = selectedAgentNames.Contains(p.Name),
             })
         .ToList();
@@ -391,7 +388,6 @@ public sealed class ChatInteractionController : Controller
                 {
                     Name = p.Name,
                     Description = p.Description,
-
                 }).ToList(),
             })
         .ToList();
@@ -460,7 +456,6 @@ public sealed class ChatInteractionController : Controller
                 ItemId = connection.ItemId,
                 DisplayText = connection.DisplayText,
                 Endpoint = connection.Endpoint,
-
                 IsSelected = selectedConnectionIds.Contains(connection.ItemId),
             })
         .ToList();
@@ -475,7 +470,6 @@ public sealed class ChatInteractionController : Controller
                 ItemId = c.ItemId,
                 DisplayText = c.DisplayText,
                 Source = c.Source,
-
                 IsSelected = selectedMcpIds.Contains(c.ItemId),
             })
         .ToList();
@@ -506,7 +500,6 @@ public sealed class ChatInteractionController : Controller
             {
                 Name = p.Name,
                 DisplayText = p.DisplayText ?? p.Name,
-
                 IsSelected = selectedAgentNames.Contains(p.Name),
             })
         .ToList();
@@ -527,7 +520,6 @@ public sealed class ChatInteractionController : Controller
                 {
                     Name = p.Name,
                     Description = p.Description,
-
                 }).ToList(),
             })
         .ToList();
@@ -718,7 +710,6 @@ public sealed class ChatInteractionController : Controller
 
             var result = await _documentProcessingService.ProcessFileAsync(
                 file,
-
                 interaction.ItemId,
                 AIReferenceTypes.Document.ChatInteraction,
                 embeddingGenerator);

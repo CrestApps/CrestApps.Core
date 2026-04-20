@@ -3,6 +3,7 @@ using CrestApps.Core.AI.ResponseHandling;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
+
 /// <summary>
 /// Resolves <see cref = "IChatResponseHandler"/> instances by name from the DI container.
 /// When the requested name is <see langword="null"/> or empty, returns the default AI handler.

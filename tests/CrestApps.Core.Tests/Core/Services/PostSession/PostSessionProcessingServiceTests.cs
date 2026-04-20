@@ -58,6 +58,37 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessAsync_WhenNoUserPrompts_ShouldReturnNullWithoutCallingChatClient()
+    {
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks =
+            [
+                new PostSessionTask
+                {
+                    Name = "summary",
+                    Type = PostSessionTaskType.Semantic,
+                    Instructions = "Summarize the conversation.",
+                },
+            ];
+        });
+
+        var session = CreateSession();
+        var prompts = CreateAssistantOnlyPrompts();
+        var mockChatClient = new Mock<IChatClient>(MockBehavior.Strict);
+        var service = CreateService(chatClient: mockChatClient.Object);
+
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        mockChatClient.Verify(
+            c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task ProcessAsync_WithTasksAndNoTools_ShouldUseStructuredOutputPath()
     {
         // Arrange: tasks configured but no tool names — should use structured output (GetResponseAsync<T>).
@@ -430,6 +461,19 @@ public sealed class PostSessionProcessingServiceTests
             Content = "Sure! I'd be happy to help. Could you provide your order number?",
             CreatedUtc = DateTime.UtcNow,
         }, ];
+    }
+
+    private static List<AIChatSessionPrompt> CreateAssistantOnlyPrompts()
+    {
+        return
+        [
+            new AIChatSessionPrompt
+            {
+                Role = ChatRole.Assistant,
+                Content = "Hello, how can I help you today?",
+                CreatedUtc = DateTime.UtcNow,
+            },
+        ];
     }
 
     private static PostSessionProcessingService CreateService(IChatClient chatClient = null, IAIToolsService toolsService = null, ITemplateService templateService = null)

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.ResponseHandling;
+
 /// <summary>
 /// Represents the result of an <see cref = "IChatResponseHandler"/> processing a chat prompt.
 /// A result is either <em>streaming</em> (the response is available immediately as a stream
@@ -16,6 +17,7 @@ public sealed class ChatResponseHandlerResult
     /// asynchronously (e.g., via webhook, background task, or external callback).
     /// </summary>
     public bool IsDeferred { get; init; }
+
     /// <summary>
     /// Gets the streaming response. Only available when <see cref = "IsDeferred"/> is <see langword="false"/>.
     /// Each <see cref = "ChatResponseUpdate"/> contains a partial text chunk to be streamed to the client.

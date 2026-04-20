@@ -6,6 +6,7 @@ using Elastic.Clients.Elasticsearch.Core.Bulk;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Elasticsearch.Services;
+
 /// <summary>
 /// Elasticsearch implementation of <see cref = "ISearchDocumentManager"/>
 /// for adding, updating, and deleting documents in search indexes.

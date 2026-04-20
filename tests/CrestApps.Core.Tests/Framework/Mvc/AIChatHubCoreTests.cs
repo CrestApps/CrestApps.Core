@@ -45,6 +45,15 @@ public sealed class AIChatHubCoreTests
         Assert.True(committer.WasCommitted);
     }
 
+    [Theory]
+    [InlineData(ChatSessionStatus.Closed, true)]
+    [InlineData(ChatSessionStatus.Abandoned, true)]
+    [InlineData(ChatSessionStatus.Active, false)]
+    public void IsEndedStatus_ReturnsExpectedValue(ChatSessionStatus status, bool expected)
+    {
+        Assert.Equal(expected, TestAIChatHub.IsEndedStatusForTest(status));
+    }
+
     private sealed class TestAIChatHub : AIChatHubCore<IAIChatHubClient>
     {
         public TestAIChatHub(IServiceProvider services)
@@ -55,6 +64,17 @@ public sealed class AIChatHubCoreTests
         public Task SaveChatSessionForTestAsync(IAIChatSessionManager sessionManager, AIChatSession chatSession)
         {
             return SaveChatSessionAsync(sessionManager, chatSession);
+        }
+
+        public static bool IsEndedStatusForTest(ChatSessionStatus status)
+        {
+            var method = typeof(AIChatHubCore<IAIChatHubClient>).GetMethod(
+                "IsEndedStatus",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+            Assert.NotNull(method);
+
+            return (bool)method.Invoke(null, new object[] { status });
         }
     }
 

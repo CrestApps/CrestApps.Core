@@ -31,7 +31,6 @@ public sealed class SystemToolRegistryProviderTests
             Name = "regular_tool",
             Title = "Regular Tool",
             Description = "A normal tool",
-
         });
 
         var provider = new SystemToolRegistryProvider(Options.Create(options));
@@ -49,7 +48,6 @@ public sealed class SystemToolRegistryProviderTests
         [
             ("tool_a", "Tool A", "First tool"),
             ("tool_b", "Tool B", "Second tool"),
-
             ]);
 
         var result = await provider.GetToolsAsync(new AICompletionContext(), TestContext.Current.CancellationToken);
@@ -65,7 +63,6 @@ public sealed class SystemToolRegistryProviderTests
         var provider = CreateProvider(
         [
         ("my_tool", "My Tool", "Perform vector search over uploaded documents"),
-
             ]);
 
         var result = await provider.GetToolsAsync(new AICompletionContext(), TestContext.Current.CancellationToken);
@@ -85,7 +82,6 @@ public sealed class SystemToolRegistryProviderTests
             Name = "my_tool",
             IsSystemTool = true,
             Title = "My Tool Title",
-
         });
 
         var provider = new SystemToolRegistryProvider(Options.Create(options));
@@ -114,7 +110,6 @@ public sealed class SystemToolRegistryProviderTests
             Name = "regular_tool",
             Title = "Regular Tool",
             Description = "A regular tool",
-
         });
 
         var provider = new SystemToolRegistryProvider(Options.Create(options));
@@ -143,7 +138,6 @@ public sealed class SystemToolRegistryProviderTests
     public async Task GetToolsAsync_DataSourceSearchTool_ExcludedWhenNoDataSource()
     {
         var provider = CreateProviderWithPurpose(
-
         ("search_data_sources", "Search Data Sources", "Search data sources", AIToolPurposes.DataSourceSearch));
 
         var context = new AICompletionContext();
@@ -158,7 +152,6 @@ public sealed class SystemToolRegistryProviderTests
     public async Task GetToolsAsync_DataSourceSearchTool_IncludedWhenDataSourceSet()
     {
         var provider = CreateProviderWithPurpose(
-
         ("search_data_sources", "Search Data Sources", "Search data sources", AIToolPurposes.DataSourceSearch));
 
         var context = new AICompletionContext { DataSourceId = "ds-123" };
@@ -174,7 +167,6 @@ public sealed class SystemToolRegistryProviderTests
     public async Task GetToolsAsync_DocumentProcessingTool_ExcludedWhenNoDocuments()
     {
         var provider = CreateProviderWithPurpose(
-
         ("search_documents", "Search Docs", "Search uploaded documents", AIToolPurposes.DocumentProcessing));
 
         var context = new AICompletionContext();
@@ -189,7 +181,6 @@ public sealed class SystemToolRegistryProviderTests
     public async Task GetToolsAsync_DocumentProcessingTool_IncludedWhenHasDocumentsSet()
     {
         var provider = CreateProviderWithPurpose(
-
         ("search_documents", "Search Docs", "Search uploaded documents", AIToolPurposes.DocumentProcessing));
 
         var context = new AICompletionContext();
@@ -227,7 +218,6 @@ public sealed class SystemToolRegistryProviderTests
             IsSystemTool = true,
             Description = "Generate an image",
             Purpose = AIToolPurposes.ContentGeneration,
-
         });
 
         var provider = new SystemToolRegistryProvider(Options.Create(options));
@@ -266,7 +256,6 @@ public sealed class SystemToolRegistryProviderTests
             IsSystemTool = true,
             Description = "Generate an image",
             Purpose = AIToolPurposes.ContentGeneration,
-
         });
 
         var provider = new SystemToolRegistryProvider(Options.Create(options));

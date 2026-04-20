@@ -322,6 +322,7 @@ public sealed class DefaultOAuth2TokenServiceTests
             });
         });
     }
+
     /// <summary>
     /// Synchronously parses form-encoded content from the request.
     /// </summary>

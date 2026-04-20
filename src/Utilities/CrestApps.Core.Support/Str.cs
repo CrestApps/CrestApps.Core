@@ -36,6 +36,7 @@ public partial class Str
 
         return str;
     }
+
     /// <summary>
     /// Gets a null if the giving string is null or whitespace or a trimmed string.
     /// </summary>
@@ -62,6 +63,7 @@ public partial class Str
 
         return value;
     }
+
     /// <summary>
     /// Adds a space after each Capital Letter.
     /// "HelloWorldThisIsATest" would then be "Hello World This Is A Test".
@@ -77,6 +79,7 @@ public partial class Str
 
         return SpaceBeforeWords().Replace(text, " $1$2").Trim();
     }
+
     /// <summary>
     /// Add ordinal to a giving number.
     /// </summary>

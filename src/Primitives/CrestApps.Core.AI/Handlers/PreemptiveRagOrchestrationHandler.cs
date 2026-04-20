@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Handlers;
+
 /// <summary>
 /// Orchestration handler that coordinates preemptive RAG across all registered
 /// <see cref = "IPreemptiveRagHandler"/> implementations. Extracts focused search queries

@@ -4,6 +4,7 @@ using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
+
 /// <summary>
 /// Injects already extracted chat-session fields into the live orchestration context
 /// so scripted profiles do not keep asking for values that are already known.

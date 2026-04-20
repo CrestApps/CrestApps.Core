@@ -242,6 +242,7 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
 
         return firstLine.ToString().Trim();
     }
+
     /// <summary>
     /// Escapes a value for safe use in an OData filter expression by replacing
     /// single quotes with doubled single quotes.

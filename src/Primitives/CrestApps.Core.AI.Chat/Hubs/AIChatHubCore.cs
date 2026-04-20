@@ -24,6 +24,7 @@ using Microsoft.Extensions.Options;
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
 namespace CrestApps.Core.AI.Chat.Hubs;
+
 /// <summary>
 /// Core SignalR hub for AI chat sessions. Provides streaming message delivery,
 /// session management, message rating, handler transfer, conversation mode support,
@@ -874,7 +875,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var (chatSession, isNew) = await GetOrCreateSessionAsync(services, sessionId, profile, prompt);
         await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
         var utcNow = GetUtcNow();
-        if (chatSession.Status == ChatSessionStatus.Closed)
+        if (IsEndedStatus(chatSession.Status))
         {
             chatSession.Status = ChatSessionStatus.Active;
             chatSession.ClosedAtUtc = null;
@@ -1091,6 +1092,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         return (chatSession, true);
     }
 
+    private static bool IsEndedStatus(ChatSessionStatus status)
+    {
+        return status is ChatSessionStatus.Closed or ChatSessionStatus.Abandoned;
+    }
+
     /// <summary>
     /// Creates the payload object sent to clients when a session is loaded.
     /// </summary>
@@ -1216,6 +1222,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
 #pragma warning restore MEAI001
 #pragma warning disable MEAI001
+
     /// <summary>
     /// Runs the full conversation loop: transcribes speech input, sends it through
     /// the AI pipeline, and streams the synthesized speech response.
@@ -1455,6 +1462,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
 #pragma warning restore MEAI001
 #pragma warning disable MEAI001
+
     /// <summary>
     /// Streams real-time speech-to-text transcription of audio input to the caller.
     /// </summary>

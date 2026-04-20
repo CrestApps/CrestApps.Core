@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Models;

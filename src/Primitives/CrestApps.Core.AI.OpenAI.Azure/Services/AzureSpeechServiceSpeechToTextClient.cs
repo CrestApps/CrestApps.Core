@@ -11,6 +11,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
+
 /// <summary>
 /// An <see cref = "ISpeechToTextClient"/> implementation that uses the Azure Speech SDK
 /// for speech-to-text recognition. Supports continuous recognition for real-time streaming.

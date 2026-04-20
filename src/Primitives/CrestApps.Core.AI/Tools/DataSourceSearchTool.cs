@@ -163,7 +163,6 @@ public sealed class DataSourceSearchTool : AIFunction
             var results = await contentManager.SearchAsync(
                 masterIndexProfile,
                 embeddings[0].Vector.ToArray(),
-
             dataSourceId,
             siteSettings.GetTopNDocuments(ragMetadata?.TopNDocuments),
             providerFilter,
@@ -249,7 +248,6 @@ public sealed class DataSourceSearchTool : AIFunction
                         Title = kvp.Value.Title,
                         Index = kvp.Value.Index,
                         ReferenceId = kvp.Key,
-
                         ReferenceType = kvp.Value.ReferenceType,
                     });
                 }

@@ -142,6 +142,7 @@ public sealed class InMemoryMcpCapabilityEmbeddingCacheTests
             FetchedUtc = DateTime.UtcNow,
         };
     }
+
     /// <summary>
     /// A fake embedding generator that returns a fixed embedding vector for each input.
     /// </summary>

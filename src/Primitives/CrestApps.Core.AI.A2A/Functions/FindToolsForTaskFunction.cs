@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.A2A.Functions;
+
 /// <summary>
 /// An AI system function that uses keyword and semantic search to find the most relevant
 /// AI tools for a given task. Delegates to <see cref = "IToolRegistry.SearchAsync"/> for

@@ -7,6 +7,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
+
 /// <summary>
 /// Client provider for "AzureSpeech" deployments.
 /// Uses the Azure Speech SDK for speech-to-text and text-to-speech.

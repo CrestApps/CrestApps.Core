@@ -76,6 +76,7 @@ public sealed class FluidTemplateEngine : ITemplateEngine
 
         return true;
     }
+
     /// <summary>
     /// Normalizes whitespace in the rendered output so templates can be written
     /// with readable formatting while producing clean output for AI consumption.

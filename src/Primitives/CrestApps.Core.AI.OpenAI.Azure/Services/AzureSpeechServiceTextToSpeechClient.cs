@@ -198,6 +198,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
             _logger.LogDebug("Streaming synthesis iteration completed.");
         }
     }
+
     /// <summary>
     /// Gets the available voices for text-to-speech synthesis.
     /// </summary>
@@ -317,11 +318,9 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         {
             AzureAuthenticationType.ApiKey
                 => SpeechConfig.FromSubscription(_apiKey, region),
-
             AzureAuthenticationType.ManagedIdentity or AzureAuthenticationType.Default
                 => SpeechConfig.FromAuthorizationToken(
                     await GetAuthorizationTokenAsync(cancellationToken), region),
-
             _ => throw new NotSupportedException(
                 $"Authentication type '{_authType}' is not supported for Azure Speech."),
         };
@@ -333,11 +332,9 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         {
             AzureAuthenticationType.ApiKey
                 => SpeechConfig.FromEndpoint(_endpoint, _apiKey),
-
             AzureAuthenticationType.ManagedIdentity or AzureAuthenticationType.Default
                 => CreateEndpointConfigWithToken(
                     await GetAuthorizationTokenAsync(cancellationToken)),
-
             _ => throw new NotSupportedException(
                 $"Authentication type '{_authType}' is not supported for Azure Speech."),
         };

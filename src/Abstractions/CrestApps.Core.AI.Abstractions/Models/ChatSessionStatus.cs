@@ -4,4 +4,5 @@ public enum ChatSessionStatus
 {
     Active,
     Closed,
+    Abandoned,
 }

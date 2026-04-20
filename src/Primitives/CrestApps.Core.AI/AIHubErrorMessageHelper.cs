@@ -10,6 +10,7 @@ internal static class AIHubErrorMessageHelper
 {
     private const string ClientResultExceptionName = "ClientResultException";
     private static readonly string[] RateLimitIndicators = ["ratelimitreached", "rate limit", "too many requests"];
+
     /// <summary>
     /// Maps provider exceptions to localized, user-friendly error messages.
     /// </summary>
@@ -39,19 +40,14 @@ internal static class AIHubErrorMessageHelper
                 {
                     HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
                         => S["Authentication failed. Please check your API credentials."],
-
                     HttpStatusCode.BadRequest
                         => S["Invalid request. Please verify your connection settings."],
-
                     HttpStatusCode.NotFound
                         => S["The provider endpoint could not be found. Please verify the API URL."],
-
                     HttpStatusCode.TooManyRequests
                         => S["Rate limit reached. Please wait and try again later."],
-
                     >= HttpStatusCode.InternalServerError
                         => S["The provider service is currently unavailable. Please try again later."],
-
                     _ => S["An error occurred while communicating with the provider."]
                 };
             }

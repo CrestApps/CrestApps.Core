@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Copilot.Handlers;
+
 /// <summary>
 /// Handles Copilot-specific settings (model and flags) when a
 /// <see cref = "ChatInteraction"/> is saved via the SignalR hub.
