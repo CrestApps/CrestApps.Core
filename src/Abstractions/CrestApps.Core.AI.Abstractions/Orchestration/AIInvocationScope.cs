@@ -1,4 +1,5 @@
 namespace CrestApps.Core.AI.Orchestration;
+
 /// <summary>
 /// Manages an <see cref = "AsyncLocal{T}"/>-backed ambient context for AI invocations.
 /// Each SignalR hub method call (or any entry point) creates a scope with
@@ -28,6 +29,7 @@ namespace CrestApps.Core.AI.Orchestration;
 public static class AIInvocationScope
 {
     private static readonly AsyncLocal<AIInvocationContext> _current = new();
+
     /// <summary>
     /// Gets the <see cref = "AIInvocationContext"/> for the current async execution flow,
     /// or <c>null</c> if no scope has been started.

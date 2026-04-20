@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Mvc.Web.Tools;
+
 /// <summary>
 /// A sample AI tool that performs basic arithmetic calculations.
 /// Demonstrates a tool with structured parameters and validation.
@@ -33,11 +34,9 @@ public sealed class CalculatorTool : AIFunction
           "description": "The first operand."
 
         },
-
         "b": {
 
           "type": "number",
-
           "description": "The second operand."
         }
       },

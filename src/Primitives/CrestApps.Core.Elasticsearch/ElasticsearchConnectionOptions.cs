@@ -20,6 +20,7 @@ public sealed class ElasticsearchConnectionOptions
     /// Optional password for basic authentication.
     /// </summary>
     public string Password { get; set; }
+
     /// <summary>
     /// Optional certificate fingerprint for TLS verification.
     /// </summary>

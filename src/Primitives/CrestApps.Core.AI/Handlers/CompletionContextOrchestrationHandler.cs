@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 
 namespace CrestApps.Core.AI.Handlers;
+
 /// <summary>
 /// Core orchestration context handler that builds the <see cref = "AICompletionContext"/>
 /// from the resource using the existing <see cref = "IAICompletionContextBuilder"/> pipeline,

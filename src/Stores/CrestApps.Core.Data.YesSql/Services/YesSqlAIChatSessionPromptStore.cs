@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.AI;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using CrestApps.Core.Models;

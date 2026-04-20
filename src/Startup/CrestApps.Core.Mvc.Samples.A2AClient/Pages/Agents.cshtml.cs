@@ -174,6 +174,7 @@ public sealed class AgentsModel : PageModel
             ErrorMessage = $"An error occurred while loading agent cards: {ex.Message}";
         }
     }
+
     /// <summary>
     /// Custom <see cref="IActionResult"/> that streams A2A events as text/event-stream
     /// so the browser receives chunks incrementally.

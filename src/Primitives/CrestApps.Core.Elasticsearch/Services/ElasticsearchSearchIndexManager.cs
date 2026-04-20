@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Elasticsearch.Services;
+
 /// <summary>
 /// Elasticsearch implementation of <see cref = "ISearchIndexManager"/>
 /// for creating, deleting, and checking search indexes.

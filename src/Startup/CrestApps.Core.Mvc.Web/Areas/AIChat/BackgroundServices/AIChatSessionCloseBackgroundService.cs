@@ -3,13 +3,14 @@ using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
+using Microsoft.Extensions.AI;
 using YesSql;
 using ISession = YesSql.ISession;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 
 /// <summary>
-/// Periodically closes inactive AI chat sessions and marks them for post-session processing.
+/// Periodically finalizes inactive AI chat sessions and marks them for post-session processing.
 /// Mirrors the behavior of Orchard Core's AIChatSessionCloseBackgroundTask.
 /// </summary>
 public sealed class AIChatSessionCloseBackgroundService : BackgroundService
@@ -62,8 +63,9 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
             }
         }
     }
+
     /// <summary>
-    /// Finds active sessions that have exceeded their profile's inactivity timeout and closes them.
+    /// Finds active sessions that have exceeded their profile's inactivity timeout and finalizes them.
     /// </summary>
     private async Task CloseInactiveSessionsAsync(
         ISession session,
@@ -98,12 +100,12 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
 
             foreach (var chatSession in inactiveSessions)
             {
-                chatSession.Status = ChatSessionStatus.Closed;
+                var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
+                chatSession.Status = DetermineInactiveSessionStatus(prompts);
                 chatSession.ClosedAtUtc = utcNow;
 
                 if (AIChatSessionPostCloseProcessor.NeedsProcessing(profile, chatSession))
                 {
-                    var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
                     await postCloseProcessor.ProcessAsync(profile, chatSession, prompts, cancellationToken);
                 }
                 else
@@ -116,9 +118,10 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
                     _logger.LogDebug(
-                        "Closed inactive session '{SessionId}' for profile '{ProfileId}'. Post-processing: {NeedsProcessing}.",
+                        "Finalized inactive session '{SessionId}' for profile '{ProfileId}' as '{Status}'. Post-processing: {NeedsProcessing}.",
                         chatSession.SessionId,
                         profile.ItemId,
+                        chatSession.Status,
                         chatSession.PostSessionProcessingStatus != PostSessionProcessingStatus.None);
                 }
             }
@@ -134,7 +137,8 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
     {
         var pendingSessions = await session
             .Query<AIChatSession, AIChatSessionIndex>(
-                i => i.Status == (int)ChatSessionStatus.Closed)
+                i => i.Status == (int)ChatSessionStatus.Closed
+                    || i.Status == (int)ChatSessionStatus.Abandoned)
                     .ListAsync(cancellationToken);
 
         foreach (var chatSession in pendingSessions)
@@ -185,5 +189,14 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                     chatSession.SessionId);
             }
         }
+    }
+
+    private static ChatSessionStatus DetermineInactiveSessionStatus(IReadOnlyList<AIChatSessionPrompt> prompts)
+    {
+        ArgumentNullException.ThrowIfNull(prompts);
+
+        return prompts.Any(prompt => prompt.Role == ChatRole.User)
+            ? ChatSessionStatus.Closed
+            : ChatSessionStatus.Abandoned;
     }
 }

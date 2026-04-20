@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.Data.YesSql.Indexes.Indexing;
+using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;

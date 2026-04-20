@@ -161,6 +161,7 @@ public sealed class GitHubOAuthService
             UpdatedUtc = credential.UpdatedUtc,
         };
     }
+
     /// <summary>
     /// Gets the raw protected (encrypted) credentials for the specified user.
     /// These can be stored on an AIProfile entity for reuse across sessions.
@@ -209,6 +210,7 @@ public sealed class GitHubOAuthService
             return null;
         }
     }
+
     /// <summary>
     /// Unprotects a stored access token from a <see cref="CopilotSessionMetadata"/>,
     /// typically stored on an <see cref="AI.Models.AIProfile"/> entity.

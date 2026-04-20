@@ -350,6 +350,7 @@ public sealed class SseClientTransportProviderTests
         return options?.AdditionalHeaders as Dictionary<string, string>
         ?? new Dictionary<string, string>();
     }
+
     /// <summary>
     /// A pass-through data protector that returns values unchanged.
     /// This simulates the behavior of decryption returning the original value.

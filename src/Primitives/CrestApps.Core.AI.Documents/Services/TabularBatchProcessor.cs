@@ -109,7 +109,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
         {
             _logger.LogDebug(
                 "Split document '{FileName}' into {BatchCount} batches of up to {BatchSize} rows each.",
-
                 fileName, batches.Count, batchSize);
         }
 
@@ -269,7 +268,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                     batch.RowStartIndex,
                     batch.RowEndIndex,
                     batch.RowCount,
-
                     "Completion context is not available.");
             }
 
@@ -299,9 +297,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
             var response = await _completionService.CompleteAsync(
                 deployment,
-
                 [new ChatMessage(ChatRole.User, batchPrompt)],
-
                 completionContext,
                 linkedCts.Token);
 
@@ -313,7 +309,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                     batch.BatchIndex,
                     batch.RowStartIndex,
                     batch.RowEndIndex,
-
                     batch.RowCount,
                     "LLM returned empty response.");
             }
@@ -321,7 +316,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(
-
                     "Successfully processed batch {BatchIndex} (rows {StartRow}-{EndRow}) from '{FileName}'.",
                     batch.BatchIndex, batch.RowStartIndex, batch.RowEndIndex, batch.FileName);
             }
@@ -362,7 +356,6 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                 batch.RowStartIndex,
                 batch.RowEndIndex,
                 batch.RowCount,
-
                 $"An error occurred while processing the batch.");
         }
     }

@@ -29,6 +29,7 @@ public static class QueryHelpers
         return AddQueryString(
             uri, [new KeyValuePair<string, string>(name, value)]);
     }
+
     /// <summary>
     /// Append the given query keys and values to the URI.
     /// </summary>
@@ -44,6 +45,7 @@ public static class QueryHelpers
 
         return AddQueryString(uri, (IEnumerable<KeyValuePair<string, string>>)queryString);
     }
+
     /// <summary>
     /// Append the given query keys and values to the URI.
     /// </summary>

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text;
@@ -21,6 +21,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Copilot.Services;
+
 /// <summary>
 /// An orchestrator that delegates planning, tool selection, and execution to the
 /// GitHub Copilot SDK. Copilot handles all agentic behavior including tool invocation,

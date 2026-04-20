@@ -205,15 +205,12 @@ public sealed class AIProfileViewModel
             PromptSubject = profile.PromptSubject,
             Description = profile.Description,
             TitleType = profile.TitleType,
-
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
             VoiceName = chatModeSettings?.VoiceName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
-
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
             IsRemovable = settings.IsRemovable,
-
             EnableDataExtraction = dataExtractionSettings.EnableDataExtraction,
             ExtractionCheckInterval = dataExtractionSettings.ExtractionCheckInterval,
             SessionInactivityTimeoutInMinutes = dataExtractionSettings.SessionInactivityTimeoutInMinutes,
@@ -226,7 +223,6 @@ public sealed class AIProfileViewModel
                     IsUpdatable = e.IsUpdatable,
                 })
             .ToList(),
-
             EnablePostSessionProcessing = postSessionSettings.EnablePostSessionProcessing,
             PostSessionTasks = postSessionSettings.PostSessionTasks.Select(t => new PostSessionTaskItem
             {
@@ -240,7 +236,6 @@ public sealed class AIProfileViewModel
                 SelectedA2AConnectionIds = t.A2AConnectionIds ?? [],
                 SelectedMcpConnectionIds = t.McpConnectionIds ?? [],
             }).ToList(),
-
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
 

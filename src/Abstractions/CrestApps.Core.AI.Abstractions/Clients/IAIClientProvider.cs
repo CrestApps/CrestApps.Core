@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Clients;
+
 /// <summary>
 /// Provides methods to obtain AI chat clients and embedding generators for specific providers.
 /// </summary>

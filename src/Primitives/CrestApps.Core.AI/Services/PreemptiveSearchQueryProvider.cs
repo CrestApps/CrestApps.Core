@@ -20,6 +20,7 @@ public sealed class PreemptiveSearchQueryProvider
     /// <see cref="OrchestrationContext.Properties"/>.
     /// </summary>
     private const string CacheKey = "PreemptiveSearchQueries";
+
     /// <summary>
     /// The maximum number of recent conversation messages (user + assistant) to include
     /// when extracting search queries, so follow-up messages are resolved correctly.
@@ -42,6 +43,7 @@ public sealed class PreemptiveSearchQueryProvider
         _aiTemplateService = aiTemplateService;
         _logger = logger;
     }
+
     /// <summary>
     /// Gets search queries for the given context. The queries are extracted from the user's
     /// message using a utility LLM call and cached in

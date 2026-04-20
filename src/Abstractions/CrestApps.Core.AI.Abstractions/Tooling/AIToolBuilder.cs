@@ -27,6 +27,7 @@ public sealed class AIToolBuilder<TTool>
 
         return this;
     }
+
     /// <summary>
     /// Sets the description for this tool.
     /// </summary>
@@ -36,6 +37,7 @@ public sealed class AIToolBuilder<TTool>
 
         return this;
     }
+
     /// <summary>
     /// Sets the category for grouping this tool in the UI.
     /// </summary>
@@ -45,6 +47,7 @@ public sealed class AIToolBuilder<TTool>
 
         return this;
     }
+
     /// <summary>
     /// Sets the purpose tag for this tool. Use well-known constants from <see cref="AIToolPurposes"/>
     /// or define custom purpose strings for domain-specific tool grouping.
@@ -55,6 +58,7 @@ public sealed class AIToolBuilder<TTool>
 
         return this;
     }
+
     /// <summary>
     /// Makes this tool visible in the UI for user selection.
     /// By default, tools are system tools managed by the orchestrator and are not shown in the UI.

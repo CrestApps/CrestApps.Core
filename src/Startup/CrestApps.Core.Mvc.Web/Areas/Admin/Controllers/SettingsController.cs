@@ -86,7 +86,6 @@ public sealed class SettingsController : Controller
             MemoryIndexProfileName = memorySettings.IndexProfileName,
             MemoryTopN = memorySettings.TopN,
             EnableUserMemoryByDefault = chatInteractionMemorySettings.EnableUserMemory ?? true,
-
             DefaultChatDeploymentName = deploymentDefaults.DefaultChatDeploymentName,
             DefaultUtilityDeploymentName = deploymentDefaults.DefaultUtilityDeploymentName,
             DefaultEmbeddingDeploymentName = deploymentDefaults.DefaultEmbeddingDeploymentName,
@@ -94,7 +93,6 @@ public sealed class SettingsController : Controller
             DefaultSpeechToTextDeploymentName = deploymentDefaults.DefaultSpeechToTextDeploymentName,
             DefaultTextToSpeechDeploymentName = deploymentDefaults.DefaultTextToSpeechDeploymentName,
             DefaultTextToSpeechVoiceId = deploymentDefaults.DefaultTextToSpeechVoiceId,
-
             DocumentIndexProfileName = documentSettings.IndexProfileName,
             DocumentTopN = documentSettings.TopN,
             DocumentRetrievalMode = documentSettings.RetrievalMode,
@@ -103,7 +101,6 @@ public sealed class SettingsController : Controller
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
             McpServerApiKey = mcpServerSettings.ApiKey,
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
-
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
             CopilotHasSecret = !string.IsNullOrWhiteSpace(copilotSettings.ProtectedClientSecret),
@@ -114,12 +111,10 @@ public sealed class SettingsController : Controller
             CopilotDefaultModel = copilotSettings.DefaultModel,
             CopilotAzureApiVersion = copilotSettings.AzureApiVersion,
             CopilotCallbackUrl = Url.Action("OAuthCallback", "CopilotAuth", new { area = "AIChat" }, Request.Scheme),
-
             AnthropicAuthenticationType = anthropicSettings.AuthenticationType,
             AnthropicBaseUrl = anthropicSettings.BaseUrl,
             AnthropicHasApiKey = !string.IsNullOrWhiteSpace(anthropicSettings.ProtectedApiKey),
             AnthropicDefaultModel = anthropicSettings.DefaultModel,
-
             AdminPageSize = paginationSettings.AdminPageSize,
             AdminWidgetProfileId = adminWidgetSettings.ProfileId,
             AdminWidgetPrimaryColor = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)

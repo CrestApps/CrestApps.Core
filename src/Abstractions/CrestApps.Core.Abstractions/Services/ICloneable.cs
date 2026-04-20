@@ -1,4 +1,5 @@
 namespace CrestApps.Core.Services;
+
 /// <summary>
 /// Provides a strongly-typed clone operation, creating a deep copy of the current instance.
 /// Extends <see cref = "ICloneable"/> with a typed <see cref = "Clone"/> method.

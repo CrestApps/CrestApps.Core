@@ -64,6 +64,7 @@ public static class TypeExtensions
         typeof(double),
         typeof(decimal)
     ];
+
     /// <summary>
     /// Finds the BaseType.
     /// </summary>
@@ -86,6 +87,7 @@ public static class TypeExtensions
             yield return baseType;
         }
     }
+
     /// <summary>
     /// Find any base type that matches the gives type.
     /// </summary>
@@ -109,6 +111,7 @@ public static class TypeExtensions
         return type.BaseTypes()
             .FirstOrDefault(generic.IsAssignableFrom);
     }
+
     /// <summary>
     /// Finds a particular generic type.
     /// </summary>
@@ -122,6 +125,7 @@ public static class TypeExtensions
 
         return type.IsGenericType && type.GetGenericTypeDefinition() == generic;
     }
+
     /// <summary>
     /// Extension method to determine if a type if numeric.
     /// </summary>
@@ -139,6 +143,7 @@ public static class TypeExtensions
 
         return _integralNumericTypes.Contains(t) || _fractionalNumericTypes.Contains(t);
     }
+
     /// <summary>
     /// Extension method to determine if a type if integral numeric.
     /// </summary>
@@ -156,6 +161,7 @@ public static class TypeExtensions
 
         return _integralNumericTypes.Contains(t);
     }
+
     /// <summary>
     /// Extension method to determine if a type if fractional numeric.
     /// </summary>

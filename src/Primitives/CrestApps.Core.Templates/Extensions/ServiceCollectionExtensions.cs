@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
     /// <summary>
     /// Registers an assembly's embedded <c>Templates/Prompts/*.md</c> resources as templates.
     /// </summary>

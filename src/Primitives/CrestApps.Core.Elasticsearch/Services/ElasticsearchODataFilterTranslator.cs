@@ -114,7 +114,6 @@ internal sealed partial class ElasticsearchODataFilterTranslator : IODataFilterT
         {
             var funcName = tokens[index].ToLowerInvariant();
             index += 2; // skip funcName and (
-
             var field = PrefixField(tokens[index]);
 
             index++;

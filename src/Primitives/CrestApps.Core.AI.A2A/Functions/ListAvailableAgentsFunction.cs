@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.A2A.Functions;
+
 /// <summary>
 /// An AI system function that lists all available agents, including both local AI Agent profiles
 /// and remote agents from connected A2A hosts.

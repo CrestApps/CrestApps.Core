@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 
 namespace CrestApps.Core.AI.Orchestration;
+
 /// <summary>
 /// Per-invocation context for AI operations, providing isolation between concurrent
 /// SignalR hub method calls. Each hub invocation creates its own instance via
@@ -29,34 +30,41 @@ namespace CrestApps.Core.AI.Orchestration;
 public sealed class AIInvocationContext
 {
     private int _referenceIndex;
+
     /// <summary>
     /// Gets or sets the <see cref = "AIToolExecutionContext"/> for the current invocation,
     /// providing provider, connection, and resource information.
     /// </summary>
     public AIToolExecutionContext ToolExecutionContext { get; set; }
+
     /// <summary>
     /// Gets or sets the completion context for the current invocation.
     /// </summary>
     public AICompletionContext CompletionContext { get; set; }
+
     /// <summary>
     /// Gets or sets the chat session for the current invocation.
     /// </summary>
     public AIChatSession ChatSession { get; set; }
+
     /// <summary>
     /// Gets or sets the chat interaction for the current invocation.
     /// </summary>
     public ChatInteraction ChatInteraction { get; set; }
+
     /// <summary>
     /// Gets or sets the data source identifier for the current invocation.
     /// Used by <c>DataSourceSearchTool</c> to scope searches to the correct data source.
     /// </summary>
     public string DataSourceId { get; set; }
+
     /// <summary>
     /// Gets the dictionary of citation references collected during tool execution
     /// (e.g., from <c>DataSourceSearchTool</c> and <c>SearchDocumentsTool</c>).
     /// Keyed by the citation marker (e.g., "[doc:1]") with the reference metadata as value.
     /// </summary>
     public Dictionary<string, AICompletionReference> ToolReferences { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Gets a general-purpose property bag for extensibility.
     /// Handlers and tools can store arbitrary per-invocation data here.

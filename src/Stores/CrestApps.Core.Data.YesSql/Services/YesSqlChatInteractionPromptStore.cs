@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Models;

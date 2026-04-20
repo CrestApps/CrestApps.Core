@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Services;
 
 namespace CrestApps.Core.AI.Markdown.Services;
+
 /// <summary>
 /// Markdown-aware implementation of <see cref = "IAITextNormalizer"/>.
 /// </summary>

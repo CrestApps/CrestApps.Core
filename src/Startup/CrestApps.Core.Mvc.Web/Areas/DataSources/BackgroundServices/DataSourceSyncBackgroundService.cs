@@ -48,6 +48,7 @@ public sealed class DataSourceSyncBackgroundService : BackgroundService
             }
         }
     }
+
     /// <summary>
     /// Synchronizes all configured data sources with their target indexes.
     /// </summary>

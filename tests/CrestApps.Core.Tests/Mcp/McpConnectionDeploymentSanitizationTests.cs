@@ -223,6 +223,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
             Assert.DoesNotContain(secret, serialized);
         }
     }
+
     /// <summary>
     /// Simulates the export sanitization done by McpConnectionDeploymentSource.
     /// </summary>

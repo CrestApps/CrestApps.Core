@@ -64,6 +64,7 @@ public sealed class DataSourceAlignmentBackgroundService : BackgroundService
             }
         }
     }
+
     /// <summary>
     /// Determines whether the alignment should run based on the current UTC hour.
     /// Alignment runs daily between 2:00 AM and 2:30 AM UTC.
@@ -74,6 +75,7 @@ public sealed class DataSourceAlignmentBackgroundService : BackgroundService
 
         return utcNow.Hour == 2 && utcNow.Minute < 30;
     }
+
     /// <summary>
     /// Performs full alignment of all data source indexes by upserting missing
     /// documents and removing orphaned records.

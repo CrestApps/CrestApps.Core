@@ -11,6 +11,7 @@ public static class UniqueId
     private static readonly char[] _encode32Chars = "0123456789abcdefghjkmnpqrstvwxyz".ToCharArray();
 
     private static readonly HashSet<char> _allowedChars = [.. "0123456789abcdefghjkmnpqrstvwxyz"];
+
     /// <summary>
     /// Generates a new unique 26-character identifier.
     /// </summary>
@@ -56,6 +57,7 @@ public static class UniqueId
             buffer[25] = encode32Chars[ls & 31];
         });
     }
+
     /// <summary>
     /// Validates whether the given string is a valid 26-character base32 identifier.
     /// </summary>

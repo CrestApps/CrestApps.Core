@@ -52,7 +52,7 @@ public sealed class AIChatSession : ExtensibleEntity
     public DateTime LastActivityUtc { get; set; }
 
     /// <summary>
-    /// Gets or sets the UTC date and time when the session was closed due to inactivity.
+    /// Gets or sets the UTC date and time when the session ended.
     /// </summary>
     public DateTime? ClosedAtUtc { get; set; }
 

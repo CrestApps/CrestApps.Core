@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Azure.AISearch.Services;
+
 /// <summary>
 /// Azure AI Search implementation of <see cref = "ISearchIndexManager"/>
 /// for creating, deleting, and checking search indexes.

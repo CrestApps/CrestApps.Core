@@ -39,6 +39,7 @@ namespace CrestApps.Core.Mvc.Web.Services;
 internal static class YesSqlServiceCollectionExtensions
 {
     private static readonly (string LegacyValue, string CurrentValue)[] _legacyDocumentTypeReplacements = [("CrestApps.AI.", "CrestApps.Core.AI."), ("CrestApps.Infrastructure.", "CrestApps.Core.Infrastructure."), ("CrestApps.Mvc.Web", "CrestApps.Core.Mvc.Web"),];
+
     /// <summary>
     /// Registers YesSql with SQLite, all index providers, and the catalog/manager
     /// services that the MVC sample application needs. Call this from Program.cs to

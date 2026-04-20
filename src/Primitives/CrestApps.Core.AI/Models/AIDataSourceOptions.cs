@@ -1,4 +1,5 @@
 namespace CrestApps.Core.AI.Models;
+
 /// <summary>
 /// Runtime options for AI Data Source retrieval behavior.
 /// </summary>

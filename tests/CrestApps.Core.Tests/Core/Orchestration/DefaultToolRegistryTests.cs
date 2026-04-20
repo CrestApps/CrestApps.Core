@@ -54,7 +54,6 @@ public sealed class DefaultToolRegistryTests
         var registry = CreateRegistry([
             new TestToolRegistryProvider(localEntries),
             new TestToolRegistryProvider(mcpEntries),
-
             ]);
 
         var result = await registry.GetAllAsync(new AICompletionContext(), TestContext.Current.CancellationToken);
@@ -75,7 +74,6 @@ public sealed class DefaultToolRegistryTests
         var registry = CreateRegistry([
         new TestToolRegistryProvider(new InvalidOperationException("Provider error")),
             new TestToolRegistryProvider(goodEntries),
-
             ]);
 
         var result = await registry.GetAllAsync(new AICompletionContext(), TestContext.Current.CancellationToken);

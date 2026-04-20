@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 
 namespace CrestApps.Core.AI.Copilot.Handlers;
+
 /// <summary>
 /// Reads <see cref = "CopilotSessionMetadata"/> from the resource (AIProfile or ChatInteraction)
 /// and sets it on <see cref = "OrchestrationContext.Properties"/> so the CopilotOrchestrator

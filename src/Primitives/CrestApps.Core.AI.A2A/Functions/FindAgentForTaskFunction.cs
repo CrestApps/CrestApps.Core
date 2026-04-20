@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.A2A.Functions;
+
 /// <summary>
 /// An AI system function that uses keyword and semantic matching to find the best agents
 /// capable of handling a given task description. Searches both local agent profiles and

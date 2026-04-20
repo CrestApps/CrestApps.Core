@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using AzureSearchDocument = Azure.Search.Documents.Models.SearchDocument;
 
 namespace CrestApps.Core.Azure.AISearch.Services;
+
 /// <summary>
 /// Azure AI Search implementation of <see cref = "ISearchDocumentManager"/>
 /// for adding, updating, and deleting documents in search indexes.

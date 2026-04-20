@@ -90,6 +90,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
 
         return result;
     }
+
     /// <summary>
     /// Compacts JSON within fenced <c>```json</c> code blocks.
     /// Pretty-printed JSON is re-serialized without indentation to reduce token usage.
@@ -253,6 +254,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
             metadata.AdditionalProperties[key] = value;
         }
     }
+
     /// <summary>
     /// Parses parameter descriptors from the multi-line <c>Parameters:</c> value.
     /// Each parameter line has the format: <c>- name: description</c>.

@@ -49,6 +49,7 @@ public sealed class PostSessionProcessingService
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<PostSessionProcessingService>();
     }
+
     /// <summary>
     /// Uses AI to determine whether the conversation was semantically resolved,
     /// regardless of how the session was closed (natural farewell, inactivity, etc.).
@@ -94,6 +95,7 @@ public sealed class PostSessionProcessingService
 
         return response.Result?.Resolved ?? false;
     }
+
     /// <summary>
     /// Evaluates the conversation against configured conversion goals using AI.
     /// Returns a list of goal results with scores, or null if evaluation fails.
@@ -128,7 +130,6 @@ public sealed class PostSessionProcessingService
                 g.MinScore,
                 g.MaxScore,
             }).ToList(),
-
             ["prompts"] = ProjectPrompts(prompts),
         };
 
@@ -142,7 +143,6 @@ public sealed class PostSessionProcessingService
         var messages = new List<ChatMessage>
         {
             new(ChatRole.System, await _aiTemplateService.RenderAsync(AITemplateIds.ConversionGoalEvaluation)),
-
             new(ChatRole.User, userPrompt),
         };
 
@@ -182,6 +182,7 @@ public sealed class PostSessionProcessingService
 
         return results;
     }
+
     /// <summary>
     /// Runs all configured post-session tasks against the closed session.
     /// Tasks that have already succeeded (tracked in <see cref="AIChatSession.PostSessionResults"/>)
@@ -208,8 +209,19 @@ public sealed class PostSessionProcessingService
                     "Post-session processing skipped for session '{SessionId}': Enabled={Enabled}, TaskCount={TaskCount}.",
                     session.SessionId,
                     settings.EnablePostSessionProcessing,
-
                     settings.PostSessionTasks.Count);
+            }
+
+            return null;
+        }
+
+        if (!prompts.Any(x => x.Role == ChatRole.User))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Post-session processing skipped for session '{SessionId}' because there isn't any user prompts.",
+                    session.SessionId);
             }
 
             return null;
@@ -218,7 +230,6 @@ public sealed class PostSessionProcessingService
         // Filter out tasks that have already succeeded from a previous attempt.
         var tasksToProcess = settings.PostSessionTasks
             .Where(t => !session.PostSessionResults.TryGetValue(t.Name, out var existing)
-
                 || existing.Status != PostSessionTaskResultStatus.Succeeded)
             .ToList();
 
@@ -229,7 +240,6 @@ public sealed class PostSessionProcessingService
                 _logger.LogDebug(
                     "Post-session processing skipped for session '{SessionId}': all {TaskCount} task(s) have already succeeded.",
                     session.SessionId,
-
                     settings.PostSessionTasks.Count);
             }
 
@@ -243,7 +253,6 @@ public sealed class PostSessionProcessingService
                 session.SessionId,
                 tasksToProcess.Count,
                 settings.PostSessionTasks.Count,
-
                 string.Join(", ", tasksToProcess.Select(t => t.Name)));
         }
 
@@ -252,7 +261,6 @@ public sealed class PostSessionProcessingService
         if (chatClient == null)
         {
             throw new InvalidOperationException(
-
                 $"Unable to create a chat client for post-session processing on profile '{profile.ItemId}'.");
         }
 
@@ -266,7 +274,6 @@ public sealed class PostSessionProcessingService
                 t.AllowMultipleValues,
                 Options = t.Options?.Select(o => new { o.Value, o.Description }).ToList(),
             }).ToList(),
-
             ["prompts"] = ProjectPrompts(prompts),
         };
 
@@ -276,7 +283,6 @@ public sealed class PostSessionProcessingService
         {
             _logger.LogWarning(
                 "Post-session processing aborted for session '{SessionId}': rendered user prompt is empty. Template='{TemplateId}'.",
-
                 session.SessionId,
                 AITemplateIds.PostSessionAnalysisPrompt);
 
@@ -305,7 +311,6 @@ public sealed class PostSessionProcessingService
                     "Post-session processing for session '{SessionId}' using tools path with {ToolCount} tool(s): [{ToolNames}].",
                     session.SessionId,
                     tools.Count,
-
                     string.Join(", ", tools.Select(t => t.Name)));
             }
 
@@ -330,7 +335,6 @@ public sealed class PostSessionProcessingService
             {
                 _logger.LogDebug(
                     "Post-session structured output for session '{SessionId}' returned no tasks.",
-
                     session.SessionId);
             }
 
@@ -343,7 +347,6 @@ public sealed class PostSessionProcessingService
                 "Post-session structured output for session '{SessionId}' returned {TaskCount} task result(s): [{TaskNames}].",
                 session.SessionId,
                 response.Result.Tasks.Count,
-
                 string.Join(", ", response.Result.Tasks.Select(t => t.Name)));
         }
 
@@ -371,7 +374,6 @@ public sealed class PostSessionProcessingService
         var response = await client.GetResponseAsync(messages, new ChatOptions
         {
             Temperature = 0f,
-
             Tools = tools,
         }.AddUsageTracking(session: session), cancellationToken);
 
@@ -393,7 +395,6 @@ public sealed class PostSessionProcessingService
                 session.SessionId,
                 response.Messages?.Count ?? 0,
                 toolCallCount,
-
                 toolResultCount);
         }
 
@@ -411,7 +412,6 @@ public sealed class PostSessionProcessingService
             _logger.LogDebug(
                 "Post-session tools raw response for session '{SessionId}': '{ResponseText}'.",
                 session.SessionId,
-
                 CreateResponseLogPreview(responseText));
         }
 
@@ -428,7 +428,6 @@ public sealed class PostSessionProcessingService
         {
             _logger.LogDebug(
                 "Post-session tools response for session '{SessionId}' has no final text content. Attempting structured recovery from tool messages.",
-
                 session.SessionId);
         }
 
@@ -437,7 +436,6 @@ public sealed class PostSessionProcessingService
             chatClient,
             messages,
             response.Messages,
-
             tasks,
             cancellationToken);
 
@@ -448,6 +446,7 @@ public sealed class PostSessionProcessingService
 
         return CreateFailedResults(session.SessionId, tasks, responseText);
     }
+
     /// <summary>
     /// Attempts to parse the AI response text as a <see cref="PostSessionProcessingResponse"/>
     /// using progressively lenient strategies:
@@ -494,7 +493,6 @@ public sealed class PostSessionProcessingService
                     {
                         _logger.LogDebug(
                             "Post-session response for session '{SessionId}' parsed successfully from code fence.",
-
                             sessionId);
                     }
 
@@ -523,7 +521,6 @@ public sealed class PostSessionProcessingService
                     {
                         _logger.LogDebug(
                             "Post-session response for session '{SessionId}' parsed successfully from embedded JSON object.",
-
                             sessionId);
                     }
 
@@ -540,7 +537,6 @@ public sealed class PostSessionProcessingService
         {
             _logger.LogDebug(
                 "Post-session response for session '{SessionId}' could not be parsed as structured JSON after all extraction attempts.",
-
                 sessionId);
         }
 
@@ -578,7 +574,6 @@ public sealed class PostSessionProcessingService
             _logger.LogDebug(
                 "Attempting structured recovery for post-session tool response on session '{SessionId}' using the original post-session analysis context. TaskCount={TaskCount}.",
                 sessionId,
-
                 tasks.Count);
         }
 
@@ -597,7 +592,6 @@ public sealed class PostSessionProcessingService
             _logger.LogDebug(
                 "Post-session structured recovery raw response for session '{SessionId}': '{ResponseText}'.",
                 sessionId,
-
                 CreateResponseLogPreview(recoveryResponseText));
         }
 
@@ -613,7 +607,6 @@ public sealed class PostSessionProcessingService
             {
                 _logger.LogDebug(
                     "Structured recovery for post-session tool response on session '{SessionId}' did not return JSON content.",
-
                     sessionId);
             }
 
@@ -625,7 +618,6 @@ public sealed class PostSessionProcessingService
             {
                 _logger.LogDebug(
                     "Structured recovery for post-session tool response on session '{SessionId}' returned invalid JSON content.",
-
                     sessionId);
             }
 
@@ -638,7 +630,6 @@ public sealed class PostSessionProcessingService
             {
                 _logger.LogDebug(
                     "Structured recovery for post-session tool response on session '{SessionId}' returned no task results.",
-
                     sessionId);
             }
 
@@ -650,7 +641,6 @@ public sealed class PostSessionProcessingService
             _logger.LogDebug(
                 "Structured recovery for post-session tool response on session '{SessionId}' succeeded with {TaskCount} task result(s).",
                 sessionId,
-
                 result.Tasks.Count);
         }
 
@@ -671,7 +661,6 @@ public sealed class PostSessionProcessingService
         _logger.LogWarning(
             "Post-session tool response for session '{SessionId}' failed structured parsing. Marking {TaskCount} task(s) as failed. ResponseLength={ResponseLength}.",
             sessionId,
-
             tasks.Count,
             responseText?.Length ?? 0);
 
@@ -684,7 +673,6 @@ public sealed class PostSessionProcessingService
                 ErrorMessage = errorMessage,
                 ProcessedAtUtc = now,
             },
-
             StringComparer.OrdinalIgnoreCase);
     }
 
@@ -719,7 +707,6 @@ public sealed class PostSessionProcessingService
                     _logger.LogDebug(
                         "Post-session task result skipped: Name='{Name}', HasValue={HasValue}.",
                         result.Name ?? "(null)",
-
                         !string.IsNullOrWhiteSpace(result.Value));
                 }
 
@@ -735,7 +722,6 @@ public sealed class PostSessionProcessingService
                 {
                     _logger.LogDebug(
                         "Post-session task result skipped: no matching task definition for '{Name}'.",
-
                         result.Name);
                 }
 
@@ -786,7 +772,6 @@ public sealed class PostSessionProcessingService
                 Name = task.Name,
                 Value = result.Value,
                 Status = PostSessionTaskResultStatus.Succeeded,
-
                 ProcessedAtUtc = now,
             };
 
@@ -807,7 +792,6 @@ public sealed class PostSessionProcessingService
         if (_deploymentManager != null)
         {
             var deployment = await _deploymentManager.ResolveUtilityOrDefaultAsync(
-
                 utilityDeploymentName: profile.UtilityDeploymentName,
                 chatDeploymentName: profile.ChatDeploymentName);
 
@@ -828,7 +812,6 @@ public sealed class PostSessionProcessingService
             {
                 _logger.LogDebug(
                     "No tool names configured for post-session processing of session '{SessionId}'.",
-
                     sessionId);
             }
 
@@ -841,7 +824,6 @@ public sealed class PostSessionProcessingService
                 "Resolving {ToolCount} tool(s) for post-session processing of session '{SessionId}': [{ToolNames}].",
                 toolNames.Length,
                 sessionId,
-
                 string.Join(", ", toolNames));
         }
 

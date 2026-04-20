@@ -193,7 +193,6 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
             if (!response.IsValidResponse)
             {
                 _logger.LogWarning("Elasticsearch delete by data source ID failed for index '{IndexName}': {Error}",
-
                 indexProfile.IndexFullName, response.DebugInformation);
 
                 return 0;

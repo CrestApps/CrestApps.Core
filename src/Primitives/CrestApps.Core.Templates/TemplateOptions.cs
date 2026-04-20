@@ -11,11 +11,13 @@ public sealed class TemplateOptions
     /// Gets the collection of prompt templates registered via code.
     /// </summary>
     public IList<Template> Templates { get; } = [];
+
     /// <summary>
     /// Gets the collection of file system paths to scan for prompt template files.
     /// Each path should contain a <c>Templates/Prompts</c> directory structure.
     /// </summary>
     public IList<string> DiscoveryPaths { get; } = [];
+
     /// <summary>
     /// Gets the well-known metadata keys that are mapped to <see cref="TemplateMetadata"/> properties.
     /// Keys not in this set are placed in <see cref="TemplateMetadata.AdditionalProperties"/>.
@@ -28,6 +30,7 @@ public sealed class TemplateOptions
         "IsListable",
         "Category",
     };
+
     /// <summary>
     /// Registers a prompt template from code.
     /// </summary>
@@ -39,6 +42,7 @@ public sealed class TemplateOptions
 
         return this;
     }
+
     /// <summary>
     /// Registers a prompt template with minimal configuration.
     /// </summary>
@@ -60,6 +64,7 @@ public sealed class TemplateOptions
 
         return this;
     }
+
     /// <summary>
     /// Adds a file system path to scan for prompt template files.
     /// </summary>
