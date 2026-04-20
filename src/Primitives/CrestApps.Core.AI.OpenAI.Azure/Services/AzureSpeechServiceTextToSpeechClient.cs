@@ -241,6 +241,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 
         return [];
     }
+
     /// <inheritdoc/>
     public object GetService(Type serviceType, object serviceKey = null)
     {

@@ -38,8 +38,6 @@ namespace CrestApps.Core.Mvc.Web.Services;
 
 internal static class YesSqlServiceCollectionExtensions
 {
-    private static readonly (string LegacyValue, string CurrentValue)[] _legacyDocumentTypeReplacements = [("CrestApps.AI.", "CrestApps.Core.AI."), ("CrestApps.Infrastructure.", "CrestApps.Core.Infrastructure."), ("CrestApps.Mvc.Web", "CrestApps.Core.Mvc.Web"),];
-
     /// <summary>
     /// Registers YesSql with SQLite, all index providers, and the catalog/manager
     /// services that the MVC sample application needs. Call this from Program.cs to
@@ -137,7 +135,6 @@ internal static class YesSqlServiceCollectionExtensions
         await ConfigureSqliteConnectionAsync(connection);
         await using var transaction = await connection.BeginTransactionAsync();
         var schemaBuilder = new SchemaBuilder(store.Configuration, transaction);
-        await NormalizeLegacyDocumentTypeNamesAsync(store, connection, transaction, logger);
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProviderConnectionIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateA2AConnectionIndexSchemaAsync(storeOptions));
@@ -174,30 +171,6 @@ internal static class YesSqlServiceCollectionExtensions
         await command.ExecuteNonQueryAsync();
         command.CommandText = "PRAGMA busy_timeout=30000;";
         await command.ExecuteNonQueryAsync();
-    }
-
-    private static async Task NormalizeLegacyDocumentTypeNamesAsync(IStore store, DbConnection connection, DbTransaction transaction, ILogger logger)
-    {
-        var dialect = store.Configuration.SqlDialect;
-        var documentTableName = store.Configuration.TableNameConvention.GetDocumentTable(string.Empty);
-        var table = $"{store.Configuration.TablePrefix}{documentTableName}";
-        var quotedTableName = dialect.QuoteForTableName(table, store.Configuration.Schema);
-        var quotedTypeColumnName = dialect.QuoteForColumnName(nameof(Document.Type));
-        foreach (var (legacyValue, currentValue) in _legacyDocumentTypeReplacements)
-        {
-            await using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = $"""
-                UPDATE {quotedTableName}
-                SET {quotedTypeColumnName} = REPLACE({quotedTypeColumnName}, '{legacyValue}', '{currentValue}')
-                WHERE {quotedTypeColumnName} LIKE '%{legacyValue}%'
-                """;
-            var updated = await command.ExecuteNonQueryAsync();
-            if (updated > 0 && logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Updated {Count} stored YesSql document type names in {TableName} from '{LegacyValue}' to '{CurrentValue}'.", updated, table, legacyValue, currentValue);
-            }
-        }
     }
 
     private static async Task EnsureAIDocumentIndexExtensionColumnAsync(IStore store, DbConnection connection, DbTransaction transaction, SchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, ILogger logger)
