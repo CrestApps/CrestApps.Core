@@ -74,42 +74,6 @@ var builder = WebApplication.CreateBuilder(args);
 // Early startup marker — writes immediately to confirm the process launched.
 var crashLogDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "logs");
 Directory.CreateDirectory(crashLogDir);
-File.WriteAllText(
-    Path.Combine(crashLogDir, "startup-marker.txt"),
-    $"Process started at {DateTime.UtcNow:O}, PID={Environment.ProcessId}{Environment.NewLine}");
-
-AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-{
-    var message = $"[{DateTime.UtcNow:O}] Unhandled exception (IsTerminating={e.IsTerminating}):{Environment.NewLine}{e.ExceptionObject}{Environment.NewLine}";
-
-    try
-    {
-        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), message);
-    }
-    catch
-    {
-        // Best-effort — the process is already dying.
-    }
-
-    Console.Error.Write(message);
-};
-
-TaskScheduler.UnobservedTaskException += (_, e) =>
-{
-    var message = $"[{DateTime.UtcNow:O}] Unobserved task exception:{Environment.NewLine}{e.Exception}{Environment.NewLine}";
-
-    try
-    {
-        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), message);
-    }
-    catch
-    {
-        // Best-effort.
-    }
-
-    Console.Error.Write(message);
-    e.SetObserved();
-};
 
 // Prevent background/hosted-service exceptions from tearing down the host.
 // The default BackgroundServiceExceptionBehavior.StopHost silently kills the
@@ -120,6 +84,7 @@ builder.Services.Configure<HostOptions>(options =>
 {
     options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
 });
+
 // =============================================================================
 // 2. LOGGING
 // =============================================================================
@@ -131,6 +96,7 @@ builder.Logging.SetMinimumLevel(LogLevel.Debug);
 builder.WebHost.UseNLog();
 var appDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(appDataPath);
+
 // =============================================================================
 // 3. APPLICATION CONFIGURATION
 // =============================================================================
@@ -164,6 +130,7 @@ builder.Services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, Sit
 builder.Services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
 builder.Services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
 builder.Services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
+
 // =============================================================================
 // 4. ASP.NET CORE MVC SETUP
 // =============================================================================
@@ -173,7 +140,9 @@ builder.Services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, Si
 builder.Services.AddLocalization();
 builder.Services.AddControllersWithViews()
     .AddCrestAppsStoreCommitterFilter();
+
 builder.Services.AddHttpContextAccessor();
+
 // =============================================================================
 // 5. AUTHENTICATION & AUTHORIZATION
 // =============================================================================
@@ -185,8 +154,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Account/AccessDenied";
 });
+
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
+
 // =============================================================================
 // 6. CRESTAPPS FOUNDATION + AI SERVICES
 // =============================================================================
@@ -367,24 +338,11 @@ builder.Services.AddHostedService<DataSourceAlignmentBackgroundService>();
 
 var app = builder.Build();
 
-try
-{
-    // YesSql schema initialization — creates tables on first run.
-    await app.Services.InitializeYesSqlSchemaAsync();
+// YesSql schema initialization — creates tables on first run.
+await app.Services.InitializeYesSqlSchemaAsync();
 
-    // Seed sample articles on first run.
-    await app.Services.SeedArticlesAsync();
-}
-catch (Exception ex)
-{
-    var msg = $"[{DateTime.UtcNow:O}] Startup initialization failed:{Environment.NewLine}{ex}{Environment.NewLine}";
-
-    try { File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), msg); } catch { }
-
-    Console.Error.Write(msg);
-
-    throw;
-}
+// Seed sample articles on first run.
+await app.Services.SeedArticlesAsync();
 
 // =============================================================================
 // 14. MIDDLEWARE PIPELINE
@@ -440,6 +398,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
         await next();
     });
 });
+
 app.MapHub<AIChatHub>("/hubs/ai-chat");
 app.MapHub<ChatInteractionHub>("/hubs/chat-interaction");
 app.MapMcp("mcp");
@@ -453,24 +412,4 @@ app.AddChatApiEndpoints()
 app.MapControllerRoute(name: "areas", pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
 
-try
-{
-    await app.RunAsync();
-}
-catch (Exception ex)
-{
-    var crashMessage = $"[{DateTime.UtcNow:O}] Host terminated unexpectedly:{Environment.NewLine}{ex}{Environment.NewLine}";
-
-    try
-    {
-        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), crashMessage);
-    }
-    catch
-    {
-        // Best-effort.
-    }
-
-    Console.Error.Write(crashMessage);
-
-    throw;
-}
+await app.RunAsync();
