@@ -82,7 +82,7 @@ public class DefaultAICompletionService : IAICompletionService
     private IAICompletionClient ResolveClient(AIDeployment deployment)
     {
         var clientName = deployment.ClientName
-        ?? throw new InvalidOperationException($"The deployment '{deployment.Name}' does not have a client name assigned.");
+        ?? throw new AIDeploymentConfigurationException($"The deployment '{deployment.Name}' does not have a client name assigned.");
 
         if (!_aiOptions.Clients.TryGetValue(clientName, out var clientType))
         {

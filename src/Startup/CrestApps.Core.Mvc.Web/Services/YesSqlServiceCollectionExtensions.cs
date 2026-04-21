@@ -38,6 +38,9 @@ namespace CrestApps.Core.Mvc.Web.Services;
 
 internal static class YesSqlServiceCollectionExtensions
 {
+    private static readonly string LegacyArticleDocumentType = $"{typeof(global::CrestApps.Core.Mvc.Web.Areas.Admin.Models.Article).FullName}, {typeof(global::CrestApps.Core.Mvc.Web.Areas.Admin.Models.Article).Assembly.GetName().Name}";
+    private static readonly string CurrentArticleDocumentType = $"{typeof(Article).FullName}, {typeof(Article).Assembly.GetName().Name}";
+
     /// <summary>
     /// Registers YesSql with SQLite, all index providers, and the catalog/manager
     /// services that the MVC sample application needs. Call this from Program.cs to
@@ -154,6 +157,7 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIMemoryEntryIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync(storeOptions));
+        await MigrateLegacyArticleDocumentTypesAsync(store, connection, transaction, logger);
         await EnsureAIDocumentIndexExtensionColumnAsync(store, connection, transaction, schemaBuilder, storeOptions, logger);
         await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<ArticleIndex>(t => t
             .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
@@ -185,6 +189,45 @@ internal static class YesSqlServiceCollectionExtensions
         {
             logger.LogInformation("Added missing column '{ColumnName}' to YesSql index table '{TableName}'.", nameof(AIDocumentIndex.Extension), tableName);
         }
+    }
+
+    private static async Task MigrateLegacyArticleDocumentTypesAsync(IStore store, DbConnection connection, DbTransaction transaction, ILogger logger)
+    {
+        var tableName = $"{store.Configuration.TablePrefix}Document";
+        if (!await TableExistsAsync(connection, transaction, tableName))
+        {
+            return;
+        }
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"""
+            UPDATE [{tableName}]
+            SET [Type] = $currentType
+            WHERE [Type] = $legacyType
+            """;
+
+        var currentTypeParameter = command.CreateParameter();
+        currentTypeParameter.ParameterName = "$currentType";
+        currentTypeParameter.Value = CurrentArticleDocumentType;
+        command.Parameters.Add(currentTypeParameter);
+
+        var legacyTypeParameter = command.CreateParameter();
+        legacyTypeParameter.ParameterName = "$legacyType";
+        legacyTypeParameter.Value = LegacyArticleDocumentType;
+        command.Parameters.Add(legacyTypeParameter);
+
+        var updatedCount = await command.ExecuteNonQueryAsync();
+        if (updatedCount <= 0 || !logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
+        logger.LogInformation(
+            "Migrated {Count} persisted article documents from legacy type '{LegacyType}' to '{CurrentType}'.",
+            updatedCount,
+            LegacyArticleDocumentType,
+            CurrentArticleDocumentType);
     }
 
     private static async Task<string> FindIndexTableNameAsync(DbConnection connection, DbTransaction transaction, string tablePrefix, string indexTypeName)
@@ -232,6 +275,25 @@ internal static class YesSqlServiceCollectionExtensions
         }
 
         return false;
+    }
+
+    private static async Task<bool> TableExistsAsync(DbConnection connection, DbTransaction transaction, string tableName)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name = $tableName
+            LIMIT 1
+            """;
+
+        var tableNameParameter = command.CreateParameter();
+        tableNameParameter.ParameterName = "$tableName";
+        tableNameParameter.Value = tableName;
+        command.Parameters.Add(tableNameParameter);
+
+        return await command.ExecuteScalarAsync() is not null;
     }
 
     private static async Task TryCreateTableAsync(Func<Task> createTable)

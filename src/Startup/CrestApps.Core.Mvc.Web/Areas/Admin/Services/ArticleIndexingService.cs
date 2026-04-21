@@ -1,7 +1,7 @@
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
 using CrestApps.Core.Services;
+using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Support;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Admin.Services;

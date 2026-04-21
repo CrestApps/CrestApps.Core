@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
 
@@ -27,7 +28,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
 
         if (string.IsNullOrEmpty(deploymentName))
         {
-            throw new ArgumentException("A deployment name must be provided, either directly or as a default in the connection settings.");
+            throw new AIDeploymentConfigurationException("A chat deployment name must be provided, either directly or as a default in the connection settings.");
         }
 
         var client = GetChatClient(connection, deploymentName);

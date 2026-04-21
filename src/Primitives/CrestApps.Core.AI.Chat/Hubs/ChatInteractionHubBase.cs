@@ -1,6 +1,7 @@
 using System.IO.Pipelines;
 using System.Text.Json;
 using System.Threading.Channels;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
@@ -167,7 +168,17 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
     protected virtual string GetFriendlyErrorMessage(Exception ex)
     {
+        if (AIHubErrorMessageHelper.IsInvalidChatModelSettingsFailure(ex))
+        {
+            return GetInvalidChatModelSettingsMessage();
+        }
+
         return "An error occurred while processing your message.";
+    }
+
+    protected virtual string GetInvalidChatModelSettingsMessage()
+    {
+        return "The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.";
     }
 
     protected virtual string GetConversationNotEnabledMessage()

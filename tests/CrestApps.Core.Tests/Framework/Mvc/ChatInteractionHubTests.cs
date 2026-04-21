@@ -2,6 +2,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Hubs;
+using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
@@ -166,6 +167,19 @@ public sealed class ChatInteractionHubTests
         callerMock.Verify(client => client.SettingsSaved(interaction.ItemId, interaction.Title), Times.Once);
     }
 
+    [Fact]
+    public void GetFriendlyErrorMessage_WithInvalidChatModelSettings_ReturnsInteractionGuidance()
+    {
+        var hub = new TestChatInteractionHub(new ServiceCollection().BuildServiceProvider())
+        {
+            Clients = new Mock<IHubCallerClients<IChatInteractionHubClient>>().Object,
+        };
+
+        var message = hub.GetFriendlyErrorMessageForTest(new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile."));
+
+        Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.", message);
+    }
+
     private static MvcCitationReferenceCollector CreateCitationCollector()
     {
         return new(new CompositeAIReferenceLinkResolver(new ServiceCollection().BuildServiceProvider()));
@@ -176,5 +190,18 @@ public sealed class ChatInteractionHubTests
         var appDataPath = Path.Combine(Path.GetTempPath(), "copilot-chatinteractionhubtests", Guid.NewGuid().ToString("N"));
 
         return new SiteSettingsStore(appDataPath);
+    }
+
+    private sealed class TestChatInteractionHub : ChatInteractionHubBase
+    {
+        public TestChatInteractionHub(IServiceProvider services)
+            : base(services, TimeProvider.System, NullLogger.Instance)
+        {
+        }
+
+        public string GetFriendlyErrorMessageForTest(Exception ex)
+        {
+            return GetFriendlyErrorMessage(ex);
+        }
     }
 }
