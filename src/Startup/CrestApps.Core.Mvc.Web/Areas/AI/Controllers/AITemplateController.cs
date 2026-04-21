@@ -90,7 +90,7 @@ public sealed class AITemplateController : Controller
     {
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            ModelState.AddModelError(nameof(model.Name), "Name is required.");
+            ModelState.AddModelError(nameof(model.Name), "Technical name is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.Source))
@@ -143,7 +143,7 @@ public sealed class AITemplateController : Controller
     {
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            ModelState.AddModelError(nameof(model.Name), "Name is required.");
+            ModelState.AddModelError(nameof(model.Name), "Technical name is required.");
         }
 
         if (!ModelState.IsValid)

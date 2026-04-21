@@ -19,9 +19,9 @@ using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Services;
 using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
+using CrestApps.Core.Startup.Shared.Models;
+using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
@@ -112,8 +112,7 @@ internal static class YesSqlServiceCollectionExtensions
         services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
             .AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>()
-            .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
-            .AddScoped<ArticleIndexingService>();
+            .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>();
 
         return services;
     }
@@ -253,203 +252,4 @@ internal static class YesSqlServiceCollectionExtensions
         store.RegisterIndexes<ArticleIndexProvider>();
     }
 
-    /// <summary>
-    /// Seeds the database with sample articles on first run. Subsequent runs
-    /// skip seeding because articles already exist.
-    /// </summary>
-    public static async Task SeedArticlesAsync(this IServiceProvider services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        using var scope = services.CreateScope();
-        var catalog = scope.ServiceProvider.GetRequiredService<ICatalog<Article>>();
-        var existing = await catalog.GetAllAsync();
-        if (existing.Count > 0)
-        {
-            return;
-        }
-
-        var articles = new[]
-        {
-            new Article
-            {
-                ItemId = UniqueId.GenerateId(),
-                Title = "What Are Large Language Models?",
-                CreatedUtc = DateTime.UtcNow,
-                Description = """
-                    # What Are Large Language Models?
-
-                    Large Language Models (LLMs) are deep learning models trained on vast corpora of text data. They learn statistical patterns in language and can generate coherent, context-aware text.
-
-                    ## Key Characteristics
-
-                    - **Scale**: Billions of parameters trained on terabytes of text.
-                    - **Generalization**: Capable of performing many tasks without task-specific training.
-                    - **Context Window**: The amount of text the model can consider at once.
-
-                    ## Common Use Cases
-
-                    1. Conversational AI and chatbots
-                    2. Content generation and summarization
-                    3. Code assistance and generation
-                    4. Translation and language understanding
-
-                    LLMs form the backbone of modern AI assistants and are the foundation for tools like GitHub Copilot.
-                    """,
-            },
-            new Article
-            {
-                ItemId = UniqueId.GenerateId(),
-                Title = "Understanding Embeddings and Vector Search",
-                CreatedUtc = DateTime.UtcNow,
-                Description = """
-                    # Understanding Embeddings and Vector Search
-
-                    Embeddings are numerical representations of text (or other data) in a high-dimensional vector space. Similar concepts end up close together in this space.
-
-                    ## How Embeddings Work
-
-                    An embedding model converts text into a fixed-length array of floating-point numbers. For example, the sentence "The cat sat on the mat" might become a 1536-dimensional vector.
-
-                    ## Vector Search
-
-                    Vector search (also called semantic search) finds documents whose embeddings are closest to a query embedding using distance metrics like **cosine similarity** or **dot product**.
-
-                    ### Why It Matters
-
-                    - Traditional keyword search misses synonyms and paraphrases.
-                    - Vector search understands meaning, not just exact words.
-                    - Combining both approaches (hybrid search) gives the best results.
-
-                    ## Providers
-
-                    Popular embedding providers include OpenAI (`text-embedding-3-small`), Azure OpenAI, and open-source models like Sentence Transformers.
-                    """,
-            },
-            new Article
-            {
-                ItemId = UniqueId.GenerateId(),
-                Title = "Retrieval-Augmented Generation (RAG) Explained",
-                CreatedUtc = DateTime.UtcNow,
-                Description = """
-                    # Retrieval-Augmented Generation (RAG) Explained
-
-                    RAG is an architecture that combines information retrieval with text generation. Instead of relying solely on the model's training data, RAG retrieves relevant documents at query time and includes them in the prompt.
-
-                    ## The RAG Pipeline
-
-                    1. **User Query** — The user asks a question.
-                    2. **Retrieval** — The system searches a knowledge base (using vector search) for relevant documents.
-                    3. **Augmentation** — Retrieved documents are added to the prompt as context.
-                    4. **Generation** — The LLM generates a response grounded in the retrieved context.
-
-                    ## Benefits
-
-                    - **Accuracy**: Responses are grounded in actual data, reducing hallucinations.
-                    - **Freshness**: The knowledge base can be updated without retraining the model.
-                    - **Transparency**: Sources can be cited alongside the generated answer.
-
-                    ## Implementation Tips
-
-                    - Use chunk sizes of 500–1000 tokens for best retrieval quality.
-                    - Overlap chunks by 10–20% to preserve context boundaries.
-                    - Always include metadata (source, date) with each chunk.
-                    """,
-            },
-            new Article
-            {
-                ItemId = UniqueId.GenerateId(),
-                Title = "Search Indexing with Elasticsearch",
-                CreatedUtc = DateTime.UtcNow,
-                Description = """
-                    # Search Indexing with Elasticsearch
-
-                    Elasticsearch is a distributed search and analytics engine built on Apache Lucene. It supports full-text search, structured queries, and dense vector search for AI workloads.
-
-                    ## Core Concepts
-
-                    - **Index**: A collection of documents with a defined schema (mapping).
-                    - **Document**: A JSON object stored in an index.
-                    - **Mapping**: Defines field types (keyword, text, dense_vector, date, etc.).
-
-                    ## Best Practices
-
-                    1. Use `keyword` for IDs and exact-match filters.
-                    2. Use `text` for full-text searchable fields.
-                    3. Keep index mappings minimal — only index fields you need to query.
-                    4. Use bulk operations for efficient batch indexing.
-                    """,
-            },
-            new Article
-            {
-                ItemId = UniqueId.GenerateId(),
-                Title = "Azure AI Search for Knowledge Bases",
-                CreatedUtc = DateTime.UtcNow,
-                Description = """
-                    # Azure AI Search for Knowledge Bases
-
-                    Azure AI Search (formerly Azure Cognitive Search) is a fully managed cloud search service that supports full-text search, vector search, and hybrid queries.
-
-                    ## Key Features
-
-                    - **Vector Search**: Built-in support for HNSW-based approximate nearest neighbor search.
-                    - **Semantic Ranking**: AI-powered re-ranking of search results for better relevance.
-                    - **Integrated Vectorization**: Automatic embedding generation during indexing.
-                    - **Hybrid Search**: Combine keyword and vector search in a single query.
-
-                    ## Creating an Index
-
-                    Define fields with appropriate types:
-
-                    - `Edm.String` with `searchable: true` for text fields.
-                    - `Edm.String` with `filterable: true` for keyword fields.
-                    - `Collection(Edm.Single)` for vector fields with HNSW configuration.
-
-                    ## Integration Patterns
-
-                    Azure AI Search integrates naturally with Azure OpenAI for RAG scenarios. The "On Your Data" feature allows direct connection between Azure OpenAI chat completions and an Azure AI Search index.
-                    """,
-            },
-            new Article
-            {
-                ItemId = UniqueId.GenerateId(),
-                Title = "Building Custom Data Sources for AI",
-                CreatedUtc = DateTime.UtcNow,
-                Description = """
-                    # Building Custom Data Sources for AI
-
-                    A data source connects your application's structured data to AI search indexes. This allows AI assistants to answer questions using your specific domain knowledge.
-
-                    ## Architecture Overview
-
-                    ```
-                    Application Data → Indexing Service → Search Index → Data Source → AI Profile
-                    ```
-
-                    1. **Application Data**: Your domain models (articles, products, tickets, etc.).
-                    2. **Indexing Service**: Transforms models into search documents with defined field mappings.
-                    3. **Search Index**: Stores documents in Elasticsearch or Azure AI Search.
-                    4. **Data Source**: Maps the search index to the AI system with field name configuration.
-                    5. **AI Profile**: Uses data sources as knowledge bases during chat.
-
-                    ## Keeping Data in Sync
-
-                    Use catalog handlers (`ICatalogEntryHandler<T>`) to automatically trigger re-indexing whenever a record is created, updated, or deleted. This ensures the search index always reflects the current state of your data.
-
-                    ## Field Mapping
-
-                    Define your index fields carefully:
-                    - **Key field**: Unique identifier (usually the record ID).
-                    - **Searchable fields**: Title, description, content — fields users will search.
-                    - **Filterable fields**: Author, category, date — fields used for filtering.
-                    """,
-            },
-        };
-        foreach (var article in articles)
-        {
-            await catalog.CreateAsync(article);
-        }
-
-        await services.GetRequiredService<YesSql.ISession>().SaveChangesAsync();
-    }
 }

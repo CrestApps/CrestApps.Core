@@ -1,5 +1,5 @@
 using CrestApps.Core.Data.YesSql.Indexes;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
+using CrestApps.Core.Startup.Shared.Models;
 using YesSql.Indexes;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;

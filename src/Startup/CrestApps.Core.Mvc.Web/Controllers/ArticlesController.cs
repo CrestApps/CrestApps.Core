@@ -1,4 +1,4 @@
-using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
+using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

@@ -1,0 +1,177 @@
+@page "/ai-chat/usage-analytics"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using Microsoft.Extensions.Options
+@inject MvcAICompletionUsageService UsageService
+@inject IOptions<GeneralAIOptions> GeneralAIOptionsAccessor
+
+<PageTitle>AI Usage Analytics - CrestApps AI</PageTitle>
+
+<h2><i class="bi bi-activity"></i> AI usage analytics</h2>
+<p class="text-muted">Review provider usage by user, model, and conversation type across chat sessions and chat interactions.</p>
+<hr />
+
+@if (!_model.IsAIUsageTrackingEnabled)
+{
+    <div class="alert alert-warning">
+        AI usage tracking is currently disabled. Enable <strong>AI usage tracking</strong> in <strong>Admin &gt; Settings</strong> to capture future provider usage data for this report.
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">From</label>
+                <input class="form-control" type="date" @bind="_model.StartDateUtc" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">To</label>
+                <input class="form-control" type="date" @bind="_model.EndDateUtc" />
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-primary w-100" @onclick="RunReportAsync">
+                    <i class="bi bi-funnel"></i> Show
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!_model.ShowReport)
+{
+    <div class="alert alert-info">Use the filters above to generate the usage report.</div>
+}
+else if (_model.Rows.Count == 0)
+{
+    <div class="alert alert-warning">No usage data was found for the selected filters.</div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Provider calls</div><div class="fs-3 fw-semibold">@_model.TotalCalls</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Chat sessions</div><div class="fs-3 fw-semibold">@_model.TotalSessions</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Chat interactions</div><div class="fs-3 fw-semibold">@_model.TotalChatInteractions</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total tokens</div><div class="fs-3 fw-semibold">@_model.TotalTokens</div></div></div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Usage by user and model</div>
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Client</th>
+                        <th>Model</th>
+                        <th class="text-end">Calls</th>
+                        <th class="text-end">Sessions</th>
+                        <th class="text-end">Interactions</th>
+                        <th class="text-end">Input</th>
+                        <th class="text-end">Output</th>
+                        <th class="text-end">Tokens</th>
+                        <th class="text-end">Avg latency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _model.Rows)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@row.UserLabel</div>
+                                <div class="text-muted small">@(row.IsAuthenticated ? "Authenticated" : "Anonymous")</div>
+                            </td>
+                            <td>@row.ClientName</td>
+                            <td>@row.ModelName</td>
+                            <td class="text-end">@row.TotalCalls</td>
+                            <td class="text-end">@row.TotalSessions</td>
+                            <td class="text-end">@row.TotalChatInteractions</td>
+                            <td class="text-end">@row.TotalInputTokens</td>
+                            <td class="text-end">@row.TotalOutputTokens</td>
+                            <td class="text-end fw-semibold">@row.TotalTokens</td>
+                            <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private UsageAnalyticsIndexViewModel _model = new();
+
+    protected override void OnInitialized()
+    {
+        _model.IsAIUsageTrackingEnabled = GeneralAIOptionsAccessor.Value.EnableAIUsageTracking;
+    }
+
+    private async Task RunReportAsync()
+    {
+        var records = await UsageService.GetAsync(_model.StartDateUtc, _model.EndDateUtc);
+        ApplyReport(records);
+    }
+
+    private void ApplyReport(IReadOnlyList<AICompletionUsageRecord> records)
+    {
+        _model.ShowReport = true;
+
+        var relevantRecords = records
+            .Where(record => !string.IsNullOrEmpty(record.SessionId) || !string.IsNullOrEmpty(record.InteractionId))
+            .ToList();
+
+        _model.TotalCalls = relevantRecords.Count;
+        _model.TotalSessions = relevantRecords.Select(r => r.SessionId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count();
+        _model.TotalChatInteractions = relevantRecords.Select(r => r.InteractionId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count();
+        _model.TotalTokens = relevantRecords.Sum(r => (long)r.TotalTokenCount);
+
+        _model.Rows = relevantRecords
+            .GroupBy(r => new
+            {
+                UserLabel = GetUserLabel(r),
+                r.IsAuthenticated,
+                ClientName = r.ClientName ?? "Unknown",
+                ModelName = r.ModelName ?? r.DeploymentName ?? "Unknown",
+            })
+            .Select(group =>
+            {
+                var latencySamples = group.Where(r => r.ResponseLatencyMs > 0).ToList();
+
+                return new AICompletionUsageSummaryViewModel
+                {
+                    UserLabel = group.Key.UserLabel,
+                    IsAuthenticated = group.Key.IsAuthenticated,
+                    ClientName = group.Key.ClientName,
+                    ModelName = group.Key.ModelName,
+                    TotalCalls = group.Count(),
+                    TotalSessions = group.Select(r => r.SessionId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count(),
+                    TotalChatInteractions = group.Select(r => r.InteractionId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count(),
+                    TotalInputTokens = group.Sum(r => (long)r.InputTokenCount),
+                    TotalOutputTokens = group.Sum(r => (long)r.OutputTokenCount),
+                    TotalTokens = group.Sum(r => (long)r.TotalTokenCount),
+                    AverageResponseLatencyMs = latencySamples.Count > 0 ? Math.Round(latencySamples.Average(r => r.ResponseLatencyMs), 0) : 0,
+                };
+            })
+            .OrderByDescending(r => r.TotalTokens)
+            .ThenByDescending(r => r.TotalCalls)
+            .ThenBy(r => r.UserLabel, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string GetUserLabel(AICompletionUsageRecord record)
+    {
+        if (!string.IsNullOrEmpty(record.UserName))
+        {
+            return record.UserName;
+        }
+
+        if (record.IsAuthenticated && !string.IsNullOrEmpty(record.UserId))
+        {
+            return record.UserId;
+        }
+
+        return "Anonymous";
+    }
+}

@@ -1,0 +1,37 @@
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-@AlertType @(Dismissible ? "alert-dismissible fade show" : "")" role="alert">
+        @if (Icon != null)
+        {
+            <i class="@Icon me-1"></i>
+        }
+        @Message
+        @if (Dismissible)
+        {
+            <button type="button" class="btn-close" @onclick="Dismiss" aria-label="Close"></button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public string AlertType { get; set; } = "danger";
+
+    [Parameter]
+    public string Icon { get; set; }
+
+    [Parameter]
+    public bool Dismissible { get; set; } = true;
+
+    [Parameter]
+    public EventCallback OnDismissed { get; set; }
+
+    private async Task Dismiss()
+    {
+        Message = string.Empty;
+        await OnDismissed.InvokeAsync();
+    }
+}

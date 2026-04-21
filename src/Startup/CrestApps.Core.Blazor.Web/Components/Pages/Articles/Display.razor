@@ -1,0 +1,85 @@
+@page "/articles/{Id}"
+
+@using CrestApps.Core.Startup.Shared.Models
+@using CrestApps.Core.Services
+
+@inject ICatalogManager<Article> ArticleManager
+@inject IJSRuntime JS
+
+<PageTitle>@(_article?.Title ?? "Article") - CrestApps AI</PageTitle>
+
+<style>
+    .article-markdown img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    .article-markdown pre {
+        padding: 1rem;
+        overflow-x: auto;
+        border-radius: 0.5rem;
+        background: var(--bs-tertiary-bg, #f8f9fa);
+    }
+</style>
+
+@if (_notFound)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> Article not found.
+    </div>
+}
+else if (_article == null)
+{
+    <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+        <div class="mx-auto" style="max-width: 900px;">
+            <h1 class="mb-2">@_article.Title</h1>
+
+            <p class="text-muted mb-4">
+                Published @_article.CreatedUtc.ToString("f")
+            </p>
+
+            <article id="article-content" class="article-markdown"></article>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private Article _article;
+    private bool _notFound;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Id))
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _article = await ArticleManager.FindByIdAsync(Id);
+
+        if (_article == null)
+        {
+            _notFound = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _article != null)
+        {
+            await JS.InvokeVoidAsync("renderMarkdownArticle", _article.Description ?? string.Empty);
+        }
+    }
+}

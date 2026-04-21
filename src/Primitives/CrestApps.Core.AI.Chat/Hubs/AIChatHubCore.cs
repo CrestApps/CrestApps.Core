@@ -898,7 +898,18 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         };
         await promptStore.CreateAsync(userPromptRecord);
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
-        var conversationHistory = existingPrompts.Where(x => !x.IsGeneratedPrompt).Select(p => new ChatMessage(p.Role, p.Content)).ToList();
+        var conversationHistorySource = existingPrompts.ToList();
+
+        if (!conversationHistorySource.Any(x => x.ItemId == userPromptRecord.ItemId))
+        {
+            conversationHistorySource.Add(userPromptRecord);
+        }
+
+        var conversationHistory = conversationHistorySource
+            .OrderBy(x => x.CreatedUtc)
+            .Where(x => !x.IsGeneratedPrompt)
+            .Select(p => new ChatMessage(p.Role, p.Content))
+            .ToList();
         // Resolve the chat response handler for this session.
         var chatMode = profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) ? chatModeSettings.ChatMode : ChatMode.TextInput;
         var handler = handlerResolver.Resolve(chatSession.ResponseHandlerName, chatMode);

@@ -1,0 +1,190 @@
+@page "/indexing/profiles/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Infrastructure.Indexing.Models
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject ISearchIndexProfileManager IndexProfileManager
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject IOptions<IndexProfileSourceOptions> SourceOptions
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Index Profile</PageTitle>
+
+<h2><i class="bi bi-pencil"></i> Edit Index Profile</h2>
+<hr />
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">Index profile not found.</div>
+}
+else if (_model == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm FormName="indexing-indexprofiles-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <div class="row">
+            <div class="col-md-8">
+                @if (_errors.Count > 0)
+                {
+                    <div class="alert alert-danger">
+                        @foreach (var error in _errors)
+                        {
+                            <div>@error</div>
+                        }
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Title</label>
+                    <InputText @bind-Value="_model.DisplayText" class="form-control" placeholder="e.g., My Documents Index" />
+                    <div class="form-text">A human-readable label (optional).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Index name <span class="text-danger">*</span></label>
+                    <input class="form-control" value="@_model.IndexName" disabled />
+                    <div class="form-text">The index name cannot be changed after creation because it corresponds to an actual index on the remote server.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Provider <span class="text-danger">*</span></label>
+                    <select class="form-select" disabled>
+                        @foreach (var provider in _model.Providers)
+                        {
+                            <option value="@provider.Key" selected="@(provider.Key == _model.ProviderName)">@provider.Value</option>
+                        }
+                    </select>
+                    <div class="form-text">The search backend provider cannot be changed after the index is created.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Type <span class="text-danger">*</span></label>
+                    <select class="form-select" disabled>
+                        @foreach (var type in _model.Types)
+                        {
+                            <option value="@type.Key" selected="@(type.Key == _model.Type)">@type.Value</option>
+                        }
+                    </select>
+                    <div class="form-text">The index type cannot be changed after the index is created.</div>
+                </div>
+
+                @if (ShowEmbeddingDeployment)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Embedding deployment</label>
+                        <select class="form-select" disabled>
+                            <option value="">Select an Embedding Deployment</option>
+                            @foreach (var deployment in _model.EmbeddingDeployments)
+                            {
+                                <option value="@deployment.Key" selected="@(deployment.Key == _model.EmbeddingDeploymentId)">@deployment.Value</option>
+                            }
+                        </select>
+                        <div class="form-text">The embedding deployment cannot be changed after the index is created.</div>
+                    </div>
+                }
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <a href="/indexing/profiles" class="btn btn-secondary ms-2">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private IndexProfileViewModel _model;
+    private bool _notFound;
+    private List<string> _errors = [];
+
+    private bool ShowEmbeddingDeployment =>
+        _model != null &&
+        !string.IsNullOrEmpty(_model.Type) &&
+        !string.Equals(_model.Type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await IndexProfileManager.FindByIdAsync(Id);
+
+        if (profile == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _model = IndexProfileViewModel.FromProfile(profile);
+        await PopulateDropdownsAsync();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors.Clear();
+        var profile = await IndexProfileManager.FindByIdAsync(_model.ItemId);
+
+        if (profile == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        profile.DisplayText = _model.DisplayText;
+
+        var validationResult = await IndexProfileManager.ValidateAsync(profile);
+
+        foreach (var error in validationResult.Errors)
+        {
+            _errors.Add(error.ErrorMessage);
+        }
+
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        await IndexProfileManager.UpdateAsync(profile);
+        await IndexProfileManager.SynchronizeAsync(profile);
+        await StoreCommitter.CommitAsync();
+        Navigation.NavigateTo("/indexing/profiles");
+    }
+
+    private async Task PopulateDropdownsAsync()
+    {
+        var sources = SourceOptions.Value.Sources
+            .OrderBy(s => s.ProviderDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        _model.Sources = sources;
+        _model.Providers = sources
+            .GroupBy(s => s.ProviderName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Select(s => new KeyValuePair<string, string>(s.ProviderName, s.ProviderDisplayName))
+            .ToList();
+
+        _model.Types = sources
+            .GroupBy(s => s.Type, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Select(s => new KeyValuePair<string, string>(s.Type, s.DisplayName))
+            .ToList();
+
+        var deployments = await DeploymentCatalog.GetAllAsync();
+
+        _model.EmbeddingDeployments = deployments
+            .Where(d => d.Type == AIDeploymentType.Embedding)
+            .Select(d => new KeyValuePair<string, string>(d.ItemId, d.Name))
+            .ToList();
+    }
+}

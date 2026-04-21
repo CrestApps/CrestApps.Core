@@ -1,0 +1,204 @@
+@page "/ai/deployments"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Services
+@inject IAIDeploymentStore Catalog
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>AI Deployments - CrestApps AI</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-box-seam"></i> AI Deployments</h2>
+    <a href="/ai/deployments/create" class="btn btn-success">
+        <i class="bi bi-plus-lg"></i> Create New Deployment
+    </a>
+</div>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
+    </div>
+}
+
+@if (_deployments == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_deployments.Count == 0)
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No deployments found. Create a deployment to map models to connections.
+    </div>
+}
+else
+{
+    if (_userDefinedDeployments.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">User-defined deployments</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive mb-0">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Technical name</th>
+                                <th>Model name</th>
+                                <th>Type</th>
+                                <th>Provider</th>
+                                <th>Connection</th>
+                                <th style="width: 180px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var deployment in _userDefinedDeployments)
+                            {
+                                <tr>
+                                    <td><strong>@deployment.TechnicalName</strong></td>
+                                    <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
+                                    <td>
+                                        @foreach (var type in deployment.GetDeploymentType().GetSupportedTypes())
+                                        {
+                                            <span class="badge bg-secondary me-1">@type</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">@(deployment.ClientName ?? "—")</span>
+                                    </td>
+                                    <td>@(string.IsNullOrEmpty(deployment.ConnectionName) ? "Standalone" : deployment.ConnectionName)</td>
+                                    <td>
+                                        <a href="/ai/deployments/edit/@deployment.ItemId" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i> Edit
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(deployment.ItemId)">
+                                            <i class="bi bi-trash"></i> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    if (_configuredDeployments.Count > 0)
+    {
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">System configuration deployments</h5>
+                <span class="badge bg-secondary">Read-only</span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">These deployments come from system configuration and cannot be edited or deleted from the UI.</p>
+                <div class="table-responsive mb-0">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Technical name</th>
+                                <th>Model name</th>
+                                <th>Type</th>
+                                <th>Provider</th>
+                                <th>Connection</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var deployment in _configuredDeployments)
+                            {
+                                <tr>
+                                    <td><strong>@deployment.TechnicalName</strong></td>
+                                    <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
+                                    <td>
+                                        @foreach (var type in deployment.GetDeploymentType().GetSupportedTypes())
+                                        {
+                                            <span class="badge bg-secondary me-1">@type</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">@(deployment.ClientName ?? "—")</span>
+                                    </td>
+                                    <td>@(string.IsNullOrEmpty(deployment.ConnectionName) ? "Standalone" : deployment.ConnectionName)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<AIDeploymentViewModel> _deployments;
+    private List<AIDeploymentViewModel> _userDefinedDeployments = [];
+    private List<AIDeploymentViewModel> _configuredDeployments = [];
+    private string _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDeploymentsAsync();
+    }
+
+    private async Task LoadDeploymentsAsync()
+    {
+        var deployments = await Catalog.GetAllAsync();
+
+        _deployments = deployments
+            .Select(deployment =>
+            {
+                var model = AIDeploymentViewModel.FromDeployment(deployment);
+                model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
+
+                return model;
+            })
+            .OrderBy(static model => model.TechnicalName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _userDefinedDeployments = _deployments.Where(static d => !d.IsReadOnly).ToList();
+        _configuredDeployments = _deployments.Where(static d => d.IsReadOnly).ToList();
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(id))
+        {
+            _errorMessage = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
+
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this deployment?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var deployment = await Catalog.FindByIdAsync(id);
+        if (deployment == null)
+        {
+            _errorMessage = "Deployment not found.";
+
+            return;
+        }
+
+        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        {
+            _errorMessage = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
+
+            return;
+        }
+
+        await Catalog.DeleteAsync(deployment);
+        await StoreCommitter.CommitAsync();
+        await LoadDeploymentsAsync();
+    }
+}

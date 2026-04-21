@@ -1,0 +1,53 @@
+@page "/account/login"
+@layout MainLayout
+<PageTitle>Login - CrestApps AI</PageTitle>
+
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card mt-5">
+            <div class="card-header">
+                <h4>Login</h4>
+            </div>
+            <div class="card-body">
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+                <form method="post" action="/account/sign-in">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="returnUrl" value="@_returnUrl" />
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" @bind="_username" required autofocus />
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" @bind="_password" required />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Sign In</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    #nullable enable
+
+    [SupplyParameterFromQuery]
+    private string? returnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? error { get; set; }
+
+    private string? _username;
+    private string? _password;
+    private string? _returnUrl;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        _returnUrl = returnUrl;
+        _error = error;
+    }
+}

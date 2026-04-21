@@ -1557,7 +1557,7 @@ window.chatInteractionManager = function () {
                     );
                 },
                 getSelectedGroupValues(groupName, fallbackSelector) {
-                    const explicitSelections = document.querySelectorAll(`.capability-checkbox[data-save-group="${groupName}"]:checked`);
+                    const explicitSelections = document.querySelectorAll(`.capability-checkbox[data-save-group="${groupName}"]:checked, .capability-checkbox[data-group="${groupName}"]:checked`);
                     if (explicitSelections.length > 0) {
                         const values = [];
 
@@ -1808,7 +1808,7 @@ window.chatInteractionManager = function () {
                     });
 
                     document.addEventListener('change', event => {
-                        if (event.target.matches('.setting-input[data-setting], .capability-checkbox[data-save-group], .group-toggle, .ci-agent-global-toggle')) {
+                        if (event.target.matches('.setting-input[data-setting], .capability-checkbox[data-save-group], .capability-checkbox[data-group], .group-toggle, .ci-agent-global-toggle')) {
                             if (event.target.matches('.setting-input[data-setting]')) {
                                 this.validateSettingInput(event.target);
                             }

@@ -849,7 +849,15 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             }
 
             var existingPrompts = await promptStore.GetPromptsAsync(itemId);
-            var conversationHistory = existingPrompts
+            var conversationHistorySource = existingPrompts.ToList();
+
+            if (!conversationHistorySource.Any(x => x.ItemId == userPrompt.ItemId))
+            {
+                conversationHistorySource.Add(userPrompt);
+            }
+
+            var conversationHistory = conversationHistorySource
+                .OrderBy(x => x.CreatedUtc)
                 .Where(x => !x.IsGeneratedPrompt)
                 .Select(p => new ChatMessage(p.Role, p.Text))
                 .ToList();

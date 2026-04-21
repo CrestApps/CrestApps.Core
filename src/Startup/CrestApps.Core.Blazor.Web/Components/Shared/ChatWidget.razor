@@ -1,0 +1,216 @@
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Blazor.Web.Models
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject IAIProfileManager ProfileManager
+@inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
+@inject SiteSettingsStore SiteSettings
+@inject IJSRuntime JS
+
+@if (_profile != null)
+{
+    <div id="ai-chat-admin-widget-shell" class="ai-chat-admin-widget-shell" style="@_widgetShellStyle">
+        <link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/chat-widget.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
+
+        <!-- Floating toggle button -->
+        <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open AI Chat">
+            <i class="bi bi-chat-dots-fill"></i>
+        </button>
+
+        <!-- Widget container -->
+        <div id="widget-panel" class="ai-chat-widget-container">
+            <div class="ai-chat-widget-header">
+                <span class="title">AI Chat</span>
+                <div class="ai-chat-widget-header-actions">
+                    <button id="widget-new-chat" title="New Chat"><i class="bi bi-plus-lg"></i></button>
+                    <button id="widget-reset-size" class="d-none" title="Reset size"><i class="bi bi-arrows-angle-contract"></i></button>
+                    <button id="widget-close" title="Close"><i class="bi bi-x-lg"></i></button>
+                </div>
+            </div>
+
+            <div id="widget-chat-container" class="ai-chat-widget-messages">
+                <div id="widget-placeholder">
+                    <div class="ai-chat-widget-welcome">
+                        <i class="bi bi-robot" style="font-size: 2rem;"></i><br />
+                        @_welcomeMessage
+                    </div>
+                </div>
+                <div id="widget-chat-app"></div>
+            </div>
+
+            <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
+
+            <div class="ai-chat-widget-input">
+                <textarea id="widget-chat-input"
+                          placeholder="Type a message..."
+                          rows="1"
+                          data-session-id=""
+                          data-profile-id="@_profile.ItemId"></textarea>
+                <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
+                    <i class="bi bi-mic-fill"></i>
+                </button>
+                @if (_chatMode == ChatMode.Conversation)
+                {
+                    <button type="button"
+                            id="widget-conversation-btn"
+                            class="btn btn-outline-dark btn-sm"
+                            title="Start Conversation"
+                            data-start-title="Start Conversation"
+                            data-end-title="End Conversation"
+                            data-start-html="<i class='bi bi-soundwave'></i>"
+                            data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
+                        <i class="bi bi-soundwave"></i>
+                    </button>
+                }
+                <button type="button" id="widget-send-btn">
+                    <i class="bi bi-send"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+}
+
+@code {
+    private AIProfile _profile;
+    private string _welcomeMessage = "What do you want to know?";
+    private string _widgetShellStyle = "visibility:hidden;";
+    private ChatMode _chatMode = ChatMode.TextInput;
+    private bool _metricsEnabled;
+    private bool _allowSessionDocuments;
+    private bool _textToSpeechEnabled;
+    private string _ttsVoiceName;
+    private string _supportedExtensionsAccept;
+    private string _supportedExtensionsDisplay;
+    private bool _initialized;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
+        var deploymentDefaults = SiteSettings.Get<DefaultAIDeploymentSettings>();
+
+        if (string.IsNullOrWhiteSpace(adminWidgetSettings.ProfileId))
+        {
+            return;
+        }
+
+        var selectedProfile = await ProfileManager.FindByIdAsync(adminWidgetSettings.ProfileId);
+        if (selectedProfile == null || selectedProfile.Type != AIProfileType.Chat)
+        {
+            return;
+        }
+
+        _profile = selectedProfile;
+        _welcomeMessage = !string.IsNullOrWhiteSpace(selectedProfile.WelcomeMessage)
+            ? selectedProfile.WelcomeMessage
+            : "What do you want to know?";
+
+        var hasTtsDeployment = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
+        var speechToTextEnabled = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
+        _ttsVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId;
+
+        ChatModeProfileSettings chatModeSettings = null;
+        if (selectedProfile.TryGetSettings<ChatModeProfileSettings>(out chatModeSettings))
+        {
+            _textToSpeechEnabled = (chatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
+            if (!string.IsNullOrEmpty(chatModeSettings?.VoiceName))
+            {
+                _ttsVoiceName = chatModeSettings.VoiceName;
+            }
+        }
+
+        var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;
+        _chatMode = configuredChatMode switch
+        {
+            ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
+            ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
+            ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
+            _ => ChatMode.TextInput,
+        };
+
+        _metricsEnabled = selectedProfile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics;
+        _allowSessionDocuments = selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta) && sessionDocMeta.AllowSessionDocuments;
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+
+        var widgetStyle = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
+            ? null
+            : $"--ai-widget-primary: {adminWidgetSettings.PrimaryColor.Trim()};";
+        _widgetShellStyle = string.IsNullOrWhiteSpace(widgetStyle) ? "visibility:hidden;" : $"{widgetStyle}visibility:hidden;";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _profile != null && !_initialized)
+        {
+            _initialized = true;
+
+            var widgetStateName = "blazor-admin-chat-widget-" + _profile.ItemId;
+
+            await JS.InvokeVoidAsync("window.openAIChatWidgetManager.initialize", new
+            {
+                shellSelector = "#ai-chat-admin-widget-shell",
+                widgetContainerSelector = "#widget-panel",
+                toggleButtonSelector = "#widget-toggle",
+                closeButtonSelector = "#widget-close",
+                inputSelector = "#widget-chat-input",
+                widgetStateName,
+                openStateValue = "true",
+                closedStateValue = "false",
+                openIconHtml = "<i class=\"bi bi-x-lg\"></i>",
+                closedIconHtml = "<i class=\"bi bi-chat-dots-fill\"></i>",
+                profile = new
+                {
+                    id = _profile.ItemId,
+                    name = _profile.Name,
+                    displayText = _profile.DisplayText ?? _profile.Name,
+                    welcomeMessage = _profile.WelcomeMessage,
+                    chatMode = _chatMode.ToString(),
+                    ttsVoiceName = _ttsVoiceName,
+                    enableSessionMetrics = _metricsEnabled,
+                    allowSessionDocuments = _allowSessionDocuments,
+                },
+                chatConfig = new
+                {
+                    signalRHubUrl = "/hubs/ai-chat",
+                    appElementSelector = "#widget-chat-app",
+                    chatContainerElementSelector = "#widget-chat-container",
+                    inputElementSelector = "#widget-chat-input",
+                    sendButtonElementSelector = "#widget-send-btn",
+                    placeholderElementSelector = "#widget-placeholder",
+                    messages = Array.Empty<object>(),
+                    autoCreateSession = true,
+                    metricsEnabled = _metricsEnabled,
+                    chatMode = _chatMode.ToString(),
+                    micButtonElementSelector = "#widget-mic-btn",
+                    conversationButtonElementSelector = "#widget-conversation-btn",
+                    ttsVoiceName = _ttsVoiceName,
+                    sessionDocumentsEnabled = _allowSessionDocuments,
+                    existingDocuments = Array.Empty<object>(),
+                    documentBarSelector = "#widget-chat-document-bar",
+                    uploadDocumentUrl = "/ai/chat-sessions/upload-document",
+                    removeDocumentUrl = "/ai/chat-sessions/remove-document",
+                    allowedExtensions = _supportedExtensionsAccept,
+                    supportedExtensionsText = _supportedExtensionsDisplay,
+                    widget = new
+                    {
+                        chatWidgetContainer = "#widget-panel",
+                        chatWidgetStateName = widgetStateName,
+                        newChatButton = "#widget-new-chat",
+                        toggleButtonSelector = "#widget-toggle",
+                        resetSizeButtonSelector = "#widget-reset-size",
+                        dragHandleSelector = ".ai-chat-widget-header",
+                        enableDragging = true,
+                        enableResizing = true,
+                        persistLayout = true,
+                    },
+                },
+            });
+        }
+    }
+}
+

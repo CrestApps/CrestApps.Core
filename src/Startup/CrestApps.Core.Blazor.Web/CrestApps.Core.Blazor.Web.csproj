@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CrestApps.Core.Blazor.Web</RootNamespace>
+    <UserSecretsId>CrestApps-Blazor-Web</UserSecretsId>
+    <IsPackable>false</IsPackable>
+    <PackageTags>$(PackageTags) blazor sample host admin-ui signalr entitycore</PackageTags>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**\App_Data\**;node_modules\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <PackageReference Include="NLog" />
+    <PackageReference Include="NLog.Web.AspNetCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="nlog.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Resources/CrestApps.AI.Resources/CrestApps.AI.Resources.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core/CrestApps.Core.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Azure.AISearch/CrestApps.Core.AI.Azure.AISearch.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.OpenAI/CrestApps.Core.AI.OpenAI.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.OpenAI.Azure/CrestApps.Core.AI.OpenAI.Azure.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Ollama/CrestApps.Core.AI.Ollama.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.AzureAIInference/CrestApps.Core.AI.AzureAIInference.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Claude/CrestApps.Core.AI.Claude.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.Blazor.Components/CrestApps.Core.Blazor.Components.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.SignalR/CrestApps.Core.SignalR.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
+    <ProjectReference Include="../../Stores/CrestApps.Core.Data.EntityCore/CrestApps.Core.Data.EntityCore.csproj" />
+    <ProjectReference Include="../CrestApps.Core.Startup.Shared/CrestApps.Core.Startup.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="App_Data\" />
+  </ItemGroup>
+
+</Project>

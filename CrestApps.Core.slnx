@@ -39,6 +39,7 @@
     <Project Path="src/Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure/CrestApps.Core.Azure.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.Blazor.Components/CrestApps.Core.Blazor.Components.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.SignalR/CrestApps.Core.SignalR.csproj" />
@@ -52,7 +53,9 @@
     <Project Path="src/Startup/CrestApps.Core.Aspire.AppHost/CrestApps.Core.Aspire.AppHost.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Samples.A2AClient/CrestApps.Core.Mvc.Samples.A2AClient.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Samples.McpClient/CrestApps.Core.Mvc.Samples.McpClient.csproj" />
+    <Project Path="src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
+    <Project Path="src/Startup/CrestApps.Core.Startup.Shared/CrestApps.Core.Startup.Shared.csproj" />
   </Folder>
   <Folder Name="/src/Stores/">
     <Project Path="src/Stores/CrestApps.Core.Data.EntityCore/CrestApps.Core.Data.EntityCore.csproj" />
@@ -62,6 +65,7 @@
     <Project Path="src/Utilities/CrestApps.Core.Support/CrestApps.Core.Support.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CrestApps.Core.Tests.Samples/CrestApps.Core.Tests.Samples.csproj" />
     <Project Path="tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj" />
   </Folder>
 </Solution>

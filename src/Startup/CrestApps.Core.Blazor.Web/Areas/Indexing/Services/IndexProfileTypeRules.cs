@@ -1,0 +1,17 @@
+using CrestApps.Core.Infrastructure.Indexing;
+
+namespace CrestApps.Core.Blazor.Web.Areas.Indexing.Services;
+
+public static class IndexProfileTypeRules
+{
+    public static readonly string[] EmbeddingTypes = [IndexProfileTypes.AIDocuments, IndexProfileTypes.AIMemory, IndexProfileTypes.DataSource,];
+    public static bool RequiresEmbedding(string type)
+    {
+        return EmbeddingTypes.Contains(type, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static bool SupportsEmbeddingSelection(string type)
+    {
+        return !string.Equals(type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase);
+    }
+}

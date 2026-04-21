@@ -39,6 +39,7 @@ using CrestApps.Core.Mvc.Web.Areas.DataSources.Services;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Mvc.Web.Tools;
 using CrestApps.Core.SignalR;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -246,7 +247,7 @@ builder.Services
 // stay together and are easy to remove independently.
 // =============================================================================
 // Add Articles support to show document support example.
-builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, ArticleIndexProfileHandler>());
+builder.Services.AddSharedArticleServices();
 builder.Services.AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles);
 builder.Services.AddScoped<MvcCitationReferenceCollector>();
 builder.Services.AddScoped<CompositeAIReferenceLinkResolver>();

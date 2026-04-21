@@ -1562,7 +1562,7 @@ window.chatInteractionManager = function () {
           return document.querySelectorAll('input[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]), ' + 'select[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]), ' + 'textarea[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["])');
         },
         getSelectedGroupValues: function getSelectedGroupValues(groupName, fallbackSelector) {
-          var explicitSelections = document.querySelectorAll(".capability-checkbox[data-save-group=\"".concat(groupName, "\"]:checked"));
+          var explicitSelections = document.querySelectorAll(".capability-checkbox[data-save-group=\"".concat(groupName, "\"]:checked, .capability-checkbox[data-group=\"").concat(groupName, "\"]:checked"));
           if (explicitSelections.length > 0) {
             var _values = [];
             explicitSelections.forEach(function (checkbox) {
@@ -1791,7 +1791,7 @@ window.chatInteractionManager = function () {
             }
           });
           document.addEventListener('change', function (event) {
-            if (event.target.matches('.setting-input[data-setting], .capability-checkbox[data-save-group], .group-toggle, .ci-agent-global-toggle')) {
+            if (event.target.matches('.setting-input[data-setting], .capability-checkbox[data-save-group], .capability-checkbox[data-group], .group-toggle, .ci-agent-global-toggle')) {
               if (event.target.matches('.setting-input[data-setting]')) {
                 _this17.validateSettingInput(event.target);
               }

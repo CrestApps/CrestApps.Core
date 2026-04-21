@@ -1,0 +1,226 @@
+@page "/ai-chat/chat/{SessionId}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject IAIProfileManager ProfileManager
+@inject IAIChatSessionManager SessionManager
+@inject IAIChatSessionPromptStore PromptStore
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject SiteSettingsStore SiteSettings
+@inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
+
+<PageTitle>Chat - @(_profileDisplayText ?? "AI Chat") - CrestApps AI</PageTitle>
+
+<style>
+    .chat-page-shell { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+    .chat-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .chat-card { min-height: 0; }
+    .chat-scroll-region { min-height: 0; }
+    .ai-chat-messages { padding: 1rem; }
+    .ai-chat-messages .ai-chat-message-item { position: relative; padding: 0.5rem 0; }
+    .ai-chat-messages .ai-chat-message-item + .ai-chat-message-item::before {
+        content: ''; display: block; width: 100%; margin-bottom: 0.5rem;
+        border-top: 1px solid rgba(33, 37, 41, 0.08);
+    }
+    .ai-chat-messages .ai-chat-message-item p:last-child { margin-bottom: 0; }
+    .ai-chat-messages .ai-chat-message-body {
+        position: relative; padding: 0; overflow-wrap: break-word; word-break: break-word; min-width: 0;
+    }
+    .ai-chat-msg-role { font-size: 0.75rem; font-weight: 600; margin-bottom: 2px; }
+    .ai-chat-msg-role-user { color: #0d6efd; }
+    .ai-chat-msg-role-assistant { color: #6f42c1; }
+    .ai-chat-msg-role-assistant i.ai-streaming-icon { animation: pulse 1.5s infinite; }
+    .ai-chat-msg-role-assistant i.ai-bot-icon { color: #6f42c1; }
+    .ai-chat-messages .message-buttons-container {
+        position: absolute; right: 0.1rem; bottom: 0; display: inline-flex; align-items: center; gap: 0.35rem;
+        opacity: 0; pointer-events: none; transition: opacity 0.15s ease-in-out;
+        background: rgba(255,255,255,0.96); padding: 0.2rem 0.35rem; border-radius: 999px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08); z-index: 1;
+    }
+    .ai-chat-messages .ai-chat-message-item:hover .message-buttons-container,
+    .ai-chat-messages .ai-chat-message-item:focus-within .message-buttons-container {
+        opacity: 1; pointer-events: auto;
+    }
+    @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+
+<link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/ai-chat.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
+
+@if (_profile == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="chat-page-shell">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
+            <h2><i class="bi bi-chat-dots"></i> @_profileDisplayText</h2>
+            <a href="/ai/profiles" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+
+        <div class="chat-page-wrapper">
+            <div class="border rounded flex-grow-1 d-flex flex-column chat-card">
+                <div id="chat-container" class="flex-grow-1 overflow-auto chat-scroll-region">
+                    <div id="chat-placeholder">
+                        <div class="p-3 text-muted">
+                            <i class="bi bi-robot"></i> @_welcomeMessage
+                        </div>
+                    </div>
+                    <div id="chat-app"></div>
+                </div>
+
+                <div id="chat-document-bar" class="border-top bg-light @(_allowSessionDocuments ? string.Empty : "d-none")"></div>
+
+                <div class="border-top p-3 flex-shrink-0">
+                    <div class="d-flex gap-2">
+                        <textarea id="chat-input"
+                                  class="form-control"
+                                  rows="1"
+                                  placeholder="Type a message..."
+                                  data-session-id="@_sessionId"
+                                  data-profile-id="@_profile.ItemId"></textarea>
+                        <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
+                            <i class="bi bi-mic-fill"></i>
+                        </button>
+                        @if (_chatMode == ChatMode.Conversation)
+                        {
+                            <button type="button"
+                                    id="chat-conversation-btn"
+                                    class="btn btn-outline-dark"
+                                    title="Start Conversation"
+                                    data-start-title="Start Conversation"
+                                    data-end-title="End Conversation"
+                                    data-start-html="<i class='bi bi-soundwave'></i>"
+                                    data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
+                                <i class="bi bi-soundwave"></i>
+                            </button>
+                        }
+                        <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string SessionId { get; set; }
+
+    private AIProfile _profile;
+    private string _profileDisplayText;
+    private string _sessionId;
+    private string _welcomeMessage;
+    private bool _allowSessionDocuments;
+    private bool _metricsEnabled;
+    private bool _textToSpeechEnabled;
+    private string _ttsVoiceName;
+    private ChatMode _chatMode;
+    private string _supportedExtensionsAccept;
+    private string _supportedExtensionsDisplay;
+    private IReadOnlyList<ChatDocumentInfo> _existingDocuments = Array.Empty<ChatDocumentInfo>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(SessionId))
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        var session = await SessionManager.FindByIdAsync(SessionId);
+        if (session == null)
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        _sessionId = session.SessionId;
+        _existingDocuments = session.Documents ?? new List<ChatDocumentInfo>();
+
+        _profile = await ProfileManager.FindByIdAsync(session.ProfileId);
+        if (_profile == null)
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        _profileDisplayText = _profile.DisplayText ?? _profile.Name;
+        _welcomeMessage = !string.IsNullOrWhiteSpace(_profile.WelcomeMessage)
+            ? _profile.WelcomeMessage
+            : "What do you want to know?";
+
+        _allowSessionDocuments = _profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta) && sessionDocMeta.AllowSessionDocuments;
+        _metricsEnabled = _profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics;
+
+        var deploymentDefaults = SiteSettings.Get<DefaultAIDeploymentSettings>();
+        ChatModeProfileSettings chatModeSettings = null;
+        _profile.TryGetSettings<ChatModeProfileSettings>(out chatModeSettings);
+
+        var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;
+        var speechToTextEnabled = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
+        var hasTtsDeployment = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
+        _textToSpeechEnabled = (chatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
+        _ttsVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultTextToSpeechVoiceId;
+
+        _chatMode = configuredChatMode switch
+        {
+            ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
+            ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
+            ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
+            _ => ChatMode.TextInput,
+        };
+
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _profile != null)
+        {
+            var prompts = await PromptStore.GetPromptsAsync(_sessionId);
+            var messages = prompts
+                .Select(m => new { role = m.Role.Value, content = m.Content, id = m.ItemId, title = m.Title, references = m.References })
+                .ToArray();
+
+            await JS.InvokeVoidAsync("window.openAIChatManager.initialize", new
+            {
+                signalRHubUrl = "/hubs/ai-chat",
+                appElementSelector = "#chat-app",
+                chatContainerElementSelector = "#chat-container",
+                inputElementSelector = "#chat-input",
+                sendButtonElementSelector = "#send-btn",
+                placeholderElementSelector = "#chat-placeholder",
+                messages,
+                metricsEnabled = _metricsEnabled,
+                chatMode = _chatMode.ToString(),
+                micButtonElementSelector = "#chat-mic-btn",
+                conversationButtonElementSelector = "#chat-conversation-btn",
+                ttsVoiceName = _ttsVoiceName,
+                textToSpeechEnabled = _textToSpeechEnabled,
+                sessionDocumentsEnabled = _allowSessionDocuments,
+                existingDocuments = _existingDocuments,
+                documentBarSelector = "#chat-document-bar",
+                uploadDocumentUrl = "/ai/chat-sessions/upload-document",
+                removeDocumentUrl = "/ai/chat-sessions/remove-document",
+                allowedExtensions = _supportedExtensionsAccept,
+                supportedExtensionsText = _supportedExtensionsDisplay,
+            });
+        }
+    }
+}
