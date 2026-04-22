@@ -74,7 +74,10 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 - Use `var` consistently with repository style
 - Only use expression-bodied members when the entire member fits on a single short line; use a full block body for anything longer or split across lines
 - Avoid `DateTime.UtcNow`; prefer injected `TimeProvider`.
-- Keep public docs and comments honest to the current code
+- Keep public docs and comments honest to the current code.
+- Always document new interfaces, their methods and arguments along with documenting every property on domain models using `<summary>` block.
+- Always treat warnings are errors in the solutions and ensure every warning is addressed.
+- Always learn from my prompts, preference and styles and update the `copilot-instructions.md` file with any new preferences that I share in the future.
 
 ## Runtime notes
 

@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Mvc.Web.Areas.DataSources.Services;
 using CrestApps.Core.Mvc.Web.Areas.DataSources.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -15,13 +15,13 @@ public sealed class AIDataSourceController : Controller
 {
     private readonly ICatalogManager<AIDataSource> _manager;
     private readonly ISearchIndexProfileStore _indexProfileStore;
-    private readonly IMvcAIDataSourceIndexingQueue _indexingQueue;
+    private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly TimeProvider _timeProvider;
 
     public AIDataSourceController(
         ICatalogManager<AIDataSource> manager,
         ISearchIndexProfileStore indexProfileStore,
-        IMvcAIDataSourceIndexingQueue indexingQueue,
+        IAIDataSourceIndexingQueue indexingQueue,
         TimeProvider timeProvider)
     {
         _manager = manager;

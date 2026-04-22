@@ -18,7 +18,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly AIMemoryOptions _memoryOptions;
-    private readonly ILogger<AIMemorySearchService> _logger;
+    private readonly ILogger _logger;
 
     public AIMemorySearchService(
         IServiceProvider serviceProvider,

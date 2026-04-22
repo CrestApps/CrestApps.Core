@@ -14,7 +14,7 @@ namespace CrestApps.Core.AI.Elasticsearch.Services;
 internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
 {
     private readonly ElasticsearchClient _elasticClient;
-    private readonly ILogger<ElasticsearchVectorSearchService> _logger;
+    private readonly ILogger _logger;
 
     public ElasticsearchVectorSearchService(
         ElasticsearchClient elasticClient,

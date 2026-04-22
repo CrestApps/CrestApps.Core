@@ -1,25 +1,24 @@
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.Mvc.Web.Areas.DataSources.BackgroundServices;
+namespace CrestApps.Core.AI.Services;
 
-/// <summary>
-/// Daily alignment task that ensures AI data source indexes are fully consistent.
-/// Upserts missing documents from data sources and removes orphaned records.
-/// Runs once daily at 2:00 AM UTC.
-/// </summary>
-public sealed class DataSourceAlignmentBackgroundService : BackgroundService
+internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
 {
     private static readonly TimeSpan _alignmentCheckInterval = TimeSpan.FromMinutes(30);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<DataSourceAlignmentBackgroundService> _logger;
+    private readonly ILogger _logger;
 
-    public DataSourceAlignmentBackgroundService(
+    private DateOnly? _lastRunDateUtc;
+
+    public AIDataSourceAlignmentBackgroundService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
-        ILogger<DataSourceAlignmentBackgroundService> logger)
+        ILogger<AIDataSourceAlignmentBackgroundService> logger)
     {
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
@@ -44,15 +43,22 @@ public sealed class DataSourceAlignmentBackgroundService : BackgroundService
                 break;
             }
 
-            if (!ShouldRunAlignment())
+            if (!ShouldRunAlignment(out var runDateUtc))
             {
+                _logger.LogTrace("Skipping AI data-source alignment on this timer tick because the UTC schedule window has not been reached.");
                 continue;
             }
 
             try
             {
+                if (_logger.IsEnabled(LogLevel.Trace))
+                {
+                    _logger.LogTrace("Starting scheduled AI data-source alignment for UTC date {RunDateUtc}.", runDateUtc);
+                }
+
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 await AlignDataSourcesAsync(scope.ServiceProvider, stoppingToken);
+                _lastRunDateUtc = runDateUtc;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -60,53 +66,48 @@ public sealed class DataSourceAlignmentBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred during daily AI data source alignment.");
+                _logger.LogError(ex, "An error occurred during nightly AI data-source alignment.");
             }
         }
     }
 
-    /// <summary>
-    /// Determines whether the alignment should run based on the current UTC hour.
-    /// Alignment runs daily between 2:00 AM and 2:30 AM UTC.
-    /// </summary>
-    private bool ShouldRunAlignment()
+    private bool ShouldRunAlignment(out DateOnly runDateUtc)
     {
         var utcNow = _timeProvider.GetUtcNow();
+        runDateUtc = DateOnly.FromDateTime(utcNow.UtcDateTime);
 
-        return utcNow.Hour == 2 && utcNow.Minute < 30;
+        return utcNow.Hour == 2 &&
+            utcNow.Minute < 30 &&
+            _lastRunDateUtc != runDateUtc;
     }
 
-    /// <summary>
-    /// Performs full alignment of all data source indexes by upserting missing
-    /// documents and removing orphaned records.
-    /// </summary>
     private async Task AlignDataSourcesAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
         var dataSourceStore = services.GetService<IAIDataSourceStore>();
-        var indexingService = services.GetService<IAIDataSourceIndexingService>();
-
-        if (dataSourceStore == null || indexingService == null)
+        if (dataSourceStore == null)
         {
-            _logger.LogDebug("Data source alignment is not fully configured. Skipping alignment.");
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                _logger.LogTrace("Skipped AI data-source alignment because no '{ServiceType}' implementation was registered.", nameof(IAIDataSourceStore));
+            }
 
             return;
         }
 
         var dataSources = await dataSourceStore.GetAllAsync();
         var dataSourceList = dataSources?.ToList() ?? [];
-
         if (dataSourceList.Count == 0)
         {
+            _logger.LogTrace("Skipped AI data-source alignment because no AI data sources were configured.");
             return;
         }
 
-        if (_logger.IsEnabled(LogLevel.Information))
-        {
-            _logger.LogInformation("Starting daily data source alignment for {Count} data source(s).", dataSourceList.Count);
-        }
+        var indexingService = services.GetRequiredService<IAIDataSourceIndexingService>();
+
+        _logger.LogInformation("Starting nightly data-source alignment for {Count} data source(s).", dataSourceList.Count);
 
         await indexingService.SyncAllAsync(cancellationToken);
 
-        _logger.LogInformation("Daily data source alignment completed.");
+        _logger.LogInformation("Nightly data-source alignment completed.");
     }
 }

@@ -13,7 +13,7 @@ namespace CrestApps.Core.AI.Azure.AISearch.Services;
 internal sealed class AzureAISearchMemoryVectorSearchService : IMemoryVectorSearchService
 {
     private readonly SearchIndexClient _searchIndexClient;
-    private readonly ILogger<AzureAISearchMemoryVectorSearchService> _logger;
+    private readonly ILogger _logger;
 
     public AzureAISearchMemoryVectorSearchService(
         SearchIndexClient searchIndexClient,

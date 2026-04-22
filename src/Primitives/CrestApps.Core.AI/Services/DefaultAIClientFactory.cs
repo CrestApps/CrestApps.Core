@@ -15,7 +15,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<DefaultAIClientFactory> _logger;
+    private readonly ILogger _logger;
 
     public DefaultAIClientFactory(
         IEnumerable<IAIClientProvider> clientProviders,

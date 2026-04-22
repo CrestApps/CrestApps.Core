@@ -14,11 +14,16 @@ namespace CrestApps.Core.Elasticsearch.Services;
 internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManager
 {
     private readonly ElasticsearchClient _elasticClient;
-    private readonly ILogger<ElasticsearchSearchDocumentManager> _logger;
+    private readonly IEnumerable<ISearchDocumentHandler> _handlers;
+    private readonly ILogger _logger;
 
-    public ElasticsearchSearchDocumentManager(ElasticsearchClient elasticClient, ILogger<ElasticsearchSearchDocumentManager> logger)
+    public ElasticsearchSearchDocumentManager(
+        ElasticsearchClient elasticClient,
+        IEnumerable<ISearchDocumentHandler> handlers,
+        ILogger<ElasticsearchSearchDocumentManager> logger)
     {
         _elasticClient = elasticClient;
+        _handlers = handlers;
         _logger = logger;
     }
 
@@ -61,6 +66,8 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
                 return false;
             }
 
+            await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
+
             return true;
         }
         catch (Exception ex)
@@ -97,6 +104,8 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             {
                 _logger.LogWarning("Elasticsearch bulk delete failed for index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
             }
+
+            await NotifyDocumentsDeletedAsync(profile, ids, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -120,6 +129,70 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting all documents from Elasticsearch index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+        }
+    }
+
+    private async Task NotifyDocumentsAddedOrUpdatedAsync(IIndexProfileInfo profile, IReadOnlyCollection<IndexDocument> documents, CancellationToken cancellationToken)
+    {
+        var handlers = _handlers.ToArray();
+
+        if (handlers.Length == 0)
+        {
+            return;
+        }
+
+        var documentIds = documents
+            .Select(document => document.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToArray();
+
+        if (documentIds.Length == 0)
+        {
+            return;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after add/update for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, SanitizeLogValue(profile.IndexFullName), documentIds.Length);
+        }
+
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                await handler.DocumentsAddedOrUpdatedAsync(profile, documentIds, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after indexing documents into '{IndexName}'.", handler.GetType().Name, SanitizeLogValue(profile.IndexFullName));
+            }
+        }
+    }
+
+    private async Task NotifyDocumentsDeletedAsync(IIndexProfileInfo profile, List<string> documentIds, CancellationToken cancellationToken)
+    {
+        var handlers = _handlers.ToArray();
+
+        if (handlers.Length == 0 || documentIds.Count == 0)
+        {
+            return;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after delete for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, SanitizeLogValue(profile.IndexFullName), documentIds.Count);
+        }
+
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                await handler.DocumentsDeletedAsync(profile, documentIds, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after deleting documents from '{IndexName}'.", handler.GetType().Name, SanitizeLogValue(profile.IndexFullName));
+            }
         }
     }
 }

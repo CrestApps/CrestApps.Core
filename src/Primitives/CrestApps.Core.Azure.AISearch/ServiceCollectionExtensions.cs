@@ -57,7 +57,7 @@ public static class ServiceCollectionExtensions
             => new AzureAISearchIndexManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<IOptions<AzureAISearchConnectionOptions>>(), sp.GetRequiredService<ILogger<AzureAISearchIndexManager>>()));
 
         services.TryAddKeyedScoped<ISearchDocumentManager>(AISearchConstants.ProviderName, (sp, _)
-            => new AzureAISearchDocumentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDocumentManager>>()));
+            => new AzureAISearchDocumentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetServices<ISearchDocumentHandler>(), sp.GetRequiredService<ILogger<AzureAISearchDocumentManager>>()));
 
         return services;
     }
