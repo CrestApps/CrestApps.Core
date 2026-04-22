@@ -30,7 +30,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             IndexName = "articles",
             ProviderName = ElasticsearchConstants.ProviderName,
             Type = IndexProfileTypes.Articles,
-        });
+        }, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.Succeeded);
@@ -60,7 +60,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
                 IndexName = "articles",
                 ProviderName = ElasticsearchConstants.ProviderName,
                 Type = IndexProfileTypes.Articles,
-            });
+            }, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.False(result.Succeeded);

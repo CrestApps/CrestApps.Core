@@ -31,6 +31,13 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
         Dictionary<string, AICompletionReference> references,
         HashSet<string> contentItemIds)
     {
+        if (handlerContext.Properties.TryGetValue("OrchestrationContext", out var ctxObj) &&
+            ctxObj is OrchestrationContext orchestrationContext)
+        {
+            _citationCollector.CollectPreemptiveReferences(orchestrationContext, references, contentItemIds);
+            handlerContext.Properties.Remove("OrchestrationContext");
+        }
+
         _citationCollector.CollectToolReferences(references, contentItemIds);
     }
 

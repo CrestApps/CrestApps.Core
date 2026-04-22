@@ -1426,7 +1426,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 responseId ??= chunk.ResponseId;
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
-                    await Clients.Caller.ReceiveConversationAssistantToken(effectiveSessionId, messageId ?? string.Empty, chunk.Content, responseId ?? string.Empty);
+                    await Clients.Caller.ReceiveConversationAssistantToken(
+                        effectiveSessionId,
+                        messageId ?? string.Empty,
+                        chunk.Content,
+                        responseId ?? string.Empty,
+                        chunk.References);
                     sentenceBuffer.Append(chunk.Content);
                     if (SentenceBoundaryDetector.EndsWithSentenceBoundary(chunk.Content))
                     {
@@ -1472,7 +1477,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             {
                 try
                 {
-                    await Clients.Caller.ReceiveConversationAssistantComplete(effectiveSessionId, messageId);
+                    await Clients.Caller.ReceiveConversationAssistantComplete(
+                        effectiveSessionId,
+                        messageId,
+                        await GetPromptReferencesAsync(services, effectiveSessionId, messageId));
                 }
                 catch
                 {
@@ -1482,6 +1490,23 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         }
 
         return effectiveSessionId;
+    }
+
+    private static async Task<Dictionary<string, AICompletionReference>> GetPromptReferencesAsync(
+        IServiceProvider services,
+        string sessionId,
+        string messageId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(messageId))
+        {
+            return null;
+        }
+
+        var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
+        var prompts = await promptStore.GetPromptsAsync(sessionId);
+        var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
+
+        return prompt?.References;
     }
 
 #pragma warning restore MEAI001

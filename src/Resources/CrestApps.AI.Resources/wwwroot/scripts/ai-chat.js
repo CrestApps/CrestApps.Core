@@ -55,7 +55,7 @@ window.openAIChatManager = function () {
       minWidth: 320,
       minHeight: 420
     },
-    messageTemplate: "\n        <div class=\"ai-chat-messages\">\n            <div v-for=\"(message, index) in messages\" :key=\"'msg-' + index\" class=\"ai-chat-message-item\">\n                <div>\n                    <div v-if=\"message.role === 'user'\" class=\"ai-chat-msg-role ai-chat-msg-role-user\">{{ userLabel }}</div>\n                    <div v-else-if=\"message.role !== 'indicator'\" :class=\"getAssistantRoleClasses(message)\">\n                        <span :class=\"getAssistantIconClasses(message, index)\"><span :class=\"getAssistantIcon(message)\"></span></span>\n                        {{ getAssistantLabel(message) }}\n                    </div>\n                    <div class=\"ai-chat-message-body lh-base\">\n                        <h4 v-if=\"message.title\">{{ message.title }}</h4>\n                        <div v-html=\"message.htmlContent\"></div>\n                        <ol v-if=\"message.citationReferences && message.citationReferences.length\" class=\"ai-chat-citation-list\">\n                            <li v-for=\"citation in message.citationReferences\" :key=\"'citation-' + (citation.referenceKey || citation.displayIndex)\" class=\"ai-chat-citation-item\">\n                                <a v-if=\"citation.link\" :href=\"citation.link\" target=\"_blank\" rel=\"noopener noreferrer\">{{ citation.label }}</a>\n                                <span v-else>{{ citation.label }}</span>\n                            </li>\n                        </ol>\n                        <span class=\"message-buttons-container\" v-if=\"!isIndicator(message)\">\n                            <template v-if=\"metricsEnabled && message.role === 'assistant'\">\n                                <span class=\"ai-chat-message-assistant-feedback\" :data-message-id=\"message.id\">\n                                    <button class=\"btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn\" @click=\"rateMessage(message, true, $event)\" :title=\"thumbsUpTitle\">\n                                        <span class=\"fa-regular fa-thumbs-up\"></span>\n                                    </button>\n                                    <button class=\"btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn\" @click=\"rateMessage(message, false, $event)\" :title=\"thumbsDownTitle\">\n                                        <span class=\"fa-regular fa-thumbs-down\"></span>\n                                    </button>\n                                </span>\n                            </template>\n                            <button v-if=\"textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming\" class=\"btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox\" :class=\"{ 'tts-playing': ttsPlayingMessageIndex === index }\" :data-tts-message-index=\"index\" @click=\"toggleMessageTts(message, index)\" :title=\"ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'\">\n                                <span :class=\"ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'\"></span>\n                            </button>\n                            <button class=\"btn btn-sm btn-link text-secondary p-0 button-message-toolbox\" @click=\"copyResponse(message)\" :title=\"copyTitle\">\n                                <span class=\"fa-solid fa-copy\"></span>\n                            </button>\n                        </span>\n                    </div>\n                </div>\n            </div>\n            <div v-for=\"notification in notifications\" :key=\"'notif-' + notification.type\" class=\"ai-chat-notification\" :class=\"'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')\">\n                <div class=\"ai-chat-notification-content\">\n                    <span v-if=\"notification.icon\" :class=\"notification.icon\" class=\"ai-chat-notification-icon\"></span>\n                    <span class=\"ai-chat-notification-text\">{{ notification.content }}</span>\n                    <button v-if=\"notification.dismissible\" class=\"btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss\" @click=\"dismissNotification(notification.type)\" title=\"Dismiss\">\n                        <span class=\"fa-solid fa-xmark\"></span>\n                    </button>\n                </div>\n                <div v-if=\"notification.actions && notification.actions.length\" class=\"ai-chat-notification-actions\">\n                    <button v-for=\"action in notification.actions\" :key=\"action.name\" class=\"btn btn-sm\" :class=\"action.cssClass || 'btn-outline-secondary'\" @click=\"handleNotificationAction(notification.type, action.name)\">\n                        <span v-if=\"action.icon\" :class=\"action.icon\" class=\"me-1\"></span>\n                        {{ action.label }}\n                    </button>\n                </div>\n            </div>\n        </div>\n    ",
+    messageTemplate: "\n        <div class=\"ai-chat-messages\">\n            <div v-for=\"(message, index) in messages\" :key=\"'msg-' + index\" class=\"ai-chat-message-item\">\n                <div>\n                    <div v-if=\"message.role === 'user'\" class=\"ai-chat-msg-role ai-chat-msg-role-user\">{{ userLabel }}</div>\n                    <div v-else-if=\"message.role !== 'indicator'\" :class=\"getAssistantRoleClasses(message)\">\n                        <span :class=\"getAssistantIconClasses(message, index)\"><span :class=\"getAssistantIcon(message)\"></span></span>\n                        {{ getAssistantLabel(message) }}\n                    </div>\n                    <div class=\"ai-chat-message-body lh-base\">\n                        <h4 v-if=\"message.title\">{{ message.title }}</h4>\n                        <div v-html=\"message.htmlContent\"></div>\n                        <ol v-if=\"message.citationReferences && message.citationReferences.length\" class=\"ai-chat-citation-list\">\n                            <li v-for=\"citation in message.citationReferences\" :key=\"'citation-' + (citation.referenceKey || citation.displayIndex)\" class=\"ai-chat-citation-item\">\n                                <a v-if=\"citation.link\" :href=\"citation.link\" :class=\"{ 'ai-download-citation': citation.isDownload }\" :target=\"citation.isDownload ? null : '_blank'\" :rel=\"citation.isDownload ? null : 'noopener noreferrer'\" :download=\"citation.isDownload ? '' : null\">{{ citation.label }}</a>\n                                <span v-else>{{ citation.label }}</span>\n                            </li>\n                        </ol>\n                        <span class=\"message-buttons-container\" v-if=\"!isIndicator(message)\">\n                            <template v-if=\"metricsEnabled && message.role === 'assistant'\">\n                                <span class=\"ai-chat-message-assistant-feedback\" :data-message-id=\"message.id\">\n                                    <button class=\"btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn\" @click=\"rateMessage(message, true, $event)\" :title=\"thumbsUpTitle\">\n                                        <span class=\"fa-regular fa-thumbs-up\"></span>\n                                    </button>\n                                    <button class=\"btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn\" @click=\"rateMessage(message, false, $event)\" :title=\"thumbsDownTitle\">\n                                        <span class=\"fa-regular fa-thumbs-down\"></span>\n                                    </button>\n                                </span>\n                            </template>\n                            <button v-if=\"textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming\" class=\"btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox\" :class=\"{ 'tts-playing': ttsPlayingMessageIndex === index }\" :data-tts-message-index=\"index\" @click=\"toggleMessageTts(message, index)\" :title=\"ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'\">\n                                <span :class=\"ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'\"></span>\n                            </button>\n                            <button class=\"btn btn-sm btn-link text-secondary p-0 button-message-toolbox\" @click=\"copyResponse(message)\" :title=\"copyTitle\">\n                                <span class=\"fa-solid fa-copy\"></span>\n                            </button>\n                        </span>\n                    </div>\n                </div>\n            </div>\n            <div v-for=\"notification in notifications\" :key=\"'notif-' + notification.type\" class=\"ai-chat-notification\" :class=\"'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')\">\n                <div class=\"ai-chat-notification-content\">\n                    <span v-if=\"notification.icon\" :class=\"notification.icon\" class=\"ai-chat-notification-icon\"></span>\n                    <span class=\"ai-chat-notification-text\">{{ notification.content }}</span>\n                    <button v-if=\"notification.dismissible\" class=\"btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss\" @click=\"dismissNotification(notification.type)\" title=\"Dismiss\">\n                        <span class=\"fa-solid fa-xmark\"></span>\n                    </button>\n                </div>\n                <div v-if=\"notification.actions && notification.actions.length\" class=\"ai-chat-notification-actions\">\n                    <button v-for=\"action in notification.actions\" :key=\"action.name\" class=\"btn btn-sm\" :class=\"action.cssClass || 'btn-outline-secondary'\" @click=\"handleNotificationAction(notification.type, action.name)\">\n                        <span v-if=\"action.icon\" :class=\"action.icon\" class=\"me-1\"></span>\n                        {{ action.label }}\n                    </button>\n                </div>\n            </div>\n        </div>\n    ",
     indicatorTemplate: "\n        <div class=\"ai-chat-msg-role ai-chat-msg-role-assistant\">\n            <span class=\"ai-streaming-icon\"><span class=\"fa fa-robot\" style=\"display: inline-block;\"></span></span>\n            Assistant\n        </div>\n    "
   };
 
@@ -89,7 +89,7 @@ window.openAIChatManager = function () {
     return Math.min(Math.max(value, min), max);
   }
   function normalizeReference(reference) {
-    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link;
+    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link, _ref5, _normalized$reference;
     if (!reference || _typeof(reference) !== 'object') {
       return null;
     }
@@ -98,7 +98,20 @@ window.openAIChatManager = function () {
     normalized.text = (_ref2 = (_normalized$text = normalized.text) !== null && _normalized$text !== void 0 ? _normalized$text : normalized.Text) !== null && _ref2 !== void 0 ? _ref2 : null;
     normalized.title = (_ref3 = (_normalized$title = normalized.title) !== null && _normalized$title !== void 0 ? _normalized$title : normalized.Title) !== null && _ref3 !== void 0 ? _ref3 : null;
     normalized.link = sanitizeUrl((_ref4 = (_normalized$link = normalized.link) !== null && _normalized$link !== void 0 ? _normalized$link : normalized.Link) !== null && _ref4 !== void 0 ? _ref4 : null);
+    normalized.referenceType = (_ref5 = (_normalized$reference = normalized.referenceType) !== null && _normalized$reference !== void 0 ? _normalized$reference : normalized.ReferenceType) !== null && _ref5 !== void 0 ? _ref5 : null;
     return normalized;
+  }
+  function isDownloadCitationReference(reference) {
+    if (!reference || _typeof(reference) !== 'object') {
+      return false;
+    }
+    if (typeof reference.referenceType === 'string' && reference.referenceType.toLowerCase() === 'document') {
+      return true;
+    }
+    if (typeof reference.link === 'string' && /\/ai\/documents\/.+\/download(?:$|\?)/i.test(reference.link)) {
+      return true;
+    }
+    return false;
   }
   function normalizeReferences(references) {
     if (!references || _typeof(references) !== 'object') {
@@ -126,9 +139,9 @@ window.openAIChatManager = function () {
         citations: []
       };
     }
-    var citedRefs = Object.entries(messageReferences).filter(function (_ref5) {
-      var _ref6 = _slicedToArray(_ref5, 1),
-        key = _ref6[0];
+    var citedRefs = Object.entries(messageReferences).filter(function (_ref6) {
+      var _ref7 = _slicedToArray(_ref6, 1),
+        key = _ref7[0];
       return processedContent.includes(key);
     });
     if (!citedRefs.length) {
@@ -137,11 +150,11 @@ window.openAIChatManager = function () {
         citations: []
       };
     }
-    citedRefs.sort(function (_ref7, _ref8) {
-      var _ref9 = _slicedToArray(_ref7, 2),
-        a = _ref9[1];
+    citedRefs.sort(function (_ref8, _ref9) {
       var _ref0 = _slicedToArray(_ref8, 2),
-        b = _ref0[1];
+        a = _ref0[1];
+      var _ref1 = _slicedToArray(_ref9, 2),
+        b = _ref1[1];
       return a.index - b.index;
     });
     var citations = [];
@@ -160,6 +173,7 @@ window.openAIChatManager = function () {
           displayIndex: displayIndex,
           label: getCitationLabel(value, key),
           link: value.link || null,
+          isDownload: isDownloadCitationReference(value),
           placeholder: placeholder
         });
         displayIndex++;
@@ -176,9 +190,9 @@ window.openAIChatManager = function () {
     processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
     return {
       content: processedContent,
-      citations: citations.map(function (_ref1) {
-        var placeholder = _ref1.placeholder,
-          citation = _objectWithoutProperties(_ref1, _excluded);
+      citations: citations.map(function (_ref10) {
+        var placeholder = _ref10.placeholder,
+          citation = _objectWithoutProperties(_ref10, _excluded);
         return citation;
       })
     };
@@ -1156,7 +1170,7 @@ window.openAIChatManager = function () {
                       _this3.scrollToBottom();
                     }
                   });
-                  _this3.connection.on("ReceiveConversationAssistantToken", function (sessionId, messageId, token, responseId, appearance) {
+                  _this3.connection.on("ReceiveConversationAssistantToken", function (sessionId, messageId, token, responseId, references, appearance) {
                     if (!_this3._conversationAssistantMessage) {
                       _this3.stopAudio();
                       _this3.hideTypingIndicator();
@@ -1175,7 +1189,8 @@ window.openAIChatManager = function () {
                         htmlContent: "",
                         isStreaming: true,
                         userRating: null,
-                        appearance: _this3.normalizeAssistantAppearance(appearance)
+                        appearance: _this3.normalizeAssistantAppearance(appearance),
+                        references: {}
                       };
                       _this3.messages.push(newMessage);
                       _this3._conversationAssistantMessage = {
@@ -1189,19 +1204,22 @@ window.openAIChatManager = function () {
                       if (!msg.appearance) {
                         msg.appearance = _this3.normalizeAssistantAppearance(appearance);
                       }
-                      msg.content = _this3._conversationAssistantMessage.content;
-                      msg.htmlContent = parseMarkdownContent(msg.content, msg);
+                      msg.rawContent = _this3._conversationAssistantMessage.content;
+                      msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
+                      updateMessagePresentation(msg, msg.references);
                       _this3.$nextTick(function () {
                         renderChartsInMessage(msg);
                         _this3.scrollToBottom();
                       });
                     }
                   });
-                  _this3.connection.on("ReceiveConversationAssistantComplete", function (sessionId, messageId) {
+                  _this3.connection.on("ReceiveConversationAssistantComplete", function (sessionId, messageId, references) {
                     if (_this3._conversationAssistantMessage) {
                       var msg = _this3.messages[_this3._conversationAssistantMessage.index];
                       if (msg) {
                         msg.isStreaming = false;
+                        msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
+                        updateMessagePresentation(msg, msg.references);
                       }
                       _this3._conversationAssistantMessage = null;
                     }
@@ -1599,9 +1617,9 @@ window.openAIChatManager = function () {
           var _this9 = this;
           references = normalizeReferences(references);
           if (Object.keys(references).length) {
-            var _ref14, _message$rawContent2;
+            var _ref15, _message$rawContent2;
             var message = this.messages[messageIndex];
-            message.rawContent = (_ref14 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref14 !== void 0 ? _ref14 : '';
+            message.rawContent = (_ref15 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref15 !== void 0 ? _ref15 : '';
             updateMessagePresentation(message, references);
             this.messages[messageIndex] = message;
             this.$nextTick(function () {
@@ -2473,8 +2491,8 @@ window.openAIChatManager = function () {
           return sessionId;
         },
         copyResponse: function copyResponse(message) {
-          var _ref16, _message$copyContent;
-          var text = message && _typeof(message) === 'object' ? (_ref16 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref16 !== void 0 ? _ref16 : '' : message !== null && message !== void 0 ? message : '';
+          var _ref17, _message$copyContent;
+          var text = message && _typeof(message) === 'object' ? (_ref17 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref17 !== void 0 ? _ref17 : '' : message !== null && message !== void 0 ? message : '';
           navigator.clipboard.writeText(text);
         },
         updateFeedbackIcons: function updateFeedbackIcons(container, userRating) {
@@ -2689,6 +2707,60 @@ document.addEventListener('click', function (e) {
     }, 100);
   })["catch"](function (err) {
     console.error('Failed to download image:', err);
+  });
+});
+function tryGetDownloadFileName(disposition, fallbackName) {
+  if (typeof disposition !== 'string' || !disposition) {
+    return fallbackName || 'download';
+  }
+  var utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  if (utf8Match && utf8Match[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch (_) {}
+  }
+  var simpleMatch = disposition.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
+  var fileName = simpleMatch ? simpleMatch[1] || simpleMatch[2] : null;
+  return fileName ? fileName.trim() : fallbackName || 'download';
+}
+document.addEventListener('click', function (e) {
+  var link = e.target.closest('.ai-download-citation');
+  if (!link) {
+    return;
+  }
+  if (e.defaultPrevented || e.__aiCitationDownloadHandled || link.dataset.downloadInProgress === 'true') {
+    return;
+  }
+  e.__aiCitationDownloadHandled = true;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  link.dataset.downloadInProgress = 'true';
+  fetch(link.href, {
+    credentials: 'same-origin'
+  }).then(function (response) {
+    if (!response.ok) {
+      throw new Error('Download request failed with status ' + response.status + '.');
+    }
+    return Promise.all([response.blob(), response.headers.get('Content-Disposition')]);
+  }).then(function (_ref19) {
+    var _link$textContent;
+    var _ref20 = _slicedToArray(_ref19, 2),
+      blob = _ref20[0],
+      disposition = _ref20[1];
+    var url = URL.createObjectURL(blob);
+    var anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = tryGetDownloadFileName(disposition, ((_link$textContent = link.textContent) === null || _link$textContent === void 0 ? void 0 : _link$textContent.trim()) || 'download');
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 100);
+  })["catch"](function (err) {
+    console.error('Failed to download citation document:', err);
+  })["finally"](function () {
+    delete link.dataset.downloadInProgress;
   });
 });
 //# sourceMappingURL=ai-chat.js.map

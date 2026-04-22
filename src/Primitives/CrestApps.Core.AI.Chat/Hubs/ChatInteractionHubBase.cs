@@ -1296,8 +1296,12 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 await Clients.Caller.ReceiveConversationAssistantToken(
-                    itemId, messageId ?? string.Empty, chunk.Content,
-                    responseId ?? string.Empty, chunk.Appearance);
+                    itemId,
+                    messageId ?? string.Empty,
+                    chunk.Content,
+                    responseId ?? string.Empty,
+                    chunk.References,
+                    chunk.Appearance);
 
                 sentenceBuffer.Append(chunk.Content);
 
@@ -1347,7 +1351,10 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             {
                 try
                 {
-                    await Clients.Caller.ReceiveConversationAssistantComplete(itemId, messageId);
+                    await Clients.Caller.ReceiveConversationAssistantComplete(
+                        itemId,
+                        messageId,
+                        await GetPromptReferencesAsync(services, itemId, messageId));
                 }
                 catch
                 {
@@ -1355,6 +1362,23 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
             }
         }
+    }
+
+    private static async Task<Dictionary<string, AICompletionReference>> GetPromptReferencesAsync(
+        IServiceProvider services,
+        string itemId,
+        string messageId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId) || string.IsNullOrWhiteSpace(messageId))
+        {
+            return null;
+        }
+
+        var promptStore = services.GetRequiredService<IChatInteractionPromptStore>();
+        var prompts = await promptStore.GetPromptsAsync(itemId);
+        var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
+
+        return prompt?.References;
     }
 
     // ───────────────── STT transcription (input mode) ─────────────────

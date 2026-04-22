@@ -46,7 +46,7 @@ window.openAIChatManager = function () {
                         <div v-html="message.htmlContent"></div>
                         <ol v-if="message.citationReferences && message.citationReferences.length" class="ai-chat-citation-list">
                             <li v-for="citation in message.citationReferences" :key="'citation-' + (citation.referenceKey || citation.displayIndex)" class="ai-chat-citation-item">
-                                <a v-if="citation.link" :href="citation.link" target="_blank" rel="noopener noreferrer">{{ citation.label }}</a>
+                                <a v-if="citation.link" :href="citation.link" :class="{ 'ai-download-citation': citation.isDownload }" :target="citation.isDownload ? null : '_blank'" :rel="citation.isDownload ? null : 'noopener noreferrer'" :download="citation.isDownload ? '' : null">{{ citation.label }}</a>
                                 <span v-else>{{ citation.label }}</span>
                             </li>
                         </ol>
@@ -140,8 +140,25 @@ window.openAIChatManager = function () {
         normalized.text = normalized.text ?? normalized.Text ?? null;
         normalized.title = normalized.title ?? normalized.Title ?? null;
         normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
+        normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
 
         return normalized;
+    }
+
+    function isDownloadCitationReference(reference) {
+        if (!reference || typeof reference !== 'object') {
+            return false;
+        }
+
+        if (typeof reference.referenceType === 'string' && reference.referenceType.toLowerCase() === 'document') {
+            return true;
+        }
+
+        if (typeof reference.link === 'string' && /\/ai\/documents\/.+\/download(?:$|\?)/i.test(reference.link)) {
+            return true;
+        }
+
+        return false;
     }
 
     function normalizeReferences(references) {
@@ -189,6 +206,7 @@ window.openAIChatManager = function () {
                 displayIndex: displayIndex,
                 label: getCitationLabel(value, key),
                 link: value.link || null,
+                isDownload: isDownloadCitationReference(value),
                 placeholder: placeholder,
             });
 
@@ -1117,7 +1135,7 @@ window.openAIChatManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveConversationAssistantToken", (sessionId, messageId, token, responseId, appearance) => {
+                    this.connection.on("ReceiveConversationAssistantToken", (sessionId, messageId, token, responseId, references, appearance) => {
                         if (!this._conversationAssistantMessage) {
                             this.stopAudio();
                             this.hideTypingIndicator();
@@ -1138,6 +1156,7 @@ window.openAIChatManager = function () {
                                 isStreaming: true,
                                 userRating: null,
                                 appearance: this.normalizeAssistantAppearance(appearance),
+                                references: {},
                             };
                             this.messages.push(newMessage);
                             this._conversationAssistantMessage = { index: msgIndex, content: '' };
@@ -1149,8 +1168,9 @@ window.openAIChatManager = function () {
                             if (!msg.appearance) {
                                 msg.appearance = this.normalizeAssistantAppearance(appearance);
                             }
-                            msg.content = this._conversationAssistantMessage.content;
-                            msg.htmlContent = parseMarkdownContent(msg.content, msg);
+                            msg.rawContent = this._conversationAssistantMessage.content;
+                            msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
+                            updateMessagePresentation(msg, msg.references);
                             this.$nextTick(() => {
                                 renderChartsInMessage(msg);
                                 this.scrollToBottom();
@@ -1158,11 +1178,13 @@ window.openAIChatManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveConversationAssistantComplete", (sessionId, messageId) => {
+                    this.connection.on("ReceiveConversationAssistantComplete", (sessionId, messageId, references) => {
                         if (this._conversationAssistantMessage) {
                             var msg = this.messages[this._conversationAssistantMessage.index];
                             if (msg) {
                                 msg.isStreaming = false;
+                                msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
+                                updateMessagePresentation(msg, msg.references);
                             }
                             this._conversationAssistantMessage = null;
                         }
@@ -2659,4 +2681,63 @@ document.addEventListener('click', function (e) {
             setTimeout(function () { URL.revokeObjectURL(url); }, 100);
         })
         .catch(function (err) { console.error('Failed to download image:', err); });
+});
+
+function tryGetDownloadFileName(disposition, fallbackName) {
+    if (typeof disposition !== 'string' || !disposition) {
+        return fallbackName || 'download';
+    }
+
+    const utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1]);
+        } catch (_) {
+        }
+    }
+
+    const simpleMatch = disposition.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
+    const fileName = simpleMatch ? (simpleMatch[1] || simpleMatch[2]) : null;
+
+    return fileName ? fileName.trim() : (fallbackName || 'download');
+}
+
+document.addEventListener('click', function (e) {
+    const link = e.target.closest('.ai-download-citation');
+    if (!link) {
+        return;
+    }
+
+    if (e.defaultPrevented || e.__aiCitationDownloadHandled || link.dataset.downloadInProgress === 'true') {
+        return;
+    }
+
+    e.__aiCitationDownloadHandled = true;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    link.dataset.downloadInProgress = 'true';
+
+    fetch(link.href, { credentials: 'same-origin' })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error('Download request failed with status ' + response.status + '.');
+            }
+
+            return Promise.all([
+                response.blob(),
+                response.headers.get('Content-Disposition'),
+            ]);
+        })
+        .then(function ([blob, disposition]) {
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = tryGetDownloadFileName(disposition, link.textContent?.trim() || 'download');
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            setTimeout(function () { URL.revokeObjectURL(url); }, 100);
+        })
+        .catch(function (err) { console.error('Failed to download citation document:', err); })
+        .finally(function () { delete link.dataset.downloadInProgress; });
 });

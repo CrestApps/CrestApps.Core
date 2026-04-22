@@ -169,6 +169,7 @@ builder.Services
             .AddYesSqlStores()
             .AddOpenXml()
             .AddPdf()
+            .AddReferenceDownloads()
         )
         .AddAIMemory(memory => memory
             .AddYesSqlStores()
@@ -378,6 +379,7 @@ app.MapHub<ChatInteractionHub>("/hubs/chat-interaction");
 app.MapMcp("mcp");
 app.MapA2AHost();
 app.AddChatApiEndpoints()
+    .AddDownloadAIDocumentEndpoint()
     .AddUploadChatInteractionDocumentEndpoint()
     .AddRemoveChatInteractionDocumentEndpoint()
     .AddUploadChatSessionDocumentEndpoint()

@@ -151,6 +151,7 @@ builder.Services
             .AddEntityCoreStores()
             .AddOpenXml()
             .AddPdf()
+            .AddReferenceDownloads()
         )
         .AddAIMemory(memory => memory
             .AddEntityCoreStores()
@@ -357,6 +358,7 @@ app.MapHub<ChatInteractionHub>("/hubs/chat-interaction");
 app.MapMcp("mcp");
 app.MapA2AHost();
 app.AddChatApiEndpoints()
+    .AddDownloadAIDocumentEndpoint()
     .AddUploadChatInteractionDocumentEndpoint()
     .AddRemoveChatInteractionDocumentEndpoint()
     .AddUploadChatSessionDocumentEndpoint()

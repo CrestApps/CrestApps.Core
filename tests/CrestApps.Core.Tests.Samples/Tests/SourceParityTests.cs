@@ -222,7 +222,7 @@ public class SourceParityTests
         Assert.True(stale.Length == 0, $"Stale known-drift entries: {string.Join(", ", stale.Select(k => $"({k.Kind}, {k.Page})"))}");
     }
 
-    private static IEnumerable<string> BuildPageDescriptions()
+    private static string[] BuildPageDescriptions()
     {
         // Mirror of ParityPairs() — kept in sync via KnownDrift_OnlyReferencesExistingPages.
         // We can't enumerate TheoryData rows via the public surface in xunit.v3, so the

@@ -42,9 +42,18 @@ public interface IChatInteractionHubClient
 
     Task ReceiveConversationUserMessage(string identifier, string text);
 
-    Task ReceiveConversationAssistantToken(string identifier, string messageId, string token, string responseId, AssistantMessageAppearance appearance = null);
+    Task ReceiveConversationAssistantToken(
+        string identifier,
+        string messageId,
+        string token,
+        string responseId,
+        Dictionary<string, AICompletionReference> references = null,
+        AssistantMessageAppearance appearance = null);
 
-    Task ReceiveConversationAssistantComplete(string identifier, string messageId);
+    Task ReceiveConversationAssistantComplete(
+        string identifier,
+        string messageId,
+        Dictionary<string, AICompletionReference> references = null);
 
     Task ReceiveNotification(ChatNotification notification);
 

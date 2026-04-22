@@ -22,11 +22,15 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddEntityCoreStores()
             .AddOpenXml()
             .AddPdf()
+            .AddReferenceDownloads()
         )
         .AddOpenAI()
     )
     .AddEntityCoreSqliteDataStore("Data Source=app.db")
 );
+
+app.AddChatApiEndpoints()
+    .AddDownloadAIDocumentEndpoint();
 ```
 
 ## Problem & Solution
@@ -51,6 +55,41 @@ The document processing system handles the full pipeline from upload to retrieva
 | `DocumentOrchestrationHandler` | — | Scoped | Injects document context into orchestration |
 
 `AddCoreAIDocumentProcessing()` and the `AddDocumentProcessing(...)` builder extension are provided by `CrestApps.Core.AI.Documents`.
+
+### Citation download links
+
+Attached-document citations are an opt-in document-processing feature made of two registrations:
+
+1. `AddReferenceDownloads()` on `CrestAppsDocumentProcessingBuilder` (or `AddCoreAIDocumentReferenceDownloads()` on `IServiceCollection`) registers `DocumentAIReferenceLinkResolver` for `AIReferenceTypes.DataSource.Document`.
+2. `AddDownloadAIDocumentEndpoint()` maps the shared download route that serves the cited file back to the browser.
+
+Use both when you want `[doc:n]` references for attached AI documents to render as downloadable links in your chat UI:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddDocumentProcessing(documentProcessing => documentProcessing
+            .AddEntityCoreStores()
+            .AddOpenXml()
+            .AddPdf()
+            .AddReferenceDownloads()
+        )
+    )
+);
+
+app.AddChatApiEndpoints()
+    .AddDownloadAIDocumentEndpoint();
+```
+
+If you prefer the raw service surface instead of the builder API:
+
+```csharp
+builder.Services.AddCoreAIDocumentProcessing();
+builder.Services.AddCoreAIDocumentReferenceDownloads();
+
+app.AddChatApiEndpoints()
+    .AddDownloadAIDocumentEndpoint();
+```
 
 ### Built-in Document Readers
 
@@ -160,6 +199,7 @@ Document metadata and chunks require store implementations. Register stores dire
     .AddEntityCoreStores()
     .AddOpenXml()
     .AddPdf()
+    .AddReferenceDownloads()
 )
 ```
 
@@ -170,6 +210,7 @@ Document metadata and chunks require store implementations. Register stores dire
     .AddYesSqlStores()
     .AddOpenXml()
     .AddPdf()
+    .AddReferenceDownloads()
 )
 ```
 
@@ -184,5 +225,3 @@ builder.Services.AddSingleton<IDocumentFileStore, AzureBlobDocumentFileStore>();
 The MVC sample host stores uploads on the local file system. Each upload gets a new GUID-based stored file name to avoid collisions, while the original user-facing file name remains in `AIDocument.FileName`. The persisted document record also keeps the GUID-based stored file name/path (`StoredFileName` / `StoredFilePath`) so hosts can trace and delete the physical file later.
 
 Replace `IDocumentFileStore` when you want uploaded profile, chat-interaction, or chat-session files to land in a different backend such as Azure Blob Storage instead of the local file system used by the MVC sample host.
-
-

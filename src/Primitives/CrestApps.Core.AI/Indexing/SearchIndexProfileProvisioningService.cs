@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -65,7 +66,11 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to validate remote index '{IndexName}' for provider '{ProviderName}'.", profile.IndexFullName, profile.ProviderName);
+            _logger.LogError(
+                ex,
+                "Failed to validate remote index '{IndexName}' for provider '{ProviderName}'.",
+                profile.IndexFullName.SanitizeForLog(),
+                profile.ProviderName.SanitizeForLog());
 
             return Fail($"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.", nameof(SearchIndexProfile.IndexName));
         }
@@ -76,7 +81,11 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create remote index '{IndexName}' for provider '{ProviderName}'.", profile.IndexFullName, profile.ProviderName);
+            _logger.LogError(
+                ex,
+                "Failed to create remote index '{IndexName}' for provider '{ProviderName}'.",
+                profile.IndexFullName.SanitizeForLog(),
+                profile.ProviderName.SanitizeForLog());
 
             return Fail($"Unable to create the remote index '{profile.IndexFullName}'.", nameof(SearchIndexProfile.IndexName));
         }

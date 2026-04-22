@@ -64,7 +64,7 @@ The chat system provides all of this with a pluggable handler architecture.
 
 In the MVC sample, Chat Interactions now reserve automatic spoken playback for **active conversation mode** only. Typed prompts and microphone dictation still produce normal streamed text responses, but they no longer auto-read the assistant reply unless the user explicitly started the live two-way conversation flow.
 
-Both the MVC and Blazor sample hosts now render `[doc:n]` citations as superscript markers in assistant responses and show the resolved document references as clickable links directly below the cited message.
+Both the MVC and Blazor sample hosts now render `[doc:n]` citations as superscript markers in assistant responses and show the resolved document references as clickable links directly below the cited message. When a citation points to an attached AI document, the reference link now downloads that file from the server after the host registers both `AddReferenceDownloads()` on the document-processing builder and `AddDownloadAIDocumentEndpoint()` on the endpoint route builder.
 
 ## Services Registered by `AddCoreAIChatInteractions()`
 
