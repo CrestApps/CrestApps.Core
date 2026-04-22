@@ -60,7 +60,7 @@ public static class ServiceCollectionExtensions
             => new ElasticsearchSearchIndexManager(sp.GetRequiredService<ElasticsearchClient>(), sp.GetRequiredService<IOptions<ElasticsearchConnectionOptions>>(), sp.GetRequiredService<ILogger<ElasticsearchSearchIndexManager>>()));
 
         services.TryAddKeyedScoped<ISearchDocumentManager>(ElasticsearchConstants.ProviderName, (sp, _)
-            => new ElasticsearchSearchDocumentManager(sp.GetRequiredService<ElasticsearchClient>(), sp.GetRequiredService<ILogger<ElasticsearchSearchDocumentManager>>()));
+            => new ElasticsearchSearchDocumentManager(sp.GetRequiredService<ElasticsearchClient>(), sp.GetServices<ISearchDocumentHandler>(), sp.GetRequiredService<ILogger<ElasticsearchSearchDocumentManager>>()));
 
         return services;
     }

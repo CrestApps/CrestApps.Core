@@ -90,7 +90,7 @@ Data sources integrate with the orchestration pipeline through three shared fram
 2. `DataSourceOrchestrationHandler` injects data-source availability instructions and keeps the search tool in scope
 3. `DataSourcePreemptiveRagHandler` performs preemptive retrieval and injects matching chunks into the system message
 
-The same shared framework layer now also exposes `IAIDataSourceIndexingService` for keeping knowledge-base indexes synchronized with their source indexes. MVC uses that service to rebuild data sources on demand, react to source-content changes, and run periodic background alignment.
+The same shared framework layer also exposes `IAIDataSourceIndexingService` for keeping knowledge-base indexes synchronized with their source indexes. Data source mappings are observed by the framework itself so source document writes can flow into the mapped knowledge-base index without each host re-implementing custom handlers.
 
 ```text
 User Query
@@ -120,10 +120,49 @@ Each data source backend registers these services, keyed by its provider name:
 | `IDataSourceContentManager` | Manages content in data source indices |
 | `IDataSourceDocumentReader` | Reads documents from data source indices |
 | `IAIDataSourceIndexingService` | Rebuilds and repairs knowledge-base indexes from source indexes |
+| `IAIDataSourceIndexingQueue` | Queues asynchronous rebuild and partial-sync work for mapped data sources |
 | `IODataFilterTranslator` | Translates OData filters to backend-native queries |
 | `ISearchIndexManager` | Creates, deletes, and manages search indices |
 | `ISearchDocumentManager` | Indexes and removes documents in search indices |
 | `IVectorSearchService` | Performs vector similarity search |
+
+## Automatic Synchronization
+
+When you configure an `AIDataSource` that maps a source index profile to a knowledge-base index profile, the framework keeps the two aligned in two ways:
+
+1. `AIDataSourceCatalogIndexingHandler` queues an initial or updated full rebuild whenever the mapping itself is created, edited, or deleted.
+2. `ISearchDocumentManager` implementations notify registered `ISearchDocumentHandler` instances after successful document upserts and deletes, and `AIDataSourceSearchDocumentHandler` queues a targeted sync for any mapped source profile.
+
+That means document changes such as article create, update, and delete operations automatically flow into the mapped knowledge-base index as long as the source write goes through CrestApps.Core indexing services.
+
+If a source update happens outside the framework, or an unexpected exception interrupts the queue flow, `AIDataSourceAlignmentBackgroundService` performs a nightly full reconciliation at 2:00 AM UTC to repair any drift.
+
+### Async flow and tracing
+
+The default synchronization path is intentionally asynchronous:
+
+1. A catalog event (`CreatedAsync`, `UpdatedAsync`, `DeletedAsync`) or search-document event (`DocumentsAddedOrUpdatedAsync`, `DocumentsDeletedAsync`) fires first.
+2. The handler writes an `AIDataSourceIndexingWorkItem` into `IAIDataSourceIndexingQueue`.
+3. `AIDataSourceIndexingBackgroundService` dequeues the work item and invokes `IAIDataSourceIndexingService`.
+4. `AIDataSourceAlignmentBackgroundService` performs nightly reconciliation if anything was missed.
+
+The default `IAIDataSourceIndexingQueue` implementation uses an in-memory channel. Replace it if you need durable storage across restarts or one shared queue across multiple nodes.
+
+Set logging to `Trace` for the `CrestApps.Core.AI` categories when you need tracing. The framework logs when handler notifications are received, when queue work items are written and dequeued, and when the alignment worker runs or skips a scheduled pass.
+
+### Override points
+
+Use these services when you need to customize the default behavior:
+
+| Service or contract | Default role | Override when you need |
+| --- | --- | --- |
+| `IAIDataSourceIndexingQueue` | In-memory async queue | durable storage, distributed dispatch, custom throttling |
+| `IAIDataSourceIndexingService` | full and partial sync orchestration | custom chunking, filtering, or source-to-target mapping rules |
+| `ISearchDocumentHandler` | reacts after source-index writes/deletes | additional downstream side effects after successful index mutations |
+| `ICatalogEntryHandler<AIDataSource>` | reacts after data-source mapping changes | custom provisioning or non-default rebuild policy |
+| `IIndexProfileHandler` | defines and validates data-source index fields | custom index schemas or provider-specific profile behavior |
+
+`AddAIDataSources()` on the provider builders registers all of the default queue, handler, background-service, and index-profile services for you.
 
 ## Available Backends
 
@@ -228,12 +267,73 @@ public interface IAIDataSourceIndexingService
     Task SyncAllAsync(CancellationToken cancellationToken = default);
     Task SyncDataSourceAsync(AIDataSource dataSource, CancellationToken cancellationToken = default);
     Task SyncSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
+    Task SyncSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
     Task RemoveSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
+    Task RemoveSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
     Task DeleteDataSourceDocumentsAsync(AIDataSource dataSource, CancellationToken cancellationToken = default);
 }
 ```
 
-`SyncDataSourceAsync()` performs a full rebuild for a data source by deleting that data source's existing chunk documents and re-reading the mapped source index through `IDataSourceDocumentReader`. `SyncSourceDocumentsAsync()` and `RemoveSourceDocumentsAsync()` are intended for source-level handlers so article or catalog updates can keep the knowledge-base index aligned without waiting for the next scheduled full sync.
+`SyncDataSourceAsync()` performs a full rebuild for a data source by deleting that data source's existing chunk documents and re-reading the mapped source index through `IDataSourceDocumentReader`. The framework uses the source-profile overloads of `SyncSourceDocumentsAsync()` and `RemoveSourceDocumentsAsync()` to react to document-level changes automatically, so most hosts only need to create the mapping and route source writes through `ISearchDocumentManager`.
+
+| Method | What it does | Parameters |
+| --- | --- | --- |
+| `SyncAllAsync(cancellationToken)` | Reconciles every configured `AIDataSource` mapping. This is what the nightly alignment service uses when it repairs drift. | `cancellationToken`: stops the full reconciliation when the host is shutting down or the caller cancels. |
+| `SyncDataSourceAsync(dataSource, cancellationToken)` | Runs a full rebuild for one mapped data source. Existing knowledge-base chunks for that mapping are removed and rebuilt from the source index. | `dataSource`: the mapping definition to rebuild. `cancellationToken`: stops the rebuild. |
+| `SyncSourceDocumentsAsync(documentIds, cancellationToken)` | Synchronizes a set of source documents across any matching data sources without pre-filtering by source profile. | `documentIds`: source document ids to refresh. `cancellationToken`: stops the partial sync. |
+| `SyncSourceDocumentsAsync(sourceIndexProfileName, documentIds, cancellationToken)` | Synchronizes only the changed source documents for mappings attached to one source index profile. This is the main path used by `AIDataSourceSearchDocumentHandler`. | `sourceIndexProfileName`: the source profile that produced the document mutation. `documentIds`: source document ids to refresh. `cancellationToken`: stops the partial sync. |
+| `RemoveSourceDocumentsAsync(documentIds, cancellationToken)` | Removes a set of source documents from any matching data sources without pre-filtering by source profile. | `documentIds`: source document ids to remove. `cancellationToken`: stops the removal. |
+| `RemoveSourceDocumentsAsync(sourceIndexProfileName, documentIds, cancellationToken)` | Removes source documents from knowledge-base indexes for mappings attached to one source index profile. | `sourceIndexProfileName`: the source profile that produced the delete. `documentIds`: source document ids to remove. `cancellationToken`: stops the removal. |
+| `DeleteDataSourceDocumentsAsync(dataSource, cancellationToken)` | Deletes all indexed knowledge-base documents that belong to one mapped data source. The framework uses this when a mapping is removed. | `dataSource`: the mapping definition whose chunks should be deleted. `cancellationToken`: stops the delete operation. |
+
+### `ISearchDocumentHandler`
+
+Handles post-write notifications emitted by `ISearchDocumentManager` implementations.
+
+```csharp
+public interface ISearchDocumentHandler
+{
+    Task DocumentsAddedOrUpdatedAsync(
+        IIndexProfileInfo profile,
+        IReadOnlyCollection<string> documentIds,
+        CancellationToken cancellationToken = default);
+
+    Task DocumentsDeletedAsync(
+        IIndexProfileInfo profile,
+        IReadOnlyCollection<string> documentIds,
+        CancellationToken cancellationToken = default);
+}
+```
+
+This is the extension point the framework uses to keep data-source synchronization asynchronous without forcing hosts to wrap the provider-specific document managers.
+
+| Method | What it does | Parameters |
+| --- | --- | --- |
+| `DocumentsAddedOrUpdatedAsync(profile, documentIds, cancellationToken)` | Runs after a provider successfully writes documents into the source index. Use it for downstream reactions that must happen only after the source write succeeded. | `profile`: the source index profile that completed the write. `documentIds`: the successfully written source document ids. `cancellationToken`: stops follow-up work. |
+| `DocumentsDeletedAsync(profile, documentIds, cancellationToken)` | Runs after a provider successfully deletes documents from the source index. Use it for downstream cleanup that depends on successful deletion. | `profile`: the source index profile that completed the delete. `documentIds`: the successfully deleted source document ids. `cancellationToken`: stops follow-up work. |
+
+### `IAIDataSourceIndexingQueue`
+
+Queues the asynchronous work generated by catalog and search-document handlers.
+
+```csharp
+public interface IAIDataSourceIndexingQueue
+{
+    ValueTask QueueSyncDataSourceAsync(AIDataSource dataSource, CancellationToken cancellationToken = default);
+    ValueTask QueueDeleteDataSourceAsync(AIDataSource dataSource, CancellationToken cancellationToken = default);
+    ValueTask QueueSyncSourceDocumentsAsync(string sourceIndexProfileName, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default);
+    ValueTask QueueRemoveSourceDocumentsAsync(string sourceIndexProfileName, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default);
+}
+```
+
+Replace this service if you need a durable queue or shared distributed worker infrastructure instead of the built-in in-memory channel.
+
+| Method | What it does | Parameters |
+| --- | --- | --- |
+| `QueueSyncDataSourceAsync(dataSource, cancellationToken)` | Enqueues a full rebuild for one mapped data source after the mapping itself changes. | `dataSource`: the mapping definition to rebuild. `cancellationToken`: stops queue submission. |
+| `QueueDeleteDataSourceAsync(dataSource, cancellationToken)` | Enqueues cleanup for all indexed chunks that belong to one mapped data source after the mapping is deleted. | `dataSource`: the mapping definition whose chunks should be deleted. `cancellationToken`: stops queue submission. |
+| `QueueSyncSourceDocumentsAsync(sourceIndexProfileName, documentIds, cancellationToken)` | Enqueues a targeted refresh for changed source documents under one source profile. | `sourceIndexProfileName`: the source profile that produced the document change. `documentIds`: the source document ids to refresh. `cancellationToken`: stops queue submission. |
+| `QueueRemoveSourceDocumentsAsync(sourceIndexProfileName, documentIds, cancellationToken)` | Enqueues targeted cleanup for deleted source documents under one source profile. | `sourceIndexProfileName`: the source profile that produced the document delete. `documentIds`: the source document ids to remove. `cancellationToken`: stops queue submission. |
 
 ### `IDataSourceDocumentReader`
 
@@ -286,6 +386,8 @@ builder.Services.AddKeyedScoped<IDataSourceContentManager, MyDataSourceContentMa
 builder.Services.AddKeyedScoped<IDataSourceDocumentReader, MyDataSourceDocumentReader>(providerName);
 builder.Services.AddKeyedScoped<IODataFilterTranslator, MyODataFilterTranslator>(providerName);
 ```
+
+If you implement a custom `ISearchDocumentManager`, make sure successful upsert and delete operations notify any registered `ISearchDocumentHandler` instances so automatic data-source synchronization continues to work for your provider.
 
 ### Example: Custom Vector Search Implementation
 

@@ -14,7 +14,7 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
     private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger<FtpResourceTypeHandler> _logger;
+    private readonly ILogger _logger;
 
     public FtpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,

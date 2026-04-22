@@ -10,7 +10,7 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IOAuth2TokenService _oauth2TokenService;
-    private readonly ILogger<SseClientTransportProvider> _logger;
+    private readonly ILogger _logger;
 
     public SseClientTransportProvider(IDataProtectionProvider dataProtectionProvider, IOAuth2TokenService oauth2TokenService, ILogger<SseClientTransportProvider> logger)
     {

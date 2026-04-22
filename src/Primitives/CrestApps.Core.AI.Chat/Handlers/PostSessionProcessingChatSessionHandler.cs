@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Chat.Handlers;
 public sealed class PostSessionProcessingChatSessionHandler : AIChatSessionHandlerBase
 {
     private readonly AIChatSessionPostCloseProcessor _postCloseProcessor;
-    private readonly ILogger<PostSessionProcessingChatSessionHandler> _logger;
+    private readonly ILogger _logger;
 
     public PostSessionProcessingChatSessionHandler(
         AIChatSessionPostCloseProcessor postCloseProcessor,

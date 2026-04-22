@@ -18,7 +18,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
 {
     private readonly IDistributedCache _cache;
     private readonly RowLevelTabularBatchOptions _settings;
-    private readonly ILogger<TabularBatchResultCache> _logger;
+    private readonly ILogger _logger;
 
     private const string CacheKeyPrefix = "tabular_batch:";
     private static readonly TimeSpan DefaultCacheExpiration = TimeSpan.FromMinutes(30);

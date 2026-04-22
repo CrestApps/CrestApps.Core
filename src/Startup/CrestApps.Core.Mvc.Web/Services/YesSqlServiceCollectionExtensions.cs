@@ -23,7 +23,6 @@ using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
-using CrestApps.Core.Mvc.Web.Areas.DataSources.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Models;
@@ -113,7 +112,6 @@ internal static class YesSqlServiceCollectionExtensions
         // Host-specific data-source and article services.
         services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
-            .AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>()
             .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>();
 
         return services;

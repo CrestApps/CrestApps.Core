@@ -60,9 +60,51 @@ These contracts support RAG-style applications:
 | Interface family | Purpose |
 | --- | --- |
 | `IAIMemoryStore`, `IAIMemorySearchService`, `IMemoryVectorSearchService` | Long-term memory persistence and semantic retrieval |
-| `IAIDataSourceStore`, `IDataSourceContentManager` | External data source registration and content retrieval |
-| `ISearchIndexManager`, `ISearchDocumentManager`, `IVectorSearchService` | Search-index and vector-search abstractions |
+| `IAIDataSourceStore`, `IDataSourceContentManager`, `IAIDataSourceIndexingService`, `IAIDataSourceIndexingQueue` | External data source registration, retrieval, and asynchronous synchronization |
+| `ISearchIndexManager`, `ISearchDocumentManager`, `ISearchDocumentHandler`, `IVectorSearchService` | Search-index, vector-search, and post-write document event abstractions |
 | `IDataSourceDocumentReader` | File and content ingestion by source type |
+| `IIndexProfileHandler` | Index-profile validation, field definitions, and provider-specific schema hooks |
+
+### Indexing and data-source extension reference
+
+These are the primary extension points behind asynchronous data-source synchronization. For end-to-end flow details, see **[Data Sources](../data-sources/index.md#automatic-synchronization)**.
+
+| Interface | Methods | Parameters |
+| --- | --- | --- |
+| `IAIDataSourceIndexingService` | `SyncAllAsync`, `SyncDataSourceAsync`, `SyncSourceDocumentsAsync` overloads, `RemoveSourceDocumentsAsync` overloads, `DeleteDataSourceDocumentsAsync` | `dataSource`: mapped AI data-source definition; `sourceIndexProfileName`: source profile name to scope partial sync/removal; `documentIds`: source document ids to process; `cancellationToken`: stops the operation. |
+| `IAIDataSourceIndexingQueue` | `QueueSyncDataSourceAsync`, `QueueDeleteDataSourceAsync`, `QueueSyncSourceDocumentsAsync`, `QueueRemoveSourceDocumentsAsync` | `dataSource`: mapped AI data-source definition to enqueue; `sourceIndexProfileName`: source profile name that produced the event; `documentIds`: source ids to refresh or remove; `cancellationToken`: stops queue submission. |
+| `ISearchDocumentHandler` | `DocumentsAddedOrUpdatedAsync`, `DocumentsDeletedAsync` | `profile`: source index profile that completed the write/delete; `documentIds`: successfully mutated source document ids; `cancellationToken`: stops follow-up work. |
+| `IIndexProfileHandler` | `ValidateAsync`, `GetFieldsAsync`, `SynchronizedAsync`, `ResetAsync`, `DeletingAsync` | `indexProfile`: profile being validated, synchronized, reset, or deleted; `result`: validation result collector used by `ValidateAsync`; `cancellationToken`: stops provider-specific work. |
+
+#### `IIndexProfileHandler`
+
+Provider packages implement this contract to define schema, validation, and lifecycle behavior for search index profiles.
+
+```csharp
+public interface IIndexProfileHandler
+{
+    ValueTask ValidateAsync(
+        SearchIndexProfile indexProfile,
+        ValidationResultDetails result,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<IReadOnlyCollection<SearchIndexField>> GetFieldsAsync(
+        SearchIndexProfile indexProfile,
+        CancellationToken cancellationToken = default);
+
+    Task SynchronizedAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken = default);
+    Task ResetAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken = default);
+    Task DeletingAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken = default);
+}
+```
+
+| Method | What it does | Parameters |
+| --- | --- | --- |
+| `ValidateAsync(indexProfile, result, cancellationToken)` | Validates provider-specific profile settings before the profile is saved or synchronized. | `indexProfile`: the profile being validated. `result`: the validation collector to populate. `cancellationToken`: stops validation work. |
+| `GetFieldsAsync(indexProfile, cancellationToken)` | Returns the provider-specific search field definitions for the profile. | `indexProfile`: the profile whose schema is being built. `cancellationToken`: stops field generation. |
+| `SynchronizedAsync(indexProfile, cancellationToken)` | Runs after the profile has been synchronized to the remote provider. | `indexProfile`: the profile that finished synchronization. `cancellationToken`: stops post-sync work. |
+| `ResetAsync(indexProfile, cancellationToken)` | Clears provider-specific state before a rebuild or reprovisioning operation. | `indexProfile`: the profile being reset. `cancellationToken`: stops the reset. |
+| `DeletingAsync(indexProfile, cancellationToken)` | Runs before a profile is deleted so provider-specific cleanup can happen first. | `indexProfile`: the profile being deleted. `cancellationToken`: stops delete preparation. |
 
 ## Provider and protocol extensions
 

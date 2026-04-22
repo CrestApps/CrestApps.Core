@@ -1,18 +1,19 @@
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
-using CrestApps.Core.Mvc.Web.Areas.DataSources.Services;
+using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.Mvc.Web.Areas.DataSources.Handlers;
+namespace CrestApps.Core.AI.Handlers;
 
-public sealed class AIDataSourceIndexingHandler : CatalogEntryHandlerBase<AIDataSource>
+internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBase<AIDataSource>
 {
-    private readonly IMvcAIDataSourceIndexingQueue _indexingQueue;
-    private readonly ILogger<AIDataSourceIndexingHandler> _logger;
+    private readonly IAIDataSourceIndexingQueue _indexingQueue;
+    private readonly ILogger _logger;
 
-    public AIDataSourceIndexingHandler(
-        IMvcAIDataSourceIndexingQueue indexingQueue,
-        ILogger<AIDataSourceIndexingHandler> logger)
+    public AIDataSourceCatalogIndexingHandler(
+        IAIDataSourceIndexingQueue indexingQueue,
+        ILogger<AIDataSourceCatalogIndexingHandler> logger)
     {
         _indexingQueue = indexingQueue;
         _logger = logger;
@@ -22,6 +23,11 @@ public sealed class AIDataSourceIndexingHandler : CatalogEntryHandlerBase<AIData
     {
         try
         {
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                _logger.LogTrace("AI data source catalog event '{EventName}' queued full synchronization for data source '{DataSourceId}'.", nameof(CreatedAsync), context.Model.ItemId);
+            }
+
             await _indexingQueue.QueueSyncDataSourceAsync(context.Model);
         }
         catch (Exception ex)
@@ -34,6 +40,11 @@ public sealed class AIDataSourceIndexingHandler : CatalogEntryHandlerBase<AIData
     {
         try
         {
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                _logger.LogTrace("AI data source catalog event '{EventName}' queued full synchronization for data source '{DataSourceId}'.", nameof(UpdatedAsync), context.Model.ItemId);
+            }
+
             await _indexingQueue.QueueSyncDataSourceAsync(context.Model);
         }
         catch (Exception ex)
@@ -46,6 +57,11 @@ public sealed class AIDataSourceIndexingHandler : CatalogEntryHandlerBase<AIData
     {
         try
         {
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                _logger.LogTrace("AI data source catalog event '{EventName}' queued cleanup for data source '{DataSourceId}'.", nameof(DeletedAsync), context.Model.ItemId);
+            }
+
             await _indexingQueue.QueueDeleteDataSourceAsync(context.Model);
         }
         catch (Exception ex)

@@ -22,7 +22,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
     private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
     private readonly DefaultAIOptions _defaultOptions;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly ILogger<ClaudeOrchestrator> _logger;
+    private readonly ILogger _logger;
 
     public ClaudeOrchestrator(
         IToolRegistry toolRegistry,

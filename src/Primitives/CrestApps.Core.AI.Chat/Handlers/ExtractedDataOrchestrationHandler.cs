@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Chat.Handlers;
 public sealed class ExtractedDataOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
     private readonly ITemplateService _templateService;
-    private readonly ILogger<ExtractedDataOrchestrationHandler> _logger;
+    private readonly ILogger _logger;
 
     public ExtractedDataOrchestrationHandler(ITemplateService templateService, ILogger<ExtractedDataOrchestrationHandler> logger)
     {

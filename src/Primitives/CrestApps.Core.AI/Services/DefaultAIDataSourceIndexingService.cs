@@ -26,7 +26,15 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
 
-    public DefaultAIDataSourceIndexingService(ICatalog<AIDataSource> dataSourceCatalog, ISearchIndexProfileManager indexProfileManager, IAIDeploymentManager deploymentManager, IAIClientFactory aiClientFactory, IAITextNormalizer textNormalizer, IServiceProvider serviceProvider, TimeProvider timeProvider, ILogger<DefaultAIDataSourceIndexingService> logger)
+    public DefaultAIDataSourceIndexingService(
+        ICatalog<AIDataSource> dataSourceCatalog,
+        ISearchIndexProfileManager indexProfileManager,
+        IAIDeploymentManager deploymentManager,
+        IAIClientFactory aiClientFactory,
+        IAITextNormalizer textNormalizer,
+        IServiceProvider serviceProvider,
+        TimeProvider timeProvider,
+        ILogger<DefaultAIDataSourceIndexingService> logger)
     {
         _dataSourceCatalog = dataSourceCatalog;
         _indexProfileManager = indexProfileManager;
@@ -77,14 +85,18 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 
     public async Task SyncSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
+        await SyncSourceDocumentsAsync(null, documentIds, cancellationToken);
+    }
+
+    public async Task SyncSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
+    {
         var ids = NormalizeDocumentIds(documentIds);
         if (ids.Length == 0)
         {
             return;
         }
 
-        var dataSources = await _dataSourceCatalog.GetAllAsync();
-        foreach (var dataSource in dataSources)
+        foreach (var dataSource in await GetMatchingDataSourcesAsync(sourceIndexProfileName))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var context = await TryCreateContextAsync(dataSource, requireSourceProfile: true);
@@ -101,6 +113,11 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 
     public async Task RemoveSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
+        await RemoveSourceDocumentsAsync(null, documentIds, cancellationToken);
+    }
+
+    public async Task RemoveSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
+    {
         var ids = NormalizeDocumentIds(documentIds);
         if (ids.Length == 0)
         {
@@ -108,8 +125,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         }
 
         var chunkIds = BuildChunkIds(ids);
-        var dataSources = await _dataSourceCatalog.GetAllAsync();
-        foreach (var dataSource in dataSources)
+        foreach (var dataSource in await GetMatchingDataSourcesAsync(sourceIndexProfileName))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var context = await TryCreateContextAsync(dataSource, requireSourceProfile: false);
@@ -310,6 +326,19 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private static string[] NormalizeDocumentIds(IEnumerable<string> documentIds)
     {
         return documentIds?.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
+    }
+
+    private async Task<IReadOnlyCollection<AIDataSource>> GetMatchingDataSourcesAsync(string sourceIndexProfileName)
+    {
+        var dataSources = await _dataSourceCatalog.GetAllAsync();
+        if (string.IsNullOrWhiteSpace(sourceIndexProfileName))
+        {
+            return dataSources.ToArray();
+        }
+
+        return dataSources
+            .Where(dataSource => string.Equals(dataSource.SourceIndexProfileName, sourceIndexProfileName, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
     }
 
     private static List<string> BuildChunkIds(IEnumerable<string> referenceIds)

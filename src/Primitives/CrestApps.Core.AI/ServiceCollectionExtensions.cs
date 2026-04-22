@@ -14,6 +14,7 @@ using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tools;
 using CrestApps.Core.Builders;
+using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Services;
 using CrestApps.Core.Templates;
 using CrestApps.Core.Templates.Extensions;
@@ -23,6 +24,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
@@ -265,6 +267,14 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<AIDataSourceIndexingQueue>();
+        services.TryAddSingleton<IAIDataSourceIndexingQueue>(sp => sp.GetRequiredService<AIDataSourceIndexingQueue>());
+        services.TryAddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceCatalogIndexingHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ISearchDocumentHandler, AIDataSourceSearchDocumentHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceIndexingBackgroundService>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceAlignmentBackgroundService>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DataSourceOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DataSourcePreemptiveRagHandler>());
         services.AddCoreAITool<DataSourceSearchTool>(DataSourceSearchTool.TheName)
