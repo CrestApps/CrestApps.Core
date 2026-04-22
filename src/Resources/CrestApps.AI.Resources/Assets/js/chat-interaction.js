@@ -23,11 +23,17 @@ window.chatInteractionManager = function () {
                         <div class="ai-chat-message-body lh-base">
                             <h4 v-if="message.title">{{ message.title }}</h4>
                             <div v-html="message.htmlContent"></div>
+                            <ol v-if="message.citationReferences && message.citationReferences.length" class="ai-chat-citation-list">
+                                <li v-for="citation in message.citationReferences" :key="'citation-' + (citation.referenceKey || citation.displayIndex)" class="ai-chat-citation-item">
+                                    <a v-if="citation.link" :href="citation.link" target="_blank" rel="noopener noreferrer">{{ citation.label }}</a>
+                                    <span v-else>{{ citation.label }}</span>
+                                </li>
+                            </ol>
                             <span class="message-buttons-container" v-if="!isIndicator(message)">
                                 <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
                                     <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
                                 </button>
-                                <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" title="Click here to copy response to clipboard.">
+                                <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message)" title="Click here to copy response to clipboard.">
                                     <span class="fa-solid fa-copy"></span>
                                 </button>
                             </span>
@@ -90,7 +96,8 @@ window.chatInteractionManager = function () {
         const normalized = Object.assign({}, reference);
         normalized.index = normalized.index ?? normalized.Index ?? 0;
         normalized.text = normalized.text ?? normalized.Text ?? null;
-        normalized.link = normalized.link ?? normalized.Link ?? null;
+        normalized.title = normalized.title ?? normalized.Title ?? null;
+        normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
 
         return normalized;
     }
@@ -107,6 +114,101 @@ window.chatInteractionManager = function () {
         }
 
         return normalized;
+    }
+
+    function getCitationLabel(reference, key) {
+        return reference.title || reference.text || key;
+    }
+
+    function buildCitationDisplay(content, references) {
+        let processedContent = (content || '').trim();
+        const messageReferences = normalizeReferences(references);
+
+        if (!processedContent || !Object.keys(messageReferences).length) {
+            return { content: processedContent, citations: [] };
+        }
+
+        const citedRefs = Object.entries(messageReferences).filter(([key]) => processedContent.includes(key));
+
+        if (!citedRefs.length) {
+            return { content: processedContent, citations: [] };
+        }
+
+        citedRefs.sort(([, a], [, b]) => a.index - b.index);
+
+        const citations = [];
+        let displayIndex = 1;
+
+        for (const [key, value] of citedRefs) {
+            const placeholder = `__CITE_${displayIndex}_${value.index || displayIndex}__`;
+            processedContent = processedContent.replaceAll(key, placeholder);
+            citations.push({
+                referenceKey: key,
+                displayIndex: displayIndex,
+                label: getCitationLabel(value, key),
+                link: value.link || null,
+                placeholder: placeholder,
+            });
+
+            displayIndex++;
+        }
+
+        for (const citation of citations) {
+            processedContent = processedContent.replaceAll(citation.placeholder, `<sup>${citation.displayIndex}</sup>`);
+        }
+
+        processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+
+        return {
+            content: processedContent,
+            citations: citations.map(({ placeholder, ...citation }) => citation),
+        };
+    }
+
+    function buildCopyContent(content, citations) {
+        let copyContent = (content || '').trim();
+
+        if (!copyContent || !Array.isArray(citations) || citations.length === 0) {
+            return copyContent;
+        }
+
+        for (const citation of citations) {
+            copyContent = copyContent.replaceAll(citation.referenceKey, `[${citation.displayIndex}]`);
+        }
+
+        copyContent += '\n\nReferences:\n';
+
+        for (const citation of citations) {
+            copyContent += `${citation.displayIndex}. ${citation.label}`;
+
+            if (citation.link) {
+                copyContent += ` - ${citation.link}`;
+            }
+
+            copyContent += '\n';
+        }
+
+        return copyContent.trimEnd();
+    }
+
+    function updateMessagePresentation(message, references) {
+        const messageReferences = normalizeReferences(references ?? message.references);
+        const rawContent = typeof message.rawContent === 'string'
+            ? message.rawContent
+            : typeof message.content === 'string'
+                ? message.content
+                : '';
+        const citationDisplay = buildCitationDisplay(rawContent, messageReferences);
+
+        message.rawContent = rawContent;
+        message.content = rawContent;
+        message.displayContent = citationDisplay.content;
+        message.references = messageReferences;
+        message.citationReferences = citationDisplay.citations;
+        message.copyContent = buildCopyContent(rawContent, citationDisplay.citations);
+        message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
+
+        return message;
     }
 
     const renderer = new marked.Renderer();
@@ -679,48 +781,8 @@ window.chatInteractionManager = function () {
                 },
                 addMessage(message) {
                     if (message.content) {
-                        let processedContent = message.content.trim();
-
-                        message.references = normalizeReferences(message.references);
-
-                        if (message.references && typeof message.references === "object" && Object.keys(message.references).length) {
-
-                            // Only include references that were actually cited in the response.
-                            const citedRefs = Object.entries(message.references).filter(([key]) => processedContent.includes(key));
-
-                            if (citedRefs.length) {
-                                // Sort by original index so display indices follow a natural order.
-                                citedRefs.sort(([, a], [, b]) => a.index - b.index);
-
-                                // Phase 1: Replace all markers with unique placeholders.
-                                let displayIndex = 1;
-                                for (const [key, value] of citedRefs) {
-                                    const placeholder = `__CITE_${value.index}__`;
-                                    processedContent = processedContent.replaceAll(key, placeholder);
-                                    value._displayIndex = displayIndex++;
-                                    value._placeholder = placeholder;
-                                }
-
-                                // Phase 2: Replace placeholders with sequential display indices.
-                                for (const [, value] of citedRefs) {
-                                    processedContent = processedContent.replaceAll(value._placeholder, `<sup><strong>${value._displayIndex}</strong></sup>`);
-                                }
-
-                                processedContent = processedContent.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
-
-                                processedContent += '<br><br>';
-
-                                for (const [key, value] of citedRefs) {
-                                    const label = value.text || `[doc:${value.index}]`;
-                                    processedContent += value.link
-                                        ? `**${value._displayIndex}**. [${label}](${value.link})<br>`
-                                        : `**${value._displayIndex}**. ${label}<br>`;
-                                }
-                            }
-                        }
-
-                        message.content = processedContent;
-                        message.htmlContent = parseMarkdownContent(processedContent, message);
+                        message.rawContent = message.rawContent ?? message.content;
+                        updateMessagePresentation(message, message.references);
                     }
 
                     this.addMessageInternal(message);
@@ -893,18 +955,11 @@ window.chatInteractionManager = function () {
                                         lastResponseId = chunk.responseId;
                                     }
 
-                                    let processedContent = chunk.content;
-
-                                    for (const [key, value] of Object.entries(references)) {
-                                        processedContent = processedContent.replaceAll(key, `<sup><strong>${value.index}</strong></sup>`);
-                                    }
-
-                                    content += processedContent.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
+                                    content += chunk.content;
                                 }
 
-                                message.content = content;
-
-                                message.htmlContent = parseMarkdownContent(content, message);
+                                message.rawContent = content;
+                                updateMessagePresentation(message, references);
 
                                 this.messages[messageIndex] = message;
 
@@ -969,50 +1024,8 @@ window.chatInteractionManager = function () {
 
                     if (Object.keys(references).length) {
                         let message = this.messages[messageIndex];
-                        const content = message.content || '';
-
-                        // Only include references that were actually cited in the response.
-                        // Check both raw [doc:N] markers and already-rendered <sup> tags from streaming.
-                        const citedRefs = Object.entries(references).filter(([key, value]) =>
-                            content.includes(key) || content.includes(`<sup><strong>${value.index}</strong></sup>`)
-                        );
-
-                        if (!citedRefs.length) {
-                            return;
-                        }
-
-                        // Sort by original index so display indices follow a natural order.
-                        citedRefs.sort(([, a], [, b]) => a.index - b.index);
-
-                        // Phase 1: Replace all markers with unique placeholders to avoid collisions during remapping.
-                        let processed = content.trim();
-                        let displayIndex = 1;
-                        for (const [key, value] of citedRefs) {
-                            const placeholder = `__CITE_${value.index}__`;
-                            processed = processed.replaceAll(key, placeholder);
-                            processed = processed.replaceAll(`<sup><strong>${value.index}</strong></sup>`, placeholder);
-                            value._displayIndex = displayIndex++;
-                            value._placeholder = placeholder;
-                        }
-
-                        // Phase 2: Replace placeholders with sequential display indices.
-                        for (const [, value] of citedRefs) {
-                            processed = processed.replaceAll(value._placeholder, `<sup><strong>${value._displayIndex}</strong></sup>`);
-                        }
-
-                        processed = processed.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
-
-                        processed += '<br><br>';
-
-                        for (const [key, value] of citedRefs) {
-                            const label = value.text || `[doc:${value.index}]`;
-                            processed += value.link
-                                ? `**${value._displayIndex}**. [${label}](${value.link})<br>`
-                                : `**${value._displayIndex}**. ${label}<br>`;
-                        }
-
-                        message.content = processed;
-                        message.htmlContent = parseMarkdownContent(processed, message);
+                        message.rawContent = message.rawContent ?? message.content ?? '';
+                        updateMessagePresentation(message, references);
 
                         this.messages[messageIndex] = message;
 
@@ -2053,7 +2066,11 @@ window.chatInteractionManager = function () {
                     this.isInteractionStarted = true;
                 },
                 copyResponse(message) {
-                    navigator.clipboard.writeText(message);
+                    const text = message && typeof message === 'object'
+                        ? message.copyContent ?? message.content ?? ''
+                        : message ?? '';
+
+                    navigator.clipboard.writeText(text);
                 },
                 startRecording() {
                     if (this.isRecording || !this.connection) {
@@ -2292,30 +2309,33 @@ window.chatInteractionDocumentManager = function () {
                 return;
             }
 
-            interactionDocuments.forEach(document => {
-                const row = document.createElement('div');
-                row.className = 'd-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white';
+            interactionDocuments.forEach(documentInfo => {
+                const row = window.document.createElement('div');
+                row.className = 'd-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white chat-document-row';
+                row.dataset.chatDocumentId = documentInfo.documentId;
+                row.dataset.chatDocumentName = documentInfo.fileName;
+                row.dataset.chatDocumentSize = documentInfo.fileSize;
 
-                const details = document.createElement('div');
+                const details = window.document.createElement('div');
                 details.className = 'me-2 min-w-0';
 
-                const name = createTextElement('div', 'fw-semibold small', document.fileName || 'Document');
-                const icon = document.createElement('i');
+                const name = createTextElement('div', 'fw-semibold small', documentInfo.fileName || 'Document');
+                const icon = window.document.createElement('i');
                 icon.className = 'bi bi-file-earmark-text me-1';
                 name.prepend(icon);
 
-                const size = createTextElement('div', 'text-muted small', formatFileSize(document.fileSize));
+                const size = createTextElement('div', 'text-muted small', formatFileSize(documentInfo.fileSize));
 
                 details.appendChild(name);
                 details.appendChild(size);
 
                 const removeButton = createTextElement('button', 'btn btn-sm btn-outline-danger remove-chat-document-btn', ' Remove');
                 removeButton.type = 'button';
-                removeButton.dataset.documentId = document.documentId;
-                const removeIcon = document.createElement('i');
+                removeButton.dataset.documentId = documentInfo.documentId;
+                const removeIcon = window.document.createElement('i');
                 removeIcon.className = 'bi bi-trash';
                 removeButton.prepend(removeIcon);
-                removeButton.addEventListener('click', () => removeDocument(document.documentId));
+                removeButton.addEventListener('click', () => removeDocument(documentInfo.documentId));
 
                 row.appendChild(details);
                 row.appendChild(removeButton);

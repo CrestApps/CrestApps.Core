@@ -38,13 +38,16 @@
 @inject IOptions<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
 @inject IOptions<InteractionDocumentOptions> DocOpts
+@inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISpeechVoiceResolver SpeechVoiceResolver
 @inject AIProfileDocumentService ProfileDocumentService
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @inject SiteSettingsStore SiteSettingsStore
 
 <PageTitle>Edit AI Profile - Blazor AI Integration Sample</PageTitle>
+<link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" />
 
 @if (_notFound)
 {
@@ -673,42 +676,68 @@ else if (_model != null)
                             </div>
                         </div>
 
-                        <div class="mt-3">
-                            <h6 class="mb-1"><i class="bi bi-paperclip"></i> Attached Documents</h6>
-
-                            @if (_model.AttachedDocuments.Count > 0)
-                            {
-                                <div class="mb-3">
-                                    @foreach (var doc in _model.AttachedDocuments)
-                                    {
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <i class="bi bi-file-earmark-text"></i>
-                                            <span>@doc.FileName</span>
-                                            <span class="text-muted small">(@FormatFileSize(doc.FileSize))</span>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDocument(doc.DocumentId)">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        </div>
-                                    }
+                        <div class="attached-documents-panel mt-3">
+                            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                <div>
+                                    <h6 class="mb-1"><i class="bi bi-file-earmark-text"></i> Attached Documents</h6>
+                                    <p class="text-muted small mb-0">These files are indexed as background knowledge for this profile and remain hidden from end users. Supported knowledge formats: @_supportedExtensionsDisplay</p>
                                 </div>
-                            }
-
-                            <div class="mb-3">
-                                <InputFile OnChange="OnDocumentsSelected" multiple class="form-control" />
-                                <div class="form-text">Upload additional files as profile knowledge.</div>
+                                <span class="badge text-bg-primary rounded-pill">@_model.AttachedDocuments.Count existing</span>
                             </div>
 
-                            @if (_pendingFiles.Count > 0)
-                            {
-                                <div class="mb-2">
-                                    @foreach (var file in _pendingFiles)
-                                    {
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <i class="bi bi-file-earmark-text"></i> <span>@file.Name</span> <span class="text-muted small">(@FormatFileSize(file.Size))</span>
+                            <div class="attached-documents-list mb-3">
+                                @foreach (var doc in _model.AttachedDocuments)
+                                {
+                                    <div class="attached-document-card">
+                                        <span class="attached-document-icon"><i class="bi bi-file-earmark-text"></i></span>
+                                        <div class="attached-document-meta flex-grow-1">
+                                            <div class="attached-document-name">@doc.FileName</div>
+                                            <span class="attached-document-size">@FormatFileSize(doc.FileSize)</span>
                                         </div>
-                                    }
+                                        <button type="button" class="btn btn-sm btn-outline-danger" title="Remove" @onclick="() => RemoveDocument(doc.DocumentId)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+
+                            <div id="pending-docs-list" class="mb-2">
+                                @for (var i = 0; i < _pendingFiles.Count; i++)
+                                {
+                                    var index = i;
+                                    var file = _pendingFiles[index];
+                                    <div class="d-flex align-items-center mb-2 pending-doc-row">
+                                        <i class="bi bi-file-earmark-plus me-2 text-success"></i>
+                                        <span class="flex-grow-1">
+                                            @file.Name <small class="text-muted">(@FormatFileSize(file.Size))</small> <span class="badge bg-info">New</span>
+                                        </span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" title="Remove" @onclick="() => RemovePendingFile(index)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="document-drop-zone" id="profile-doc-drop-zone">
+                                <InputFile id="profile-doc-add-input"
+                                           OnChange="OnDocumentsSelected"
+                                           multiple
+                                           accept="@_supportedExtensionsAccept"
+                                           class="d-none" />
+                                <div class="document-drop-zone__body">
+                                    <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
+                                    <div>
+                                        <div class="document-drop-zone__title">Drag and drop files here</div>
+                                        <div class="text-muted small">or browse for documents to attach as hidden profile knowledge</div>
+                                    </div>
+                                    <div class="document-drop-zone__actions">
+                                        <button type="button" class="btn btn-outline-primary" id="profile-doc-browse" data-drop-zone-browse>
+                                            <i class="bi bi-folder2-open"></i> Browse files
+                                        </button>
+                                    </div>
+                                    <div class="form-text mb-0">Supported knowledge formats: @_supportedExtensionsDisplay</div>
                                 </div>
-                            }
+                            </div>
                         </div>
                     </div>
 
@@ -905,6 +934,8 @@ else if (_model != null)
     private IReadOnlyList<SpeechVoice> _availableVoices = [];
     private List<string> _removedDocumentIds = [];
     private List<Microsoft.AspNetCore.Components.Forms.IBrowserFile> _pendingFiles = [];
+    private string _supportedExtensionsAccept;
+    private string _supportedExtensionsDisplay;
 
     protected override async Task OnInitializedAsync()
     {
@@ -919,6 +950,19 @@ else if (_model != null)
         _model = AIProfileViewModel.FromProfile(profile);
         await PopulateAttachedDocumentsAsync();
         await PopulateDropdownsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("initDocumentDropZone", new
+            {
+                dropZone = "#profile-doc-drop-zone",
+                fileInput = "#profile-doc-add-input",
+                browseButton = "#profile-doc-browse",
+            });
+        }
     }
 
     private async Task HandleSubmitAsync()
@@ -1000,7 +1044,30 @@ else if (_model != null)
 
     private void OnDocumentsSelected(InputFileChangeEventArgs e)
     {
-        _pendingFiles = e.GetMultipleFiles(20).ToList();
+        foreach (var file in e.GetMultipleFiles(20))
+        {
+            if (_pendingFiles.Any(existing => HasSameFileIdentity(existing, file)))
+            {
+                continue;
+            }
+
+            if (_pendingFiles.Count >= 20)
+            {
+                break;
+            }
+
+            _pendingFiles.Add(file);
+        }
+    }
+
+    private void RemovePendingFile(int index)
+    {
+        if (index < 0 || index >= _pendingFiles.Count)
+        {
+            return;
+        }
+
+        _pendingFiles.RemoveAt(index);
     }
 
     private async Task PopulateAttachedDocumentsAsync()
@@ -1095,6 +1162,9 @@ else if (_model != null)
             _model.HasDocumentIndexConfiguration = indexProfile != null && string.Equals(indexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
         }
 
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsAcceptValue();
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsDisplayValue();
+
         var promptTemplates = await TemplateService.ListAsync();
         _model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable)
             .OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
@@ -1157,6 +1227,9 @@ else if (_model != null)
         return $"{bytes / 1048576.0:F1} MB";
     }
 
+    private static bool HasSameFileIdentity(Microsoft.AspNetCore.Components.Forms.IBrowserFile left, Microsoft.AspNetCore.Components.Forms.IBrowserFile right) =>
+        string.Equals(left.Name, right.Name, StringComparison.OrdinalIgnoreCase) && left.Size == right.Size;
+
     private void OnProfileTypeChanged(ChangeEventArgs e)
     {
         if (Enum.TryParse<AIProfileType>(e.Value?.ToString(), out var value))
@@ -1170,3 +1243,52 @@ else if (_model != null)
         _model.OrchestratorName = e.Value?.ToString();
     }
 }
+
+<style>
+    .attached-documents-list {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .attached-document-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.875rem 1rem;
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        border-radius: 0.75rem;
+        background-color: #fff;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.04);
+    }
+
+    .attached-document-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        font-size: 1.1rem;
+    }
+
+    .attached-document-meta {
+        min-width: 0;
+    }
+
+    .attached-document-name {
+        font-weight: 600;
+        word-break: break-word;
+    }
+
+    .attached-document-size {
+        display: inline-flex;
+        margin-top: 0.25rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background-color: rgba(108, 117, 125, 0.12);
+        color: #495057;
+        font-size: 0.8rem;
+    }
+</style>

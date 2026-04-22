@@ -1,10 +1,10 @@
 @page "/datasources"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Models
-@using CrestApps.Core.Blazor.Web.Areas.DataSources.Services
+@using CrestApps.Core.AI.Services
 @using CrestApps.Core.Services
 @inject ICatalogManager<AIDataSource> Manager
-@inject IMvcAIDataSourceIndexingQueue IndexingQueue
+@inject IAIDataSourceIndexingQueue IndexingQueue
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS

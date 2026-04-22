@@ -1,5 +1,6 @@
 @page "/account/login"
 @layout MainLayout
+@using CrestApps.Core.Blazor.Web
 <PageTitle>Login - Blazor AI Integration Sample</PageTitle>
 
 <div class="row justify-content-center">
@@ -47,7 +48,7 @@
 
     protected override void OnInitialized()
     {
-        _returnUrl = returnUrl;
+        _returnUrl = AuthRedirectHelper.NormalizeReturnUrl(returnUrl ?? string.Empty);
         _error = error;
     }
 }

@@ -1,4 +1,3 @@
-using CrestApps.Core.Blazor.Web.Areas.DataSources.Services;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Startup.Shared.Models;
@@ -9,16 +8,13 @@ namespace CrestApps.Core.Blazor.Web.Areas.Admin.Handlers;
 public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
 {
     private readonly ArticleIndexingService _indexingService;
-    private readonly IMvcAIDataSourceIndexingQueue _dataSourceIndexingQueue;
     private readonly ILogger<ArticleIndexingHandler> _logger;
 
     public ArticleIndexingHandler(
         ArticleIndexingService indexingService,
-        IMvcAIDataSourceIndexingQueue dataSourceIndexingQueue,
         ILogger<ArticleIndexingHandler> logger)
     {
         _indexingService = indexingService;
-        _dataSourceIndexingQueue = dataSourceIndexingQueue;
         _logger = logger;
     }
 
@@ -27,7 +23,6 @@ public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
         try
         {
             await _indexingService.IndexAsync(context.Model);
-            await _dataSourceIndexingQueue.QueueSyncSourceDocumentsAsync([context.Model.ItemId]);
         }
         catch (Exception ex)
         {
@@ -40,7 +35,6 @@ public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
         try
         {
             await _indexingService.IndexAsync(context.Model);
-            await _dataSourceIndexingQueue.QueueSyncSourceDocumentsAsync([context.Model.ItemId]);
         }
         catch (Exception ex)
         {
@@ -53,7 +47,6 @@ public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
         try
         {
             await _indexingService.DeleteAsync(context.Model.ItemId);
-            await _dataSourceIndexingQueue.QueueRemoveSourceDocumentsAsync([context.Model.ItemId]);
         }
         catch (Exception ex)
         {

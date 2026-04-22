@@ -38,9 +38,6 @@ using CrestApps.Core.Blazor.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Hubs;
-using CrestApps.Core.Blazor.Web.Areas.DataSources.BackgroundServices;
-using CrestApps.Core.Blazor.Web.Areas.DataSources.Handlers;
-using CrestApps.Core.Blazor.Web.Areas.DataSources.Services;
 using CrestApps.Core.Blazor.Web.Areas.Indexing.Services;
 using CrestApps.Core.Blazor.Web.Components;
 using CrestApps.Core.Blazor.Web.Services;
@@ -232,7 +229,6 @@ builder.Services.AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthor
 builder.Services.AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>();
 
 // Host-specific data-source and article services.
-builder.Services.AddScoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceIndexingHandler>();
 builder.Services.AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>();
 builder.Services.Configure<IndexProfileSourceOptions>(options => options
     .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
@@ -292,11 +288,6 @@ builder.Services.AddHostedService<AIChatSessionCloseBackgroundService>();
 builder.Services.AddSingleton<MvcAIChatDocumentIndexingQueue>();
 builder.Services.AddSingleton<IMvcAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<MvcAIChatDocumentIndexingQueue>());
 builder.Services.AddHostedService<AIChatDocumentIndexingBackgroundService>();
-builder.Services.AddSingleton<MvcAIDataSourceIndexingQueue>();
-builder.Services.AddSingleton<IMvcAIDataSourceIndexingQueue>(sp => sp.GetRequiredService<MvcAIDataSourceIndexingQueue>());
-builder.Services.AddHostedService<AIDataSourceIndexingBackgroundService>();
-builder.Services.AddHostedService<DataSourceSyncBackgroundService>();
-builder.Services.AddHostedService<DataSourceAlignmentBackgroundService>();
 
 var app = builder.Build();
 
@@ -305,7 +296,6 @@ await app.Services.InitializeEntityCoreSchemaAsync();
 
 // Seed sample articles on first run.
 await app.Services.SeedArticlesAsync();
-
 
 // =============================================================================
 // 13. MIDDLEWARE PIPELINE

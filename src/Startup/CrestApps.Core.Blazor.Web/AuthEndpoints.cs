@@ -25,7 +25,7 @@ public static class AuthEndpoints
             var form = await context.Request.ReadFormAsync();
             var username = form["username"].ToString();
             var password = form["password"].ToString();
-            var returnUrl = form["returnUrl"].ToString();
+            var returnUrl = AuthRedirectHelper.NormalizeReturnUrl(form["returnUrl"].ToString(), context.Request);
 
             var adminUsername = configuration["CrestApps:Admin:Username"] ?? "admin";
             var adminPassword = configuration["CrestApps:Admin:Password"] ?? "admin";
@@ -44,9 +44,7 @@ public static class AuthEndpoints
 
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
-                var redirect = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : "/";
-
-                return Results.LocalRedirect(redirect);
+                return Results.LocalRedirect(returnUrl);
             }
 
             var redirectUrl = QueryString.Create(new Dictionary<string, string?>

@@ -73,6 +73,10 @@
         opacity: 1;
         pointer-events: auto;
     }
+    .ai-chat-messages .lh-base sup { font-size: 0.75em; line-height: 0; }
+    .ai-chat-citation-list { margin: 0.75rem 0 0; padding-left: 1.25rem; }
+    .ai-chat-citation-item + .ai-chat-citation-item { margin-top: 0.25rem; }
+    .ai-chat-citation-item a { word-break: break-word; }
     .ai-chat-messages .message-buttons-container > .button-message-toolbox {
         display: inline-flex;
         align-items: center;
@@ -774,7 +778,8 @@
                 var normalized = Object.assign({}, reference);
                 normalized.index = normalized.index ?? normalized.Index ?? 0;
                 normalized.text = normalized.text ?? normalized.Text ?? null;
-                normalized.link = normalized.link ?? normalized.Link ?? null;
+                normalized.title = normalized.title ?? normalized.Title ?? null;
+                normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
 
                 return normalized;
             }
@@ -801,12 +806,16 @@
                 return Object.assign(target || {}, source);
             }
 
+            function getCitationLabel(reference, key) {
+                return reference.title || reference.text || key;
+            }
+
             function formatMessageContent(content, references) {
                 var processedContent = (content || '').trim();
                 var messageReferences = normalizeReferences(references);
 
                 if (!processedContent || !Object.keys(messageReferences).length) {
-                    return processedContent;
+                    return { content: processedContent, citations: [] };
                 }
 
                 var citedRefs = Object.entries(messageReferences).filter(function (entry) {
@@ -814,57 +823,106 @@
                 });
 
                 if (!citedRefs.length) {
-                    return processedContent;
+                    return { content: processedContent, citations: [] };
                 }
 
                 citedRefs.sort(function (a, b) {
                     return (a[1].index || 0) - (b[1].index || 0);
                 });
 
+                var citations = [];
                 var displayIndex = 1;
                 citedRefs.forEach(function (entry) {
                     var key = entry[0];
                     var value = entry[1];
-                    var placeholder = '__CITE_' + (value.index || displayIndex) + '__';
+                    var placeholder = '__CITE_' + displayIndex + '_' + (value.index || displayIndex) + '__';
                     processedContent = processedContent.replaceAll(key, placeholder);
-                    value._displayIndex = displayIndex++;
-                    value._placeholder = placeholder;
+                    citations.push({
+                        referenceKey: key,
+                        displayIndex: displayIndex,
+                        label: getCitationLabel(value, key),
+                        link: value.link || null,
+                        placeholder: placeholder
+                    });
+
+                    displayIndex++;
                 });
 
-                citedRefs.forEach(function (entry) {
-                    var value = entry[1];
-                    processedContent = processedContent.replaceAll(value._placeholder, '<sup><strong>' + value._displayIndex + '</strong></sup>');
+                citations.forEach(function (citation) {
+                    processedContent = processedContent.replaceAll(citation.placeholder, '<sup>' + citation.displayIndex + '</sup>');
                 });
 
-                processedContent = processedContent.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
-                processedContent += '<br><br>';
+                processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
 
-                citedRefs.forEach(function (entry) {
-                    var key = entry[0];
-                    var value = entry[1];
-                    var label = value.text || key;
+                return {
+                    content: processedContent,
+                    citations: citations.map(function (citation) {
+                        delete citation.placeholder;
+                        return citation;
+                    })
+                };
+            }
 
-                    processedContent += value.link
-                        ? '**' + value._displayIndex + '**. [' + label + '](' + value.link + ')<br>'
-                        : '**' + value._displayIndex + '**. ' + label + '<br>';
+            function buildCopyContent(content, citations) {
+                var copyContent = (content || '').trim();
+
+                if (!copyContent || !Array.isArray(citations) || citations.length === 0) {
+                    return copyContent;
+                }
+
+                citations.forEach(function (citation) {
+                    copyContent = copyContent.replaceAll(citation.referenceKey, '[' + citation.displayIndex + ']');
                 });
 
-                return processedContent;
+                copyContent += '\n\nReferences:\n';
+
+                citations.forEach(function (citation) {
+                    copyContent += citation.displayIndex + '. ' + citation.label;
+
+                    if (citation.link) {
+                        copyContent += ' - ' + citation.link;
+                    }
+
+                    copyContent += '\n';
+                });
+
+                return copyContent.trimEnd();
+            }
+
+            function updateMessagePresentation(message) {
+                if (!message) {
+                    return message;
+                }
+
+                var rawContent = typeof message.rawContent === 'string'
+                    ? message.rawContent
+                    : (typeof message.content === 'string' ? message.content : '');
+                var formatted = formatMessageContent(rawContent, message.references);
+
+                message.rawContent = rawContent;
+                message.content = rawContent;
+                message.displayContent = formatted.content;
+                message.citationReferences = formatted.citations;
+                message.copyContent = buildCopyContent(rawContent, formatted.citations);
+                message.htmlContent = renderMarkdown(formatted.content);
+
+                return message;
             }
 
             function createChatMessage(role, content, isStreaming, isSystem, references) {
                 var rawContent = content || '';
                 var messageReferences = normalizeReferences(references);
 
-                return {
+                return updateMessagePresentation({
                     role: role,
                     rawContent: rawContent,
                     content: rawContent,
                     references: messageReferences,
-                    htmlContent: renderMarkdown(formatMessageContent(rawContent, messageReferences)),
+                    citationReferences: [],
+                    copyContent: rawContent,
                     isStreaming: isStreaming || false,
                     isSystem: isSystem || false
-                };
+                });
             }
 
             function formatFileSize(bytes) {
@@ -1372,9 +1430,8 @@
                         var last = this.messages[this.messages.length - 1];
                         if (last && last.role === 'assistant') {
                             last.rawContent = (last.rawContent || '') + (token || '');
-                            last.content = last.rawContent;
                             last.references = mergeReferences(last.references, references);
-                            last.htmlContent = renderMarkdown(formatMessageContent(last.rawContent, last.references));
+                            updateMessagePresentation(last);
                             var self = this;
                             this.$nextTick(function () {
                                 renderPendingCharts();
@@ -1385,7 +1442,7 @@
                         var last = this.messages[this.messages.length - 1];
                         if (last) {
                             last.isStreaming = false;
-                            last.htmlContent = renderMarkdown(formatMessageContent(last.rawContent, last.references));
+                            updateMessagePresentation(last);
                         }
                         var self = this;
                         this.$nextTick(function () {
@@ -1400,8 +1457,10 @@
                         var container = document.getElementById('chat-container');
                         if (container) container.scrollTop = container.scrollHeight;
                     },
-                    copyResponse: function (content) {
-                        navigator.clipboard.writeText(content);
+                    copyResponse: function (message) {
+                        navigator.clipboard.writeText(message && typeof message === 'object'
+                            ? (message.copyContent || message.content || '')
+                            : (message || ''));
                     },
                     toggleMessageTts: function (message, index) {
                         if (this.ttsPlayingMessageIndex === index) {
@@ -1458,13 +1517,19 @@
                                 '</div>' +
                                 '<div class="lh-base">' +
                                     '<div v-html="message.htmlContent"></div>' +
+                                    '<ol v-if="message.citationReferences && message.citationReferences.length" class="ai-chat-citation-list">' +
+                                        '<li v-for="citation in message.citationReferences" :key="\'citation-\' + (citation.referenceKey || citation.displayIndex)" class="ai-chat-citation-item">' +
+                                            '<a v-if="citation.link" :href="citation.link" target="_blank" rel="noopener noreferrer">{{ citation.label }}</a>' +
+                                            '<span v-else>{{ citation.label }}</span>' +
+                                        '</li>' +
+                                    '</ol>' +
                                     '<span class="message-buttons-container" v-if="message.role === \'assistant\' && !message.isStreaming">' +
                                         (textToSpeechEnabled
                                             ? '<button class="btn btn-sm btn-link text-secondary p-0 me-1" :class="{ \'tts-playing\': ttsPlayingMessageIndex === index }" v-on:click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? \'Pause audio\' : \'Read aloud\'">' +
                                                 '<i :class="ttsPlayingMessageIndex === index ? \'bi bi-pause-circle-fill\' : \'bi bi-play-circle-fill\'"></i>' +
                                               '</button>'
                                             : '') +
-                                        '<button class="btn btn-sm btn-link text-secondary p-0" v-on:click="copyResponse(message.content)" title="Copy response">' +
+                                        '<button class="btn btn-sm btn-link text-secondary p-0" v-on:click="copyResponse(message)" title="Copy response">' +
                                             '<i class="bi bi-clipboard"></i>' +
                                         '</button>' +
                                     '</span>' +
@@ -1735,8 +1800,7 @@
                 }
 
                 conversationAssistantMessage.rawContent = (conversationAssistantMessage.rawContent || '') + token;
-                conversationAssistantMessage.content = conversationAssistantMessage.rawContent;
-                conversationAssistantMessage.htmlContent = renderMarkdown(formatMessageContent(conversationAssistantMessage.rawContent, conversationAssistantMessage.references));
+                updateMessagePresentation(conversationAssistantMessage);
                 vm.scrollToBottom();
                 vm.$nextTick(function () { renderPendingCharts(); });
             });
@@ -1747,7 +1811,7 @@
                 }
 
                 conversationAssistantMessage.isStreaming = false;
-                conversationAssistantMessage.htmlContent = renderMarkdown(formatMessageContent(conversationAssistantMessage.rawContent, conversationAssistantMessage.references));
+                updateMessagePresentation(conversationAssistantMessage);
                 conversationAssistantMessage = null;
                 vm.scrollToBottom();
                 vm.$nextTick(function () { renderPendingCharts(); });
