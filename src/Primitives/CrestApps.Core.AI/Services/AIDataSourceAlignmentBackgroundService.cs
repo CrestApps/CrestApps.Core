@@ -104,7 +104,10 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
 
         var indexingService = services.GetRequiredService<IAIDataSourceIndexingService>();
 
-        _logger.LogInformation("Starting nightly data-source alignment for {Count} data source(s).", dataSourceList.Count);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("Starting nightly data-source alignment for {Count} data source(s).", dataSourceList.Count);
+        }
 
         await indexingService.SyncAllAsync(cancellationToken);
 
