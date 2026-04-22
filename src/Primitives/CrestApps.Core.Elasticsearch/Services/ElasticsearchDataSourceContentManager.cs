@@ -19,7 +19,7 @@ namespace CrestApps.Core.Elasticsearch.Services;
 internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContentManager
 {
     private readonly ElasticsearchClient _elasticClient;
-    private readonly ILogger<ElasticsearchDataSourceContentManager> _logger;
+    private readonly ILogger _logger;
 
     internal static List<(string Kind, string Value)> BuildMustQueryDebug(string dataSourceId, string filter)
     {

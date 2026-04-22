@@ -60,6 +60,18 @@ When the `Endpoint` is provided, a `SearchIndexClient` singleton is also registe
 
 AI-specific Azure AI Search registrations now live in `CrestApps.Core.AI.Azure.AISearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Azure AI Search-backed AI RAG/search flows.
 
+When you call `AddAIDataSources()`, the feature builder also pulls in the shared asynchronous data-source synchronization stack from `AddCoreAIDataSourceRag()`, including:
+
+- `IAIDataSourceIndexingQueue`
+- `IAIDataSourceIndexingService`
+- `AIDataSourceCatalogIndexingHandler`
+- `AIDataSourceSearchDocumentHandler`
+- `AIDataSourceIndexingBackgroundService`
+- `AIDataSourceAlignmentBackgroundService`
+- `DataSourceSearchIndexProfileHandler`
+
+Override `IAIDataSourceIndexingQueue` when you need a durable or distributed queue, override `IAIDataSourceIndexingService` when you need different synchronization rules, and add your own `ISearchDocumentHandler` registrations when source-index writes should trigger additional asynchronous work.
+
 ## Authentication
 
 - **API Key** — Provide the `ApiKey` property
@@ -254,5 +266,4 @@ Navigate to your Azure AI Search resource → **Indexes** to see all created ind
 **Fix:**
 - This is typically handled automatically by the framework. If you see this error, ensure you are using the latest version of the data source services.
 - Manually verify the index schema in the Azure Portal under your search resource → **Indexes**.
-
 

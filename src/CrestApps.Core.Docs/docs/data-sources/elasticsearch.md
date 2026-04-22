@@ -64,6 +64,18 @@ When the `Url` is provided, an `ElasticsearchClient` singleton is also registere
 
 AI-specific Elasticsearch registrations now live in `CrestApps.Core.AI.Elasticsearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Elasticsearch-backed AI RAG/search flows.
 
+When you call `AddAIDataSources()`, the feature builder also pulls in the shared asynchronous data-source synchronization stack from `AddCoreAIDataSourceRag()`, including:
+
+- `IAIDataSourceIndexingQueue`
+- `IAIDataSourceIndexingService`
+- `AIDataSourceCatalogIndexingHandler`
+- `AIDataSourceSearchDocumentHandler`
+- `AIDataSourceIndexingBackgroundService`
+- `AIDataSourceAlignmentBackgroundService`
+- `DataSourceSearchIndexProfileHandler`
+
+Override `IAIDataSourceIndexingQueue` when you need a durable or distributed queue, override `IAIDataSourceIndexingService` when you need different synchronization rules, and add your own `ISearchDocumentHandler` registrations when source-index writes should trigger additional asynchronous work.
+
 ## Docker Setup for Local Development
 
 Use Docker Compose to run Elasticsearch locally with vector search support:
@@ -249,5 +261,4 @@ Deleting an index removes all indexed documents permanently. Re-indexing from th
 **Fix:**
 - Trigger indexing from the admin UI or via the data source management API
 - Verify the index name matches what the application expects: `curl -u elastic:changeme http://localhost:9200/_cat/indices?v`
-
 

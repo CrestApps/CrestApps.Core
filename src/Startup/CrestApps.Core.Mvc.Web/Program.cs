@@ -34,8 +34,6 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
-using CrestApps.Core.Mvc.Web.Areas.DataSources.BackgroundServices;
-using CrestApps.Core.Mvc.Web.Areas.DataSources.Services;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Mvc.Web.Tools;
 using CrestApps.Core.SignalR;
@@ -48,10 +46,9 @@ using NLog.Web;
 // =============================================================================
 // CrestApps AI Framework — MVC Example Application
 // =============================================================================
-// This Program.cs demonstrates how to bootstrap an ASP.NET Core MVC application
-// using the CrestApps AI Framework. It shows each feature registration step in
-// the order they should be applied, with comments explaining what each extension
-// does and why it is needed.
+// This sample shows one way to compose CrestApps.Core into an ASP.NET Core MVC
+// host. Keep the ASP.NET Core plumbing your app needs, then add only the
+// CrestApps features and backing stores that match your own project.
 //
 // Sections:
 //   1. Crash Diagnostics & Host Resilience
@@ -71,15 +68,8 @@ using NLog.Web;
 // =============================================================================
 var builder = WebApplication.CreateBuilder(args);
 
-// Early startup marker — writes immediately to confirm the process launched.
-var crashLogDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "logs");
-Directory.CreateDirectory(crashLogDir);
-
-// Prevent background/hosted-service exceptions from tearing down the host.
-// The default BackgroundServiceExceptionBehavior.StopHost silently kills the
-// process when any IHostedService.ExecuteAsync throws — even if the exception
-// is transient. With Ignore, the exception is still logged but the host
-// continues running.
+// Keep the sample host alive if a background service throws. In production you
+// may prefer StopHost if a failed background worker should bring the app down.
 builder.Services.Configure<HostOptions>(options =>
 {
     options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
@@ -88,8 +78,8 @@ builder.Services.Configure<HostOptions>(options =>
 // =============================================================================
 // 2. LOGGING
 // =============================================================================
-// NLog writes daily log files to App_Data/logs/. Replace with your preferred
-// logging provider (Serilog, Application Insights, etc.) if desired.
+// The sample uses NLog and writes to App_Data/logs. Swap this for any logging
+// provider you already standardize on.
 // =============================================================================
 builder.Logging.ClearProviders();
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
@@ -100,30 +90,19 @@ Directory.CreateDirectory(appDataPath);
 // =============================================================================
 // 3. APPLICATION CONFIGURATION
 // =============================================================================
-// Two-layer App_Data configuration:
-//
-// App_Data/appsettings.json holds infrastructure config (AI connections,
-// credentials, Elasticsearch, Azure AI Search, etc.) that is rarely changed at
-// runtime. reloadOnChange is disabled to avoid FileSystemWatcher race
-// conditions in the App_Data directory. Restart the app after editing.
-//
-// App_Data/site-settings.json holds mutable admin-managed settings (general AI
-// options, default deployments, chat interaction, admin widget, etc.) owned
-// entirely by SiteSettingsStore. It is NOT registered in the configuration
-// pipeline — SiteSettingsStore loads it into memory at startup and writes it
-// back atomically via SaveChangesAsync().
-//
-// NOTE: The default appsettings.json and appsettings.{env}.json files are
-// already registered by WebApplicationBuilder — do not re-add them here.
+// The sample keeps long-lived infrastructure settings in App_Data/appsettings.json
+// and lets the admin UI manage mutable settings through App_Data/site-settings.json.
+// WebApplicationBuilder already loads the root appsettings files, so only add the
+// App_Data override here.
 // =============================================================================
 builder.Configuration.AddJsonFile("App_Data/appsettings.json", optional: true, reloadOnChange: false);
 
-// SiteSettingsStore is the single owner of App_Data/site-settings.json.
-// It migrates old JSON keys on load and serves reads from memory.
+// SiteSettingsStore owns App_Data/site-settings.json and persists admin-edited
+// values outside the normal IConfiguration pipeline.
 builder.Services.AddSingleton(new SiteSettingsStore(appDataPath));
 
-// Bridge SiteSettingsStore → framework IOptions<T> so that framework services
-// (orchestrators, memory, data sources, etc.) see the admin-managed values.
+// Bridge admin-managed site settings into the framework options that CrestApps
+// services consume.
 builder.Services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigureGeneralAIOptions>();
 builder.Services.AddSingleton<IConfigureOptions<AIMemoryOptions>, SiteSettingsConfigureAIMemoryOptions>();
 builder.Services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, SiteSettingsConfigureInteractionDocumentOptions>();
@@ -134,8 +113,8 @@ builder.Services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, Si
 // =============================================================================
 // 4. ASP.NET CORE MVC SETUP
 // =============================================================================
-// Start with the standard ASP.NET Core building blocks before adding CrestApps-
-// specific features. This keeps the host framework registrations easy to find.
+// Register the normal MVC host services first. Everything below this point is
+// optional framework composition that you can trim for your own app.
 // =============================================================================
 builder.Services.AddLocalization();
 builder.Services.AddControllersWithViews()
@@ -146,8 +125,8 @@ builder.Services.AddHttpContextAccessor();
 // =============================================================================
 // 5. AUTHENTICATION & AUTHORIZATION
 // =============================================================================
-// Cookie-based authentication with a simple "Admin" policy. Replace with your
-// preferred auth scheme (JWT, OpenID Connect, etc.).
+// The sample uses cookie auth plus a simple Admin policy. Replace this block
+// with your own authentication/authorization strategy.
 // =============================================================================
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
 {
@@ -161,17 +140,17 @@ builder.Services.AddAuthorizationBuilder()
 // =============================================================================
 // 6. CRESTAPPS FOUNDATION + AI SERVICES
 // =============================================================================
-// These are the shared CrestApps service registrations that sit on top of the
-// normal ASP.NET Core host. Keep them together so consumers can clearly see the
-// minimum CrestApps foundation, then remove optional features as needed.
+// Add the CrestApps core runtime, then opt into only the AI features you need.
+// For your own host, keep the store implementation and remove unused feature
+// registrations instead of copying the whole sample blindly.
 // =============================================================================
 builder.Services
     .AddCoreYesSqlDataStore(appDataPath)
     .AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddYesSqlStores()
-        // .ConfigureProviderOptions(builder.Configuration.GetSection("CrestApps:AI:Providers"))
-        // Optional AI features layered on top of the core AI + orchestration runtime.
+        // Add provider-specific options only if you manage providers from configuration.
+        // Each additional feature below is optional.
         .AddMarkdown()
         .AddClaudeOrchestrator()
         .AddCopilotOrchestrator()
@@ -223,34 +202,19 @@ builder.Services
 // =============================================================================
 // 7. AI PROVIDERS
 // =============================================================================
-// Register the AI completion providers you want to use. Each provider adds an
-// IAICompletionClient implementation that knows how to communicate with its
-// platform. Provider connection settings are read from appsettings.json under
-// "CrestApps:AI:Providers". You only need to register the providers you use.
-//
-//   AddAISuite(ai => ai.AddOpenAI())          — OpenAI (api.openai.com)
-//   AddAISuite(ai => ai.AddAzureOpenAI())     — Azure OpenAI Service
-//   AddAISuite(ai => ai.AddOllama())          — Ollama (local/self-hosted models)
-//   AddAISuite(ai => ai.AddAzureAIInference())— Azure AI Inference / GitHub Models
+// Provider registrations live in the AddAISuite block above. Keep only the
+// providers your app actually uses and supply their credentials in configuration.
 // =============================================================================
-// =============================================================================
-// 8. ELASTICSEARCH SERVICES
-// =============================================================================
-// Keep each vector-search backend in its own group so it is obvious which block
-// to remove when the application does not use that provider.
-// =============================================================================
-// =============================================================================
-// 9. AZURE AI SEARCH SERVICES
-// =============================================================================
-// This block mirrors the Elasticsearch group so each provider's registrations
-// stay together and are easy to remove independently.
-// =============================================================================
-// Add Articles support to show document support example.
 builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, ArticleIndexProfileHandler>());
 builder.Services.AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles);
 builder.Services.AddScoped<MvcCitationReferenceCollector>();
 builder.Services.AddScoped<CompositeAIReferenceLinkResolver>();
-builder.Services.AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
+
+// =============================================================================
+// 8. ELASTICSEARCH SERVICES
+// =============================================================================
+// The sample wires both vector-search backends. Most apps only need one.
+// =============================================================================
 builder.Services.Configure<IndexProfileSourceOptions>(options => options
     .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
     {
@@ -259,6 +223,11 @@ builder.Services.Configure<IndexProfileSourceOptions>(options => options
     })
 );
 
+// =============================================================================
+// 9. AZURE AI SEARCH SERVICES
+// =============================================================================
+// Article registrations below exist to demonstrate document indexing and source
+// references in the sample UI.
 builder.Services.Configure<IndexProfileSourceOptions>(options => options
     .AddOrUpdate(ElasticsearchConstants.ProviderName, "Azure AI Search", IndexProfileTypes.Articles, descriptor =>
     {
@@ -270,9 +239,8 @@ builder.Services.Configure<IndexProfileSourceOptions>(options => options
 // =============================================================================
 // 10. MCP — MODEL CONTEXT PROTOCOL
 // =============================================================================
-// MCP server endpoint configuration (using the ModelContextProtocol SDK).
-// This wires the CrestApps tool registry, prompt service, and resource service
-// into the MCP protocol handlers served at the /mcp endpoint.
+// This exposes the CrestApps tool, prompt, and resource handlers over an MCP
+// endpoint. Remove it if your host does not need to serve MCP.
 _ = builder.Services.AddMcpServer(options =>
 {
     options.ServerInfo = new()
@@ -286,10 +254,8 @@ _ = builder.Services.AddMcpServer(options =>
 // =============================================================================
 // 11. CUSTOM AI TOOLS
 // =============================================================================
-// Register application-specific AI tools using the fluent builder pattern.
-// Tools marked as Selectable() are visible in the UI for user assignment to
-// profiles; system tools (no Selectable call) are used automatically by the
-// orchestrator based on their Purpose.
+// Register app-specific tools here. Selectable tools appear in the admin UI;
+// non-selectable tools stay internal to your orchestrator pipeline.
 // =============================================================================
 builder.Services.AddCoreAITool<CalculatorTool>(CalculatorTool.TheName)
     .WithTitle("Calculator")
@@ -306,16 +272,11 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 // =============================================================================
 // 12. DATA STORE — YesSql with SQLite
 // =============================================================================
-// The framework does not impose a specific data store. You must provide
-// implementations of the store interfaces (IAIProfileManager,
-// IAIChatSessionManager, IAIChatSessionPromptStore, IAIDocumentStore, etc.).
-//
-// This sample uses YesSql with SQLite. CrestApps.Core also ships the
-// CrestApps.Core.Data.EntityCore package for EF Core-based stores, and hosts
-// can provide their own implementations as long as they satisfy the same
-// store/catalog abstractions.
+// CrestApps.Core is store-agnostic. This sample uses YesSql with SQLite, but
+// you can swap in Entity Framework Core or your own implementations as long as
+// the required catalog/store abstractions are satisfied.
 // =============================================================================
-// Copilot orchestrator: credential store and options configuration.
+// Provider-specific sample services.
 builder.Services.AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 builder.Services.ConfigureOptions<MvcCopilotOptionsConfiguration>();
 builder.Services.ConfigureOptions<MvcClaudeOptionsConfiguration>();
@@ -323,30 +284,26 @@ builder.Services.ConfigureOptions<MvcClaudeOptionsConfiguration>();
 // =============================================================================
 // 13. BACKGROUND TASKS
 // =============================================================================
-// These hosted services run periodic maintenance work. Implement your own
-// IHostedService or use these as reference implementations.
+// These hosted services keep chat sessions, document indexing, and data-source
+// synchronization moving in the background. Keep only the workers your app needs.
 // =============================================================================
 builder.Services.AddHostedService<AIChatSessionCloseBackgroundService>();
 builder.Services.AddSingleton<MvcAIChatDocumentIndexingQueue>();
 builder.Services.AddSingleton<IMvcAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<MvcAIChatDocumentIndexingQueue>());
 builder.Services.AddHostedService<AIChatDocumentIndexingBackgroundService>();
-builder.Services.AddSingleton<MvcAIDataSourceIndexingQueue>();
-builder.Services.AddSingleton<IMvcAIDataSourceIndexingQueue>(sp => sp.GetRequiredService<MvcAIDataSourceIndexingQueue>());
-builder.Services.AddHostedService<AIDataSourceIndexingBackgroundService>();
-builder.Services.AddHostedService<DataSourceSyncBackgroundService>();
-builder.Services.AddHostedService<DataSourceAlignmentBackgroundService>();
 
 var app = builder.Build();
 
-// YesSql schema initialization — creates tables on first run.
+// Initialize the backing store before serving requests.
 await app.Services.InitializeYesSqlSchemaAsync();
 
-// Seed sample articles on first run.
+// Seed sample content used by the demo UI.
 await app.Services.SeedArticlesAsync();
 
 // =============================================================================
 // 14. MIDDLEWARE PIPELINE
 // =============================================================================
+// Standard ASP.NET Core middleware first, then the CrestApps endpoints and hubs.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error").UseHsts();

@@ -19,7 +19,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ITextTokenizer _tokenizer;
     private readonly McpCapabilityResolverOptions _resolverOptions;
-    private readonly ILogger<DefaultMcpCapabilityResolver> _logger;
+    private readonly ILogger _logger;
 
     public DefaultMcpCapabilityResolver(
         ISourceCatalog<McpConnection> store,

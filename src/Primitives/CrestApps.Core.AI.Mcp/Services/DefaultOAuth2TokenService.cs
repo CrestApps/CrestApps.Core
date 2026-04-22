@@ -16,7 +16,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _cache;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<DefaultOAuth2TokenService> _logger;
+    private readonly ILogger _logger;
 
     public DefaultOAuth2TokenService(
         IHttpClientFactory httpClientFactory,

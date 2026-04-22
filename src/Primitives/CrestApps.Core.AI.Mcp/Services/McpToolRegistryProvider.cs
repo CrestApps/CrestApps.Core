@@ -16,7 +16,7 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
 
     private readonly IMcpServerMetadataCacheProvider _metadataProvider;
     private readonly ISourceCatalog<McpConnection> _store;
-    private readonly ILogger<McpToolRegistryProvider> _logger;
+    private readonly ILogger _logger;
 
     public McpToolRegistryProvider(
         IMcpServerMetadataCacheProvider metadataProvider,
