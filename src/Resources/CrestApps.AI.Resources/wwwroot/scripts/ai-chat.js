@@ -55,7 +55,7 @@ window.openAIChatManager = function () {
       minWidth: 320,
       minHeight: 420
     },
-    messageTemplate: "\n        <div class=\"ai-chat-messages\">\n            <div v-for=\"(message, index) in messages\" :key=\"'msg-' + index\" class=\"ai-chat-message-item\">\n                <div>\n                    <div v-if=\"message.role === 'user'\" class=\"ai-chat-msg-role ai-chat-msg-role-user\">{{ userLabel }}</div>\n                    <div v-else-if=\"message.role !== 'indicator'\" :class=\"getAssistantRoleClasses(message)\">\n                        <span :class=\"getAssistantIconClasses(message, index)\"><span :class=\"getAssistantIcon(message)\"></span></span>\n                        {{ getAssistantLabel(message) }}\n                    </div>\n                    <div class=\"ai-chat-message-body lh-base\">\n                        <h4 v-if=\"message.title\">{{ message.title }}</h4>\n                        <div v-html=\"message.htmlContent\"></div>\n                        <ol v-if=\"message.citationReferences && message.citationReferences.length\" class=\"ai-chat-citation-list\">\n                            <li v-for=\"citation in message.citationReferences\" :key=\"'citation-' + (citation.referenceKey || citation.displayIndex)\" class=\"ai-chat-citation-item\">\n                                <a v-if=\"citation.link\" :href=\"citation.link\" :class=\"{ 'ai-download-citation': citation.isDownload }\" :target=\"citation.isDownload ? null : '_blank'\" :rel=\"citation.isDownload ? null : 'noopener noreferrer'\" :download=\"citation.isDownload ? '' : null\">{{ citation.label }}</a>\n                                <span v-else>{{ citation.label }}</span>\n                            </li>\n                        </ol>\n                        <span class=\"message-buttons-container\" v-if=\"!isIndicator(message)\">\n                            <template v-if=\"metricsEnabled && message.role === 'assistant'\">\n                                <span class=\"ai-chat-message-assistant-feedback\" :data-message-id=\"message.id\">\n                                    <button class=\"btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn\" @click=\"rateMessage(message, true, $event)\" :title=\"thumbsUpTitle\">\n                                        <span class=\"fa-regular fa-thumbs-up\"></span>\n                                    </button>\n                                    <button class=\"btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn\" @click=\"rateMessage(message, false, $event)\" :title=\"thumbsDownTitle\">\n                                        <span class=\"fa-regular fa-thumbs-down\"></span>\n                                    </button>\n                                </span>\n                            </template>\n                            <button v-if=\"textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming\" class=\"btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox\" :class=\"{ 'tts-playing': ttsPlayingMessageIndex === index }\" :data-tts-message-index=\"index\" @click=\"toggleMessageTts(message, index)\" :title=\"ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'\">\n                                <span :class=\"ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'\"></span>\n                            </button>\n                            <button class=\"btn btn-sm btn-link text-secondary p-0 button-message-toolbox\" @click=\"copyResponse(message)\" :title=\"copyTitle\">\n                                <span class=\"fa-solid fa-copy\"></span>\n                            </button>\n                        </span>\n                    </div>\n                </div>\n            </div>\n            <div v-for=\"notification in notifications\" :key=\"'notif-' + notification.type\" class=\"ai-chat-notification\" :class=\"'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')\">\n                <div class=\"ai-chat-notification-content\">\n                    <span v-if=\"notification.icon\" :class=\"notification.icon\" class=\"ai-chat-notification-icon\"></span>\n                    <span class=\"ai-chat-notification-text\">{{ notification.content }}</span>\n                    <button v-if=\"notification.dismissible\" class=\"btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss\" @click=\"dismissNotification(notification.type)\" title=\"Dismiss\">\n                        <span class=\"fa-solid fa-xmark\"></span>\n                    </button>\n                </div>\n                <div v-if=\"notification.actions && notification.actions.length\" class=\"ai-chat-notification-actions\">\n                    <button v-for=\"action in notification.actions\" :key=\"action.name\" class=\"btn btn-sm\" :class=\"action.cssClass || 'btn-outline-secondary'\" @click=\"handleNotificationAction(notification.type, action.name)\">\n                        <span v-if=\"action.icon\" :class=\"action.icon\" class=\"me-1\"></span>\n                        {{ action.label }}\n                    </button>\n                </div>\n            </div>\n        </div>\n    ",
+    messageTemplate: "\n        <div class=\"ai-chat-messages\">\n            <div v-for=\"(message, index) in messages\" :key=\"'msg-' + index\" class=\"ai-chat-message-item\">\n                <div>\n                    <div v-if=\"message.role === 'user'\" class=\"ai-chat-msg-role ai-chat-msg-role-user\">{{ userLabel }}</div>\n                    <div v-else-if=\"message.role !== 'indicator'\" :class=\"getAssistantRoleClasses(message)\">\n                        <span :class=\"getAssistantIconClasses(message, index)\"><span :class=\"getAssistantIcon(message)\"></span></span>\n                        {{ getAssistantLabel(message) }}\n                    </div>\n                    <div class=\"ai-chat-message-body lh-base\">\n                        <h4 v-if=\"message.title\">{{ message.title }}</h4>\n                        <div v-html=\"message.htmlContent\"></div>\n                        <ol v-if=\"message.citationReferences && message.citationReferences.length\" class=\"ai-chat-citation-list\">\n                            <li v-for=\"citation in message.citationReferences\" :key=\"'citation-' + (citation.referenceKey || citation.displayIndex)\" class=\"ai-chat-citation-item\">\n                                <a v-if=\"citation.link\" :href=\"citation.link\" :target=\"citation.isDownload ? null : '_blank'\" :rel=\"citation.isDownload ? null : 'noopener noreferrer'\">{{ citation.label }}</a>\n                                <span v-else>{{ citation.label }}</span>\n                            </li>\n                        </ol>\n                        <span class=\"message-buttons-container\" v-if=\"!isIndicator(message)\">\n                            <template v-if=\"metricsEnabled && message.role === 'assistant'\">\n                                <span class=\"ai-chat-message-assistant-feedback\" :data-message-id=\"message.id\">\n                                    <button class=\"btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn\" @click=\"rateMessage(message, true, $event)\" :title=\"thumbsUpTitle\">\n                                        <span class=\"fa-regular fa-thumbs-up\"></span>\n                                    </button>\n                                    <button class=\"btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn\" @click=\"rateMessage(message, false, $event)\" :title=\"thumbsDownTitle\">\n                                        <span class=\"fa-regular fa-thumbs-down\"></span>\n                                    </button>\n                                </span>\n                            </template>\n                            <button v-if=\"textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming\" class=\"btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox\" :class=\"{ 'tts-playing': ttsPlayingMessageIndex === index }\" :data-tts-message-index=\"index\" @click=\"toggleMessageTts(message, index)\" :title=\"ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'\">\n                                <span :class=\"ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'\"></span>\n                            </button>\n                            <button class=\"btn btn-sm btn-link text-secondary p-0 button-message-toolbox\" @click=\"copyResponse(message)\" :title=\"copyTitle\">\n                                <span class=\"fa-solid fa-copy\"></span>\n                            </button>\n                        </span>\n                    </div>\n                </div>\n            </div>\n            <div v-for=\"notification in notifications\" :key=\"'notif-' + notification.type\" class=\"ai-chat-notification\" :class=\"'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')\">\n                <div class=\"ai-chat-notification-content\">\n                    <span v-if=\"notification.icon\" :class=\"notification.icon\" class=\"ai-chat-notification-icon\"></span>\n                    <span class=\"ai-chat-notification-text\">{{ notification.content }}</span>\n                    <button v-if=\"notification.dismissible\" class=\"btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss\" @click=\"dismissNotification(notification.type)\" title=\"Dismiss\">\n                        <span class=\"fa-solid fa-xmark\"></span>\n                    </button>\n                </div>\n                <div v-if=\"notification.actions && notification.actions.length\" class=\"ai-chat-notification-actions\">\n                    <button v-for=\"action in notification.actions\" :key=\"action.name\" class=\"btn btn-sm\" :class=\"action.cssClass || 'btn-outline-secondary'\" @click=\"handleNotificationAction(notification.type, action.name)\">\n                        <span v-if=\"action.icon\" :class=\"action.icon\" class=\"me-1\"></span>\n                        {{ action.label }}\n                    </button>\n                </div>\n            </div>\n        </div>\n    ",
     indicatorTemplate: "\n        <div class=\"ai-chat-msg-role ai-chat-msg-role-assistant\">\n            <span class=\"ai-streaming-icon\"><span class=\"fa fa-robot\" style=\"display: inline-block;\"></span></span>\n            Assistant\n        </div>\n    "
   };
 
@@ -2707,60 +2707,6 @@ document.addEventListener('click', function (e) {
     }, 100);
   })["catch"](function (err) {
     console.error('Failed to download image:', err);
-  });
-});
-function tryGetDownloadFileName(disposition, fallbackName) {
-  if (typeof disposition !== 'string' || !disposition) {
-    return fallbackName || 'download';
-  }
-  var utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-  if (utf8Match && utf8Match[1]) {
-    try {
-      return decodeURIComponent(utf8Match[1]);
-    } catch (_) {}
-  }
-  var simpleMatch = disposition.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
-  var fileName = simpleMatch ? simpleMatch[1] || simpleMatch[2] : null;
-  return fileName ? fileName.trim() : fallbackName || 'download';
-}
-document.addEventListener('click', function (e) {
-  var link = e.target.closest('.ai-download-citation');
-  if (!link) {
-    return;
-  }
-  if (e.defaultPrevented || e.__aiCitationDownloadHandled || link.dataset.downloadInProgress === 'true') {
-    return;
-  }
-  e.__aiCitationDownloadHandled = true;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  link.dataset.downloadInProgress = 'true';
-  fetch(link.href, {
-    credentials: 'same-origin'
-  }).then(function (response) {
-    if (!response.ok) {
-      throw new Error('Download request failed with status ' + response.status + '.');
-    }
-    return Promise.all([response.blob(), response.headers.get('Content-Disposition')]);
-  }).then(function (_ref19) {
-    var _link$textContent;
-    var _ref20 = _slicedToArray(_ref19, 2),
-      blob = _ref20[0],
-      disposition = _ref20[1];
-    var url = URL.createObjectURL(blob);
-    var anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = tryGetDownloadFileName(disposition, ((_link$textContent = link.textContent) === null || _link$textContent === void 0 ? void 0 : _link$textContent.trim()) || 'download');
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    setTimeout(function () {
-      URL.revokeObjectURL(url);
-    }, 100);
-  })["catch"](function (err) {
-    console.error('Failed to download citation document:', err);
-  })["finally"](function () {
-    delete link.dataset.downloadInProgress;
   });
 });
 //# sourceMappingURL=ai-chat.js.map

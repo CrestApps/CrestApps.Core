@@ -46,7 +46,7 @@ window.openAIChatManager = function () {
                         <div v-html="message.htmlContent"></div>
                         <ol v-if="message.citationReferences && message.citationReferences.length" class="ai-chat-citation-list">
                             <li v-for="citation in message.citationReferences" :key="'citation-' + (citation.referenceKey || citation.displayIndex)" class="ai-chat-citation-item">
-                                <a v-if="citation.link" :href="citation.link" :class="{ 'ai-download-citation': citation.isDownload }" :target="citation.isDownload ? null : '_blank'" :rel="citation.isDownload ? null : 'noopener noreferrer'" :download="citation.isDownload ? '' : null">{{ citation.label }}</a>
+                                <a v-if="citation.link" :href="citation.link" :target="citation.isDownload ? null : '_blank'" :rel="citation.isDownload ? null : 'noopener noreferrer'">{{ citation.label }}</a>
                                 <span v-else>{{ citation.label }}</span>
                             </li>
                         </ol>
@@ -2683,61 +2683,3 @@ document.addEventListener('click', function (e) {
         .catch(function (err) { console.error('Failed to download image:', err); });
 });
 
-function tryGetDownloadFileName(disposition, fallbackName) {
-    if (typeof disposition !== 'string' || !disposition) {
-        return fallbackName || 'download';
-    }
-
-    const utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-    if (utf8Match && utf8Match[1]) {
-        try {
-            return decodeURIComponent(utf8Match[1]);
-        } catch (_) {
-        }
-    }
-
-    const simpleMatch = disposition.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
-    const fileName = simpleMatch ? (simpleMatch[1] || simpleMatch[2]) : null;
-
-    return fileName ? fileName.trim() : (fallbackName || 'download');
-}
-
-document.addEventListener('click', function (e) {
-    const link = e.target.closest('.ai-download-citation');
-    if (!link) {
-        return;
-    }
-
-    if (e.defaultPrevented || e.__aiCitationDownloadHandled || link.dataset.downloadInProgress === 'true') {
-        return;
-    }
-
-    e.__aiCitationDownloadHandled = true;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    link.dataset.downloadInProgress = 'true';
-
-    fetch(link.href, { credentials: 'same-origin' })
-        .then(function (response) {
-            if (!response.ok) {
-                throw new Error('Download request failed with status ' + response.status + '.');
-            }
-
-            return Promise.all([
-                response.blob(),
-                response.headers.get('Content-Disposition'),
-            ]);
-        })
-        .then(function ([blob, disposition]) {
-            const url = URL.createObjectURL(blob);
-            const anchor = document.createElement('a');
-            anchor.href = url;
-            anchor.download = tryGetDownloadFileName(disposition, link.textContent?.trim() || 'download');
-            document.body.appendChild(anchor);
-            anchor.click();
-            document.body.removeChild(anchor);
-            setTimeout(function () { URL.revokeObjectURL(url); }, 100);
-        })
-        .catch(function (err) { console.error('Failed to download citation document:', err); })
-        .finally(function () { delete link.dataset.downloadInProgress; });
-});
