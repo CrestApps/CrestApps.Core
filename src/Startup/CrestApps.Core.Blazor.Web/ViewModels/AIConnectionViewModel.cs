@@ -38,7 +38,6 @@ public sealed class AIConnectionViewModel
         if (connection.Properties != null)
         {
             model.Endpoint = connection.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
-            model.ApiKey = connection.Properties.TryGetValue("ApiKey", out var key) ? key?.ToString() : null;
             model.AuthenticationType = connection.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
         }
 

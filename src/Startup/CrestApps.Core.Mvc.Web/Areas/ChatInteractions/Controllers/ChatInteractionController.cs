@@ -205,6 +205,7 @@ public sealed class ChatInteractionController : Controller
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
         interaction.TryGet<PromptTemplateMetadata>(out var promptMetadata);
         interaction.TryGet<ClaudeSessionMetadata>(out var anthropicMetadata);
+        interaction.TryGet<DocumentsMetadata>(out var documentMetadata);
 
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
@@ -236,6 +237,7 @@ public sealed class ChatInteractionController : Controller
             DataSourceTopNDocuments = ragMetadata?.TopNDocuments,
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
             DataSourceFilter = ragMetadata?.Filter,
+            DocumentRetrievalMode = documentMetadata?.RetrievalMode,
             ClaudeModel = anthropicMetadata?.ClaudeModel,
             ClaudeEffortLevel = anthropicMetadata?.EffortLevel ?? ClaudeEffortLevel.None,
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
@@ -393,14 +395,13 @@ public sealed class ChatInteractionController : Controller
         .ToList();
 
         // Document settings
-        var documentSettings = _interactionDocumentOptions;
+        var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();
         model.DocumentIndexProfileName = documentSettings.IndexProfileName;
 
         if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
         {
             var documentIndexProfile = await _indexProfileStore.FindByNameAsync(documentSettings.IndexProfileName);
-            model.HasDocumentIndexConfiguration = documentIndexProfile != null &&
-                string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
+            model.HasDocumentIndexConfiguration = documentIndexProfile != null;
         }
         else
         {
@@ -525,14 +526,13 @@ public sealed class ChatInteractionController : Controller
         .ToList();
 
         // Document settings
-        var documentSettings = _interactionDocumentOptions;
+        var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();
         model.DocumentIndexProfileName = documentSettings.IndexProfileName;
 
         if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
         {
             var documentIndexProfile = await _indexProfileStore.FindByNameAsync(documentSettings.IndexProfileName);
-            model.HasDocumentIndexConfiguration = documentIndexProfile != null &&
-                string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
+            model.HasDocumentIndexConfiguration = documentIndexProfile != null;
         }
         else
         {
@@ -562,6 +562,11 @@ public sealed class ChatInteractionController : Controller
             metadata.TopNDocuments = model.DataSourceTopNDocuments;
             metadata.IsInScope = model.DataSourceIsInScope;
             metadata.Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter;
+        });
+
+        interaction.Alter<DocumentsMetadata>(metadata =>
+        {
+            metadata.RetrievalMode = model.DocumentRetrievalMode;
         });
 
         interaction.Alter<PromptTemplateMetadata>(metadata =>

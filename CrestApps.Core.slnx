@@ -39,7 +39,6 @@
     <Project Path="src/Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure/CrestApps.Core.Azure.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.Blazor.Components/CrestApps.Core.Blazor.Components.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.SignalR/CrestApps.Core.SignalR.csproj" />

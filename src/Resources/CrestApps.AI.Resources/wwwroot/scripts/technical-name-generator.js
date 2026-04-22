@@ -21,7 +21,6 @@
       var nameEl = document.getElementById(nameId);
       if (!displayEl || !nameEl) return;
       if (nameEl.dataset.techNameInitialized === 'true') return;
-
       nameEl.dataset.techNameInitialized = 'true';
 
       // Track whether the user has entered a non-empty value in the Name field.
@@ -32,22 +31,17 @@
 
       // Resume auto-generation only when the Name field is empty again.
       nameEl.addEventListener('input', function (e) {
-        if (suppressUserEditedTracking || (e && e.isTrusted === false)) {
+        if (suppressUserEditedTracking || e && e.isTrusted === false) {
           return;
         }
-
         userEdited = nameEl.value.trim() !== '';
       });
-
       function updateGeneratedValue() {
         if (userEdited) return;
-
         var generated = toTitleCaseNoSpaces(displayEl.value || '');
-
         if (nameEl.value === generated) {
           return;
         }
-
         suppressUserEditedTracking = true;
         try {
           nameEl.value = generated;
@@ -87,3 +81,4 @@
   });
   window.initAutoGenerateTechnicalName = initAutoGenerateTechnicalName;
 })();
+//# sourceMappingURL=technical-name-generator.js.map

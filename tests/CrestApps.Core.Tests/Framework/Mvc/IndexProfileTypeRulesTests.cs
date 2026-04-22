@@ -189,6 +189,7 @@ public sealed class IndexProfileTypeRulesTests
         var serviceProvider = services.BuildServiceProvider();
         var controller = new IndexProfileController(
             profileManager,
+            Mock.Of<ISearchIndexProfileProvisioningService>(),
             new TestDeploymentCatalog(),
             serviceProvider,
             Options.Create(new IndexProfileSourceOptions()),

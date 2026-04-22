@@ -30,8 +30,6 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Blazor.Web;
 using CrestApps.Core.Blazor.Web.Areas.Admin.Handlers;
-using CrestApps.Core.Startup.Shared.Models;
-using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Blazor.Web.Areas.AI.Handlers;
 using CrestApps.Core.Blazor.Web.Areas.AI.Services;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.BackgroundServices;
@@ -53,6 +51,8 @@ using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Services;
 using CrestApps.Core.SignalR;
+using CrestApps.Core.Startup.Shared.Models;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -85,51 +85,12 @@ using NLog.Web;
 // =============================================================================
 var builder = WebApplication.CreateBuilder(args);
 
-// Early startup marker — writes immediately to confirm the process launched.
-var crashLogDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "logs");
-Directory.CreateDirectory(crashLogDir);
-File.WriteAllText(
-    Path.Combine(crashLogDir, "startup-marker.txt"),
-    $"Process started at {DateTime.UtcNow:O}, PID={Environment.ProcessId}{Environment.NewLine}");
-
-AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-{
-    var message = $"[{DateTime.UtcNow:O}] Unhandled exception (IsTerminating={e.IsTerminating}):{Environment.NewLine}{e.ExceptionObject}{Environment.NewLine}";
-
-    try
-    {
-        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), message);
-    }
-    catch
-    {
-        // Best-effort — the process is already dying.
-    }
-
-    Console.Error.Write(message);
-};
-
-TaskScheduler.UnobservedTaskException += (_, e) =>
-{
-    var message = $"[{DateTime.UtcNow:O}] Unobserved task exception:{Environment.NewLine}{e.Exception}{Environment.NewLine}";
-
-    try
-    {
-        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), message);
-    }
-    catch
-    {
-        // Best-effort.
-    }
-
-    Console.Error.Write(message);
-    e.SetObserved();
-};
-
 // Prevent background/hosted-service exceptions from tearing down the host.
 builder.Services.Configure<HostOptions>(options =>
 {
     options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
 });
+
 // =============================================================================
 // 2. LOGGING
 // =============================================================================
@@ -138,6 +99,7 @@ builder.Logging.SetMinimumLevel(LogLevel.Debug);
 builder.WebHost.UseNLog();
 var appDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(appDataPath);
+
 // =============================================================================
 // 3. APPLICATION CONFIGURATION
 // =============================================================================
@@ -151,6 +113,7 @@ builder.Services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, Sit
 builder.Services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
 builder.Services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
 builder.Services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
+
 // =============================================================================
 // 4. BLAZOR SERVER SETUP
 // =============================================================================
@@ -158,6 +121,7 @@ builder.Services.AddLocalization();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
+
 // =============================================================================
 // 5. AUTHENTICATION & AUTHORIZATION
 // =============================================================================
@@ -169,6 +133,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
 builder.Services.AddCascadingAuthenticationState();
+
 // =============================================================================
 // 6. CRESTAPPS FOUNDATION + AI SERVICES (EntityCore stores)
 // =============================================================================
@@ -233,6 +198,7 @@ builder.Services.AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLink
 builder.Services.AddScoped<MvcCitationReferenceCollector>();
 builder.Services.AddScoped<CompositeAIReferenceLinkResolver>();
 builder.Services.AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
+builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
 
 // Host-specific managers.
 builder.Services.AddScoped<DefaultAIProfileTemplateManager>();
@@ -334,24 +300,12 @@ builder.Services.AddHostedService<DataSourceAlignmentBackgroundService>();
 
 var app = builder.Build();
 
-try
-{
-    // EntityCore schema initialization — creates tables on first run.
-    await app.Services.InitializeEntityCoreSchemaAsync();
+// EntityCore schema initialization — creates tables on first run.
+await app.Services.InitializeEntityCoreSchemaAsync();
 
-    // Seed sample articles on first run.
-    await app.Services.SeedArticlesAsync();
-}
-catch (Exception ex)
-{
-    var msg = $"[{DateTime.UtcNow:O}] Startup initialization failed:{Environment.NewLine}{ex}{Environment.NewLine}";
+// Seed sample articles on first run.
+await app.Services.SeedArticlesAsync();
 
-    try { File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), msg); } catch { }
-
-    Console.Error.Write(msg);
-
-    throw;
-}
 
 // =============================================================================
 // 13. MIDDLEWARE PIPELINE
@@ -423,24 +377,4 @@ app.MapAuthEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-try
-{
-    await app.RunAsync();
-}
-catch (Exception ex)
-{
-    var crashMessage = $"[{DateTime.UtcNow:O}] Host terminated unexpectedly:{Environment.NewLine}{ex}{Environment.NewLine}";
-
-    try
-    {
-        File.AppendAllText(Path.Combine(crashLogDir, "crash.log"), crashMessage);
-    }
-    catch
-    {
-        // Best-effort.
-    }
-
-    Console.Error.Write(crashMessage);
-
-    throw;
-}
+await app.RunAsync();

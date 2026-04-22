@@ -82,6 +82,33 @@ window.chatInteractionManager = function () {
         return span.innerHTML;
     }
 
+    function normalizeReference(reference) {
+        if (!reference || typeof reference !== 'object') {
+            return null;
+        }
+
+        const normalized = Object.assign({}, reference);
+        normalized.index = normalized.index ?? normalized.Index ?? 0;
+        normalized.text = normalized.text ?? normalized.Text ?? null;
+        normalized.link = normalized.link ?? normalized.Link ?? null;
+
+        return normalized;
+    }
+
+    function normalizeReferences(references) {
+        if (!references || typeof references !== 'object') {
+            return {};
+        }
+
+        const normalized = {};
+
+        for (const [key, value] of Object.entries(references)) {
+            normalized[key] = normalizeReference(value) ?? {};
+        }
+
+        return normalized;
+    }
+
     const renderer = new marked.Renderer();
 
     // Modify the link rendering to open in a new tab
@@ -654,6 +681,8 @@ window.chatInteractionManager = function () {
                     if (message.content) {
                         let processedContent = message.content.trim();
 
+                        message.references = normalizeReferences(message.references);
+
                         if (message.references && typeof message.references === "object" && Object.keys(message.references).length) {
 
                             // Only include references that were actually cited in the response.
@@ -849,7 +878,7 @@ window.chatInteractionManager = function () {
 
                                 if (chunk.references && typeof chunk.references === "object" && Object.keys(chunk.references).length) {
                                     for (const [key, value] of Object.entries(chunk.references)) {
-                                        references[key] = value;
+                                        references[key] = normalizeReference(value) ?? {};
                                     }
                                 }
 
@@ -936,6 +965,8 @@ window.chatInteractionManager = function () {
                     };
                 },
                 processReferences(references, messageIndex) {
+                    references = normalizeReferences(references);
+
                     if (Object.keys(references).length) {
                         let message = this.messages[messageIndex];
                         const content = message.content || '';
@@ -1875,26 +1906,38 @@ window.chatInteractionManager = function () {
                 },
                 clearHistory(itemId) {
                     const self = this;
-                    confirmDialog({
-                        title: config.clearHistoryTitle,
-                        message: config.clearHistoryMessage,
-                        okText: config.clearHistoryOkText,
-                        cancelText: config.clearHistoryCancelText,
-                        callback: function (confirmed) {
-                            if (confirmed) {
-                                // Cancel any active stream before clearing history.
-                                if (self.stream) {
-                                    self.stream.dispose();
-                                    self.stream = null;
-                                    self.hideTypingIndicator();
-                                    self.streamingFinished();
-                                }
-
-                                self.connection.invoke("ClearHistory", itemId)
-                                    .catch(err => console.error('Error clearing history:', err));
-                            }
+                    const clearHistoryConfirmed = () => {
+                        // Cancel any active stream before clearing history.
+                        if (self.stream) {
+                            self.stream.dispose();
+                            self.stream = null;
+                            self.hideTypingIndicator();
+                            self.streamingFinished();
                         }
-                    });
+
+                        self.connection.invoke("ClearHistory", itemId)
+                            .catch(err => console.error('Error clearing history:', err));
+                    };
+
+                    if (typeof confirmDialog === 'function') {
+                        confirmDialog({
+                            title: config.clearHistoryTitle,
+                            message: config.clearHistoryMessage,
+                            okText: config.clearHistoryOkText,
+                            cancelText: config.clearHistoryCancelText,
+                            callback: function (confirmed) {
+                                if (confirmed) {
+                                    clearHistoryConfirmed();
+                                }
+                            }
+                        });
+
+                        return;
+                    }
+
+                    if (window.confirm(config.clearHistoryMessage || 'Clear all messages?')) {
+                        clearHistoryConfirmed();
+                    }
                 },
                 debouncedSaveSettings() {
                     // Clear any existing timeout to reset the debounce timer
@@ -2144,6 +2187,507 @@ window.chatInteractionManager = function () {
 
         return app;
     };
+
+    return {
+        initialize: initialize
+    };
+}();
+
+window.chatInteractionDocumentManager = function () {
+    const managerStateKey = '__chatInteractionDocumentManagerState';
+
+    function normalizeDocumentInfo(document) {
+        if (!document || typeof document !== 'object') {
+            return null;
+        }
+
+        return {
+            documentId: document.documentId || document.DocumentId || '',
+            fileName: document.fileName || document.FileName || '',
+            fileSize: document.fileSize || document.FileSize || 0
+        };
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes || bytes < 1024) {
+            return (bytes || 0) + ' B';
+        }
+
+        if (bytes < 1024 * 1024) {
+            return (bytes / 1024).toFixed(1) + ' KB';
+        }
+
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function getDocumentKey(fileName, fileSize) {
+        return ((fileName || '').trim().toLowerCase()) + '::' + (fileSize || 0);
+    }
+
+    function isDuplicateFile(file, knownKeys) {
+        return knownKeys.has(getDocumentKey(file.name, file.size));
+    }
+
+    function getDocumentsFromDom(container) {
+        if (!container) {
+            return [];
+        }
+
+        return Array.from(container.querySelectorAll('[data-chat-document-id]'))
+            .map(element => normalizeDocumentInfo({
+                documentId: element.dataset.chatDocumentId,
+                fileName: element.dataset.chatDocumentName,
+                fileSize: Number(element.dataset.chatDocumentSize || 0)
+            }))
+            .filter(document => document && document.documentId);
+    }
+
+    function initialize(config) {
+        if (!config || !config.itemId) {
+            return;
+        }
+
+        const fileInput = document.getElementById('chat-doc-upload');
+        const documentsList = document.getElementById('chat-documents-list');
+        const status = document.getElementById('chat-doc-upload-status');
+        const progressContainer = document.getElementById('chat-doc-upload-progress');
+        const progressBar = document.getElementById('chat-doc-upload-progress-bar');
+        const uploadQueue = document.getElementById('chat-doc-upload-queue');
+
+        if (!fileInput || !documentsList || !status || !progressContainer || !progressBar || !uploadQueue) {
+            return;
+        }
+
+        const previousState = fileInput[managerStateKey];
+        if (previousState && typeof previousState.dispose === 'function') {
+            previousState.dispose();
+        }
+
+        let interactionDocuments = (Array.isArray(config.existingDocuments) ? config.existingDocuments : [])
+            .map(normalizeDocumentInfo)
+            .filter(document => document && document.documentId);
+
+        if (interactionDocuments.length === 0) {
+            interactionDocuments = getDocumentsFromDom(documentsList);
+        }
+
+        let uploadItems = [];
+        let isUploadingDocuments = false;
+
+        function createTextElement(tagName, className, text) {
+            const element = document.createElement(tagName);
+            if (className) {
+                element.className = className;
+            }
+
+            element.textContent = text;
+            return element;
+        }
+
+        function renderDocuments() {
+            documentsList.innerHTML = '';
+
+            if (interactionDocuments.length === 0) {
+                documentsList.appendChild(createTextElement('div', 'text-muted small', 'No documents uploaded yet.'));
+                return;
+            }
+
+            interactionDocuments.forEach(document => {
+                const row = document.createElement('div');
+                row.className = 'd-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white';
+
+                const details = document.createElement('div');
+                details.className = 'me-2 min-w-0';
+
+                const name = createTextElement('div', 'fw-semibold small', document.fileName || 'Document');
+                const icon = document.createElement('i');
+                icon.className = 'bi bi-file-earmark-text me-1';
+                name.prepend(icon);
+
+                const size = createTextElement('div', 'text-muted small', formatFileSize(document.fileSize));
+
+                details.appendChild(name);
+                details.appendChild(size);
+
+                const removeButton = createTextElement('button', 'btn btn-sm btn-outline-danger remove-chat-document-btn', ' Remove');
+                removeButton.type = 'button';
+                removeButton.dataset.documentId = document.documentId;
+                const removeIcon = document.createElement('i');
+                removeIcon.className = 'bi bi-trash';
+                removeButton.prepend(removeIcon);
+                removeButton.addEventListener('click', () => removeDocument(document.documentId));
+
+                row.appendChild(details);
+                row.appendChild(removeButton);
+                documentsList.appendChild(row);
+            });
+        }
+
+        function showUploadStatus(message, cssClass) {
+            if (!message) {
+                status.textContent = '';
+                status.className = 'small mt-2 d-none';
+                return;
+            }
+
+            status.textContent = message;
+            status.className = 'small mt-2 ' + (cssClass || 'text-muted');
+        }
+
+        function showUploadProgress(progress, message, cssClass) {
+            if (progress === null || progress === undefined) {
+                progressContainer.className = 'progress mt-2 d-none';
+                progressContainer.setAttribute('aria-valuenow', '0');
+                progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+                return;
+            }
+
+            const roundedProgress = Math.max(0, Math.min(100, Math.round(progress)));
+            progressContainer.className = 'progress mt-2';
+            progressContainer.setAttribute('aria-valuenow', roundedProgress.toString());
+            progressBar.className = 'progress-bar ' + (cssClass || 'progress-bar-striped progress-bar-animated');
+            progressBar.style.width = roundedProgress + '%';
+            progressBar.textContent = message || (roundedProgress + '%');
+        }
+
+        function getUploadStatePresentation(state) {
+            switch (state) {
+                case 'uploaded':
+                    return { label: 'Uploaded', badgeClass: 'text-bg-success', progressClass: 'bg-success' };
+                case 'failed':
+                    return { label: 'Failed', badgeClass: 'text-bg-danger', progressClass: 'bg-danger' };
+                case 'uploading':
+                    return { label: 'Uploading', badgeClass: 'text-bg-warning', progressClass: 'bg-warning progress-bar-striped progress-bar-animated' };
+                default:
+                    return { label: 'Queued', badgeClass: 'text-bg-secondary', progressClass: 'bg-secondary progress-bar-striped progress-bar-animated' };
+            }
+        }
+
+        function formatUploadMessage(item) {
+            if (item.status === 'failed' && item.error) {
+                return item.error;
+            }
+
+            if (item.status === 'uploaded') {
+                return 'Upload completed successfully.';
+            }
+
+            if (item.status === 'uploading') {
+                return item.progress + '% uploaded';
+            }
+
+            return 'Waiting to upload...';
+        }
+
+        function renderUploadQueue() {
+            uploadQueue.innerHTML = '';
+
+            uploadItems.forEach(item => {
+                const presentation = getUploadStatePresentation(item.status);
+                const card = document.createElement('div');
+                card.className = 'border rounded px-2 py-2 bg-white';
+
+                const header = document.createElement('div');
+                header.className = 'd-flex justify-content-between align-items-start gap-2';
+
+                const fileDetails = document.createElement('div');
+                fileDetails.className = 'flex-grow-1 min-w-0';
+                fileDetails.appendChild(createTextElement('div', 'fw-semibold small', item.fileName));
+                fileDetails.appendChild(createTextElement('div', 'text-muted small', formatFileSize(item.fileSize)));
+
+                const badge = createTextElement('span', 'badge ' + presentation.badgeClass, presentation.label);
+
+                header.appendChild(fileDetails);
+                header.appendChild(badge);
+
+                const progress = document.createElement('div');
+                progress.className = 'progress mt-2';
+                progress.setAttribute('role', 'progressbar');
+                progress.setAttribute('aria-valuemin', '0');
+                progress.setAttribute('aria-valuemax', '100');
+                progress.setAttribute('aria-valuenow', item.progress.toString());
+
+                const progressState = document.createElement('div');
+                progressState.className = 'progress-bar ' + presentation.progressClass;
+                progressState.style.width = item.progress + '%';
+                progressState.textContent = item.progress + '%';
+                progress.appendChild(progressState);
+
+                const message = createTextElement('div', item.status === 'failed' ? 'small text-danger mt-2' : 'small text-muted mt-2', formatUploadMessage(item));
+
+                card.appendChild(header);
+                card.appendChild(progress);
+                card.appendChild(message);
+                uploadQueue.appendChild(card);
+            });
+        }
+
+        function createUploadItem(file, index) {
+            return {
+                id: file.name + '::' + file.size + '::' + file.lastModified + '::' + index + '::' + Date.now(),
+                fileName: file.name,
+                fileSize: file.size,
+                status: 'queued',
+                progress: 0,
+                error: null
+            };
+        }
+
+        function updateUploadItem(itemId, updates) {
+            uploadItems = uploadItems.map(item => item.id === itemId ? Object.assign({}, item, updates) : item);
+            renderUploadQueue();
+        }
+
+        function removeUploadItems(predicate) {
+            uploadItems = uploadItems.filter(item => !predicate(item));
+            renderUploadQueue();
+        }
+
+        function uploadSingleDocument(file, itemIdToUpdate, fileIndex, totalFiles) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('chatInteractionId', config.itemId);
+                formData.append('files', file);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', config.uploadDocumentUrl, true);
+
+                xhr.upload.addEventListener('progress', event => {
+                    if (!event.lengthComputable) {
+                        return;
+                    }
+
+                    const fileProgress = Math.round((event.loaded / event.total) * 100);
+                    updateUploadItem(itemIdToUpdate, {
+                        status: 'uploading',
+                        progress: fileProgress
+                    });
+
+                    const overallProgress = ((fileIndex + (event.loaded / event.total)) / totalFiles) * 100;
+                    showUploadProgress(overallProgress, 'Uploading ' + (fileIndex + 1) + ' of ' + totalFiles, 'progress-bar-striped progress-bar-animated');
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            resolve(JSON.parse(xhr.responseText));
+                        } catch (error) {
+                            reject(new Error('Upload failed: invalid server response.'));
+                        }
+
+                        return;
+                    }
+
+                    reject(new Error((xhr.responseText || 'Upload failed.').trim()));
+                });
+
+                xhr.addEventListener('error', () => {
+                    reject(new Error('Upload failed. Please check your connection and try again.'));
+                });
+
+                xhr.send(formData);
+            });
+        }
+
+        async function uploadDocuments(files) {
+            if (!config.uploadDocumentUrl || !files || files.length === 0) {
+                return;
+            }
+
+            if (isUploadingDocuments) {
+                showUploadStatus('A document upload is already in progress.', 'text-warning');
+                return;
+            }
+
+            isUploadingDocuments = true;
+
+            const filesToUpload = [];
+            const duplicateItems = [];
+            const knownDocumentKeys = new Set(interactionDocuments.map(document => getDocumentKey(document.fileName, document.fileSize)));
+
+            Array.from(files).forEach(file => {
+                if (isDuplicateFile(file, knownDocumentKeys)) {
+                    duplicateItems.push(file);
+                    return;
+                }
+
+                knownDocumentKeys.add(getDocumentKey(file.name, file.size));
+                filesToUpload.push(file);
+            });
+
+            if (duplicateItems.length > 0) {
+                uploadItems = uploadItems.concat(duplicateItems.map((file, index) => Object.assign(createUploadItem(file, index), {
+                    status: 'failed',
+                    progress: 100,
+                    error: 'This document is already attached.'
+                })));
+                renderUploadQueue();
+            }
+
+            if (filesToUpload.length === 0) {
+                isUploadingDocuments = false;
+                showUploadStatus(duplicateItems.map(file => file.name + ': This document is already attached.').join(' | '), 'text-warning');
+                showUploadProgress(null);
+                return;
+            }
+
+            const pendingItems = filesToUpload.map(createUploadItem);
+            uploadItems = uploadItems.concat(pendingItems);
+            renderUploadQueue();
+            showUploadProgress(0, 'Preparing upload...', 'progress-bar-striped progress-bar-animated');
+            fileInput.disabled = true;
+
+            try {
+                let uploadedCount = 0;
+                const failedUploads = duplicateItems.map(file => file.name + ': This document is already attached.');
+
+                for (let i = 0; i < filesToUpload.length; i++) {
+                    const file = filesToUpload[i];
+                    const pendingItem = pendingItems[i];
+
+                    updateUploadItem(pendingItem.id, {
+                        status: 'uploading',
+                        progress: 0,
+                        error: null
+                    });
+
+                    showUploadStatus('Uploading ' + (i + 1) + ' of ' + filesToUpload.length + ' document(s)...', 'text-warning');
+
+                    try {
+                        const result = await uploadSingleDocument(file, pendingItem.id, i, filesToUpload.length);
+                        const uploaded = (Array.isArray(result.uploaded) ? result.uploaded : [])
+                            .map(normalizeDocumentInfo)
+                            .filter(document => document && document.documentId);
+                        const failed = Array.isArray(result.failed) ? result.failed : [];
+
+                        if (uploaded.length > 0) {
+                            uploadedCount += uploaded.length;
+                            interactionDocuments = interactionDocuments.concat(uploaded);
+                            updateUploadItem(pendingItem.id, {
+                                status: 'uploaded',
+                                progress: 100,
+                                error: null
+                            });
+                        } else {
+                            const missingUploadMessage = failed.length > 0
+                                ? failed.map(entry => entry.fileName + ': ' + entry.error).join(' | ')
+                                : 'The server did not confirm that the file was uploaded.';
+                            if (failed.length === 0) {
+                                failedUploads.push(missingUploadMessage);
+                            }
+                            updateUploadItem(pendingItem.id, {
+                                status: 'failed',
+                                progress: 100,
+                                error: missingUploadMessage
+                            });
+                        }
+
+                        if (failed.length > 0) {
+                            const failedMessage = failed.map(entry => entry.fileName + ': ' + entry.error).join(' | ');
+                            failedUploads.push(failedMessage);
+                            updateUploadItem(pendingItem.id, {
+                                status: 'failed',
+                                progress: 100,
+                                error: failedMessage
+                            });
+                        }
+                    } catch (error) {
+                        const errorMessage = error && error.message
+                            ? error.message
+                            : 'Upload failed. Please try again.';
+                        console.error('Upload failed:', error);
+                        failedUploads.push(file.name + ': ' + errorMessage);
+                        updateUploadItem(pendingItem.id, {
+                            status: 'failed',
+                            progress: pendingItem.progress || 0,
+                            error: errorMessage
+                        });
+                    }
+                }
+
+                renderDocuments();
+
+                if (failedUploads.length > 0) {
+                    removeUploadItems(item => item.status === 'uploaded');
+                    showUploadStatus(
+                        (uploadedCount > 0 ? ('Uploaded ' + uploadedCount + ' document(s). ') : '') + failedUploads.join(' | '),
+                        uploadedCount > 0 ? 'text-warning' : 'text-danger');
+                    showUploadProgress(null);
+                    return;
+                }
+
+                removeUploadItems(() => true);
+                showUploadStatus('Uploaded ' + uploadedCount + ' document(s).', 'text-success');
+                showUploadProgress(null);
+            } catch (error) {
+                console.error('Upload failed:', error);
+                showUploadStatus('Upload failed. Please try again.', 'text-danger');
+                showUploadProgress(null);
+            } finally {
+                isUploadingDocuments = false;
+                fileInput.disabled = false;
+                fileInput.value = '';
+            }
+        }
+
+        async function removeDocument(documentId) {
+            if (!config.removeDocumentUrl || !documentId || !window.confirm('Remove this document?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(config.removeDocumentUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        itemId: config.itemId,
+                        documentId: documentId
+                    })
+                });
+
+                if (!response.ok) {
+                    console.error('Failed to remove document:', await response.text());
+                    showUploadStatus('Failed to remove document.', 'text-danger');
+                    return;
+                }
+
+                const result = await response.json();
+                const serverDocuments = (Array.isArray(result.documents) ? result.documents : [])
+                    .map(normalizeDocumentInfo)
+                    .filter(document => document && document.documentId);
+
+                interactionDocuments = serverDocuments.length > 0
+                    ? serverDocuments
+                    : interactionDocuments.filter(document => document.documentId !== documentId);
+                renderDocuments();
+                showUploadStatus('Document removed.', 'text-success');
+            } catch (error) {
+                console.error('Remove failed:', error);
+                showUploadStatus('Failed to remove document.', 'text-danger');
+            }
+        }
+
+        const onFileInputChange = event => {
+            const selectedFiles = event.target.files ? Array.from(event.target.files) : [];
+            uploadDocuments(selectedFiles);
+        };
+
+        fileInput.addEventListener('change', onFileInputChange);
+        fileInput[managerStateKey] = {
+            dispose: () => {
+                fileInput.removeEventListener('change', onFileInputChange);
+            }
+        };
+
+        renderDocuments();
+        renderUploadQueue();
+        showUploadStatus(null);
+        showUploadProgress(null);
+    }
 
     return {
         initialize: initialize

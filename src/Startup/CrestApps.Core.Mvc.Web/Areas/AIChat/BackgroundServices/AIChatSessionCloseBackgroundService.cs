@@ -94,7 +94,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
             var inactiveSessions = await session
                 .Query<AIChatSession, AIChatSessionIndex>(
                     i => i.ProfileId == profile.ItemId
-                        && i.Status == (int)ChatSessionStatus.Active
+                        && i.Status == ChatSessionStatus.Active
                             && i.LastActivityUtc < cutoffUtc)
                             .ListAsync(cancellationToken);
 
@@ -137,8 +137,8 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
     {
         var pendingSessions = await session
             .Query<AIChatSession, AIChatSessionIndex>(
-                i => i.Status == (int)ChatSessionStatus.Closed
-                    || i.Status == (int)ChatSessionStatus.Abandoned)
+                i => i.Status == ChatSessionStatus.Closed
+                    || i.Status == ChatSessionStatus.Abandoned)
                     .ListAsync(cancellationToken);
 
         foreach (var chatSession in pendingSessions)

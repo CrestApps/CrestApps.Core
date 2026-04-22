@@ -1,7 +1,6 @@
 using System.IO.Pipelines;
 using System.Text.Json;
 using System.Threading.Channels;
-using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;

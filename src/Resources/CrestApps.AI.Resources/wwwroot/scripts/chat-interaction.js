@@ -3,11 +3,6 @@
 ** Any changes made directly to this file will be overwritten next time its asset group is processed by Gulp.
 */
 
-function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
-function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
-function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
-function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
-function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
 function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
 function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
@@ -15,10 +10,15 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
-function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
 function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
+function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
+function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 window.chatInteractionManager = function () {
   // Defaults (can be overridden by instanceConfig)
   var defaultConfig = {
@@ -55,6 +55,31 @@ window.chatInteractionManager = function () {
     var span = document.createElement('span');
     span.textContent = text;
     return span.innerHTML;
+  }
+  function normalizeReference(reference) {
+    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$link;
+    if (!reference || _typeof(reference) !== 'object') {
+      return null;
+    }
+    var normalized = Object.assign({}, reference);
+    normalized.index = (_ref = (_normalized$index = normalized.index) !== null && _normalized$index !== void 0 ? _normalized$index : normalized.Index) !== null && _ref !== void 0 ? _ref : 0;
+    normalized.text = (_ref2 = (_normalized$text = normalized.text) !== null && _normalized$text !== void 0 ? _normalized$text : normalized.Text) !== null && _ref2 !== void 0 ? _ref2 : null;
+    normalized.link = (_ref3 = (_normalized$link = normalized.link) !== null && _normalized$link !== void 0 ? _normalized$link : normalized.Link) !== null && _ref3 !== void 0 ? _ref3 : null;
+    return normalized;
+  }
+  function normalizeReferences(references) {
+    if (!references || _typeof(references) !== 'object') {
+      return {};
+    }
+    var normalized = {};
+    for (var _i = 0, _Object$entries = Object.entries(references); _i < _Object$entries.length; _i++) {
+      var _normalizeReference;
+      var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
+        key = _Object$entries$_i[0],
+        value = _Object$entries$_i[1];
+      normalized[key] = (_normalizeReference = normalizeReference(value)) !== null && _normalizeReference !== void 0 ? _normalizeReference : {};
+    }
+    return normalized;
   }
   var renderer = new marked.Renderer();
 
@@ -606,20 +631,21 @@ window.chatInteractionManager = function () {
           var _this3 = this;
           if (message.content) {
             var processedContent = message.content.trim();
+            message.references = normalizeReferences(message.references);
             if (message.references && _typeof(message.references) === "object" && Object.keys(message.references).length) {
               // Only include references that were actually cited in the response.
-              var citedRefs = Object.entries(message.references).filter(function (_ref) {
-                var _ref2 = _slicedToArray(_ref, 1),
-                  key = _ref2[0];
+              var citedRefs = Object.entries(message.references).filter(function (_ref4) {
+                var _ref5 = _slicedToArray(_ref4, 1),
+                  key = _ref5[0];
                 return processedContent.includes(key);
               });
               if (citedRefs.length) {
                 // Sort by original index so display indices follow a natural order.
-                citedRefs.sort(function (_ref3, _ref4) {
-                  var _ref5 = _slicedToArray(_ref3, 2),
-                    a = _ref5[1];
-                  var _ref6 = _slicedToArray(_ref4, 2),
-                    b = _ref6[1];
+                citedRefs.sort(function (_ref6, _ref7) {
+                  var _ref8 = _slicedToArray(_ref6, 2),
+                    a = _ref8[1];
+                  var _ref9 = _slicedToArray(_ref7, 2),
+                    b = _ref9[1];
                   return a.index - b.index;
                 });
 
@@ -828,11 +854,12 @@ window.chatInteractionManager = function () {
                 message = newMessage;
               }
               if (chunk.references && _typeof(chunk.references) === "object" && Object.keys(chunk.references).length) {
-                for (var _i = 0, _Object$entries = Object.entries(chunk.references); _i < _Object$entries.length; _i++) {
-                  var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
-                    key = _Object$entries$_i[0],
-                    value = _Object$entries$_i[1];
-                  references[key] = value;
+                for (var _i2 = 0, _Object$entries2 = Object.entries(chunk.references); _i2 < _Object$entries2.length; _i2++) {
+                  var _normalizeReference2;
+                  var _Object$entries2$_i = _slicedToArray(_Object$entries2[_i2], 2),
+                    key = _Object$entries2$_i[0],
+                    value = _Object$entries2$_i[1];
+                  references[key] = (_normalizeReference2 = normalizeReference(value)) !== null && _normalizeReference2 !== void 0 ? _normalizeReference2 : {};
                 }
               }
               if (chunk.content) {
@@ -845,10 +872,10 @@ window.chatInteractionManager = function () {
                   lastResponseId = chunk.responseId;
                 }
                 var processedContent = chunk.content;
-                for (var _i2 = 0, _Object$entries2 = Object.entries(references); _i2 < _Object$entries2.length; _i2++) {
-                  var _Object$entries2$_i = _slicedToArray(_Object$entries2[_i2], 2),
-                    _key2 = _Object$entries2$_i[0],
-                    _value3 = _Object$entries2$_i[1];
+                for (var _i3 = 0, _Object$entries3 = Object.entries(references); _i3 < _Object$entries3.length; _i3++) {
+                  var _Object$entries3$_i = _slicedToArray(_Object$entries3[_i3], 2),
+                    _key2 = _Object$entries3$_i[0],
+                    _value3 = _Object$entries3$_i[1];
                   processedContent = processedContent.replaceAll(_key2, "<sup><strong>".concat(_value3.index, "</strong></sup>"));
                 }
                 content += processedContent.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
@@ -908,16 +935,17 @@ window.chatInteractionManager = function () {
         },
         processReferences: function processReferences(references, messageIndex) {
           var _this6 = this;
+          references = normalizeReferences(references);
           if (Object.keys(references).length) {
             var message = this.messages[messageIndex];
             var content = message.content || '';
 
             // Only include references that were actually cited in the response.
             // Check both raw [doc:N] markers and already-rendered <sup> tags from streaming.
-            var citedRefs = Object.entries(references).filter(function (_ref7) {
-              var _ref8 = _slicedToArray(_ref7, 2),
-                key = _ref8[0],
-                value = _ref8[1];
+            var citedRefs = Object.entries(references).filter(function (_ref0) {
+              var _ref1 = _slicedToArray(_ref0, 2),
+                key = _ref1[0],
+                value = _ref1[1];
               return content.includes(key) || content.includes("<sup><strong>".concat(value.index, "</strong></sup>"));
             });
             if (!citedRefs.length) {
@@ -925,11 +953,11 @@ window.chatInteractionManager = function () {
             }
 
             // Sort by original index so display indices follow a natural order.
-            citedRefs.sort(function (_ref9, _ref0) {
-              var _ref1 = _slicedToArray(_ref9, 2),
-                a = _ref1[1];
-              var _ref10 = _slicedToArray(_ref0, 2),
-                b = _ref10[1];
+            citedRefs.sort(function (_ref10, _ref11) {
+              var _ref12 = _slicedToArray(_ref10, 2),
+                a = _ref12[1];
+              var _ref13 = _slicedToArray(_ref11, 2),
+                b = _ref13[1];
               return a.index - b.index;
             });
 
@@ -1758,8 +1786,8 @@ window.chatInteractionManager = function () {
               _this17.loadInteraction(itemId);
             });
           }
-          for (var _i3 = 0; _i3 < config.messages.length; _i3++) {
-            this.addMessage(config.messages[_i3]);
+          for (var _i4 = 0; _i4 < config.messages.length; _i4++) {
+            this.addMessage(config.messages[_i4]);
           }
 
           // Delegate click for code block copy buttons.
@@ -1856,26 +1884,35 @@ window.chatInteractionManager = function () {
         },
         clearHistory: function clearHistory(itemId) {
           var self = this;
-          confirmDialog({
-            title: config.clearHistoryTitle,
-            message: config.clearHistoryMessage,
-            okText: config.clearHistoryOkText,
-            cancelText: config.clearHistoryCancelText,
-            callback: function callback(confirmed) {
-              if (confirmed) {
-                // Cancel any active stream before clearing history.
-                if (self.stream) {
-                  self.stream.dispose();
-                  self.stream = null;
-                  self.hideTypingIndicator();
-                  self.streamingFinished();
-                }
-                self.connection.invoke("ClearHistory", itemId)["catch"](function (err) {
-                  return console.error('Error clearing history:', err);
-                });
-              }
+          var clearHistoryConfirmed = function clearHistoryConfirmed() {
+            // Cancel any active stream before clearing history.
+            if (self.stream) {
+              self.stream.dispose();
+              self.stream = null;
+              self.hideTypingIndicator();
+              self.streamingFinished();
             }
-          });
+            self.connection.invoke("ClearHistory", itemId)["catch"](function (err) {
+              return console.error('Error clearing history:', err);
+            });
+          };
+          if (typeof confirmDialog === 'function') {
+            confirmDialog({
+              title: config.clearHistoryTitle,
+              message: config.clearHistoryMessage,
+              okText: config.clearHistoryOkText,
+              cancelText: config.clearHistoryCancelText,
+              callback: function callback(confirmed) {
+                if (confirmed) {
+                  clearHistoryConfirmed();
+                }
+              }
+            });
+            return;
+          }
+          if (window.confirm(config.clearHistoryMessage || 'Clear all messages?')) {
+            clearHistoryConfirmed();
+          }
         },
         debouncedSaveSettings: function debouncedSaveSettings() {
           var _this18 = this;
@@ -2128,6 +2165,532 @@ window.chatInteractionManager = function () {
     }).mount(config.appElementSelector);
     return app;
   };
+  return {
+    initialize: initialize
+  };
+}();
+window.chatInteractionDocumentManager = function () {
+  var managerStateKey = '__chatInteractionDocumentManagerState';
+  function normalizeDocumentInfo(document) {
+    if (!document || _typeof(document) !== 'object') {
+      return null;
+    }
+    return {
+      documentId: document.documentId || document.DocumentId || '',
+      fileName: document.fileName || document.FileName || '',
+      fileSize: document.fileSize || document.FileSize || 0
+    };
+  }
+  function formatFileSize(bytes) {
+    if (!bytes || bytes < 1024) {
+      return (bytes || 0) + ' B';
+    }
+    if (bytes < 1024 * 1024) {
+      return (bytes / 1024).toFixed(1) + ' KB';
+    }
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  function getDocumentKey(fileName, fileSize) {
+    return (fileName || '').trim().toLowerCase() + '::' + (fileSize || 0);
+  }
+  function isDuplicateFile(file, knownKeys) {
+    return knownKeys.has(getDocumentKey(file.name, file.size));
+  }
+  function getDocumentsFromDom(container) {
+    if (!container) {
+      return [];
+    }
+    return Array.from(container.querySelectorAll('[data-chat-document-id]')).map(function (element) {
+      return normalizeDocumentInfo({
+        documentId: element.dataset.chatDocumentId,
+        fileName: element.dataset.chatDocumentName,
+        fileSize: Number(element.dataset.chatDocumentSize || 0)
+      });
+    }).filter(function (document) {
+      return document && document.documentId;
+    });
+  }
+  function initialize(config) {
+    if (!config || !config.itemId) {
+      return;
+    }
+    var fileInput = document.getElementById('chat-doc-upload');
+    var documentsList = document.getElementById('chat-documents-list');
+    var status = document.getElementById('chat-doc-upload-status');
+    var progressContainer = document.getElementById('chat-doc-upload-progress');
+    var progressBar = document.getElementById('chat-doc-upload-progress-bar');
+    var uploadQueue = document.getElementById('chat-doc-upload-queue');
+    if (!fileInput || !documentsList || !status || !progressContainer || !progressBar || !uploadQueue) {
+      return;
+    }
+    var previousState = fileInput[managerStateKey];
+    if (previousState && typeof previousState.dispose === 'function') {
+      previousState.dispose();
+    }
+    var interactionDocuments = (Array.isArray(config.existingDocuments) ? config.existingDocuments : []).map(normalizeDocumentInfo).filter(function (document) {
+      return document && document.documentId;
+    });
+    if (interactionDocuments.length === 0) {
+      interactionDocuments = getDocumentsFromDom(documentsList);
+    }
+    var uploadItems = [];
+    var isUploadingDocuments = false;
+    function createTextElement(tagName, className, text) {
+      var element = document.createElement(tagName);
+      if (className) {
+        element.className = className;
+      }
+      element.textContent = text;
+      return element;
+    }
+    function renderDocuments() {
+      documentsList.innerHTML = '';
+      if (interactionDocuments.length === 0) {
+        documentsList.appendChild(createTextElement('div', 'text-muted small', 'No documents uploaded yet.'));
+        return;
+      }
+      interactionDocuments.forEach(function (document) {
+        var row = document.createElement('div');
+        row.className = 'd-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white';
+        var details = document.createElement('div');
+        details.className = 'me-2 min-w-0';
+        var name = createTextElement('div', 'fw-semibold small', document.fileName || 'Document');
+        var icon = document.createElement('i');
+        icon.className = 'bi bi-file-earmark-text me-1';
+        name.prepend(icon);
+        var size = createTextElement('div', 'text-muted small', formatFileSize(document.fileSize));
+        details.appendChild(name);
+        details.appendChild(size);
+        var removeButton = createTextElement('button', 'btn btn-sm btn-outline-danger remove-chat-document-btn', ' Remove');
+        removeButton.type = 'button';
+        removeButton.dataset.documentId = document.documentId;
+        var removeIcon = document.createElement('i');
+        removeIcon.className = 'bi bi-trash';
+        removeButton.prepend(removeIcon);
+        removeButton.addEventListener('click', function () {
+          return removeDocument(document.documentId);
+        });
+        row.appendChild(details);
+        row.appendChild(removeButton);
+        documentsList.appendChild(row);
+      });
+    }
+    function showUploadStatus(message, cssClass) {
+      if (!message) {
+        status.textContent = '';
+        status.className = 'small mt-2 d-none';
+        return;
+      }
+      status.textContent = message;
+      status.className = 'small mt-2 ' + (cssClass || 'text-muted');
+    }
+    function showUploadProgress(progress, message, cssClass) {
+      if (progress === null || progress === undefined) {
+        progressContainer.className = 'progress mt-2 d-none';
+        progressContainer.setAttribute('aria-valuenow', '0');
+        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+        progressBar.style.width = '0%';
+        progressBar.textContent = '0%';
+        return;
+      }
+      var roundedProgress = Math.max(0, Math.min(100, Math.round(progress)));
+      progressContainer.className = 'progress mt-2';
+      progressContainer.setAttribute('aria-valuenow', roundedProgress.toString());
+      progressBar.className = 'progress-bar ' + (cssClass || 'progress-bar-striped progress-bar-animated');
+      progressBar.style.width = roundedProgress + '%';
+      progressBar.textContent = message || roundedProgress + '%';
+    }
+    function getUploadStatePresentation(state) {
+      switch (state) {
+        case 'uploaded':
+          return {
+            label: 'Uploaded',
+            badgeClass: 'text-bg-success',
+            progressClass: 'bg-success'
+          };
+        case 'failed':
+          return {
+            label: 'Failed',
+            badgeClass: 'text-bg-danger',
+            progressClass: 'bg-danger'
+          };
+        case 'uploading':
+          return {
+            label: 'Uploading',
+            badgeClass: 'text-bg-warning',
+            progressClass: 'bg-warning progress-bar-striped progress-bar-animated'
+          };
+        default:
+          return {
+            label: 'Queued',
+            badgeClass: 'text-bg-secondary',
+            progressClass: 'bg-secondary progress-bar-striped progress-bar-animated'
+          };
+      }
+    }
+    function formatUploadMessage(item) {
+      if (item.status === 'failed' && item.error) {
+        return item.error;
+      }
+      if (item.status === 'uploaded') {
+        return 'Upload completed successfully.';
+      }
+      if (item.status === 'uploading') {
+        return item.progress + '% uploaded';
+      }
+      return 'Waiting to upload...';
+    }
+    function renderUploadQueue() {
+      uploadQueue.innerHTML = '';
+      uploadItems.forEach(function (item) {
+        var presentation = getUploadStatePresentation(item.status);
+        var card = document.createElement('div');
+        card.className = 'border rounded px-2 py-2 bg-white';
+        var header = document.createElement('div');
+        header.className = 'd-flex justify-content-between align-items-start gap-2';
+        var fileDetails = document.createElement('div');
+        fileDetails.className = 'flex-grow-1 min-w-0';
+        fileDetails.appendChild(createTextElement('div', 'fw-semibold small', item.fileName));
+        fileDetails.appendChild(createTextElement('div', 'text-muted small', formatFileSize(item.fileSize)));
+        var badge = createTextElement('span', 'badge ' + presentation.badgeClass, presentation.label);
+        header.appendChild(fileDetails);
+        header.appendChild(badge);
+        var progress = document.createElement('div');
+        progress.className = 'progress mt-2';
+        progress.setAttribute('role', 'progressbar');
+        progress.setAttribute('aria-valuemin', '0');
+        progress.setAttribute('aria-valuemax', '100');
+        progress.setAttribute('aria-valuenow', item.progress.toString());
+        var progressState = document.createElement('div');
+        progressState.className = 'progress-bar ' + presentation.progressClass;
+        progressState.style.width = item.progress + '%';
+        progressState.textContent = item.progress + '%';
+        progress.appendChild(progressState);
+        var message = createTextElement('div', item.status === 'failed' ? 'small text-danger mt-2' : 'small text-muted mt-2', formatUploadMessage(item));
+        card.appendChild(header);
+        card.appendChild(progress);
+        card.appendChild(message);
+        uploadQueue.appendChild(card);
+      });
+    }
+    function createUploadItem(file, index) {
+      return {
+        id: file.name + '::' + file.size + '::' + file.lastModified + '::' + index + '::' + Date.now(),
+        fileName: file.name,
+        fileSize: file.size,
+        status: 'queued',
+        progress: 0,
+        error: null
+      };
+    }
+    function updateUploadItem(itemId, updates) {
+      uploadItems = uploadItems.map(function (item) {
+        return item.id === itemId ? Object.assign({}, item, updates) : item;
+      });
+      renderUploadQueue();
+    }
+    function removeUploadItems(predicate) {
+      uploadItems = uploadItems.filter(function (item) {
+        return !predicate(item);
+      });
+      renderUploadQueue();
+    }
+    function uploadSingleDocument(file, itemIdToUpdate, fileIndex, totalFiles) {
+      return new Promise(function (resolve, reject) {
+        var formData = new FormData();
+        formData.append('chatInteractionId', config.itemId);
+        formData.append('files', file);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', config.uploadDocumentUrl, true);
+        xhr.upload.addEventListener('progress', function (event) {
+          if (!event.lengthComputable) {
+            return;
+          }
+          var fileProgress = Math.round(event.loaded / event.total * 100);
+          updateUploadItem(itemIdToUpdate, {
+            status: 'uploading',
+            progress: fileProgress
+          });
+          var overallProgress = (fileIndex + event.loaded / event.total) / totalFiles * 100;
+          showUploadProgress(overallProgress, 'Uploading ' + (fileIndex + 1) + ' of ' + totalFiles, 'progress-bar-striped progress-bar-animated');
+        });
+        xhr.addEventListener('load', function () {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch (error) {
+              reject(new Error('Upload failed: invalid server response.'));
+            }
+            return;
+          }
+          reject(new Error((xhr.responseText || 'Upload failed.').trim()));
+        });
+        xhr.addEventListener('error', function () {
+          reject(new Error('Upload failed. Please check your connection and try again.'));
+        });
+        xhr.send(formData);
+      });
+    }
+    function uploadDocuments(_x) {
+      return _uploadDocuments.apply(this, arguments);
+    }
+    function _uploadDocuments() {
+      _uploadDocuments = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee6(files) {
+        var filesToUpload, duplicateItems, knownDocumentKeys, pendingItems, uploadedCount, failedUploads, i, file, pendingItem, result, uploaded, failed, missingUploadMessage, failedMessage, errorMessage, _t2, _t3;
+        return _regenerator().w(function (_context6) {
+          while (1) switch (_context6.p = _context6.n) {
+            case 0:
+              if (!(!config.uploadDocumentUrl || !files || files.length === 0)) {
+                _context6.n = 1;
+                break;
+              }
+              return _context6.a(2);
+            case 1:
+              if (!isUploadingDocuments) {
+                _context6.n = 2;
+                break;
+              }
+              showUploadStatus('A document upload is already in progress.', 'text-warning');
+              return _context6.a(2);
+            case 2:
+              isUploadingDocuments = true;
+              filesToUpload = [];
+              duplicateItems = [];
+              knownDocumentKeys = new Set(interactionDocuments.map(function (document) {
+                return getDocumentKey(document.fileName, document.fileSize);
+              }));
+              Array.from(files).forEach(function (file) {
+                if (isDuplicateFile(file, knownDocumentKeys)) {
+                  duplicateItems.push(file);
+                  return;
+                }
+                knownDocumentKeys.add(getDocumentKey(file.name, file.size));
+                filesToUpload.push(file);
+              });
+              if (duplicateItems.length > 0) {
+                uploadItems = uploadItems.concat(duplicateItems.map(function (file, index) {
+                  return Object.assign(createUploadItem(file, index), {
+                    status: 'failed',
+                    progress: 100,
+                    error: 'This document is already attached.'
+                  });
+                }));
+                renderUploadQueue();
+              }
+              if (!(filesToUpload.length === 0)) {
+                _context6.n = 3;
+                break;
+              }
+              isUploadingDocuments = false;
+              showUploadStatus(duplicateItems.map(function (file) {
+                return file.name + ': This document is already attached.';
+              }).join(' | '), 'text-warning');
+              showUploadProgress(null);
+              return _context6.a(2);
+            case 3:
+              pendingItems = filesToUpload.map(createUploadItem);
+              uploadItems = uploadItems.concat(pendingItems);
+              renderUploadQueue();
+              showUploadProgress(0, 'Preparing upload...', 'progress-bar-striped progress-bar-animated');
+              fileInput.disabled = true;
+              _context6.p = 4;
+              uploadedCount = 0;
+              failedUploads = duplicateItems.map(function (file) {
+                return file.name + ': This document is already attached.';
+              });
+              i = 0;
+            case 5:
+              if (!(i < filesToUpload.length)) {
+                _context6.n = 10;
+                break;
+              }
+              file = filesToUpload[i];
+              pendingItem = pendingItems[i];
+              updateUploadItem(pendingItem.id, {
+                status: 'uploading',
+                progress: 0,
+                error: null
+              });
+              showUploadStatus('Uploading ' + (i + 1) + ' of ' + filesToUpload.length + ' document(s)...', 'text-warning');
+              _context6.p = 6;
+              _context6.n = 7;
+              return uploadSingleDocument(file, pendingItem.id, i, filesToUpload.length);
+            case 7:
+              result = _context6.v;
+              uploaded = (Array.isArray(result.uploaded) ? result.uploaded : []).map(normalizeDocumentInfo).filter(function (document) {
+                return document && document.documentId;
+              });
+              failed = Array.isArray(result.failed) ? result.failed : [];
+              if (uploaded.length > 0) {
+                uploadedCount += uploaded.length;
+                interactionDocuments = interactionDocuments.concat(uploaded);
+                updateUploadItem(pendingItem.id, {
+                  status: 'uploaded',
+                  progress: 100,
+                  error: null
+                });
+              } else {
+                missingUploadMessage = failed.length > 0 ? failed.map(function (entry) {
+                  return entry.fileName + ': ' + entry.error;
+                }).join(' | ') : 'The server did not confirm that the file was uploaded.';
+                if (failed.length === 0) {
+                  failedUploads.push(missingUploadMessage);
+                }
+                updateUploadItem(pendingItem.id, {
+                  status: 'failed',
+                  progress: 100,
+                  error: missingUploadMessage
+                });
+              }
+              if (failed.length > 0) {
+                failedMessage = failed.map(function (entry) {
+                  return entry.fileName + ': ' + entry.error;
+                }).join(' | ');
+                failedUploads.push(failedMessage);
+                updateUploadItem(pendingItem.id, {
+                  status: 'failed',
+                  progress: 100,
+                  error: failedMessage
+                });
+              }
+              _context6.n = 9;
+              break;
+            case 8:
+              _context6.p = 8;
+              _t2 = _context6.v;
+              errorMessage = _t2 && _t2.message ? _t2.message : 'Upload failed. Please try again.';
+              console.error('Upload failed:', _t2);
+              failedUploads.push(file.name + ': ' + errorMessage);
+              updateUploadItem(pendingItem.id, {
+                status: 'failed',
+                progress: pendingItem.progress || 0,
+                error: errorMessage
+              });
+            case 9:
+              i++;
+              _context6.n = 5;
+              break;
+            case 10:
+              renderDocuments();
+              if (!(failedUploads.length > 0)) {
+                _context6.n = 11;
+                break;
+              }
+              removeUploadItems(function (item) {
+                return item.status === 'uploaded';
+              });
+              showUploadStatus((uploadedCount > 0 ? 'Uploaded ' + uploadedCount + ' document(s). ' : '') + failedUploads.join(' | '), uploadedCount > 0 ? 'text-warning' : 'text-danger');
+              showUploadProgress(null);
+              return _context6.a(2);
+            case 11:
+              removeUploadItems(function () {
+                return true;
+              });
+              showUploadStatus('Uploaded ' + uploadedCount + ' document(s).', 'text-success');
+              showUploadProgress(null);
+              _context6.n = 13;
+              break;
+            case 12:
+              _context6.p = 12;
+              _t3 = _context6.v;
+              console.error('Upload failed:', _t3);
+              showUploadStatus('Upload failed. Please try again.', 'text-danger');
+              showUploadProgress(null);
+            case 13:
+              _context6.p = 13;
+              isUploadingDocuments = false;
+              fileInput.disabled = false;
+              fileInput.value = '';
+              return _context6.f(13);
+            case 14:
+              return _context6.a(2);
+          }
+        }, _callee6, null, [[6, 8], [4, 12, 13, 14]]);
+      }));
+      return _uploadDocuments.apply(this, arguments);
+    }
+    function removeDocument(_x2) {
+      return _removeDocument.apply(this, arguments);
+    }
+    function _removeDocument() {
+      _removeDocument = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee7(documentId) {
+        var response, result, serverDocuments, _t4, _t5;
+        return _regenerator().w(function (_context7) {
+          while (1) switch (_context7.p = _context7.n) {
+            case 0:
+              if (!(!config.removeDocumentUrl || !documentId || !window.confirm('Remove this document?'))) {
+                _context7.n = 1;
+                break;
+              }
+              return _context7.a(2);
+            case 1:
+              _context7.p = 1;
+              _context7.n = 2;
+              return fetch(config.removeDocumentUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  itemId: config.itemId,
+                  documentId: documentId
+                })
+              });
+            case 2:
+              response = _context7.v;
+              if (response.ok) {
+                _context7.n = 4;
+                break;
+              }
+              _t4 = console;
+              _context7.n = 3;
+              return response.text();
+            case 3:
+              _t4.error.call(_t4, 'Failed to remove document:', _context7.v);
+              showUploadStatus('Failed to remove document.', 'text-danger');
+              return _context7.a(2);
+            case 4:
+              _context7.n = 5;
+              return response.json();
+            case 5:
+              result = _context7.v;
+              serverDocuments = (Array.isArray(result.documents) ? result.documents : []).map(normalizeDocumentInfo).filter(function (document) {
+                return document && document.documentId;
+              });
+              interactionDocuments = serverDocuments.length > 0 ? serverDocuments : interactionDocuments.filter(function (document) {
+                return document.documentId !== documentId;
+              });
+              renderDocuments();
+              showUploadStatus('Document removed.', 'text-success');
+              _context7.n = 7;
+              break;
+            case 6:
+              _context7.p = 6;
+              _t5 = _context7.v;
+              console.error('Remove failed:', _t5);
+              showUploadStatus('Failed to remove document.', 'text-danger');
+            case 7:
+              return _context7.a(2);
+          }
+        }, _callee7, null, [[1, 6]]);
+      }));
+      return _removeDocument.apply(this, arguments);
+    }
+    var onFileInputChange = function onFileInputChange(event) {
+      var selectedFiles = event.target.files ? Array.from(event.target.files) : [];
+      uploadDocuments(selectedFiles);
+    };
+    fileInput.addEventListener('change', onFileInputChange);
+    fileInput[managerStateKey] = {
+      dispose: function dispose() {
+        fileInput.removeEventListener('change', onFileInputChange);
+      }
+    };
+    renderDocuments();
+    renderUploadQueue();
+    showUploadStatus(null);
+    showUploadProgress(null);
+  }
   return {
     initialize: initialize
   };

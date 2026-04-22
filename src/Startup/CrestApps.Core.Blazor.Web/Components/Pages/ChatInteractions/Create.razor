@@ -8,12 +8,14 @@
 @using CrestApps.Core.AI.Copilot.Models
 @using CrestApps.Core.AI.Copilot.Services
 @using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Mcp.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Infrastructure.Indexing
 @using CrestApps.Core.Services
 @using CrestApps.Core.Templates.Services
 @using Microsoft.Extensions.Options
@@ -26,13 +28,15 @@
 @inject ITemplateService TemplateService
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
+@inject SiteSettingsStore SiteSettingsStore
 @inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
 @inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOptionsAccessor
 @inject ClaudeClientService ClaudeClientService
 @inject IOptions<CopilotOptions> CopilotOptionsAccessor
+@inject ISearchIndexProfileStore IndexProfileStore
 
-<PageTitle>New Chat Interaction - CrestApps AI</PageTitle>
+<PageTitle>New Chat Interaction - Blazor AI Integration Sample</PageTitle>
 
 <h2><i class="bi bi-plus-lg"></i> New Chat Interaction</h2>
 <hr />
@@ -160,27 +164,27 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="maxTokens" class="form-label">Max tokens</label>
-                            <InputNumber id="maxTokens" class="form-control" @bind-Value="_model.MaxTokens" placeholder="4096" />
+                            <InputNumber id="maxTokens" class="form-control" @bind-Value="_model.MaxTokens" min="1" />
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="temperature" class="form-label">Temperature</label>
-                            <InputNumber id="temperature" class="form-control" @bind-Value="_model.Temperature" />
+                            <InputNumber id="temperature" class="form-control" @bind-Value="_model.Temperature" min="0" max="2" step="0.1" placeholder="0.7" />
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="topP" class="form-label">Top P</label>
-                            <InputNumber id="topP" class="form-control" @bind-Value="_model.TopP" />
+                            <InputNumber id="topP" class="form-control" @bind-Value="_model.TopP" min="0" max="1" step="0.1" placeholder="1.0" />
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="frequencyPenalty" class="form-label">Frequency penalty</label>
-                            <InputNumber id="frequencyPenalty" class="form-control" @bind-Value="_model.FrequencyPenalty" />
+                            <InputNumber id="frequencyPenalty" class="form-control" @bind-Value="_model.FrequencyPenalty" min="-2" max="2" step="0.1" placeholder="0" />
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="presencePenalty" class="form-label">Presence penalty</label>
-                            <InputNumber id="presencePenalty" class="form-control" @bind-Value="_model.PresencePenalty" />
+                            <InputNumber id="presencePenalty" class="form-control" @bind-Value="_model.PresencePenalty" min="-2" max="2" step="0.1" placeholder="0" />
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="pastMessages" class="form-label">Past messages</label>
-                            <InputNumber id="pastMessages" class="form-control" @bind-Value="_model.PastMessagesCount" />
+                            <InputNumber id="pastMessages" class="form-control" @bind-Value="_model.PastMessagesCount" min="0" placeholder="10" />
                         </div>
                     </div>
                 }
@@ -324,6 +328,18 @@
                         </div>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="documentRetrievalMode" class="form-label">Document retrieval mode</label>
+                        <InputSelect id="documentRetrievalMode" class="form-select" @bind-Value="_model.DocumentRetrievalMode">
+                            <option value="">Use site default</option>
+                            @foreach (var mode in Enum.GetValues<DocumentRetrievalMode>())
+                            {
+                                <option value="@mode">@mode</option>
+                            }
+                        </InputSelect>
+                        <div class="form-text">Overrides the site default when this interaction searches uploaded document knowledge.</div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="strictness" class="form-label">Strictness</label>
@@ -448,6 +464,15 @@
             .OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase)
             .Select(ds => new SelectOption(ds.DisplayText, ds.ItemId))
             .ToList();
+
+        var documentSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
+        _model.DocumentIndexProfileName = documentSettings.IndexProfileName;
+
+        if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
+        {
+            var documentIndexProfile = await IndexProfileStore.FindByNameAsync(documentSettings.IndexProfileName);
+            _model.HasDocumentIndexConfiguration = documentIndexProfile != null;
+        }
     }
 
     private void AddPromptTemplate()
@@ -526,6 +551,11 @@
                 });
             }
         }
+
+        interaction.Alter<DocumentsMetadata>(metadata =>
+        {
+            metadata.RetrievalMode = _model.DocumentRetrievalMode;
+        });
 
         if (_model.PromptTemplates.Count > 0)
         {

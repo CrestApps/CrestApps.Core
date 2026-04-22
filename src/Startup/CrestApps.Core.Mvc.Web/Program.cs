@@ -28,7 +28,6 @@ using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
@@ -42,6 +41,8 @@ using CrestApps.Core.SignalR;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using NLog.Web;
@@ -139,7 +140,12 @@ builder.Services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, Si
 // specific features. This keeps the host framework registrations easy to find.
 // =============================================================================
 builder.Services.AddLocalization();
-builder.Services.AddControllersWithViews()
+builder.Services.AddControllersWithViews(options =>
+    {
+        options.Filters.Add(new AuthorizeFilter(new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build()));
+    })
     .AddCrestAppsStoreCommitterFilter();
 
 builder.Services.AddHttpContextAccessor();
@@ -252,6 +258,7 @@ builder.Services.AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLink
 builder.Services.AddScoped<MvcCitationReferenceCollector>();
 builder.Services.AddScoped<CompositeAIReferenceLinkResolver>();
 builder.Services.AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
+builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
 builder.Services.Configure<IndexProfileSourceOptions>(options => options
     .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
     {

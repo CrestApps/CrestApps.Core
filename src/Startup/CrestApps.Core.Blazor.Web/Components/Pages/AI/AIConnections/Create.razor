@@ -9,7 +9,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>Create AI Connection - CrestApps AI</PageTitle>
+<PageTitle>Create AI Connection - Blazor AI Integration Sample</PageTitle>
 
 <h2><i class="bi bi-plus-lg"></i> Create AI Connection</h2>
 <hr />
@@ -19,7 +19,7 @@
         <div class="col-md-8">
             <div class="mb-3">
                 <label for="connectionTitle" class="form-label">Title</label>
-                <InputText id="connectionTitle" class="form-control" @bind-Value="_model.DisplayText" @bind-Value:event="oninput" placeholder="e.g., My OpenAI Connection" />
+                <input id="connectionTitle" class="form-control" value="@_model.DisplayText" @oninput="e => _model.DisplayText = e.Value?.ToString()" placeholder="e.g., My OpenAI Connection" />
             </div>
 
             <div class="mb-3">

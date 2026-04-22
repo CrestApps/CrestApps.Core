@@ -1,4 +1,5 @@
 @page "/chat-interactions/chat/{Id}"
+@attribute [Authorize(Policy = "Admin")]
 @using System.Globalization
 @using System.Text.Json
 @using CrestApps.Core
@@ -6,6 +7,7 @@
 @using CrestApps.Core.AI.A2A.Models
 @using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Documents
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Mcp.Models
 @using CrestApps.Core.AI.Models
@@ -34,6 +36,7 @@
 @inject IOptions<InteractionDocumentOptions> InteractionDocumentOptionsAccessor
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISearchIndexProfileStore IndexProfileStore
+@inject IAIDocumentStore DocumentStore
 
 <PageTitle>Chat Interaction</PageTitle>
 
@@ -77,7 +80,7 @@ else
                             </li>
                         </ul>
 
-                        <div class="tab-content flex-grow-1 overflow-auto pe-1" id="chat-settings-tab-content">
+                        <div class="tab-content flex-grow-1 overflow-y-auto overflow-x-hidden pe-1" id="chat-settings-tab-content">
                             <div class="tab-pane fade show active" id="general-pane" role="tabpanel" aria-labelledby="general-tab" tabindex="0">
                                 <div class="mb-3">
                                     <label class="form-label" for="chat-setting-title">Title</label>
@@ -114,8 +117,8 @@ else
                                 {
                                     <div class="mb-3">
                                         <label class="form-label" for="chat-prompt-template-selector">Prompt templates</label>
-                                        <div class="d-flex gap-2">
-                                            <select id="chat-prompt-template-selector" class="form-select" @bind="_selectedPromptTemplateId">
+                                        <div class="d-flex gap-2 prompt-template-selector-row">
+                                            <select id="chat-prompt-template-selector" class="form-select flex-grow-1" @bind="_selectedPromptTemplateId">
                                                 <option value="">Select a prompt template</option>
                                                 @foreach (var group in _model.AvailablePromptTemplates.GroupBy(x => x.Category).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
                                                 {
@@ -127,7 +130,7 @@ else
                                                     </optgroup>
                                                 }
                                             </select>
-                                            <button type="button" class="btn btn-outline-primary prompt-template-add-btn" @onclick="AddPromptTemplate">
+                                            <button type="button" class="btn btn-outline-primary prompt-template-add-btn flex-shrink-0 text-nowrap" @onclick="AddPromptTemplate">
                                                 Add
                                             </button>
                                         </div>
@@ -168,27 +171,27 @@ else
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-past-messages">Past messages</label>
-                                        <input id="chat-setting-past-messages" class="form-control setting-input" data-setting="pastMessagesCount" type="number" min="0" value="@_model.PastMessagesCount" />
+                                        <input id="chat-setting-past-messages" class="form-control setting-input" data-setting="pastMessagesCount" type="number" min="0" value="@_model.PastMessagesCount" placeholder="10" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-max-tokens">Max tokens</label>
-                                        <input id="chat-setting-max-tokens" class="form-control setting-input" data-setting="maxTokens" type="number" min="0" value="@_model.MaxTokens" />
+                                        <input id="chat-setting-max-tokens" class="form-control setting-input" data-setting="maxTokens" type="number" min="1" value="@_model.MaxTokens" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-temperature">Temperature</label>
-                                        <input id="chat-setting-temperature" class="form-control setting-input" data-setting="temperature" type="number" min="0" max="2" step="0.1" value="@FormatDecimal(_model.Temperature)" />
+                                        <input id="chat-setting-temperature" class="form-control setting-input" data-setting="temperature" type="number" min="0" max="2" step="0.1" value="@FormatDecimal(_model.Temperature)" placeholder="0.7" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-top-p">Top P</label>
-                                        <input id="chat-setting-top-p" class="form-control setting-input" data-setting="topP" type="number" min="0" max="1" step="0.1" value="@FormatDecimal(_model.TopP)" />
+                                        <input id="chat-setting-top-p" class="form-control setting-input" data-setting="topP" type="number" min="0" max="1" step="0.1" value="@FormatDecimal(_model.TopP)" placeholder="1.0" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-frequency-penalty">Frequency penalty</label>
-                                        <input id="chat-setting-frequency-penalty" class="form-control setting-input" data-setting="frequencyPenalty" type="number" min="-2" max="2" step="0.1" value="@FormatDecimal(_model.FrequencyPenalty)" />
+                                        <input id="chat-setting-frequency-penalty" class="form-control setting-input" data-setting="frequencyPenalty" type="number" min="-2" max="2" step="0.1" value="@FormatDecimal(_model.FrequencyPenalty)" placeholder="0" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-presence-penalty">Presence penalty</label>
-                                        <input id="chat-setting-presence-penalty" class="form-control setting-input" data-setting="presencePenalty" type="number" min="-2" max="2" step="0.1" value="@FormatDecimal(_model.PresencePenalty)" />
+                                        <input id="chat-setting-presence-penalty" class="form-control setting-input" data-setting="presencePenalty" type="number" min="-2" max="2" step="0.1" value="@FormatDecimal(_model.PresencePenalty)" placeholder="0" />
                                     </div>
                                 </div>
                             </div>
@@ -219,6 +222,18 @@ else
                                     <label class="form-check-label" for="chat-setting-in-scope">
                                         Restrict answers to retrieved data only
                                     </label>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-document-retrieval-mode">Document retrieval mode</label>
+                                    <select id="chat-setting-document-retrieval-mode" class="form-select setting-input" data-setting="documentRetrievalMode">
+                                        <option value="" selected="@(!_model.DocumentRetrievalMode.HasValue ? "selected" : null)">Use site default</option>
+                                        @foreach (var mode in Enum.GetValues<DocumentRetrievalMode>())
+                                        {
+                                            <option value="@mode" selected="@(_model.DocumentRetrievalMode == mode ? "selected" : null)">@mode</option>
+                                        }
+                                    </select>
+                                    <div class="form-text">Overrides the site default when this interaction searches uploaded document knowledge.</div>
                                 </div>
 
                                 <div class="row g-3">
@@ -263,7 +278,32 @@ else
                                     </div>
                                     <div id="chat-doc-upload-queue" class="d-flex flex-column gap-2 mt-2"></div>
                                 </div>
-                                <div id="chat-documents-list" class="d-flex flex-column gap-2 mt-2"></div>
+                                <div id="chat-documents-list" class="d-flex flex-column gap-2 mt-2">
+                                    @if (_model.Documents.Any())
+                                    {
+                                        @foreach (var document in _model.Documents)
+                                        {
+                                            <div class="d-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white chat-document-row"
+                                                 data-chat-document-id="@document.DocumentId"
+                                                 data-chat-document-name="@document.FileName"
+                                                 data-chat-document-size="@document.FileSize">
+                                                <div class="me-2 min-w-0">
+                                                    <div class="fw-semibold small"><i class="bi bi-file-earmark-text me-1"></i>@document.FileName</div>
+                                                    <div class="text-muted small">@FormatFileSize(document.FileSize)</div>
+                                                </div>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-danger remove-chat-document-btn"
+                                                        data-document-id="@document.DocumentId">
+                                                    <i class="bi bi-trash"></i> Remove
+                                                </button>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="text-muted small">No documents uploaded yet.</div>
+                                    }
+                                </div>
                             </div>
 
                             <div class="tab-pane fade" id="capabilities-pane" role="tabpanel" aria-labelledby="capabilities-tab" tabindex="0">
@@ -288,59 +328,86 @@ else
 
                                 <div class="settings-group mb-4">
                                     <h6 class="mb-2">Agents</h6>
-                                    <div class="list-group">
-                                        @foreach (var item in _model.AvailableAgents)
-                                        {
-                                            <label class="list-group-item d-flex align-items-start gap-2">
-                                                <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="agentNames" value="@item.Name" checked="@item.IsSelected" />
-                                                <span>
-                                                    <strong>@item.DisplayText</strong>
-                                                    @if (!string.IsNullOrWhiteSpace(item.Description))
-                                                    {
-                                                        <span class="d-block small text-muted">@item.Description</span>
-                                                    }
-                                                </span>
-                                            </label>
-                                        }
-                                    </div>
+                                    @if (_model.AvailableAgents.Count == 0)
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle"></i> No agent profiles available.
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var item in _model.AvailableAgents)
+                                            {
+                                                <label class="list-group-item d-flex align-items-start gap-2">
+                                                    <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="agentNames" value="@item.Name" checked="@item.IsSelected" />
+                                                    <span>
+                                                        <strong>@item.DisplayText</strong>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Description</span>
+                                                        }
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
                                 </div>
 
                                 <div class="settings-group mb-4">
                                     <h6 class="mb-2">A2A Hosts</h6>
-                                    <div class="list-group">
-                                        @foreach (var item in _model.AvailableA2AConnections)
-                                        {
-                                            <label class="list-group-item d-flex align-items-start gap-2">
-                                                <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="a2aConnectionIds" value="@item.ItemId" checked="@item.IsSelected" />
-                                                <span>
-                                                    <strong>@item.DisplayText</strong>
-                                                    @if (!string.IsNullOrWhiteSpace(item.Endpoint))
-                                                    {
-                                                        <span class="d-block small text-muted">@item.Endpoint</span>
-                                                    }
-                                                </span>
-                                            </label>
-                                        }
-                                    </div>
+                                    @if (_model.AvailableA2AConnections.Count == 0)
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle"></i> No A2A hosts configured.
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var item in _model.AvailableA2AConnections)
+                                            {
+                                                <label class="list-group-item d-flex align-items-start gap-2">
+                                                    <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="a2aConnectionIds" value="@item.ItemId" checked="@item.IsSelected" />
+                                                    <span>
+                                                        <strong>@item.DisplayText</strong>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Endpoint))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Endpoint</span>
+                                                        }
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
                                 </div>
 
                                 <div class="settings-group">
                                     <h6 class="mb-2">MCP Hosts</h6>
-                                    <div class="list-group">
-                                        @foreach (var item in _model.AvailableMcpConnections)
-                                        {
-                                            <label class="list-group-item d-flex align-items-start gap-2">
-                                                <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="mcpConnectionIds" value="@item.ItemId" checked="@item.IsSelected" />
-                                                <span>
-                                                    <strong>@item.DisplayText</strong>
-                                                    @if (!string.IsNullOrWhiteSpace(item.Source))
-                                                    {
-                                                        <span class="d-block small text-muted">@item.Source</span>
-                                                    }
-                                                </span>
-                                            </label>
-                                        }
-                                    </div>
+                                    @if (_model.AvailableMcpConnections.Count == 0)
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle"></i> No MCP hosts configured.
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var item in _model.AvailableMcpConnections)
+                                            {
+                                                <label class="list-group-item d-flex align-items-start gap-2">
+                                                    <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="mcpConnectionIds" value="@item.ItemId" checked="@item.IsSelected" />
+                                                    <span>
+                                                        <strong>@item.DisplayText</strong>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Source))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Source</span>
+                                                        }
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
                                 </div>
                             </div>
                         </div>
@@ -351,6 +418,15 @@ else
             <div class="col-lg-8 col-xl-9 h-100">
                 <div class="card shadow-sm h-100">
                     <div class="card-body d-flex flex-column chat-shell p-0">
+                        <div class="d-flex justify-content-between align-items-center border-bottom px-3 py-2">
+                            <span class="text-muted small">
+                                <i class="bi bi-chat-left-dots"></i> @(_model.Title ?? "Untitled Chat")
+                            </span>
+                            <button type="button" id="clearHistoryBtn" class="btn btn-outline-danger btn-sm @(_messages.Count == 0 ? "d-none" : null)" data-interaction-id="@Id">
+                                <i class="bi bi-trash3"></i> Clear history
+                            </button>
+                        </div>
+
                         <div id="chat-container" class="flex-grow-1 overflow-auto p-3">
                             <div id="chat-placeholder">
                                 <div class="text-center text-muted my-5">
@@ -368,6 +444,25 @@ else
                                           rows="1"
                                           placeholder="Type a message..."
                                           data-item-id="@Id"></textarea>
+                                @if (_model.SpeechToTextEnabled)
+                                {
+                                    <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
+                                        <i class="bi bi-mic-fill"></i>
+                                    </button>
+                                }
+                                @if (_model.ConversationModeEnabled)
+                                {
+                                    <button type="button"
+                                            id="chat-conversation-btn"
+                                            class="btn btn-outline-dark"
+                                            title="Start Conversation"
+                                            data-start-title="Start Conversation"
+                                            data-end-title="End Conversation"
+                                            data-start-html="<i class='bi bi-soundwave'></i>"
+                                            data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
+                                        <i class="bi bi-soundwave"></i>
+                                    </button>
+                                }
                                 <button type="button" id="send-btn" class="btn btn-primary"
                                         data-start-icon="<i class='bi bi-send'></i>"
                                         data-stop-icon="<i class='bi bi-stop-fill'></i>">
@@ -416,9 +511,22 @@ else
                 browseButton = "#chat-doc-browse",
             });
 
+            await JSRuntime.InvokeVoidAsync("window.chatInteractionDocumentManager.initialize", new
+            {
+                itemId = Id,
+                existingDocuments = _model.Documents.Select(document => new
+                {
+                    documentId = document.DocumentId,
+                    fileName = document.FileName,
+                    fileSize = document.FileSize,
+                }).ToArray(),
+                uploadDocumentUrl = "/ai/chat-interactions/upload-document",
+                removeDocumentUrl = "/ai/chat-interactions/remove-document",
+            });
+
             var messages = _messages
                 .OrderBy(m => m.CreatedUtc)
-                .Select(m => new { role = m.Role, content = m.Content })
+                .Select(m => new { role = m.Role, content = m.Content, id = m.Id, references = m.References })
                 .ToArray();
 
             await JSRuntime.InvokeVoidAsync("window.chatInteractionManager.initialize", new
@@ -432,6 +540,11 @@ else
                 messages,
                 itemId = Id,
                 autoStartInteraction = true,
+                chatMode = _model.ChatMode.ToString(),
+                micButtonElementSelector = "#chat-mic-btn",
+                conversationButtonElementSelector = "#chat-conversation-btn",
+                ttsVoiceName = _model.TextToSpeechVoiceName,
+                textToSpeechEnabled = _model.TextToSpeechEnabled,
             });
         }
     }
@@ -446,9 +559,35 @@ else
         }
 
         var settings = SiteSettingsStore.Get<ChatInteractionSettings>();
+        var deploymentDefaults = SiteSettingsStore.Get<DefaultAIDeploymentSettings>();
         interaction.TryGet<DataSourceMetadata>(out var dataSourceMetadata);
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
         interaction.TryGet<PromptTemplateMetadata>(out var promptTemplateMetadata);
+        interaction.TryGet<DocumentsMetadata>(out var documentMetadata);
+
+        var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
+        var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
+        var effectiveChatMode = settings.ChatMode switch
+        {
+            ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+            ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
+            ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
+            _ => ChatMode.TextInput,
+        };
+
+        var storedDocuments = await DocumentStore.GetDocumentsAsync(interaction.ItemId, AIReferenceTypes.Document.ChatInteraction);
+        var visibleDocuments = (interaction.Documents ?? [])
+            .Concat(storedDocuments.Select(document => new ChatDocumentInfo
+            {
+                DocumentId = document.ItemId,
+                FileName = document.FileName,
+                FileSize = document.FileSize,
+                ContentType = document.ContentType,
+            }))
+            .Where(document => document != null && !string.IsNullOrWhiteSpace(document.DocumentId))
+            .GroupBy(document => document.DocumentId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
 
         _model = new ChatInteractionChatViewModel
         {
@@ -468,6 +607,7 @@ else
             DataSourceTopNDocuments = ragMetadata?.TopNDocuments,
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
             DataSourceFilter = ragMetadata?.Filter,
+            DocumentRetrievalMode = documentMetadata?.RetrievalMode,
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
             SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
             SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],
@@ -479,16 +619,20 @@ else
                     ? JsonSerializer.Serialize(selection.Parameters)
                     : string.Empty,
             }).ToList() ?? [],
-            Documents = interaction.Documents ?? [],
+            Documents = visibleDocuments,
+            ChatMode = effectiveChatMode,
+            SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
+            ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
+            TextToSpeechEnabled = settings.EnableTextToSpeechPlayback && hasTextToSpeech,
+            TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
         };
 
-        var documentSettings = InteractionDocumentOptionsAccessor.Value;
+        var documentSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
         _model.DocumentIndexProfileName = documentSettings.IndexProfileName;
         if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
         {
             var documentIndexProfile = await IndexProfileStore.FindByNameAsync(documentSettings.IndexProfileName);
-            _model.HasDocumentIndexConfiguration = documentIndexProfile != null
-                && string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
+            _model.HasDocumentIndexConfiguration = documentIndexProfile != null;
         }
 
         _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
@@ -499,9 +643,11 @@ else
         _messages = (await PromptStore.GetPromptsAsync(Id))
             .Select(x => new ChatMessageViewModel
             {
+                Id = x.ItemId,
                 Role = x.Role.ToString(),
                 Content = x.Text,
                 CreatedUtc = x.CreatedUtc,
+                References = x.References,
             })
             .ToList();
     }
@@ -597,7 +743,6 @@ else
             })
             .ToList();
 
-        model.ChatMode = settings.ChatMode;
     }
 
     private void AddPromptTemplate()
@@ -641,13 +786,32 @@ else
         return value?.ToString("0.##", CultureInfo.InvariantCulture);
     }
 
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024d:0.0} KB";
+        }
+
+        return $"{bytes / (1024d * 1024d):0.0} MB";
+    }
+
     private sealed class ChatMessageViewModel
     {
+        public string Id { get; set; }
+
         public string Role { get; set; }
 
         public string Content { get; set; }
 
         public DateTimeOffset? CreatedUtc { get; set; }
+
+        public object References { get; set; }
     }
 }
 
@@ -681,6 +845,53 @@ else
     .settings-save-indicator {
         min-width: 4.75rem;
         text-align: center;
+    }
+
+    .chat-page-wrapper .row > [class*='col-'],
+    .chat-page-wrapper .card,
+    .chat-page-wrapper .card-body,
+    .chat-page-wrapper .tab-content,
+    .chat-page-wrapper .tab-pane,
+    .chat-page-wrapper .settings-group,
+    .chat-page-wrapper .list-group,
+    .chat-page-wrapper .list-group-item,
+    .chat-page-wrapper .prompt-template-card,
+    .chat-page-wrapper .document-drop-zone {
+        min-width: 0;
+    }
+
+    .chat-page-wrapper .card-body,
+    .chat-page-wrapper .tab-content {
+        overflow-x: hidden;
+    }
+
+    .chat-page-wrapper .tab-pane > .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .chat-page-wrapper .document-drop-zone__body > * {
+        max-width: 100%;
+    }
+
+    .chat-page-wrapper .prompt-template-selector-row > .form-select {
+        min-width: 0;
+    }
+
+    .chat-page-wrapper .prompt-template-selector-row > .prompt-template-add-btn {
+        min-width: 4.5rem;
+    }
+
+    .chat-page-wrapper .d-flex > .form-select,
+    .chat-page-wrapper .d-flex > .form-control,
+    .chat-page-wrapper .d-flex > .prompt-template-add-btn {
+        min-width: 0;
+    }
+
+    .chat-page-wrapper .prompt-template-parameters-input,
+    .chat-page-wrapper .form-control,
+    .chat-page-wrapper .form-select {
+        max-width: 100%;
     }
 
     .settings-group .list-group-item {

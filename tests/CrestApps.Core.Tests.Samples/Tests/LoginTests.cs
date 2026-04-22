@@ -14,6 +14,8 @@ public class LoginTests : BothAppsTestBase
     [InlineData(AppInstance.Blazor)]
     public async Task LoginPage_ShouldHaveUsernameAndPasswordFields(AppInstance app)
     {
+        await EnsureAppIsReachableOrSkipAsync(app);
+
         var page = await Fixture.CreatePageAsync();
         var baseUrl = PlaywrightFixture.GetBaseUrl(app);
         var loginPath = app == AppInstance.Mvc ? "/Account/Login" : "/account/login";
@@ -30,22 +32,6 @@ public class LoginTests : BothAppsTestBase
         await Assertions.Expect(passwordField).ToBeVisibleAsync();
 
         // Should have submit button
-        var submitButton = page.Locator("button[type='submit']").First;
-        await Assertions.Expect(submitButton).ToBeVisibleAsync();
-    }
-
-    [Theory]
-    [InlineData(AppInstance.Mvc)]
-    [InlineData(AppInstance.Blazor)]
-    public async Task LoginPage_ShouldHaveSubmitButton(AppInstance app)
-    {
-        var page = await Fixture.CreatePageAsync();
-        var baseUrl = PlaywrightFixture.GetBaseUrl(app);
-        var loginPath = app == AppInstance.Mvc ? "/Account/Login" : "/account/login";
-
-        await page.GotoAsync(baseUrl + loginPath);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-
         var submitButton = page.Locator("button[type='submit']").First;
         await Assertions.Expect(submitButton).ToBeVisibleAsync();
     }

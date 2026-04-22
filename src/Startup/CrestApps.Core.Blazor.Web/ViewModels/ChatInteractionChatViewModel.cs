@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
@@ -49,6 +50,8 @@ public sealed class ChatInteractionChatViewModel
     public bool HasDocumentIndexConfiguration { get; set; }
 
     public string DocumentIndexProfileName { get; set; }
+
+    public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     public IEnumerable<ChatDocumentInfo> Documents { get; set; } = [];
 

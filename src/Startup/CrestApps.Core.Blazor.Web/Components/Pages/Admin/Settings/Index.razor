@@ -25,7 +25,7 @@
 @inject IDataProtectionProvider DataProtectionProvider
 @inject ClaudeClientService ClaudeClientService
 
-<PageTitle>AI Settings - CrestApps AI</PageTitle>
+<PageTitle>AI Settings - Blazor AI Integration Sample</PageTitle>
 
 <h2><i class="bi bi-gear"></i> AI Settings</h2>
 <hr />
@@ -346,16 +346,6 @@ else
                             <div class="form-text">The default number of matched chunks or documents to include when a profile does not override it.</div>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="docRetrieval" class="form-label">Default retrieval mode</label>
-                            <InputSelect id="docRetrieval" @bind-Value="_model.DocumentRetrievalMode" class="form-select" style="max-width: 320px;">
-                                @foreach (var mode in Enum.GetValues<DocumentRetrievalMode>())
-                                {
-                                    <option value="@mode">@mode</option>
-                                }
-                            </InputSelect>
-                            <div class="form-text">Use <strong>Chunk</strong> for chunk-level RAG, or <strong>Hierarchical</strong> to match on chunks and then inject the full text of the matched documents.</div>
-                        </div>
                     </div>
                 </div>
 
@@ -957,7 +947,7 @@ else
         {
             IndexProfileName = _model.DocumentIndexProfileName?.Trim(),
             TopN = _model.DocumentTopN,
-            RetrievalMode = _model.DocumentRetrievalMode,
+            RetrievalMode = SiteSettings.Get<InteractionDocumentSettings>().RetrievalMode,
         });
 
         SiteSettings.Set(new AIDataSourceSettings

@@ -5,15 +5,15 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Infrastructure.Indexing
 @using CrestApps.Core.Infrastructure.Indexing.Models
+@using CrestApps.Core.Models
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
 @inject ISearchIndexProfileManager IndexProfileManager
+@inject ISearchIndexProfileProvisioningService ProvisioningService
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject IOptions<IndexProfileSourceOptions> SourceOptions
-@inject IServiceProvider ServiceProvider
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
-@inject ILogger<Create> Logger
 
 <PageTitle>Create Index Profile</PageTitle>
 
@@ -171,89 +171,13 @@
 
         var profile = new SearchIndexProfile();
         _model.ApplyTo(profile);
-        var indexManager = ServiceProvider.GetKeyedService<ISearchIndexManager>(profile.ProviderName);
-
-        if (indexManager == null)
-        {
-            _errors.Add("The selected search provider is not configured for remote index provisioning.");
-
-            return;
-        }
-
-        profile.IndexFullName = indexManager.ComposeIndexFullName(profile);
-
-        var validationResult = await IndexProfileManager.ValidateAsync(profile);
-
-        foreach (var error in validationResult.Errors)
-        {
-            _errors.Add(error.ErrorMessage);
-        }
+        AddValidationErrors(await ProvisioningService.CreateAsync(profile));
 
         if (_errors.Count > 0)
         {
             return;
         }
 
-        IReadOnlyCollection<SearchIndexField> fields;
-        try
-        {
-            fields = await IndexProfileManager.GetFieldsAsync(profile);
-        }
-        catch (InvalidOperationException ex)
-        {
-            _errors.Add(ex.Message);
-
-            return;
-        }
-
-        if (fields == null)
-        {
-            _errors.Add($"The index type '{profile.Type}' is not supported for remote provisioning.");
-
-            return;
-        }
-
-        try
-        {
-            if (await indexManager.ExistsAsync(profile))
-            {
-                _errors.Add($"The remote index '{profile.IndexFullName}' already exists.");
-
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to validate remote index '{IndexName}' for provider '{ProviderName}'.", profile.IndexFullName, profile.ProviderName);
-            _errors.Add($"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.");
-
-            return;
-        }
-
-        try
-        {
-            await indexManager.CreateAsync(profile, fields);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to create remote index '{IndexName}' for provider '{ProviderName}'.", profile.IndexFullName, profile.ProviderName);
-            _errors.Add($"Unable to create the remote index '{profile.IndexFullName}'.");
-
-            return;
-        }
-
-        try
-        {
-            await IndexProfileManager.CreateAsync(profile);
-        }
-        catch
-        {
-            await indexManager.DeleteAsync(profile);
-
-            throw;
-        }
-
-        await IndexProfileManager.SynchronizeAsync(profile);
         await StoreCommitter.CommitAsync();
         Navigation.NavigateTo("/indexing/profiles");
     }
@@ -277,6 +201,14 @@
                 string.Equals(source.Type, model.Type, StringComparison.OrdinalIgnoreCase)))
         {
             _errors.Add("The selected provider does not support this index type.");
+        }
+    }
+
+    private void AddValidationErrors(ValidationResultDetails validationResult)
+    {
+        foreach (var error in validationResult.Errors)
+        {
+            _errors.Add(error.ErrorMessage);
         }
     }
 }

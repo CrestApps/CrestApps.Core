@@ -12,7 +12,11 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.AI.Speech
 @using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.Blazor.Web.Areas.AI.Services
+@using CrestApps.Core.Blazor.Web.Services
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Infrastructure.Indexing
@@ -33,11 +37,14 @@
 @inject IOptions<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
 @inject IOptions<InteractionDocumentOptions> DocOpts
+@inject ISpeechVoiceResolver SpeechVoiceResolver
+@inject AIProfileDocumentService ProfileDocumentService
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject SiteSettingsStore SiteSettingsStore
 
-<PageTitle>Create AI Profile - CrestApps AI</PageTitle>
+<PageTitle>Create AI Profile - Blazor AI Integration Sample</PageTitle>
 
 <h2><i class="bi bi-plus-lg"></i> Create AI Profile</h2>
 <hr />
@@ -104,7 +111,7 @@
                 <div style="display: @(_activeTab == "basic" ? "block" : "none")">
                     <div class="mb-3">
                         <label for="profileTitle" class="form-label">Title <span class="text-danger">*</span></label>
-                        <InputText id="profileTitle" class="form-control" @bind-Value="_model.DisplayText" @bind-Value:event="oninput" placeholder="e.g., My Chat Assistant" />
+                        <input id="profileTitle" class="form-control" value="@_model.DisplayText" @oninput="e => _model.DisplayText = e.Value?.ToString()" placeholder="e.g., My Chat Assistant" />
                     </div>
 
                     <div class="mb-3">
@@ -144,8 +151,50 @@
                                     <div class="form-text">How the chat session title is determined.</div>
                                 </div>
                             </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Chat mode</label>
+                                    <InputSelect class="form-select" @bind-Value="_model.ChatMode">
+                                        <option value="@ChatMode.TextInput">Text input</option>
+                                        <option value="@ChatMode.AudioInput">Audio input</option>
+                                        <option value="@ChatMode.Conversation">Conversation</option>
+                                    </InputSelect>
+                                    <div class="form-text">Choose text input, microphone dictation, or full conversation mode.</div>
+                                </div>
+                            </div>
                         }
                     </div>
+
+                    @if (_model.Type == AIProfileType.Chat)
+                    {
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.EnableTextToSpeechPlayback" />
+                                <label class="form-check-label">Enable text-to-speech playback</label>
+                            </div>
+                            <div class="form-text">Show a play button on assistant messages when a text-to-speech deployment is configured.</div>
+                        </div>
+
+                        @if (_model.ChatMode == ChatMode.Conversation)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Voice</label>
+                                <InputSelect class="form-select" @bind-Value="_model.VoiceName">
+                                    <option value="">Default voice</option>
+                                    @foreach (var group in _availableVoices.GroupBy(GetVoiceGroupLabel).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+                                    {
+                                        <optgroup label="@group.Key">
+                                            @foreach (var voice in group.OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase))
+                                            {
+                                                <option value="@voice.Id">@voice.Name</option>
+                                            }
+                                        </optgroup>
+                                    }
+                                </InputSelect>
+                                <div class="form-text">Leave empty to use the site's default text-to-speech voice.</div>
+                            </div>
+                        }
+                    }
 
                     @if (_model.Type == AIProfileType.Agent)
                     {
@@ -1013,6 +1062,7 @@
     private string _errorMessage;
     private string _selectedApplyTemplateId;
     private string _selectedPromptTemplateId;
+    private IReadOnlyList<SpeechVoice> _availableVoices = [];
     private List<Microsoft.AspNetCore.Components.Forms.IBrowserFile> _pendingFiles = [];
 
     protected override async Task OnInitializedAsync()
@@ -1071,6 +1121,18 @@
 
         await ProfileManager.CreateAsync(profile);
         await StoreCommitter.CommitAsync();
+
+        if (_pendingFiles.Count > 0)
+        {
+            using var formFiles = await BrowserFileFormFileCollection.CreateAsync(_pendingFiles);
+
+            if (formFiles.Files.Count > 0)
+            {
+                await ProfileDocumentService.UploadDocumentsAsync(profile, formFiles.Files);
+                await ProfileManager.UpdateAsync(profile);
+                await StoreCommitter.CommitAsync();
+            }
+        }
 
         Navigation.NavigateTo("/ai/profiles");
     }
@@ -1145,6 +1207,7 @@
     private async Task PopulateDropdownsAsync()
     {
         var allDeployments = await DeploymentCatalog.GetAllAsync();
+        await PopulateVoiceOptionsAsync(allDeployments);
 
         _model.ChatDeployments = allDeployments
             .Where(d => d.Type.Supports(AIDeploymentType.Chat))
@@ -1288,6 +1351,36 @@
         var allIds = (await McpCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
 
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private async Task PopulateVoiceOptionsAsync(IEnumerable<AIDeployment> deployments)
+    {
+        _availableVoices = [];
+
+        var deploymentDefaults = SiteSettingsStore.Get<DefaultAIDeploymentSettings>();
+        if (string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName))
+        {
+            return;
+        }
+
+        var deployment = deployments.FirstOrDefault(d => string.Equals(d.Name, deploymentDefaults.DefaultTextToSpeechDeploymentName, StringComparison.OrdinalIgnoreCase));
+        if (deployment == null)
+        {
+            return;
+        }
+
+        _availableVoices = (await SpeechVoiceResolver.GetSpeechVoicesAsync(deployment))
+            .Where(voice => !string.IsNullOrWhiteSpace(voice.Id))
+            .OrderBy(voice => GetVoiceGroupLabel(voice), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(voice => voice.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string GetVoiceGroupLabel(SpeechVoice voice)
+    {
+        var displayName = SpeechVoiceLocalizationHelper.GetCultureDisplayName(voice.Language);
+
+        return string.IsNullOrWhiteSpace(displayName) ? "Other" : displayName;
     }
 
     private static string BuildDeploymentLabel(AIDeployment deployment)

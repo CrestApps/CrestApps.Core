@@ -10,7 +10,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>AI Profiles - CrestApps AI</PageTitle>
+<PageTitle>AI Profiles - Blazor AI Integration Sample</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-person-gear"></i> AI Profiles</h2>
@@ -44,8 +44,8 @@ else
                 <tr>
                     <th>Title</th>
                     <th>Technical Name</th>
-                    <th>Type</th>
-                    <th style="width: 380px;">Actions</th>
+                    <th style="width: 110px;">Type</th>
+                    <th style="width: 430px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -60,6 +60,7 @@ else
                             </span>
                         </td>
                         <td>
+                            <div class="d-flex flex-nowrap gap-2">
                             @if (profile.Type == AIProfileType.Chat)
                             {
                                 <button type="button" class="btn btn-sm btn-outline-success" title="Start a new chat session" @onclick="() => StartNewChatAsync(profile)">
@@ -82,6 +83,7 @@ else
                             <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(profile.ItemId)">
                                 <i class="bi bi-trash"></i> Delete
                             </button>
+                            </div>
                         </td>
                     </tr>
                 }

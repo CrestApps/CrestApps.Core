@@ -1,19 +1,11 @@
 using System.Text.Json.Nodes;
-using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Controllers;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.ViewModels;
-using CrestApps.Core.Services;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using Moq;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
@@ -29,10 +21,10 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         };
 
         var profileManager = new TestSearchIndexProfileManager();
-        var controller = CreateController(profileManager, remoteManager);
+        var service = CreateService(profileManager, remoteManager);
 
         // Act
-        var result = await controller.Create(new IndexProfileViewModel
+        var result = await service.CreateAsync(new SearchIndexProfile
         {
             Name = "articles",
             IndexName = "articles",
@@ -41,8 +33,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         });
 
         // Assert
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(IndexProfileController.Index), redirect.ActionName);
+        Assert.True(result.Succeeded);
         Assert.Equal("tenant-articles", remoteManager.CreatedIndexName);
         Assert.Single(profileManager.CreatedProfiles);
         Assert.Equal("tenant-articles", profileManager.CreatedProfiles[0].IndexFullName);
@@ -59,11 +50,11 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             ExistsResult = true,
         };
 
-        var controller = CreateController(new TestSearchIndexProfileManager(), remoteManager);
+        var service = CreateService(new TestSearchIndexProfileManager(), remoteManager);
 
         // Act
-        var result = await controller.Create(
-            new IndexProfileViewModel
+        var result = await service.CreateAsync(
+            new SearchIndexProfile
             {
                 Name = "articles",
                 IndexName = "articles",
@@ -72,46 +63,21 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             });
 
         // Assert
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.IsType<IndexProfileViewModel>(view.Model);
-        Assert.False(controller.ModelState.IsValid);
-        Assert.Contains(
-            controller.ModelState[nameof(IndexProfileViewModel.IndexName)].Errors,
-            error => error.ErrorMessage.Contains("already exists", StringComparison.Ordinal));
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Errors, error => error.ErrorMessage.Contains("already exists", StringComparison.Ordinal));
         Assert.Null(remoteManager.CreatedIndexName);
     }
 
-    private static IndexProfileController CreateController(ISearchIndexProfileManager profileManager, TestRemoteSearchIndexManager remoteManager)
+    private static SearchIndexProfileProvisioningService CreateService(ISearchIndexProfileManager profileManager, TestRemoteSearchIndexManager remoteManager)
     {
         var services = new ServiceCollection();
         services.AddKeyedSingleton<ISearchIndexManager>(ElasticsearchConstants.ProviderName, remoteManager);
         var serviceProvider = services.BuildServiceProvider();
-        var sourceOptions = new IndexProfileSourceOptions();
-        sourceOptions.Sources.Add(new IndexProfileSourceDescriptor
-        {
-            ProviderName = ElasticsearchConstants.ProviderName,
-            ProviderDisplayName = "Elasticsearch",
-            Type = IndexProfileTypes.Articles,
-            DisplayName = "Articles",
-            Description = "Articles",
-        });
 
-        var controller = new IndexProfileController(
+        return new SearchIndexProfileProvisioningService(
             profileManager,
-            new TestDeploymentCatalog(),
             serviceProvider,
-            Options.Create(sourceOptions),
-            NullLogger<IndexProfileController>.Instance);
-        controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                RequestServices = serviceProvider,
-            },
-        };
-        controller.Url = Mock.Of<IUrlHelper>();
-        controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
-        return controller;
+            NullLogger<SearchIndexProfileProvisioningService>.Instance);
     }
 
     private sealed class TestRemoteSearchIndexManager : ISearchIndexManager
@@ -228,42 +194,4 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         }
     }
 
-    private sealed class TestDeploymentCatalog : ICatalog<AIDeployment>
-    {
-        public ValueTask CreateAsync(AIDeployment entry)
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask<bool> DeleteAsync(AIDeployment entry)
-        {
-            return ValueTask.FromResult(true);
-        }
-
-        public ValueTask<AIDeployment> FindByIdAsync(string id)
-        {
-            return ValueTask.FromResult<AIDeployment>(null);
-        }
-
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAllAsync()
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
-        }
-
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(IEnumerable<string> ids)
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
-        }
-
-        public ValueTask<PageResult<AIDeployment>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
-            where TQuery : QueryContext
-        {
-            return ValueTask.FromResult(new PageResult<AIDeployment>());
-        }
-
-        public ValueTask UpdateAsync(AIDeployment entry)
-        {
-            return ValueTask.CompletedTask;
-        }
-    }
 }

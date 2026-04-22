@@ -67,16 +67,33 @@ public static class RemoveChatInteractionDocument
                 return TypedResults.Forbid();
             }
 
+            var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
             var documentInfo = interaction.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
+
+            if (documentInfo == null && document != null)
+            {
+                documentInfo = new ChatDocumentInfo
+                {
+                    DocumentId = document.ItemId,
+                    FileName = document.FileName,
+                    FileSize = document.FileSize,
+                    ContentType = document.ContentType,
+                };
+            }
 
             if (documentInfo == null)
             {
                 return TypedResults.NotFound("Document not found.");
             }
 
-            interaction.Documents.Remove(documentInfo);
-
-            var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
+            if (interaction.Documents != null)
+            {
+                var attachedDocument = interaction.Documents.FirstOrDefault(existingDocument => existingDocument.DocumentId == requestModel.DocumentId);
+                if (attachedDocument != null)
+                {
+                    interaction.Documents.Remove(attachedDocument);
+                }
+            }
 
             var chunkIds = new List<string>();
 

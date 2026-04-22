@@ -11,7 +11,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>Create AI Deployment - CrestApps AI</PageTitle>
+<PageTitle>Create AI Deployment - Blazor AI Integration Sample</PageTitle>
 
 <h2><i class="bi bi-plus-lg"></i> Create AI Deployment</h2>
 <hr />
@@ -87,11 +87,6 @@
                     <div class="form-text">The connection this deployment belongs to.</div>
                 </div>
             }
-
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                Default deployment fallbacks are configured from <strong>Settings</strong>, not on individual deployments.
-            </div>
 
             @if (_isStandalone)
             {

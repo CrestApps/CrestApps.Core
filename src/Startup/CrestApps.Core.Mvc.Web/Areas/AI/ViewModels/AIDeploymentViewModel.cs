@@ -55,7 +55,6 @@ public sealed class AIDeploymentViewModel
         if (deployment.Properties != null)
         {
             model.Endpoint = deployment.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
-            model.ApiKey = deployment.Properties.TryGetValue("ApiKey", out var key) ? key?.ToString() : null;
             model.AuthenticationType = deployment.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
         }
 

@@ -1,11 +1,9 @@
-using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Services;
-using Microsoft.AspNetCore.Authorization;
+using CrestApps.Core.Startup.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CrestApps.Core.Mvc.Web.Controllers;
 
-[AllowAnonymous]
 public sealed class ArticlesController : Controller
 {
     public const string DisplayRouteName = "PublicArticleDisplay";

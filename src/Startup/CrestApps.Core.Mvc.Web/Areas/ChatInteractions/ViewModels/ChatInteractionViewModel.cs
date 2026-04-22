@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
@@ -51,6 +52,8 @@ public sealed class ChatInteractionViewModel
     public bool HasDocumentIndexConfiguration { get; set; }
 
     public string DocumentIndexProfileName { get; set; }
+
+    public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     // Data Sources
     public string DataSourceId { get; set; }

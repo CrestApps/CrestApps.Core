@@ -278,7 +278,7 @@
                                 </span>
                             </label>
                             <input type="number" class="form-control setting-input" id="setting-maxTokens"
-                                   min="1" value="@Model.MaxTokens" placeholder="4096" data-setting="maxTokens" />
+                                   min="1" value="@Model.MaxTokens" data-setting="maxTokens" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label parameter-label" for="setting-temperature">
@@ -475,6 +475,22 @@
                                 <i class="bi bi-question-circle"></i>
                             </span>
                         </label>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">
+                            Document retrieval mode
+                            <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Overrides the site default when this interaction searches uploaded document knowledge.">
+                                <i class="bi bi-question-circle"></i>
+                            </span>
+                        </label>
+                        <select class="form-select setting-input" id="setting-documentRetrievalMode" data-setting="documentRetrievalMode">
+                            <option value="">Use site default</option>
+                            @foreach (var mode in Enum.GetValues<CrestApps.Core.AI.Documents.Models.DocumentRetrievalMode>())
+                            {
+                                <option value="@mode" selected="@(Model.DocumentRetrievalMode == mode ? "selected" : null)">@mode</option>
+                            }
+                        </select>
                     </div>
 
                     <div class="mb-2">

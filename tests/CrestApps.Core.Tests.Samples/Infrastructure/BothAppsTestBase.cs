@@ -50,6 +50,9 @@ public abstract class BothAppsTestBase : IClassFixture<PlaywrightFixture>
     /// </summary>
     protected async Task<(IPage mvcPage, IPage blazorPage)> LoadBothAsync(string mvcPath, string blazorPath)
     {
+        await EnsureAppIsReachableOrSkipAsync(AppInstance.Mvc);
+        await EnsureAppIsReachableOrSkipAsync(AppInstance.Blazor);
+
         var mvcPage = await Fixture.CreatePageAsync();
         await LoginAsync(mvcPage, AppInstance.Mvc);
         await mvcPage.GotoAsync(TestConstants.MvcBaseUrl + mvcPath);
@@ -68,6 +71,8 @@ public abstract class BothAppsTestBase : IClassFixture<PlaywrightFixture>
     /// </summary>
     protected static async Task LoginAsync(IPage page, AppInstance app)
     {
+        await EnsureAppIsReachableOrSkipAsync(app);
+
         var baseUrl = app == AppInstance.Mvc ? TestConstants.MvcBaseUrl : TestConstants.BlazorBaseUrl;
         var loginPath = app == AppInstance.Mvc ? "/Account/Login" : "/account/login";
 
@@ -79,5 +84,17 @@ public abstract class BothAppsTestBase : IClassFixture<PlaywrightFixture>
 
         // Wait for navigation after login
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+    }
+
+    protected static async Task EnsureAppIsReachableOrSkipAsync(AppInstance app)
+    {
+        try
+        {
+            await PlaywrightFixture.AssertAppIsReachableAsync(app);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Assert.Skip(ex.Message);
+        }
     }
 }
