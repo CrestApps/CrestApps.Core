@@ -103,6 +103,8 @@ public sealed class AIProfileViewModel
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
     public List<PromptTemplateOptionItem> AvailablePromptTemplates { get; set; } = [];
 
+    public List<AIProfileTemplate> AvailableSystemPromptTemplates { get; set; } = [];
+
     // Documents
     public List<DocumentItem> AttachedDocuments { get; set; } = [];
     public int? DocumentTopN { get; set; }

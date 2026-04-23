@@ -1,9 +1,7 @@
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
-@using Microsoft.Extensions.Options
 @model AITemplateViewModel
-@inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @{
     ViewData["Title"] = "Create AI Template";
     const string maxTokensHelp = "The maximum number of tokens (roughly words or word fragments) the AI can generate in a single response. Lower values produce shorter responses and reduce costs. Higher values allow for more detailed answers.";
@@ -12,16 +10,12 @@
     const string frequencyPenaltyHelp = "Penalizes tokens based on how frequently they appear in the response so far. Higher values reduce repetition of the same words and phrases.";
     const string presencePenaltyHelp = "Penalizes tokens based on whether they have appeared at all. Higher values encourage the AI to introduce new topics and ideas rather than staying on the same subjects.";
     const string pastMessagesHelp = "The number of previous messages from the conversation to include as context. More messages provide better context but increase token usage and costs.";
-    var embeddableExtensionsAccept = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsAcceptValue();
-    var embeddableExtensionsDisplay = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsDisplayValue();
 }
-
-<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" />
 
 <h2><i class="bi bi-plus-lg"></i> Create AI Template</h2>
 <hr />
 
-<form asp-action="Create" method="post" enctype="multipart/form-data">
+<form asp-action="Create" method="post">
     <div class="row">
         <div class="col-md-8">
             <div class="mb-3">
@@ -51,6 +45,13 @@
                         <input asp-for="Category" class="form-control" placeholder="e.g., Customer Service" />
                     </div>
                 </div>
+            </div>
+            <div class="mb-3">
+                <div class="form-check form-switch">
+                    <input asp-for="IsListable" class="form-check-input" type="checkbox" />
+                    <label asp-for="IsListable" class="form-check-label">Listable</label>
+                </div>
+                <div class="form-text">Whether this template appears in listing UIs.</div>
             </div>
             <!-- Agent-only: Description -->
             <div class="mb-3 profile-type profile-type-agent@(Model.ProfileType != CrestApps.Core.AI.Models.AIProfileType.Agent ? " d-none" : "")">
@@ -216,10 +217,10 @@
                             </label>
                             @if (Model.AvailablePromptTemplates.Count > 0)
                             {
-                                <div class="dropdown mb-3">
-                                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="addPromptTemplateBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-plus"></i> Add prompt template
-                                    </button>
+                            <div class="dropdown mb-3">
+                                <button class="btn btn-outline-primary dropdown-toggle w-100 d-flex justify-content-center align-items-center gap-1" type="button" id="addPromptTemplateBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span aria-hidden="true">+</span> Add template
+                                </button>
                                     <div class="dropdown-menu p-2" id="promptTemplateDropdown" style="max-height:24rem;min-width:22rem;overflow-y:auto;">
                                         <div class="mb-2">
                                             <input type="search" class="form-control form-control-sm" id="promptTemplateSearch" placeholder="Search prompt templates..." />
@@ -586,28 +587,6 @@
                             </div>
                             <div class="form-text">Allow users to upload documents during chat sessions with profiles created from this template.</div>
                         </div>
-                        <div class="attached-documents-panel">
-                            <h6 class="mb-1"><i class="bi bi-paperclip"></i> Attach Documents</h6>
-                            <p class="text-muted small mb-3">Uploaded files become hidden knowledge for profiles created from this template after the template is applied. Supported knowledge formats: @embeddableExtensionsDisplay</p>
-                            <div id="pending-docs-list" class="mb-2"></div>
-                            <div class="document-drop-zone" id="template-doc-drop-zone">
-                                <input type="file" class="d-none" id="doc-add-input" name="Documents" multiple
-                                       accept="@embeddableExtensionsAccept" />
-                                <div class="document-drop-zone__body">
-                                    <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
-                                    <div>
-                                        <div class="document-drop-zone__title">Drag and drop files here</div>
-                                        <div class="text-muted small">or browse for documents to include with profiles created from this template</div>
-                                    </div>
-                                    <div class="document-drop-zone__actions">
-                                        <button type="button" class="btn btn-outline-primary" id="template-doc-browse" data-drop-zone-browse>
-                                            <i class="bi bi-folder2-open"></i> Browse files
-                                        </button>
-                                    </div>
-                                    <div class="form-text mb-0">Supported knowledge formats: @embeddableExtensionsDisplay</div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Data Processing & Metrics Tab -->
@@ -801,13 +780,6 @@
                     <div class="tab-pane fade" id="settings" role="tabpanel">
                         <div class="mb-3">
                             <div class="form-check form-switch">
-                                <input asp-for="IsListable" class="form-check-input" type="checkbox" />
-                                <label asp-for="IsListable" class="form-check-label">Listable</label>
-                            </div>
-                            <div class="form-text">Whether this template appears in listing UIs.</div>
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
                                 <input asp-for="IsRemovable" class="form-check-input" type="checkbox" />
                                 <label asp-for="IsRemovable" class="form-check-label">Removable</label>
                             </div>
@@ -835,7 +807,6 @@
 </form>
 
 @section Scripts {
-    <script src="~/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js" asp-append-version="true"></script>
     <script>initAutoGenerateTechnicalName('templateTitle', 'templateTechName');</script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -948,88 +919,6 @@
         document.querySelectorAll('input[name="SelectedToolNames"]').forEach(function (cb) { cb.checked = false; });
         });
         }
-
-        // --- Document file management ---
-        (function () {
-        var docAddInput = document.getElementById('doc-add-input');
-        var pendingDocsList = document.getElementById('pending-docs-list');
-        var pendingFiles = [];
-
-        initDocumentDropZone({
-        dropZone: '#template-doc-drop-zone',
-        fileInput: '#doc-add-input',
-        browseButton: '#template-doc-browse'
-        });
-
-        function syncPendingFiles() {
-        if (!docAddInput) {
-        return;
-        }
-
-        var dataTransfer = new DataTransfer();
-        pendingFiles.forEach(function (file) { dataTransfer.items.add(file); });
-        docAddInput.files = dataTransfer.files;
-        }
-
-        function renderPendingFiles() {
-        if (!pendingDocsList) {
-        return;
-        }
-
-        pendingDocsList.innerHTML = '';
-
-        pendingFiles.forEach(function (file, index) {
-        var row = document.createElement('div');
-        row.className = 'pending-doc-row';
-        row.dataset.index = index;
-        row.innerHTML = '<span class="attached-document-icon"><i class="bi bi-file-earmark-plus"></i></span>' +
-        '<span class="flex-grow-1">' + escapeHtml(file.name) + ' <small class="text-muted">(' + formatSize(file.size) + ')</small> <span class="badge bg-info">New</span></span>' +
-        '<button type="button" class="btn btn-sm btn-outline-danger remove-pending-doc-btn" title="Remove"><i class="bi bi-trash"></i></button>';
-        pendingDocsList.appendChild(row);
-        });
-        }
-
-        if (docAddInput) {
-        docAddInput.addEventListener('change', function () {
-        var files = this.files;
-        if (!files || files.length === 0) return;
-
-        for (var i = 0; i < files.length; i++) {
-        pendingFiles.push(files[i]);
-        }
-
-        syncPendingFiles();
-        renderPendingFiles();
-        });
-        }
-
-        document.addEventListener('click', function (e) {
-        var removeBtn = e.target.closest('.remove-pending-doc-btn');
-        if (!removeBtn) {
-        return;
-        }
-
-        var row = removeBtn.closest('.pending-doc-row');
-        var idx = parseInt(row.dataset.index, 10);
-        if (!Number.isNaN(idx)) {
-        pendingFiles.splice(idx, 1);
-        syncPendingFiles();
-        renderPendingFiles();
-        }
-        });
-
-        function escapeHtml(text) {
-        var div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-        }
-
-        function formatSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / 1048576).toFixed(1) + ' MB';
-        }
-        })();
 
         // --- Data Extraction conditional visibility ---
         var enableDataExtractionCheck = document.getElementById('enableDataExtractionCheck');

@@ -114,37 +114,43 @@
                                     <i class="bi bi-question-circle" aria-hidden="true"></i>
                                 </span>
                             </label>
-                            <div class="dropdown mb-3">
-                                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="addPromptTemplateBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="bi bi-plus-lg"></i> Add prompt template
-                                </button>
-                                <div class="dropdown-menu p-2" id="promptTemplateDropdown" style="max-height:24rem;min-width:22rem;overflow-y:auto;">
-                                    <div class="mb-2">
-                                        <input type="search" class="form-control form-control-sm" id="promptTemplateSearch" placeholder="Search prompt templates..." />
-                                    </div>
-                                    <div class="prompt-template-menu-items">
-                                        @foreach (var group in Model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
-                                        {
-                                            <div class="dropdown-header px-2">@group.Key</div>
-                                            @foreach (var option in group)
-                                            {
-                                                <button type="button"
-                                                        class="dropdown-item prompt-template-add-btn text-wrap"
-                                                        data-template-id="@option.TemplateId"
-                                                        data-template-title="@option.Title"
-                                                        data-template-description="@option.Description">
-                                                    <span class="d-block fw-semibold">@option.Title</span>
-                                                    @if (!string.IsNullOrWhiteSpace(option.Description))
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                @if (Model.AvailablePromptTemplates.Count > 0)
+                                {
+                                    <div class="dropdown w-100">
+                                        <button class="btn btn-outline-primary dropdown-toggle w-100 d-flex justify-content-center align-items-center gap-1" type="button" id="addPromptTemplateBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span aria-hidden="true">+</span> Add template
+                                        </button>
+                                        <div class="dropdown-menu p-2" id="promptTemplateDropdown" style="max-height:24rem;min-width:22rem;overflow-y:auto;">
+                                            <div class="mb-2">
+                                                <input type="search" class="form-control form-control-sm" id="promptTemplateSearch" placeholder="Search prompt templates..." />
+                                            </div>
+                                            <div class="prompt-template-menu-items">
+                                                @foreach (var group in Model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
+                                                {
+                                                    <div class="dropdown-header px-2">@group.Key</div>
+                                                    @foreach (var option in group)
                                                     {
-                                                        <small class="text-muted">@option.Description</small>
+                                                        <button type="button"
+                                                                class="dropdown-item prompt-template-add-btn text-wrap"
+                                                                data-template-id="@option.TemplateId"
+                                                                data-template-title="@option.Title"
+                                                                data-template-description="@option.Description">
+                                                            <span class="d-block fw-semibold">@option.Title</span>
+                                                            @if (!string.IsNullOrWhiteSpace(option.Description))
+                                                            {
+                                                                <small class="text-muted">@option.Description</small>
+                                                            }
+                                                        </button>
                                                     }
-                                                </button>
-                                            }
-                                        }
+                                                }
+                                            </div>
+                                            <div class="text-muted small d-none px-2 py-1" id="promptTemplateNoResults">No prompt templates match your search.</div>
+                                        </div>
                                     </div>
-                                    <div class="text-muted small d-none px-2 py-1" id="promptTemplateNoResults">No prompt templates match your search.</div>
-                                </div>
+                                }
                             </div>
+                            <div class="form-text mb-3">Use prompt templates to prepend reusable rendered content before the custom system instructions.</div>
 
                             <div id="promptTemplatesContainer">
                                 @for (var i = 0; i < Model.PromptTemplates.Count; i++)
@@ -617,6 +623,36 @@
                     if (emptyState) emptyState.classList.toggle('d-none', container.querySelectorAll('.prompt-template-card').length > 0);
                 }
 
+                function filterDropdownItems(input, itemSelector, headerSelector, emptyIndicator) {
+                    if (!input) {
+                        return;
+                    }
+
+                    input.addEventListener('input', function () {
+                        var query = this.value.toLowerCase();
+                        var items = document.querySelectorAll(itemSelector);
+                        var headers = headerSelector ? document.querySelectorAll(headerSelector) : [];
+                        var visibleCount = 0;
+
+                        items.forEach(function (item) {
+                            var text = (item.textContent || '').toLowerCase();
+                            var visible = !query || text.indexOf(query) >= 0;
+                            item.style.display = visible ? '' : 'none';
+                            if (visible) {
+                                visibleCount++;
+                            }
+                        });
+
+                        headers.forEach(function (header) {
+                            header.style.display = query ? 'none' : '';
+                        });
+
+                        if (emptyIndicator) {
+                            emptyIndicator.classList.toggle('d-none', visibleCount > 0);
+                        }
+                    });
+                }
+
                 function reindexCards() {
                     container.querySelectorAll('.prompt-template-card').forEach(function (card, index) {
                         var idInput = card.querySelector('.prompt-template-id-input');
@@ -650,23 +686,7 @@
                     }
                 });
 
-                // Search filter
-                if (searchInput) {
-                    searchInput.addEventListener('input', function () {
-                        var query = this.value.toLowerCase();
-                        var items = document.querySelectorAll('.prompt-template-add-btn');
-                        var headers = document.querySelectorAll('.prompt-template-menu-items .dropdown-header');
-                        var visibleCount = 0;
-                        items.forEach(function (item) {
-                            var text = (item.textContent || '').toLowerCase();
-                            var visible = !query || text.indexOf(query) >= 0;
-                            item.style.display = visible ? '' : 'none';
-                            if (visible) visibleCount++;
-                        });
-                        headers.forEach(function (h) { h.style.display = query ? 'none' : ''; });
-                        if (noResults) noResults.classList.toggle('d-none', visibleCount > 0);
-                    });
-                }
+                filterDropdownItems(searchInput, '.prompt-template-add-btn', '.prompt-template-menu-items .dropdown-header', noResults);
             })();
         });
     </script>

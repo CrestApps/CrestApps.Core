@@ -7,6 +7,7 @@
 @using CrestApps.Core.AI.Claude.Services
 @using CrestApps.Core.AI.Copilot.Models
 @using CrestApps.Core.AI.Copilot.Services
+@using CrestApps.Core.Blazor.Web.Areas.AI.Services
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.AI.DataSources
 @using CrestApps.Core.AI.Documents.Models
@@ -21,6 +22,7 @@
 @using CrestApps.Core.Templates.Services
 @using Microsoft.Extensions.Options
 @inject ICatalog<AIProfileTemplate> Catalog
+@inject IAIProfileTemplateManager TemplateManager
 @inject IAIProfileManager ProfileManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2ACatalog
@@ -308,8 +310,8 @@
                             <div class="mb-3">
                                 <label class="form-label">Prompt templates</label>
                                 <div class="mb-2">
-                                    <InputSelect class="form-select form-select-sm" @bind-Value="_selectedPromptTemplateId">
-                                        <option value="">Select a prompt template to add...</option>
+                                    <InputSelect class="form-select" @bind-Value="_selectedPromptTemplateId" @bind-Value:after="AddPromptTemplate">
+                                        <option value="">+ Add template</option>
                                         @foreach (var group in _model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
                                         {
                                             <optgroup label="@group.Key">
@@ -321,9 +323,6 @@
                                         }
                                     </InputSelect>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline-primary mb-3" disabled="@string.IsNullOrEmpty(_selectedPromptTemplateId)" @onclick="AddPromptTemplate">
-                                    <i class="bi bi-plus"></i> Add
-                                </button>
 
                                 @for (var i = 0; i < _model.PromptTemplates.Count; i++)
                                 {
@@ -429,7 +428,14 @@
                             <div class="col-md-6"><div class="mb-3"><label class="form-label">Strictness</label><InputNumber class="form-control" @bind-Value="_model.DataSourceStrictness" /></div></div>
                             <div class="col-md-6"><div class="mb-3"><label class="form-label">Retrieved documents</label><InputNumber class="form-control" @bind-Value="_model.DataSourceTopNDocuments" /></div></div>
                         </div>
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionDocuments" /><label class="form-check-label">Allow session document uploads</label></div></div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionDocuments" />
+                                <label class="form-check-label">Allow session document uploads</label>
+                            </div>
+                            <div class="form-text">Allow users to upload documents during chat sessions with profiles created from this template.</div>
+                        </div>
+
                     </div>
 
                     <!-- Data Processing & Metrics -->
@@ -556,6 +562,7 @@
         };
 
         _model.ApplyTo(template);
+
         await Catalog.CreateAsync(template);
         await StoreCommitter.CommitAsync();
 
@@ -645,6 +652,9 @@
 
         var dataSources = await DataSourceStore.GetAllAsync();
         _model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new KeyValuePair<string, string>(ds.DisplayText, ds.ItemId)).ToList();
+        _model.AvailableSystemPromptTemplates = (await TemplateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var docSettings = DocOpts.Value;
         _model.DocumentIndexProfileName = docSettings.IndexProfileName;

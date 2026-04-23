@@ -6,9 +6,9 @@
 @using CrestApps.Core.AI.Claude.Services
 @using CrestApps.Core.AI.Copilot.Models
 @using CrestApps.Core.AI.Copilot.Services
+@using CrestApps.Core.Blazor.Web.Areas.AI.Services
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.AI.DataSources
-@using CrestApps.Core.AI.Documents
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Mcp.Models
 @using CrestApps.Core.AI.Models
@@ -21,12 +21,12 @@
 @using CrestApps.Core.Templates.Services
 @using Microsoft.Extensions.Options
 @inject ICatalog<AIProfileTemplate> Catalog
+@inject IAIProfileTemplateManager TemplateManager
 @inject IAIProfileManager ProfileManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2ACatalog
 @inject ICatalog<McpConnection> McpCatalog
 @inject IAIDataSourceStore DataSourceStore
-@inject IAIDocumentStore DocumentStore
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject ITemplateService TemplateService
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
@@ -309,8 +309,8 @@
                             <div class="mb-3">
                                 <label class="form-label">Prompt templates</label>
                                 <div class="mb-2">
-                                    <InputSelect class="form-select form-select-sm" @bind-Value="_selectedPromptTemplateId">
-                                        <option value="">Select a prompt template to add...</option>
+                                    <InputSelect class="form-select" @bind-Value="_selectedPromptTemplateId" @bind-Value:after="AddPromptTemplate">
+                                        <option value="">+ Add template</option>
                                         @foreach (var group in _model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
                                         {
                                             <optgroup label="@group.Key">
@@ -322,9 +322,6 @@
                                         }
                                     </InputSelect>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline-primary mb-3" disabled="@string.IsNullOrEmpty(_selectedPromptTemplateId)" @onclick="AddPromptTemplate">
-                                    <i class="bi bi-plus"></i> Add
-                                </button>
 
                                 @for (var i = 0; i < _model.PromptTemplates.Count; i++)
                                 {
@@ -431,24 +428,14 @@
                             <div class="col-md-6"><div class="mb-3"><label class="form-label">Retrieved documents</label><InputNumber class="form-control" @bind-Value="_model.DataSourceTopNDocuments" /></div></div>
                         </div>
 
-                        <!-- Existing Documents -->
-                        @if (_model.AttachedDocuments.Count > 0)
-                        {
-                            <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-file-earmark-text"></i> Attached Documents</h6>
-                            <ul class="list-group mb-3">
-                                @foreach (var doc in _model.AttachedDocuments)
-                                {
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>@doc.FileName <small class="text-muted">(@doc.ContentType)</small></span>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDocument(doc)">
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    </li>
-                                }
-                            </ul>
-                        }
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionDocuments" />
+                                <label class="form-check-label">Allow session document uploads</label>
+                            </div>
+                            <div class="form-text">Allow users to upload documents during chat sessions with profiles created from this template.</div>
+                        </div>
 
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionDocuments" /><label class="form-check-label">Allow session document uploads</label></div></div>
                     </div>
 
                     <!-- Data Processing & Metrics -->
@@ -548,7 +535,6 @@
     private string _sourceError;
     private string _errorMessage;
     private string _selectedPromptTemplateId;
-    private List<string> _documentsToRemove = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -561,7 +547,6 @@
 
         _model = AITemplateViewModel.FromTemplate(_existing);
         await PopulateDropdownsAsync();
-        await PopulateAttachedDocumentsAsync();
     }
 
     private async Task HandleSubmitAsync()
@@ -578,16 +563,6 @@
         _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
 
         _model.ApplyTo(_existing);
-
-        foreach (var docId in _documentsToRemove)
-        {
-            var doc = await DocumentStore.FindByIdAsync(docId);
-
-            if (doc != null)
-            {
-                await DocumentStore.DeleteAsync(doc);
-            }
-        }
 
         await Catalog.UpdateAsync(_existing);
         await StoreCommitter.CommitAsync();
@@ -613,33 +588,6 @@
         if (string.IsNullOrEmpty(_selectedPromptTemplateId)) return;
         _model.PromptTemplates.Add(new PromptTemplateSelectionItem { TemplateId = _selectedPromptTemplateId });
         _selectedPromptTemplateId = null;
-    }
-
-    private void RemoveDocument(DocumentItem doc)
-    {
-        if (!string.IsNullOrEmpty(doc.DocumentId))
-        {
-            _documentsToRemove.Add(doc.DocumentId);
-        }
-
-        _model.AttachedDocuments.Remove(doc);
-    }
-
-    private async Task PopulateAttachedDocumentsAsync()
-    {
-        if (_existing == null || string.IsNullOrEmpty(_existing.ItemId))
-        {
-            return;
-        }
-
-        var storedDocuments = await DocumentStore.GetDocumentsAsync(_existing.ItemId, AIReferenceTypes.Document.ProfileTemplate);
-        _model.AttachedDocuments = storedDocuments.Select(d => new DocumentItem
-        {
-            DocumentId = d.ItemId,
-            FileName = d.FileName,
-            ContentType = d.ContentType,
-            FileSize = d.FileSize,
-        }).ToList();
     }
 
     private async Task PopulateDropdownsAsync()
@@ -681,6 +629,9 @@
 
         var dataSources = await DataSourceStore.GetAllAsync();
         _model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new KeyValuePair<string, string>(ds.DisplayText, ds.ItemId)).ToList();
+        _model.AvailableSystemPromptTemplates = (await TemplateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var docSettings = DocOpts.Value;
         _model.DocumentIndexProfileName = docSettings.IndexProfileName;

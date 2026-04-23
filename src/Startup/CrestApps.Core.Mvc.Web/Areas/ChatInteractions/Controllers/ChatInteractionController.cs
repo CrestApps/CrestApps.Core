@@ -45,6 +45,7 @@ public sealed class ChatInteractionController : Controller
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly ICatalog<AIDataSource> _dataSourceCatalog;
     private readonly IAIProfileManager _profileManager;
+    private readonly IAIProfileTemplateManager _templateManager;
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
@@ -73,6 +74,7 @@ public sealed class ChatInteractionController : Controller
         ICatalog<McpConnection> mcpConnectionCatalog,
         ICatalog<AIDataSource> dataSourceCatalog,
         IAIProfileManager profileManager,
+        IAIProfileTemplateManager templateManager,
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
@@ -99,6 +101,7 @@ public sealed class ChatInteractionController : Controller
         _mcpConnectionCatalog = mcpConnectionCatalog;
         _dataSourceCatalog = dataSourceCatalog;
         _profileManager = profileManager;
+        _templateManager = templateManager;
         _documentStore = documentStore;
         _chunkStore = chunkStore;
         _fileStore = fileStore;
@@ -393,6 +396,9 @@ public sealed class ChatInteractionController : Controller
                 }).ToList(),
             })
         .ToList();
+        model.AvailableSystemPromptTemplates = (await _templateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // Document settings
         var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();
@@ -524,6 +530,9 @@ public sealed class ChatInteractionController : Controller
                 }).ToList(),
             })
         .ToList();
+        model.AvailableSystemPromptTemplates = (await _templateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // Document settings
         var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();

@@ -25,6 +25,7 @@
 @inject ICatalog<McpConnection> McpConnectionCatalog
 @inject ICatalog<AIDataSource> DataSourceCatalog
 @inject IAIProfileManager ProfileManager
+@inject IAIProfileTemplateManager TemplateManager
 @inject ITemplateService TemplateService
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -93,27 +94,54 @@
                     @if (_model.AvailablePromptTemplates.Count > 0)
                     {
                         <div class="mb-3">
-                            <label class="form-label">Prompt templates</label>
-                            <div class="mb-2">
-                                <InputSelect class="form-select form-select-sm" @bind-Value="_selectedTemplateId">
-                                    <option value="">Add a prompt template...</option>
-                                    @foreach (var group in _model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
-                                    {
-                                        <optgroup label="@group.Key">
-                                            @foreach (var t in group)
+                            <label class="form-label">
+                                Prompt templates
+                                <span class="text-muted" data-bs-toggle="tooltip" title="Add one or more reusable prompt templates that will be rendered in order before the custom system instructions.">
+                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                </span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                @if (_model.AvailablePromptTemplates.Count > 0)
+                                {
+                                    <div class="dropdown w-100">
+                                        <button class="btn btn-outline-primary dropdown-toggle w-100 d-flex justify-content-center align-items-center gap-1" type="button" id="addPromptTemplateBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span aria-hidden="true">+</span> Add template
+                                        </button>
+                                        <div class="dropdown-menu p-2" style="max-height:24rem;min-width:22rem;overflow-y:auto;">
+                                            <div class="mb-2" @onclick:stopPropagation="true">
+                                                <input type="search"
+                                                       class="form-control form-control-sm"
+                                                       @bind="_promptTemplateSearchTerm"
+                                                       @bind:event="oninput"
+                                                       placeholder="Search prompt templates..." />
+                                            </div>
+                                            <div class="prompt-template-menu-items">
+                                                @foreach (var group in FilteredPromptTemplateGroups)
+                                                {
+                                                    <div class="dropdown-header px-2">@group.Key</div>
+                                                    @foreach (var option in group)
+                                                    {
+                                                        <button type="button"
+                                                                class="dropdown-item text-wrap"
+                                                                @onclick="() => AddPromptTemplate(option.TemplateId)">
+                                                            <span class="d-block fw-semibold">@option.Title</span>
+                                                            @if (!string.IsNullOrWhiteSpace(option.Description))
+                                                            {
+                                                                <small class="text-muted">@option.Description</small>
+                                                            }
+                                                        </button>
+                                                    }
+                                                }
+                                            </div>
+                                            @if (!HasFilteredPromptTemplates)
                                             {
-                                                <option value="@t.TemplateId">@t.Title</option>
+                                                <div class="text-muted small px-2 py-1">No prompt templates match your search.</div>
                                             }
-                                        </optgroup>
-                                    }
-                                </InputSelect>
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                            @if (!string.IsNullOrEmpty(_selectedTemplateId))
-                            {
-                                <button type="button" class="btn btn-sm btn-outline-primary mb-2" @onclick="AddPromptTemplate">
-                                    <i class="bi bi-plus-lg"></i> Add prompt template
-                                </button>
-                            }
+                            <div class="form-text mb-3">Use prompt templates to prepend reusable rendered content before the custom system instructions.</div>
                             @if (_model.PromptTemplates.Count > 0)
                             {
                                 @for (var i = 0; i < _model.PromptTemplates.Count; i++)
@@ -121,29 +149,54 @@
                                     var index = i;
                                     var selection = _model.PromptTemplates[index];
                                     var option = _model.AvailablePromptTemplates.FirstOrDefault(t => string.Equals(t.TemplateId, selection.TemplateId, StringComparison.OrdinalIgnoreCase));
+                                    var title = option?.Title ?? selection.TemplateId ?? "Prompt template";
+                                    var category = option?.Category ?? "Unavailable";
+                                    var description = option?.Description;
+                                    var parameters = option?.Parameters ?? [];
+                                    var collapseId = $"promptCollapse_{index}";
 
-                                    <div class="card mb-1">
+                                    <div class="card mb-1" data-template-id="@selection.TemplateId">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
-                                            <span class="fw-semibold">@(option?.Title ?? selection.TemplateId)</span>
+                                            <button type="button" class="btn btn-sm btn-link text-start text-decoration-none flex-grow-1 px-0" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false">
+                                                <i class="bi bi-chevron-right me-1"></i>
+                                                <span class="fw-semibold">@title</span>
+                                            </button>
                                             <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PromptTemplates.RemoveAt(index)">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
-                                        <div class="card-body">
-                                            @if (option?.Parameters?.Count > 0)
-                                            {
-                                                <small class="text-muted d-block mb-1">Expected parameters:</small>
-                                                <ul class="mb-2 small text-muted">
-                                                    @foreach (var p in option.Parameters)
+                                        <div id="@collapseId" class="collapse">
+                                            <div class="card-body">
+                                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                                    <span class="badge text-bg-secondary">@category</span>
+                                                    @if (option == null)
                                                     {
-                                                        <li><strong>@p.Name</strong>@(string.IsNullOrWhiteSpace(p.Description) ? "" : $": {p.Description}")</li>
+                                                        <span class="badge text-bg-warning">Unavailable</span>
                                                     }
-                                                </ul>
-                                            }
-                                            <label class="form-label">Template parameters</label>
-                                            <InputTextArea class="form-control" rows="3" @bind-Value="selection.PromptParameters"
-                                                           placeholder='e.g., {"key1": "value1", "key2": "value2"}' />
-                                            <span class="form-text">Optional JSON key-value pairs to pass as template arguments.</span>
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(description))
+                                                {
+                                                    <div class="text-muted small mb-3">@description</div>
+                                                }
+                                                @if (parameters.Count > 0)
+                                                {
+                                                    <div class="mb-3">
+                                                        <small class="text-muted d-block mb-1">Expected parameters:</small>
+                                                        <ul class="mb-0 small text-muted">
+                                                            @foreach (var p in parameters)
+                                                            {
+                                                                <li><strong>@p.Name</strong>@(string.IsNullOrWhiteSpace(p.Description) ? "" : $": {p.Description}")</li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                }
+                                                <div class="mb-1">
+                                                    <label class="form-label">Template parameters</label>
+                                                    <InputTextArea class="form-control" rows="3" @bind-Value="selection.PromptParameters"
+                                                                   placeholder='e.g., {"key1": "value1", "key2": "value2"}' />
+                                                    <span class="form-text">Optional JSON key-value pairs to pass as template arguments.</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 }
@@ -378,7 +431,7 @@
 @code {
     private ChatInteractionViewModel _model = new();
     private string _activeTab = "settings";
-    private string _selectedTemplateId;
+    private string _promptTemplateSearchTerm;
     private List<IBrowserFile> _selectedDocuments = [];
 
     [CascadingParameter]
@@ -457,7 +510,6 @@
                 }).ToList(),
             })
             .ToList();
-
         // Data Sources
         var dataSources = await DataSourceCatalog.GetAllAsync();
         _model.DataSources = dataSources
@@ -475,20 +527,30 @@
         }
     }
 
-    private void AddPromptTemplate()
+    private IEnumerable<IGrouping<string, PromptTemplateOptionItem>> FilteredPromptTemplateGroups =>
+        _model.AvailablePromptTemplates
+            .Where(template => string.IsNullOrWhiteSpace(_promptTemplateSearchTerm) ||
+                template.Title.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(template.Description) && template.Description.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(template.Category) && template.Category.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(template => template.Category)
+            .OrderBy(group => group.Key);
+
+    private bool HasFilteredPromptTemplates => FilteredPromptTemplateGroups.Any();
+
+    private void AddPromptTemplate(string templateId)
     {
-        if (string.IsNullOrEmpty(_selectedTemplateId))
+        if (string.IsNullOrWhiteSpace(templateId))
         {
             return;
         }
 
-        if (_model.PromptTemplates.Any(t => string.Equals(t.TemplateId, _selectedTemplateId, StringComparison.OrdinalIgnoreCase)))
+        if (_model.PromptTemplates.Any(t => string.Equals(t.TemplateId, templateId, StringComparison.OrdinalIgnoreCase)))
         {
             return;
         }
 
-        _model.PromptTemplates.Add(new PromptTemplateSelectionItem { TemplateId = _selectedTemplateId });
-        _selectedTemplateId = null;
+        _model.PromptTemplates.Add(new PromptTemplateSelectionItem { TemplateId = templateId });
     }
 
     private void SelectAllTools()

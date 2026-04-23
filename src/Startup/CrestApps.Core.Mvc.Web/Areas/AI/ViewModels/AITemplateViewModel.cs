@@ -90,6 +90,8 @@ public sealed class AITemplateViewModel
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
     public List<PromptTemplateOptionItem> AvailablePromptTemplates { get; set; } = [];
 
+    public List<AIProfileTemplate> AvailableSystemPromptTemplates { get; set; } = [];
+
     // Documents.
     public bool AllowSessionDocuments { get; set; }
 
@@ -97,7 +99,6 @@ public sealed class AITemplateViewModel
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
     public bool HasDocumentIndexConfiguration { get; set; }
     public string DocumentIndexProfileName { get; set; }
-    public List<DocumentItem> AttachedDocuments { get; set; } = [];
 
     // Data Extraction.
     public bool EnableDataExtraction { get; set; }

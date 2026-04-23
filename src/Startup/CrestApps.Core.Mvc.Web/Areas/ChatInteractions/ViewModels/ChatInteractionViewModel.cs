@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
@@ -48,6 +49,8 @@ public sealed class ChatInteractionViewModel
     // Prompt Templates
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
     public List<PromptTemplateOptionItem> AvailablePromptTemplates { get; set; } = [];
+
+    public List<AIProfileTemplate> AvailableSystemPromptTemplates { get; set; } = [];
 
     public bool HasDocumentIndexConfiguration { get; set; }
 

@@ -452,8 +452,8 @@
                         <div class="mb-3">
                             <label class="form-label">Prompt templates</label>
                             <div class="mb-2">
-                                <InputSelect class="form-select form-select-sm" @bind-Value="_selectedPromptTemplateId">
-                                    <option value="">Select a prompt template to add...</option>
+                                <InputSelect class="form-select" @bind-Value="_selectedPromptTemplateId" @bind-Value:after="AddPromptTemplate">
+                                    <option value="">+ Add template</option>
                                     @foreach (var group in _model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
                                     {
                                         <optgroup label="@group.Key">
@@ -465,9 +465,6 @@
                                     }
                                 </InputSelect>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary mb-3" disabled="@string.IsNullOrEmpty(_selectedPromptTemplateId)" @onclick="AddPromptTemplate">
-                                <i class="bi bi-plus"></i> Add prompt template
-                            </button>
 
                             @if (_model.PromptTemplates.Count > 0)
                             {
@@ -1314,6 +1311,9 @@
         _model.AvailableProfileTemplates = listableTemplates
             .Where(t => string.Equals(t.Source, AITemplateSources.Profile, StringComparison.OrdinalIgnoreCase))
             .Select(t => new KeyValuePair<string, string>(t.DisplayText ?? t.Name, t.ItemId))
+            .ToList();
+        _model.AvailableSystemPromptTemplates = (await TemplateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var toolOptions = ToolOpts.Value;

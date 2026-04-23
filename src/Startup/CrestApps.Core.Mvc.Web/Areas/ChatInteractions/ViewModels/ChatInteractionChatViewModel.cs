@@ -56,6 +56,8 @@ internal sealed class ChatInteractionChatViewModel
 
     public IEnumerable<PromptTemplateOptionItem> AvailablePromptTemplates { get; set; } = [];
 
+    public List<AIProfileTemplate> AvailableSystemPromptTemplates { get; set; } = [];
+
     public bool HasDocumentIndexConfiguration { get; set; }
 
     public string DocumentIndexProfileName { get; set; }

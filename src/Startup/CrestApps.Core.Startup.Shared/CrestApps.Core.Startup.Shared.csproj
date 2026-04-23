@@ -8,6 +8,7 @@
     <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI\CrestApps.Core.AI.csproj" />
     <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI.Chat\CrestApps.Core.AI.Chat.csproj" />
     <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI.Documents\CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="..\..\Primitives\CrestApps.Core.Templates\CrestApps.Core.Templates.csproj" />
     <ProjectReference Include="..\..\Utilities\CrestApps.Core.Support\CrestApps.Core.Support.csproj" />
   </ItemGroup>
 

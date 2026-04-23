@@ -6,7 +6,6 @@ using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
@@ -39,8 +38,7 @@ public sealed class AITemplateController : Controller
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IAIProfileManager _profileManager;
-    private readonly IAIDocumentStore _documentStore;
-    private readonly AIProfileTemplateDocumentService _templateDocumentService;
+    private readonly IAIProfileTemplateManager _templateManager;
     private readonly InteractionDocumentOptions _interactionDocumentOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
@@ -50,7 +48,7 @@ public sealed class AITemplateController : Controller
     private readonly CopilotOptions _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-    public AITemplateController(ICatalog<AIProfileTemplate> catalog, ICatalog<AIDeployment> deploymentCatalog, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDataSourceStore dataSourceStore, IAIProfileManager profileManager, IAIDocumentStore documentStore, AIProfileTemplateDocumentService templateDocumentService, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptions<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions)
+    public AITemplateController(ICatalog<AIProfileTemplate> catalog, ICatalog<AIDeployment> deploymentCatalog, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDataSourceStore dataSourceStore, IAIProfileManager profileManager, IAIProfileTemplateManager templateManager, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptions<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -58,8 +56,7 @@ public sealed class AITemplateController : Controller
         _mcpConnectionCatalog = mcpConnectionCatalog;
         _dataSourceStore = dataSourceStore;
         _profileManager = profileManager;
-        _documentStore = documentStore;
-        _templateDocumentService = templateDocumentService;
+        _templateManager = templateManager;
         _interactionDocumentOptions = interactionDocumentOptions.Value;
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;
@@ -86,7 +83,7 @@ public sealed class AITemplateController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(AITemplateViewModel model, List<IFormFile> Documents)
+    public async Task<IActionResult> Create(AITemplateViewModel model)
     {
         if (string.IsNullOrWhiteSpace(model.Name))
         {
@@ -113,11 +110,6 @@ public sealed class AITemplateController : Controller
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.ApplyTo(template);
-        if (Documents is { Count: > 0 })
-        {
-            await _templateDocumentService.UploadDocumentsAsync(template, Documents);
-        }
-
         await _catalog.CreateAsync(template);
         return RedirectToAction(nameof(Index));
     }
@@ -132,14 +124,13 @@ public sealed class AITemplateController : Controller
 
         var model = AITemplateViewModel.FromTemplate(template);
         await NormalizeDeploymentSelectorsAsync(model);
-        await PopulateAttachedDocumentsAsync(model);
         await PopulateDropdownsAsync(model);
         return View(model);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(AITemplateViewModel model, List<IFormFile> Documents, string[] RemovedDocumentIds)
+    public async Task<IActionResult> Edit(AITemplateViewModel model)
     {
         if (string.IsNullOrWhiteSpace(model.Name))
         {
@@ -148,7 +139,6 @@ public sealed class AITemplateController : Controller
 
         if (!ModelState.IsValid)
         {
-            await PopulateAttachedDocumentsAsync(model);
             await PopulateDropdownsAsync(model);
             return View(model);
         }
@@ -163,16 +153,6 @@ public sealed class AITemplateController : Controller
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.ApplyTo(existing);
-        if (RemovedDocumentIds is { Length: > 0 })
-        {
-            await _templateDocumentService.RemoveDocumentsAsync(existing, RemovedDocumentIds);
-        }
-
-        if (Documents is { Count: > 0 })
-        {
-            await _templateDocumentService.UploadDocumentsAsync(existing, Documents);
-        }
-
         await _catalog.UpdateAsync(existing);
         return RedirectToAction(nameof(Index));
     }
@@ -215,6 +195,9 @@ public sealed class AITemplateController : Controller
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = allAgents.Where(a => !string.IsNullOrEmpty(a.Description)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
+        model.AvailableSystemPromptTemplates = (await _templateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var promptTemplates = await _aiTemplateService.ListAsync();
         model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable).OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase).Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description, }).ToList(), }).ToList();
         var documentSettings = _interactionDocumentOptions;
@@ -231,34 +214,6 @@ public sealed class AITemplateController : Controller
 
         var dataSources = await _dataSourceStore.GetAllAsync();
         model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId)).ToList();
-    }
-
-    private async Task PopulateAttachedDocumentsAsync(AITemplateViewModel model)
-    {
-        if (string.IsNullOrWhiteSpace(model.ItemId))
-        {
-            return;
-        }
-
-        var storedDocuments = await _documentStore.GetDocumentsAsync(model.ItemId, AIReferenceTypes.Document.ProfileTemplate);
-        var documentsById = (model.AttachedDocuments ?? []).Where(d => !string.IsNullOrWhiteSpace(d.DocumentId)).ToDictionary(d => d.DocumentId, StringComparer.OrdinalIgnoreCase);
-        foreach (var document in storedDocuments)
-        {
-            if (string.IsNullOrWhiteSpace(document.ItemId))
-            {
-                continue;
-            }
-
-            documentsById[document.ItemId] = new DocumentItem
-            {
-                DocumentId = document.ItemId,
-                FileName = document.FileName,
-                ContentType = document.ContentType,
-                FileSize = document.FileSize,
-            };
-        }
-
-        model.AttachedDocuments = documentsById.Values.OrderBy(d => d.FileName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)

@@ -226,7 +226,9 @@ builder.Services
 // stay together and are easy to remove independently.
 // =============================================================================
 // Add Articles support to show document support example.
-builder.Services.AddSharedArticleServices();
+builder.Services
+    .AddSharedArticleServices()
+    .AddSharedTemplateProviders();
 builder.Services.AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles);
 builder.Services.AddScoped<MvcCitationReferenceCollector>();
 builder.Services.AddScoped<CompositeAIReferenceLinkResolver>();

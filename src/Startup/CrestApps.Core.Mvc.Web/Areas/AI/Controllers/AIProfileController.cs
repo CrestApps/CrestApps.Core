@@ -258,6 +258,9 @@ public sealed class AIProfileController : Controller
         var listableTemplates = await _templateManager.GetListableAsync();
         model.Templates = templates.Select(t => new SelectListItem(t.DisplayText ?? t.Name, t.ItemId)).ToList();
         model.AvailableProfileTemplates = listableTemplates.Where(t => string.Equals(t.Source, AITemplateSources.Profile, StringComparison.OrdinalIgnoreCase)).Select(t => new SelectListItem(t.DisplayText ?? t.Name, t.ItemId)).ToList();
+        model.AvailableSystemPromptTemplates = (await _templateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();

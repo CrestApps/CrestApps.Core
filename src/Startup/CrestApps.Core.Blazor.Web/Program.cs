@@ -122,11 +122,12 @@ builder.Services.AddHttpContextAccessor();
 // =============================================================================
 // 5. AUTHENTICATION & AUTHORIZATION
 // =============================================================================
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
-{
-    options.LoginPath = "/account/login";
-    options.AccessDeniedPath = "/account/access-denied";
-});
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/account/login";
+        options.AccessDeniedPath = "/account/access-denied";
+    });
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
 builder.Services.AddCascadingAuthenticationState();
@@ -191,7 +192,9 @@ builder.Services
 
 // Articles support — same as MVC.
 builder.Services.AddDocumentCatalog<Article, DocumentCatalog<Article>>();
-builder.Services.AddSharedArticleServices();
+builder.Services
+    .AddSharedArticleServices()
+    .AddSharedTemplateProviders();
 builder.Services.AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles);
 builder.Services.AddScoped<MvcCitationReferenceCollector>();
 builder.Services.AddScoped<CompositeAIReferenceLinkResolver>();

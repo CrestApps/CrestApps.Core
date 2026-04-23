@@ -2,8 +2,17 @@ using CrestApps.Core.Templates;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Providers;
+using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Chat;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using CrestApps.Core.Templates.Services;
+using CrestApps.Core.Startup.Shared.Services;
+using CrestApps.Core.Services;
+using Moq;
 
 namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
@@ -275,5 +284,154 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var template = Assert.Single(templates, t => t.Id == CrestApps.Core.AI.AITemplateIds.ExtractedDataAvailability);
         Assert.Equal("Extracted Data Availability", template.Metadata.Title);
         Assert.Contains("[Collected Session Data]", template.Content);
+    }
+}
+
+public sealed class FileSystemAIProfileTemplateProviderTests : IDisposable
+{
+    private readonly string _tempDir;
+
+    public FileSystemAIProfileTemplateProviderTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), "CrestAppsProfileTemplateTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_tempDir);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempDir))
+        {
+            Directory.Delete(_tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_DiscoversSystemPromptTemplatesFromProfilesFolder()
+    {
+        var profilesDir = Path.Combine(_tempDir, "Templates", "Profiles");
+        Directory.CreateDirectory(profilesDir);
+
+        File.WriteAllText(Path.Combine(profilesDir, "support-agent.md"), """
+            ---
+            Title: Support Agent
+            Source: SystemPrompt
+            IsListable: true
+            Category: Support
+            ---
+            You are a helpful support assistant.
+            """);
+
+        var provider = new FileSystemAIProfileTemplateProvider(
+            new TestHostEnvironment(_tempDir),
+            [new DefaultMarkdownTemplateParser()],
+            NullLogger<FileSystemAIProfileTemplateProvider>.Instance);
+
+        var templates = await provider.GetTemplatesAsync();
+
+        var template = Assert.Single(templates);
+        Assert.Equal("support-agent", template.Name);
+        Assert.Equal("Support Agent", template.DisplayText);
+        Assert.Equal("SystemPrompt", template.Source);
+        Assert.True(template.IsListable);
+        Assert.True(template.TryGet<CrestApps.Core.AI.Models.SystemPromptTemplateMetadata>(out var metadata));
+        Assert.Equal("You are a helpful support assistant.", metadata.SystemMessage);
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_UsesRelativePathForNestedTemplateIds()
+    {
+        var profilesDir = Path.Combine(_tempDir, "Templates", "Profiles", "Nested");
+        Directory.CreateDirectory(profilesDir);
+
+        File.WriteAllText(Path.Combine(profilesDir, "system-prompt.md"), """
+            ---
+            Source: SystemPrompt
+            ---
+            Nested prompt.
+            """);
+
+        var provider = new FileSystemAIProfileTemplateProvider(
+            new TestHostEnvironment(_tempDir),
+            [new DefaultMarkdownTemplateParser()],
+            NullLogger<FileSystemAIProfileTemplateProvider>.Instance);
+
+        var templates = await provider.GetTemplatesAsync();
+
+        var template = Assert.Single(templates);
+        Assert.Equal("Nested.system-prompt", template.Name);
+    }
+
+    private sealed class TestHostEnvironment(string contentRootPath) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ApplicationName { get; set; } = "CrestApps.Core.Tests";
+
+        public string ContentRootPath { get; set; } = contentRootPath;
+
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+}
+
+public sealed class RuntimeEmbeddedPromptRegistrationTests
+{
+    [Fact]
+    public async Task TemplateService_ListsEmbeddedPromptTemplatesFromAiAndChatAssemblies()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddCoreAIServices();
+        services.AddCoreAIOrchestration();
+        services.AddCoreAIChatInteractions();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+        var templateService = scope.ServiceProvider.GetRequiredService<ITemplateService>();
+
+        var templates = await templateService.ListAsync();
+
+        Assert.Contains(templates, template => string.Equals(template.Id, "use-markdown-syntax", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(templates, template => string.Equals(template.Id, "tabular-batch-processing", StringComparison.OrdinalIgnoreCase));
+
+        var markdownTemplate = Assert.Single(templates.Where(template => string.Equals(template.Id, "use-markdown-syntax", StringComparison.OrdinalIgnoreCase)));
+        Assert.Equal("Use Markdown Syntax", markdownTemplate.Metadata.Title);
+        Assert.True(markdownTemplate.Metadata.IsListable);
+    }
+}
+
+public sealed class CatalogSystemPromptTemplateProviderTests
+{
+    [Fact]
+    public async Task GetTemplatesAsync_ExposesListableDatabaseSystemPromptTemplates()
+    {
+        var dbTemplate = new CrestApps.Core.AI.Models.AIProfileTemplate
+        {
+            ItemId = "db-template-1",
+            Name = "DbTemplate",
+            DisplayText = "DB Template",
+            Description = "Stored in the catalog",
+            Category = "Database",
+            IsListable = true,
+            Source = CrestApps.Core.AI.AITemplateSources.SystemPrompt,
+        };
+        dbTemplate.Put(new CrestApps.Core.AI.Models.SystemPromptTemplateMetadata
+        {
+            SystemMessage = "You are a database-backed template.",
+        });
+
+        var catalog = new Mock<ICatalog<CrestApps.Core.AI.Models.AIProfileTemplate>>();
+        catalog.Setup(x => x.GetAllAsync()).ReturnsAsync([dbTemplate]);
+
+        var provider = new CatalogSystemPromptTemplateProvider(catalog.Object);
+
+        var templates = await provider.GetTemplatesAsync();
+
+        var template = Assert.Single(templates);
+        Assert.Equal("catalog:db-template-1", template.Id);
+        Assert.Equal("DB Template", template.Metadata.Title);
+        Assert.Equal("Stored in the catalog", template.Metadata.Description);
+        Assert.Equal("Database", template.Metadata.Category);
+        Assert.True(template.Metadata.IsListable);
+        Assert.Equal("You are a database-backed template.", template.Content);
     }
 }

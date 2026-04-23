@@ -1,4 +1,6 @@
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Templates.Providers;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,6 +15,16 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddScoped<ArticleIndexingService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, ArticleIndexProfileHandler>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers shared template providers that surface host-managed catalog templates through <see cref="ITemplateService"/>.
+    /// </summary>
+    public static IServiceCollection AddSharedTemplateProviders(this IServiceCollection services)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITemplateProvider, CatalogSystemPromptTemplateProvider>());
 
         return services;
     }

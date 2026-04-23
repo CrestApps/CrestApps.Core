@@ -25,6 +25,7 @@
 @using CrestApps.Core.Templates.Services
 @using Microsoft.Extensions.Options
 @inject IAIProfileManager ProfileManager
+@inject IAIProfileTemplateManager TemplateManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2ACatalog
 @inject ICatalog<McpConnection> McpCatalog
@@ -391,8 +392,8 @@ else if (_model != null)
                             <div class="mb-3">
                                 <label class="form-label">Prompt templates</label>
                                 <div class="mb-2">
-                                    <InputSelect class="form-select form-select-sm" @bind-Value="_selectedPromptTemplateId">
-                                        <option value="">Select a prompt template to add...</option>
+                                    <InputSelect class="form-select" @bind-Value="_selectedPromptTemplateId" @bind-Value:after="AddPromptTemplate">
+                                        <option value="">+ Add template</option>
                                         @foreach (var group in _model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
                                         {
                                             <optgroup label="@group.Key">
@@ -404,9 +405,6 @@ else if (_model != null)
                                         }
                                     </InputSelect>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline-primary mb-3" disabled="@string.IsNullOrEmpty(_selectedPromptTemplateId)" @onclick="AddPromptTemplate">
-                                    <i class="bi bi-plus"></i> Add prompt template
-                                </button>
 
                                 @for (var i = 0; i < _model.PromptTemplates.Count; i++)
                                 {
@@ -1164,6 +1162,9 @@ else if (_model != null)
 
         _supportedExtensionsAccept = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsAcceptValue();
         _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsDisplayValue();
+        _model.AvailableSystemPromptTemplates = (await TemplateManager.GetListableTemplatesAsync())
+            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var promptTemplates = await TemplateService.ListAsync();
         _model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable)
