@@ -37,7 +37,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 The framework does not assume a single persistence model. A host application is responsible for wiring the storage and search pieces that match its runtime:
 
 - an `IAIMemoryStore` implementation for durable memory entries
-- an `ISearchIndexProfileStore` implementation for index profile lookup (registered via `.AddIndexingServices(indexing => indexing.AddEntityCoreStores())` or `.AddYesSqlStores()`)
+- a persistent `ISearchIndexProfileStore` implementation for index profile lookup when you want saved index profiles (registered via `.AddIndexingServices(indexing => indexing.AddEntityCoreStores())` or `.AddYesSqlStores()`). `AddCoreAIServices()` already supplies a null fallback store so hosts can start before a persistent store is added.
 - one or more keyed `IMemoryVectorSearchService` implementations
 - options such as `AIMemoryOptions`, `GeneralAIOptions`, and `ChatInteractionMemoryOptions`
 

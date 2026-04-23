@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
-using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
@@ -40,33 +39,33 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddSharedArticleServices()
             .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
-            .AddScoped<MvcCitationReferenceCollector>()
+            .AddScoped<SampleCitationReferenceCollector>()
             .AddScoped<CompositeAIReferenceLinkResolver>()
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<IAIProfileManager, Areas.AI.Services.SimpleAIProfileManager>()
             .AddScoped<Areas.AI.Services.AIProfileDocumentService>()
             .AddScoped<Areas.AI.Services.AIProfileTemplateDocumentService>()
-            .AddScoped<Areas.AIChat.Services.MvcAIChatSessionEventService>()
-            .AddScoped<Areas.AIChat.Services.MvcAICompletionUsageService>()
-            .AddScoped<Areas.AIChat.Services.MvcAIChatSessionEventPostCloseObserver>()
-            .AddScoped<Areas.AIChat.Services.MvcAIChatSessionExtractedDataService>()
-            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<Areas.AIChat.Services.MvcAICompletionUsageService>())
-            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.MvcAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.MvcAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.MvcAIChatSessionExtractedDataService>())
+            .AddScoped<Areas.AIChat.Services.SampleAIChatSessionEventService>()
+            .AddScoped<Areas.AIChat.Services.SampleAICompletionUsageService>()
+            .AddScoped<Areas.AIChat.Services.SampleAIChatSessionEventPostCloseObserver>()
+            .AddScoped<Areas.AIChat.Services.SampleAIChatSessionExtractedDataService>()
+            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAICompletionUsageService>())
+            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionEventPostCloseObserver>())
+            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionEventPostCloseObserver>())
+            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionExtractedDataService>())
             .AddScoped<IAIChatSessionHandler, Areas.AIChat.Handlers.AnalyticsChatSessionHandler>()
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, Areas.AI.Handlers.AIMemoryEntryIndexingHandler>()
-            .AddScoped<Areas.Indexing.Services.MvcAIDocumentIndexingService>()
-            .AddScoped<ISearchIndexProfileManager, SearchIndexProfileManager>()
-            .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.MvcChatInteractionDocumentAuthorizationHandler>()
-            .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.MvcAIChatSessionDocumentAuthorizationHandler>()
-            .AddScoped<IAIChatDocumentEventHandler, Areas.AIChat.Services.MvcAIChatDocumentEventHandler>()
+            .AddScoped<Areas.Indexing.Services.SampleAIDocumentIndexingService>()
+            .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleChatInteractionDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleAIChatSessionDocumentAuthorizationHandler>()
+            .AddScoped<IAIChatDocumentEventHandler, Areas.AIChat.Services.SampleAIChatDocumentEventHandler>()
             .AddScoped<ICatalogEntryHandler<Article>, Areas.Admin.Handlers.ArticleIndexingHandler>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
-        services.ConfigureOptions<Areas.AIChat.Services.MvcCopilotOptionsConfiguration>();
-        services.ConfigureOptions<Areas.AIChat.Services.MvcClaudeOptionsConfiguration>();
+        services.ConfigureOptions<Areas.AIChat.Services.SampleCopilotOptionsConfiguration>();
+        services.ConfigureOptions<Areas.AIChat.Services.SampleClaudeOptionsConfiguration>();
+
         services.Configure<IndexProfileSourceOptions>(options => options
             .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
             {

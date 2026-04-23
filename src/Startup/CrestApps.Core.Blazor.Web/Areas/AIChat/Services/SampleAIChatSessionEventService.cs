@@ -3,7 +3,7 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 
-public sealed class MvcAIChatSessionEventService
+public sealed class SampleAIChatSessionEventService
 {
     private static readonly ConcurrentDictionary<string, AIChatSessionEvent> _store = new(StringComparer.OrdinalIgnoreCase);
 

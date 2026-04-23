@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Documents.Indexing;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tools;
-using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;

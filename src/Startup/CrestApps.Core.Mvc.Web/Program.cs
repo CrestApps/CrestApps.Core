@@ -173,8 +173,8 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 // synchronization moving in the background. Keep only the workers your app needs.
 // =============================================================================
 builder.Services.AddHostedService<AIChatSessionCloseBackgroundService>();
-builder.Services.AddSingleton<MvcAIChatDocumentIndexingQueue>();
-builder.Services.AddSingleton<IMvcAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<MvcAIChatDocumentIndexingQueue>());
+builder.Services.AddSingleton<SampleAIChatDocumentIndexingQueue>();
+builder.Services.AddSingleton<ISampleAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<SampleAIChatDocumentIndexingQueue>());
 builder.Services.AddHostedService<AIChatDocumentIndexingBackgroundService>();
 
 var app = builder.Build();

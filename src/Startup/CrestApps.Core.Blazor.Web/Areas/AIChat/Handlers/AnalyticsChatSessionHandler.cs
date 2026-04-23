@@ -8,11 +8,11 @@ namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Handlers;
 
 public sealed class AnalyticsChatSessionHandler : AIChatSessionHandlerBase
 {
-    private readonly MvcAIChatSessionEventService _eventService;
+    private readonly SampleAIChatSessionEventService _eventService;
     private readonly ILogger<AnalyticsChatSessionHandler> _logger;
 
     public AnalyticsChatSessionHandler(
-        MvcAIChatSessionEventService eventService,
+        SampleAIChatSessionEventService eventService,
         ILogger<AnalyticsChatSessionHandler> logger)
     {
         _eventService = eventService;

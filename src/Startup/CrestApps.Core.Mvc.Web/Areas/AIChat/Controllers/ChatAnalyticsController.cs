@@ -14,12 +14,12 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 public sealed class ChatAnalyticsController : Controller
 {
     private readonly IAIProfileManager _profileManager;
-    private readonly MvcAIChatSessionEventService _eventService;
+    private readonly SampleAIChatSessionEventService _eventService;
     private readonly TimeProvider _timeProvider;
 
     public ChatAnalyticsController(
         IAIProfileManager profileManager,
-        MvcAIChatSessionEventService eventService,
+        SampleAIChatSessionEventService eventService,
         TimeProvider timeProvider)
     {
         _profileManager = profileManager;

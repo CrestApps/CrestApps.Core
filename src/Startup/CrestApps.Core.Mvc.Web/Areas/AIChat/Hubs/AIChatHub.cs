@@ -29,7 +29,7 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
         Dictionary<string, AICompletionReference> references,
         HashSet<string> contentItemIds)
     {
-        var citationCollector = services.GetRequiredService<MvcCitationReferenceCollector>();
+        var citationCollector = services.GetRequiredService<SampleCitationReferenceCollector>();
 
         if (handlerContext.Properties.TryGetValue("OrchestrationContext", out var ctxObj) &&
             ctxObj is OrchestrationContext orchestrationContext)
@@ -46,7 +46,7 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
         AIChatSession chatSession,
         IAIChatSessionPromptStore promptStore)
     {
-        var eventService = services.GetService<MvcAIChatSessionEventService>();
+        var eventService = services.GetService<SampleAIChatSessionEventService>();
 
         if (eventService is null)
         {

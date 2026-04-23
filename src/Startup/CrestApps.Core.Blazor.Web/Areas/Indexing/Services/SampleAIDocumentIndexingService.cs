@@ -10,21 +10,21 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.Blazor.Web.Areas.Indexing.Services;
 
 /// <summary>
-/// Indexes MVC-uploaded AI document chunks into the configured AI Documents search index.
+/// Indexes sample-host uploaded AI document chunks into the configured AI Documents search index.
 /// </summary>
-public sealed class MvcAIDocumentIndexingService
+public sealed class SampleAIDocumentIndexingService
 {
     private readonly InteractionDocumentOptions _options;
     private readonly ISearchIndexProfileStore _indexProfileStore;
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<MvcAIDocumentIndexingService> _logger;
+    private readonly ILogger<SampleAIDocumentIndexingService> _logger;
 
-    public MvcAIDocumentIndexingService(
+    public SampleAIDocumentIndexingService(
         IOptions<InteractionDocumentOptions> options,
         ISearchIndexProfileStore indexProfileStore,
         IServiceProvider serviceProvider,
-        ILogger<MvcAIDocumentIndexingService> logger)
+        ILogger<SampleAIDocumentIndexingService> logger)
     {
         _options = options.Value;
         _indexProfileStore = indexProfileStore;

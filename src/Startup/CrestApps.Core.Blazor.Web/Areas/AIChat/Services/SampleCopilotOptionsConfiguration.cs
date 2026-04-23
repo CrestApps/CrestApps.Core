@@ -5,18 +5,18 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 
-internal sealed class MvcCopilotOptionsConfiguration : IConfigureOptions<CopilotOptions>
+internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<CopilotOptions>
 {
     private const string ProtectorPurpose = "CrestApps.Core.Blazor.Web.CopilotSettings";
 
     private readonly SiteSettingsStore _siteSettings;
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger<MvcCopilotOptionsConfiguration> _logger;
+    private readonly ILogger<SampleCopilotOptionsConfiguration> _logger;
 
-    public MvcCopilotOptionsConfiguration(
+    public SampleCopilotOptionsConfiguration(
         SiteSettingsStore siteSettings,
         IDataProtectionProvider dataProtectionProvider,
-        ILogger<MvcCopilotOptionsConfiguration> logger)
+        ILogger<SampleCopilotOptionsConfiguration> logger)
     {
         _siteSettings = siteSettings;
         _dataProtectionProvider = dataProtectionProvider;

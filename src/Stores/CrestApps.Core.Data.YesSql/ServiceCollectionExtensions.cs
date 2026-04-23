@@ -217,7 +217,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddScoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>();
+        services.Replace(ServiceDescriptor.Scoped<ISearchIndexProfileStore, YesSqlSearchIndexProfileStore>());
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, SearchIndexProfileIndexProvider>());
 

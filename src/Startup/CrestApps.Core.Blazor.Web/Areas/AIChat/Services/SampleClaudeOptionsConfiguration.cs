@@ -3,20 +3,20 @@ using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 
-internal sealed class MvcClaudeOptionsConfiguration : IConfigureOptions<ClaudeOptions>
+internal sealed class SampleClaudeOptionsConfiguration : IConfigureOptions<ClaudeOptions>
 {
-    private const string ProtectorPurpose = "CrestApps.Core.Mvc.Web.ClaudeSettings";
+    private const string ProtectorPurpose = "CrestApps.Core.Blazor.Web.ClaudeSettings";
 
     private readonly SiteSettingsStore _siteSettings;
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger<MvcClaudeOptionsConfiguration> _logger;
+    private readonly ILogger<SampleClaudeOptionsConfiguration> _logger;
 
-    public MvcClaudeOptionsConfiguration(
+    public SampleClaudeOptionsConfiguration(
         SiteSettingsStore siteSettings,
         IDataProtectionProvider dataProtectionProvider,
-        ILogger<MvcClaudeOptionsConfiguration> logger)
+        ILogger<SampleClaudeOptionsConfiguration> logger)
     {
         _siteSettings = siteSettings;
         _dataProtectionProvider = dataProtectionProvider;

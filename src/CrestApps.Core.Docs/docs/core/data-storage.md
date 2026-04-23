@@ -186,6 +186,8 @@ Every CrestApps feature that needs persistent storage exposes `.AddYesSqlStores(
 The **AI Services** builder method (`.AddYesSqlStores()` / `.AddEntityCoreStores()` on `CrestAppsAISuiteBuilder`) is a convenience that registers AI Profile Template and Chat Session stores together. Implementations that need finer-grained control (e.g., Orchard Core) can call the individual `IServiceCollection` extensions (`AddCoreAIProfileTemplateStoresYesSql()`, `AddCoreAIMcpServerStoresYesSql()`, etc.) directly.
 :::
 
+`AddCoreAIServices()` now registers the shared indexing runtime services (`ISearchIndexProfileManager`, `ISearchIndexProfileProvisioningService`, and a null fallback `ISearchIndexProfileStore`). Call `.AddIndexingServices(indexing => indexing.AddEntityCoreStores())` or `.AddYesSqlStores()` when you want persisted index profile records instead of the fallback.
+
 **Entity Framework Core example** — register stores inline with each feature:
 
 ```csharp
@@ -1089,5 +1091,4 @@ builder.Services.AddScoped<INamedCatalog<AIProfile>, CustomNamedSourceCatalog<AI
 builder.Services.AddScoped<ISourceCatalog<AIProfile>, CustomNamedSourceCatalog<AIProfile>>();
 builder.Services.AddScoped<INamedSourceCatalog<AIProfile>, CustomNamedSourceCatalog<AIProfile>>();
 ```
-
 

@@ -110,11 +110,11 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         try
         {
-            var chatClient = await BuildClientAsync(deployment, context);
+            var chatOptions = await GetChatOptionsAsync(context, deployment.ModelName, false);
+
+            var chatClient = await BuildClientAsync(deployment, context, chatOptions);
 
             var prompts = GetPrompts(messages, context);
-
-            var chatOptions = await GetChatOptionsAsync(context, deployment.ModelName, false);
 
             var response = await chatClient.GetResponseAsync(prompts, chatOptions, cancellationToken);
 
@@ -155,9 +155,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             throw new AIDeploymentConfigurationException("The resolved chat deployment is missing a model name.");
         }
 
-        var chatClient = await BuildClientAsync(deployment, context);
-
         var chatOptions = await GetChatOptionsAsync(context, deployment.ModelName, true);
+
+        var chatClient = await BuildClientAsync(deployment, context, chatOptions);
 
         var prompts = GetPrompts(messages, context);
 
@@ -231,7 +231,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         return chatOptions;
     }
 
-    private async ValueTask<IChatClient> BuildClientAsync(AIDeployment deployment, AICompletionContext context)
+    private async ValueTask<IChatClient> BuildClientAsync(AIDeployment deployment, AICompletionContext context, ChatOptions chatOptions)
     {
         var client = await _aIClientFactory.CreateChatClientAsync(deployment);
 
@@ -244,7 +244,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             builder.UseFunctionInvocation(LoggerFactory, ConfigureFunctionInvocation);
         }
 
-        if (_defaultOptions.EnableDistributedCaching && context.UseCaching)
+        // Tool-enabled requests can carry non-serializable delegate metadata in the tool graph,
+        // which the distributed cache layer hashes as part of ChatOptions.
+        if (_defaultOptions.EnableDistributedCaching && context.UseCaching && !HasCacheUnsafeTools(chatOptions))
         {
             builder.UseDistributedCache(_distributedCache);
         }
@@ -255,5 +257,10 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         }
 
         return builder.Build(_serviceProvider);
+    }
+
+    private static bool HasCacheUnsafeTools(ChatOptions chatOptions)
+    {
+        return chatOptions.Tools is { Count: > 0 };
     }
 }

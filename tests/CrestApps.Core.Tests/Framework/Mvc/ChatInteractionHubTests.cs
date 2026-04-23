@@ -181,7 +181,7 @@ public sealed class ChatInteractionHubTests
         Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.", message);
     }
 
-    private static MvcCitationReferenceCollector CreateCitationCollector()
+    private static SampleCitationReferenceCollector CreateCitationCollector()
     {
         return new(new CompositeAIReferenceLinkResolver(new ServiceCollection().BuildServiceProvider()));
     }

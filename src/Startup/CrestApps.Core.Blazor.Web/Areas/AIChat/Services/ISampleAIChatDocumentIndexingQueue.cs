@@ -2,7 +2,7 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 
-public interface IMvcAIChatDocumentIndexingQueue
+public interface ISampleAIChatDocumentIndexingQueue
 {
     ValueTask QueueIndexAsync(AIDocument document, IReadOnlyCollection<AIDocumentChunk> chunks, CancellationToken cancellationToken = default);
 

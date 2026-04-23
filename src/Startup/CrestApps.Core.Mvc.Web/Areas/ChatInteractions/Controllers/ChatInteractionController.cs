@@ -53,7 +53,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly SiteSettingsStore _siteSettings;
-    private readonly MvcAIDocumentIndexingService _documentIndexingService;
+    private readonly SampleAIDocumentIndexingService _documentIndexingService;
     private readonly InteractionDocumentOptions _interactionDocumentOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
@@ -82,7 +82,7 @@ public sealed class ChatInteractionController : Controller
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
         SiteSettingsStore siteSettings,
-        MvcAIDocumentIndexingService documentIndexingService,
+        SampleAIDocumentIndexingService documentIndexingService,
         IOptions<InteractionDocumentOptions> interactionDocumentOptions,
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService aiTemplateService,

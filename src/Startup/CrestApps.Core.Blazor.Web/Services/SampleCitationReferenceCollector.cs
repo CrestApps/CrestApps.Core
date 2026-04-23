@@ -3,20 +3,20 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 
-namespace CrestApps.Core.Mvc.Web.Services;
+namespace CrestApps.Core.Blazor.Web.Services;
 
 /// <summary>
-/// Collects citation references for the MVC host and resolves any configured
+/// Collects citation references for the sample host and resolves any configured
 /// links before they are streamed to the chat client.
 /// </summary>
-public sealed class MvcCitationReferenceCollector
+public sealed class SampleCitationReferenceCollector
 {
     private const string DataSourceReferencesKey = "DataSourceReferences";
     private const string DocumentReferencesKey = "DocumentReferences";
 
     private readonly CompositeAIReferenceLinkResolver _linkResolver;
 
-    public MvcCitationReferenceCollector(CompositeAIReferenceLinkResolver linkResolver)
+    public SampleCitationReferenceCollector(CompositeAIReferenceLinkResolver linkResolver)
     {
         _linkResolver = linkResolver;
     }

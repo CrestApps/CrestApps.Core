@@ -11,13 +11,13 @@ namespace CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Hubs;
 [Authorize]
 public sealed class ChatInteractionHub : ChatInteractionHubBase
 {
-    private readonly MvcCitationReferenceCollector _citationCollector;
+    private readonly SampleCitationReferenceCollector _citationCollector;
     private readonly SiteSettingsStore _siteSettings;
 
     public ChatInteractionHub(
         IServiceProvider serviceProvider,
         TimeProvider timeProvider,
-        MvcCitationReferenceCollector citationCollector,
+        SampleCitationReferenceCollector citationCollector,
         SiteSettingsStore siteSettings,
         ILogger<ChatInteractionHub> logger)
         : base(serviceProvider, timeProvider, logger)

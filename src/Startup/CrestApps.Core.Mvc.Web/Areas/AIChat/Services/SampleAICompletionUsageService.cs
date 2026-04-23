@@ -1,23 +1,30 @@
-using System.Collections.Concurrent;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using Microsoft.Extensions.Options;
+using YesSql;
 
-namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
+using ISession = YesSql.ISession;
 
-public sealed class MvcAICompletionUsageService : IAICompletionUsageObserver
+namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+
+public sealed class SampleAICompletionUsageService : IAICompletionUsageObserver
 {
-    private static readonly ConcurrentBag<AICompletionUsageRecord> _store = [];
-
+    private readonly ISession _session;
+    private readonly TimeProvider _timeProvider;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly MvcAIChatSessionEventService _chatSessionEventService;
+    private readonly SampleAIChatSessionEventService _chatSessionEventService;
     private readonly GeneralAIOptions _generalAIOptions;
 
-    public MvcAICompletionUsageService(
+    public SampleAICompletionUsageService(
+        ISession session,
+        TimeProvider timeProvider,
         IHttpContextAccessor httpContextAccessor,
-        MvcAIChatSessionEventService chatSessionEventService,
+        SampleAIChatSessionEventService chatSessionEventService,
         IOptions<GeneralAIOptions> generalAIOptions)
     {
+        _session = session;
+        _timeProvider = timeProvider;
         _httpContextAccessor = httpContextAccessor;
         _chatSessionEventService = chatSessionEventService;
         _generalAIOptions = generalAIOptions.Value;
@@ -32,14 +39,14 @@ public sealed class MvcAICompletionUsageService : IAICompletionUsageObserver
             return;
         }
 
-        record.CreatedUtc = TimeProvider.System.GetUtcNow().UtcDateTime;
+        record.CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         if (string.IsNullOrEmpty(record.UserName))
         {
             record.UserName = _httpContextAccessor.HttpContext?.User?.Identity?.Name;
         }
 
-        _store.Add(record);
+        await _session.SaveAsync(record, cancellationToken: cancellationToken);
 
         if (!string.IsNullOrEmpty(record.SessionId) &&
             (record.InputTokenCount > 0 || record.OutputTokenCount > 0))
@@ -48,29 +55,27 @@ public sealed class MvcAICompletionUsageService : IAICompletionUsageObserver
         }
     }
 
-    public Task<IReadOnlyList<AICompletionUsageRecord>> GetAsync(
+    public async Task<IReadOnlyList<AICompletionUsageRecord>> GetAsync(
         DateTime? startDateUtc,
         DateTime? endDateUtc,
         CancellationToken cancellationToken = default)
     {
-        var values = _store.AsEnumerable();
+        var query = _session.Query<AICompletionUsageRecord, AICompletionUsageIndex>();
 
         if (startDateUtc.HasValue)
         {
             var start = startDateUtc.Value.Date;
-            values = values.Where(x => x.CreatedUtc >= start);
+            query = query.Where(x => x.CreatedUtc >= start);
         }
 
         if (endDateUtc.HasValue)
         {
             var endExclusive = endDateUtc.Value.Date.AddDays(1);
-            values = values.Where(x => x.CreatedUtc < endExclusive);
+            query = query.Where(x => x.CreatedUtc < endExclusive);
         }
 
-        IReadOnlyList<AICompletionUsageRecord> result = values
-            .OrderByDescending(x => x.CreatedUtc)
-            .ToList();
+        var records = await query.ListAsync(cancellationToken);
 
-        return Task.FromResult(result);
+        return records.OrderByDescending(x => x.CreatedUtc).ToList();
     }
 }

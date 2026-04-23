@@ -1,12 +1,12 @@
 using CrestApps.Core.AI.Documents;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 
-public sealed class MvcAIChatDocumentEventHandler : IAIChatDocumentEventHandler
+public sealed class SampleAIChatDocumentEventHandler : IAIChatDocumentEventHandler
 {
-    private readonly IMvcAIChatDocumentIndexingQueue _indexingQueue;
+    private readonly ISampleAIChatDocumentIndexingQueue _indexingQueue;
 
-    public MvcAIChatDocumentEventHandler(IMvcAIChatDocumentIndexingQueue indexingQueue)
+    public SampleAIChatDocumentEventHandler(ISampleAIChatDocumentIndexingQueue indexingQueue)
     {
         _indexingQueue = indexingQueue;
     }

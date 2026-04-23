@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Speech;
@@ -429,10 +430,13 @@ public sealed class SettingsController : Controller
                 }
 
                 var label = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
-                ? d.Name
-                : $"{d.Name} ({d.ModelName})";
+                    ? d.Name
+                    : $"{d.Name} ({d.ModelName})";
 
-                return new SelectListItem(label, d.Name) { Group = group };
+                return new SelectListItem(label, d.Name)
+                {
+                    Group = group,
+                };
             });
     }
 

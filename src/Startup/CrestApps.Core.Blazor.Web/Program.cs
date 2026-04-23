@@ -163,8 +163,8 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 // 5. BACKGROUND TASKS AND PIPELINE
 // =============================================================================
 builder.Services.AddHostedService<AIChatSessionCloseBackgroundService>();
-builder.Services.AddSingleton<MvcAIChatDocumentIndexingQueue>();
-builder.Services.AddSingleton<IMvcAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<MvcAIChatDocumentIndexingQueue>());
+builder.Services.AddSingleton<SampleAIChatDocumentIndexingQueue>();
+builder.Services.AddSingleton<ISampleAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<SampleAIChatDocumentIndexingQueue>());
 builder.Services.AddHostedService<AIChatDocumentIndexingBackgroundService>();
 
 var app = builder.Build();

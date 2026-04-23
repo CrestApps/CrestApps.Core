@@ -4,7 +4,7 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 
-public sealed class MvcAIChatSessionExtractedDataService : IAIChatSessionExtractedDataRecorder
+public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtractedDataRecorder
 {
     private static readonly ConcurrentDictionary<string, AIChatSessionExtractedDataRecord> _store = new(StringComparer.OrdinalIgnoreCase);
 

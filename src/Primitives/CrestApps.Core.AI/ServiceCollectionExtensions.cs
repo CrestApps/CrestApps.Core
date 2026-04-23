@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
+using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -136,6 +137,7 @@ public static class ServiceCollectionExtensions
 
         services
             .AddCoreAITemplating()
+            .AddCoreIndexingServices()
             .AddCoreServices()
             .AddOptions<AIProviderConnectionCatalogOptions>().Services
             .AddOptions<AIDeploymentCatalogOptions>().Services

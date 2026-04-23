@@ -4,7 +4,6 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
-using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
@@ -85,23 +84,22 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<AIProfileTemplateDocumentService>();
 
         services
-            .AddScoped<MvcAIChatSessionEventService>()
-            .AddScoped<MvcAICompletionUsageService>()
-            .AddScoped<MvcAIChatSessionEventPostCloseObserver>()
-            .AddScoped<MvcAIChatSessionExtractedDataService>()
-            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<MvcAICompletionUsageService>())
-            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionExtractedDataService>())
+            .AddScoped<SampleAIChatSessionEventService>()
+            .AddScoped<SampleAICompletionUsageService>()
+            .AddScoped<SampleAIChatSessionEventPostCloseObserver>()
+            .AddScoped<SampleAIChatSessionExtractedDataService>()
+            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<SampleAICompletionUsageService>())
+            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
+            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
+            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionExtractedDataService>())
             .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>();
 
         services
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryIndexingHandler>()
-            .AddScoped<MvcAIDocumentIndexingService>()
-            .AddScoped<ISearchIndexProfileManager, SearchIndexProfileManager>()
-            .AddScoped<IAuthorizationHandler, MvcChatInteractionDocumentAuthorizationHandler>()
-            .AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthorizationHandler>()
-            .AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>();
+            .AddScoped<SampleAIDocumentIndexingService>()
+            .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
+            .AddScoped<IAIChatDocumentEventHandler, SampleAIChatDocumentEventHandler>();
 
         services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
@@ -109,14 +107,14 @@ internal static class YesSqlServiceCollectionExtensions
             .AddSharedArticleServices()
             .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
-            .AddScoped<MvcCitationReferenceCollector>()
+            .AddScoped<SampleCitationReferenceCollector>()
             .AddScoped<CompositeAIReferenceLinkResolver>()
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
-        services.ConfigureOptions<MvcCopilotOptionsConfiguration>();
-        services.ConfigureOptions<MvcClaudeOptionsConfiguration>();
+        services.ConfigureOptions<SampleCopilotOptionsConfiguration>();
+        services.ConfigureOptions<SampleClaudeOptionsConfiguration>();
         services.Configure<IndexProfileSourceOptions>(options => options
             .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
             {

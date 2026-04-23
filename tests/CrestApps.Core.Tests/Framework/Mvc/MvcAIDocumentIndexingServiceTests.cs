@@ -216,7 +216,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
         indexProfileStore.Verify(store => store.FindByNameAsync(It.IsAny<string>()), Times.Never);
     }
 
-    private static MvcAIDocumentIndexingService CreateService(
+    private static SampleAIDocumentIndexingService CreateService(
         ISearchIndexProfileStore indexProfileStore,
         ISearchIndexManager indexManager,
         ISearchDocumentManager documentManager)
@@ -225,11 +225,11 @@ public sealed class MvcAIDocumentIndexingServiceTests
         services.AddKeyedSingleton<ISearchIndexManager>(AISearchConstants.ProviderName, indexManager);
         services.AddKeyedSingleton<ISearchDocumentManager>(AISearchConstants.ProviderName, documentManager);
 
-        return new MvcAIDocumentIndexingService(
+        return new SampleAIDocumentIndexingService(
             Options.Create(new InteractionDocumentOptions { IndexProfileName = "chat-documents" }),
             indexProfileStore,
             services.BuildServiceProvider(),
-            NullLogger<MvcAIDocumentIndexingService>.Instance);
+            NullLogger<SampleAIDocumentIndexingService>.Instance);
     }
 
     private static SearchIndexProfile CreateIndexProfile(string type = IndexProfileTypes.AIDocuments)

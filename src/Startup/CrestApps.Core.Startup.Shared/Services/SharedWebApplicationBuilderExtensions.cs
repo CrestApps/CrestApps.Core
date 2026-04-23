@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;

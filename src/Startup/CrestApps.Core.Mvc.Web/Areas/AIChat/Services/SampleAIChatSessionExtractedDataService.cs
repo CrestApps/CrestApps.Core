@@ -6,12 +6,12 @@ using ISession = YesSql.ISession;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 
-public sealed class MvcAIChatSessionExtractedDataService : IAIChatSessionExtractedDataRecorder
+public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtractedDataRecorder
 {
     private readonly ISession _session;
     private readonly TimeProvider _timeProvider;
 
-    public MvcAIChatSessionExtractedDataService(
+    public SampleAIChatSessionExtractedDataService(
         ISession session,
         TimeProvider timeProvider)
     {

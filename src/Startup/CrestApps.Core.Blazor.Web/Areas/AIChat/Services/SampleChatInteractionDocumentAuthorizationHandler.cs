@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Authorization.Infrastructure;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 
-public sealed class MvcChatInteractionDocumentAuthorizationHandler : AuthorizationHandler<OperationAuthorizationRequirement, ChatInteraction>
+public sealed class SampleChatInteractionDocumentAuthorizationHandler : AuthorizationHandler<OperationAuthorizationRequirement, ChatInteraction>
 {
     protected override Task HandleRequirementAsync(
         AuthorizationHandlerContext context,

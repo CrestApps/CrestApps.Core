@@ -1,19 +1,20 @@
 using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 
-public sealed class MvcAIChatSessionDocumentAuthorizationHandler : AuthorizationHandler<OperationAuthorizationRequirement, AIChatSessionDocumentAuthorizationContext>
+public sealed class SampleChatInteractionDocumentAuthorizationHandler : AuthorizationHandler<OperationAuthorizationRequirement, ChatInteraction>
 {
     protected override Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
         OperationAuthorizationRequirement requirement,
-        AIChatSessionDocumentAuthorizationContext resource)
+        ChatInteraction resource)
     {
         if (resource != null &&
             requirement.Name == AIChatDocumentOperations.ManageDocuments.Name &&
-            context.User.Identity?.IsAuthenticated == true)
+            context.User.IsInRole("Administrator"))
         {
             context.Succeed(requirement);
         }

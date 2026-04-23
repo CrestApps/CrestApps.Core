@@ -1,13 +1,13 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 
-public sealed class MvcAIChatSessionEventPostCloseObserver : IAIChatSessionAnalyticsRecorder, IAIChatSessionConversionGoalRecorder
+public sealed class SampleAIChatSessionEventPostCloseObserver : IAIChatSessionAnalyticsRecorder, IAIChatSessionConversionGoalRecorder
 {
-    private readonly MvcAIChatSessionEventService _eventService;
+    private readonly SampleAIChatSessionEventService _eventService;
 
-    public MvcAIChatSessionEventPostCloseObserver(MvcAIChatSessionEventService eventService)
+    public SampleAIChatSessionEventPostCloseObserver(SampleAIChatSessionEventService eventService)
     {
         _eventService = eventService;
     }

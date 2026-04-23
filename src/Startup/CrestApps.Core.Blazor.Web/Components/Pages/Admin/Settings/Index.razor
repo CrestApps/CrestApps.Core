@@ -8,6 +8,7 @@
 @using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.Memory
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
@@ -651,7 +652,7 @@ else
         var chatInteractionSettings = SiteSettings.Get<ChatInteractionSettings>();
         var defaultOrchestratorSettings = SiteSettings.Get<DefaultOrchestratorSettings>();
         var deploymentDefaults = SiteSettings.Get<DefaultAIDeploymentSettings>();
-        var memorySettings = SiteSettings.Get<AIMemorySettings>();
+        var memorySettings = SiteSettings.Get<CrestApps.Core.AI.Memory.AIMemorySettings>();
         var documentSettings = SiteSettings.Get<InteractionDocumentSettings>();
         var dataSourceSettings = SiteSettings.Get<AIDataSourceSettings>();
         var mcpServerSettings = SiteSettings.Get<McpServerOptions>();
@@ -935,7 +936,7 @@ else
             DefaultTextToSpeechVoiceId = _model.DefaultTextToSpeechVoiceId?.Trim(),
         });
 
-        SiteSettings.Set(new AIMemorySettings
+        SiteSettings.Set(new CrestApps.Core.AI.Memory.AIMemorySettings
         {
             IndexProfileName = string.IsNullOrWhiteSpace(_model.MemoryIndexProfileName)
                 ? null
