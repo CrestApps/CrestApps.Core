@@ -7,7 +7,7 @@ description: The standalone CrestApps framework for building AI-powered ASP.NET 
 
 # CrestApps.Core
 
-**CrestApps.Core is a composable AI management and application framework for .NET.** It is designed for teams that want to add advanced AI capabilities to an existing application without spending months rebuilding orchestration, chat, retrieval, reporting, and integration plumbing from scratch.
+**CrestApps.Core is a composable AI management and application framework for .NET.** It gives you a consistent way to add provider connections, deployments, chat, orchestration, documents, RAG, MCP, A2A, and custom AI tooling without building that plumbing from scratch in every host.
 
 ## What it delivers
 
@@ -43,7 +43,7 @@ The framework fits standard .NET dependency injection and works well in:
 ## Start here
 
 - **[Getting Started](getting-started.md)** for the quickest path from package install to first prompt
+- **[Sample Projects](core/sample-projects.md)** for the fastest way to choose the right runnable project in this repository
 - **[Core Overview](core/index.md)** for the feature catalog and package layout
+- **[ASP.NET Core Integration](core/getting-started-aspnet.md)** for the main builder-based registration model
 - **[AI Chat Use Cases](core/use-cases.md)** for real-world scenarios
-- **[MVC Example](core/mvc-example.md)** for the complete reference host
-

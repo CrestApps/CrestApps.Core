@@ -74,10 +74,12 @@ You can use both in the same application — A2A for agent delegation and MCP fo
 ### As a Client (invoke remote agents)
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-    .AddCoreAIA2AClient();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddA2AClient()
+    )
+);
 ```
 
 → See the [A2A Client](./client) page for connection setup, authentication, and tool registry details.
@@ -85,7 +87,13 @@ builder.Services
 ### As a Host (expose your agents)
 
 ```csharp
-// Host configuration is done via A2AHostOptions
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddA2AHost()
+    )
+);
+
 builder.Services.Configure<A2AHostOptions>(options =>
 {
     options.AuthenticationType = A2AHostAuthenticationType.ApiKey;
@@ -102,6 +110,10 @@ builder.Services.Configure<A2AHostOptions>(options =>
 | [A2A Client](./client) | Discover and invoke remote A2A agents — connection management, tool registry, authentication, built-in discovery tools |
 | [A2A Host](./host) | Expose your AI agents to remote clients — host configuration, authentication modes, agent card generation |
 
+## Repository examples
 
-The framework-level A2A support documented here is protocol infrastructure. For the full admin UI experience:
+Use these projects when you want to inspect A2A behavior in this repository:
 
+- `src\Startup\CrestApps.Core.Mvc.Web` for the full host composition that includes A2A
+- `src\Startup\CrestApps.Core.Mvc.Samples.A2AClient` for a smaller protocol-focused sample client
+- `src\Startup\CrestApps.Core.Aspire.AppHost` when you want the composed local environment

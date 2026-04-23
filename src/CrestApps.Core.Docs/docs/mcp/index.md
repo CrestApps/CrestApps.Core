@@ -7,7 +7,7 @@ description: MCP client and server support for connecting to remote tool servers
 
 # Model Context Protocol (MCP)
 
-> Connect to remote MCP servers as a client and expose your application's tools, prompts, and resources as an MCP server.
+> Use MCP when you need tool-, prompt-, or resource-level interoperability. CrestApps.Core supports both sides of the protocol: consuming remote MCP servers and exposing your own application as one.
 
 The [Model Context Protocol](https://modelcontextprotocol.io/) standardizes how AI applications discover and invoke tools, prompts, and resources across process boundaries. The framework provides both sides of the protocol.
 
@@ -16,10 +16,12 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) standardizes how 
 Connect to external MCP servers, discover their tools, and make them available in the AI orchestrator.
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-    .AddCoreAIMcpClient();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddMcpClient()
+    )
+);
 ```
 
 **Key capabilities:**
@@ -29,17 +31,19 @@ builder.Services
 - **Automatic tool discovery** — Discovered tools appear in the orchestrator's tool registry and are invoked transparently
 - **Capability resolution** — Semantic similarity filtering to select relevant tools from large MCP server catalogs
 
-📖 **[MCP Hosts →](./client.md)** — Full documentation with transport configuration, authentication, and integration details.
+📖 **[MCP Client →](./client.md)** — Transport configuration, authentication, discovery, and tool-registry integration details.
 
 ## Server — Expose Your AI Capabilities
 
 Expose your registered AI tools, prompts, and resources to external MCP clients.
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-    .AddCoreAIMcpServer();
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddMcpServer()
+    )
+);
 ```
 
 Or, using the builder pattern with stores:
@@ -76,5 +80,4 @@ builder.Services
 ```
 
 📖 **[Resource Types →](./resource-types.md)** — Implementation guide with built-in handlers and custom handler examples.
-
 

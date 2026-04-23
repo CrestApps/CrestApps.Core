@@ -8,6 +8,8 @@ description: Register CrestApps.Core services in MVC, Razor Pages, Blazor, Minim
 
 This guide shows how to add `CrestApps.Core` services to any ASP.NET Core host model. The same framework packages and registration chain work across MVC, Razor Pages, Blazor, Minimal APIs, and .NET MAUI hybrid apps.
 
+The recommended teaching surface is the fluent `AddCrestAppsCore(...).AddAISuite(...)` builder because that is the shape used by the repository sample hosts.
+
 ## 1. Choose packages
 
 Start with the smallest set that matches your scenario.
@@ -139,7 +141,7 @@ public sealed class ChatModel : PageModel
 
 ### Blazor Server / Blazor Web App
 
-Inject `IAICompletionService`, `IOrchestrator`, or `IAIClientFactory` into components and stream partial results to the UI. `AddCoreSignalR()` remains useful when you want hub-based browser communication outside normal Blazor circuits.
+Inject `IAICompletionService`, `IOrchestrator`, or `IAIClientFactory` into components and stream partial results to the UI. `AddCoreSignalR()` remains useful when you want hub-based browser communication outside normal Blazor circuits. The repository sample host is **`src\Startup\CrestApps.Core.Blazor.Web`**.
 
 ### Minimal APIs
 
@@ -284,3 +286,5 @@ That layering keeps small apps lightweight while letting larger apps grow into a
 - feature-by-feature opt-in extensions
 
 Use that sample when you want to add one capability at a time and compare a minimal setup with a full production-style composition.
+
+If you want a quick map of all runnable projects in the repository, continue with **[Sample Projects](./sample-projects.md)**.

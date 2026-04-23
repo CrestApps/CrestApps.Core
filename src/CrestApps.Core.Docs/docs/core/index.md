@@ -7,7 +7,7 @@ description: The package layout and feature map for the standalone CrestApps.Cor
 
 # Core Overview
 
-`CrestApps.Core` is built to be the **one framework you need to integrate AI into an existing .NET application**. It combines AI management, orchestration, chat, document intelligence, RAG, agent workflows, protocol support, reporting, and extensibility into a single composable platform.
+`CrestApps.Core` is the framework layer that sits between raw provider SDKs and your application. It gives you one registration model, one catalog model, and one orchestration surface across chat, documents, retrieval, memory, protocol integration, and custom tools.
 
 ## What makes it valuable
 
@@ -32,6 +32,16 @@ description: The package layout and feature map for the standalone CrestApps.Cor
 | Metrics and reporting | Track chat activity, consumption, lead workflows, and post-session outcomes |
 | Memory and personalization | Build assistants that remember durable user context over time |
 
+## Recommended build order
+
+If you are new to the repository, read the docs in this order:
+
+1. [Getting Started](../getting-started.md)
+2. [ASP.NET Core Integration](./getting-started-aspnet.md)
+3. [Sample Projects](./sample-projects.md)
+4. [AI Core](./ai-core.md)
+5. The feature or provider pages you need next
+
 ## Quick start
 
 ```csharp
@@ -43,7 +53,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 );
 ```
 
-That is enough to start resolving `IAICompletionService`, `IAIClientFactory`, or `IOrchestrator` from DI and composing your own AI experience.
+That is enough to start resolving `IAICompletionService`, `IAIClientFactory`, or `IOrchestrator` from DI and composing your own AI experience. Add storage, chat, documents, MCP, A2A, and indexing only when your host needs them.
 
 By default:
 
@@ -63,8 +73,9 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | Templates | `CrestApps.Core.Templates` | Reusable prompts and template-driven profile composition |
 | Providers | Provider packages | OpenAI, Azure OpenAI, Azure AI Inference, and Ollama integrations |
 | Protocols | `CrestApps.Core.AI.Mcp`, `CrestApps.Core.AI.A2A` | MCP and A2A client/server building blocks |
-| Persistence | `CrestApps.Core.Data.YesSql` | YesSql-backed catalogs and AI persistence implementations |
-| Sample hosts | `CrestApps.Core.Mvc.Web`, `CrestApps.Core.Aspire.AppHost` | Reference composition and local orchestration |
+| Persistence | `CrestApps.Core.Data.EntityCore`, `CrestApps.Core.Data.YesSql` | First-party persistence implementations for the shared catalog surface |
+| Sample hosts | `CrestApps.Core.Mvc.Web`, `CrestApps.Core.Blazor.Web`, `CrestApps.Core.Aspire.AppHost` | Runnable reference hosts and composed local environment |
+| Sample clients | `CrestApps.Core.Mvc.Samples.A2AClient`, `CrestApps.Core.Mvc.Samples.McpClient` | Small protocol-focused sample applications |
 
 ## Feature map
 

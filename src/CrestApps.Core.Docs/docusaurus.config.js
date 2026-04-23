@@ -101,7 +101,7 @@ const config = {
             items: [
               { label: 'Getting Started', to: '/docs/getting-started' },
               { label: 'Core Overview', to: '/docs/core' },
-              { label: 'AI Chat Use Cases', to: '/docs/core/use-cases' },
+              { label: 'Sample Projects', to: '/docs/core/sample-projects' },
             ],
           },
           {

@@ -54,8 +54,9 @@ Important folders:
 When a change affects public behavior, configuration, setup, or project guidance:
 
 1. Update the relevant page under `src\CrestApps.Core.Docs\docs`
-2. Update the changelog under `src\CrestApps.Core.Docs\docs\changelog`
-3. Build the docs site
+2. Update the changelog or release-notes file under `src\CrestApps.Core.Docs\docs\changelog` that matches `VersionPrefix` in `Directory.Build.props` (for example, `VersionPrefix` `1.0.0` maps to `v1.0.0.md`)
+3. Do not create a new changelog version file unless `VersionPrefix` changed or the user explicitly instructs you to create a different file
+4. Build the docs site
 
 Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Core implementation, treat it as a related downstream product and link to <https://orchardcore.crestapps.com>.
 

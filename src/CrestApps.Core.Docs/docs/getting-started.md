@@ -9,7 +9,14 @@ description: Build, run, and explore the standalone CrestApps.Core repository.
 
 ## Fastest path to a working AI experience
 
-If you want the least-effort path, use this sequence:
+If you want the shortest path from clone to something real you can inspect, use this order:
+
+1. Build the repository
+2. Run the MVC sample host
+3. Add provider settings in `src\Startup\CrestApps.Core.Mvc.Web\App_Data\appsettings.json` or user secrets
+4. Use the sample UI to inspect connections, deployments, profiles, chat, documents, MCP, and A2A
+
+If you want the shortest path for **consuming the framework in your own app**, use this sequence:
 
 1. Register `AddCrestAppsCore(...).AddAISuite(...)`
 2. Add one provider plus `AddChatInteractions()`
@@ -53,6 +60,18 @@ dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web
 
 Use the MVC sample when you want to see the full framework in one place: AI providers, deployments, profiles, templates, document processing, MCP, A2A, storage, and SignalR-driven chat flows.
 
+### Blazor sample application
+
+The Blazor host shows the same framework composition with a component-based UI and Entity Framework Core storage.
+
+**Command line:**
+
+```bash
+dotnet run --project .\src\Startup\CrestApps.Core.Blazor.Web\CrestApps.Core.Blazor.Web.csproj
+```
+
+Use the Blazor sample when you want to compare the same feature set against a Blazor-first host instead of MVC.
+
 ### Aspire host
 
 The Aspire host boots the MVC sample and related sample clients together as a composed local environment.
@@ -68,6 +87,14 @@ Aspire manages containers for services like Redis. You need a container runtime 
 ```bash
 dotnet run --project .\src\Startup\CrestApps.Core.Aspire.AppHost\CrestApps.Core.Aspire.AppHost.csproj
 ```
+
+The Aspire app host composes:
+
+- `CrestApps.Core.Mvc.Web`
+- `CrestApps.Core.Blazor.Web`
+- `CrestApps.Core.Mvc.Samples.A2AClient`
+- `CrestApps.Core.Mvc.Samples.McpClient`
+- local infrastructure such as Redis, Elasticsearch, and Ollama when enabled by the app host
 
 ## Smallest useful app integration
 
@@ -138,6 +165,7 @@ Under the hood, each builder step still maps to the corresponding `AddCrestApps.
 
 - Start with **[Core overview](core/index.md)** to understand the package layout
 - Use **[ASP.NET Core integration](core/getting-started-aspnet.md)** to wire the same services into MVC, Razor Pages, Blazor, Minimal APIs, or MAUI hybrid hosts
+- Use **[Sample Projects](core/sample-projects.md)** to choose the right runnable host or protocol sample in this repository
 - Follow **[MVC example](core/mvc-example.md)** for a complete working composition
 
 ## Build the docs site

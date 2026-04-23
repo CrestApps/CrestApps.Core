@@ -12,16 +12,22 @@ description: Vector search backends for retrieval-augmented generation (RAG) wit
 ## Quick Start
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-
-    // Add one or both backends:
-    .AddCoreElasticsearchServices(
-        builder.Configuration.GetSection("CrestApps:Elasticsearch"))
-    .AddCoreAzureAISearchServices(
-        builder.Configuration.GetSection("CrestApps:AzureAISearch"));
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+    )
+    .AddIndexingServices(indexing => indexing
+        .AddElasticsearch(builder.Configuration.GetSection("CrestApps:Elasticsearch"), elasticsearch => elasticsearch
+            .AddAIDataSources()
+        )
+        .AddAzureAISearch(builder.Configuration.GetSection("CrestApps:AzureAISearch"), azureAISearch => azureAISearch
+            .AddAIDataSources()
+        )
+    )
+);
 ```
+
+The lower-level provider extensions still exist, but the builder-based indexing registration matches the sample hosts and is the recommended starting point.
 
 ## What is Vector Search?
 

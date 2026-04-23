@@ -7,21 +7,29 @@ description: AI client architecture and how to connect to OpenAI, Azure OpenAI, 
 
 # AI Clients
 
-> Connect to one or more LLM providers. Each provider registers an `IAIClientProvider` that creates typed AI clients.
+> Connect one or more model providers to the shared CrestApps runtime. Most applications should register providers through `AddAISuite(...)` first and drop to the lower-level service extensions only when they need custom composition.
 
 ## Quick Start
 
 Register the providers you use:
 
 ```csharp
-builder.Services
-    .AddCoreAIServices()
-    .AddCoreAIOrchestration()
-    .AddCoreAIOpenAI()          // OpenAI (api.openai.com)
-    .AddCoreAIAzureOpenAI()     // Azure OpenAI Service
-    .AddCoreAIOllama()          // Ollama (local models)
-    .AddCoreAIAzureAIInference(); // Azure AI Inference / GitHub Models
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddAzureOpenAI()
+        .AddOllama()
+        .AddAzureAIInference()
+    )
+);
 ```
+
+The matching lower-level `IServiceCollection` extensions are still available:
+
+- `AddCoreAIOpenAI()`
+- `AddCoreAIAzureOpenAI()`
+- `AddCoreAIOllama()`
+- `AddCoreAIAzureAIInference()`
 
 You only need to register the providers you actually use.
 
@@ -49,21 +57,56 @@ IAIClientFactory
             └── Creates Azure.AI.Inference ChatClient
 ```
 
-## Client Connection
+## Connections and deployments
 
-Each provider needs at least one **connection** that stores credentials:
+Each provider usually needs:
 
-```csharp
-public class AIProviderConnectionEntry
+1. a **connection** that stores credentials and endpoint details
+2. a **deployment** that names the model or deployment you want to use
+
+In the shared configuration model, those live under:
+
+- `CrestApps:AI:Connections`
+- `CrestApps:AI:Deployments`
+
+The concrete runtime model is `AIProviderConnection`, while some lower-level APIs and converters still use `AIProviderConnectionEntry` for configuration-oriented shapes.
+
+```json
 {
-    public string Name { get; set; }           // Unique connection name
-    public string ClientName { get; set; }     // "OpenAI", "Azure", "Ollama", etc.
-    public string GetApiKey();                 // API key
-    public Uri GetEndpoint();                  // Endpoint URL (optional for OpenAI)
+  "CrestApps": {
+    "AI": {
+      "Connections": [
+        {
+          "Name": "primary-openai",
+          "ClientName": "OpenAI",
+          "ApiKey": "YOUR_API_KEY"
+        }
+      ],
+      "Deployments": [
+        {
+          "Name": "gpt-4.1",
+          "ConnectionName": "primary-openai",
+          "ModelName": "gpt-4.1",
+          "Type": "Chat"
+        }
+      ]
+    }
+  }
 }
 ```
 
-Connections are typically stored in a configuration file or database and loaded at startup. See the [MVC Example](../core/mvc-example.md) for a complete setup.
+## Client connection model
+
+```csharp
+public sealed class AIProviderConnection
+{
+    public string Name { get; set; }
+    public string ClientName { get; set; }
+    public string DisplayText { get; set; }
+}
+```
+
+Connections are typically stored in configuration, a first-party store package, or another custom catalog implementation. See the [MVC Example](../core/mvc-example.md) for a complete setup.
 
 ## Adding a Custom Provider
 
