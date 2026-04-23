@@ -7,7 +7,8 @@ public class BidirectionalJsonStringEnumConverterFactory : JsonConverterFactory
 {
     private readonly JsonStringEnumConverter _converter;
 
-    public BidirectionalJsonStringEnumConverterFactory() : this(null, allowIntegerValues: true)
+    public BidirectionalJsonStringEnumConverterFactory()
+        : this(null, allowIntegerValues: true)
     {
     }
 
