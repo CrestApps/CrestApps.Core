@@ -52,7 +52,9 @@
     <Project Path="src/Startup/CrestApps.Core.Aspire.AppHost/CrestApps.Core.Aspire.AppHost.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Samples.A2AClient/CrestApps.Core.Mvc.Samples.A2AClient.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Samples.McpClient/CrestApps.Core.Mvc.Samples.McpClient.csproj" />
+    <Project Path="src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
+    <Project Path="src/Startup/CrestApps.Core.Startup.Shared/CrestApps.Core.Startup.Shared.csproj" />
   </Folder>
   <Folder Name="/src/Stores/">
     <Project Path="src/Stores/CrestApps.Core.Data.EntityCore/CrestApps.Core.Data.EntityCore.csproj" />
@@ -62,6 +64,7 @@
     <Project Path="src/Utilities/CrestApps.Core.Support/CrestApps.Core.Support.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CrestApps.Core.Tests.Samples/CrestApps.Core.Tests.Samples.csproj" />
     <Project Path="tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj" />
   </Folder>
 </Solution>

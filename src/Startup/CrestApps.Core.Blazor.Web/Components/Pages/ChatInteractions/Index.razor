@@ -1,0 +1,134 @@
+@page "/chat-interactions"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Services
+@inject ICatalogManager<ChatInteraction> InteractionManager
+@inject IChatInteractionPromptStore PromptStore
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Chat Interactions - Blazor AI Integration Sample</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-chat-left-dots"></i> Chat Interactions</h2>
+    <button class="btn btn-success" @onclick="CreateNewAsync">
+        <i class="bi bi-plus-lg"></i> New Chat
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
+    </div>
+}
+
+@if (_interactions == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_interactions.Count == 0)
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No chat interactions yet. Create one to start chatting with AI using custom parameters.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Title</th>
+                    <th>Created</th>
+                    <th style="width: 200px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var interaction in _interactions)
+                {
+                    <tr>
+                        <td>
+                            <a href="/chat-interactions/chat/@interaction.ItemId" class="text-decoration-none">
+                                <strong>@(interaction.Title ?? "Untitled Chat")</strong>
+                            </a>
+                        </td>
+                        <td>
+                            <small class="text-muted">@interaction.CreatedUtc.ToString("g")</small>
+                        </td>
+                        <td>
+                            <a href="/chat-interactions/chat/@interaction.ItemId" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-chat-left-text"></i> Chat
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(interaction.ItemId)">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<ChatInteraction> _interactions;
+    private string _errorMessage;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInteractionsAsync();
+    }
+
+    private async Task LoadInteractionsAsync()
+    {
+        var interactions = await InteractionManager.GetAllAsync();
+
+        _interactions = interactions.OrderByDescending(i => i.CreatedUtc).ToList();
+    }
+
+    private async Task CreateNewAsync()
+    {
+        var authState = await AuthenticationState;
+        var userName = authState.User.Identity?.Name ?? "anonymous";
+
+        var interaction = await InteractionManager.NewAsync();
+        interaction.Title = "Untitled Chat";
+        interaction.OwnerId = userName;
+        interaction.Author = userName;
+        interaction.CreatedUtc = DateTime.UtcNow;
+
+        await InteractionManager.CreateAsync(interaction);
+        await StoreCommitter.CommitAsync();
+
+        Navigation.NavigateTo($"/chat-interactions/chat/{interaction.ItemId}");
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this chat interaction and all its history?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var interaction = await InteractionManager.FindByIdAsync(id);
+        if (interaction == null)
+        {
+            _errorMessage = "Chat interaction not found.";
+
+            return;
+        }
+
+        await PromptStore.DeleteAllPromptsAsync(id);
+        await InteractionManager.DeleteAsync(interaction);
+        await StoreCommitter.CommitAsync();
+        await LoadInteractionsAsync();
+    }
+}

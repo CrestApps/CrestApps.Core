@@ -65,14 +65,22 @@ public interface IAIChatHubClient
     /// <param name="messageId">The assistant message identifier.</param>
     /// <param name="token">The response token text.</param>
     /// <param name="responseId">The response identifier for grouping tokens.</param>
-    Task ReceiveConversationAssistantToken(string identifier, string messageId, string token, string responseId);
+    Task ReceiveConversationAssistantToken(
+        string identifier,
+        string messageId,
+        string token,
+        string responseId,
+        Dictionary<string, AICompletionReference> references = null);
 
     /// <summary>
     /// Notifies the client that the assistant response in conversation mode is complete.
     /// </summary>
     /// <param name="identifier">The conversation turn identifier.</param>
     /// <param name="messageId">The assistant message identifier.</param>
-    Task ReceiveConversationAssistantComplete(string identifier, string messageId);
+    Task ReceiveConversationAssistantComplete(
+        string identifier,
+        string messageId,
+        Dictionary<string, AICompletionReference> references = null);
 
     // Notification system messages.
 

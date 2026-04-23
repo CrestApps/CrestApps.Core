@@ -1,4 +1,5 @@
 using System.Net;
+using CrestApps.Core.AI.Exceptions;
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI;
@@ -56,6 +57,19 @@ internal static class AIHubErrorMessageHelper
         }
 
         return S["Our service is currently unavailable. Please try again later."];
+    }
+
+    public static bool IsInvalidChatModelSettingsFailure(Exception ex)
+    {
+        foreach (var current in EnumerateExceptions(ex))
+        {
+            if (current is AIDeploymentConfigurationException)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int? TryGetClientResultStatusCode(Exception ex)
@@ -126,5 +140,13 @@ internal static class AIHubErrorMessageHelper
         }
 
         return sentence.Trim();
+    }
+
+    private static IEnumerable<Exception> EnumerateExceptions(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            yield return current;
+        }
     }
 }

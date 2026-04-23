@@ -1,0 +1,200 @@
+@page "/ai-chat/extracted-data"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
+@using CrestApps.Core.Blazor.Web.ViewModels
+@inject IAIProfileManager ProfileManager
+@inject SampleAIChatSessionExtractedDataService ExtractedDataService
+@inject TimeProvider TimeProvider
+@inject IJSRuntime JS
+
+<PageTitle>Chat Extracted Data - Blazor AI Integration Sample</PageTitle>
+
+<h2><i class="bi bi-table"></i> Chat extracted data</h2>
+<p class="text-muted">Review extracted session values for a selected AI Profile.</p>
+<hr />
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">AI Profile</label>
+                <select class="form-select" @bind="_model.ProfileId">
+                    @foreach (var profile in _model.Profiles)
+                    {
+                        <option value="@profile.Value" selected="@profile.Selected">@profile.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">From</label>
+                <input class="form-control" type="date" @bind="_model.StartDateUtc" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To</label>
+                <input class="form-control" type="date" @bind="_model.EndDateUtc" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" @onclick="RunReportAsync">
+                    <i class="bi bi-funnel"></i> Show
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_validationError))
+{
+    <div class="alert alert-danger">@_validationError</div>
+}
+
+@if (!_model.ShowReport)
+{
+    <div class="alert alert-info">
+        Select an AI Profile to generate the extracted data report.
+    </div>
+}
+else if (_model.Rows.Count == 0)
+{
+    <div class="alert alert-warning">
+        No extracted data was found for the selected filters.
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-end mb-3">
+        <button class="btn btn-outline-secondary" @onclick="ExportCsvAsync">
+            <i class="bi bi-filetype-csv"></i> Export CSV
+        </button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Session date</th>
+                    <th>Session ID</th>
+                    @foreach (var column in _model.Columns)
+                    {
+                        <th>@column</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _model.Rows)
+                {
+                    <tr>
+                        <td>@row.SessionStartedUtc.ToString("g")</td>
+                        <td class="font-monospace small">@row.SessionId</td>
+                        @foreach (var column in _model.Columns)
+                        {
+                            row.Values.TryGetValue(column, out var value);
+                            <td>@value</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private ChatExtractedDataIndexViewModel _model = new();
+    private string _validationError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PopulateProfilesAsync();
+    }
+
+    private async Task PopulateProfilesAsync()
+    {
+        var profiles = await ProfileManager.GetAsync(AIProfileType.Chat);
+
+        _model.Profiles =
+        [
+            new SelectOption("Select a profile", string.Empty, string.IsNullOrEmpty(_model.ProfileId)),
+            .. profiles
+                .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(p => new SelectOption(p.DisplayText ?? p.Name, p.ItemId, p.ItemId == _model.ProfileId)),
+        ];
+    }
+
+    private async Task RunReportAsync()
+    {
+        _validationError = null;
+
+        if (string.IsNullOrEmpty(_model.ProfileId))
+        {
+            _validationError = "AI Profile is required.";
+            _model.ShowReport = false;
+
+            return;
+        }
+
+        var records = await ExtractedDataService.GetAsync(_model.ProfileId, _model.StartDateUtc, _model.EndDateUtc);
+        var rows = records.Select(record => new ChatExtractedDataRowViewModel
+        {
+            SessionId = record.SessionId,
+            SessionStartedUtc = record.SessionStartedUtc,
+            Values = record.Values.ToDictionary(pair => pair.Key, pair => string.Join(", ", pair.Value), StringComparer.OrdinalIgnoreCase),
+        }).ToList();
+
+        _model.Rows = rows;
+        _model.Columns = rows
+            .SelectMany(row => row.Values.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _model.ShowReport = true;
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var builder = new StringBuilder();
+        builder.Append("SessionStartedUtc,SessionId");
+
+        foreach (var column in _model.Columns)
+        {
+            builder.Append(',').Append(EscapeCsv(column));
+        }
+
+        builder.AppendLine();
+
+        foreach (var row in _model.Rows)
+        {
+            builder.Append(row.SessionStartedUtc.ToString("o")).Append(',').Append(EscapeCsv(row.SessionId));
+
+            foreach (var column in _model.Columns)
+            {
+                row.Values.TryGetValue(column, out var value);
+                builder.Append(',').Append(EscapeCsv(value));
+            }
+
+            builder.AppendLine();
+        }
+
+        var fileName = $"chat-extracted-data-{TimeProvider.GetUtcNow():yyyyMMdd-HHmmss}.csv";
+        var bytes = Encoding.UTF8.GetBytes(builder.ToString());
+        var base64 = Convert.ToBase64String(bytes);
+
+        await JS.InvokeVoidAsync("downloadFileFromBase64", fileName, "text/csv", base64);
+    }
+
+    private static string EscapeCsv(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        return value;
+    }
+}

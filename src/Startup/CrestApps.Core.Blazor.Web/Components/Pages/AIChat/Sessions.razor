@@ -1,0 +1,175 @@
+@page "/ai-chat/sessions/{ProfileId}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Services
+@inject IAIProfileManager ProfileManager
+@inject IAIChatSessionManager SessionManager
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Chat History - @(_profileDisplayText ?? "AI Chat") - Blazor AI Integration Sample</PageTitle>
+
+@if (_profile == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-clock-history"></i> Chat History — @_profileDisplayText</h2>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success" @onclick="CreateSessionAsync">
+                <i class="bi bi-plus-lg"></i> New Chat
+            </button>
+
+            @if (_sessions != null && _sessions.Count > 0)
+            {
+                <button class="btn btn-outline-danger" @onclick="DeleteAllSessionsAsync">
+                    <i class="bi bi-trash"></i> Delete All
+                </button>
+            }
+
+            <a href="/ai/profiles" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Profiles
+            </a>
+        </div>
+    </div>
+
+    @if (_sessions == null)
+    {
+        <p><em>Loading sessions...</em></p>
+    }
+    else if (_sessions.Count == 0)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No chat sessions found for this profile. Start a new chat to get going.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Title</th>
+                        <th>Created</th>
+                        <th>Last Activity</th>
+                        <th style="width: 180px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var session in _sessions.OrderByDescending(s => s.CreatedUtc))
+                    {
+                        <tr>
+                            <td>
+                                <a href="/ai-chat/chat/@session.SessionId" class="text-decoration-none">
+                                    <strong>@(session.Title ?? "Untitled")</strong>
+                                </a>
+                            </td>
+                            <td>
+                                <small class="text-muted">@session.CreatedUtc.ToString("g")</small>
+                            </td>
+                            <td>
+                                <small class="text-muted">@session.LastActivityUtc.ToString("g")</small>
+                            </td>
+                            <td>
+                                <a href="/ai-chat/chat/@session.SessionId" class="btn btn-sm btn-outline-primary" title="Resume chat">
+                                    <i class="bi bi-chat-left-text"></i> Resume
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => DeleteSessionAsync(session.SessionId)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string ProfileId { get; set; }
+
+    private AIProfile _profile;
+    private string _profileDisplayText;
+    private List<AIChatSessionEntry> _sessions;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(ProfileId))
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        _profile = await ProfileManager.FindByIdAsync(ProfileId);
+        if (_profile == null)
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        _profileDisplayText = _profile.DisplayText ?? _profile.Name;
+        await LoadSessionsAsync();
+    }
+
+    private async Task LoadSessionsAsync()
+    {
+        var result = await SessionManager.PageAsync(1, 200, new AIChatSessionQueryContext
+        {
+            ProfileId = ProfileId,
+            Sorted = true,
+        });
+
+        _sessions = result.Sessions.ToList();
+    }
+
+    private async Task CreateSessionAsync()
+    {
+        var session = await SessionManager.NewAsync(_profile, new NewAIChatSessionContext());
+        session.Title = _profile.DisplayText ?? _profile.Name;
+
+        await SessionManager.SaveAsync(session);
+        await StoreCommitter.CommitAsync();
+
+        Navigation.NavigateTo($"/ai-chat/chat/{session.SessionId}");
+    }
+
+    private async Task DeleteSessionAsync(string sessionId)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this session?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await SessionManager.DeleteAsync(sessionId);
+        await StoreCommitter.CommitAsync();
+        await LoadSessionsAsync();
+    }
+
+    private async Task DeleteAllSessionsAsync()
+    {
+        if (string.IsNullOrEmpty(ProfileId))
+        {
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete all chat sessions for this profile? This cannot be undone.");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await SessionManager.DeleteAllAsync(ProfileId);
+        await StoreCommitter.CommitAsync();
+        await LoadSessionsAsync();
+    }
+}

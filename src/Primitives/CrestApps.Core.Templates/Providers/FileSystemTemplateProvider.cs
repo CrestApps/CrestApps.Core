@@ -7,14 +7,15 @@ namespace CrestApps.Core.Templates.Providers;
 
 /// <summary>
 /// Discovers templates from the file system.
-/// Scans configured paths for <c>Templates/Prompts/</c> files matching registered parser extensions.
+/// Scans configured paths for templates stored directly under <c>Templates/</c>.
+/// Subdirectories are ignored so other providers can own their own folder conventions.
 /// </summary>
 public sealed class FileSystemTemplateProvider : ITemplateProvider
 {
     /// <summary>
-    /// The directory name within a project where prompt templates are stored.
+    /// The directory name within a project where generic templates are stored.
     /// </summary>
-    public const string PromptsDirectoryPath = "Templates/Prompts";
+    public const string TemplatesDirectoryPath = "Templates";
 
     private readonly TemplateOptions _options;
     private readonly IEnumerable<ITemplateParser> _parsers;
@@ -36,30 +37,22 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
 
         foreach (var basePath in _options.DiscoveryPaths)
         {
-            var promptsDir = Path.Combine(basePath, PromptsDirectoryPath.Replace('/', Path.DirectorySeparatorChar));
+            var templatesDir = Path.Combine(basePath, TemplatesDirectoryPath.Replace('/', Path.DirectorySeparatorChar));
 
-            if (!Directory.Exists(promptsDir))
+            if (!Directory.Exists(templatesDir))
             {
                 continue;
             }
 
-            DiscoverTemplates(promptsDir, featureId: null, basePath, templates);
-
-            // Scan subdirectories for feature-specific prompts.
-
-            foreach (var subDir in Directory.GetDirectories(promptsDir))
-            {
-                var featureId = Path.GetFileName(subDir);
-                DiscoverTemplates(subDir, featureId, basePath, templates);
-            }
+            DiscoverTemplates(templatesDir, basePath, templates);
         }
 
         return Task.FromResult<IReadOnlyList<Template>>(templates);
     }
 
-    private void DiscoverTemplates(string directory, string featureId, string sourcePath, List<Template> templates)
+    private void DiscoverTemplates(string templatesDirectory, string sourcePath, List<Template> templates)
     {
-        foreach (var file in Directory.GetFiles(directory))
+        foreach (var file in Directory.GetFiles(templatesDirectory))
         {
             var extension = Path.GetExtension(file);
             var parser = GetParserForExtension(extension);
@@ -75,21 +68,15 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
                 var parseResult = parser.Parse(content);
                 var id = Path.GetFileNameWithoutExtension(file);
 
-                var template = new Template
+                if (string.IsNullOrWhiteSpace(id))
                 {
-                    Id = id,
-                    Metadata = parseResult.Metadata,
-                    Content = parseResult.Body,
-                    Source = sourcePath,
-                    FeatureId = featureId,
-                };
-
-                // Use filename as title if no title in front matter.
-
-                if (string.IsNullOrWhiteSpace(template.Metadata.Title))
-                {
-                    template.Metadata.Title = id.Replace('-', ' ').Replace('.', ' ');
+                    continue;
                 }
+
+                var template = TemplateProviderConventions.CreateTemplate(
+                    id,
+                    parseResult,
+                    sourcePath);
 
                 templates.Add(template);
             }

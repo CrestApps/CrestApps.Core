@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Models;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.ViewModels;
 using CrestApps.Core.Services;
 using CrestApps.Core.Support;
@@ -16,6 +17,7 @@ namespace CrestApps.Core.Mvc.Web.Areas.Indexing.Controllers;
 public sealed class IndexProfileController : Controller
 {
     private readonly ISearchIndexProfileManager _indexProfileManager;
+    private readonly ISearchIndexProfileProvisioningService _provisioningService;
     private readonly ICatalog<AIDeployment> _deploymentCatalog;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<IndexProfileController> _logger;
@@ -23,12 +25,14 @@ public sealed class IndexProfileController : Controller
 
     public IndexProfileController(
         ISearchIndexProfileManager indexProfileManager,
+        ISearchIndexProfileProvisioningService provisioningService,
         ICatalog<AIDeployment> deploymentCatalog,
         IServiceProvider serviceProvider,
         IOptions<IndexProfileSourceOptions> sourceOptions,
         ILogger<IndexProfileController> logger)
     {
         _indexProfileManager = indexProfileManager;
+        _provisioningService = provisioningService;
         _deploymentCatalog = deploymentCatalog;
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -75,19 +79,7 @@ public sealed class IndexProfileController : Controller
 
         var profile = new SearchIndexProfile();
         model.ApplyTo(profile);
-        var indexManager = _serviceProvider.GetKeyedService<ISearchIndexManager>(profile.ProviderName);
-
-        if (indexManager == null)
-        {
-            ModelState.AddModelError(nameof(model.ProviderName), "The selected search provider is not configured for remote index provisioning.");
-            await PopulateDropdownsAsync(model);
-
-            return View(model);
-        }
-
-        profile.IndexFullName = indexManager.ComposeIndexFullName(profile);
-
-        await ValidateHandlersAsync(profile);
+        AddValidationErrors(await _provisioningService.CreateAsync(profile, HttpContext.RequestAborted));
 
         if (!ModelState.IsValid)
         {
@@ -95,79 +87,6 @@ public sealed class IndexProfileController : Controller
 
             return View(model);
         }
-
-        IReadOnlyCollection<SearchIndexField> fields;
-        try
-        {
-            fields = await _indexProfileManager.GetFieldsAsync(profile, HttpContext.RequestAborted);
-        }
-        catch (InvalidOperationException ex)
-        {
-            ModelState.AddModelError(nameof(model.EmbeddingDeploymentId), ex.Message);
-            await PopulateDropdownsAsync(model);
-
-            return View(model);
-        }
-
-        if (fields == null)
-        {
-            ModelState.AddModelError(nameof(model.Type), $"The index type '{profile.Type}' is not supported for remote provisioning.");
-            await PopulateDropdownsAsync(model);
-
-            return View(model);
-        }
-
-        try
-        {
-            if (await indexManager.ExistsAsync(profile, HttpContext.RequestAborted))
-            {
-                ModelState.AddModelError(nameof(model.IndexName), $"The remote index '{profile.IndexFullName}' already exists.");
-                await PopulateDropdownsAsync(model);
-
-                return View(model);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to validate remote index '{IndexName}' for provider '{ProviderName}'.",
-                profile.IndexFullName.SanitizeLogValue(),
-                profile.ProviderName.SanitizeLogValue());
-            ModelState.AddModelError(nameof(model.IndexName), $"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.");
-            await PopulateDropdownsAsync(model);
-
-            return View(model);
-        }
-
-        try
-        {
-            await indexManager.CreateAsync(profile, fields, HttpContext.RequestAborted);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to create remote index '{IndexName}' for provider '{ProviderName}'.",
-                profile.IndexFullName.SanitizeLogValue(),
-                profile.ProviderName.SanitizeLogValue());
-            ModelState.AddModelError(nameof(model.IndexName), $"Unable to create the remote index '{profile.IndexFullName}'.");
-            await PopulateDropdownsAsync(model);
-
-            return View(model);
-        }
-
-        try
-        {
-            await _indexProfileManager.CreateAsync(profile);
-        }
-        catch
-        {
-            await indexManager.DeleteAsync(profile, HttpContext.RequestAborted);
-            throw;
-        }
-
-        await _indexProfileManager.SynchronizeAsync(profile, HttpContext.RequestAborted);
 
         return RedirectToAction(nameof(Index));
     }
@@ -306,13 +225,11 @@ public sealed class IndexProfileController : Controller
             return;
         }
 
-        await ValidateHandlersAsync(profile);
+        AddValidationErrors(await _indexProfileManager.ValidateAsync(profile));
     }
 
-    private async Task ValidateHandlersAsync(SearchIndexProfile profile)
+    private void AddValidationErrors(ValidationResultDetails validationResult)
     {
-        var validationResult = await _indexProfileManager.ValidateAsync(profile);
-
         foreach (var error in validationResult.Errors)
         {
             var memberNames = error.MemberNames?.Any() == true

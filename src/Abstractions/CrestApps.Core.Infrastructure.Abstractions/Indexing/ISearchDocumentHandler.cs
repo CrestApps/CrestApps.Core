@@ -17,8 +17,7 @@ public interface ISearchDocumentHandler
     Task DocumentsAddedOrUpdatedAsync(
         IIndexProfileInfo profile,
         IReadOnlyCollection<string> documentIds,
-        CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Called after <see cref="ISearchDocumentManager"/> successfully deletes documents from a source index.
@@ -30,6 +29,5 @@ public interface ISearchDocumentHandler
     Task DocumentsDeletedAsync(
         IIndexProfileInfo profile,
         IReadOnlyCollection<string> documentIds,
-        CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
+        CancellationToken cancellationToken = default);
 }

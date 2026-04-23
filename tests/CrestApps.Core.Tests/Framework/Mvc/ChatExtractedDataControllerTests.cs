@@ -28,7 +28,7 @@ public sealed class ChatExtractedDataControllerTests
 
         var controller = new ChatExtractedDataController(
             profileManager.Object,
-            new MvcAIChatSessionExtractedDataService(new Mock<global::YesSql.ISession>().Object, TimeProvider.System),
+            new SampleAIChatSessionExtractedDataService(new Mock<global::YesSql.ISession>().Object, TimeProvider.System),
             TimeProvider.System);
 
         var result = await controller.IndexPost(new ChatExtractedDataIndexViewModel());

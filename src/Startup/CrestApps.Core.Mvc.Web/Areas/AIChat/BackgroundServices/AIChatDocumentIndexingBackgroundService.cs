@@ -5,12 +5,12 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 
 public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
 {
-    private readonly MvcAIChatDocumentIndexingQueue _queue;
+    private readonly SampleAIChatDocumentIndexingQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AIChatDocumentIndexingBackgroundService> _logger;
 
     public AIChatDocumentIndexingBackgroundService(
-        MvcAIChatDocumentIndexingQueue queue,
+        SampleAIChatDocumentIndexingQueue queue,
         IServiceScopeFactory scopeFactory,
         ILogger<AIChatDocumentIndexingBackgroundService> logger)
     {
@@ -26,14 +26,14 @@ public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
             try
             {
                 await using var scope = _scopeFactory.CreateAsyncScope();
-                var indexingService = scope.ServiceProvider.GetRequiredService<MvcAIDocumentIndexingService>();
+                var indexingService = scope.ServiceProvider.GetRequiredService<SampleAIDocumentIndexingService>();
 
                 switch (workItem.Type)
                 {
-                    case MvcAIChatDocumentIndexingWorkItemType.Index:
+                    case SampleAIChatDocumentIndexingWorkItemType.Index:
                         await indexingService.IndexAsync(workItem.Document, workItem.Chunks, stoppingToken);
                         break;
-                    case MvcAIChatDocumentIndexingWorkItemType.DeleteChunks:
+                    case SampleAIChatDocumentIndexingWorkItemType.DeleteChunks:
                         await indexingService.DeleteChunksAsync(workItem.ChunkIds, stoppingToken);
                         break;
                 }

@@ -1,0 +1,427 @@
+@page "/ai-chat/analytics"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
+@using CrestApps.Core.Blazor.Web.ViewModels
+@inject IAIProfileManager ProfileManager
+@inject SampleAIChatSessionEventService EventService
+@inject TimeProvider TimeProvider
+@inject IJSRuntime JS
+
+<PageTitle>Chat Analytics - Blazor AI Integration Sample</PageTitle>
+
+<h2><i class="bi bi-bar-chart-line"></i> Chat analytics</h2>
+<p class="text-muted">Review chat-session activity, performance, conversion, and feedback across AI chat profiles.</p>
+<hr />
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">AI Profile</label>
+                <select class="form-select" @bind="_model.ProfileId">
+                    @foreach (var profile in _model.Profiles)
+                    {
+                        <option value="@profile.Value" selected="@profile.Selected">@profile.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">From</label>
+                <input class="form-control" type="date" @bind="_model.StartDateUtc" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To</label>
+                <input class="form-control" type="date" @bind="_model.EndDateUtc" />
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-primary flex-fill" @onclick="RunReportAsync">
+                    <i class="bi bi-funnel"></i> Show
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!_model.ShowReport)
+{
+    <div class="alert alert-info">
+        Use the filters above to generate the analytics report.
+    </div>
+}
+else if (_model.TotalSessions == 0)
+{
+    <div class="alert alert-warning">
+        No chat analytics data was found for the selected filters.
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-end mb-3">
+        <button class="btn btn-outline-secondary" @onclick="ExportCsvAsync">
+            <i class="bi bi-filetype-csv"></i> Export CSV
+        </button>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total sessions</div><div class="fs-3 fw-semibold">@_model.TotalSessions</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Unique visitors</div><div class="fs-3 fw-semibold">@_model.UniqueVisitors</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Containment rate</div><div class="fs-3 fw-semibold">@_model.ContainmentRatePercent%</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Abandonment rate</div><div class="fs-3 fw-semibold">@_model.AbandonmentRatePercent%</div></div></div></div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Overview</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-7">Resolved sessions</dt><dd class="col-sm-5">@_model.ResolvedSessions</dd>
+                        <dt class="col-sm-7">Abandoned sessions</dt><dd class="col-sm-5">@_model.AbandonedSessions</dd>
+                        <dt class="col-sm-7">Active sessions</dt><dd class="col-sm-5">@_model.ActiveSessions</dd>
+                        <dt class="col-sm-7">Average handle time</dt><dd class="col-sm-5">@_model.AverageHandleTimeSeconds s</dd>
+                        <dt class="col-sm-7">Average messages / session</dt><dd class="col-sm-5">@_model.AverageMessagesPerSession</dd>
+                        <dt class="col-sm-7">Returning user rate</dt><dd class="col-sm-5">@_model.ReturningUserRatePercent%</dd>
+                        <dt class="col-sm-7">Average steps to resolution</dt><dd class="col-sm-5">@_model.AverageStepsToResolution</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Performance</div>
+                <div class="card-body">
+                    @if (!_model.HasPerformanceData)
+                    {
+                        <p class="text-muted mb-0">No latency or token data is available for this selection.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-7">Sessions with latency data</dt><dd class="col-sm-5">@_model.SessionsWithLatencyData</dd>
+                            <dt class="col-sm-7">Average response latency</dt><dd class="col-sm-5">@_model.AverageResponseLatencyMs ms</dd>
+                            <dt class="col-sm-7">Sessions with token data</dt><dd class="col-sm-5">@_model.SessionsWithTokenData</dd>
+                            <dt class="col-sm-7">Total tokens</dt><dd class="col-sm-5">@_model.TotalTokens</dd>
+                            <dt class="col-sm-7">Average tokens / session</dt><dd class="col-sm-5">@_model.AverageTokensPerSession</dd>
+                            <dt class="col-sm-7">Average input tokens / session</dt><dd class="col-sm-5">@_model.AverageInputTokensPerSession</dd>
+                            <dt class="col-sm-7">Average output tokens / session</dt><dd class="col-sm-5">@_model.AverageOutputTokensPerSession</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Resolution and conversion</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-7">AI resolved sessions</dt><dd class="col-sm-5">@_model.AIResolvedSessions</dd>
+                        <dt class="col-sm-7">AI unresolved sessions</dt><dd class="col-sm-5">@_model.AIUnresolvedSessions</dd>
+                        <dt class="col-sm-7">AI resolution rate</dt><dd class="col-sm-5">@_model.AIResolutionRatePercent%</dd>
+                    </dl>
+                    <hr />
+                    @if (!_model.HasConversionData)
+                    {
+                        <p class="text-muted mb-0">No conversion goal data is available for this selection.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-7">Sessions with conversion data</dt><dd class="col-sm-5">@_model.SessionsWithConversionData</dd>
+                            <dt class="col-sm-7">Average conversion score</dt><dd class="col-sm-5">@_model.AverageConversionScorePercent%</dd>
+                            <dt class="col-sm-7">High performing sessions</dt><dd class="col-sm-5">@_model.HighPerformingSessions (@_model.HighPerformingPercent%)</dd>
+                            <dt class="col-sm-7">Low performing sessions</dt><dd class="col-sm-5">@_model.LowPerformingSessions (@_model.LowPerformingPercent%)</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">User feedback</div>
+                <div class="card-body">
+                    @if (!_model.HasFeedbackData)
+                    {
+                        <p class="text-muted mb-0">No user ratings were recorded for this selection.</p>
+                    }
+                    else
+                    {
+                        <div class="row text-center">
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-success"><i class="bi bi-hand-thumbs-up me-1"></i>@_model.ThumbsUpCount</div>
+                                    <div class="text-muted">Positive ratings</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-danger"><i class="bi bi-hand-thumbs-down me-1"></i>@_model.ThumbsDownCount</div>
+                                    <div class="text-muted">Negative ratings</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-success">@_model.ThumbsUpPercent%</div>
+                                    <div class="text-muted">Satisfaction rate</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="border rounded p-3">
+                                    <div class="fs-2 fw-bold text-info">@_model.FeedbackRatePercent%</div>
+                                    <div class="text-muted">Feedback rate</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (_model.TotalRatings > 0)
+                        {
+                            <div class="progress mb-3" style="height: 40px;">
+                                <div class="progress-bar bg-success d-flex align-items-center justify-content-center gap-1 px-2"
+                                     role="progressbar" style="width: @(_model.ThumbsUpPercent)%">
+                                    <i class="bi bi-hand-thumbs-up"></i><span>@_model.ThumbsUpPercent%</span>
+                                </div>
+                                <div class="progress-bar bg-danger d-flex align-items-center justify-content-center gap-1 px-2"
+                                     role="progressbar" style="width: @(_model.ThumbsDownPercent)%">
+                                    <i class="bi bi-hand-thumbs-down"></i><span>@_model.ThumbsDownPercent%</span>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="text-muted small">No feedback: @_model.NoFeedbackCount</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Sessions by hour</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var entry in _model.SessionsByHour)
+                            {
+                                <tr><th class="ps-3">@entry.Key</th><td class="text-end pe-3">@entry.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Sessions by day of week</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var entry in _model.SessionsByDayOfWeek)
+                            {
+                                <tr><th class="ps-3">@entry.Key</th><td class="text-end pe-3">@entry.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Sessions by user segment</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var entry in _model.SessionsByUserSegment)
+                            {
+                                <tr><th class="ps-3">@entry.Key</th><td class="text-end pe-3">@entry.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ChatAnalyticsIndexViewModel _model = new();
+    private IReadOnlyList<AIChatSessionEvent> _events = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PopulateProfilesAsync();
+    }
+
+    private async Task PopulateProfilesAsync()
+    {
+        var profiles = await ProfileManager.GetAsync(AIProfileType.Chat);
+
+        _model.Profiles =
+        [
+            new SelectOption("All profiles", string.Empty, string.IsNullOrEmpty(_model.ProfileId)),
+            .. profiles
+                .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(p => new SelectOption(p.DisplayText ?? p.Name, p.ItemId, p.ItemId == _model.ProfileId)),
+        ];
+    }
+
+    private async Task RunReportAsync()
+    {
+        _events = await EventService.GetAsync(_model.ProfileId, _model.StartDateUtc, _model.EndDateUtc);
+        _model.ShowReport = true;
+        ApplyAnalytics(_events);
+    }
+
+    private void ApplyAnalytics(IReadOnlyList<AIChatSessionEvent> events)
+    {
+        _model.TotalSessions = events.Count;
+        _model.UniqueVisitors = events.Where(e => !string.IsNullOrEmpty(e.VisitorId)).Select(e => e.VisitorId).Distinct(StringComparer.Ordinal).Count();
+        _model.ResolvedSessions = events.Count(e => e.IsResolved);
+        _model.AbandonedSessions = events.Count(e => !e.IsResolved && e.SessionEndedUtc.HasValue);
+        _model.ActiveSessions = events.Count(e => !e.SessionEndedUtc.HasValue);
+
+        if (_model.TotalSessions > 0)
+        {
+            _model.ContainmentRatePercent = Math.Round((double)_model.ResolvedSessions / _model.TotalSessions * 100, 1);
+            _model.AbandonmentRatePercent = Math.Round((double)_model.AbandonedSessions / _model.TotalSessions * 100, 1);
+            _model.AverageMessagesPerSession = Math.Round(events.Average(e => e.MessageCount), 1);
+
+            var withHandleTime = events.Where(e => e.HandleTimeSeconds > 0).ToList();
+            _model.AverageHandleTimeSeconds = withHandleTime.Count > 0 ? Math.Round(withHandleTime.Average(e => e.HandleTimeSeconds), 1) : 0;
+
+            var visitorGroups = events.Where(e => !string.IsNullOrEmpty(e.VisitorId)).GroupBy(e => e.VisitorId).ToList();
+            if (visitorGroups.Count > 0)
+            {
+                _model.ReturningUserRatePercent = Math.Round((double)visitorGroups.Count(g => g.Count() > 1) / visitorGroups.Count * 100, 1);
+            }
+
+            var resolved = events.Where(e => e.IsResolved).ToList();
+            if (resolved.Count > 0)
+            {
+                _model.AverageStepsToResolution = Math.Round(resolved.Average(e => e.MessageCount), 1);
+            }
+        }
+
+        var withLatency = events.Where(e => e.AverageResponseLatencyMs > 0).ToList();
+        var withTokens = events.Where(e => e.TotalInputTokens > 0 || e.TotalOutputTokens > 0).ToList();
+        _model.SessionsWithLatencyData = withLatency.Count;
+        _model.SessionsWithTokenData = withTokens.Count;
+        _model.HasPerformanceData = withLatency.Count > 0 || withTokens.Count > 0;
+
+        if (withLatency.Count > 0)
+        {
+            _model.AverageResponseLatencyMs = Math.Round(withLatency.Average(e => e.AverageResponseLatencyMs), 0);
+        }
+
+        if (withTokens.Count > 0)
+        {
+            _model.TotalInputTokens = withTokens.Sum(e => (long)e.TotalInputTokens);
+            _model.TotalOutputTokens = withTokens.Sum(e => (long)e.TotalOutputTokens);
+            _model.TotalTokens = _model.TotalInputTokens + _model.TotalOutputTokens;
+            _model.AverageTokensPerSession = Math.Round((double)_model.TotalTokens / withTokens.Count, 0);
+            _model.AverageInputTokensPerSession = Math.Round((double)_model.TotalInputTokens / withTokens.Count, 0);
+            _model.AverageOutputTokensPerSession = Math.Round((double)_model.TotalOutputTokens / withTokens.Count, 0);
+        }
+
+        var closed = events.Where(e => e.SessionEndedUtc.HasValue).ToList();
+        if (closed.Count > 0)
+        {
+            _model.HasResolutionData = true;
+            _model.AIResolvedSessions = closed.Count(e => e.IsResolved);
+            _model.AIUnresolvedSessions = closed.Count(e => !e.IsResolved);
+            _model.AIResolutionRatePercent = Math.Round((double)_model.AIResolvedSessions / closed.Count * 100, 1);
+        }
+
+        var withConversion = events.Where(e => e.ConversionScore.HasValue && e.ConversionMaxScore.HasValue && e.ConversionMaxScore.Value > 0).ToList();
+        if (withConversion.Count > 0)
+        {
+            _model.HasConversionData = true;
+            _model.SessionsWithConversionData = withConversion.Count;
+            _model.TotalConversionScore = withConversion.Sum(e => e.ConversionScore!.Value);
+            _model.TotalConversionMaxScore = withConversion.Sum(e => e.ConversionMaxScore!.Value);
+            _model.AverageConversionScorePercent = Math.Round((double)_model.TotalConversionScore / _model.TotalConversionMaxScore * 100, 1);
+            _model.HighPerformingSessions = withConversion.Count(e => (double)e.ConversionScore!.Value / e.ConversionMaxScore!.Value >= 0.7);
+            _model.LowPerformingSessions = withConversion.Count(e => (double)e.ConversionScore!.Value / e.ConversionMaxScore!.Value < 0.3);
+            _model.HighPerformingPercent = Math.Round((double)_model.HighPerformingSessions / withConversion.Count * 100, 1);
+            _model.LowPerformingPercent = Math.Round((double)_model.LowPerformingSessions / withConversion.Count * 100, 1);
+        }
+
+        _model.ThumbsUpCount = events.Sum(e => e.ThumbsUpCount);
+        _model.ThumbsDownCount = events.Sum(e => e.ThumbsDownCount);
+        _model.NoFeedbackCount = events.Count(e => e.ThumbsUpCount == 0 && e.ThumbsDownCount == 0);
+        _model.TotalRatings = _model.ThumbsUpCount + _model.ThumbsDownCount;
+        _model.HasFeedbackData = _model.TotalRatings > 0;
+
+        if (_model.TotalRatings > 0)
+        {
+            _model.ThumbsUpPercent = Math.Round((double)_model.ThumbsUpCount / _model.TotalRatings * 100, 1);
+            _model.ThumbsDownPercent = Math.Round((double)_model.ThumbsDownCount / _model.TotalRatings * 100, 1);
+        }
+
+        if (events.Count > 0)
+        {
+            _model.FeedbackRatePercent = Math.Round((double)events.Count(e => e.ThumbsUpCount > 0 || e.ThumbsDownCount > 0) / events.Count * 100, 1);
+        }
+
+        _model.SessionsByHour = Enumerable.Range(0, 24).ToDictionary(h => $"{h:00}:00", h => events.Count(e => e.SessionStartedUtc.Hour == h));
+        _model.SessionsByDayOfWeek = Enum.GetValues<DayOfWeek>().ToDictionary(d => d.ToString(), d => events.Count(e => e.SessionStartedUtc.DayOfWeek == d));
+        _model.SessionsByUserSegment = new Dictionary<string, int>
+        {
+            ["Authenticated"] = events.Count(e => e.IsAuthenticated),
+            ["Anonymous"] = events.Count(e => !e.IsAuthenticated),
+        };
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("SessionId,ProfileId,VisitorId,UserId,IsAuthenticated,SessionStartedUtc,SessionEndedUtc,MessageCount,HandleTimeSeconds,IsResolved,TotalInputTokens,TotalOutputTokens,AverageResponseLatencyMs,ThumbsUpCount,ThumbsDownCount,ConversionScore,ConversionMaxScore");
+
+        foreach (var evt in _events)
+        {
+            builder.Append(EscapeCsv(evt.SessionId)).Append(',')
+                .Append(EscapeCsv(evt.ProfileId)).Append(',')
+                .Append(EscapeCsv(evt.VisitorId)).Append(',')
+                .Append(EscapeCsv(evt.UserId)).Append(',')
+                .Append(evt.IsAuthenticated).Append(',')
+                .Append(evt.SessionStartedUtc.ToString("o")).Append(',')
+                .Append(evt.SessionEndedUtc?.ToString("o") ?? string.Empty).Append(',')
+                .Append(evt.MessageCount).Append(',')
+                .Append(evt.HandleTimeSeconds).Append(',')
+                .Append(evt.IsResolved).Append(',')
+                .Append(evt.TotalInputTokens).Append(',')
+                .Append(evt.TotalOutputTokens).Append(',')
+                .Append(evt.AverageResponseLatencyMs).Append(',')
+                .Append(evt.ThumbsUpCount).Append(',')
+                .Append(evt.ThumbsDownCount).Append(',')
+                .Append(evt.ConversionScore?.ToString() ?? string.Empty).Append(',')
+                .AppendLine(evt.ConversionMaxScore?.ToString() ?? string.Empty);
+        }
+
+        var fileName = $"chat-analytics-{TimeProvider.GetUtcNow():yyyyMMdd-HHmmss}.csv";
+        var bytes = Encoding.UTF8.GetBytes(builder.ToString());
+        var base64 = Convert.ToBase64String(bytes);
+
+        await JS.InvokeVoidAsync("downloadFileFromBase64", fileName, "text/csv", base64);
+    }
+
+    private static string EscapeCsv(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        return value;
+    }
+}

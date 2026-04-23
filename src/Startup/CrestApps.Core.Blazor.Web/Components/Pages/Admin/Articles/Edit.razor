@@ -1,0 +1,126 @@
+@page "/admin/articles/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+
+@using CrestApps.Core.Startup.Shared.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Services
+
+@inject ICatalogManager<Article> ArticleManager
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Article - Blazor AI Integration Sample</PageTitle>
+
+<h2><i class="bi bi-journal-text"></i> Edit Article</h2>
+<hr />
+
+@if (_notFound)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> Article not found.
+    </div>
+}
+else if (_model == null)
+{
+    <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <EditForm FormName="admin-articles-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Article Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title</label>
+                            <InputText id="title" @bind-Value="_model.Title" class="form-control" />
+                            @if (!string.IsNullOrEmpty(_titleError))
+                            {
+                                <span class="text-danger">@_titleError</span>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <InputTextArea id="description" @bind-Value="_model.Description" class="form-control" rows="15" />
+                            <div class="form-text">
+                                Supports <a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noopener noreferrer">Markdown</a> formatting.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                    <a href="/admin/articles" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private ArticleViewModel _model;
+    private string _titleError;
+    private bool _notFound;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var article = await ArticleManager.FindByIdAsync(Id);
+
+        if (article == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _model = new ArticleViewModel
+        {
+            ItemId = article.ItemId,
+            Title = article.Title,
+            Description = article.Description,
+        };
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _titleError = null;
+
+        var article = await ArticleManager.FindByIdAsync(_model.ItemId);
+
+        if (article == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_model.Title))
+        {
+            _titleError = "Title is required.";
+
+            return;
+        }
+
+        article.Title = _model.Title?.Trim();
+        article.Description = _model.Description?.Trim();
+
+        await ArticleManager.UpdateAsync(article);
+        await StoreCommitter.CommitAsync();
+
+        Navigation.NavigateTo("/admin/articles");
+    }
+}

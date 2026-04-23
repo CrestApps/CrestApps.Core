@@ -1,0 +1,578 @@
+@page "/mcp/connections/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text.Json
+@using CrestApps.Core.AI.Mcp
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Services
+@inject ICatalog<McpConnection> Catalog
+@inject IDataProtectionProvider DataProtectionProvider
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject TimeProvider TimeProvider
+
+<PageTitle>Edit MCP Host</PageTitle>
+
+<h2><i class="bi bi-pencil-square"></i> Edit MCP Host</h2>
+<hr />
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">Connection not found.</div>
+}
+else if (_model == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm FormName="mcp-mcpconnections-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <DataAnnotationsValidator />
+
+        <div class="col-md-8">
+            @if (_errors.Count > 0)
+            {
+                <div class="alert alert-danger">
+                    @foreach (var error in _errors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText @bind-Value="_model.DisplayText" class="form-control" />
+                <ValidationMessage For="() => _model.DisplayText" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Connection type</label>
+                <select class="form-select" value="@_model.Source" @onchange="OnSourceChanged">
+                    <option value="@McpConstants.TransportTypes.Sse">Server-Sent Events (SSE)</option>
+                    <option value="@McpConstants.TransportTypes.StdIo">Standard Input/Output</option>
+                </select>
+            </div>
+
+            @if (_model.Source == McpConstants.TransportTypes.Sse)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Endpoint</label>
+                    <InputText @bind-Value="_model.Endpoint" class="form-control" placeholder="https://mcp.example.com/mcp/sse" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Authentication</label>
+                    <select class="form-select" value="@_model.AuthenticationType" @onchange="OnAuthTypeChanged">
+                        @foreach (var authType in Enum.GetValues<McpClientAuthenticationType>())
+                        {
+                            <option value="@authType">@authType</option>
+                        }
+                    </select>
+                </div>
+
+                @if (_model.AuthenticationType == McpClientAuthenticationType.ApiKey)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">API key header name</label>
+                        <InputText @bind-Value="_model.ApiKeyHeaderName" class="form-control" placeholder="Authorization" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">API key prefix</label>
+                        <InputText @bind-Value="_model.ApiKeyPrefix" class="form-control" placeholder="Bearer" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">API key</label>
+                        <input type="password" class="form-control" @bind="_model.ApiKey" autocomplete="new-password" />
+                        @if (_model.HasApiKey)
+                        {
+                            <div class="form-text">Leave blank to keep the existing API key.</div>
+                        }
+                    </div>
+                }
+
+                @if (_model.AuthenticationType == McpClientAuthenticationType.Basic)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <InputText @bind-Value="_model.BasicUsername" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" @bind="_model.BasicPassword" autocomplete="new-password" />
+                        @if (_model.HasBasicPassword)
+                        {
+                            <div class="form-text">Leave blank to keep the existing password.</div>
+                        }
+                    </div>
+                }
+
+                @if (_model.AuthenticationType is McpClientAuthenticationType.OAuth2ClientCredentials
+                    or McpClientAuthenticationType.OAuth2PrivateKeyJwt
+                    or McpClientAuthenticationType.OAuth2Mtls)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Token endpoint</label>
+                        <InputText @bind-Value="_model.OAuth2TokenEndpoint" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Client ID</label>
+                        <InputText @bind-Value="_model.OAuth2ClientId" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Scopes</label>
+                        <InputText @bind-Value="_model.OAuth2Scopes" class="form-control" />
+                    </div>
+                }
+
+                @if (_model.AuthenticationType == McpClientAuthenticationType.OAuth2ClientCredentials)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Client secret</label>
+                        <input type="password" class="form-control" @bind="_model.OAuth2ClientSecret" autocomplete="new-password" />
+                        @if (_model.HasOAuth2ClientSecret)
+                        {
+                            <div class="form-text">Leave blank to keep the existing client secret.</div>
+                        }
+                    </div>
+                }
+
+                @if (_model.AuthenticationType == McpClientAuthenticationType.OAuth2PrivateKeyJwt)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Key ID</label>
+                        <InputText @bind-Value="_model.OAuth2KeyId" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Private key (PEM)</label>
+                        <InputTextArea @bind-Value="_model.OAuth2PrivateKey" class="form-control" rows="6" />
+                        @if (_model.HasOAuth2PrivateKey)
+                        {
+                            <div class="form-text">Leave blank to keep the existing private key.</div>
+                        }
+                    </div>
+                }
+
+                @if (_model.AuthenticationType == McpClientAuthenticationType.OAuth2Mtls)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Client certificate (Base64 PFX/PKCS#12)</label>
+                        <InputTextArea @bind-Value="_model.OAuth2ClientCertificate" class="form-control" rows="5" />
+                        @if (_model.HasOAuth2ClientCertificate)
+                        {
+                            <div class="form-text">Leave blank to keep the existing certificate.</div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Certificate password</label>
+                        <input type="password" class="form-control" @bind="_model.OAuth2ClientCertificatePassword" autocomplete="new-password" />
+                        @if (_model.HasOAuth2ClientCertificatePassword)
+                        {
+                            <div class="form-text">Leave blank to keep the existing certificate password.</div>
+                        }
+                    </div>
+                }
+
+                @if (_model.AuthenticationType == McpClientAuthenticationType.CustomHeaders)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Additional headers (JSON)</label>
+                        <InputTextArea @bind-Value="_model.AdditionalHeaders" class="form-control" rows="5" />
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="mb-3">
+                    <label class="form-label">Command</label>
+                    <InputText @bind-Value="_model.Command" class="form-control" placeholder="docker" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Arguments (JSON array)</label>
+                    <InputTextArea @bind-Value="_model.Arguments" class="form-control" rows="5" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Working directory</label>
+                    <InputText @bind-Value="_model.WorkingDirectory" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Environment variables (JSON object)</label>
+                    <InputTextArea @bind-Value="_model.EnvironmentVariables" class="form-control" rows="5" />
+                </div>
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+                <a href="/mcp/connections" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private static readonly JsonSerializerOptions _indentedJsonOptions = new() { WriteIndented = true };
+
+    [Parameter]
+    public string Id { get; set; }
+
+    private McpConnectionViewModel _model;
+    private bool _notFound;
+    private List<string> _errors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var connection = await Catalog.FindByIdAsync(Id);
+
+        if (connection == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _model = ToViewModel(connection);
+    }
+
+    private void OnSourceChanged(ChangeEventArgs e)
+    {
+        _model.Source = e.Value?.ToString();
+    }
+
+    private void OnAuthTypeChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<McpClientAuthenticationType>(e.Value?.ToString(), out var value))
+        {
+            _model.AuthenticationType = value;
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors.Clear();
+        var connection = await Catalog.FindByIdAsync(_model.ItemId);
+
+        if (connection == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        Validate(_model, true);
+
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        Apply(_model, connection);
+        await Catalog.UpdateAsync(connection);
+        await StoreCommitter.CommitAsync();
+        Navigation.NavigateTo("/mcp/connections");
+    }
+
+    private void Validate(McpConnectionViewModel model, bool isEditing)
+    {
+        if (string.IsNullOrWhiteSpace(model.DisplayText))
+        {
+            _errors.Add("Display text is required.");
+        }
+
+        if (model.Source == McpConstants.TransportTypes.Sse)
+        {
+            ValidateSse(model, isEditing);
+        }
+        else if (model.Source == McpConstants.TransportTypes.StdIo)
+        {
+            ValidateStdIo(model);
+        }
+        else
+        {
+            _errors.Add("Connection type is not supported.");
+        }
+    }
+
+    private void ValidateSse(McpConnectionViewModel model, bool isEditing)
+    {
+        if (string.IsNullOrWhiteSpace(model.Endpoint))
+        {
+            _errors.Add("Endpoint is required.");
+        }
+        else if (!Uri.TryCreate(model.Endpoint, UriKind.Absolute, out _))
+        {
+            _errors.Add("Endpoint must be a valid absolute URL.");
+        }
+
+        switch (model.AuthenticationType)
+        {
+            case McpClientAuthenticationType.ApiKey:
+                if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
+                {
+                    _errors.Add("API key is required.");
+                }
+
+                break;
+
+            case McpClientAuthenticationType.Basic:
+                if (string.IsNullOrWhiteSpace(model.BasicUsername))
+                {
+                    _errors.Add("Username is required.");
+                }
+
+                if ((!isEditing || !model.HasBasicPassword) && string.IsNullOrWhiteSpace(model.BasicPassword))
+                {
+                    _errors.Add("Password is required.");
+                }
+
+                break;
+
+            case McpClientAuthenticationType.OAuth2ClientCredentials:
+                ValidateOAuth2Common(model);
+
+                if ((!isEditing || !model.HasOAuth2ClientSecret) && string.IsNullOrWhiteSpace(model.OAuth2ClientSecret))
+                {
+                    _errors.Add("Client secret is required.");
+                }
+
+                break;
+
+            case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
+                ValidateOAuth2Common(model);
+
+                if ((!isEditing || !model.HasOAuth2PrivateKey) && string.IsNullOrWhiteSpace(model.OAuth2PrivateKey))
+                {
+                    _errors.Add("Private key is required.");
+                }
+
+                break;
+
+            case McpClientAuthenticationType.OAuth2Mtls:
+                ValidateOAuth2Common(model);
+
+                if ((!isEditing || !model.HasOAuth2ClientCertificate) && string.IsNullOrWhiteSpace(model.OAuth2ClientCertificate))
+                {
+                    _errors.Add("Client certificate is required.");
+                }
+
+                break;
+
+            case McpClientAuthenticationType.CustomHeaders:
+                ValidateJsonObject(model.AdditionalHeaders, "Additional headers must be valid JSON.");
+
+                break;
+        }
+    }
+
+    private void ValidateOAuth2Common(McpConnectionViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.OAuth2TokenEndpoint))
+        {
+            _errors.Add("Token endpoint is required.");
+        }
+        else if (!Uri.TryCreate(model.OAuth2TokenEndpoint, UriKind.Absolute, out _))
+        {
+            _errors.Add("Token endpoint must be a valid absolute URL.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.OAuth2ClientId))
+        {
+            _errors.Add("Client ID is required.");
+        }
+    }
+
+    private void ValidateStdIo(McpConnectionViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.Command))
+        {
+            _errors.Add("Command is required.");
+        }
+
+        ValidateJsonArray(model.Arguments, "Arguments must be a valid JSON string array.");
+        ValidateJsonObject(model.EnvironmentVariables, "Environment variables must be valid JSON.");
+    }
+
+    private void ValidateJsonArray(string value, string message)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        try { _ = JsonSerializer.Deserialize<string[]>(value); }
+        catch (JsonException) { _errors.Add(message); }
+    }
+
+    private void ValidateJsonObject(string value, string message)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        try { _ = JsonSerializer.Deserialize<Dictionary<string, string>>(value); }
+        catch (JsonException) { _errors.Add(message); }
+    }
+
+    private void Apply(McpConnectionViewModel model, McpConnection connection)
+    {
+        connection.DisplayText = model.DisplayText.Trim();
+        connection.Source = model.Source;
+
+        if (model.Source == McpConstants.TransportTypes.Sse)
+        {
+            ApplySse(model, connection);
+        }
+        else
+        {
+            ApplyStdIo(model, connection);
+        }
+    }
+
+    private void ApplySse(McpConnectionViewModel model, McpConnection connection)
+    {
+        var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
+        var protector = DataProtectionProvider.CreateProtector(McpConstants.DataProtectionPurpose);
+        var existingApiKey = metadata.ApiKey;
+        var existingBasicPassword = metadata.BasicPassword;
+        var existingOAuth2ClientSecret = metadata.OAuth2ClientSecret;
+        var existingOAuth2PrivateKey = metadata.OAuth2PrivateKey;
+        var existingCertificate = metadata.OAuth2ClientCertificate;
+        var existingCertificatePassword = metadata.OAuth2ClientCertificatePassword;
+        metadata.Endpoint = Uri.TryCreate(model.Endpoint, UriKind.Absolute, out var endpoint) ? endpoint : null;
+        metadata.AuthenticationType = model.AuthenticationType;
+        metadata.ApiKeyHeaderName = null;
+        metadata.ApiKeyPrefix = null;
+        metadata.ApiKey = null;
+        metadata.BasicUsername = null;
+        metadata.BasicPassword = null;
+        metadata.OAuth2TokenEndpoint = null;
+        metadata.OAuth2ClientId = null;
+        metadata.OAuth2ClientSecret = null;
+        metadata.OAuth2Scopes = null;
+        metadata.OAuth2PrivateKey = null;
+        metadata.OAuth2KeyId = null;
+        metadata.OAuth2ClientCertificate = null;
+        metadata.OAuth2ClientCertificatePassword = null;
+        metadata.AdditionalHeaders = null;
+
+        switch (model.AuthenticationType)
+        {
+            case McpClientAuthenticationType.ApiKey:
+                metadata.ApiKeyHeaderName = model.ApiKeyHeaderName?.Trim();
+                metadata.ApiKeyPrefix = model.ApiKeyPrefix?.Trim();
+                metadata.ApiKey = ProtectOrReuse(model.ApiKey, existingApiKey, protector);
+
+                break;
+
+            case McpClientAuthenticationType.Basic:
+                metadata.BasicUsername = model.BasicUsername?.Trim();
+                metadata.BasicPassword = ProtectOrReuse(model.BasicPassword, existingBasicPassword, protector);
+
+                break;
+
+            case McpClientAuthenticationType.OAuth2ClientCredentials:
+                metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint?.Trim();
+                metadata.OAuth2ClientId = model.OAuth2ClientId?.Trim();
+                metadata.OAuth2Scopes = model.OAuth2Scopes?.Trim();
+                metadata.OAuth2ClientSecret = ProtectOrReuse(model.OAuth2ClientSecret, existingOAuth2ClientSecret, protector);
+
+                break;
+
+            case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
+                metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint?.Trim();
+                metadata.OAuth2ClientId = model.OAuth2ClientId?.Trim();
+                metadata.OAuth2Scopes = model.OAuth2Scopes?.Trim();
+                metadata.OAuth2KeyId = model.OAuth2KeyId?.Trim();
+                metadata.OAuth2PrivateKey = ProtectOrReuse(model.OAuth2PrivateKey, existingOAuth2PrivateKey, protector);
+
+                break;
+
+            case McpClientAuthenticationType.OAuth2Mtls:
+                metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint?.Trim();
+                metadata.OAuth2ClientId = model.OAuth2ClientId?.Trim();
+                metadata.OAuth2Scopes = model.OAuth2Scopes?.Trim();
+                metadata.OAuth2ClientCertificate = ProtectOrReuse(model.OAuth2ClientCertificate, existingCertificate, protector);
+                metadata.OAuth2ClientCertificatePassword = ProtectOrReuse(model.OAuth2ClientCertificatePassword, existingCertificatePassword, protector);
+
+                break;
+
+            case McpClientAuthenticationType.CustomHeaders:
+                metadata.AdditionalHeaders = string.IsNullOrWhiteSpace(model.AdditionalHeaders) ? [] : JsonSerializer.Deserialize<Dictionary<string, string>>(model.AdditionalHeaders) ?? [];
+
+                break;
+        }
+
+        connection.Put(metadata);
+    }
+
+    private static void ApplyStdIo(McpConnectionViewModel model, McpConnection connection)
+    {
+        connection.Alter<StdioMcpConnectionMetadata>(metadata =>
+        {
+            metadata.Command = model.Command?.Trim();
+            metadata.Arguments = string.IsNullOrWhiteSpace(model.Arguments) ? [] : JsonSerializer.Deserialize<string[]>(model.Arguments) ?? [];
+            metadata.WorkingDirectory = model.WorkingDirectory?.Trim();
+            metadata.EnvironmentVariables = string.IsNullOrWhiteSpace(model.EnvironmentVariables) ? [] : JsonSerializer.Deserialize<Dictionary<string, string>>(model.EnvironmentVariables) ?? [];
+        });
+    }
+
+    private static string ProtectOrReuse(string newValue, string existingValue, Microsoft.AspNetCore.DataProtection.IDataProtector protector)
+    {
+        return string.IsNullOrWhiteSpace(newValue) ? existingValue : protector.Protect(newValue);
+    }
+
+    private static McpConnectionViewModel ToViewModel(McpConnection connection)
+    {
+        var model = new McpConnectionViewModel
+        {
+            ItemId = connection.ItemId,
+            DisplayText = connection.DisplayText,
+            Source = connection.Source,
+        };
+
+        if (connection.Source == McpConstants.TransportTypes.Sse)
+        {
+            if (connection.TryGet<SseMcpConnectionMetadata>(out var sseMetadata))
+            {
+                model.Endpoint = sseMetadata.Endpoint?.ToString();
+                model.AuthenticationType = sseMetadata.AuthenticationType;
+                model.ApiKeyHeaderName = sseMetadata.ApiKeyHeaderName;
+                model.ApiKeyPrefix = sseMetadata.ApiKeyPrefix;
+                model.HasApiKey = !string.IsNullOrEmpty(sseMetadata.ApiKey);
+                model.BasicUsername = sseMetadata.BasicUsername;
+                model.HasBasicPassword = !string.IsNullOrEmpty(sseMetadata.BasicPassword);
+                model.OAuth2TokenEndpoint = sseMetadata.OAuth2TokenEndpoint;
+                model.OAuth2ClientId = sseMetadata.OAuth2ClientId;
+                model.OAuth2Scopes = sseMetadata.OAuth2Scopes;
+                model.HasOAuth2ClientSecret = !string.IsNullOrEmpty(sseMetadata.OAuth2ClientSecret);
+                model.OAuth2KeyId = sseMetadata.OAuth2KeyId;
+                model.HasOAuth2PrivateKey = !string.IsNullOrEmpty(sseMetadata.OAuth2PrivateKey);
+                model.HasOAuth2ClientCertificate = !string.IsNullOrEmpty(sseMetadata.OAuth2ClientCertificate);
+                model.HasOAuth2ClientCertificatePassword = !string.IsNullOrEmpty(sseMetadata.OAuth2ClientCertificatePassword);
+                model.AdditionalHeaders = sseMetadata.AdditionalHeaders is not null ? JsonSerializer.Serialize(sseMetadata.AdditionalHeaders, _indentedJsonOptions) : "{}";
+            }
+        }
+        else
+        {
+            if (connection.TryGet<StdioMcpConnectionMetadata>(out var stdioMetadata))
+            {
+                model.Command = stdioMetadata.Command;
+                model.Arguments = stdioMetadata.Arguments is { Length: > 0 } ? JsonSerializer.Serialize(stdioMetadata.Arguments, _indentedJsonOptions) : "[]";
+                model.WorkingDirectory = stdioMetadata.WorkingDirectory;
+                model.EnvironmentVariables = stdioMetadata.EnvironmentVariables is { Count: > 0 } ? JsonSerializer.Serialize(stdioMetadata.EnvironmentVariables, _indentedJsonOptions) : "{}";
+            }
+        }
+
+        return model;
+    }
+}

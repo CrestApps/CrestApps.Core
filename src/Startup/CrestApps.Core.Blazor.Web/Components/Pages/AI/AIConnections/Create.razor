@@ -1,0 +1,184 @@
+@page "/ai/connections/create"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Services
+@inject INamedSourceCatalog<AIProviderConnection> Catalog
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Create AI Connection - Blazor AI Integration Sample</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Create AI Connection</h2>
+<hr />
+
+<EditForm FormName="ai-aiconnections-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label for="connectionTitle" class="form-label">Title</label>
+                <input id="connectionTitle" class="form-control" value="@_model.DisplayText" @oninput="e => _model.DisplayText = e.Value?.ToString()" placeholder="e.g., My OpenAI Connection" />
+            </div>
+
+            <div class="mb-3">
+                <label for="connectionTechName" class="form-label">Technical name <span class="text-danger">*</span></label>
+                <InputText id="connectionTechName" class="form-control" @bind-Value="_model.Name" placeholder="e.g., MyOpenAIConnection" />
+                @if (!string.IsNullOrEmpty(_nameError))
+                {
+                    <div class="text-danger">@_nameError</div>
+                }
+                <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="providerSelect" class="form-label">Provider <span class="text-danger">*</span></label>
+                <select id="providerSelect" class="form-select" value="@_model.Source" @onchange="OnProviderChanged">
+                    <option value="">Select provider</option>
+                    @foreach (var provider in _providers)
+                    {
+                        <option value="@provider.Value">@provider.Key</option>
+                    }
+                </select>
+                @if (!string.IsNullOrEmpty(_sourceError))
+                {
+                    <div class="text-danger">@_sourceError</div>
+                }
+            </div>
+
+            <div class="mb-3">
+                <label for="endpoint" class="form-label">Endpoint</label>
+                <InputText id="endpoint" class="form-control" @bind-Value="_model.Endpoint" placeholder="e.g., https://api.openai.com/v1" />
+                <div class="form-text">The API endpoint URL for the provider.</div>
+            </div>
+
+            @if (ShowAuthenticationType)
+            {
+                <div class="mb-3">
+                    <label for="authTypeSelect" class="form-label">Authentication type</label>
+                    <select id="authTypeSelect" class="form-select" value="@_model.AuthenticationType" @onchange="OnAuthTypeChanged">
+                        <option value="">Select authentication type</option>
+                        @foreach (var authType in _authTypes)
+                        {
+                            <option value="@authType.Value">@authType.Key</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (ShowApiKey)
+            {
+                <div class="mb-3">
+                    <label for="apiKey" class="form-label">API key</label>
+                    <input id="apiKey" type="password" class="form-control" @bind="_model.ApiKey" placeholder="Enter API key" autocomplete="new-password" />
+                    <div class="form-text">The API key or secret used for authentication.</div>
+                </div>
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Create
+                </button>
+                <a href="/ai/connections" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private AIConnectionViewModel _model = new();
+    private string _nameError;
+    private string _sourceError;
+
+    private static readonly List<KeyValuePair<string, string>> _providers =
+    [
+        new("OpenAI", "OpenAI"),
+        new("Azure OpenAI", "Azure"),
+        new("Azure AI Inference (GitHub Models)", "AzureAIInference"),
+        new("Ollama", "Ollama"),
+    ];
+
+    private static readonly List<KeyValuePair<string, string>> _authTypes =
+    [
+        new("API Key", "ApiKey"),
+        new("Default Azure Credential", "Default"),
+        new("Managed Identity", "ManagedIdentity"),
+    ];
+
+    private bool ShowAuthenticationType =>
+        string.Equals(_model.Source, "Azure", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_model.Source, "AzureAIInference", StringComparison.OrdinalIgnoreCase);
+
+    private bool ShowApiKey =>
+        string.Equals(_model.Source, "OpenAI", StringComparison.OrdinalIgnoreCase) ||
+        ((string.Equals(_model.Source, "Azure", StringComparison.OrdinalIgnoreCase) ||
+          string.Equals(_model.Source, "AzureAIInference", StringComparison.OrdinalIgnoreCase)) &&
+         string.Equals(_model.AuthenticationType, "ApiKey", StringComparison.OrdinalIgnoreCase)) ||
+        string.Equals(_model.Source, "Ollama", StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("initAutoGenerateTechnicalName", "connectionTitle", "connectionTechName");
+        }
+    }
+
+    private void OnProviderChanged(ChangeEventArgs e)
+    {
+        _model.Source = e.Value?.ToString();
+
+        if (!ShowAuthenticationType)
+        {
+            _model.AuthenticationType = null;
+        }
+    }
+
+    private void OnAuthTypeChanged(ChangeEventArgs e)
+    {
+        _model.AuthenticationType = e.Value?.ToString();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _nameError = null;
+        _sourceError = null;
+
+        if (string.IsNullOrWhiteSpace(_model.Name))
+        {
+            _nameError = "Technical name is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(_model.Source))
+        {
+            _sourceError = "Provider is required.";
+        }
+
+        if (_nameError == null && !string.IsNullOrWhiteSpace(_model.Name))
+        {
+            var existing = await Catalog.FindByNameAsync(_model.Name);
+            if (existing != null)
+            {
+                _nameError = "Name must be unique across appsettings and UI connections.";
+            }
+        }
+
+        if (_nameError != null || _sourceError != null)
+        {
+            return;
+        }
+
+        var connection = new AIProviderConnection
+        {
+            ItemId = Guid.NewGuid().ToString("N"),
+            CreatedUtc = DateTime.UtcNow,
+        };
+
+        _model.ApplyTo(connection);
+        await Catalog.CreateAsync(connection);
+        await StoreCommitter.CommitAsync();
+
+        Navigation.NavigateTo("/ai/connections");
+    }
+}

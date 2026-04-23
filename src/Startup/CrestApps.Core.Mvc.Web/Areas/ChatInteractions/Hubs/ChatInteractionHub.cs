@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
@@ -10,13 +11,13 @@ namespace CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
 [Authorize]
 public sealed class ChatInteractionHub : ChatInteractionHubBase
 {
-    private readonly MvcCitationReferenceCollector _citationCollector;
+    private readonly SampleCitationReferenceCollector _citationCollector;
     private readonly SiteSettingsStore _siteSettings;
 
     public ChatInteractionHub(
         IServiceProvider serviceProvider,
         TimeProvider timeProvider,
-        MvcCitationReferenceCollector citationCollector,
+        SampleCitationReferenceCollector citationCollector,
         SiteSettingsStore siteSettings,
         ILogger<ChatInteractionHub> logger)
         : base(serviceProvider, timeProvider, logger)
@@ -31,6 +32,13 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
         Dictionary<string, AICompletionReference> references,
         HashSet<string> contentItemIds)
     {
+        if (handlerContext.Properties.TryGetValue("OrchestrationContext", out var ctxObj) &&
+            ctxObj is OrchestrationContext orchestrationContext)
+        {
+            _citationCollector.CollectPreemptiveReferences(orchestrationContext, references, contentItemIds);
+            handlerContext.Properties.Remove("OrchestrationContext");
+        }
+
         _citationCollector.CollectToolReferences(references, contentItemIds);
     }
 

@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, OptionsTemplateProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, FileSystemTemplateProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, PromptsFileSystemTemplateProvider>());
 
         if (configure != null)
         {
@@ -48,7 +49,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers an assembly's embedded <c>Templates/Prompts/*.md</c> resources as templates.
+    /// Registers an assembly's embedded <c>Templates/*.md</c> resources as templates.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="assembly">The assembly containing embedded template resources.</param>

@@ -1,0 +1,40 @@
+<div class="form-check mb-3">
+    <input type="checkbox"
+           class="form-check-input"
+           id="@Id"
+           checked="@Value"
+           @onchange="HandleChange" />
+
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="form-check-label" for="@Id">@Label</label>
+    }
+
+    @if (!string.IsNullOrEmpty(HelpText))
+    {
+        <div class="form-text">@HelpText</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Value { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ValueChanged { get; set; }
+
+    [Parameter]
+    public string HelpText { get; set; } = string.Empty;
+
+    private async Task HandleChange(ChangeEventArgs e)
+    {
+        Value = e.Value is bool b ? b : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+        await ValueChanged.InvokeAsync(Value);
+    }
+}

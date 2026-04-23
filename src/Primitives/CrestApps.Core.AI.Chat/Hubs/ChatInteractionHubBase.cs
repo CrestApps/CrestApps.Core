@@ -167,7 +167,17 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
     protected virtual string GetFriendlyErrorMessage(Exception ex)
     {
+        if (AIHubErrorMessageHelper.IsInvalidChatModelSettingsFailure(ex))
+        {
+            return GetInvalidChatModelSettingsMessage();
+        }
+
         return "An error occurred while processing your message.";
+    }
+
+    protected virtual string GetInvalidChatModelSettingsMessage()
+    {
+        return "The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.";
     }
 
     protected virtual string GetConversationNotEnabledMessage()
@@ -849,7 +859,15 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             }
 
             var existingPrompts = await promptStore.GetPromptsAsync(itemId);
-            var conversationHistory = existingPrompts
+            var conversationHistorySource = existingPrompts.ToList();
+
+            if (!conversationHistorySource.Any(x => x.ItemId == userPrompt.ItemId))
+            {
+                conversationHistorySource.Add(userPrompt);
+            }
+
+            var conversationHistory = conversationHistorySource
+                .OrderBy(x => x.CreatedUtc)
                 .Where(x => !x.IsGeneratedPrompt)
                 .Select(p => new ChatMessage(p.Role, p.Text))
                 .ToList();
@@ -1278,8 +1296,12 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 await Clients.Caller.ReceiveConversationAssistantToken(
-                    itemId, messageId ?? string.Empty, chunk.Content,
-                    responseId ?? string.Empty, chunk.Appearance);
+                    itemId,
+                    messageId ?? string.Empty,
+                    chunk.Content,
+                    responseId ?? string.Empty,
+                    chunk.References,
+                    chunk.Appearance);
 
                 sentenceBuffer.Append(chunk.Content);
 
@@ -1329,7 +1351,10 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             {
                 try
                 {
-                    await Clients.Caller.ReceiveConversationAssistantComplete(itemId, messageId);
+                    await Clients.Caller.ReceiveConversationAssistantComplete(
+                        itemId,
+                        messageId,
+                        await GetPromptReferencesAsync(services, itemId, messageId));
                 }
                 catch
                 {
@@ -1337,6 +1362,23 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
             }
         }
+    }
+
+    private static async Task<Dictionary<string, AICompletionReference>> GetPromptReferencesAsync(
+        IServiceProvider services,
+        string itemId,
+        string messageId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId) || string.IsNullOrWhiteSpace(messageId))
+        {
+            return null;
+        }
+
+        var promptStore = services.GetRequiredService<IChatInteractionPromptStore>();
+        var prompts = await promptStore.GetPromptsAsync(itemId);
+        var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
+
+        return prompt?.References;
     }
 
     // ───────────────── STT transcription (input mode) ─────────────────

@@ -3,7 +3,7 @@
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
 @model CrestApps.Core.AI.Models.AIProfile
-@inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
+@inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 @{
     ViewData["Title"] = "Test - " + (Model.DisplayText ?? Model.Name);
     var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();

@@ -18,7 +18,7 @@ public sealed class AIProfileDocumentService
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
-    private readonly MvcAIDocumentIndexingService _documentIndexingService;
+    private readonly SampleAIDocumentIndexingService _documentIndexingService;
     private readonly ILogger<AIProfileDocumentService> _logger;
 
     public AIProfileDocumentService(
@@ -28,7 +28,7 @@ public sealed class AIProfileDocumentService
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
-        MvcAIDocumentIndexingService documentIndexingService,
+        SampleAIDocumentIndexingService documentIndexingService,
         ILogger<AIProfileDocumentService> logger)
     {
         _documentStore = documentStore;

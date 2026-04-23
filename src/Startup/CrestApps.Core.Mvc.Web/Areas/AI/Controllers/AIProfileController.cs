@@ -258,6 +258,10 @@ public sealed class AIProfileController : Controller
         var listableTemplates = await _templateManager.GetListableAsync();
         model.Templates = templates.Select(t => new SelectListItem(t.DisplayText ?? t.Name, t.ItemId)).ToList();
         model.AvailableProfileTemplates = listableTemplates.Where(t => string.Equals(t.Source, AITemplateSources.Profile, StringComparison.OrdinalIgnoreCase)).Select(t => new SelectListItem(t.DisplayText ?? t.Name, t.ItemId)).ToList();
+        model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();
@@ -283,7 +287,7 @@ public sealed class AIProfileController : Controller
             model.HasDocumentIndexConfiguration = false;
         }
 
-        var promptTemplates = await _aiTemplateService.ListAsync();
+        var promptTemplates = await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable).OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase).Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description, }).ToList(), }).ToList();
     }
 

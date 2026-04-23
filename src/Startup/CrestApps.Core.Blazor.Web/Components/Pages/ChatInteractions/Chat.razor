@@ -1,0 +1,927 @@
+@page "/chat-interactions/chat/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Globalization
+@using System.Text.Json
+@using CrestApps.Core
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Documents
+@using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Orchestration
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Services
+@using CrestApps.Core.Templates.Services
+@using Microsoft.Extensions.Options
+@inject ICatalogManager<ChatInteraction> ChatInteractionManager
+@inject IChatInteractionPromptStore PromptStore
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject ICatalog<A2AConnection> A2AConnectionCatalog
+@inject ICatalog<McpConnection> McpConnectionCatalog
+@inject ICatalog<AIDataSource> DataSourceCatalog
+@inject IAIProfileManager ProfileManager
+@inject IAIProfileTemplateManager TemplateManager
+@inject ITemplateService TemplateService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject SiteSettingsStore SiteSettingsStore
+@inject IOptions<AIDataSourceOptions> DataSourceOptions
+@inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
+@inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
+@inject IOptions<InteractionDocumentOptions> InteractionDocumentOptionsAccessor
+@inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
+@inject ISearchIndexProfileStore IndexProfileStore
+@inject IAIDocumentStore DocumentStore
+
+<PageTitle>Chat Interaction</PageTitle>
+
+<link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/ai-chat.css" />
+<link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" />
+
+@if (_model == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0">@(_model.Title ?? "Chat Interaction")</h1>
+            <small class="text-muted">Chat interaction details and settings</small>
+        </div>
+        <a class="btn btn-outline-secondary" href="/chat-interactions">
+            <i class="bi bi-arrow-left me-1"></i> Back to list
+        </a>
+    </div>
+
+    <div class="chat-page-wrapper">
+        <div class="row g-3 h-100">
+            <div class="col-lg-4 col-xl-3 h-100">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">Interaction Settings</span>
+                        <span id="chat-settings-save-status" class="badge rounded-pill text-bg-light settings-save-indicator">Saved</span>
+                    </div>
+                    <div class="card-body d-flex flex-column overflow-hidden">
+                        <ul class="nav nav-pills nav-fill flex-shrink-0 mb-3" id="chat-settings-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="general-tab" data-bs-toggle="pill" data-bs-target="#general-pane" type="button" role="tab" aria-controls="general-pane" aria-selected="true">General</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="knowledge-tab" data-bs-toggle="pill" data-bs-target="#knowledge-pane" type="button" role="tab" aria-controls="knowledge-pane" aria-selected="false">Knowledge</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="capabilities-tab" data-bs-toggle="pill" data-bs-target="#capabilities-pane" type="button" role="tab" aria-controls="capabilities-pane" aria-selected="false">Capabilities</button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content flex-grow-1 overflow-y-auto overflow-x-hidden pe-1" id="chat-settings-tab-content">
+                            <div class="tab-pane fade show active" id="general-pane" role="tabpanel" aria-labelledby="general-tab" tabindex="0">
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-title">Title</label>
+                                    <input id="chat-setting-title" class="form-control setting-input" data-setting="title" value="@_model.Title" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-deployment">Deployment</label>
+                                    <select id="chat-setting-deployment" class="form-select setting-input" data-setting="deploymentName">
+                                        <option value="">Default</option>
+                                        @foreach (var deployment in _model.Deployments)
+                                        {
+                                            <option value="@deployment.Value" selected="@(string.Equals(_model.ChatDeploymentName, deployment.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">
+                                                @deployment.Text
+                                            </option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-orchestrator">Orchestrator</label>
+                                    <select id="chat-setting-orchestrator" class="form-select setting-input" data-setting="orchestratorName">
+                                        <option value="">Default</option>
+                                        @foreach (var orchestrator in _model.Orchestrators)
+                                        {
+                                            <option value="@orchestrator.Value" selected="@(string.Equals(_model.OrchestratorName, orchestrator.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">
+                                                @orchestrator.Text
+                                            </option>
+                                        }
+                                    </select>
+                                </div>
+
+                                @if (_model.AvailablePromptTemplates.Count > 0)
+                                {
+                                    <div class="mb-3">
+                                        <label class="form-label" for="chat-prompt-template-selector">Prompt templates</label>
+                                        <div class="dropdown mb-2 w-100">
+                                            <button id="chat-prompt-template-selector" class="btn btn-outline-primary dropdown-toggle w-100 d-flex justify-content-center align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <span aria-hidden="true">+</span> Add template
+                                            </button>
+                                            <div class="dropdown-menu p-2" style="max-height:24rem;min-width:22rem;overflow-y:auto;">
+                                                <div class="mb-2" @onclick:stopPropagation="true">
+                                                    <input type="search"
+                                                           class="form-control form-control-sm"
+                                                           @bind="_promptTemplateSearchTerm"
+                                                           @bind:event="oninput"
+                                                           placeholder="Search prompt templates..." />
+                                                </div>
+                                                <div class="prompt-template-menu-items">
+                                                    @foreach (var group in FilteredPromptTemplateGroups)
+                                                    {
+                                                        <div class="dropdown-header px-2">@group.Key</div>
+                                                        @foreach (var option in group)
+                                                        {
+                                                            <button type="button"
+                                                                    class="dropdown-item text-wrap"
+                                                                    @onclick="() => AddPromptTemplate(option.TemplateId)">
+                                                                <span class="d-block fw-semibold">@option.Title</span>
+                                                                @if (!string.IsNullOrWhiteSpace(option.Description))
+                                                                {
+                                                                    <small class="text-muted">@option.Description</small>
+                                                                }
+                                                            </button>
+                                                        }
+                                                    }
+                                                </div>
+                                                @if (!HasFilteredPromptTemplates)
+                                                {
+                                                    <div class="text-muted small px-2 py-1">No prompt templates match your search.</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div id="chatPromptTemplatesContainer" class="d-flex flex-column gap-2 mb-3">
+                                        @foreach (var template in _model.PromptTemplates)
+                                        {
+                                            var templateDefinition = _model.AvailablePromptTemplates.FirstOrDefault(x => string.Equals(x.TemplateId, template.TemplateId, StringComparison.OrdinalIgnoreCase));
+                                            var cardTitle = templateDefinition?.Title ?? template.TemplateId;
+                                            <div class="card prompt-template-card" data-template-id="@template.TemplateId">
+                                                <div class="card-body">
+                                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                                        <div>
+                                                            <h6 class="card-title mb-1">@cardTitle</h6>
+                                                            @if (!string.IsNullOrWhiteSpace(templateDefinition?.Description))
+                                                            {
+                                                                <p class="card-text small text-muted mb-2">@templateDefinition.Description</p>
+                                                            }
+                                                        </div>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger remove-prompt-template-btn" @onclick="() => RemovePromptTemplate(template.TemplateId)">
+                                                            <i class="bi bi-x-lg"></i>
+                                                        </button>
+                                                    </div>
+                                                    <input type="hidden" class="prompt-template-id-input" value="@template.TemplateId" />
+                                                    <textarea class="form-control prompt-template-parameters-input" rows="3" placeholder="Optional prompt template parameters as JSON">@template.PromptParameters</textarea>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-system-message">System message</label>
+                                    <textarea id="chat-setting-system-message" class="form-control setting-input" data-setting="systemMessage" rows="4">@_model.SystemMessage</textarea>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-past-messages">Past messages</label>
+                                        <input id="chat-setting-past-messages" class="form-control setting-input" data-setting="pastMessagesCount" type="number" min="0" value="@_model.PastMessagesCount" placeholder="10" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-max-tokens">Max tokens</label>
+                                        <input id="chat-setting-max-tokens" class="form-control setting-input" data-setting="maxTokens" type="number" min="1" value="@_model.MaxTokens" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-temperature">Temperature</label>
+                                        <input id="chat-setting-temperature" class="form-control setting-input" data-setting="temperature" type="number" min="0" max="2" step="0.1" value="@FormatDecimal(_model.Temperature)" placeholder="0.7" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-top-p">Top P</label>
+                                        <input id="chat-setting-top-p" class="form-control setting-input" data-setting="topP" type="number" min="0" max="1" step="0.1" value="@FormatDecimal(_model.TopP)" placeholder="1.0" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-frequency-penalty">Frequency penalty</label>
+                                        <input id="chat-setting-frequency-penalty" class="form-control setting-input" data-setting="frequencyPenalty" type="number" min="-2" max="2" step="0.1" value="@FormatDecimal(_model.FrequencyPenalty)" placeholder="0" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-presence-penalty">Presence penalty</label>
+                                        <input id="chat-setting-presence-penalty" class="form-control setting-input" data-setting="presencePenalty" type="number" min="-2" max="2" step="0.1" value="@FormatDecimal(_model.PresencePenalty)" placeholder="0" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="knowledge-pane" role="tabpanel" aria-labelledby="knowledge-tab" tabindex="0">
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-data-source">Data source</label>
+                                    <select id="chat-setting-data-source" class="form-select setting-input" data-setting="dataSourceId">
+                                        <option value="">None</option>
+                                        @foreach (var dataSource in _model.DataSources)
+                                        {
+                                            <option value="@dataSource.Value" selected="@(string.Equals(_model.DataSourceId, dataSource.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">
+                                                @dataSource.Text
+                                            </option>
+                                        }
+                                    </select>
+                                    <div class="form-text">External data source for AI context.</div>
+                                </div>
+
+                                <div class="mb-3 rag-data-source-filter-dependent">
+                                    <label class="form-label" for="chat-setting-filter">Filter</label>
+                                    <input id="chat-setting-filter" class="form-control setting-input" data-setting="filter" type="text" value="@_model.DataSourceFilter" placeholder="Optional provider-specific filter" />
+                                    <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
+                                </div>
+
+                                <div class="form-check form-switch mb-3">
+                                    <input id="chat-setting-in-scope" class="form-check-input setting-input" data-setting="isInScope" type="checkbox" checked="@_model.DataSourceIsInScope" />
+                                    <label class="form-check-label" for="chat-setting-in-scope">
+                                        Restrict answers to retrieved data only
+                                    </label>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-document-retrieval-mode">Document retrieval mode</label>
+                                    <select id="chat-setting-document-retrieval-mode" class="form-select setting-input" data-setting="documentRetrievalMode">
+                                        <option value="" selected="@(!_model.DocumentRetrievalMode.HasValue ? "selected" : null)">Use site default</option>
+                                        @foreach (var mode in Enum.GetValues<DocumentRetrievalMode>())
+                                        {
+                                            <option value="@mode" selected="@(_model.DocumentRetrievalMode == mode ? "selected" : null)">@mode</option>
+                                        }
+                                    </select>
+                                    <div class="form-text">Overrides the site default when this interaction searches uploaded document knowledge.</div>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-strictness">Strictness</label>
+                                        <input id="chat-setting-strictness" class="form-control setting-input" data-setting="strictness" type="number" min="@AIDataSourceOptions.MinStrictness" max="@AIDataSourceOptions.MaxStrictness" value="@(_model.DataSourceStrictness ?? DataSourceOptions.Value.DefaultStrictness)" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="chat-setting-top-documents">Retrieved documents</label>
+                                        <input id="chat-setting-top-documents" class="form-control setting-input" data-setting="topNDocuments" type="number" min="1" max="50" value="@(_model.DataSourceTopNDocuments ?? DataSourceOptions.Value.DefaultTopNDocuments)" />
+                                    </div>
+                                </div>
+
+                                @if (!_model.HasDocumentIndexConfiguration)
+                                {
+                                    <div class="alert alert-warning small py-2 mt-3 mb-2">
+                                        <i class="bi bi-exclamation-triangle"></i> Document indexing is not configured.
+                                    </div>
+                                }
+
+                                <div class="mt-3">
+                                    <label class="form-label"><i class="bi bi-paperclip"></i> Upload documents</label>
+                                    <div class="document-drop-zone" id="chat-doc-drop-zone">
+                                        <input type="file" class="d-none" id="chat-doc-upload" multiple accept="@_supportedExtensionsAccept" />
+                                        <div class="document-drop-zone__body">
+                                            <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
+                                            <div>
+                                                <div class="document-drop-zone__title">Drag and drop files here</div>
+                                                <div class="text-muted small">or browse for documents to upload into this chat interaction</div>
+                                            </div>
+                                            <div class="document-drop-zone__actions">
+                                                <button type="button" class="btn btn-outline-primary" id="chat-doc-browse" data-drop-zone-browse>
+                                                    <i class="bi bi-folder2-open"></i> Browse files
+                                                </button>
+                                            </div>
+                                            <div class="form-text mb-0">Supported formats: @_supportedExtensionsDisplay</div>
+                                        </div>
+                                    </div>
+                                    <div id="chat-doc-upload-status" class="small mt-2 d-none"></div>
+                                    <div id="chat-doc-upload-progress" class="progress mt-2 d-none" role="progressbar" aria-label="Document upload progress" aria-valuemin="0" aria-valuemax="100">
+                                        <div id="chat-doc-upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%">0%</div>
+                                    </div>
+                                    <div id="chat-doc-upload-queue" class="d-flex flex-column gap-2 mt-2"></div>
+                                </div>
+                                <div id="chat-documents-list" class="d-flex flex-column gap-2 mt-2">
+                                    @if (_model.Documents.Any())
+                                    {
+                                        @foreach (var document in _model.Documents)
+                                        {
+                                            <div class="d-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white chat-document-row"
+                                                 data-chat-document-id="@document.DocumentId"
+                                                 data-chat-document-name="@document.FileName"
+                                                 data-chat-document-size="@document.FileSize">
+                                                <div class="me-2 min-w-0">
+                                                    <div class="fw-semibold small"><i class="bi bi-file-earmark-text me-1"></i>@document.FileName</div>
+                                                    <div class="text-muted small">@FormatFileSize(document.FileSize)</div>
+                                                </div>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-danger remove-chat-document-btn"
+                                                        data-document-id="@document.DocumentId">
+                                                    <i class="bi bi-trash"></i> Remove
+                                                </button>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="text-muted small">No documents uploaded yet.</div>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="capabilities-pane" role="tabpanel" aria-labelledby="capabilities-tab" tabindex="0">
+                                <div class="settings-group mb-4">
+                                    <h6 class="mb-2">Tools</h6>
+                                    <div class="list-group">
+                                        @foreach (var item in _model.AvailableTools)
+                                        {
+                                            <label class="list-group-item d-flex align-items-start gap-2">
+                                                <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="toolNames" value="@item.Name" checked="@item.IsSelected" />
+                                                <span>
+                                                    <strong>@item.Title</strong>
+                                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                    {
+                                                        <span class="d-block small text-muted">@item.Description</span>
+                                                    }
+                                                </span>
+                                            </label>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="settings-group mb-4">
+                                    <h6 class="mb-2">Agents</h6>
+                                    @if (_model.AvailableAgents.Count == 0)
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle"></i> No agent profiles available.
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var item in _model.AvailableAgents)
+                                            {
+                                                <label class="list-group-item d-flex align-items-start gap-2">
+                                                    <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="agentNames" value="@item.Name" checked="@item.IsSelected" />
+                                                    <span>
+                                                        <strong>@item.DisplayText</strong>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Description</span>
+                                                        }
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="settings-group mb-4">
+                                    <h6 class="mb-2">A2A Hosts</h6>
+                                    @if (_model.AvailableA2AConnections.Count == 0)
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle"></i> No A2A hosts configured.
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var item in _model.AvailableA2AConnections)
+                                            {
+                                                <label class="list-group-item d-flex align-items-start gap-2">
+                                                    <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="a2aConnectionIds" value="@item.ItemId" checked="@item.IsSelected" />
+                                                    <span>
+                                                        <strong>@item.DisplayText</strong>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Endpoint))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Endpoint</span>
+                                                        }
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="settings-group">
+                                    <h6 class="mb-2">MCP Hosts</h6>
+                                    @if (_model.AvailableMcpConnections.Count == 0)
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle"></i> No MCP hosts configured.
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var item in _model.AvailableMcpConnections)
+                                            {
+                                                <label class="list-group-item d-flex align-items-start gap-2">
+                                                    <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="mcpConnectionIds" value="@item.ItemId" checked="@item.IsSelected" />
+                                                    <span>
+                                                        <strong>@item.DisplayText</strong>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Source))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Source</span>
+                                                        }
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8 col-xl-9 h-100">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body d-flex flex-column chat-shell p-0">
+                        <div class="d-flex justify-content-between align-items-center border-bottom px-3 py-2">
+                            <span class="text-muted small">
+                                <i class="bi bi-chat-left-dots"></i> @(_model.Title ?? "Untitled Chat")
+                            </span>
+                            <button type="button" id="clearHistoryBtn" class="btn btn-outline-danger btn-sm @(_messages.Count == 0 ? "d-none" : null)" data-interaction-id="@Id">
+                                <i class="bi bi-trash3"></i> Clear history
+                            </button>
+                        </div>
+
+                        <div id="chat-container" class="flex-grow-1 overflow-auto p-3">
+                            <div id="chat-placeholder">
+                                <div class="text-center text-muted my-5">
+                                    <i class="bi bi-chat-dots fs-1 d-block mb-3"></i>
+                                    <p class="mb-0">Start the conversation by sending a message.</p>
+                                </div>
+                            </div>
+                            <div id="chat-app"></div>
+                        </div>
+
+                        <div class="border-top p-3">
+                            <div class="d-flex gap-2">
+                                <textarea id="chat-input"
+                                          class="form-control"
+                                          rows="1"
+                                          placeholder="Type a message..."
+                                          data-item-id="@Id"></textarea>
+                                @if (_model.SpeechToTextEnabled)
+                                {
+                                    <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
+                                        <i class="bi bi-mic-fill"></i>
+                                    </button>
+                                }
+                                @if (_model.ConversationModeEnabled)
+                                {
+                                    <button type="button"
+                                            id="chat-conversation-btn"
+                                            class="btn btn-outline-dark"
+                                            title="Start Conversation"
+                                            data-start-title="Start Conversation"
+                                            data-end-title="End Conversation"
+                                            data-start-html="<i class='bi bi-soundwave'></i>"
+                                            data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
+                                        <i class="bi bi-soundwave"></i>
+                                    </button>
+                                }
+                                <button type="button" id="send-btn" class="btn btn-primary"
+                                        data-start-icon="<i class='bi bi-send'></i>"
+                                        data-stop-icon="<i class='bi bi-stop-fill'></i>">
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private ChatInteractionChatViewModel _model;
+    private IReadOnlyList<ChatMessageViewModel> _messages = [];
+    private string _promptTemplateSearchTerm;
+    private string _supportedExtensionsAccept;
+    private string _supportedExtensionsDisplay;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadChatAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _model != null)
+        {
+            await JSRuntime.InvokeVoidAsync("initializeChatInteractionSettings", new
+            {
+                itemId = Id,
+                hubUrl = "/hubs/chat-interaction",
+                statusElementId = "chat-settings-save-status",
+                dataSourceSelectId = "chat-setting-data-source",
+            });
+
+            await JSRuntime.InvokeVoidAsync("initDocumentDropZone", new
+            {
+                dropZone = "#chat-doc-drop-zone",
+                fileInput = "#chat-doc-upload",
+                browseButton = "#chat-doc-browse",
+            });
+
+            await JSRuntime.InvokeVoidAsync("window.chatInteractionDocumentManager.initialize", new
+            {
+                itemId = Id,
+                existingDocuments = _model.Documents.Select(document => new
+                {
+                    documentId = document.DocumentId,
+                    fileName = document.FileName,
+                    fileSize = document.FileSize,
+                }).ToArray(),
+                uploadDocumentUrl = "/ai/chat-interactions/upload-document",
+                removeDocumentUrl = "/ai/chat-interactions/remove-document",
+            });
+
+            var messages = _messages
+                .OrderBy(m => m.CreatedUtc)
+                .Select(m => new { role = m.Role, content = m.Content, id = m.Id, references = m.References })
+                .ToArray();
+
+            await JSRuntime.InvokeVoidAsync("window.chatInteractionManager.initialize", new
+            {
+                signalRHubUrl = "/hubs/chat-interaction",
+                appElementSelector = "#chat-app",
+                chatContainerElementSelector = "#chat-container",
+                placeholderElementSelector = "#chat-placeholder",
+                inputElementSelector = "#chat-input",
+                sendButtonElementSelector = "#send-btn",
+                messages,
+                itemId = Id,
+                autoStartInteraction = true,
+                chatMode = _model.ChatMode.ToString(),
+                micButtonElementSelector = "#chat-mic-btn",
+                conversationButtonElementSelector = "#chat-conversation-btn",
+                ttsVoiceName = _model.TextToSpeechVoiceName,
+                textToSpeechEnabled = _model.TextToSpeechEnabled,
+            });
+        }
+    }
+
+    private async Task LoadChatAsync()
+    {
+        var interaction = await ChatInteractionManager.FindByIdAsync(Id);
+        if (interaction == null)
+        {
+            NavigationManager.NavigateTo("/chat-interactions");
+            return;
+        }
+
+        var settings = SiteSettingsStore.Get<ChatInteractionSettings>();
+        var deploymentDefaults = SiteSettingsStore.Get<DefaultAIDeploymentSettings>();
+        interaction.TryGet<DataSourceMetadata>(out var dataSourceMetadata);
+        interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
+        interaction.TryGet<PromptTemplateMetadata>(out var promptTemplateMetadata);
+        interaction.TryGet<DocumentsMetadata>(out var documentMetadata);
+
+        var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
+        var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
+        var effectiveChatMode = settings.ChatMode switch
+        {
+            ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+            ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
+            ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
+            _ => ChatMode.TextInput,
+        };
+
+        var storedDocuments = await DocumentStore.GetDocumentsAsync(interaction.ItemId, AIReferenceTypes.Document.ChatInteraction);
+        var visibleDocuments = (interaction.Documents ?? [])
+            .Concat(storedDocuments.Select(document => new ChatDocumentInfo
+            {
+                DocumentId = document.ItemId,
+                FileName = document.FileName,
+                FileSize = document.FileSize,
+                ContentType = document.ContentType,
+            }))
+            .Where(document => document != null && !string.IsNullOrWhiteSpace(document.DocumentId))
+            .GroupBy(document => document.DocumentId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+
+        _model = new ChatInteractionChatViewModel
+        {
+            ItemId = interaction.ItemId,
+            Title = interaction.Title,
+            SystemMessage = interaction.SystemMessage,
+            ChatDeploymentName = interaction.ChatDeploymentName,
+            OrchestratorName = interaction.OrchestratorName,
+            PastMessagesCount = interaction.PastMessagesCount,
+            MaxTokens = interaction.MaxTokens,
+            Temperature = interaction.Temperature,
+            TopP = interaction.TopP,
+            FrequencyPenalty = interaction.FrequencyPenalty,
+            PresencePenalty = interaction.PresencePenalty,
+            DataSourceId = dataSourceMetadata?.DataSourceId,
+            DataSourceStrictness = ragMetadata?.Strictness,
+            DataSourceTopNDocuments = ragMetadata?.TopNDocuments,
+            DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
+            DataSourceFilter = ragMetadata?.Filter,
+            DocumentRetrievalMode = documentMetadata?.RetrievalMode,
+            SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
+            SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
+            SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],
+            SelectedAgentNames = interaction.AgentNames?.ToArray() ?? [],
+            PromptTemplates = promptTemplateMetadata?.Templates?.Select(selection => new PromptTemplateSelectionItem
+            {
+                TemplateId = selection.TemplateId,
+                PromptParameters = selection.Parameters?.Count > 0
+                    ? JsonSerializer.Serialize(selection.Parameters)
+                    : string.Empty,
+            }).ToList() ?? [],
+            Documents = visibleDocuments,
+            ChatMode = effectiveChatMode,
+            SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
+            ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
+            TextToSpeechEnabled = settings.EnableTextToSpeechPlayback && hasTextToSpeech,
+            TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
+        };
+
+        var documentSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
+        _model.DocumentIndexProfileName = documentSettings.IndexProfileName;
+        if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
+        {
+            var documentIndexProfile = await IndexProfileStore.FindByNameAsync(documentSettings.IndexProfileName);
+            _model.HasDocumentIndexConfiguration = documentIndexProfile != null;
+        }
+
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+
+        await PopulateChatDropdownsAsync(_model, settings);
+
+        _messages = (await PromptStore.GetPromptsAsync(Id))
+            .Select(x => new ChatMessageViewModel
+            {
+                Id = x.ItemId,
+                Role = x.Role.ToString(),
+                Content = x.Text,
+                CreatedUtc = x.CreatedUtc,
+                References = x.References,
+            })
+            .ToList();
+    }
+
+    private async Task PopulateChatDropdownsAsync(ChatInteractionChatViewModel model, ChatInteractionSettings settings)
+    {
+        var deployments = await DeploymentCatalog.GetAllAsync();
+        model.Deployments = deployments
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new SelectOption(
+                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
+                d.Name))
+            .ToList();
+
+        var orchestrators = OrchestratorOptionsAccessor.Value.GetOrchestratorDescriptors();
+        model.Orchestrators = orchestrators
+            .Select(o => new SelectOption(o.Value.Title ?? o.Key, o.Key))
+            .ToList();
+
+        var dataSources = await DataSourceCatalog.GetAllAsync();
+        model.DataSources = dataSources
+            .OrderBy(x => x.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new SelectOption(x.DisplayText, x.ItemId))
+            .ToList();
+
+        var connections = await A2AConnectionCatalog.GetAllAsync();
+        model.AvailableA2AConnections = connections
+            .OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .Select(c => new A2AConnectionSelectionItem
+            {
+                ItemId = c.ItemId,
+                DisplayText = c.DisplayText,
+                Endpoint = c.Endpoint,
+                IsSelected = model.SelectedA2AConnectionIds.Contains(c.ItemId, StringComparer.OrdinalIgnoreCase),
+            })
+            .ToList();
+
+        var mcpConnections = await McpConnectionCatalog.GetAllAsync();
+        model.AvailableMcpConnections = mcpConnections
+            .OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .Select(c => new McpConnectionSelectionItem
+            {
+                ItemId = c.ItemId,
+                DisplayText = c.DisplayText,
+                Source = c.Source,
+                IsSelected = model.SelectedMcpConnectionIds.Contains(c.ItemId, StringComparer.OrdinalIgnoreCase),
+            })
+            .ToList();
+
+        var toolOptions = ToolOptionsAccessor.Value;
+        model.AvailableTools = toolOptions.Tools
+            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Select(kvp => new ToolSelectionItem
+            {
+                Name = kvp.Key,
+                Title = kvp.Value.Title ?? kvp.Key,
+                Description = kvp.Value.Description,
+                Category = kvp.Value.Category ?? "Miscellaneous",
+                IsSelected = model.SelectedToolNames.Contains(kvp.Key, StringComparer.OrdinalIgnoreCase),
+            })
+            .OrderBy(t => t.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
+        model.AvailableAgents = agentProfiles
+            .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(p => new AgentSelectionItem
+            {
+                Name = p.Name,
+                DisplayText = p.DisplayText ?? p.Name,
+                IsSelected = model.SelectedAgentNames.Contains(p.Name, StringComparer.OrdinalIgnoreCase),
+            })
+            .ToList();
+
+        model.AvailablePromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(x => x.Metadata.IsListable)
+            .OrderBy(x => x.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Metadata.Title ?? x.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new PromptTemplateOptionItem
+            {
+                TemplateId = x.Id,
+                Title = x.Metadata.Title ?? x.Id,
+                Description = x.Metadata.Description,
+                Category = x.Metadata.Category ?? "General",
+                Parameters = (x.Metadata.Parameters ?? [])
+                    .Select(p => new PromptTemplateParameterItem
+                    {
+                        Name = p.Name,
+                        Description = p.Description,
+                    })
+                    .ToList(),
+            })
+            .ToList();
+    }
+
+    private IEnumerable<IGrouping<string, PromptTemplateOptionItem>> FilteredPromptTemplateGroups =>
+        (_model?.AvailablePromptTemplates ?? [])
+            .Where(template => string.IsNullOrWhiteSpace(_promptTemplateSearchTerm) ||
+                template.Title.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(template.Description) && template.Description.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(template.Category) && template.Category.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(template => template.Category)
+            .OrderBy(group => group.Key);
+
+    private bool HasFilteredPromptTemplates => FilteredPromptTemplateGroups.Any();
+
+    private void AddPromptTemplate(string templateId)
+    {
+        if (string.IsNullOrWhiteSpace(templateId) || _model == null)
+        {
+            return;
+        }
+
+        if (_model.PromptTemplates.Any(x => string.Equals(x.TemplateId, templateId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        _model.PromptTemplates.Add(new PromptTemplateSelectionItem
+        {
+            TemplateId = templateId,
+            PromptParameters = string.Empty,
+        });
+    }
+
+    private void RemovePromptTemplate(string templateId)
+    {
+        if (_model == null)
+        {
+            return;
+        }
+
+        var item = _model.PromptTemplates.FirstOrDefault(x => string.Equals(x.TemplateId, templateId, StringComparison.OrdinalIgnoreCase));
+        if (item != null)
+        {
+            _model.PromptTemplates.Remove(item);
+        }
+    }
+
+    private static string FormatDecimal(float? value)
+    {
+        return value?.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024d:0.0} KB";
+        }
+
+        return $"{bytes / (1024d * 1024d):0.0} MB";
+    }
+
+    private sealed class ChatMessageViewModel
+    {
+        public string Id { get; set; }
+
+        public string Role { get; set; }
+
+        public string Content { get; set; }
+
+        public DateTimeOffset? CreatedUtc { get; set; }
+
+        public object References { get; set; }
+    }
+}
+
+<style>
+    .chat-page-wrapper {
+        height: calc(100vh - 13rem);
+        min-height: 42rem;
+    }
+
+    .chat-shell {
+        height: 100%;
+    }
+
+    .chat-bubble {
+        max-width: min(75%, 52rem);
+        border-radius: 1rem;
+        padding: 0.9rem 1rem;
+        white-space: pre-wrap;
+    }
+
+    .chat-bubble-user {
+        background: var(--bs-primary);
+        color: #fff;
+    }
+
+    .chat-bubble-assistant {
+        background: var(--bs-light);
+        color: var(--bs-body-color);
+    }
+
+    .settings-save-indicator {
+        min-width: 4.75rem;
+        text-align: center;
+    }
+
+    .chat-page-wrapper .row > [class*='col-'],
+    .chat-page-wrapper .card,
+    .chat-page-wrapper .card-body,
+    .chat-page-wrapper .tab-content,
+    .chat-page-wrapper .tab-pane,
+    .chat-page-wrapper .settings-group,
+    .chat-page-wrapper .list-group,
+    .chat-page-wrapper .list-group-item,
+    .chat-page-wrapper .prompt-template-card,
+    .chat-page-wrapper .document-drop-zone {
+        min-width: 0;
+    }
+
+    .chat-page-wrapper .card-body,
+    .chat-page-wrapper .tab-content {
+        overflow-x: hidden;
+    }
+
+    .chat-page-wrapper .tab-pane > .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .chat-page-wrapper .document-drop-zone__body > * {
+        max-width: 100%;
+    }
+
+    .chat-page-wrapper .prompt-template-selector-row > .form-select {
+        min-width: 0;
+    }
+
+    .chat-page-wrapper .prompt-template-selector-row > .prompt-template-add-btn {
+        min-width: 4.5rem;
+    }
+
+    .chat-page-wrapper .d-flex > .form-select,
+    .chat-page-wrapper .d-flex > .form-control,
+    .chat-page-wrapper .d-flex > .prompt-template-add-btn {
+        min-width: 0;
+    }
+
+    .chat-page-wrapper .prompt-template-parameters-input,
+    .chat-page-wrapper .form-control,
+    .chat-page-wrapper .form-select {
+        max-width: 100%;
+    }
+
+    .settings-group .list-group-item {
+        cursor: pointer;
+    }
+</style>

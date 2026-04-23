@@ -1,7 +1,7 @@
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Models;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Services;
+using CrestApps.Core.Startup.Shared.Models;
+using CrestApps.Core.Startup.Shared.Services;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
 

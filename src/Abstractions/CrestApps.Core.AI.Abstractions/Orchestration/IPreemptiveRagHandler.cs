@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.Core.AI.Memory;
+namespace CrestApps.Core.AI.Orchestration;
 
 /// <summary>
 /// Defines a handler that processes preemptive RAG (Retrieval-Augmented Generation) for a specific

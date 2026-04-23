@@ -24,7 +24,7 @@ public sealed class AIDocumentController : Controller
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
-    private readonly MvcAIDocumentIndexingService _documentIndexingService;
+    private readonly SampleAIDocumentIndexingService _documentIndexingService;
 
     public AIDocumentController(
         IAIDocumentStore documentStore,
@@ -34,7 +34,7 @@ public sealed class AIDocumentController : Controller
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
-        MvcAIDocumentIndexingService documentIndexingService)
+        SampleAIDocumentIndexingService documentIndexingService)
     {
         _documentStore = documentStore;
         _chunkStore = chunkStore;

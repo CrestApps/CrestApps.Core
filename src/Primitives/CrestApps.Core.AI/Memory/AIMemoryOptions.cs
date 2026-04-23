@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Models;
+namespace CrestApps.Core.AI.Memory;
 
 public sealed class AIMemoryOptions
 {

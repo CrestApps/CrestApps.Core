@@ -1,0 +1,217 @@
+@page "/datasources/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Services
+@inject ICatalogManager<AIDataSource> Manager
+@inject ISearchIndexProfileStore IndexProfileStore
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Data Source</PageTitle>
+
+<h2><i class="bi bi-pencil"></i> Edit Data Source</h2>
+<hr />
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">Data source not found.</div>
+}
+else if (_model == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm FormName="datasources-aidatasources-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <div class="row">
+            <div class="col-md-8">
+                @if (_errors.Count > 0)
+                {
+                    <div class="alert alert-danger">
+                        @foreach (var error in _errors)
+                        {
+                            <div>@error</div>
+                        }
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Title <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.DisplayText" class="form-control" placeholder="e.g., Product Catalog" />
+                    <div class="form-text">A human-readable name for this data source.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Source index profile <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="_model.SourceIndexProfileName" class="form-select">
+                        <option value="">Select index profile</option>
+                        @foreach (var item in _sourceIndexProfiles)
+                        {
+                            <option value="@item.Key">@item.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The index to read source documents from.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Knowledge base index profile</label>
+                    <InputSelect @bind-Value="_model.AIKnowledgeBaseIndexProfileName" class="form-select">
+                        <option value="">Select index profile</option>
+                        @foreach (var item in _knowledgeBaseIndexProfiles)
+                        {
+                            <option value="@item.Key">@item.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The index where chunked and embedded documents are stored for AI retrieval.</div>
+                </div>
+
+                <hr />
+                <h5>Field Mapping</h5>
+
+                <div class="mb-3">
+                    <label class="form-label">Key field name</label>
+                    <InputText @bind-Value="_model.KeyFieldName" class="form-control" placeholder="e.g., id" />
+                    <div class="form-text">The source index field that maps to the document key. Leave empty to use the native document ID.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Title field name</label>
+                    <InputText @bind-Value="_model.TitleFieldName" class="form-control" placeholder="e.g., title" />
+                    <div class="form-text">The source index field that maps to the document title.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Content field name <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.ContentFieldName" class="form-control" placeholder="e.g., content" />
+                    <div class="form-text">The source index field that maps to the document content (text body).</div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <a href="/datasources" class="btn btn-secondary ms-2">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private AIDataSourceViewModel _model;
+    private bool _notFound;
+    private List<string> _errors = [];
+    private List<KeyValuePair<string, string>> _sourceIndexProfiles = [];
+    private List<KeyValuePair<string, string>> _knowledgeBaseIndexProfiles = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var dataSource = await Manager.FindByIdAsync(Id);
+
+        if (dataSource == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _model = AIDataSourceViewModel.FromDataSource(dataSource);
+        await PopulateDropdownsAsync();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors.Clear();
+        var dataSource = await Manager.FindByIdAsync(_model.ItemId);
+
+        if (dataSource == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        await ValidateAsync(_model);
+
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        _model.ApplyTo(dataSource);
+        await Manager.UpdateAsync(dataSource);
+        await StoreCommitter.CommitAsync();
+        Navigation.NavigateTo("/datasources");
+    }
+
+    private async Task ValidateAsync(AIDataSourceViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.DisplayText))
+        {
+            _errors.Add("Display text is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.SourceIndexProfileName))
+        {
+            _errors.Add("Source index profile is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.ContentFieldName))
+        {
+            _errors.Add("Content field name is required.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(model.SourceIndexProfileName))
+        {
+            var sourceIndexProfile = await IndexProfileStore.FindByNameAsync(model.SourceIndexProfileName);
+
+            if (sourceIndexProfile == null)
+            {
+                _errors.Add("The selected source index profile could not be found.");
+            }
+            else if (string.Equals(sourceIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(sourceIndexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(sourceIndexProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+            {
+                _errors.Add("The selected source index profile type is not supported for data sources.");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(model.AIKnowledgeBaseIndexProfileName))
+        {
+            var knowledgeBaseIndexProfile = await IndexProfileStore.FindByNameAsync(model.AIKnowledgeBaseIndexProfileName);
+
+            if (knowledgeBaseIndexProfile == null)
+            {
+                _errors.Add("The selected knowledge base index profile could not be found.");
+            }
+            else if (!string.Equals(knowledgeBaseIndexProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+            {
+                _errors.Add("The selected knowledge base index profile must be an AI Data Source profile.");
+            }
+        }
+    }
+
+    private async Task PopulateDropdownsAsync()
+    {
+        var indexProfiles = await IndexProfileStore.GetAllAsync();
+
+        _sourceIndexProfiles = indexProfiles
+            .Where(p =>
+                !string.Equals(p.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(p.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(p.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+            .Select(p => new KeyValuePair<string, string>(p.Name, p.DisplayText ?? p.Name))
+            .ToList();
+
+        _knowledgeBaseIndexProfiles = indexProfiles
+            .Where(p => string.Equals(p.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
+            .Select(p => new KeyValuePair<string, string>(p.Name, p.DisplayText ?? p.Name))
+            .ToList();
+    }
+}

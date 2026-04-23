@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NLog.Web.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI\CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI.Chat\CrestApps.Core.AI.Chat.csproj" />
+    <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI.Documents\CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="..\..\Primitives\CrestApps.Core.Templates\CrestApps.Core.Templates.csproj" />
+    <ProjectReference Include="..\..\Utilities\CrestApps.Core.Support\CrestApps.Core.Support.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\articles-seed.json" />
+  </ItemGroup>
+
+</Project>

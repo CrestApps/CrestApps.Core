@@ -23,8 +23,8 @@ using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
-using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Templates.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -45,6 +45,7 @@ public sealed class ChatInteractionController : Controller
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly ICatalog<AIDataSource> _dataSourceCatalog;
     private readonly IAIProfileManager _profileManager;
+    private readonly IAIProfileTemplateManager _templateManager;
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
@@ -52,7 +53,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly SiteSettingsStore _siteSettings;
-    private readonly MvcAIDocumentIndexingService _documentIndexingService;
+    private readonly SampleAIDocumentIndexingService _documentIndexingService;
     private readonly InteractionDocumentOptions _interactionDocumentOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
@@ -73,6 +74,7 @@ public sealed class ChatInteractionController : Controller
         ICatalog<McpConnection> mcpConnectionCatalog,
         ICatalog<AIDataSource> dataSourceCatalog,
         IAIProfileManager profileManager,
+        IAIProfileTemplateManager templateManager,
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
@@ -80,7 +82,7 @@ public sealed class ChatInteractionController : Controller
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
         SiteSettingsStore siteSettings,
-        MvcAIDocumentIndexingService documentIndexingService,
+        SampleAIDocumentIndexingService documentIndexingService,
         IOptions<InteractionDocumentOptions> interactionDocumentOptions,
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService aiTemplateService,
@@ -99,6 +101,7 @@ public sealed class ChatInteractionController : Controller
         _mcpConnectionCatalog = mcpConnectionCatalog;
         _dataSourceCatalog = dataSourceCatalog;
         _profileManager = profileManager;
+        _templateManager = templateManager;
         _documentStore = documentStore;
         _chunkStore = chunkStore;
         _fileStore = fileStore;
@@ -205,6 +208,7 @@ public sealed class ChatInteractionController : Controller
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
         interaction.TryGet<PromptTemplateMetadata>(out var promptMetadata);
         interaction.TryGet<ClaudeSessionMetadata>(out var anthropicMetadata);
+        interaction.TryGet<DocumentsMetadata>(out var documentMetadata);
 
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
@@ -236,6 +240,7 @@ public sealed class ChatInteractionController : Controller
             DataSourceTopNDocuments = ragMetadata?.TopNDocuments,
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
             DataSourceFilter = ragMetadata?.Filter,
+            DocumentRetrievalMode = documentMetadata?.RetrievalMode,
             ClaudeModel = anthropicMetadata?.ClaudeModel,
             ClaudeEffortLevel = anthropicMetadata?.EffortLevel ?? ClaudeEffortLevel.None,
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
@@ -373,7 +378,7 @@ public sealed class ChatInteractionController : Controller
         .ToList();
 
         // Prompt Templates
-        var promptTemplates = await _aiTemplateService.ListAsync();
+        var promptTemplates = await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         model.AvailablePromptTemplates = promptTemplates
             .Where(t => t.Metadata.IsListable)
             .OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
@@ -391,16 +396,19 @@ public sealed class ChatInteractionController : Controller
                 }).ToList(),
             })
         .ToList();
+        model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // Document settings
-        var documentSettings = _interactionDocumentOptions;
+        var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();
         model.DocumentIndexProfileName = documentSettings.IndexProfileName;
 
         if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
         {
             var documentIndexProfile = await _indexProfileStore.FindByNameAsync(documentSettings.IndexProfileName);
-            model.HasDocumentIndexConfiguration = documentIndexProfile != null &&
-                string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
+            model.HasDocumentIndexConfiguration = documentIndexProfile != null;
         }
         else
         {
@@ -505,7 +513,7 @@ public sealed class ChatInteractionController : Controller
         .ToList();
 
         // Prompt Templates
-        var promptTemplates = await _aiTemplateService.ListAsync();
+        var promptTemplates = await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         model.AvailablePromptTemplates = promptTemplates
             .Where(t => t.Metadata.IsListable)
             .OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
@@ -523,16 +531,19 @@ public sealed class ChatInteractionController : Controller
                 }).ToList(),
             })
         .ToList();
+        model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // Document settings
-        var documentSettings = _interactionDocumentOptions;
+        var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();
         model.DocumentIndexProfileName = documentSettings.IndexProfileName;
 
         if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
         {
             var documentIndexProfile = await _indexProfileStore.FindByNameAsync(documentSettings.IndexProfileName);
-            model.HasDocumentIndexConfiguration = documentIndexProfile != null &&
-                string.Equals(documentIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
+            model.HasDocumentIndexConfiguration = documentIndexProfile != null;
         }
         else
         {
@@ -562,6 +573,11 @@ public sealed class ChatInteractionController : Controller
             metadata.TopNDocuments = model.DataSourceTopNDocuments;
             metadata.IsInScope = model.DataSourceIsInScope;
             metadata.Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter;
+        });
+
+        interaction.Alter<DocumentsMetadata>(metadata =>
+        {
+            metadata.RetrievalMode = model.DocumentRetrievalMode;
         });
 
         interaction.Alter<PromptTemplateMetadata>(metadata =>

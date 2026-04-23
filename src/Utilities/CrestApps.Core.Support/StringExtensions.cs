@@ -8,9 +8,18 @@ public static class StringExtensions
     /// Sanitizes a string value for safe inclusion in log messages by removing
     /// carriage return and newline characters that could be used for log injection.
     /// </summary>
-    public static string SanitizeLogValue(this string value)
+    public static string SanitizeForLog(this string value)
     {
         return value?.Replace("\r", "").Replace("\n", "") ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Sanitizes a string value for safe inclusion in log messages by removing
+    /// carriage return and newline characters that could be used for log injection.
+    /// </summary>
+    public static string SanitizeLogValue(this string value)
+    {
+        return value.SanitizeForLog();
     }
 
     public static bool Like(this string toSearch, string toFind)

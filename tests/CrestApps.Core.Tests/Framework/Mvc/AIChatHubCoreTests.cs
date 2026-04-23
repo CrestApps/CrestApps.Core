@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Hubs;
+using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,6 +55,16 @@ public sealed class AIChatHubCoreTests
         Assert.Equal(expected, TestAIChatHub.IsEndedStatusForTest(status));
     }
 
+    [Fact]
+    public void GetFriendlyErrorMessage_WithInvalidChatModelSettings_ReturnsProfileGuidance()
+    {
+        var hub = new TestAIChatHub(new ServiceCollection().BuildServiceProvider());
+
+        var message = hub.GetFriendlyErrorMessageForTest(new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile."));
+
+        Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in the AI Profile or the global AI settings.", message);
+    }
+
     private sealed class TestAIChatHub : AIChatHubCore<IAIChatHubClient>
     {
         public TestAIChatHub(IServiceProvider services)
@@ -64,6 +75,11 @@ public sealed class AIChatHubCoreTests
         public Task SaveChatSessionForTestAsync(IAIChatSessionManager sessionManager, AIChatSession chatSession)
         {
             return SaveChatSessionAsync(sessionManager, chatSession);
+        }
+
+        public string GetFriendlyErrorMessageForTest(Exception ex)
+        {
+            return GetFriendlyErrorMessage(ex);
         }
 
         public static bool IsEndedStatusForTest(ChatSessionStatus status)

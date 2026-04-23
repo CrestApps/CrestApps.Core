@@ -4,6 +4,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <IsAspireHost>true</IsAspireHost>
     <IsPackable>false</IsPackable>
     <PackageTags>$(PackageTags) aspire apphost sample orchestration</PackageTags>
@@ -19,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
+    <ProjectReference Include="../CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
     <ProjectReference Include="../CrestApps.Core.Mvc.Samples.A2AClient/CrestApps.Core.Mvc.Samples.A2AClient.csproj" />
     <ProjectReference Include="../CrestApps.Core.Mvc.Samples.McpClient/CrestApps.Core.Mvc.Samples.McpClient.csproj" />
   </ItemGroup>

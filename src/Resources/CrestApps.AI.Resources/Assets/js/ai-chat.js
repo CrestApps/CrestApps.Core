@@ -44,6 +44,12 @@ window.openAIChatManager = function () {
                     <div class="ai-chat-message-body lh-base">
                         <h4 v-if="message.title">{{ message.title }}</h4>
                         <div v-html="message.htmlContent"></div>
+                        <ol v-if="message.citationReferences && message.citationReferences.length" class="ai-chat-citation-list">
+                            <li v-for="citation in message.citationReferences" :key="'citation-' + (citation.referenceKey || citation.displayIndex)" class="ai-chat-citation-item">
+                                <a v-if="citation.link" :href="citation.link" :target="citation.isDownload ? null : '_blank'" :rel="citation.isDownload ? null : 'noopener noreferrer'">{{ citation.label }}</a>
+                                <span v-else>{{ citation.label }}</span>
+                            </li>
+                        </ol>
                         <span class="message-buttons-container" v-if="!isIndicator(message)">
                             <template v-if="metricsEnabled && message.role === 'assistant'">
                                 <span class="ai-chat-message-assistant-feedback" :data-message-id="message.id">
@@ -58,7 +64,7 @@ window.openAIChatManager = function () {
                             <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
                                 <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
                             </button>
-                            <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message.content)" :title="copyTitle">
+                            <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message)" :title="copyTitle">
                                 <span class="fa-solid fa-copy"></span>
                             </button>
                         </span>
@@ -132,9 +138,27 @@ window.openAIChatManager = function () {
         const normalized = Object.assign({}, reference);
         normalized.index = normalized.index ?? normalized.Index ?? 0;
         normalized.text = normalized.text ?? normalized.Text ?? null;
-        normalized.link = normalized.link ?? normalized.Link ?? null;
+        normalized.title = normalized.title ?? normalized.Title ?? null;
+        normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
+        normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
 
         return normalized;
+    }
+
+    function isDownloadCitationReference(reference) {
+        if (!reference || typeof reference !== 'object') {
+            return false;
+        }
+
+        if (typeof reference.referenceType === 'string' && reference.referenceType.toLowerCase() === 'document') {
+            return true;
+        }
+
+        if (typeof reference.link === 'string' && /\/ai\/documents\/.+\/download(?:$|\?)/i.test(reference.link)) {
+            return true;
+        }
+
+        return false;
     }
 
     function normalizeReferences(references) {
@@ -149,6 +173,102 @@ window.openAIChatManager = function () {
         }
 
         return normalized;
+    }
+
+    function getCitationLabel(reference, key) {
+        return reference.title || reference.text || key;
+    }
+
+    function buildCitationDisplay(content, references) {
+        let processedContent = (content || '').trim();
+        const messageReferences = normalizeReferences(references);
+
+        if (!processedContent || !Object.keys(messageReferences).length) {
+            return { content: processedContent, citations: [] };
+        }
+
+        const citedRefs = Object.entries(messageReferences).filter(([key]) => processedContent.includes(key));
+
+        if (!citedRefs.length) {
+            return { content: processedContent, citations: [] };
+        }
+
+        citedRefs.sort(([, a], [, b]) => a.index - b.index);
+
+        const citations = [];
+        let displayIndex = 1;
+
+        for (const [key, value] of citedRefs) {
+            const placeholder = `__CITE_${displayIndex}_${value.index || displayIndex}__`;
+            processedContent = processedContent.replaceAll(key, placeholder);
+            citations.push({
+                referenceKey: key,
+                displayIndex: displayIndex,
+                label: getCitationLabel(value, key),
+                link: value.link || null,
+                isDownload: isDownloadCitationReference(value),
+                placeholder: placeholder,
+            });
+
+            displayIndex++;
+        }
+
+        for (const citation of citations) {
+            processedContent = processedContent.replaceAll(citation.placeholder, `<sup>${citation.displayIndex}</sup>`);
+        }
+
+        processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+
+        return {
+            content: processedContent,
+            citations: citations.map(({ placeholder, ...citation }) => citation),
+        };
+    }
+
+    function buildCopyContent(content, citations) {
+        let copyContent = (content || '').trim();
+
+        if (!copyContent || !Array.isArray(citations) || citations.length === 0) {
+            return copyContent;
+        }
+
+        for (const citation of citations) {
+            copyContent = copyContent.replaceAll(citation.referenceKey, `[${citation.displayIndex}]`);
+        }
+
+        copyContent += '\n\nReferences:\n';
+
+        for (const citation of citations) {
+            copyContent += `${citation.displayIndex}. ${citation.label}`;
+
+            if (citation.link) {
+                copyContent += ` - ${citation.link}`;
+            }
+
+            copyContent += '\n';
+        }
+
+        return copyContent.trimEnd();
+    }
+
+    function updateMessagePresentation(message, references) {
+        const messageReferences = normalizeReferences(references ?? message.references);
+        const rawContent = typeof message.rawContent === 'string'
+            ? message.rawContent
+            : typeof message.content === 'string'
+                ? message.content
+                : '';
+        const citationDisplay = buildCitationDisplay(rawContent, messageReferences);
+
+        message.rawContent = rawContent;
+        message.content = rawContent;
+        message.displayContent = citationDisplay.content;
+        message.references = messageReferences;
+        message.citationReferences = citationDisplay.citations;
+        message.copyContent = buildCopyContent(rawContent, citationDisplay.citations);
+        message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
+
+        return message;
     }
 
     const renderer = new marked.Renderer();
@@ -1015,7 +1135,7 @@ window.openAIChatManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveConversationAssistantToken", (sessionId, messageId, token, responseId, appearance) => {
+                    this.connection.on("ReceiveConversationAssistantToken", (sessionId, messageId, token, responseId, references, appearance) => {
                         if (!this._conversationAssistantMessage) {
                             this.stopAudio();
                             this.hideTypingIndicator();
@@ -1036,6 +1156,7 @@ window.openAIChatManager = function () {
                                 isStreaming: true,
                                 userRating: null,
                                 appearance: this.normalizeAssistantAppearance(appearance),
+                                references: {},
                             };
                             this.messages.push(newMessage);
                             this._conversationAssistantMessage = { index: msgIndex, content: '' };
@@ -1047,8 +1168,9 @@ window.openAIChatManager = function () {
                             if (!msg.appearance) {
                                 msg.appearance = this.normalizeAssistantAppearance(appearance);
                             }
-                            msg.content = this._conversationAssistantMessage.content;
-                            msg.htmlContent = parseMarkdownContent(msg.content, msg);
+                            msg.rawContent = this._conversationAssistantMessage.content;
+                            msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
+                            updateMessagePresentation(msg, msg.references);
                             this.$nextTick(() => {
                                 renderChartsInMessage(msg);
                                 this.scrollToBottom();
@@ -1056,11 +1178,13 @@ window.openAIChatManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveConversationAssistantComplete", (sessionId, messageId) => {
+                    this.connection.on("ReceiveConversationAssistantComplete", (sessionId, messageId, references) => {
                         if (this._conversationAssistantMessage) {
                             var msg = this.messages[this._conversationAssistantMessage.index];
                             if (msg) {
                                 msg.isStreaming = false;
+                                msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
+                                updateMessagePresentation(msg, msg.references);
                             }
                             this._conversationAssistantMessage = null;
                         }
@@ -1146,48 +1270,8 @@ window.openAIChatManager = function () {
                     }
 
                     if (message.content) {
-                        let processedContent = message.content.trim();
-                        message.references = normalizeReferences(message.references);
-
-                        if (message.references && typeof message.references === "object" && Object.keys(message.references).length) {
-
-                            // Only include references that were actually cited in the response.
-                            const citedRefs = Object.entries(message.references).filter(([key]) => processedContent.includes(key));
-
-                            if (citedRefs.length) {
-                                // Sort by original index so display indices follow a natural order.
-                                citedRefs.sort(([, a], [, b]) => a.index - b.index);
-
-                                // Phase 1: Replace all markers with unique placeholders.
-                                let displayIndex = 1;
-                                for (const [key, value] of citedRefs) {
-                                    const placeholder = `__CITE_${value.index}__`;
-                                    processedContent = processedContent.replaceAll(key, placeholder);
-                                    value._displayIndex = displayIndex++;
-                                    value._placeholder = placeholder;
-                                }
-
-                                // Phase 2: Replace placeholders with sequential display indices.
-                                for (const [, value] of citedRefs) {
-                                    processedContent = processedContent.replaceAll(value._placeholder, `<sup><strong>${value._displayIndex}</strong></sup>`);
-                                }
-
-                                // if we have multiple references, add a comma to ensure we don't concatenate numbers.
-                                processedContent = processedContent.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
-
-                                processedContent += '<br><br>';
-
-                                for (const [key, value] of citedRefs) {
-                                    const label = value.text || key;
-                                    processedContent += value.link
-                                        ? `**${value._displayIndex}**. [${label}](${value.link})<br>`
-                                        : `**${value._displayIndex}**. ${label}<br>`;
-                                }
-                            }
-                        }
-
-                        message.content = processedContent;
-                        message.htmlContent = parseMarkdownContent(processedContent, message);
+                        message.rawContent = message.rawContent ?? message.content;
+                        updateMessagePresentation(message, message.references);
                     }
 
                     this.addMessageInternal(message);
@@ -1446,21 +1530,12 @@ window.openAIChatManager = function () {
                                         lastResponseId = chunk.responseId;
                                     }
 
-                                    let processedContent = chunk.content;
-
-                                    for (const [key, value] of Object.entries(references)) {
-                                        processedContent = processedContent.replaceAll(key, `<sup><strong>${value.index}</strong></sup>`);
-                                    }
-
-                                    // Append processed content to the message.
-                                    // if we have multiple references, add a comma to ensure we don't concatenate numbers.
-                                    content += processedContent.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
-                                }
+                                content += chunk.content;
+                            }
 
                                 // Update the existing message
-                                message.content = content;
-
-                                message.htmlContent = parseMarkdownContent(content, message);
+                                message.rawContent = content;
+                                updateMessagePresentation(message, references);
 
                                 this.messages[messageIndex] = message;
 
@@ -1528,50 +1603,8 @@ window.openAIChatManager = function () {
                     if (Object.keys(references).length) {
 
                         let message = this.messages[messageIndex];
-                        const content = message.content || '';
-
-                        // Only include references that were actually cited in the response.
-                        // Check both raw [doc:N] markers and already-rendered <sup> tags from streaming.
-                        const citedRefs = Object.entries(references).filter(([key, value]) =>
-                            content.includes(key) || content.includes(`<sup><strong>${value.index}</strong></sup>`)
-                        );
-
-                        if (!citedRefs.length) {
-                            return;
-                        }
-
-                        // Sort by original index so display indices follow a natural order.
-                        citedRefs.sort(([, a], [, b]) => a.index - b.index);
-
-                        // Phase 1: Replace all markers with unique placeholders to avoid collisions during remapping.
-                        let processed = content.trim();
-                        let displayIndex = 1;
-                        for (const [key, value] of citedRefs) {
-                            const placeholder = `__CITE_${value.index}__`;
-                            processed = processed.replaceAll(key, placeholder);
-                            processed = processed.replaceAll(`<sup><strong>${value.index}</strong></sup>`, placeholder);
-                            value._displayIndex = displayIndex++;
-                            value._placeholder = placeholder;
-                        }
-
-                        // Phase 2: Replace placeholders with sequential display indices.
-                        for (const [, value] of citedRefs) {
-                            processed = processed.replaceAll(value._placeholder, `<sup><strong>${value._displayIndex}</strong></sup>`);
-                        }
-
-                        processed = processed.replaceAll('</strong></sup><sup>', '</strong></sup><sup>,</sup><sup>');
-
-                        processed += '<br><br>';
-
-                        for (const [key, value] of citedRefs) {
-                            const label = value.text || key;
-                            processed += value.link
-                                ? `**${value._displayIndex}**. [${label}](${value.link})<br>`
-                                : `**${value._displayIndex}**. ${label}<br>`;
-                        }
-
-                        message.content = processed;
-                        message.htmlContent = parseMarkdownContent(processed, message);
+                        message.rawContent = message.rawContent ?? message.content ?? '';
+                        updateMessagePresentation(message, references);
 
                         this.messages[messageIndex] = message;
 
@@ -2427,7 +2460,11 @@ window.openAIChatManager = function () {
                     return sessionId;
                 },
                 copyResponse(message) {
-                    navigator.clipboard.writeText(message);
+                    const text = message && typeof message === 'object'
+                        ? message.copyContent ?? message.content ?? ''
+                        : message ?? '';
+
+                    navigator.clipboard.writeText(text);
                 },
                 updateFeedbackIcons(container, userRating) {
                     if (!container) {
@@ -2645,3 +2682,4 @@ document.addEventListener('click', function (e) {
         })
         .catch(function (err) { console.error('Failed to download image:', err); });
 });
+

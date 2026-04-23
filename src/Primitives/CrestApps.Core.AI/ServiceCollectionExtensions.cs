@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
+using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -53,6 +54,12 @@ public static class ServiceCollectionExtensions
                 entry.DisplayName = new LocalizedString(AITemplateSources.SystemPrompt, "System Prompt");
                 entry.Description = new LocalizedString(AITemplateSources.SystemPrompt, "Create a reusable system prompt template.");
             });
+
+        services.TryAddScoped<IAIProfileTemplateManager, DefaultAIProfileTemplateManager>();
+        services.TryAddScoped<ICatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
+        services.TryAddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
+        services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
+        services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
 
         return services;
     }
@@ -130,6 +137,7 @@ public static class ServiceCollectionExtensions
 
         services
             .AddCoreAITemplating()
+            .AddCoreIndexingServices()
             .AddCoreServices()
             .AddOptions<AIProviderConnectionCatalogOptions>().Services
             .AddOptions<AIDeploymentCatalogOptions>().Services
@@ -164,6 +172,8 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IAIProfileTemplateProvider>(sp =>
                 sp.GetRequiredService<EmbeddedResourceAIProfileTemplateProvider>());
         }
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAIProfileTemplateProvider, AIProfileFileSystemTemplateProvider>());
 
         services.TryAddEnumerable(ServiceDescriptor.Transient<IPostConfigureOptions<AIProviderOptions>, ConfigurationAIProviderConnectionsOptionsConfiguration>());
         services.TryAddScoped<IAICompletionService, DefaultAICompletionService>();

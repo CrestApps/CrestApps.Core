@@ -11,9 +11,9 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class UsageAnalyticsController : Controller
 {
-    private readonly MvcAICompletionUsageService _usageService;
+    private readonly SampleAICompletionUsageService _usageService;
     private readonly GeneralAIOptions _generalAIOptions;
-    public UsageAnalyticsController(MvcAICompletionUsageService usageService, IOptions<GeneralAIOptions> generalAIOptions)
+    public UsageAnalyticsController(SampleAICompletionUsageService usageService, IOptions<GeneralAIOptions> generalAIOptions)
     {
         _usageService = usageService;
         _generalAIOptions = generalAIOptions.Value;

@@ -83,6 +83,18 @@ builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_A2AClient>("MvcA2AClientS
     .WithHttpsEndpoint(5003, name: "HttpsMvcA2AClient")
     .WithEnvironment("A2A__Endpoint", "https://localhost:5001");
 
+builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWeb")
+    .WithReference(redis)
+    .WithReference(ollama)
+    .WaitFor(redis)
+    .WithHttpsEndpoint(5201, name: "HttpsBlazorWeb")
+    .WithEnvironment((options) =>
+    {
+        options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__DefaultDeploymentName", ollamaModelName);
+        options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
+        options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
+    });
+
 var app = builder.Build();
 
 try

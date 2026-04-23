@@ -25,11 +25,23 @@ public class DefaultTemplateService : ITemplateService
     public virtual async Task<IReadOnlyList<Template>> ListAsync()
     {
         var allTemplates = new List<Template>();
+        var templateIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var provider in _providers)
         {
             var templates = await provider.GetTemplatesAsync();
-            allTemplates.AddRange(templates);
+
+            foreach (var template in templates ?? [])
+            {
+                if (template == null ||
+                    string.IsNullOrWhiteSpace(template.Id) ||
+                    !templateIds.Add(template.Id))
+                {
+                    continue;
+                }
+
+                allTemplates.Add(template);
+            }
         }
 
         return allTemplates;

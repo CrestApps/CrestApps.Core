@@ -250,11 +250,6 @@
                         <div class="form-text">The default number of matched chunks or documents to include when a profile does not override it.</div>
                     </div>
 
-                    <div class="mb-3">
-                        <label asp-for="DocumentRetrievalMode" class="form-label">Default retrieval mode</label>
-                        <select asp-for="DocumentRetrievalMode" asp-items="Html.GetEnumSelectList<CrestApps.Core.AI.Documents.Models.DocumentRetrievalMode>()" class="form-select" style="max-width: 320px;"></select>
-                        <div class="form-text">Use <strong>Chunk</strong> for chunk-level RAG, or <strong>Hierarchical</strong> to match on chunks and then inject the full text of the matched documents.</div>
-                    </div>
                 </div>
             </div>
 

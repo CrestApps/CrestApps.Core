@@ -54,13 +54,13 @@ public sealed class MvcCitationReferenceCollectorTests
         Assert.Contains("article-2", contentItemIds);
     }
 
-    private static MvcCitationReferenceCollector CreateCollector()
+    private static SampleCitationReferenceCollector CreateCollector()
     {
         var services = new ServiceCollection();
         services.AddKeyedSingleton<IAIReferenceLinkResolver, TestArticleResolver>(IndexProfileTypes.Articles);
         services.AddSingleton<CompositeAIReferenceLinkResolver>();
         var serviceProvider = services.BuildServiceProvider();
-        return new MvcCitationReferenceCollector(serviceProvider.GetRequiredService<CompositeAIReferenceLinkResolver>());
+        return new SampleCitationReferenceCollector(serviceProvider.GetRequiredService<CompositeAIReferenceLinkResolver>());
     }
 
     private sealed class TestArticleResolver : IAIReferenceLinkResolver

@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
+using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
@@ -102,6 +103,8 @@ public sealed class AIProfileViewModel
     // Prompt Templates
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
     public List<PromptTemplateOptionItem> AvailablePromptTemplates { get; set; } = [];
+
+    public List<Template> AvailableSystemPromptTemplates { get; set; } = [];
 
     // Documents
     public List<DocumentItem> AttachedDocuments { get; set; } = [];

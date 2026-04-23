@@ -12,7 +12,7 @@ public sealed class AIChatSessionIndex : MapIndex
 
     public string UserId { get; set; }
 
-    public int Status { get; set; }
+    public ChatSessionStatus Status { get; set; }
 
     public DateTime LastActivityUtc { get; set; }
 }
@@ -32,7 +32,7 @@ public sealed class AIChatSessionIndexProvider : IndexProvider<AIChatSession>
                 SessionId = session.SessionId,
                 ProfileId = session.ProfileId,
                 UserId = session.UserId,
-                Status = (int)session.Status,
+                Status = session.Status,
                 LastActivityUtc = session.LastActivityUtc,
             });
     }

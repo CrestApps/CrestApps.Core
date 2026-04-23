@@ -2,13 +2,13 @@ using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
-using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Models;
 using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +27,6 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _templateService;
-    private readonly InteractionDocumentOptions _options;
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _logger;
@@ -37,7 +36,6 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         IAIDeploymentManager deploymentManager,
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService templateService,
-        IOptions<InteractionDocumentOptions> options,
         IAITextNormalizer textNormalizer,
         IServiceProvider serviceProvider,
         ILogger<DocumentPreemptiveRagHandler> logger)
@@ -46,7 +44,6 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         _deploymentManager = deploymentManager;
         _indexProfileStore = indexProfileStore;
         _templateService = templateService;
-        _options = options.Value;
         _textNormalizer = textNormalizer;
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -74,14 +71,20 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
 
     public async Task HandleAsync(PreemptiveRagContext context)
     {
-        if (string.IsNullOrEmpty(_options.IndexProfileName))
+        var snapshotSettings = _serviceProvider.GetService<IOptionsSnapshot<InteractionDocumentOptions>>()?.Value;
+        var optionsSettings = _serviceProvider.GetRequiredService<IOptions<InteractionDocumentOptions>>().Value;
+        var defaultSettings = !string.IsNullOrWhiteSpace(snapshotSettings?.IndexProfileName)
+            ? snapshotSettings
+            : optionsSettings;
+
+        if (string.IsNullOrEmpty(defaultSettings.IndexProfileName))
         {
             return;
         }
 
         try
         {
-            await InjectPreemptiveRagContextAsync(context, ResolveSettings(context.Resource, _options));
+            await InjectPreemptiveRagContextAsync(context, ResolveSettings(context.Resource, defaultSettings));
         }
         catch (Exception ex)
         {
@@ -286,8 +289,8 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
 
     private static InteractionDocumentOptions ResolveSettings(object resource, InteractionDocumentOptions defaults)
     {
-        if (resource is AIProfile profile &&
-            profile.TryGet<DocumentsMetadata>(out var metadata))
+        if (resource is CatalogItem item &&
+            item.TryGet<DocumentsMetadata>(out var metadata))
         {
             return new InteractionDocumentOptions
             {

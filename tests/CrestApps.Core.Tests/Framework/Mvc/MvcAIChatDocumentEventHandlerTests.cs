@@ -10,12 +10,12 @@ public sealed class MvcAIChatDocumentEventHandlerTests
     [Fact]
     public async Task UploadedAsync_ShouldQueueEachUploadedDocument()
     {
-        var queue = new Mock<IMvcAIChatDocumentIndexingQueue>();
+        var queue = new Mock<ISampleAIChatDocumentIndexingQueue>();
         queue
             .Setup(service => service.QueueIndexAsync(It.IsAny<AIDocument>(), It.IsAny<IReadOnlyCollection<AIDocumentChunk>>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask);
 
-        var handler = new MvcAIChatDocumentEventHandler(queue.Object);
+        var handler = new SampleAIChatDocumentEventHandler(queue.Object);
 
         await handler.UploadedAsync(new AIChatDocumentUploadContext
         {
@@ -47,12 +47,12 @@ public sealed class MvcAIChatDocumentEventHandlerTests
     [Fact]
     public async Task RemovedAsync_WhenChunkIdsExist_ShouldQueueDelete()
     {
-        var queue = new Mock<IMvcAIChatDocumentIndexingQueue>();
+        var queue = new Mock<ISampleAIChatDocumentIndexingQueue>();
         queue
             .Setup(service => service.QueueDeleteChunksAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask);
 
-        var handler = new MvcAIChatDocumentEventHandler(queue.Object);
+        var handler = new SampleAIChatDocumentEventHandler(queue.Object);
 
         await handler.RemovedAsync(new AIChatDocumentRemoveContext
         {
@@ -67,8 +67,8 @@ public sealed class MvcAIChatDocumentEventHandlerTests
     [Fact]
     public async Task RemovedAsync_WhenChunkIdsAreEmpty_DoesNotQueueDelete()
     {
-        var queue = new Mock<IMvcAIChatDocumentIndexingQueue>(MockBehavior.Strict);
-        var handler = new MvcAIChatDocumentEventHandler(queue.Object);
+        var queue = new Mock<ISampleAIChatDocumentIndexingQueue>(MockBehavior.Strict);
+        var handler = new SampleAIChatDocumentEventHandler(queue.Object);
 
         await handler.RemovedAsync(new AIChatDocumentRemoveContext
         {

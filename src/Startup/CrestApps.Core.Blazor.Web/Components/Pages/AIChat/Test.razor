@@ -1,0 +1,152 @@
+@page "/ai-chat/test/{ProfileId}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Services
+@inject IAIProfileManager ProfileManager
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject SiteSettingsStore SiteSettings
+
+<PageTitle>Test - @(_profileDisplayText ?? "AI Profile") - Blazor AI Integration Sample</PageTitle>
+
+<style>
+    .test-page-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .ai-chat-messages { padding: 1rem; }
+    .ai-chat-messages .ai-chat-message-item { position: relative; padding: 0.5rem 0; }
+    .ai-chat-messages .ai-chat-message-item p:last-child { margin-bottom: 0; }
+    .ai-chat-messages .ai-chat-message-body {
+        position: relative; padding: 0; overflow-wrap: break-word; word-break: break-word; min-width: 0;
+    }
+    .ai-chat-msg-role { font-size: 0.75rem; font-weight: 600; margin-bottom: 2px; }
+    .ai-chat-msg-role-assistant { color: #6f42c1; }
+    .ai-chat-msg-role-assistant i.ai-streaming-icon { animation: pulse 1.5s infinite; }
+    .ai-chat-msg-role-assistant i.ai-bot-icon { color: #6f42c1; }
+    .ai-chat-messages .message-buttons-container {
+        position: absolute; right: 0.1rem; bottom: 0; display: inline-flex; align-items: center; gap: 0.35rem;
+        opacity: 0; pointer-events: none; transition: opacity 0.15s ease-in-out;
+        background: rgba(255,255,255,0.96); padding: 0.2rem 0.35rem; border-radius: 999px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08); z-index: 1;
+    }
+    .ai-chat-messages .ai-chat-message-item:hover .message-buttons-container,
+    .ai-chat-messages .ai-chat-message-item:focus-within .message-buttons-container {
+        opacity: 1; pointer-events: auto;
+    }
+    .ai-chat-messages .message-buttons-container > .button-message-toolbox {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.75rem; height: 1.75rem; border-radius: 50%;
+    }
+    @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+
+<link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/ai-chat.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
+
+@if (_profile == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-play-circle"></i> Test — @_profileDisplayText</h2>
+        <a href="/ai/profiles" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Profiles
+        </a>
+    </div>
+
+    <div class="test-page-wrapper">
+        <div class="border rounded flex-grow-1 d-flex flex-column">
+            <div id="test-container" class="flex-grow-1 overflow-auto">
+                <div id="test-placeholder">
+                    <div class="p-3 text-muted text-center">
+                        <i class="bi bi-robot"></i> Send a message to test this @_profile.Type.ToString().ToLowerInvariant() profile.
+                    </div>
+                </div>
+                <div id="test-app"></div>
+            </div>
+
+            <div class="border-top p-3">
+                <div class="d-flex gap-2">
+                    <textarea id="test-input"
+                              class="form-control"
+                              rows="1"
+                              placeholder="Type a message..."
+                              data-profile-id="@_profile.ItemId"></textarea>
+                    <button type="button" id="test-send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+}
+
+@code {
+    [Parameter]
+    public string ProfileId { get; set; }
+
+    private AIProfile _profile;
+    private string _profileDisplayText;
+    private bool _textToSpeechEnabled;
+    private string _ttsVoiceName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(ProfileId))
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        _profile = await ProfileManager.FindByIdAsync(ProfileId);
+        if (_profile == null)
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        if (_profile.Type != AIProfileType.Utility && _profile.Type != AIProfileType.Agent)
+        {
+            Navigation.NavigateTo("/ai/profiles");
+
+            return;
+        }
+
+        _profileDisplayText = _profile.DisplayText ?? _profile.Name;
+
+        var deploymentDefaults = SiteSettings.Get<DefaultAIDeploymentSettings>();
+        ChatModeProfileSettings chatModeSettings = null;
+        _profile.TryGetSettings<ChatModeProfileSettings>(out chatModeSettings);
+
+        _textToSpeechEnabled = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
+        _ttsVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultTextToSpeechVoiceId;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _profile != null)
+        {
+            await JS.InvokeVoidAsync("window.openAIChatManager.initialize", new
+            {
+                signalRHubUrl = "/hubs/ai-chat",
+                appElementSelector = "#test-app",
+                chatContainerElementSelector = "#test-container",
+                inputElementSelector = "#test-input",
+                sendButtonElementSelector = "#test-send-btn",
+                placeholderElementSelector = "#test-placeholder",
+                messages = Array.Empty<object>(),
+                metricsEnabled = false,
+                chatMode = "TextInput",
+                textToSpeechEnabled = _textToSpeechEnabled,
+                ttsVoiceName = _ttsVoiceName,
+                singleResponseMode = true,
+                sessionDocumentsEnabled = false,
+            });
+        }
+    }
+}

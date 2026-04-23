@@ -1,0 +1,728 @@
+@page "/ai/templates/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Claude.Models
+@using CrestApps.Core.AI.Claude.Services
+@using CrestApps.Core.AI.Copilot.Models
+@using CrestApps.Core.AI.Copilot.Services
+@using CrestApps.Core.Blazor.Web.Areas.AI.Services
+@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
+@using CrestApps.Core.AI.DataSources
+@using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Orchestration
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Services
+@using CrestApps.Core.Templates.Services
+@using Microsoft.Extensions.Options
+@inject ICatalog<AIProfileTemplate> Catalog
+@inject IAIProfileTemplateManager TemplateManager
+@inject IAIProfileManager ProfileManager
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject ICatalog<A2AConnection> A2ACatalog
+@inject ICatalog<McpConnection> McpCatalog
+@inject IAIDataSourceStore DataSourceStore
+@inject ISearchIndexProfileStore IndexProfileStore
+@inject ITemplateService TemplateService
+@inject IOptions<OrchestratorOptions> OrchestratorOpts
+@inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
+@inject ClaudeClientService ClaudeClientService
+@inject IOptions<CopilotOptions> CopilotOpts
+@inject IOptions<AIToolDefinitionOptions> ToolOpts
+@inject IOptions<InteractionDocumentOptions> DocOpts
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+
+<PageTitle>Edit AI Template - Blazor AI Integration Sample</PageTitle>
+
+@if (_existing == null)
+{
+    <div class="alert alert-warning">Template not found.</div>
+    return;
+}
+
+<h2><i class="bi bi-pencil-square"></i> Edit AI Template</h2>
+<hr />
+
+<EditForm FormName="ai-aitemplates-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <div class="row">
+        <div class="col-md-8">
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert alert-danger">@_errorMessage</div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText class="form-control" @bind-Value="_model.DisplayText" placeholder="e.g., Customer Support Template" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Technical name</label>
+                <input type="text" class="form-control" value="@_model.Name" readonly disabled />
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <InputText class="form-control" @bind-Value="_model.Category" placeholder="e.g., Support" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <InputText class="form-control" @bind-Value="_model.Description" placeholder="Brief description" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check form-switch">
+                    <InputCheckbox class="form-check-input" @bind-Value="_model.IsListable" />
+                    <label class="form-check-label">Listable</label>
+                </div>
+                <div class="form-text">Show this template in template pickers.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Source <span class="text-danger">*</span></label>
+                <select class="form-select" value="@_model.Source" @onchange="OnSourceChanged">
+                    <option value="@AITemplateSources.SystemPrompt">System Prompt</option>
+                    <option value="@AITemplateSources.Profile">Profile</option>
+                </select>
+                @if (!string.IsNullOrEmpty(_sourceError))
+                {
+                    <div class="text-danger">@_sourceError</div>
+                }
+                <div class="form-text">System Prompt templates contain only a system message. Profile templates contain a full profile configuration.</div>
+            </div>
+
+            @if (_model.Source == AITemplateSources.SystemPrompt)
+            {
+                <div class="mb-3">
+                    <label class="form-label">System message</label>
+                    <InputTextArea class="form-control" rows="8" @bind-Value="_model.SystemMessage" placeholder="You are a helpful AI assistant..." />
+                    <div class="form-text">The system message for this template.</div>
+                </div>
+            }
+            else if (_model.Source == AITemplateSources.Profile)
+            {
+                <!-- Profile-style tabbed form -->
+                <ul class="nav nav-tabs mt-3" role="tablist">
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(_activeTab == "basic" ? "active" : "")" @onclick='() => _activeTab = "basic"'>Basic Info</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(_activeTab == "params" ? "active" : "")" @onclick='() => _activeTab = "params"'>AI Parameters</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(_activeTab == "capabilities" ? "active" : "")" @onclick='() => _activeTab = "capabilities"'>Capabilities</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(_activeTab == "knowledge" ? "active" : "")" @onclick='() => _activeTab = "knowledge"'>Knowledge</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(_activeTab == "processing" ? "active" : "")" @onclick='() => _activeTab = "processing"'>Data Processing &amp; Metrics</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link @(_activeTab == "settings" ? "active" : "")" @onclick='() => _activeTab = "settings"'>Settings</button>
+                    </li>
+                </ul>
+
+                <div class="p-3 border border-top-0 rounded-bottom">
+                    <!-- Basic Info -->
+                    <div style="display: @(_activeTab == "basic" ? "block" : "none")">
+                        <div class="mb-3">
+                            <label class="form-label">Profile type</label>
+                            <select class="form-select" value="@_model.ProfileType" @onchange="OnProfileTypeChanged">
+                                <option value="">Default</option>
+                                @foreach (var pt in Enum.GetValues<AIProfileType>())
+                                {
+                                    <option value="@pt">@pt</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (_model.ProfileType == AIProfileType.Chat)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Title type</label>
+                                <InputSelect class="form-select" @bind-Value="_model.TitleType">
+                                    <option value="">Default</option>
+                                    @foreach (var tt in Enum.GetValues<AISessionTitleType>())
+                                    {
+                                        <option value="@tt">@tt</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        }
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Chat deployment</label>
+                                    <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName">
+                                        <option value="">Use default</option>
+                                        @foreach (var d in _model.ChatDeployments)
+                                        {
+                                            <option value="@d.Value">@d.Key</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Utility deployment</label>
+                                    <InputSelect class="form-select" @bind-Value="_model.UtilityDeploymentName">
+                                        <option value="">Use default</option>
+                                        @foreach (var d in _model.UtilityDeployments)
+                                        {
+                                            <option value="@d.Value">@d.Key</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Orchestrator</label>
+                                    <select class="form-select" value="@_model.OrchestratorName" @onchange="OnOrchestratorChanged">
+                                        <option value="">Use default</option>
+                                        @foreach (var o in _model.Orchestrators)
+                                        {
+                                            <option value="@o.Value">@o.Key</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Copilot Config -->
+                        @if (!string.IsNullOrEmpty(_model.OrchestratorName) && string.Equals(_model.OrchestratorName, CopilotOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header"><h6 class="card-title mb-0"><i class="bi bi-github me-1"></i> Copilot Configuration</h6></div>
+                                <div class="card-body">
+                                    @if (!_model.CopilotIsConfigured)
+                                    {
+                                        <div class="alert alert-warning mb-0"><strong>Copilot is not configured.</strong></div>
+                                    }
+                                    else
+                                    {
+                                        <div class="mb-3">
+                                            <label class="form-label">Model</label>
+                                            <InputText class="form-control" @bind-Value="_model.CopilotModel" placeholder="Leave empty for default" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Effort level</label>
+                                            <InputSelect class="form-select" @bind-Value="_model.CopilotReasoningEffort">
+                                                @foreach (var e in Enum.GetValues<CopilotReasoningEffort>())
+                                                {
+                                                    <option value="@e">@(e == CopilotReasoningEffort.None ? "Default" : e.ToString())</option>
+                                                }
+                                            </InputSelect>
+                                        </div>
+                                        <div class="form-check"><InputCheckbox class="form-check-input" @bind-Value="_model.CopilotIsAllowAll" /><label class="form-check-label">Allow all tool executions</label></div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Claude Config -->
+                        @if (!string.IsNullOrEmpty(_model.OrchestratorName) && string.Equals(_model.OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header"><h6 class="card-title mb-0"><i class="bi bi-lightning me-1"></i> Claude Configuration</h6></div>
+                                <div class="card-body">
+                                    @if (!_model.ClaudeIsConfigured)
+                                    {
+                                        <div class="alert alert-warning mb-0"><strong>Claude is not configured.</strong></div>
+                                    }
+                                    else
+                                    {
+                                        <div class="mb-3">
+                                            <label class="form-label">Claude model</label>
+                                            <InputSelect class="form-select" @bind-Value="_model.ClaudeModel">
+                                                <option value="">Use default</option>
+                                                @foreach (var m in _model.AnthropicAvailableModels)
+                                                {
+                                                    <option value="@m.Value">@m.Key</option>
+                                                }
+                                            </InputSelect>
+                                        </div>
+                                        <div class="mb-0">
+                                            <label class="form-label">Effort level</label>
+                                            <InputSelect class="form-select" @bind-Value="_model.ClaudeEffortLevel">
+                                                @foreach (var e in Enum.GetValues<ClaudeEffortLevel>())
+                                                {
+                                                    <option value="@e">@(e == ClaudeEffortLevel.None ? "Default" : e.ToString())</option>
+                                                }
+                                            </InputSelect>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Prompt subject</label>
+                            <InputText class="form-control" @bind-Value="_model.PromptSubject" />
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.AddInitialPrompt" />
+                                <label class="form-check-label">Add initial prompt</label>
+                            </div>
+                        </div>
+
+                        @if (!_model.AddInitialPrompt)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Welcome message</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="_model.WelcomeMessage" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Initial prompt</label>
+                                <InputTextArea class="form-control" rows="4" @bind-Value="_model.InitialPrompt" />
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Prompt template</label>
+                            <InputTextArea class="form-control" rows="5" @bind-Value="_model.PromptTemplate" />
+                        </div>
+                    </div>
+
+                    <!-- AI Parameters -->
+                    <div style="display: @(_activeTab == "params" ? "block" : "none")">
+                        @if (_model.AvailablePromptTemplates.Count > 0)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Prompt templates</label>
+                                <div class="dropdown mb-2 w-100">
+                                    <button class="btn btn-outline-primary dropdown-toggle w-100 d-flex justify-content-center align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <span aria-hidden="true">+</span> Add template
+                                    </button>
+                                    <div class="dropdown-menu p-2" style="max-height:24rem;min-width:22rem;overflow-y:auto;">
+                                        <div class="mb-2" @onclick:stopPropagation="true">
+                                            <input type="search"
+                                                   class="form-control form-control-sm"
+                                                   @bind="_promptTemplateSearchTerm"
+                                                   @bind:event="oninput"
+                                                   placeholder="Search prompt templates..." />
+                                        </div>
+                                        <div class="prompt-template-menu-items">
+                                            @foreach (var group in FilteredPromptTemplateGroups)
+                                            {
+                                                <div class="dropdown-header px-2">@group.Key</div>
+                                                @foreach (var option in group)
+                                                {
+                                                    <button type="button"
+                                                            class="dropdown-item text-wrap"
+                                                            @onclick="() => AddPromptTemplate(option.TemplateId)">
+                                                        <span class="d-block fw-semibold">@option.Title</span>
+                                                        @if (!string.IsNullOrWhiteSpace(option.Description))
+                                                        {
+                                                            <small class="text-muted">@option.Description</small>
+                                                        }
+                                                    </button>
+                                                }
+                                            }
+                                        </div>
+                                        @if (!HasFilteredPromptTemplates)
+                                        {
+                                            <div class="text-muted small px-2 py-1">No prompt templates match your search.</div>
+                                        }
+                                    </div>
+                                </div>
+
+                                @for (var i = 0; i < _model.PromptTemplates.Count; i++)
+                                {
+                                    var index = i;
+                                    var sel = _model.PromptTemplates[index];
+                                    var opt = _model.AvailablePromptTemplates.FirstOrDefault(t => string.Equals(t.TemplateId, sel.TemplateId, StringComparison.OrdinalIgnoreCase));
+
+                                    <div class="card mb-1">
+                                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                            <span class="fw-semibold">@(opt?.Title ?? sel.TemplateId)</span>
+                                            <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PromptTemplates.RemoveAt(index)"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                        <div class="card-body">
+                                            <label class="form-label">Template parameters</label>
+                                            <InputTextArea class="form-control" rows="3" @bind-Value="sel.PromptParameters" placeholder='{"key": "value"}' />
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">System message</label>
+                            <InputTextArea class="form-control" rows="5" @bind-Value="_model.SystemMessage" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Temperature</label><InputNumber class="form-control" @bind-Value="_model.Temperature" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Top P</label><InputNumber class="form-control" @bind-Value="_model.TopP" /></div></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Frequency penalty</label><InputNumber class="form-control" @bind-Value="_model.FrequencyPenalty" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Presence penalty</label><InputNumber class="form-control" @bind-Value="_model.PresencePenalty" /></div></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Max output tokens</label><InputNumber class="form-control" @bind-Value="_model.MaxOutputTokens" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Past messages count</label><InputNumber class="form-control" @bind-Value="_model.PastMessagesCount" /></div></div>
+                        </div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" /><label class="form-check-label">Enable response caching</label></div></div>
+                    </div>
+
+                    <!-- Capabilities -->
+                    <div style="display: @(_activeTab == "capabilities" ? "block" : "none")">
+                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                        @foreach (var agent in _model.AvailableAgents)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" checked="@agent.IsSelected" @onchange="e => ToggleAgent(agent.Name, (bool)e.Value)" />
+                                <label class="form-check-label"><strong>@agent.DisplayText</strong>@if (!string.IsNullOrEmpty(agent.Description)) { <br /><small class="text-muted">@agent.Description</small> }</label>
+                            </div>
+                        }
+
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
+                        @foreach (var c in _model.AvailableA2AConnections)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" checked="@c.IsSelected" @onchange="e => ToggleA2A(c.ItemId, (bool)e.Value)" />
+                                <label class="form-check-label"><strong>@c.DisplayText</strong><br /><small class="text-muted">@c.Endpoint</small></label>
+                            </div>
+                        }
+
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                        @foreach (var c in _model.AvailableMcpConnections)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" checked="@c.IsSelected" @onchange="e => ToggleMcp(c.ItemId, (bool)e.Value)" />
+                                <label class="form-check-label"><strong>@c.DisplayText</strong>@if (!string.IsNullOrEmpty(c.Source)) { <br /><small class="text-muted">@c.Source</small> }</label>
+                            </div>
+                        }
+
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                        @foreach (var group in _model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
+                        {
+                            <h6 class="text-secondary mt-3 mb-2">@group.Key</h6>
+                            @foreach (var tool in group)
+                            {
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" checked="@tool.IsSelected" @onchange="e => ToggleTool(tool.Name, (bool)e.Value)" />
+                                    <label class="form-check-label"><strong>@tool.Title</strong>@if (!string.IsNullOrEmpty(tool.Description)) { <br /><small class="text-muted">@tool.Description</small> }</label>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <!-- Knowledge -->
+                    <div style="display: @(_activeTab == "knowledge" ? "block" : "none")">
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableUserMemory" /><label class="form-check-label">Enable user memory</label></div></div>
+                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-database"></i> Data Source</h6>
+                        <div class="mb-3">
+                            <InputSelect class="form-select" @bind-Value="_model.DataSourceId">
+                                <option value="">No data source</option>
+                                @foreach (var ds in _model.DataSources) { <option value="@ds.Value">@ds.Key</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="mb-3"><InputText class="form-control" @bind-Value="_model.DataSourceFilter" placeholder="Filter" /></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.DataSourceIsInScope" /><label class="form-check-label">Restrict to retrieved data</label></div></div>
+                        <div class="row">
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Document Top N</label><InputNumber class="form-control" @bind-Value="_model.DocumentTopN" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Retrieval mode</label>
+                                <InputSelect class="form-select" @bind-Value="_model.DocumentRetrievalMode"><option value="">Default</option>@foreach (var m in Enum.GetValues<DocumentRetrievalMode>()) { <option value="@m">@m</option> }</InputSelect></div></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Strictness</label><InputNumber class="form-control" @bind-Value="_model.DataSourceStrictness" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Retrieved documents</label><InputNumber class="form-control" @bind-Value="_model.DataSourceTopNDocuments" /></div></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionDocuments" />
+                                <label class="form-check-label">Allow session document uploads</label>
+                            </div>
+                            <div class="form-text">Allow users to upload documents during chat sessions with profiles created from this template.</div>
+                        </div>
+
+                    </div>
+
+                    <!-- Data Processing & Metrics -->
+                    <div style="display: @(_activeTab == "processing" ? "block" : "none")">
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableDataExtraction" /><label class="form-check-label">Enable data extraction</label></div></div>
+                        @if (_model.EnableDataExtraction)
+                        {
+                            <div class="row">
+                                <div class="col-md-6"><div class="mb-3"><label class="form-label">Check interval</label><InputNumber class="form-control" @bind-Value="_model.ExtractionCheckInterval" /></div></div>
+                                <div class="col-md-6"><div class="mb-3"><label class="form-label">Inactivity timeout (min)</label><InputNumber class="form-control" @bind-Value="_model.SessionInactivityTimeoutInMinutes" /></div></div>
+                            </div>
+                            @for (var i = 0; i < _model.DataExtractionEntries.Count; i++)
+                            {
+                                var idx = i; var entry = _model.DataExtractionEntries[idx];
+                                <div class="card mb-2">
+                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(entry.Name) ? "New Entry" : entry.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.DataExtractionEntries.RemoveAt(idx)"><i class="bi bi-trash"></i></button></div>
+                                    <div class="card-body">
+                                        <div class="mb-3"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="entry.Name" /></div>
+                                        <div class="mb-3"><label class="form-label">Description</label><InputTextArea class="form-control" rows="3" @bind-Value="entry.Description" /></div>
+                                        <div class="form-check mb-2"><InputCheckbox class="form-check-input" @bind-Value="entry.AllowMultipleValues" /><label class="form-check-label">Allow multiple values</label></div>
+                                        <div class="form-check mb-2"><InputCheckbox class="form-check-input" @bind-Value="entry.IsUpdatable" /><label class="form-check-label">Updatable</label></div>
+                                    </div>
+                                </div>
+                            }
+                            <button type="button" class="btn btn-sm btn-success" @onclick="() => _model.DataExtractionEntries.Add(new DataExtractionEntryItem())"><i class="bi bi-plus"></i> Add Entry</button>
+                        }
+                        <hr class="my-4" />
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableSessionMetrics" /><label class="form-check-label">Enable session metrics</label></div></div>
+                        <div class="mb-4"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableAIResolutionDetection" /><label class="form-check-label">Enable AI resolution detection</label></div></div>
+
+                        <h6 class="mb-2"><i class="bi bi-clipboard-check"></i> Post-session Processing</h6>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnablePostSessionProcessing" /><label class="form-check-label">Enable post-session processing</label></div></div>
+                        @if (_model.EnablePostSessionProcessing)
+                        {
+                            @for (var i = 0; i < _model.PostSessionTasks.Count; i++)
+                            {
+                                var idx = i; var task = _model.PostSessionTasks[idx];
+                                <div class="card mb-2">
+                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(task.Name) ? "New Task" : task.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PostSessionTasks.RemoveAt(idx)"><i class="bi bi-trash"></i></button></div>
+                                    <div class="card-body">
+                                        <div class="mb-3"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="task.Name" /></div>
+                                        <div class="mb-3"><label class="form-label">Type</label><InputSelect class="form-select" @bind-Value="task.Type">@foreach (var tt in Enum.GetValues<PostSessionTaskType>()) { <option value="@tt">@tt</option> }</InputSelect></div>
+                                        <div class="mb-3"><label class="form-label">Instructions</label><InputTextArea class="form-control" rows="3" @bind-Value="task.Instructions" /></div>
+                                        <div class="form-check mb-2"><InputCheckbox class="form-check-input" @bind-Value="task.AllowMultipleValues" /><label class="form-check-label">Allow multiple values</label></div>
+                                        <div class="mb-3"><label class="form-label">Options</label><InputTextArea class="form-control" rows="3" @bind-Value="task.Options" /></div>
+                                    </div>
+                                </div>
+                            }
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => _model.PostSessionTasks.Add(new PostSessionTaskItem())"><i class="bi bi-plus-circle"></i> Add Task</button>
+                        }
+
+                        <hr class="my-4" />
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableConversionMetrics" /><label class="form-check-label">Enable conversion metrics</label></div></div>
+                        @if (_model.EnableConversionMetrics)
+                        {
+                            @for (var i = 0; i < _model.ConversionGoals.Count; i++)
+                            {
+                                var idx = i; var goal = _model.ConversionGoals[idx];
+                                <div class="card mb-2">
+                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(goal.Name) ? "New goal" : goal.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.ConversionGoals.RemoveAt(idx)"><i class="bi bi-trash"></i></button></div>
+                                    <div class="card-body">
+                                        <div class="mb-3"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="goal.Name" /></div>
+                                        <div class="mb-3"><label class="form-label">Description</label><InputTextArea class="form-control" rows="3" @bind-Value="goal.Description" /></div>
+                                        <div class="row">
+                                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Min score</label><InputNumber class="form-control" @bind-Value="goal.MinScore" /></div></div>
+                                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Max score</label><InputNumber class="form-control" @bind-Value="goal.MaxScore" /></div></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            <button type="button" class="btn btn-sm btn-success" @onclick="() => _model.ConversionGoals.Add(new ConversionGoalItem())"><i class="bi bi-plus"></i> Add Goal</button>
+                        }
+                    </div>
+
+                    <!-- Settings -->
+                    <div style="display: @(_activeTab == "settings" ? "block" : "none")">
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.IsRemovable" /><label class="form-check-label">Removable</label></div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.LockSystemMessage" /><label class="form-check-label">Lock system message</label></div></div>
+                    </div>
+                </div>
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+                <a href="/ai/templates" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public string Id { get; set; }
+
+    private AIProfileTemplate _existing;
+    private AITemplateViewModel _model = new();
+    private string _activeTab = "basic";
+    private string _sourceError;
+    private string _errorMessage;
+    private string _promptTemplateSearchTerm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _existing = await Catalog.FindByIdAsync(Id);
+
+        if (_existing == null)
+        {
+            return;
+        }
+
+        _model = AITemplateViewModel.FromTemplate(_existing);
+        await PopulateDropdownsAsync();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _sourceError = null;
+        _errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_model.Source)) _sourceError = "Source is required.";
+        if (_sourceError != null) return;
+
+        SyncCheckboxSelections();
+        _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
+        _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
+        _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
+
+        _model.ApplyTo(_existing);
+
+        await Catalog.UpdateAsync(_existing);
+        await StoreCommitter.CommitAsync();
+
+        Navigation.NavigateTo("/ai/templates");
+    }
+
+    private void SyncCheckboxSelections()
+    {
+        _model.SelectedToolNames = _model.AvailableTools.Where(t => t.IsSelected).Select(t => t.Name).ToArray();
+        _model.SelectedAgentNames = _model.AvailableAgents.Where(a => a.IsSelected).Select(a => a.Name).ToArray();
+        _model.SelectedA2AConnectionIds = _model.AvailableA2AConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
+        _model.SelectedMcpConnectionIds = _model.AvailableMcpConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
+    }
+
+    private void ToggleTool(string name, bool v) { var t = _model.AvailableTools.FirstOrDefault(x => x.Name == name); if (t != null) t.IsSelected = v; }
+    private void ToggleAgent(string name, bool v) { var a = _model.AvailableAgents.FirstOrDefault(x => x.Name == name); if (a != null) a.IsSelected = v; }
+    private void ToggleA2A(string id, bool v) { var c = _model.AvailableA2AConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
+    private void ToggleMcp(string id, bool v) { var c = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
+
+    private IEnumerable<IGrouping<string, PromptTemplateOptionItem>> FilteredPromptTemplateGroups =>
+        _model.AvailablePromptTemplates
+            .Where(template => string.IsNullOrWhiteSpace(_promptTemplateSearchTerm) ||
+                template.Title.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(template.Description) && template.Description.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(template.Category) && template.Category.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(template => template.Category)
+            .OrderBy(group => group.Key);
+
+    private bool HasFilteredPromptTemplates => FilteredPromptTemplateGroups.Any();
+
+    private void AddPromptTemplate(string templateId)
+    {
+        if (string.IsNullOrWhiteSpace(templateId))
+        {
+            return;
+        }
+
+        if (_model.PromptTemplates.Any(template => string.Equals(template.TemplateId, templateId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        _model.PromptTemplates.Add(new PromptTemplateSelectionItem { TemplateId = templateId });
+    }
+
+    private async Task PopulateDropdownsAsync()
+    {
+        var allDeployments = await DeploymentCatalog.GetAllAsync();
+        _model.ChatDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.UtilityDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Utility) || d.Type.Supports(AIDeploymentType.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.Orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors().Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
+
+        var anthropicOptions = ClaudeOpts.Value;
+        _model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
+        if (anthropicOptions.IsConfigured())
+        {
+            var models = await ClaudeClientService.ListModelsAsync();
+            _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, _model.ClaudeModel, anthropicOptions.DefaultModel);
+        }
+
+        _model.CopilotIsConfigured = CopilotOpts.Value.IsConfigured();
+        _model.CopilotAuthenticationType = CopilotOpts.Value.AuthenticationType;
+
+        var toolOpts = ToolOpts.Value;
+        var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+        _model.AvailableTools = toolOpts.Tools.Where(kvp => !kvp.Value.IsSystemTool)
+            .Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key) })
+            .OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
+
+        var connections = await A2ACatalog.GetAllAsync();
+        var selectedA2A = new HashSet<string>(_model.SelectedA2AConnectionIds ?? [], StringComparer.Ordinal);
+        _model.AvailableA2AConnections = connections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new A2AConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Endpoint = c.Endpoint, IsSelected = selectedA2A.Contains(c.ItemId) }).ToList();
+
+        var mcpConns = await McpCatalog.GetAllAsync();
+        var selectedMcp = new HashSet<string>(_model.SelectedMcpConnectionIds ?? [], StringComparer.Ordinal);
+        _model.AvailableMcpConnections = mcpConns.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcp.Contains(c.ItemId) }).ToList();
+
+        var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
+        var selectedAgents = new HashSet<string>(_model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
+        _model.AvailableAgents = allAgents.Where(a => !string.IsNullOrEmpty(a.Description)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgents.Contains(a.Name) }).ToList();
+
+        var dataSources = await DataSourceStore.GetAllAsync();
+        _model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new KeyValuePair<string, string>(ds.DisplayText, ds.ItemId)).ToList();
+        _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var docSettings = DocOpts.Value;
+        _model.DocumentIndexProfileName = docSettings.IndexProfileName;
+        if (!string.IsNullOrWhiteSpace(docSettings.IndexProfileName))
+        {
+            var ip = await IndexProfileStore.FindByNameAsync(docSettings.IndexProfileName);
+            _model.HasDocumentIndexConfiguration = ip != null && string.Equals(ip.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var promptTemplates = await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
+        _model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable)
+            .OrderBy(t => t.Metadata.Category ?? "", StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description }).ToList() }).ToList();
+    }
+
+    private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> ids)
+    {
+        var allIds = (await A2ACatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
+        return (ids ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> ids)
+    {
+        var allIds = (await McpCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
+        return (ids ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> names)
+    {
+        var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
+        var valid = allAgents.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return (names ?? []).Where(n => !string.IsNullOrWhiteSpace(n) && valid.Contains(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static string BuildLabel(AIDeployment d) => string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})";
+
+    private void OnSourceChanged(ChangeEventArgs e)
+    {
+        _model.Source = e.Value?.ToString();
+    }
+
+    private void OnProfileTypeChanged(ChangeEventArgs e)
+    {
+        var str = e.Value?.ToString();
+        _model.ProfileType = Enum.TryParse<AIProfileType>(str, out var value) ? value : null;
+    }
+
+    private void OnOrchestratorChanged(ChangeEventArgs e)
+    {
+        _model.OrchestratorName = e.Value?.ToString();
+    }
+}

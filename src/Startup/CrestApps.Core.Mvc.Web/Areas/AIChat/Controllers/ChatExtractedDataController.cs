@@ -14,9 +14,9 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 public sealed class ChatExtractedDataController : Controller
 {
     private readonly IAIProfileManager _profileManager;
-    private readonly MvcAIChatSessionExtractedDataService _extractedDataService;
+    private readonly SampleAIChatSessionExtractedDataService _extractedDataService;
     private readonly TimeProvider _timeProvider;
-    public ChatExtractedDataController(IAIProfileManager profileManager, MvcAIChatSessionExtractedDataService extractedDataService, TimeProvider timeProvider)
+    public ChatExtractedDataController(IAIProfileManager profileManager, SampleAIChatSessionExtractedDataService extractedDataService, TimeProvider timeProvider)
     {
         _profileManager = profileManager;
         _extractedDataService = extractedDataService;

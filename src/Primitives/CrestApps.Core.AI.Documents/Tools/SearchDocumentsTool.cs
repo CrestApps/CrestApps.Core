@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Models;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,7 +93,11 @@ public sealed class SearchDocumentsTool : AIFunction
                 _ => false,
             };
 
-            var defaultSettings = arguments.Services.GetRequiredService<IOptions<InteractionDocumentOptions>>().Value;
+            var snapshotSettings = arguments.Services.GetService<IOptionsSnapshot<InteractionDocumentOptions>>()?.Value;
+            var optionsSettings = arguments.Services.GetRequiredService<IOptions<InteractionDocumentOptions>>().Value;
+            var defaultSettings = !string.IsNullOrWhiteSpace(snapshotSettings?.IndexProfileName)
+                ? snapshotSettings
+                : optionsSettings;
             var settings = ResolveSettings(executionContext?.Resource, defaultSettings);
 
             if (string.IsNullOrWhiteSpace(settings.IndexProfileName))
@@ -223,8 +228,8 @@ public sealed class SearchDocumentsTool : AIFunction
 
     private static InteractionDocumentOptions ResolveSettings(object resource, InteractionDocumentOptions defaults)
     {
-        if (resource is AIProfile profile &&
-            profile.TryGet<DocumentsMetadata>(out var metadata))
+        if (resource is CatalogItem item &&
+            item.TryGet<DocumentsMetadata>(out var metadata))
         {
             return new InteractionDocumentOptions
             {

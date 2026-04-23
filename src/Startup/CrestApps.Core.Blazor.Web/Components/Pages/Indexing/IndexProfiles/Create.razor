@@ -1,0 +1,214 @@
+@page "/indexing/profiles/create"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.Areas.Indexing.Services
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Infrastructure.Indexing.Models
+@using CrestApps.Core.Models
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject ISearchIndexProfileManager IndexProfileManager
+@inject ISearchIndexProfileProvisioningService ProvisioningService
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject IOptions<IndexProfileSourceOptions> SourceOptions
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+
+<PageTitle>Create Index Profile</PageTitle>
+
+<h2><i class="bi bi-plus-lg"></i> Create Index Profile</h2>
+<hr />
+
+<EditForm FormName="indexing-indexprofiles-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <div class="row">
+        <div class="col-md-8">
+            @if (_errors.Count > 0)
+            {
+                <div class="alert alert-danger">
+                    @foreach (var error in _errors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText @bind-Value="_model.DisplayText" class="form-control" placeholder="e.g., My Documents Index" />
+                <div class="form-text">A human-readable label (optional).</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Index name <span class="text-danger">*</span></label>
+                <InputText @bind-Value="_model.IndexName" class="form-control" placeholder="e.g., ai-documents" />
+                <div class="form-text">The configured provider <code>IndexPrefix</code> is prepended when the remote index is created. Use lowercase letters, numbers, and hyphens.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Provider <span class="text-danger">*</span></label>
+                <select class="form-select" value="@_model.ProviderName" @onchange="OnProviderChanged">
+                    <option value="">Select Provider</option>
+                    @foreach (var provider in _model.Providers)
+                    {
+                        <option value="@provider.Key">@provider.Value</option>
+                    }
+                </select>
+                <div class="form-text">The search backend provider.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Type <span class="text-danger">*</span></label>
+                <select class="form-select" value="@_model.Type" @onchange="OnTypeChanged">
+                    <option value="">Select Type</option>
+                    @foreach (var type in _filteredTypes)
+                    {
+                        <option value="@type.Key">@type.Value</option>
+                    }
+                </select>
+                <div class="form-text">Determines how this index is used.</div>
+            </div>
+
+            @if (ShowEmbeddingDeployment)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Embedding deployment</label>
+                    <InputSelect @bind-Value="_model.EmbeddingDeploymentId" class="form-select">
+                        <option value="">Select an Embedding Deployment</option>
+                        @foreach (var deployment in _model.EmbeddingDeployments)
+                        {
+                            <option value="@deployment.Key">@deployment.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The embedding deployment used to generate vector embeddings for this index.</div>
+                </div>
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Create
+                </button>
+                <a href="/indexing/profiles" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private IndexProfileViewModel _model = new();
+    private List<string> _errors = [];
+    private IReadOnlyList<IndexProfileSourceDescriptor> _sources = [];
+    private List<KeyValuePair<string, string>> _filteredTypes = [];
+
+    private bool ShowEmbeddingDeployment =>
+        !string.IsNullOrEmpty(_model.Type) &&
+        !string.Equals(_model.Type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sources = SourceOptions.Value.Sources
+            .OrderBy(s => s.ProviderDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        _model.Sources = _sources;
+        _model.Providers = _sources
+            .GroupBy(s => s.ProviderName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Select(s => new KeyValuePair<string, string>(s.ProviderName, s.ProviderDisplayName))
+            .ToList();
+
+        SyncFilteredTypes();
+
+        var deployments = await DeploymentCatalog.GetAllAsync();
+
+        _model.EmbeddingDeployments = deployments
+            .Where(d => d.Type == AIDeploymentType.Embedding)
+            .Select(d => new KeyValuePair<string, string>(d.ItemId, d.Name))
+            .ToList();
+    }
+
+    private void SyncFilteredTypes()
+    {
+        var matches = _sources
+            .Where(s => string.IsNullOrEmpty(_model.ProviderName) || string.Equals(s.ProviderName, _model.ProviderName, StringComparison.OrdinalIgnoreCase));
+
+        _filteredTypes = matches
+            .GroupBy(s => s.Type, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Select(s => new KeyValuePair<string, string>(s.Type, s.DisplayName))
+            .ToList();
+    }
+
+    private void OnProviderChanged(ChangeEventArgs e)
+    {
+        _model.ProviderName = e.Value?.ToString();
+        _model.Type = null;
+        SyncFilteredTypes();
+    }
+
+    private void OnTypeChanged(ChangeEventArgs e)
+    {
+        _model.Type = e.Value?.ToString();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors.Clear();
+        SyncFilteredTypes();
+
+        if (string.IsNullOrWhiteSpace(_model.Name))
+        {
+            _model.Name = _model.IndexName?.Trim();
+        }
+
+        await ValidateAsync(_model);
+
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        var profile = new SearchIndexProfile();
+        _model.ApplyTo(profile);
+        AddValidationErrors(await ProvisioningService.CreateAsync(profile));
+
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        await StoreCommitter.CommitAsync();
+        Navigation.NavigateTo("/indexing/profiles");
+    }
+
+    private async Task ValidateAsync(IndexProfileViewModel model)
+    {
+        if (!string.IsNullOrWhiteSpace(model.Name))
+        {
+            var existing = await IndexProfileManager.FindByNameAsync(model.Name.Trim());
+
+            if (existing != null)
+            {
+                _errors.Add("An index profile with this name already exists.");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(model.ProviderName) &&
+            !string.IsNullOrWhiteSpace(model.Type) &&
+            !_sources.Any(source =>
+                string.Equals(source.ProviderName, model.ProviderName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(source.Type, model.Type, StringComparison.OrdinalIgnoreCase)))
+        {
+            _errors.Add("The selected provider does not support this index type.");
+        }
+    }
+
+    private void AddValidationErrors(ValidationResultDetails validationResult)
+    {
+        foreach (var error in validationResult.Errors)
+        {
+            _errors.Add(error.ErrorMessage);
+        }
+    }
+}

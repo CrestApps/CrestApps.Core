@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
@@ -122,7 +123,17 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
     protected virtual string GetFriendlyErrorMessage(Exception ex)
     {
+        if (AIHubErrorMessageHelper.IsInvalidChatModelSettingsFailure(ex))
+        {
+            return GetInvalidChatModelSettingsMessage();
+        }
+
         return "An error occurred processing your message.";
+    }
+
+    protected virtual string GetInvalidChatModelSettingsMessage()
+    {
+        return "The chat model settings are missing or invalid. Update the Chat model in the AI Profile or the global AI settings.";
     }
 
     protected virtual string GetOnlyChatProfilesMessage()
@@ -898,7 +909,18 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         };
         await promptStore.CreateAsync(userPromptRecord);
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
-        var conversationHistory = existingPrompts.Where(x => !x.IsGeneratedPrompt).Select(p => new ChatMessage(p.Role, p.Content)).ToList();
+        var conversationHistorySource = existingPrompts.ToList();
+
+        if (!conversationHistorySource.Any(x => x.ItemId == userPromptRecord.ItemId))
+        {
+            conversationHistorySource.Add(userPromptRecord);
+        }
+
+        var conversationHistory = conversationHistorySource
+            .OrderBy(x => x.CreatedUtc)
+            .Where(x => !x.IsGeneratedPrompt)
+            .Select(p => new ChatMessage(p.Role, p.Content))
+            .ToList();
         // Resolve the chat response handler for this session.
         var chatMode = profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) ? chatModeSettings.ChatMode : ChatMode.TextInput;
         var handler = handlerResolver.Resolve(chatSession.ResponseHandlerName, chatMode);
@@ -1009,7 +1031,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         };
         var completionContext = await completionContextBuilder.BuildAsync(profile);
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
-        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName) ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the profile.");
+        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName)
+            ?? throw new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile.");
         using var builder = ZString.CreateStringBuilder();
         var contentItemIds = new HashSet<string>();
         var references = new Dictionary<string, AICompletionReference>();
@@ -1048,7 +1071,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
         var messageId = GenerateId();
         var completionContext = await completionContextBuilder.BuildAsync(profile);
-        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName) ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the profile.");
+        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName)
+            ?? throw new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile.");
         var references = new Dictionary<string, AICompletionReference>();
         await foreach (var chunk in completionService.CompleteStreamingAsync(chatDeployment, [new ChatMessage(ChatRole.User, prompt)], completionContext, cancellationToken))
         {
@@ -1402,7 +1426,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 responseId ??= chunk.ResponseId;
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
-                    await Clients.Caller.ReceiveConversationAssistantToken(effectiveSessionId, messageId ?? string.Empty, chunk.Content, responseId ?? string.Empty);
+                    await Clients.Caller.ReceiveConversationAssistantToken(
+                        effectiveSessionId,
+                        messageId ?? string.Empty,
+                        chunk.Content,
+                        responseId ?? string.Empty,
+                        chunk.References);
                     sentenceBuffer.Append(chunk.Content);
                     if (SentenceBoundaryDetector.EndsWithSentenceBoundary(chunk.Content))
                     {
@@ -1448,7 +1477,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             {
                 try
                 {
-                    await Clients.Caller.ReceiveConversationAssistantComplete(effectiveSessionId, messageId);
+                    await Clients.Caller.ReceiveConversationAssistantComplete(
+                        effectiveSessionId,
+                        messageId,
+                        await GetPromptReferencesAsync(services, effectiveSessionId, messageId));
                 }
                 catch
                 {
@@ -1458,6 +1490,23 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         }
 
         return effectiveSessionId;
+    }
+
+    private static async Task<Dictionary<string, AICompletionReference>> GetPromptReferencesAsync(
+        IServiceProvider services,
+        string sessionId,
+        string messageId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(messageId))
+        {
+            return null;
+        }
+
+        var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
+        var prompts = await promptStore.GetPromptsAsync(sessionId);
+        var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
+
+        return prompt?.References;
     }
 
 #pragma warning restore MEAI001

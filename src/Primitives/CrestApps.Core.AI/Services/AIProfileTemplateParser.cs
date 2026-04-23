@@ -31,6 +31,16 @@ public static class AIProfileTemplateParser
             template.Source = sourceStr;
         }
 
+        if (string.Equals(template.Source, AITemplateSources.SystemPrompt, StringComparison.OrdinalIgnoreCase))
+        {
+            template.Put(new SystemPromptTemplateMetadata
+            {
+                SystemMessage = parseResult.Body,
+            });
+
+            return template;
+        }
+
         var profileMetadata = new ProfileTemplateMetadata
         {
             SystemMessage = parseResult.Body,

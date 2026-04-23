@@ -1,0 +1,172 @@
+@using CrestApps.Core.AI.Copilot.Models
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h6 class="card-title mb-0"><i class="bi bi-github me-1"></i> Copilot Configuration</h6>
+    </div>
+    <div class="card-body">
+        @if (!IsConfigured)
+        {
+            <div class="alert alert-warning mb-0">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                <strong>Copilot is not configured and cannot be used until it has been configured.</strong>
+                Go to <a href="/admin/settings"><strong>Settings</strong></a>
+                and complete the Copilot section first.
+            </div>
+        }
+        else if (AuthenticationType == CopilotAuthenticationType.GitHubOAuth)
+        {
+            @if (IsAuthenticated)
+            {
+                <div class="alert alert-success d-flex align-items-center justify-content-between py-2 mb-3">
+                    <span>
+                        <i class="bi bi-check-circle-fill"></i>
+                        Connected as <strong>@GitHubUsername</strong>
+                    </span>
+                </div>
+
+                <div class="alert alert-warning py-2 mb-3">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Using the Copilot orchestrator will allow any user chatting with this profile to utilize your GitHub credentials, not their own.
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-3">
+                    <p class="text-muted mb-2">
+                        <i class="bi bi-github fs-1"></i>
+                    </p>
+                    <p class="text-muted">Copilot requires GitHub authentication. Sign in with your GitHub account to continue.</p>
+                </div>
+            }
+
+            @if (IsAuthenticated)
+            {
+                <div class="mb-3">
+                    <label for="@(Prefix)-CopilotModel" class="form-label">Copilot model</label>
+                    <select id="@(Prefix)-CopilotModel" class="form-select"
+                            value="@CopilotModel"
+                            @onchange="OnModelChanged">
+                        @foreach (var m in AvailableModels ?? [])
+                        {
+                            <option value="@m.Key">@m.Value</option>
+                        }
+                    </select>
+                    <div class="form-text">Select the Copilot model to use.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="@(Prefix)-CopilotReasoningEffort" class="form-label">Effort level</label>
+                    <select id="@(Prefix)-CopilotReasoningEffort" class="form-select"
+                            value="@((int)ReasoningEffort)"
+                            @onchange="OnEffortChanged">
+                        <option value="@((int)CopilotReasoningEffort.None)">Default</option>
+                        <option value="@((int)CopilotReasoningEffort.Low)">Low</option>
+                        <option value="@((int)CopilotReasoningEffort.Medium)">Medium</option>
+                        <option value="@((int)CopilotReasoningEffort.High)">High</option>
+                    </select>
+                    <div class="form-text">Select the reasoning effort level for the Copilot model.</div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <InputCheckbox id="@($"{Prefix}-CopilotIsAllowAll")" class="form-check-input"
+                                       Value="@IsAllowAll"
+                                       ValueChanged="IsAllowAllChanged"
+                                       ValueExpression="() => IsAllowAll" />
+                        <label for="@(Prefix)-CopilotIsAllowAll" class="form-check-label">Allow all tool executions</label>
+                    </div>
+                    <div class="form-text">When checked, the Copilot CLI runs with the --allow-all flag.</div>
+                </div>
+            }
+        }
+        else if (AuthenticationType == CopilotAuthenticationType.ApiKey)
+        {
+            <div class="mb-3">
+                <label for="@(Prefix)-CopilotModel" class="form-label">Model override</label>
+                <InputText id="@($"{Prefix}-CopilotModel")" class="form-control"
+                           Value="@CopilotModel"
+                           ValueChanged="CopilotModelChanged"
+                           ValueExpression="() => CopilotModel"
+                           placeholder="Leave empty to use the default model from settings" />
+                <div class="form-text">Optionally override the model name. Leave empty to use the default model configured in Copilot settings.</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="@(Prefix)-CopilotReasoningEffort" class="form-label">Effort level</label>
+                <select id="@(Prefix)-CopilotReasoningEffort" class="form-select"
+                        value="@((int)ReasoningEffort)"
+                        @onchange="OnEffortChanged">
+                    <option value="@((int)CopilotReasoningEffort.None)">Default</option>
+                    <option value="@((int)CopilotReasoningEffort.Low)">Low</option>
+                    <option value="@((int)CopilotReasoningEffort.Medium)">Medium</option>
+                    <option value="@((int)CopilotReasoningEffort.High)">High</option>
+                </select>
+                <div class="form-text">Select the reasoning effort level for the Copilot model.</div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <InputCheckbox id="@($"{Prefix}-CopilotIsAllowAll-byok")" class="form-check-input"
+                                   Value="@IsAllowAll"
+                                   ValueChanged="IsAllowAllChanged"
+                                   ValueExpression="() => IsAllowAll" />
+                    <label for="@(Prefix)-CopilotIsAllowAll-byok" class="form-check-label">Allow all tool executions</label>
+                </div>
+                <div class="form-text">When checked, the Copilot CLI runs with the --allow-all flag.</div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Prefix { get; set; } = "copilot";
+
+    [Parameter]
+    public bool IsConfigured { get; set; }
+
+    [Parameter]
+    public CopilotAuthenticationType AuthenticationType { get; set; }
+
+    [Parameter]
+    public bool IsAuthenticated { get; set; }
+
+    [Parameter]
+    public string GitHubUsername { get; set; }
+
+    [Parameter]
+    public string CopilotModel { get; set; }
+
+    [Parameter]
+    public EventCallback<string> CopilotModelChanged { get; set; }
+
+    [Parameter]
+    public CopilotReasoningEffort ReasoningEffort { get; set; }
+
+    [Parameter]
+    public EventCallback<CopilotReasoningEffort> ReasoningEffortChanged { get; set; }
+
+    [Parameter]
+    public bool IsAllowAll { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> IsAllowAllChanged { get; set; }
+
+    [Parameter]
+    public IEnumerable<KeyValuePair<string, string>> AvailableModels { get; set; }
+
+    private async Task OnModelChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        await CopilotModelChanged.InvokeAsync(value);
+    }
+
+    private async Task OnEffortChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var level))
+        {
+            await ReasoningEffortChanged.InvokeAsync((CopilotReasoningEffort)level);
+        }
+    }
+}

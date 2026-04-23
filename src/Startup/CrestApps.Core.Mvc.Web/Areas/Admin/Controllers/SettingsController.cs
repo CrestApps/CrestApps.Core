@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Speech;
@@ -15,7 +16,7 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Models;
-using CrestApps.Core.Mvc.Web.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
@@ -261,7 +262,7 @@ public sealed class SettingsController : Controller
         {
             IndexProfileName = model.DocumentIndexProfileName?.Trim(),
             TopN = model.DocumentTopN,
-            RetrievalMode = model.DocumentRetrievalMode,
+            RetrievalMode = _siteSettings.Get<InteractionDocumentSettings>().RetrievalMode,
         });
 
         _siteSettings.Set(new AIDataSourceSettings
@@ -429,10 +430,13 @@ public sealed class SettingsController : Controller
                 }
 
                 var label = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
-                ? d.Name
-                : $"{d.Name} ({d.ModelName})";
+                    ? d.Name
+                    : $"{d.Name} ({d.ModelName})";
 
-                return new SelectListItem(label, d.Name) { Group = group };
+                return new SelectListItem(label, d.Name)
+                {
+                    Group = group,
+                };
             });
     }
 
