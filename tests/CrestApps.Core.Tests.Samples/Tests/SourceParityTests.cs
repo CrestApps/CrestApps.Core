@@ -60,9 +60,9 @@ public class SourceParityTests
         { "AIProfiles/Edit", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AI/Views/AIProfile/Edit.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AI/AIProfiles/Edit.razor" },
 
         // AI - Templates
-        { "AITemplates/Index", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AI/Views/AITemplate/Index.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AI/AITemplates/Index.razor" },
-        { "AITemplates/Create", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AI/Views/AITemplate/Create.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AI/AITemplates/Create.razor" },
-        { "AITemplates/Edit", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AI/Views/AITemplate/Edit.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AI/AITemplates/Edit.razor" },
+        { "AITemplates/Index", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AI/Views/AITemplate/Index.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AI/Templates/Index.razor" },
+        { "AITemplates/Create", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AI/Views/AITemplate/Create.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AI/Templates/Create.razor" },
+        { "AITemplates/Edit", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AI/Views/AITemplate/Edit.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AI/Templates/Edit.razor" },
 
         // AI Chat
         { "AIChat/Chat", "src/Startup/CrestApps.Core.Mvc.Web/Areas/AIChat/Views/AIChat/Chat.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/AIChat/Chat.razor" },

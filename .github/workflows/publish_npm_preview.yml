@@ -16,6 +16,8 @@ jobs:
     name: Publish @crestapps/ai-chat-ui (preview)
     steps:
     - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
 
     - name: Check if should publish
       id: check-publish
@@ -57,7 +59,36 @@ jobs:
         Write-Output "Current SHA: ${{ github.sha }}"
         Write-Output "New commits since last preview publish: $hasNewCommitSinceLastRelease"
 
-        $shouldPublish = $eventName -eq 'schedule' -and $hasNewCommitSinceLastRelease
+        if (-not $hasNewCommitSinceLastRelease)
+        {
+          "should-publish=false" >> $Env:GITHUB_OUTPUT
+          exit 0
+        }
+
+        $assetPaths = @(
+          'gulpfile.js',
+          'package.json',
+          'package-lock.json',
+          'src/Resources/CrestApps.AI.Resources/Assets.json',
+          'src/Resources/CrestApps.AI.Resources/package.json',
+          'src/Resources/CrestApps.AI.Resources/Assets',
+          'src/Resources/CrestApps.AI.Resources/scripts',
+          'src/Resources/CrestApps.AI.Resources/wwwroot'
+        )
+
+        $changedAssetFiles = @(git diff --name-only $previousRun.head_sha '${{ github.sha }}' -- $assetPaths |
+          Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+        $hasAssetChangesSinceLastRelease = $changedAssetFiles.Count -gt 0
+        Write-Output "Asset changes since last preview publish: $hasAssetChangesSinceLastRelease"
+
+        if ($hasAssetChangesSinceLastRelease)
+        {
+          Write-Output 'Changed asset-related files:'
+          $changedAssetFiles | ForEach-Object { Write-Output " - $_" }
+        }
+
+        $shouldPublish = $eventName -eq 'schedule' -and $hasAssetChangesSinceLastRelease
         "should-publish=$($shouldPublish ? 'true' : 'false')" >> $Env:GITHUB_OUTPUT
 
     - uses: actions/setup-node@v6
