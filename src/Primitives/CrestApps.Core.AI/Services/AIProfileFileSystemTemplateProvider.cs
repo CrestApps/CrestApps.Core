@@ -10,18 +10,18 @@ namespace CrestApps.Core.AI.Services;
 /// Discovers AI profile templates from the host application's file system.
 /// Scans <c>Templates/Profiles</c> under the application's content root.
 /// </summary>
-public sealed class FileSystemAIProfileTemplateProvider : IAIProfileTemplateProvider
+public sealed class AIProfileFileSystemTemplateProvider : IAIProfileTemplateProvider
 {
     public const string ProfilesDirectoryPath = "Templates/Profiles";
 
     private readonly IHostEnvironment _hostEnvironment;
     private readonly IEnumerable<ITemplateParser> _parsers;
-    private readonly ILogger<FileSystemAIProfileTemplateProvider> _logger;
+    private readonly ILogger<AIProfileFileSystemTemplateProvider> _logger;
 
-    public FileSystemAIProfileTemplateProvider(
+    public AIProfileFileSystemTemplateProvider(
         IHostEnvironment hostEnvironment,
         IEnumerable<ITemplateParser> parsers,
-        ILogger<FileSystemAIProfileTemplateProvider> logger)
+        ILogger<AIProfileFileSystemTemplateProvider> logger)
     {
         _hostEnvironment = hostEnvironment;
         _parsers = parsers;

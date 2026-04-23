@@ -287,7 +287,7 @@ public sealed class AIProfileController : Controller
             model.HasDocumentIndexConfiguration = false;
         }
 
-        var promptTemplates = await _aiTemplateService.ListAsync();
+        var promptTemplates = await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable).OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase).Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description, }).ToList(), }).ToList();
     }
 

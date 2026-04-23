@@ -6,15 +6,12 @@ namespace CrestApps.Core.Templates.Providers;
 
 /// <summary>
 /// Discovers templates from embedded resources in a specified assembly.
-/// Looks for resources matching the pattern <c>*.Templates.Prompts.*</c>
+/// Looks for resources matching the pattern <c>*.Templates.*</c>
 /// with extensions supported by registered parsers.
 /// </summary>
 public sealed class EmbeddedResourceTemplateProvider : ITemplateProvider
 {
-    private const string PromptsResourceSegment = ".Templates.Prompts.";
-
-    // OrchardCore Module Targets use '>' as the path separator in embedded resource logical names.
-    private const string OrchardCorePromptsResourceSegment = ".Templates>Prompts>";
+    private const string TemplatesResourceSegment = ".Templates.";
 
     private readonly Assembly _assembly;
     private readonly IEnumerable<ITemplateParser> _parsers;
@@ -40,16 +37,9 @@ public sealed class EmbeddedResourceTemplateProvider : ITemplateProvider
 
         foreach (var resourceName in resourceNames)
         {
-            var promptsIndex = resourceName.IndexOf(PromptsResourceSegment, StringComparison.OrdinalIgnoreCase);
-            var segmentLength = PromptsResourceSegment.Length;
+            var templatesIndex = resourceName.IndexOf(TemplatesResourceSegment, StringComparison.OrdinalIgnoreCase);
 
-            if (promptsIndex < 0)
-            {
-                promptsIndex = resourceName.IndexOf(OrchardCorePromptsResourceSegment, StringComparison.OrdinalIgnoreCase);
-                segmentLength = OrchardCorePromptsResourceSegment.Length;
-            }
-
-            if (promptsIndex < 0)
+            if (templatesIndex < 0)
             {
                 continue;
             }
@@ -74,27 +64,19 @@ public sealed class EmbeddedResourceTemplateProvider : ITemplateProvider
             var content = reader.ReadToEnd();
             var parseResult = parser.Parse(content);
 
-            // Extract the filename portion from the resource name.
-            var afterPrompts = resourceName[(promptsIndex + segmentLength)..];
+            var afterTemplates = resourceName[(templatesIndex + TemplatesResourceSegment.Length)..];
+            var relativePath = TemplateProviderConventions.ResolveEmbeddedTemplateId(afterTemplates, out var defaultKind);
 
-            // Remove the file extension.
-            var id = extension != null && afterPrompts.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
-                ? afterPrompts[..^extension.Length]
-                : afterPrompts;
+            var id = extension != null && relativePath.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
+                ? relativePath[..^extension.Length]
+                : relativePath;
 
-            var template = new Template
-            {
-                Id = id,
-                Metadata = parseResult.Metadata,
-                Content = parseResult.Body,
-                Source = _source,
-                FeatureId = _featureId,
-            };
-
-            if (string.IsNullOrWhiteSpace(template.Metadata.Title))
-            {
-                template.Metadata.Title = id.Replace('-', ' ').Replace('.', ' ');
-            }
+            var template = TemplateProviderConventions.CreateTemplate(
+                id,
+                parseResult,
+                _source,
+                _featureId,
+                defaultKind);
 
             templates.Add(template);
         }

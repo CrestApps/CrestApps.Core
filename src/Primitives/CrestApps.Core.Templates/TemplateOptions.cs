@@ -13,8 +13,8 @@ public sealed class TemplateOptions
     public IList<Template> Templates { get; } = [];
 
     /// <summary>
-    /// Gets the collection of file system paths to scan for prompt template files.
-    /// Each path should contain a <c>Templates/Prompts</c> directory structure.
+    /// Gets the collection of file system paths to scan for template files.
+    /// Each path may contain <c>Templates</c> and <c>Templates/Prompts</c> directory structures.
     /// </summary>
     public IList<string> DiscoveryPaths { get; } = [];
 

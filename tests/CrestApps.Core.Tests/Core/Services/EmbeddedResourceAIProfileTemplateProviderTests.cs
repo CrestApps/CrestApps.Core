@@ -17,8 +17,9 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
 
         var templates = await provider.GetTemplatesAsync();
 
-        Assert.Single(templates);
+        Assert.True(templates.Count >= 2);
         Assert.Contains(templates, template => template.ItemId == "chat-session-summarizer");
+        Assert.Contains(templates, template => template.ItemId == "chat-session-summarizer2");
         Assert.All(templates, template => Assert.Equal(AITemplateSources.Profile, template.Source));
     }
 

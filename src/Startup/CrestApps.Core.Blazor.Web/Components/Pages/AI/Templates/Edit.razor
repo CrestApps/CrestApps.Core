@@ -308,19 +308,41 @@
                         {
                             <div class="mb-3">
                                 <label class="form-label">Prompt templates</label>
-                                <div class="mb-2">
-                                    <InputSelect class="form-select" @bind-Value="_selectedPromptTemplateId" @bind-Value:after="AddPromptTemplate">
-                                        <option value="">+ Add template</option>
-                                        @foreach (var group in _model.AvailablePromptTemplates.GroupBy(t => t.Category).OrderBy(g => g.Key))
-                                        {
-                                            <optgroup label="@group.Key">
-                                                @foreach (var opt in group)
+                                <div class="dropdown mb-2 w-100">
+                                    <button class="btn btn-outline-primary dropdown-toggle w-100 d-flex justify-content-center align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <span aria-hidden="true">+</span> Add template
+                                    </button>
+                                    <div class="dropdown-menu p-2" style="max-height:24rem;min-width:22rem;overflow-y:auto;">
+                                        <div class="mb-2" @onclick:stopPropagation="true">
+                                            <input type="search"
+                                                   class="form-control form-control-sm"
+                                                   @bind="_promptTemplateSearchTerm"
+                                                   @bind:event="oninput"
+                                                   placeholder="Search prompt templates..." />
+                                        </div>
+                                        <div class="prompt-template-menu-items">
+                                            @foreach (var group in FilteredPromptTemplateGroups)
+                                            {
+                                                <div class="dropdown-header px-2">@group.Key</div>
+                                                @foreach (var option in group)
                                                 {
-                                                    <option value="@opt.TemplateId">@opt.Title</option>
+                                                    <button type="button"
+                                                            class="dropdown-item text-wrap"
+                                                            @onclick="() => AddPromptTemplate(option.TemplateId)">
+                                                        <span class="d-block fw-semibold">@option.Title</span>
+                                                        @if (!string.IsNullOrWhiteSpace(option.Description))
+                                                        {
+                                                            <small class="text-muted">@option.Description</small>
+                                                        }
+                                                    </button>
                                                 }
-                                            </optgroup>
+                                            }
+                                        </div>
+                                        @if (!HasFilteredPromptTemplates)
+                                        {
+                                            <div class="text-muted small px-2 py-1">No prompt templates match your search.</div>
                                         }
-                                    </InputSelect>
+                                    </div>
                                 </div>
 
                                 @for (var i = 0; i < _model.PromptTemplates.Count; i++)
@@ -534,7 +556,7 @@
     private string _activeTab = "basic";
     private string _sourceError;
     private string _errorMessage;
-    private string _selectedPromptTemplateId;
+    private string _promptTemplateSearchTerm;
 
     protected override async Task OnInitializedAsync()
     {
@@ -583,11 +605,30 @@
     private void ToggleA2A(string id, bool v) { var c = _model.AvailableA2AConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
     private void ToggleMcp(string id, bool v) { var c = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
 
-    private void AddPromptTemplate()
+    private IEnumerable<IGrouping<string, PromptTemplateOptionItem>> FilteredPromptTemplateGroups =>
+        _model.AvailablePromptTemplates
+            .Where(template => string.IsNullOrWhiteSpace(_promptTemplateSearchTerm) ||
+                template.Title.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(template.Description) && template.Description.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(template.Category) && template.Category.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(template => template.Category)
+            .OrderBy(group => group.Key);
+
+    private bool HasFilteredPromptTemplates => FilteredPromptTemplateGroups.Any();
+
+    private void AddPromptTemplate(string templateId)
     {
-        if (string.IsNullOrEmpty(_selectedPromptTemplateId)) return;
-        _model.PromptTemplates.Add(new PromptTemplateSelectionItem { TemplateId = _selectedPromptTemplateId });
-        _selectedPromptTemplateId = null;
+        if (string.IsNullOrWhiteSpace(templateId))
+        {
+            return;
+        }
+
+        if (_model.PromptTemplates.Any(template => string.Equals(template.TemplateId, templateId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        _model.PromptTemplates.Add(new PromptTemplateSelectionItem { TemplateId = templateId });
     }
 
     private async Task PopulateDropdownsAsync()
@@ -642,7 +683,7 @@
             _model.HasDocumentIndexConfiguration = ip != null && string.Equals(ip.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase);
         }
 
-        var promptTemplates = await TemplateService.ListAsync();
+        var promptTemplates = await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         _model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable)
             .OrderBy(t => t.Metadata.Category ?? "", StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase)
             .Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description }).ToList() }).ToList();

@@ -38,7 +38,8 @@ Hard-coding system prompts in C# makes them difficult to maintain, localize, and
 | `ITemplateEngine` | `FluidTemplateEngine` | Singleton | Renders Liquid templates |
 | `ITemplateService` | `DefaultTemplateService` | Scoped | Unified template discovery and rendering |
 | `OptionsTemplateProvider` | — | Singleton | Templates registered via code |
-| `FileSystemTemplateProvider` | — | Singleton | Templates discovered from disk |
+| `FileSystemTemplateProvider` | — | Singleton | Generic templates discovered directly from `Templates/` |
+| `PromptsFileSystemTemplateProvider` | — | Singleton | System prompt templates discovered from `Templates/Prompts/` |
 
 ## Key Interfaces
 
@@ -84,7 +85,29 @@ public interface ITemplateProvider
 
 ## Template File Format
 
-Templates are markdown files with YAML front matter, stored in `Templates/Prompts/`:
+Templates are markdown files with YAML front matter. You can either:
+
+- store generic templates in `Templates/` and set `Kind` explicitly
+- store system prompt templates in `Templates/Prompts/`, which defaults `Kind` to `SystemPrompt`
+
+Example generic template:
+
+```markdown
+---
+Title: Helpful Assistant
+Kind: SystemPrompt
+Description: A general-purpose helpful assistant prompt
+Category: General
+IsListable: true
+---
+You are a helpful assistant. Today's date is {{ "now" | date: "%Y-%m-%d" }}.
+
+{% if user_name %}
+You are assisting {{ user_name }}.
+{% endif %}
+```
+
+The same content can live under `Templates/Prompts/` without repeating `Kind`:
 
 ```markdown
 ---
@@ -108,12 +131,13 @@ You are assisting {{ user_name }}.
 | `Description` | string | Human-readable description |
 | `Category` | string | Grouping category |
 | `IsListable` | bool | Whether the template appears in listing APIs |
+| `Kind` | string | Semantic template kind such as `SystemPrompt` or `Profile` |
 
 ## Registering Templates
 
 ### From Embedded Resources
 
-Store `.md` files as embedded resources under `Templates/Prompts/` in your assembly:
+Store `.md` files as embedded resources under `Templates/` in your assembly. Files under `Templates/Prompts/` default to `SystemPrompt`; files elsewhere should set `Kind` in front matter:
 
 ```csharp
 builder.Services.AddTemplatesFromAssembly(typeof(MyClass).Assembly, source: "MyApp");
@@ -139,6 +163,13 @@ builder.Services.AddTemplating(options =>
     options.AddDiscoveryPath("/app/templates");
 });
 ```
+
+With that discovery path:
+
+- `/app/templates/Templates/*.md` is treated as the generic template root and should declare `Kind`
+- `/app/templates/Templates/Prompts/*.md` is treated as prompt-only and defaults `Kind` to `SystemPrompt`
+
+Generic `Templates/` discovery is intentionally not recursive. Subfolders can be reserved for other provider-specific conventions without being double-loaded.
 
 ## Configuration
 
@@ -414,7 +445,6 @@ builder.Services.AddSingleton<ITemplateProvider, DatabaseAITemplateProvider>();
 ```
 
 :::info
-All registered `ITemplateProvider` instances are queried by `ITemplateService`. Templates from multiple providers are merged into a single collection. If two providers return templates with the same `Id`, the last-registered provider wins.
+All registered `ITemplateProvider` instances are queried by `ITemplateService`. Templates from multiple providers are merged into a single collection. If two providers return templates with the same `Id`, the first discovered template wins and later duplicates are ignored.
 :::
-
 

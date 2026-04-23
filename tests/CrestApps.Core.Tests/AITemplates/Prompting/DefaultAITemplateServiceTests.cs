@@ -31,6 +31,27 @@ public sealed class DefaultAITemplateServiceTests
     }
 
     [Fact]
+    public async Task ListAsync_DuplicateIds_UsesFirstTemplate()
+    {
+        var provider1 = new InMemoryProvider(
+        [
+            new Template { Id = "shared", Content = "First" },
+        ]);
+        var provider2 = new InMemoryProvider(
+        [
+            new Template { Id = "shared", Content = "Second" },
+        ]);
+
+        var service = CreateService([provider1, provider2]);
+
+        var templates = await service.ListAsync();
+
+        var template = Assert.Single(templates);
+        Assert.Equal("shared", template.Id);
+        Assert.Equal("First", template.Content);
+    }
+
+    [Fact]
     public async Task ListAsync_NoProviders_ReturnsEmpty()
     {
         var service = CreateService([]);

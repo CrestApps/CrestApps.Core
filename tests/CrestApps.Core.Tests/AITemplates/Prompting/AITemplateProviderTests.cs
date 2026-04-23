@@ -46,11 +46,11 @@ public sealed class OptionsAITemplateProviderTests
     }
 }
 
-public sealed class FileSystemAITemplateProviderTests : IDisposable
+public sealed class PromptsFileSystemAITemplateProviderTests : IDisposable
 {
     private readonly string _tempDir;
 
-    public FileSystemAITemplateProviderTests()
+    public PromptsFileSystemAITemplateProviderTests()
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "CrestAppsPromptTests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
@@ -82,15 +82,16 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
         options.DiscoveryPaths.Add(_tempDir);
 
         var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
-        var provider = new FileSystemTemplateProvider(
+        var provider = new PromptsFileSystemTemplateProvider(
             Options.Create(options),
             parsers,
-            NullLogger<FileSystemTemplateProvider>.Instance);
+            NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
         var templates = await provider.GetTemplatesAsync();
 
         Assert.Single(templates);
         Assert.Equal("test-prompt", templates[0].Id);
+        Assert.Equal(AITemplateSources.SystemPrompt, templates[0].Kind);
         Assert.Equal("Test Prompt", templates[0].Metadata.Title);
         Assert.Contains("You are a test assistant.", templates[0].Content);
     }
@@ -113,15 +114,16 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
         options.DiscoveryPaths.Add(_tempDir);
 
         var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
-        var provider = new FileSystemTemplateProvider(
+        var provider = new PromptsFileSystemTemplateProvider(
             Options.Create(options),
             parsers,
-            NullLogger<FileSystemTemplateProvider>.Instance);
+            NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
         var templates = await provider.GetTemplatesAsync();
 
         Assert.Single(templates);
         Assert.Equal("feature-prompt", templates[0].Id);
+        Assert.Equal(AITemplateSources.SystemPrompt, templates[0].Kind);
         Assert.Equal("MyModule.Feature", templates[0].FeatureId);
     }
 
@@ -132,10 +134,10 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
         options.DiscoveryPaths.Add(_tempDir);
 
         var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
-        var provider = new FileSystemTemplateProvider(
+        var provider = new PromptsFileSystemTemplateProvider(
             Options.Create(options),
             parsers,
-            NullLogger<FileSystemTemplateProvider>.Instance);
+            NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
         var templates = await provider.GetTemplatesAsync();
 
@@ -154,10 +156,10 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
         options.DiscoveryPaths.Add(_tempDir);
 
         var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
-        var provider = new FileSystemTemplateProvider(
+        var provider = new PromptsFileSystemTemplateProvider(
             Options.Create(options),
             parsers,
-            NullLogger<FileSystemTemplateProvider>.Instance);
+            NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
         var templates = await provider.GetTemplatesAsync();
 
@@ -179,6 +181,55 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
         options.DiscoveryPaths.Add(_tempDir);
 
         var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
+        var provider = new PromptsFileSystemTemplateProvider(
+            Options.Create(options),
+            parsers,
+            NullLogger<PromptsFileSystemTemplateProvider>.Instance);
+
+        var templates = await provider.GetTemplatesAsync();
+
+        Assert.Single(templates);
+        Assert.Equal("valid", templates[0].Id);
+    }
+}
+
+public sealed class FileSystemAITemplateProviderTests : IDisposable
+{
+    private readonly string _tempDir;
+
+    public FileSystemAITemplateProviderTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), "CrestAppsGenericTemplateTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_tempDir);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempDir))
+        {
+            Directory.Delete(_tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_DiscoversTemplatesFromTemplatesDirectory()
+    {
+        var templatesDir = Path.Combine(_tempDir, "Templates");
+        Directory.CreateDirectory(templatesDir);
+
+        File.WriteAllText(Path.Combine(templatesDir, "generic-template.md"), """
+            ---
+            Title: Generic Template
+            Kind: Profile
+            Category: General
+            ---
+            Generic template content.
+            """);
+
+        var options = new TemplateOptions();
+        options.DiscoveryPaths.Add(_tempDir);
+
+        var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
         var provider = new FileSystemTemplateProvider(
             Options.Create(options),
             parsers,
@@ -186,8 +237,49 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
 
         var templates = await provider.GetTemplatesAsync();
 
-        Assert.Single(templates);
-        Assert.Equal("valid", templates[0].Id);
+        var template = Assert.Single(templates);
+        Assert.Equal("generic-template", template.Id);
+        Assert.Equal(AITemplateSources.Profile, template.Kind);
+        Assert.Equal("Generic Template", template.Metadata.Title);
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_IgnoresTemplateSubdirectories()
+    {
+        var templatesDir = Path.Combine(_tempDir, "Templates");
+        var nestedDir = Path.Combine(templatesDir, "Sources");
+        Directory.CreateDirectory(nestedDir);
+
+        File.WriteAllText(Path.Combine(templatesDir, "test.md"), """
+            ---
+            Title: Root Template
+            Kind: Profile
+            ---
+            Root content.
+            """);
+
+        File.WriteAllText(Path.Combine(nestedDir, "test.md"), """
+            ---
+            Title: Nested Template
+            Kind: Profile
+            ---
+            Nested content.
+            """);
+
+        var options = new TemplateOptions();
+        options.DiscoveryPaths.Add(_tempDir);
+
+        var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
+        var provider = new FileSystemTemplateProvider(
+            Options.Create(options),
+            parsers,
+            NullLogger<FileSystemTemplateProvider>.Instance);
+
+        var templates = await provider.GetTemplatesAsync();
+
+        var template = Assert.Single(templates);
+        Assert.Equal("test", template.Id);
+        Assert.Equal("Root Template", template.Metadata.Title);
     }
 }
 
@@ -206,6 +298,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
 
         Assert.NotEmpty(templates);
         Assert.Contains(templates, t => t.Id == "test-template");
+        Assert.Contains(templates, t => t.Id == "generic-template");
     }
 
     [Fact]
@@ -221,9 +314,25 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var testTemplate = templates.FirstOrDefault(t => t.Id == "test-template");
         Assert.NotNull(testTemplate);
         Assert.Equal("Test Template", testTemplate.Metadata.Title);
+        Assert.Equal(AITemplateSources.SystemPrompt, testTemplate.Kind);
         Assert.True(testTemplate.Metadata.IsListable);
         Assert.Equal("Testing", testTemplate.Metadata.Category);
         Assert.NotEmpty(testTemplate.Content);
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_UsesKindMetadataForGenericEmbeddedTemplates()
+    {
+        var parsers = new ITemplateParser[] { new DefaultMarkdownTemplateParser() };
+
+        var assembly = typeof(EmbeddedResourceAITemplateProviderTests).Assembly;
+        var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
+
+        var templates = await provider.GetTemplatesAsync();
+
+        var template = Assert.Single(templates, t => t.Id == "generic-template");
+        Assert.Equal(AITemplateSources.Profile, template.Kind);
+        Assert.Equal("Generic Template", template.Metadata.Title);
     }
 
     [Fact]
@@ -321,10 +430,10 @@ public sealed class FileSystemAIProfileTemplateProviderTests : IDisposable
             You are a helpful support assistant.
             """);
 
-        var provider = new FileSystemAIProfileTemplateProvider(
+        var provider = new AIProfileFileSystemTemplateProvider(
             new TestHostEnvironment(_tempDir),
             [new DefaultMarkdownTemplateParser()],
-            NullLogger<FileSystemAIProfileTemplateProvider>.Instance);
+            NullLogger<AIProfileFileSystemTemplateProvider>.Instance);
 
         var templates = await provider.GetTemplatesAsync();
 
@@ -350,10 +459,10 @@ public sealed class FileSystemAIProfileTemplateProviderTests : IDisposable
             Nested prompt.
             """);
 
-        var provider = new FileSystemAIProfileTemplateProvider(
+        var provider = new AIProfileFileSystemTemplateProvider(
             new TestHostEnvironment(_tempDir),
             [new DefaultMarkdownTemplateParser()],
-            NullLogger<FileSystemAIProfileTemplateProvider>.Instance);
+            NullLogger<AIProfileFileSystemTemplateProvider>.Instance);
 
         var templates = await provider.GetTemplatesAsync();
 

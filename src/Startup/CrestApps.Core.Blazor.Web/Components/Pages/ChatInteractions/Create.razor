@@ -492,7 +492,7 @@
             .ToList();
 
         // Prompt Templates
-        var promptTemplates = await TemplateService.ListAsync();
+        var promptTemplates = await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         _model.AvailablePromptTemplates = promptTemplates
             .Where(t => t.Metadata.IsListable)
             .OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)

@@ -378,7 +378,7 @@ public sealed class ChatInteractionController : Controller
         .ToList();
 
         // Prompt Templates
-        var promptTemplates = await _aiTemplateService.ListAsync();
+        var promptTemplates = await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         model.AvailablePromptTemplates = promptTemplates
             .Where(t => t.Metadata.IsListable)
             .OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
@@ -513,7 +513,7 @@ public sealed class ChatInteractionController : Controller
         .ToList();
 
         // Prompt Templates
-        var promptTemplates = await _aiTemplateService.ListAsync();
+        var promptTemplates = await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         model.AvailablePromptTemplates = promptTemplates
             .Where(t => t.Metadata.IsListable)
             .OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)

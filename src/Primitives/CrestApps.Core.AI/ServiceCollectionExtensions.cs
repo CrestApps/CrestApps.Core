@@ -165,7 +165,7 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<EmbeddedResourceAIProfileTemplateProvider>());
         }
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAIProfileTemplateProvider, FileSystemAIProfileTemplateProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAIProfileTemplateProvider, AIProfileFileSystemTemplateProvider>());
 
         services.TryAddEnumerable(ServiceDescriptor.Transient<IPostConfigureOptions<AIProviderOptions>, ConfigurationAIProviderConnectionsOptionsConfiguration>());
         services.TryAddScoped<IAICompletionService, DefaultAICompletionService>();

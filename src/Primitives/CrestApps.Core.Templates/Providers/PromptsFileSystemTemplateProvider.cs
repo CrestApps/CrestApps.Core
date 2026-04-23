@@ -6,25 +6,24 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.Templates.Providers;
 
 /// <summary>
-/// Discovers templates from the file system.
-/// Scans configured paths for templates stored directly under <c>Templates/</c>.
-/// Subdirectories are ignored so other providers can own their own folder conventions.
+/// Discovers system prompt templates from the file system.
+/// Scans configured paths for files stored under <c>Templates/Prompts/</c>.
 /// </summary>
-public sealed class FileSystemTemplateProvider : ITemplateProvider
+public sealed class PromptsFileSystemTemplateProvider : ITemplateProvider
 {
     /// <summary>
-    /// The directory name within a project where generic templates are stored.
+    /// The directory name within a project where prompt templates are stored.
     /// </summary>
-    public const string TemplatesDirectoryPath = "Templates";
+    public const string PromptsDirectoryPath = "Templates/Prompts";
 
     private readonly TemplateOptions _options;
     private readonly IEnumerable<ITemplateParser> _parsers;
-    private readonly ILogger<FileSystemTemplateProvider> _logger;
+    private readonly ILogger<PromptsFileSystemTemplateProvider> _logger;
 
-    public FileSystemTemplateProvider(
+    public PromptsFileSystemTemplateProvider(
         IOptions<TemplateOptions> options,
         IEnumerable<ITemplateParser> parsers,
-        ILogger<FileSystemTemplateProvider> logger)
+        ILogger<PromptsFileSystemTemplateProvider> logger)
     {
         _options = options.Value;
         _parsers = parsers;
@@ -37,22 +36,28 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
 
         foreach (var basePath in _options.DiscoveryPaths)
         {
-            var templatesDir = Path.Combine(basePath, TemplatesDirectoryPath.Replace('/', Path.DirectorySeparatorChar));
+            var promptsDir = Path.Combine(basePath, PromptsDirectoryPath.Replace('/', Path.DirectorySeparatorChar));
 
-            if (!Directory.Exists(templatesDir))
+            if (!Directory.Exists(promptsDir))
             {
                 continue;
             }
 
-            DiscoverTemplates(templatesDir, basePath, templates);
+            DiscoverTemplates(promptsDir, featureId: null, basePath, templates);
+
+            foreach (var subDir in Directory.GetDirectories(promptsDir))
+            {
+                var featureId = Path.GetFileName(subDir);
+                DiscoverTemplates(subDir, featureId, basePath, templates);
+            }
         }
 
         return Task.FromResult<IReadOnlyList<Template>>(templates);
     }
 
-    private void DiscoverTemplates(string templatesDirectory, string sourcePath, List<Template> templates)
+    private void DiscoverTemplates(string directory, string featureId, string sourcePath, List<Template> templates)
     {
-        foreach (var file in Directory.GetFiles(templatesDirectory))
+        foreach (var file in Directory.GetFiles(directory))
         {
             var extension = Path.GetExtension(file);
             var parser = GetParserForExtension(extension);
@@ -67,16 +72,12 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
                 var content = File.ReadAllText(file);
                 var parseResult = parser.Parse(content);
                 var id = Path.GetFileNameWithoutExtension(file);
-
-                if (string.IsNullOrWhiteSpace(id))
-                {
-                    continue;
-                }
-
                 var template = TemplateProviderConventions.CreateTemplate(
                     id,
                     parseResult,
-                    sourcePath);
+                    sourcePath,
+                    featureId,
+                    TemplateProviderConventions.SystemPromptKind);
 
                 templates.Add(template);
             }
