@@ -41,6 +41,25 @@ public sealed class DefaultAITemplateServiceTests
     }
 
     [Fact]
+    public async Task ListByKindAsync_ReturnsTemplatesMatchingKind()
+    {
+        var provider = new InMemoryProvider(
+        [
+            new Template { Id = "system-1", Kind = "SystemPrompt", Content = "System prompt" },
+            new Template { Id = "profile-1", Kind = "Profile", Content = "Profile template" },
+            new Template { Id = "system-2", Kind = "systemprompt", Content = "Another system prompt" },
+        ]);
+
+        var service = CreateService([provider]);
+
+        var templates = await service.GetByKindAsync("SystemPrompt");
+
+        Assert.Equal(2, templates.Count);
+        Assert.Contains(templates, template => template.Id == "system-1");
+        Assert.Contains(templates, template => template.Id == "system-2");
+    }
+
+    [Fact]
     public async Task GetAsync_ExistingId_ReturnsTemplate()
     {
         var provider = new InMemoryProvider(

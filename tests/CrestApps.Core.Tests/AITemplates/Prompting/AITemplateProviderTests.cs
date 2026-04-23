@@ -393,16 +393,16 @@ public sealed class RuntimeEmbeddedPromptRegistrationTests
         Assert.Contains(templates, template => string.Equals(template.Id, "use-markdown-syntax", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(templates, template => string.Equals(template.Id, "tabular-batch-processing", StringComparison.OrdinalIgnoreCase));
 
-        var markdownTemplate = Assert.Single(templates.Where(template => string.Equals(template.Id, "use-markdown-syntax", StringComparison.OrdinalIgnoreCase)));
+        var markdownTemplate = Assert.Single(templates, template => string.Equals(template.Id, "use-markdown-syntax", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("Use Markdown Syntax", markdownTemplate.Metadata.Title);
         Assert.True(markdownTemplate.Metadata.IsListable);
     }
 }
 
-public sealed class CatalogSystemPromptTemplateProviderTests
+public sealed class AIProfileSystemPromptTemplateProviderTests
 {
     [Fact]
-    public async Task GetTemplatesAsync_ExposesListableDatabaseSystemPromptTemplates()
+    public async Task GetTemplatesAsync_ExposesListableSystemPromptTemplatesFromTemplateManager()
     {
         var dbTemplate = new CrestApps.Core.AI.Models.AIProfileTemplate
         {
@@ -419,15 +419,17 @@ public sealed class CatalogSystemPromptTemplateProviderTests
             SystemMessage = "You are a database-backed template.",
         });
 
-        var catalog = new Mock<ICatalog<CrestApps.Core.AI.Models.AIProfileTemplate>>();
-        catalog.Setup(x => x.GetAllAsync()).ReturnsAsync([dbTemplate]);
+        var templateManager = new Mock<CrestApps.Core.AI.Profiles.IAIProfileTemplateManager>();
+        templateManager.Setup(x => x.GetAllAsync()).ReturnsAsync([dbTemplate]);
 
-        var provider = new CatalogSystemPromptTemplateProvider(catalog.Object);
+        var provider = new AIProfileSystemPromptTemplateProvider(templateManager.Object);
 
         var templates = await provider.GetTemplatesAsync();
 
         var template = Assert.Single(templates);
-        Assert.Equal("catalog:db-template-1", template.Id);
+        Assert.Equal("ai-profile:db-template-1", template.Id);
+        Assert.Equal(CrestApps.Core.AI.AITemplateSources.SystemPrompt, template.Kind);
+        Assert.Equal("AIProfileTemplate", template.Source);
         Assert.Equal("DB Template", template.Metadata.Title);
         Assert.Equal("Stored in the catalog", template.Metadata.Description);
         Assert.Equal("Database", template.Metadata.Category);

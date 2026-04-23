@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
@@ -90,7 +91,7 @@ public sealed class AITemplateViewModel
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
     public List<PromptTemplateOptionItem> AvailablePromptTemplates { get; set; } = [];
 
-    public List<AIProfileTemplate> AvailableSystemPromptTemplates { get; set; } = [];
+    public List<Template> AvailableSystemPromptTemplates { get; set; } = [];
 
     // Documents.
     public bool AllowSessionDocuments { get; set; }

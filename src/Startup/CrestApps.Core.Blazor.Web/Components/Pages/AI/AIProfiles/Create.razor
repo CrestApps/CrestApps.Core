@@ -1312,8 +1312,9 @@
             .Where(t => string.Equals(t.Source, AITemplateSources.Profile, StringComparison.OrdinalIgnoreCase))
             .Select(t => new KeyValuePair<string, string>(t.DisplayText ?? t.Name, t.ItemId))
             .ToList();
-        _model.AvailableSystemPromptTemplates = (await TemplateManager.GetListableTemplatesAsync())
-            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+        _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var toolOptions = ToolOpts.Value;

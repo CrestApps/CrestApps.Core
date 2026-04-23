@@ -20,11 +20,11 @@ public static class SharedServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers shared template providers that surface host-managed catalog templates through <see cref="ITemplateService"/>.
+    /// Registers shared template providers that surface host-managed system prompt templates through <see cref="ITemplateService"/>.
     /// </summary>
     public static IServiceCollection AddSharedTemplateProviders(this IServiceCollection services)
     {
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITemplateProvider, CatalogSystemPromptTemplateProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITemplateProvider, AIProfileSystemPromptTemplateProvider>());
 
         return services;
     }

@@ -629,8 +629,9 @@
 
         var dataSources = await DataSourceStore.GetAllAsync();
         _model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new KeyValuePair<string, string>(ds.DisplayText, ds.ItemId)).ToList();
-        _model.AvailableSystemPromptTemplates = (await TemplateManager.GetListableTemplatesAsync())
-            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+        _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var docSettings = DocOpts.Value;

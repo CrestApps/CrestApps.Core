@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Models;
 namespace CrestApps.Core.Blazor.Web.ViewModels;
 
 public sealed class AITemplateViewModel
@@ -98,7 +99,7 @@ public sealed class AITemplateViewModel
 
     public List<PromptTemplateOptionItem> AvailablePromptTemplates { get; set; } = [];
 
-    public List<AIProfileTemplate> AvailableSystemPromptTemplates { get; set; } = [];
+    public List<Template> AvailableSystemPromptTemplates { get; set; } = [];
 
     // Documents.
     public bool AllowSessionDocuments { get; set; }

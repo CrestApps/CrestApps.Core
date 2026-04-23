@@ -195,8 +195,9 @@ public sealed class AITemplateController : Controller
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = allAgents.Where(a => !string.IsNullOrEmpty(a.Description)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
-        model.AvailableSystemPromptTemplates = (await _templateManager.GetListableTemplatesAsync())
-            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+        model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
         var promptTemplates = await _aiTemplateService.ListAsync();
         model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable).OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase).Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description, }).ToList(), }).ToList();

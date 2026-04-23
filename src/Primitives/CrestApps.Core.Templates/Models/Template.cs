@@ -23,6 +23,12 @@ public sealed class Template
     public string Content { get; set; }
 
     /// <summary>
+    /// Gets or sets the semantic kind of template (for example, <c>SystemPrompt</c> or <c>Profile</c>).
+    /// This is separate from <see cref="Source"/>, which identifies where the template came from.
+    /// </summary>
+    public string Kind { get; set; }
+
+    /// <summary>
     /// Gets or sets the source identifier (e.g., assembly name, module name, or "code").
     /// </summary>
     public string Source { get; set; }

@@ -396,8 +396,9 @@ public sealed class ChatInteractionController : Controller
                 }).ToList(),
             })
         .ToList();
-        model.AvailableSystemPromptTemplates = (await _templateManager.GetListableTemplatesAsync())
-            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+        model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         // Document settings
@@ -530,8 +531,9 @@ public sealed class ChatInteractionController : Controller
                 }).ToList(),
             })
         .ToList();
-        model.AvailableSystemPromptTemplates = (await _templateManager.GetListableTemplatesAsync())
-            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+        model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         // Document settings

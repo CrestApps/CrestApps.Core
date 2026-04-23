@@ -1162,8 +1162,9 @@ else if (_model != null)
 
         _supportedExtensionsAccept = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsAcceptValue();
         _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsDisplayValue();
-        _model.AvailableSystemPromptTemplates = (await TemplateManager.GetListableTemplatesAsync())
-            .OrderBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
+        _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
+            .Where(template => template.Metadata.IsListable)
+            .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var promptTemplates = await TemplateService.ListAsync();

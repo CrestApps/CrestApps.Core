@@ -85,7 +85,6 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
                 };
 
                 // Use filename as title if no title in front matter.
-
                 if (string.IsNullOrWhiteSpace(template.Metadata.Title))
                 {
                     template.Metadata.Title = id.Replace('-', ' ').Replace('.', ' ');
