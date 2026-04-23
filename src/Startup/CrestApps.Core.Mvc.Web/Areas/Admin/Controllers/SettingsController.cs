@@ -15,7 +15,7 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Models;
-using CrestApps.Core.Mvc.Web.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;

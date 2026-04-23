@@ -2,12 +2,8 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.Blazor.Web.Services;
+namespace CrestApps.Core.Startup.Shared.Services;
 
-/// <summary>
-/// Populates <see cref="GeneralAIOptions"/> from the admin-managed
-/// <see cref="GeneralAISettings"/> stored in <see cref="SiteSettingsStore"/>.
-/// </summary>
 internal sealed class SiteSettingsConfigureGeneralAIOptions : IConfigureOptions<GeneralAIOptions>
 {
     private readonly SiteSettingsStore _siteSettings;
@@ -31,10 +27,6 @@ internal sealed class SiteSettingsConfigureGeneralAIOptions : IConfigureOptions<
     }
 }
 
-/// <summary>
-/// Populates <see cref="AIMemoryOptions"/> from the admin-managed
-/// <see cref="AIMemorySettings"/> stored in <see cref="SiteSettingsStore"/>.
-/// </summary>
 internal sealed class SiteSettingsConfigureAIMemoryOptions : IConfigureOptions<AIMemoryOptions>
 {
     private readonly SiteSettingsStore _siteSettings;
@@ -52,10 +44,6 @@ internal sealed class SiteSettingsConfigureAIMemoryOptions : IConfigureOptions<A
     }
 }
 
-/// <summary>
-/// Populates <see cref="InteractionDocumentOptions"/> from the admin-managed
-/// <see cref="InteractionDocumentSettings"/> stored in <see cref="SiteSettingsStore"/>.
-/// </summary>
 internal sealed class SiteSettingsConfigureInteractionDocumentOptions : IConfigureOptions<InteractionDocumentOptions>
 {
     private readonly SiteSettingsStore _siteSettings;
@@ -74,10 +62,6 @@ internal sealed class SiteSettingsConfigureInteractionDocumentOptions : IConfigu
     }
 }
 
-/// <summary>
-/// Populates <see cref="AIDataSourceOptions"/> from the admin-managed
-/// <see cref="AIDataSourceSettings"/> stored in <see cref="SiteSettingsStore"/>.
-/// </summary>
 internal sealed class SiteSettingsConfigureAIDataSourceOptions : IConfigureOptions<AIDataSourceOptions>
 {
     private readonly SiteSettingsStore _siteSettings;
@@ -95,10 +79,6 @@ internal sealed class SiteSettingsConfigureAIDataSourceOptions : IConfigureOptio
     }
 }
 
-/// <summary>
-/// Populates <see cref="ChatInteractionMemoryOptions"/> from the admin-managed
-/// <see cref="MemoryMetadata"/> stored in <see cref="SiteSettingsStore"/>.
-/// </summary>
 internal sealed class SiteSettingsConfigureChatInteractionMemoryOptions : IConfigureOptions<ChatInteractionMemoryOptions>
 {
     private readonly SiteSettingsStore _siteSettings;
@@ -115,11 +95,6 @@ internal sealed class SiteSettingsConfigureChatInteractionMemoryOptions : IConfi
     }
 }
 
-/// <summary>
-/// Populates <see cref="DefaultAIDeploymentSettings"/> from the admin-managed
-/// settings stored in <see cref="SiteSettingsStore"/> so that framework services
-/// (e.g. <c>AIChatHubCore</c>) can resolve default deployment names via IOptions.
-/// </summary>
 internal sealed class SiteSettingsConfigureDefaultDeploymentOptions : IConfigureOptions<DefaultAIDeploymentSettings>
 {
     private readonly SiteSettingsStore _siteSettings;

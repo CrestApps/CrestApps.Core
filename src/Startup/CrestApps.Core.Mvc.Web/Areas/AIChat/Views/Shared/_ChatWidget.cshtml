@@ -8,7 +8,7 @@
 
 @inject IAIProfileManager ProfileManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
-@inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
+@inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 
 @{
     var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();

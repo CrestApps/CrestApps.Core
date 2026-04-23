@@ -1,5 +1,5 @@
 using CrestApps.Core.AI.Copilot.Models;
-using CrestApps.Core.Mvc.Web.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 

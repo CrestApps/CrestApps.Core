@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Blazor.Web.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Hubs;

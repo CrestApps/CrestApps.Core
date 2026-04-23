@@ -5,7 +5,7 @@
 @using Microsoft.Extensions.Options
 @model CrestApps.Core.AI.Models.AIProfile
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
-@inject CrestApps.Core.Mvc.Web.Services.SiteSettingsStore SiteSettings
+@inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 @{
     var session = ViewData["Session"] as AIChatSession;
     var prompts = ViewData["Prompts"] as IReadOnlyList<AIChatSessionPrompt>;

@@ -1,7 +1,8 @@
 using System.Data.Common;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Completions;
-using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Copilot;
+using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
@@ -16,6 +17,7 @@ using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
+using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
@@ -26,8 +28,10 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Models;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using YesSql;
 using YesSql.Provider.Sqlite;
 using YesSql.Sql;
@@ -40,11 +44,11 @@ internal static class YesSqlServiceCollectionExtensions
     private static readonly string CurrentArticleDocumentType = $"{typeof(Article).FullName}, {typeof(Article).Assembly.GetName().Name}";
 
     /// <summary>
-    /// Registers YesSql with SQLite, all index providers, and the catalog/manager
-    /// services that the MVC sample application needs. Call this from Program.cs to
-    /// keep the data-store wiring in one place.
+    /// Registers the MVC sample host services that sit around the framework:
+    /// YesSql storage, sample-only managers, article demo services, and the
+    /// provider-specific option bridges used by the admin UI.
     /// </summary>
-    public static IServiceCollection AddCoreYesSqlDataStore(this IServiceCollection services, string appDataPath)
+    public static IServiceCollection AddMvcSampleHostServices(this IServiceCollection services, string appDataPath)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(appDataPath);
@@ -75,20 +79,11 @@ internal static class YesSqlServiceCollectionExtensions
             .SetTablePrefix("CA_")
         );
 
-        // Host-specific managers.
         services
-            .AddScoped<DefaultAIProfileTemplateManager>()
-            .AddScoped<IAIProfileTemplateManager>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
-            .AddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
-            .AddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<DefaultAIProfileTemplateManager>())
-            .AddScoped<DefaultAIDeploymentManager>()
-            .AddScoped<IAIDeploymentManager>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>())
-            .AddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<DefaultAIDeploymentManager>())
             .AddScoped<IAIProfileManager, SimpleAIProfileManager>()
             .AddScoped<AIProfileDocumentService>()
             .AddScoped<AIProfileTemplateDocumentService>();
 
-        // Host-specific chat session services.
         services
             .AddScoped<MvcAIChatSessionEventService>()
             .AddScoped<MvcAICompletionUsageService>()
@@ -100,7 +95,6 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<MvcAIChatSessionExtractedDataService>())
             .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>();
 
-        // Host-specific indexing and authorization services.
         services
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryIndexingHandler>()
             .AddScoped<MvcAIDocumentIndexingService>()
@@ -109,10 +103,34 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAuthorizationHandler, MvcAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, MvcAIChatDocumentEventHandler>();
 
-        // Host-specific data-source and article services.
         services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
-            .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>();
+            .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
+            .AddSharedArticleServices()
+            .AddSharedTemplateProviders()
+            .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
+            .AddScoped<MvcCitationReferenceCollector>()
+            .AddScoped<CompositeAIReferenceLinkResolver>()
+            .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
+            .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
+
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
+        services.ConfigureOptions<MvcCopilotOptionsConfiguration>();
+        services.ConfigureOptions<MvcClaudeOptionsConfiguration>();
+        services.Configure<IndexProfileSourceOptions>(options => options
+            .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
+            {
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create an Elasticsearch index for sample article records managed in the MVC app.";
+            })
+        );
+        services.Configure<IndexProfileSourceOptions>(options => options
+            .AddOrUpdate(ElasticsearchConstants.ProviderName, "Azure AI Search", IndexProfileTypes.Articles, descriptor =>
+            {
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create an Azure AI Search index for sample article records managed in the MVC app.";
+            })
+        );
 
         return services;
     }

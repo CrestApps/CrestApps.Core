@@ -1,5 +1,5 @@
 using CrestApps.Core.AI.Claude.Models;
-using CrestApps.Core.Blazor.Web.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 

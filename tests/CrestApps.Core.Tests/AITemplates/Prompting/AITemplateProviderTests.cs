@@ -1,17 +1,16 @@
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Templates;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Providers;
-using CrestApps.Core.AI.Services;
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Chat;
+using CrestApps.Core.Templates.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using CrestApps.Core.Templates.Services;
-using CrestApps.Core.Startup.Shared.Services;
-using CrestApps.Core.Services;
 using Moq;
 
 namespace CrestApps.Core.Tests.AITemplates.Prompting;

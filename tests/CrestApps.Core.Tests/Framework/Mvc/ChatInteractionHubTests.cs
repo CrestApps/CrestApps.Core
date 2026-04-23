@@ -8,6 +8,7 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
