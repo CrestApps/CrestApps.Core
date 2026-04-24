@@ -145,13 +145,13 @@ public sealed class McpConnectionController : Controller
             ModelState.AddModelError(nameof(model.Endpoint), "Endpoint must be a valid absolute URL.");
         }
 
-        if (!TryResolveAuthenticationType(model.AuthenticationType, out var authenticationType))
+        if (!Enum.IsDefined(typeof(ClientAuthenticationType), model.AuthenticationType))
         {
             ModelState.AddModelError(nameof(model.AuthenticationType), "Authentication type is not supported.");
             return;
         }
 
-        switch (authenticationType)
+        switch (model.AuthenticationType)
         {
             case ClientAuthenticationType.ApiKey:
                 if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
@@ -242,24 +242,6 @@ public sealed class McpConnectionController : Controller
         return false;
     }
 
-    private static bool TryResolveAuthenticationType(ClientAuthenticationType authenticationType, out ClientAuthenticationType resolvedAuthenticationType)
-    {
-        switch (authenticationType)
-        {
-            case ClientAuthenticationType.ApiKey:
-            case ClientAuthenticationType.Basic:
-            case ClientAuthenticationType.OAuth2ClientCredentials:
-            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
-            case ClientAuthenticationType.OAuth2Mtls:
-            case ClientAuthenticationType.CustomHeaders:
-                resolvedAuthenticationType = authenticationType;
-                return true;
-            default:
-                resolvedAuthenticationType = default;
-                return false;
-        }
-    }
-
     private static string GetTransportSource(McpTransportKind transportKind)
     {
         return transportKind switch
@@ -273,11 +255,6 @@ public sealed class McpConnectionController : Controller
     private static McpTransportKind ResolveTransportKind(string source)
     {
         return TryResolveTransportKind(source, out var transportKind) ? transportKind : throw new InvalidOperationException("Connection type is not supported.");
-    }
-
-    private static ClientAuthenticationType ResolveAuthenticationType(ClientAuthenticationType authenticationType)
-    {
-        return TryResolveAuthenticationType(authenticationType, out var resolvedAuthenticationType) ? resolvedAuthenticationType : throw new InvalidOperationException("Authentication type is not supported.");
     }
 
     private void Apply(McpConnectionViewModel model, McpConnection connection)
@@ -298,7 +275,11 @@ public sealed class McpConnectionController : Controller
 
     private void ApplySseTransport(McpConnectionViewModel model, McpConnection connection)
     {
-        var authenticationType = ResolveAuthenticationType(model.AuthenticationType);
+        if (!Enum.IsDefined(model.AuthenticationType))
+        {
+            throw new InvalidOperationException("Authentication type is not supported.");
+        }
+
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         var protector = _dataProtectionProvider.CreateProtector(McpConstants.DataProtectionPurpose);
         var existingApiKey = metadata.ApiKey;
@@ -308,7 +289,7 @@ public sealed class McpConnectionController : Controller
         var existingCertificate = metadata.OAuth2ClientCertificate;
         var existingCertificatePassword = metadata.OAuth2ClientCertificatePassword;
         metadata.Endpoint = Uri.TryCreate(model.Endpoint, UriKind.Absolute, out var endpoint) ? endpoint : null;
-        metadata.AuthenticationType = authenticationType;
+        metadata.AuthenticationType = model.AuthenticationType;
         metadata.ApiKeyHeaderName = null;
         metadata.ApiKeyPrefix = null;
         metadata.ApiKey = null;
@@ -323,8 +304,11 @@ public sealed class McpConnectionController : Controller
         metadata.OAuth2ClientCertificate = null;
         metadata.OAuth2ClientCertificatePassword = null;
         metadata.AdditionalHeaders = null;
-        switch (authenticationType)
+
+        switch (model.AuthenticationType)
         {
+            case ClientAuthenticationType.Anonymous:
+                break;
             case ClientAuthenticationType.ApiKey:
                 metadata.ApiKeyHeaderName = model.ApiKeyHeaderName?.Trim();
                 metadata.ApiKeyPrefix = model.ApiKeyPrefix?.Trim();

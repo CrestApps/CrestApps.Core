@@ -165,16 +165,19 @@
         <main class="flex-grow-1 p-4 app-content">
             @if (TempData["ErrorMessage"] is string errorMessage)
             {
-                <div class="alert alert-danger" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
+                <div class="alert alert-danger app-alert" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill app-alert-icon" aria-hidden="true"></i>
+                    <div class="app-alert-content">@errorMessage</div>
                 </div>
             }
 
             @if (!ViewData.ModelState.IsValid)
             {
-                <div class="alert alert-danger" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    @Html.ValidationSummary(excludePropertyErrors: false, message: "Please correct the following errors:", htmlAttributes: new { @class = "mb-0" })
+                <div class="alert alert-danger app-alert" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill app-alert-icon" aria-hidden="true"></i>
+                    <div class="app-alert-content">
+                        @Html.ValidationSummary(excludePropertyErrors: false, message: "Please correct the following errors:", htmlAttributes: new { @class = "app-validation-summary mb-0" })
+                    </div>
                 </div>
             }
 
