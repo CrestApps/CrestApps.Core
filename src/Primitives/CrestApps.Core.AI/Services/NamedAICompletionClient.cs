@@ -31,12 +31,11 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         IDistributedCache distributedCache,
         ILoggerFactory loggerFactory,
         IServiceProvider serviceProvider,
-        AIProviderOptions providerOptions,
         DefaultAIOptions defaultOptions,
         IEnumerable<IAICompletionServiceHandler> handlers,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentManager)
-        : base(providerOptions, aiTemplateService, deploymentManager)
+        : base(aiTemplateService, deploymentManager)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(clientName);
 

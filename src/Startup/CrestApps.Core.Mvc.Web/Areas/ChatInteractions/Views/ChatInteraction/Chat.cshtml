@@ -770,6 +770,19 @@
                 return DOMPurify.sanitize(marked.parse(text || ''), { ADD_ATTR: ['target'] });
             }
 
+            function sanitizeUrl(url) {
+                if (!url) {
+                    return '';
+                }
+
+                var trimmed = url.trim();
+                if (/^javascript:/i.test(trimmed) || /^vbscript:/i.test(trimmed) || /^data:text\/html/i.test(trimmed)) {
+                    return '';
+                }
+
+                return url;
+            }
+
             function normalizeReference(reference) {
                 if (!reference || typeof reference !== 'object') {
                     return null;

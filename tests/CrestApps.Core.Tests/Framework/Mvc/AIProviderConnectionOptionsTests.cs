@@ -1,4 +1,5 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
@@ -18,10 +19,10 @@ using Moq;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
-public sealed class AIProviderConnectionOptionsTests
+public sealed class AIProviderConnectionConfigurationTests
 {
     [Fact]
-    public void AddCrestAppsAI_WhenTopLevelConnectionsConfigured_ShouldMergeThemIntoProviderOptions()
+    public async Task AddCrestAppsAI_WhenTopLevelConnectionsConfigured_ShouldExposeThemInConnectionStore()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -34,16 +35,17 @@ public sealed class AIProviderConnectionOptionsTests
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
         services.AddLogging();
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var options = serviceProvider.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connection = Assert.Single(connections);
 
-        Assert.True(options.Providers.ContainsKey("OpenAI"));
-        var provider = options.Providers["OpenAI"];
-        Assert.Contains("config-primary", provider.Connections.Keys);
-        Assert.Equal("config-primary", provider.Connections["config-primary"].GetStringValue("DisplayText", false));
+        Assert.Equal("config-primary", connection.Name);
+        Assert.Equal("OpenAI", connection.ClientName);
+        Assert.Equal("config-primary", connection.DisplayText);
     }
 
     [Fact]
@@ -103,7 +105,7 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
-    public void AddCrestAppsAI_WhenClientNameIsMissing_ShouldIgnoreConnectionEntry()
+    public async Task AddCrestAppsAI_WhenClientNameIsMissing_ShouldIgnoreConnectionEntry()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -115,17 +117,18 @@ public sealed class AIProviderConnectionOptionsTests
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
         services.AddLogging();
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var options = serviceProvider.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
 
-        Assert.Empty(options.Providers);
+        Assert.Empty(connections);
     }
 
     [Fact]
-    public void AddCrestAppsAI_WhenAzureOpenAIClientNameConfigured_ShouldNormalizeToAzureProvider()
+    public async Task AddCrestAppsAI_WhenAzureOpenAIClientNameConfigured_ShouldNormalizeToAzureProvider()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -140,15 +143,16 @@ public sealed class AIProviderConnectionOptionsTests
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
         services.AddLogging();
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var options = serviceProvider.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connection = Assert.Single(connections);
 
-        Assert.True(options.Providers.ContainsKey(AzureOpenAIConstants.ClientName));
-        Assert.Contains("config-primary", options.Providers[AzureOpenAIConstants.ClientName].Connections.Keys);
-        Assert.False(options.Providers.ContainsKey("AzureOpenAI"));
+        Assert.Equal("config-primary", connection.Name);
+        Assert.Equal(AzureOpenAIConstants.ClientName, connection.ClientName);
     }
 
     [Fact]
@@ -223,7 +227,7 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
-    public void AddCrestAppsAI_WhenDisplayTextConfigured_ShouldKeepDisplayText()
+    public async Task AddCrestAppsAI_WhenDisplayTextConfigured_ShouldKeepDisplayText()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -236,13 +240,15 @@ public sealed class AIProviderConnectionOptionsTests
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
         services.AddLogging();
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var options = serviceProvider.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connection = Assert.Single(connections);
 
-        Assert.Equal("Config primary", options.Providers["OpenAI"].Connections["config-primary"].GetStringValue("DisplayText", false));
+        Assert.Equal("Config primary", connection.DisplayText);
     }
 
     [Fact]
@@ -374,7 +380,7 @@ public sealed class AIProviderConnectionOptionsTests
     }
 
     [Fact]
-    public void AddCrestAppsAI_WhenCustomConnectionSectionsConfigured_ShouldMergeEverySectionIntoProviderOptions()
+    public async Task AddCrestAppsAI_WhenCustomConnectionSectionsConfigured_ShouldExposeEverySectionInConnectionStore()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
@@ -389,6 +395,7 @@ public sealed class AIProviderConnectionOptionsTests
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
         services.AddLogging();
         services.Configure<AIProviderConnectionCatalogOptions>(options =>
         {
@@ -398,10 +405,10 @@ public sealed class AIProviderConnectionOptionsTests
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var options = serviceProvider.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
 
-        Assert.Contains("config-primary", options.Providers["OpenAI"].Connections.Keys);
-        Assert.Contains("azure-secondary", options.Providers[AzureOpenAIConstants.ClientName].Connections.Keys);
+        Assert.Contains(connections, connection => connection.Name == "config-primary" && connection.ClientName == "OpenAI");
+        Assert.Contains(connections, connection => connection.Name == "azure-secondary" && connection.ClientName == AzureOpenAIConstants.ClientName);
     }
 
     [Fact]

@@ -175,7 +175,6 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAIProfileTemplateProvider, AIProfileFileSystemTemplateProvider>());
 
-        services.TryAddEnumerable(ServiceDescriptor.Transient<IPostConfigureOptions<AIProviderOptions>, ConfigurationAIProviderConnectionsOptionsConfiguration>());
         services.TryAddScoped<IAICompletionService, DefaultAICompletionService>();
         services.TryAddScoped<IAICompletionContextBuilder, DefaultAICompletionContextBuilder>();
 
