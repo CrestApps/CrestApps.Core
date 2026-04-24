@@ -41,11 +41,9 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<AIChatSession> FindAsync(string id, CancellationToken cancellationToken = default)
+    public Task<AIChatSession> FindAsync(string id, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(id);
-
-        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
+        return FindByIdAsync(id, cancellationToken);
     }
 
     public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null, CancellationToken cancellationToken = default)
@@ -150,6 +148,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
             return false;
         }
 
+        await _promptStore.DeleteAllPromptsAsync(sessionId);
         _session.Delete(session, _collection);
 
         return true;
@@ -164,6 +163,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 
         foreach (var s in sessions)
         {
+            await _promptStore.DeleteAllPromptsAsync(s.SessionId);
             _session.Delete(s, _collection);
             count++;
         }

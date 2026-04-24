@@ -89,14 +89,14 @@ public interface IAICompletionService
 {
     Task<ChatResponse> CompleteAsync(
         AIDeployment deployment,
-        IList<ChatMessage> messages,
-        ChatOptions options = null,
+        IEnumerable<ChatMessage> messages,
+        AICompletionContext context,
         CancellationToken cancellationToken = default);
 
-    IAsyncEnumerable<StreamingChatCompletionUpdate> CompleteStreamingAsync(
+    IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingAsync(
         AIDeployment deployment,
-        IList<ChatMessage> messages,
-        ChatOptions options = null,
+        IEnumerable<ChatMessage> messages,
+        AICompletionContext context,
         CancellationToken cancellationToken = default);
 }
 ```
@@ -125,11 +125,15 @@ Implement this interface to add a new AI provider. Each provider registers its o
 ```csharp
 public interface IAICompletionClient
 {
+    string ClientName { get; }
+
     Task<ChatResponse> CompleteAsync(
+        IEnumerable<ChatMessage> messages,
         AICompletionContext context,
         CancellationToken cancellationToken = default);
 
-    IAsyncEnumerable<StreamingChatCompletionUpdate> CompleteStreamingAsync(
+    IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingAsync(
+        IEnumerable<ChatMessage> messages,
         AICompletionContext context,
         CancellationToken cancellationToken = default);
 }
@@ -307,7 +311,7 @@ To integrate an AI provider that is not already supported (e.g., Anthropic, Mist
 ```csharp
 public interface IAICompletionClient
 {
-    string Name { get; }
+    string ClientName { get; }
 
     Task<ChatResponse> CompleteAsync(
         IEnumerable<ChatMessage> messages,
@@ -337,7 +341,7 @@ public sealed class MyProviderCompletionClient : IAICompletionClient
         _logger = logger;
     }
 
-    public string Name => "MyProvider";
+    public string ClientName => "MyProvider";
 
     public async Task<ChatResponse> CompleteAsync(
         IEnumerable<ChatMessage> messages,

@@ -42,7 +42,8 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
         var protector = _dataProtectionProvider.CreateProtector(SftpResourceConstants.DataProtectionPurpose);
         var port = metadata.Port ?? 22;
         var username = metadata.Username;
-        var remotePath = "/" + (variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty);
+        var rawPath = variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty;
+        var remotePath = "/" + SanitizePath(rawPath);
 
         var password = DataProtectionHelper.Unprotect(protector, metadata.Password, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "password", resource.ItemId);
         var privateKey = DataProtectionHelper.Unprotect(protector, metadata.PrivateKey, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "private key", resource.ItemId);

@@ -76,7 +76,7 @@ public sealed class WeatherTool : AITool
     // Tool parameters are defined as a record or class
     private sealed record WeatherInput(string Location, string Units = "celsius");
 
-    protected override async Task<object> InvokeCoreAsync(
+    protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)
     {

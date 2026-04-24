@@ -60,6 +60,43 @@ public abstract class McpResourceTypeHandlerBase : IMcpResourceTypeHandler
     }
 
     /// <summary>
+    /// Sanitizes a user-supplied path to prevent directory traversal attacks.
+    /// Rejects paths containing ".." segments, null bytes, or other dangerous patterns.
+    /// </summary>
+    /// <param name="path">The raw path value from the user.</param>
+    /// <returns>The sanitized path with leading/trailing slashes trimmed.</returns>
+    /// <exception cref="ArgumentException">Thrown when the path contains directory traversal sequences or null bytes.</exception>
+    protected static string SanitizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        // Reject null bytes.
+        if (path.Contains('\0'))
+        {
+            throw new ArgumentException("Path contains invalid characters.", nameof(path));
+        }
+
+        // Normalize backslashes to forward slashes for consistent checking.
+        var normalized = path.Replace('\\', '/');
+
+        // Check each segment for directory traversal.
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var segment in segments)
+        {
+            if (segment == ".." || segment == ".")
+            {
+                throw new ArgumentException("Path must not contain directory traversal sequences.", nameof(path));
+            }
+        }
+
+        return string.Join("/", segments);
+    }
+
+    /// <summary>
     /// Determines whether the given MIME type represents text-based content
     /// that can be safely read as a string.
     /// </summary>

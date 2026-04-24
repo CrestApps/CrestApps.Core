@@ -40,7 +40,8 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
         }
 
         var port = metadata.Port ?? 21;
-        var remotePath = "/" + (variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty);
+        var rawPath = variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty;
+        var remotePath = "/" + SanitizePath(rawPath);
         string password = null;
 
         if (!string.IsNullOrEmpty(metadata.Password))

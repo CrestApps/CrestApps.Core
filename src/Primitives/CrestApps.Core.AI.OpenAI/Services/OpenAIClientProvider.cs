@@ -1,5 +1,7 @@
 using System.ClientModel;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
@@ -63,7 +65,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     {
         var apiKey = connection.GetApiKey();
         var endpoint = connection.GetEndpoint(false);
-        var cacheKey = $"{endpoint?.AbsoluteUri}|{apiKey}";
+        var cacheKey = BuildCacheKey(endpoint, apiKey);
 
         return _clientCache.GetOrAdd(cacheKey, _ =>
         {
@@ -74,5 +76,13 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
 
             return new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions { Endpoint = endpoint, });
         });
+    }
+
+    private static string BuildCacheKey(Uri endpoint, string apiKey)
+    {
+        var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(apiKey ?? string.Empty));
+        var keyHash = Convert.ToHexStringLower(keyBytes);
+
+        return $"{endpoint?.AbsoluteUri}|{keyHash}";
     }
 }
