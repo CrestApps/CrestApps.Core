@@ -17,12 +17,11 @@ public sealed class OpenAICompletionClient : NamedAICompletionClient
         ILoggerFactory loggerFactory,
         IDistributedCache distributedCache,
         IServiceProvider serviceProvider,
-        IOptions<AIProviderOptions> providerOptions,
         IEnumerable<IAICompletionServiceHandler> handlers,
         IOptions<DefaultAIOptions> defaultOptions,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentManager)
-        : base(OpenAIConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, providerOptions.Value, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
+        : base(OpenAIConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
     {
     }
 }

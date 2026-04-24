@@ -17,12 +17,11 @@ public sealed class OllamaCompletionClient : NamedAICompletionClient
         ILoggerFactory loggerFactory,
         IDistributedCache distributedCache,
         IServiceProvider serviceProvider,
-        IOptions<AIProviderOptions> providerOptions,
         IEnumerable<IAICompletionServiceHandler> handlers,
         IOptions<DefaultAIOptions> defaultOptions,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentManager)
-        : base(OllamaConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, providerOptions.Value, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
+        : base(OllamaConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
     {
     }
 }

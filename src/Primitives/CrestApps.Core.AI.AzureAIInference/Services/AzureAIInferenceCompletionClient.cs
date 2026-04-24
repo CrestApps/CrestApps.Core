@@ -17,12 +17,11 @@ public sealed class AzureAIInferenceCompletionClient : NamedAICompletionClient
         ILoggerFactory loggerFactory,
         IDistributedCache distributedCache,
         IServiceProvider serviceProvider,
-        IOptions<AIProviderOptions> providerOptions,
         IEnumerable<IAICompletionServiceHandler> handlers,
         IOptions<DefaultAIOptions> defaultOptions,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentManager)
-        : base(AzureAIInferenceConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, providerOptions.Value, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
+        : base(AzureAIInferenceConstants.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
     {
     }
 }

@@ -688,7 +688,9 @@ The configuration sources read from `appsettings.json` using the sections config
 | Options class | Default sections |
 |--------------|------------------|
 | `AIDeploymentCatalogOptions` | `CrestApps:AI:Deployments` |
-| `AIProviderConnectionCatalogOptions` | `CrestApps:AI:Connections` (connection sections) and `CrestApps:AI:Providers` (provider sections) |
+| `AIProviderConnectionCatalogOptions` | `CrestApps:AI:Connections` (connection sections) plus provider sections under `CrestApps:AI:Providers` |
+
+Hosts can override those lists to focus only on the standalone `Connections` array or to append additional provider-grouped sections for compatibility scenarios.
 
 When a persistence package (YesSql or EntityCore) is added, it registers an additional **writable** DB binding source at Order 0, so database entries take priority over `appsettings.json` entries and all write operations go to the database.
 

@@ -4,26 +4,20 @@ using CrestApps.Core.AI.Json;
 
 namespace CrestApps.Core.AI.Models;
 
-public class AIProviderOptions
-{
-    public Dictionary<string, AIProvider> Providers { get; } = new(StringComparer.OrdinalIgnoreCase);
-}
-
-public sealed class AIProvider
-{
-    public IDictionary<string, AIProviderConnectionEntry> Connections { get; set; }
-}
-
+/// <summary>
+/// Represents a normalized provider connection payload used by AI client factories
+/// and providers.
+/// </summary>
 [JsonConverter(typeof(AIProviderConnectionConverter))]
 public sealed class AIProviderConnectionEntry : ReadOnlyDictionary<string, object>
 {
     public AIProviderConnectionEntry(AIProviderConnectionEntry connection)
-    : base(connection)
+        : base(connection)
     {
     }
 
     public AIProviderConnectionEntry(IDictionary<string, object> dictionary)
-    : base(dictionary)
+        : base(dictionary)
     {
     }
 }

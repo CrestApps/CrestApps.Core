@@ -6,30 +6,24 @@ namespace CrestApps.Core.AI.Services;
 
 public abstract class AICompletionServiceBase
 {
-    protected readonly AIProviderOptions ProviderOptions;
     protected readonly ITemplateService AITemplateService;
     protected readonly IAIDeploymentManager DeploymentResolver;
 
-    protected AICompletionServiceBase(
-        AIProviderOptions providerOptions,
-        ITemplateService aiTemplateService)
+    protected AICompletionServiceBase(ITemplateService aiTemplateService)
     {
-        ProviderOptions = providerOptions;
         AITemplateService = aiTemplateService;
     }
 
     protected AICompletionServiceBase(
-        AIProviderOptions providerOptions,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentResolver)
-    : this(providerOptions, aiTemplateService)
+    : this(aiTemplateService)
     {
         DeploymentResolver = deploymentResolver;
     }
 
     /// <summary>
-    /// Resolves a deployment using the <see cref="IAIDeploymentManager"/>
-    /// with fallback to legacy connection entry values when they are still present.
+    /// Resolves a deployment using the <see cref="IAIDeploymentManager"/>.
     /// </summary>
     protected virtual async ValueTask<AIDeployment> ResolveDeploymentAsync(
         AIDeploymentType type,
