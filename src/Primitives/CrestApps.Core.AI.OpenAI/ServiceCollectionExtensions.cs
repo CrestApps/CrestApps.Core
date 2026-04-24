@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Handlers;
-using CrestApps.Core.AI.OpenAI.Services;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,10 +18,10 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OpenAIClientProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OpenAI.Services.OpenAIClientProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProviderConnectionHandler, OpenAIConnectionHandler>());
 
-        services.AddCoreAIProfile<OpenAICompletionClient>(OpenAIConstants.ClientName, o =>
+        services.AddCoreAIProfile<ProviderAICompletionClient<OpenAIProviderMarker>>(OpenAIConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("OpenAI", "OpenAI");
             o.Description = new LocalizedString("OpenAI", "Use OpenAI models for AI completion.");

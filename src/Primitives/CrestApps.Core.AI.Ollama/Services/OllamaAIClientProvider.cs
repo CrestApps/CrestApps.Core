@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
@@ -8,6 +9,8 @@ namespace CrestApps.Core.AI.Ollama.Services;
 
 public sealed class OllamaAIClientProvider : AIClientProviderBase
 {
+    private static readonly ConcurrentDictionary<string, OllamaApiClient> _clientCache = new(StringComparer.Ordinal);
+
     public OllamaAIClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)
     {
     }
@@ -19,12 +22,12 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
 
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
-        return new OllamaApiClient(connection.GetEndpoint(), deploymentName);
+        return GetOllamaClient(connection, deploymentName);
     }
 
     protected override IEmbeddingGenerator<string, Embedding<float>> GetEmbeddingGenerator(AIProviderConnectionEntry connection, string deploymentName)
     {
-        return new OllamaApiClient(connection.GetEndpoint(), deploymentName);
+        return GetOllamaClient(connection, deploymentName);
     }
 
 #pragma warning disable MEAI001
@@ -41,5 +44,13 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
 
     {
         throw new NotSupportedException("Ollama does not currently support speech-to-text functionality.");
+    }
+
+    private static OllamaApiClient GetOllamaClient(AIProviderConnectionEntry connection, string deploymentName)
+    {
+        var endpoint = connection.GetEndpoint();
+        var cacheKey = $"{endpoint.AbsoluteUri}|{deploymentName}";
+
+        return _clientCache.GetOrAdd(cacheKey, _ => new OllamaApiClient(endpoint, deploymentName));
     }
 }

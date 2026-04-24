@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Ollama.Services;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,7 +19,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OllamaAIClientProvider>());
 
-        services.AddCoreAIProfile<OllamaCompletionClient>(OllamaConstants.ClientName, o =>
+        services.AddCoreAIProfile<ProviderAICompletionClient<OllamaProviderMarker>>(OllamaConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("Ollama", "Ollama");
             o.Description = new LocalizedString("Ollama", "Use locally hosted Ollama models for AI completion.");
