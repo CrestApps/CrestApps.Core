@@ -76,7 +76,7 @@ internal sealed class A2AAgentProxyTool : AIFunction
         {
             var httpClientFactory = arguments.Services.GetRequiredService<IHttpClientFactory>();
 
-            var httpClient = httpClientFactory.CreateClient();
+            var httpClient = httpClientFactory.CreateClient(A2AConstants.HttpClientName);
 
             var authService = arguments.Services.GetService<IA2AConnectionAuthService>();
             if (authService is not null)

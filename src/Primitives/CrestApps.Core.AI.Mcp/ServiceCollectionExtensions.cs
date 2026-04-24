@@ -20,7 +20,9 @@ public static class ServiceCollectionExtensions
 
         services.AddMemoryCache();
         services.AddDistributedMemoryCache();
-        services.AddHttpClient();
+        services.AddHttpClient(McpConstants.HttpClientName)
+            .AddStandardResilienceHandler();
+
         services.AddDataProtection();
 
         services.TryAddScoped<McpService>();

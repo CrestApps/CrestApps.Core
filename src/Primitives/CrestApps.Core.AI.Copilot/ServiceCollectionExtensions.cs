@@ -17,7 +17,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddHttpClient();
+        services.AddHttpClient(CopilotOrchestrator.HttpClientName)
+            .AddStandardResilienceHandler();
 
         services.AddOrchestrator<CopilotOrchestrator>(CopilotOrchestrator.OrchestratorName)
             .WithTitle("Copilot");

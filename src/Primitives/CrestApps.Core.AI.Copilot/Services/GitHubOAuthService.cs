@@ -80,7 +80,7 @@ public sealed class GitHubOAuthService
         }
 
         // Exchange authorization code for access token.
-        var httpClient = _httpClientFactory.CreateClient();
+        var httpClient = _httpClientFactory.CreateClient(CopilotOrchestrator.HttpClientName);
 
         var tokenRequest = new Dictionary<string, string>
         {

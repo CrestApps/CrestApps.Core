@@ -31,6 +31,12 @@ namespace CrestApps.Core.AI.Copilot.Services;
 public sealed class CopilotOrchestrator : IOrchestrator
 {
     public const string OrchestratorName = "copilot";
+
+    /// <summary>
+    /// The name of the named <see cref="System.Net.Http.HttpClient"/> used by Copilot services.
+    /// </summary>
+    public const string HttpClientName = "CrestApps.Copilot";
+
     private const string TokenProtectorPurpose = "CrestApps.Core.AI.Copilot.GitHubTokens";
 
     private readonly IToolRegistry _toolRegistry;
