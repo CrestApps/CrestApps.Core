@@ -1,4 +1,3 @@
-using CrestApps.Core.Handlers;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;

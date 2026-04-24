@@ -1,5 +1,3 @@
-using CrestApps.Core.Templates.Parsing;
-
 namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
 public sealed class DefaultMarkdownAITemplateParserTests

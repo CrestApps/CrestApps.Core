@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
 

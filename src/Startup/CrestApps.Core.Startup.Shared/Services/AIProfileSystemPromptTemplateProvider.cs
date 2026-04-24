@@ -1,8 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.Templates.Models;
-using CrestApps.Core.Templates.Providers;
 
 namespace CrestApps.Core.Startup.Shared.Services;
 

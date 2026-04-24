@@ -113,6 +113,8 @@ These tools are automatically available to the orchestrator when documents are a
 | `ReadDocumentTool` | Reads full text of a specific document |
 | `ReadTabularDataTool` | Reads and parses CSV/TSV/Excel data |
 
+For chat-interaction and chat-session uploads, the orchestration layer now chooses between chunked retrieval and full-document injection automatically. Lookup-style questions still use semantic search, while whole-document requests such as summaries, reviews, rewrites, translations, or complete extraction tasks preload the full uploaded file content into context.
+
 
 ## Key Interfaces
 

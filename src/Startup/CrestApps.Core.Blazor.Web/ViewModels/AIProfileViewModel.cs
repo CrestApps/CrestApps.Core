@@ -7,7 +7,6 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Templates.Models;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
 

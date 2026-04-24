@@ -1,6 +1,4 @@
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Templates.Models;
-using CrestApps.Core.Templates.Parsing;
 
 namespace CrestApps.Core.AI.Services;
 

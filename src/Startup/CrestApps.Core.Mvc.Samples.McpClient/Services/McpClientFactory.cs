@@ -1,8 +1,8 @@
+using System.Net.Http.Headers;
+using CrestApps.Core.Startup.Shared.Services;
+using Microsoft.Net.Http.Headers;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using CrestApps.Core.Startup.Shared.Services;
-using System.Net.Http.Headers;
-using Microsoft.Net.Http.Headers;
 
 namespace CrestApps.Core.Mvc.Samples.McpClient.Services;
 

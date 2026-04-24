@@ -7,7 +7,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
-using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;

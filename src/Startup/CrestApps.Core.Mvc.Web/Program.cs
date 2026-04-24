@@ -1,4 +1,3 @@
-using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.Azure.AISearch;
@@ -23,7 +22,6 @@ using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
@@ -34,9 +32,9 @@ using CrestApps.Core.SignalR;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.Extensions.Options;
 
 // =============================================================================
 // CrestApps AI Framework — MVC Example Application

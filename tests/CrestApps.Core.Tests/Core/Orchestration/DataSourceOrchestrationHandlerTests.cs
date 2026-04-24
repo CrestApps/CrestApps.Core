@@ -2,8 +2,6 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
-using CrestApps.Core.Templates.Models;
-using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 

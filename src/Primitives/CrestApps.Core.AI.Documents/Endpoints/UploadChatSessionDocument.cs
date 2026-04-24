@@ -5,7 +5,6 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

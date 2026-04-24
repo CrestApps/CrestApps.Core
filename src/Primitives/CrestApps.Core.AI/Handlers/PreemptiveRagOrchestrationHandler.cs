@@ -2,7 +2,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
-using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

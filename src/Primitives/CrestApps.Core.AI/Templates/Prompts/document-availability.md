@@ -14,7 +14,7 @@ Category: Documents
 {% if userSuppliedDocuments.size > 0 %}
 {% if tools.size > 0 %}
 The user has uploaded the following documents as supplementary context.
-Search the uploaded documents first using the document tools before answering.
+Use the document tools before answering: prefer semantic search for targeted lookups, and read a full document when the task requires whole-file context such as summarizing, reviewing, rewriting, translating, or extracting complete information from an uploaded file.
 {% if isInScope %}
 Answer only from the uploaded documents and retrieved document context.
 If the documents do not contain the answer, clearly say that the answer is not available in the uploaded documents.

@@ -1,9 +1,9 @@
+using System.Collections.Concurrent;
 using Azure;
 using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Options;
-using System.Collections.Concurrent;
 
 namespace CrestApps.Core.Azure.AISearch.Services;
 

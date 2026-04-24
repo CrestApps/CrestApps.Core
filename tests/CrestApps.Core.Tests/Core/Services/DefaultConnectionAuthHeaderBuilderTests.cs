@@ -1,11 +1,9 @@
 using System.Text;
-using System.Threading.Tasks;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using Xunit;
 
 namespace CrestApps.Core.Tests.Core.Services;
 

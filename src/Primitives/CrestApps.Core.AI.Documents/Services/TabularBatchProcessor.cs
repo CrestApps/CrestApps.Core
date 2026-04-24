@@ -2,7 +2,6 @@ using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
 

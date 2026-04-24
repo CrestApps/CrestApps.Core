@@ -1,6 +1,5 @@
 using System.Reflection;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;

@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Mvc;
