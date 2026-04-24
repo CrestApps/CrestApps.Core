@@ -6,6 +6,8 @@
     <IsTestProject>true</IsTestProject>
     <PackageTags>$(PackageTags) tests xunit unit-tests integration-tests</PackageTags>
     <NoWarn>$(NoWarn);CA1852</NoWarn>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 
   <ItemGroup>
