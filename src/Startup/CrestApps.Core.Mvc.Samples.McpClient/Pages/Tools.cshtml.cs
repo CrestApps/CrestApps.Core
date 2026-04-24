@@ -39,6 +39,8 @@ public sealed class ToolsModel : PageModel
             return new JsonResult(new { error = "Tool name is required." });
         }
 
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -73,12 +75,14 @@ public sealed class ToolsModel : PageModel
         }
         catch (Exception)
         {
-            return new JsonResult(new { error = "An error occurred while invoking the tool." });
+            return new JsonResult(new { error = $"An error occurred while invoking the tool on '{selectedServer.DisplayName}'." });
         }
     }
 
     private async Task LoadToolsAsync(CancellationToken cancellationToken)
     {
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -86,7 +90,7 @@ public sealed class ToolsModel : PageModel
         }
         catch (Exception)
         {
-            ErrorMessage ??= "An error occurred while loading tools.";
+            ErrorMessage ??= $"An error occurred while loading tools from '{selectedServer.DisplayName}'.";
             Tools = [];
         }
     }

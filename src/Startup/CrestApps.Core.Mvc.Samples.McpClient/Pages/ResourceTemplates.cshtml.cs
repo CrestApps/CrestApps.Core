@@ -39,6 +39,8 @@ public sealed partial class ResourceTemplatesModel : PageModel
             return new JsonResult(new { error = "Resource URI is required." });
         }
 
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -65,7 +67,7 @@ public sealed partial class ResourceTemplatesModel : PageModel
         }
         catch (Exception)
         {
-            return new JsonResult(new { error = "An error occurred while reading the resource template." });
+            return new JsonResult(new { error = $"An error occurred while reading the resource template from '{selectedServer.DisplayName}'." });
         }
     }
 
@@ -98,6 +100,8 @@ public sealed partial class ResourceTemplatesModel : PageModel
 
     private async Task LoadTemplatesAsync(CancellationToken cancellationToken)
     {
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -105,7 +109,7 @@ public sealed partial class ResourceTemplatesModel : PageModel
         }
         catch (Exception)
         {
-            ErrorMessage ??= "An error occurred while loading resource templates.";
+            ErrorMessage ??= $"An error occurred while loading resource templates from '{selectedServer.DisplayName}'.";
             Templates = [];
         }
     }

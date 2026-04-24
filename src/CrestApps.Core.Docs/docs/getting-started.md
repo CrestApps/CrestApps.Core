@@ -57,7 +57,7 @@ Use the MVC sample when you want to see the full framework in one place: AI prov
 
 ### Aspire host
 
-The Aspire host boots the MVC sample and related sample clients together as a composed local environment.
+The Aspire host boots the MVC and Blazor sample hosts together with the shared A2A and MCP client samples as a composed local environment. The client samples include a server selector so you can switch between the MVC and Blazor endpoints without launching separate client projects.
 
 :::info Prerequisites
 Aspire manages containers for services like Redis. You need a container runtime such as [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running before starting the Aspire host.

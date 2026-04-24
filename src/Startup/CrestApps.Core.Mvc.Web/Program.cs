@@ -34,6 +34,7 @@ using CrestApps.Core.SignalR;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 
@@ -213,7 +214,11 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 {
     branch.Use(async (context, next) =>
     {
-        var settings = context.RequestServices.GetRequiredService<SiteSettingsStore>().Get<McpServerOptions>();
+        var siteSettings = context.RequestServices.GetRequiredService<SiteSettingsStore>();
+        var settings = siteSettings.TryGet<McpServerOptions>(out var storedSettings)
+            ? storedSettings
+            : context.RequestServices.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
             await next();

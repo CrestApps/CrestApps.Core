@@ -40,6 +40,8 @@ public sealed class AgentsModel : PageModel
             return new JsonResult(new { error = "Message is required." });
         }
 
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = _clientFactory.Create(agentUrl);
@@ -100,9 +102,7 @@ public sealed class AgentsModel : PageModel
         {
             return new JsonResult(new
             {
-                error = "The A2A host returned a 404 Not Found response. " +
-                "Please ensure the A2A Host feature is enabled on the default tenant " +
-                "(Configuration > Features > search for 'A2A Host')."
+                error = $"The selected server '{selectedServer.DisplayName}' did not expose an A2A host at '{selectedServer.Endpoint.TrimEnd('/')}/a2a'."
             });
         }
         catch (Exception ex)
@@ -158,20 +158,20 @@ public sealed class AgentsModel : PageModel
 
     private async Task LoadAgentCardsAsync(CancellationToken cancellationToken)
     {
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             AgentCards = await _clientFactory.GetAgentCardsAsync(cancellationToken);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            ErrorMessage = "The A2A host returned a 404 Not Found response. " +
-            "Please ensure the A2A Host feature is enabled on the default tenant " +
-            "(Configuration > Features > search for 'A2A Host').";
+            ErrorMessage = $"The selected server '{selectedServer.DisplayName}' did not expose an A2A host at '{selectedServer.Endpoint.TrimEnd('/')}/.well-known/agent-card.json'.";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load agent cards.");
-            ErrorMessage = $"An error occurred while loading agent cards: {ex.Message}";
+            ErrorMessage = $"An error occurred while loading agent cards from '{selectedServer.DisplayName}': {ex.Message}";
         }
     }
 

@@ -65,6 +65,11 @@ public sealed class SiteSettingsStore
         return Get<T>(typeof(T).Name);
     }
 
+    public bool TryGet<T>(out T value) where T : class, new()
+    {
+        return TryGet(typeof(T).Name, out value);
+    }
+
     public T Get<T>(string key) where T : class, new()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -77,6 +82,25 @@ public sealed class SiteSettingsStore
             }
 
             return new T();
+        }
+    }
+
+    public bool TryGet<T>(string key, out T value) where T : class, new()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        lock (_stateLock)
+        {
+            if (_root.TryGetPropertyValue(key, out var node) && node is not null)
+            {
+                value = node.Deserialize<T>(_jsonOptions) ?? new T();
+
+                return true;
+            }
+
+            value = new T();
+
+            return false;
         }
     }
 

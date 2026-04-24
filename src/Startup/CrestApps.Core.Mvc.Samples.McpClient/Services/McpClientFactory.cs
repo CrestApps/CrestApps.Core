@@ -1,34 +1,44 @@
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using CrestApps.Core.Startup.Shared.Services;
+using System.Net.Http.Headers;
+using Microsoft.Net.Http.Headers;
 
 namespace CrestApps.Core.Mvc.Samples.McpClient.Services;
 
 public sealed class McpClientFactory
 {
-    private readonly IConfiguration _configuration;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly SampleServerSelectionService _serverSelection;
 
     public McpClientFactory(
-        IConfiguration configuration,
-        ILoggerFactory loggerFactory)
+        IHttpContextAccessor httpContextAccessor,
+        ILoggerFactory loggerFactory,
+        SampleServerSelectionService serverSelection)
     {
-        _configuration = configuration;
+        _httpContextAccessor = httpContextAccessor;
         _loggerFactory = loggerFactory;
+        _serverSelection = serverSelection;
     }
 
     public async Task<ModelContextProtocol.Client.McpClient> CreateAsync(CancellationToken cancellationToken)
     {
-        var endpoint = _configuration["Mcp:Endpoint"];
-
-        if (string.IsNullOrWhiteSpace(endpoint))
-        {
-            throw new InvalidOperationException("Mcp:Endpoint is not configured.");
-        }
+        var server = GetSelectedServer();
+        var endpoint = server.Endpoint;
 
         var transportOptions = new HttpClientTransportOptions
         {
             Endpoint = new Uri(endpoint),
         };
+
+        if (!string.IsNullOrWhiteSpace(server.ApiKey))
+        {
+            transportOptions.AdditionalHeaders = new Dictionary<string, string>
+            {
+                [HeaderNames.Authorization] = new AuthenticationHeaderValue("Bearer", server.ApiKey).ToString(),
+            };
+        }
 
         var transport = new HttpClientTransport(transportOptions, _loggerFactory);
 
@@ -49,7 +59,19 @@ public sealed class McpClientFactory
         {
             throw new InvalidOperationException(
                 $"The MCP server at '{endpoint}' returned a 404 Not Found response. " +
-                "Please ensure the MCP Server feature is enabled on the CrestApps.Core.Mvc.Web application.", ex);
+                $"Please ensure the selected server '{server.DisplayName}' exposes an MCP endpoint.", ex);
         }
+    }
+
+    public ConfiguredServerEndpoint GetSelectedServer()
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+
+        if (httpContext == null)
+        {
+            throw new InvalidOperationException("The current HTTP context is not available.");
+        }
+
+        return _serverSelection.GetCurrent(httpContext);
     }
 }
