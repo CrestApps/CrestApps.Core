@@ -15,7 +15,7 @@ public sealed class DataSourceChatInteractionSettingsHandlerTests
     {
         var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
         dataSourceCatalog
-            .Setup(catalog => catalog.FindByIdAsync("datasource-1"))
+            .Setup(catalog => catalog.FindByIdAsync("datasource-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });
 
         var serviceProvider = new ServiceCollection()
@@ -29,7 +29,7 @@ public sealed class DataSourceChatInteractionSettingsHandlerTests
         using var document = JsonDocument.Parse("""{"dataSourceId":"datasource-1"}""");
         var interaction = new ChatInteraction();
 
-        await handler.UpdatingAsync(interaction, document.RootElement);
+        await handler.UpdatingAsync(interaction, document.RootElement, TestContext.Current.CancellationToken);
 
         Assert.True(interaction.TryGet<DataSourceMetadata>(out var dataSourceMetadata));
         Assert.Equal("datasource-1", dataSourceMetadata.DataSourceId);
@@ -54,7 +54,7 @@ public sealed class DataSourceChatInteractionSettingsHandlerTests
         interaction.Put(new DataSourceMetadata { DataSourceId = "datasource-1" });
         interaction.Put(new AIDataSourceRagMetadata { IsInScope = true, Strictness = 3, TopNDocuments = 5, Filter = "category eq 'docs'" });
 
-        await handler.UpdatingAsync(interaction, document.RootElement);
+        await handler.UpdatingAsync(interaction, document.RootElement, TestContext.Current.CancellationToken);
 
         Assert.True(interaction.TryGet<DataSourceMetadata>(out var dataSourceMetadata));
         Assert.Null(dataSourceMetadata.DataSourceId);

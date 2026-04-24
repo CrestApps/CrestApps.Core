@@ -48,7 +48,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
-        var session = await manager.NewAsync(profile, new NewAIChatSessionContext());
+        var session = await manager.NewAsync(profile, new NewAIChatSessionContext(), TestContext.Current.CancellationToken);
 
         Assert.Equal("user-1", session.UserId);
         Assert.Equal("handoff", session.ResponseHandlerName);
@@ -58,7 +58,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             prompt.Title == "Welcome" &&
             prompt.Content == "Hello there" &&
             !prompt.IsGeneratedPrompt &&
-            prompt.CreatedUtc != default)),
+            prompt.CreatedUtc != default), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -87,7 +87,7 @@ public sealed class YesSqlAIChatSessionManagerTests
         {
             ItemId = "profile-1",
             Type = AIProfileType.Utility,
-        }, new NewAIChatSessionContext());
+        }, new NewAIChatSessionContext(), TestContext.Current.CancellationToken);
 
         Assert.Equal("friendly-name", session.UserId);
         Assert.Null(session.ResponseHandlerName);
@@ -121,7 +121,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
-        var session = await manager.NewAsync(profile, new NewAIChatSessionContext());
+        var session = await manager.NewAsync(profile, new NewAIChatSessionContext(), TestContext.Current.CancellationToken);
 
         Assert.Equal("profile-1", session.ProfileId);
         Assert.Null(session.ResponseHandlerName);
@@ -154,7 +154,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
-        var session = await manager.NewAsync(profile, new NewAIChatSessionContext());
+        var session = await manager.NewAsync(profile, new NewAIChatSessionContext(), TestContext.Current.CancellationToken);
 
         Assert.Equal("handoff", session.ResponseHandlerName);
         promptStore.VerifyNoOtherCalls();
@@ -184,7 +184,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             SessionId = "session-1",
         };
 
-        await sessionManager.SaveAsync(chatSession);
+        await sessionManager.SaveAsync(chatSession, TestContext.Current.CancellationToken);
 
         Assert.Equal(now, chatSession.LastActivityUtc);
         sessionStore.Verify(session => session.SaveAsync(chatSession, false, "AI"), Times.Once);
@@ -201,7 +201,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
-        await Assert.ThrowsAsync<ArgumentNullException>(() => sessionManager.SaveAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => sessionManager.SaveAsync(null!, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => sessionManager.FindByIdAsync(string.Empty));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => sessionManager.FindByIdAsync(string.Empty, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -227,6 +227,6 @@ public sealed class YesSqlAIChatSessionManagerTests
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => sessionManager.DeleteAsync(string.Empty));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => sessionManager.DeleteAsync(string.Empty, TestContext.Current.CancellationToken));
     }
 }

@@ -33,7 +33,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
             ],
             TestContext.Current.CancellationToken);
 
-        indexProfileStore.Verify(store => store.FindByNameAsync(It.IsAny<string>()), Times.Never);
+        indexProfileStore.Verify(store => store.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         indexManager.VerifyNoOtherCalls();
         documentManager.VerifyNoOtherCalls();
     }
@@ -43,7 +43,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
     {
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore
-            .Setup(store => store.FindByNameAsync("chat-documents"))
+            .Setup(store => store.FindByNameAsync("chat-documents", It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateIndexProfile());
 
         var indexManager = new Mock<ISearchIndexManager>();
@@ -113,7 +113,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
     {
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore
-            .Setup(store => store.FindByNameAsync("chat-documents"))
+            .Setup(store => store.FindByNameAsync("chat-documents", It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateIndexProfile(type: "ChatHistory"));
 
         var indexManager = new Mock<ISearchIndexManager>(MockBehavior.Strict);
@@ -135,7 +135,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
     {
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore
-            .Setup(store => store.FindByNameAsync("chat-documents"))
+            .Setup(store => store.FindByNameAsync("chat-documents", It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateIndexProfile());
 
         var indexManager = new Mock<ISearchIndexManager>();
@@ -162,7 +162,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
     {
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore
-            .Setup(store => store.FindByNameAsync("chat-documents"))
+            .Setup(store => store.FindByNameAsync("chat-documents", It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateIndexProfile());
 
         IEnumerable<string> deletedIds = [];
@@ -186,7 +186,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
     {
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore
-            .Setup(store => store.FindByNameAsync("chat-documents"))
+            .Setup(store => store.FindByNameAsync("chat-documents", It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateIndexProfile());
 
         IEnumerable<string> deletedIds = [];
@@ -213,7 +213,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
 
         await service.DeleteChunksAsync(["", " "], TestContext.Current.CancellationToken);
 
-        indexProfileStore.Verify(store => store.FindByNameAsync(It.IsAny<string>()), Times.Never);
+        indexProfileStore.Verify(store => store.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static SampleAIDocumentIndexingService CreateService(
