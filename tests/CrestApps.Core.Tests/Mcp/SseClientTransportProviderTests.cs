@@ -334,9 +334,10 @@ public sealed class SseClientTransportProviderTests
     {
         var dataProtectionProvider = new PassthroughDataProtectionProvider();
         tokenService ??= Mock.Of<IOAuth2TokenService>();
-        var logger = NullLogger<SseClientTransportProvider>.Instance;
+        var logger = NullLogger<DefaultConnectionAuthHeaderBuilder>.Instance;
+        var authHeaderBuilder = new DefaultConnectionAuthHeaderBuilder(dataProtectionProvider, tokenService, logger);
 
-        return new SseClientTransportProvider(dataProtectionProvider, tokenService, logger);
+        return new SseClientTransportProvider(authHeaderBuilder);
     }
 
     private static async Task<Dictionary<string, string>> GetHeadersAsync(SseClientTransportProvider provider, McpConnection connection)

@@ -161,6 +161,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
         services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
+        services.TryAddScoped<IConnectionAuthHeaderBuilder, DefaultConnectionAuthHeaderBuilder>();
 
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(EmbeddedResourceAIProfileTemplateProvider)))
         {

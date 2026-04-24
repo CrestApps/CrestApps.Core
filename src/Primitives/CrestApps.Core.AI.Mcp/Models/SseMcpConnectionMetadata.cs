@@ -1,6 +1,8 @@
+using CrestApps.Core.AI.Models;
+
 namespace CrestApps.Core.AI.Mcp.Models;
 
-public sealed class SseMcpConnectionMetadata
+public sealed class SseMcpConnectionMetadata : IConnectionAuthMetadata
 {
     public Uri Endpoint { get; set; }
 
@@ -39,4 +41,6 @@ public sealed class SseMcpConnectionMetadata
 
     // Custom headers (advanced / legacy).
     public Dictionary<string, string> AdditionalHeaders { get; set; }
+
+    ClientAuthenticationType IConnectionAuthMetadata.AuthenticationType => (ClientAuthenticationType)(int)AuthenticationType;
 }
