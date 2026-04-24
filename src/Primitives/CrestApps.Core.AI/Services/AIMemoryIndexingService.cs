@@ -147,7 +147,7 @@ public sealed class AIMemoryIndexingService
             return;
         }
 
-        var memories = await _memoryStore.GetAllAsync();
+        var memories = await _memoryStore.GetAllAsync(cancellationToken);
 
         foreach (var memory in memories)
         {
@@ -164,7 +164,7 @@ public sealed class AIMemoryIndexingService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var indexProfile = await _indexProfileStore.FindByNameAsync(_memoryOptions.IndexProfileName);
+        var indexProfile = await _indexProfileStore.FindByNameAsync(_memoryOptions.IndexProfileName, cancellationToken);
 
         if (indexProfile is null)
         {

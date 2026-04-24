@@ -76,7 +76,7 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
         var afterScheme = uri[(schemeEnd + 3)..];
         var slashIndex = afterScheme.IndexOf('/');
         var itemId = slashIndex >= 0 ? afterScheme[..slashIndex] : afterScheme;
-        var entry = (await _catalog.GetAllAsync()).FirstOrDefault(resource => string.Equals(resource.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
+        var entry = (await _catalog.GetAllAsync(cancellationToken)).FirstOrDefault(resource => string.Equals(resource.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
         if (entry?.Resource?.Uri is null)
         {
             throw new McpException($"Resource '{uri}' not found.");

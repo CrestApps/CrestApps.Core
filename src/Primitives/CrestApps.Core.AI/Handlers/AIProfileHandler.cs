@@ -16,10 +16,10 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
         S = stringLocalizer;
     }
 
-    public override Task InitializingAsync(InitializingContext<AIProfile> context)
+    public override Task InitializingAsync(InitializingContext<AIProfile> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 
-    public override Task UpdatingAsync(UpdatingContext<AIProfile> context)
+    public override Task UpdatingAsync(UpdatingContext<AIProfile> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 
     private static Task PopulateAsync(AIProfile profile, JsonNode data)

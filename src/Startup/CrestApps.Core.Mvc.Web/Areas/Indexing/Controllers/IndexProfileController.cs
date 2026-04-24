@@ -151,8 +151,8 @@ public sealed class IndexProfileController : Controller
         {
             _logger.LogWarning(
                 "Skipping remote delete for index profile '{IndexProfileId}' because provider '{ProviderName}' is not registered.",
-                profile.ItemId.SanitizeLogValue(),
-                profile.ProviderName.SanitizeLogValue());
+                profile.ItemId.SanitizeForLog(),
+                profile.ProviderName.SanitizeForLog());
             await _indexProfileManager.DeleteAsync(profile);
 
             return RedirectToAction(nameof(Index));
@@ -170,8 +170,8 @@ public sealed class IndexProfileController : Controller
             _logger.LogWarning(
                 ex,
                 "Skipping remote delete for index profile '{IndexProfileId}' because the resolved remote index name '{IndexName}' is invalid.",
-                profile.ItemId.SanitizeLogValue(),
-                profile.IndexFullName.SanitizeLogValue());
+                profile.ItemId.SanitizeForLog(),
+                profile.IndexFullName.SanitizeForLog());
             remoteIndexExists = false;
         }
 
@@ -186,8 +186,8 @@ public sealed class IndexProfileController : Controller
                 _logger.LogError(
                     ex,
                     "Failed to delete remote index '{IndexName}' for provider '{ProviderName}'. The local index profile was not removed.",
-                    profile.IndexFullName.SanitizeLogValue(),
-                    profile.ProviderName.SanitizeLogValue());
+                    profile.IndexFullName.SanitizeForLog(),
+                    profile.ProviderName.SanitizeForLog());
                 TempData["ErrorMessage"] = $"Unable to delete the remote index '{profile.IndexFullName}'. The index profile was not removed.";
 
                 return RedirectToAction(nameof(Index));

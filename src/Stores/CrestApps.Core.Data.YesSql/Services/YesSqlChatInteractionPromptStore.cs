@@ -52,36 +52,36 @@ public sealed class YesSqlChatInteractionPromptStore : IChatInteractionPromptSto
         return count;
     }
 
-    public async ValueTask<ChatInteractionPrompt> FindByIdAsync(string id)
+    public async ValueTask<ChatInteractionPrompt> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         return await _session
             .Query<ChatInteractionPrompt, ChatInteractionPromptIndex>(x => x.ItemId == id, collection: _collection)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<IReadOnlyCollection<ChatInteractionPrompt>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<ChatInteractionPrompt>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
         var items = await _session
             .Query<ChatInteractionPrompt, ChatInteractionPromptIndex>(x => x.ItemId.IsIn(ids), collection: _collection)
-            .ListAsync();
+            .ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<IReadOnlyCollection<ChatInteractionPrompt>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<ChatInteractionPrompt>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var items = await _session
             .Query<ChatInteractionPrompt, ChatInteractionPromptIndex>(collection: _collection)
-            .ListAsync();
+            .ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<PageResult<ChatInteractionPrompt>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<ChatInteractionPrompt>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = _session.Query<ChatInteractionPrompt, ChatInteractionPromptIndex>(collection: _collection);
@@ -89,12 +89,12 @@ public sealed class YesSqlChatInteractionPromptStore : IChatInteractionPromptSto
 
         return new PageResult<ChatInteractionPrompt>
         {
-            Count = await query.CountAsync(),
-            Entries = (await query.Skip(skip).Take(pageSize).ListAsync()).ToArray(),
+            Count = await query.CountAsync(cancellationToken),
+            Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray(),
         };
     }
 
-    public async ValueTask CreateAsync(ChatInteractionPrompt record)
+    public async ValueTask CreateAsync(ChatInteractionPrompt record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -106,14 +106,14 @@ public sealed class YesSqlChatInteractionPromptStore : IChatInteractionPromptSto
         await _session.SaveAsync(record, _collection);
     }
 
-    public async ValueTask UpdateAsync(ChatInteractionPrompt record)
+    public async ValueTask UpdateAsync(ChatInteractionPrompt record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         await _session.SaveAsync(record, _collection);
     }
 
-    public ValueTask<bool> DeleteAsync(ChatInteractionPrompt entry)
+    public ValueTask<bool> DeleteAsync(ChatInteractionPrompt entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 

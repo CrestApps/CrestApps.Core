@@ -54,30 +54,30 @@ public sealed class YesSqlAIChatSessionPromptStore : IAIChatSessionPromptStore
         return await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.SessionId == sessionId, collection: _collection).CountAsync();
     }
 
-    public async ValueTask<AIChatSessionPrompt> FindByIdAsync(string id)
+    public async ValueTask<AIChatSessionPrompt> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.ItemId == id, collection: _collection).FirstOrDefaultAsync();
+        return await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.ItemId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<IReadOnlyCollection<AIChatSessionPrompt>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<AIChatSessionPrompt>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
-        var items = await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.ItemId.IsIn(ids), collection: _collection).ListAsync();
+        var items = await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.ItemId.IsIn(ids), collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<IReadOnlyCollection<AIChatSessionPrompt>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<AIChatSessionPrompt>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var items = await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(collection: _collection).ListAsync();
+        var items = await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<PageResult<AIChatSessionPrompt>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<AIChatSessionPrompt>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(collection: _collection);
@@ -85,12 +85,12 @@ public sealed class YesSqlAIChatSessionPromptStore : IAIChatSessionPromptStore
 
         return new PageResult<AIChatSessionPrompt>
         {
-            Count = await query.CountAsync(),
-            Entries = (await query.Skip(skip).Take(pageSize).ListAsync()).ToArray(),
+            Count = await query.CountAsync(cancellationToken),
+            Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray(),
         };
     }
 
-    public async ValueTask CreateAsync(AIChatSessionPrompt record)
+    public async ValueTask CreateAsync(AIChatSessionPrompt record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -102,14 +102,14 @@ public sealed class YesSqlAIChatSessionPromptStore : IAIChatSessionPromptStore
         await _session.SaveAsync(record, _collection);
     }
 
-    public async ValueTask UpdateAsync(AIChatSessionPrompt record)
+    public async ValueTask UpdateAsync(AIChatSessionPrompt record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         await _session.SaveAsync(record, _collection);
     }
 
-    public ValueTask<bool> DeleteAsync(AIChatSessionPrompt entry)
+    public ValueTask<bool> DeleteAsync(AIChatSessionPrompt entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 

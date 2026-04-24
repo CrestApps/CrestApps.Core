@@ -7,8 +7,12 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Mcp.Services;
+namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Default implementation of <see cref="IOAuth2TokenService"/> that acquires OAuth 2.0 tokens
+/// using client credentials, private key JWT, or mTLS client authentication.
+/// </summary>
 public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 {
     private const int ExpirationBufferSeconds = 60;
@@ -54,6 +58,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         }
 
         using var httpClient = _httpClientFactory.CreateClient(nameof(DefaultOAuth2TokenService));
+
         return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
 
@@ -83,6 +88,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         }
 
         using var httpClient = _httpClientFactory.CreateClient(nameof(DefaultOAuth2TokenService));
+
         return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
 
@@ -114,6 +120,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
             var handler = new HttpClientHandler();
             handler.ClientCertificates.Add(certificate);
             using var httpClient = new HttpClient(handler);
+
             return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
         }
     }
@@ -140,6 +147,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 
         var expiration = tokenResponse.ExpiresIn > ExpirationBufferSeconds ? TimeSpan.FromSeconds(tokenResponse.ExpiresIn - ExpirationBufferSeconds) : TimeSpan.FromMinutes(5);
         _cache.Set(cacheKey, tokenResponse.AccessToken, expiration);
+
         return tokenResponse.AccessToken;
     }
 
@@ -171,6 +179,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         using var rsa = RSA.Create();
         rsa.ImportFromPem(privateKeyPem);
         var signature = rsa.SignData(dataToSign, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+
         return $"{headerBase64}.{payloadBase64}.{Base64UrlEncode(signature)}";
     }
 
@@ -181,7 +190,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 
     private static string GetCacheKey(string grantType, string tokenEndpoint, string clientId, string scopes)
     {
-        return $"mcp_oauth2_{grantType}_{tokenEndpoint}_{clientId}_{scopes}";
+        return $"oauth2_{grantType}_{tokenEndpoint}_{clientId}_{scopes}";
     }
 
     private sealed class OAuth2TokenResponse

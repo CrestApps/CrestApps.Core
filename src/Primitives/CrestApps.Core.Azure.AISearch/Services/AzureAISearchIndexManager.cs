@@ -3,6 +3,7 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -26,11 +27,6 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         _searchIndexClient = searchIndexClient;
         _options = options.Value;
         _logger = logger;
-    }
-
-    private static string SanitizeLogValue(string value)
-    {
-        return value?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? string.Empty;
     }
 
     public string ComposeIndexFullName(IIndexProfileInfo profile)
@@ -63,14 +59,14 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug(ex, "Azure AI Search index '{IndexName}' was not found.", SanitizeLogValue(indexFullName));
+                _logger.LogDebug(ex, "Azure AI Search index '{IndexName}' was not found.", indexFullName.SanitizeForLog());
             }
 
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking existence of Azure AI Search index '{IndexName}'.", SanitizeLogValue(indexFullName));
+            _logger.LogError(ex, "Error checking existence of Azure AI Search index '{IndexName}'.", indexFullName.SanitizeForLog());
             throw;
         }
     }
@@ -133,7 +129,7 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating Azure AI Search index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error creating Azure AI Search index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
             throw;
         }
     }
@@ -153,7 +149,7 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting Azure AI Search index '{IndexName}'.", SanitizeLogValue(indexFullName));
+            _logger.LogError(ex, "Error deleting Azure AI Search index '{IndexName}'.", indexFullName.SanitizeForLog());
             throw;
         }
     }

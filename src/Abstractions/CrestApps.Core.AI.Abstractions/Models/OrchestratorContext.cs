@@ -41,8 +41,11 @@ public sealed class OrchestrationContext
 
     /// <summary>
     /// Gets or sets the scoped service provider for this orchestration session.
-    /// Allows orchestrators to resolve services without constructor injection.
     /// </summary>
+    /// <remarks>
+    /// Prefer constructor injection over resolving services from this provider.
+    /// This property is provided for extensibility scenarios where constructor injection is not available.
+    /// </remarks>
     public IServiceProvider ServiceProvider { get; set; }
 
     /// <summary>

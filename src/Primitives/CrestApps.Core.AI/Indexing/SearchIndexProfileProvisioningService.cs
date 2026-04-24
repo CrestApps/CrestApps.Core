@@ -36,7 +36,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
 
         profile.IndexFullName = indexManager.ComposeIndexFullName(profile);
 
-        var validationResult = await _indexProfileManager.ValidateAsync(profile);
+        var validationResult = await _indexProfileManager.ValidateAsync(profile, cancellationToken);
         if (!validationResult.Succeeded)
         {
             return validationResult;
@@ -92,7 +92,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
 
         try
         {
-            await _indexProfileManager.CreateAsync(profile);
+            await _indexProfileManager.CreateAsync(profile, cancellationToken);
         }
         catch
         {

@@ -250,18 +250,18 @@ public sealed class IndexProfileTypeRulesTests
 
         public bool DeleteCalled { get; private set; }
 
-        public ValueTask CreateAsync(SearchIndexProfile model)
+        public ValueTask CreateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<bool> DeleteAsync(SearchIndexProfile model)
+        public ValueTask<bool> DeleteAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             DeleteCalled = true;
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask<SearchIndexProfile> FindByIdAsync(string id)
+        public ValueTask<SearchIndexProfile> FindByIdAsync(string id, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(string.Equals(id, _profile.ItemId, StringComparison.Ordinal) ? _profile : null);
         }
@@ -276,7 +276,7 @@ public sealed class IndexProfileTypeRulesTests
             return ValueTask.FromResult<IReadOnlyCollection<SearchIndexField>>(null);
         }
 
-        public ValueTask<IEnumerable<SearchIndexProfile>> GetAllAsync()
+        public ValueTask<IEnumerable<SearchIndexProfile>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IEnumerable<SearchIndexProfile>>([]);
         }
@@ -286,12 +286,12 @@ public sealed class IndexProfileTypeRulesTests
             return Task.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
         }
 
-        public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null)
+        public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new SearchIndexProfile());
         }
 
-        public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+        public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
             where TQuery : QueryContext
         {
             return ValueTask.FromResult(new PageResult<SearchIndexProfile>());
@@ -307,12 +307,12 @@ public sealed class IndexProfileTypeRulesTests
             return Task.CompletedTask;
         }
 
-        public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null)
+        public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null, CancellationToken cancellationToken = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<ValidationResultDetails> ValidateAsync(SearchIndexProfile model)
+        public ValueTask<ValidationResultDetails> ValidateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new ValidationResultDetails());
         }
@@ -320,38 +320,38 @@ public sealed class IndexProfileTypeRulesTests
 
     private sealed class TestDeploymentCatalog : ICatalog<AIDeployment>
     {
-        public ValueTask CreateAsync(AIDeployment entry)
+        public ValueTask CreateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<bool> DeleteAsync(AIDeployment entry)
+        public ValueTask<bool> DeleteAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask<AIDeployment> FindByIdAsync(string id)
+        public ValueTask<AIDeployment> FindByIdAsync(string id, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<AIDeployment>(null);
         }
 
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAllAsync()
+        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
         }
 
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(IEnumerable<string> ids)
+        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
         }
 
-        public ValueTask<PageResult<AIDeployment>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+        public ValueTask<PageResult<AIDeployment>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
             where TQuery : QueryContext
         {
             return ValueTask.FromResult(new PageResult<AIDeployment>());
         }
 
-        public ValueTask UpdateAsync(AIDeployment entry)
+        public ValueTask UpdateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             return ValueTask.CompletedTask;
         }

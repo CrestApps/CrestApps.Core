@@ -118,7 +118,7 @@ public sealed class ReadTabularDataTool : AIFunction
         }
 
         // Query only documents belonging to this resource to prevent cross-session access.
-        var document = await documentStore.FindByIdAsync(documentId);
+        var document = await documentStore.FindByIdAsync(documentId, cancellationToken);
 
         if (document is null ||
             (validReferenceIds is not null ? !validReferenceIds.Contains(document.ReferenceId) : document.ReferenceId != referenceId))

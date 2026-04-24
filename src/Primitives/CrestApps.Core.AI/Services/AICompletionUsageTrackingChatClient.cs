@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
-using CrestApps.Core.Infrastructure;
+using CrestApps.Core.Extensions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -112,7 +112,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
             responseLatencyMs,
             isStreaming);
 
-        await observers.InvokeHandlersAsync((observer, usageRecord) => observer.UsageRecordedAsync(usageRecord, cancellationToken), record, _logger);
+        await observers.InvokeAsync((observer, usageRecord) => observer.UsageRecordedAsync(usageRecord, cancellationToken), record, _logger);
     }
 
     private static AICompletionContext ResolveCompletionContext(ChatOptions options)

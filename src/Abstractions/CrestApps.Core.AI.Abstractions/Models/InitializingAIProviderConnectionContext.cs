@@ -2,9 +2,9 @@ namespace CrestApps.Core.AI.Models;
 
 public class InitializingAIProviderConnectionContext
 {
-    public readonly Dictionary<string, object> Values = [];
+    public Dictionary<string, object> Values { get; } = [];
 
-    public readonly AIProviderConnection Connection;
+    public AIProviderConnection Connection { get; }
 
     public InitializingAIProviderConnectionContext(AIProviderConnection connection)
     {

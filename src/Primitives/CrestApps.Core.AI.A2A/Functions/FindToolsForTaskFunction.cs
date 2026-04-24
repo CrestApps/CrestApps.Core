@@ -82,7 +82,7 @@ internal sealed class FindToolsForTaskFunction : AIFunction
 
             var context = new AICompletionContext
             {
-                A2AConnectionIds = (await connectionStore.GetAllAsync())
+                A2AConnectionIds = (await connectionStore.GetAllAsync(cancellationToken))
                 .Where(connection => !string.IsNullOrWhiteSpace(connection.Endpoint))
                 .Select(connection => connection.ItemId)
                 .ToArray(),

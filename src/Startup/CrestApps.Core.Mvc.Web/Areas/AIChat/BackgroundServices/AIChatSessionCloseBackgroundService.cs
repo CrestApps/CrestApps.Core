@@ -75,7 +75,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
-        var profiles = await profileManager.GetAsync(AIProfileType.Chat);
+        var profiles = await profileManager.GetAsync(AIProfileType.Chat, cancellationToken);
 
         foreach (var profile in profiles)
         {
@@ -171,7 +171,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                 continue;
             }
 
-            var profile = await profileManager.FindByIdAsync(chatSession.ProfileId);
+            var profile = await profileManager.FindByIdAsync(chatSession.ProfileId, cancellationToken);
 
             if (profile == null)
             {

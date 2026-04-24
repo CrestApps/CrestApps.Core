@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Services;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -18,8 +19,8 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddCoreAIMcpServices();
 
         Assert.Contains(services, descriptor =>
-            descriptor.ServiceType == typeof(IOAuth2TokenService) &&
-            descriptor.ImplementationType == typeof(DefaultOAuth2TokenService) &&
+            descriptor.ServiceType == typeof(CrestApps.Core.AI.Services.IOAuth2TokenService) &&
+            descriptor.ImplementationType == typeof(CrestApps.Core.AI.Services.DefaultOAuth2TokenService) &&
             descriptor.Lifetime == ServiceLifetime.Scoped);
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(IMcpMetadataPromptGenerator) &&

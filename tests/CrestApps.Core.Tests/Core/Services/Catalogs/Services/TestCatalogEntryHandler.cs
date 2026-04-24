@@ -27,25 +27,25 @@ internal sealed class TestCatalogEntryHandler<T> : ICatalogEntryHandler<T>
 
     public Func<LoadedContext<T>, Task> OnLoadedAsync { get; set; } = _ => Task.CompletedTask;
 
-    public Task DeletingAsync(DeletingContext<T> ctx) => OnDeletingAsync(ctx);
+    public Task DeletingAsync(DeletingContext<T> ctx, CancellationToken cancellationToken = default) => OnDeletingAsync(ctx);
 
-    public Task DeletedAsync(DeletedContext<T> ctx) => OnDeletedAsync(ctx);
+    public Task DeletedAsync(DeletedContext<T> ctx, CancellationToken cancellationToken = default) => OnDeletedAsync(ctx);
 
-    public Task CreatingAsync(CreatingContext<T> ctx) => OnCreatingAsync(ctx);
+    public Task CreatingAsync(CreatingContext<T> ctx, CancellationToken cancellationToken = default) => OnCreatingAsync(ctx);
 
-    public Task CreatedAsync(CreatedContext<T> ctx) => OnCreatedAsync(ctx);
+    public Task CreatedAsync(CreatedContext<T> ctx, CancellationToken cancellationToken = default) => OnCreatedAsync(ctx);
 
-    public Task UpdatingAsync(UpdatingContext<T> ctx) => OnUpdatingAsync(ctx);
+    public Task UpdatingAsync(UpdatingContext<T> ctx, CancellationToken cancellationToken = default) => OnUpdatingAsync(ctx);
 
-    public Task UpdatedAsync(UpdatedContext<T> ctx) => OnUpdatedAsync(ctx);
+    public Task UpdatedAsync(UpdatedContext<T> ctx, CancellationToken cancellationToken = default) => OnUpdatedAsync(ctx);
 
-    public Task ValidatingAsync(ValidatingContext<T> ctx) => OnValidatingAsync(ctx);
+    public Task ValidatingAsync(ValidatingContext<T> ctx, CancellationToken cancellationToken = default) => OnValidatingAsync(ctx);
 
-    public Task ValidatedAsync(ValidatedContext<T> ctx) => OnValidatedAsync(ctx);
+    public Task ValidatedAsync(ValidatedContext<T> ctx, CancellationToken cancellationToken = default) => OnValidatedAsync(ctx);
 
-    public Task InitializingAsync(InitializingContext<T> ctx) => OnInitializingAsync(ctx);
+    public Task InitializingAsync(InitializingContext<T> ctx, CancellationToken cancellationToken = default) => OnInitializingAsync(ctx);
 
-    public Task InitializedAsync(InitializedContext<T> ctx) => OnInitializedAsync(ctx);
+    public Task InitializedAsync(InitializedContext<T> ctx, CancellationToken cancellationToken = default) => OnInitializedAsync(ctx);
 
-    public Task LoadedAsync(LoadedContext<T> ctx) => OnLoadedAsync(ctx);
+    public Task LoadedAsync(LoadedContext<T> ctx, CancellationToken cancellationToken = default) => OnLoadedAsync(ctx);
 }

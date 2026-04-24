@@ -12,6 +12,7 @@ public interface ISourceCatalog<T> : ICatalog<T>
     /// Asynchronously retrieves all catalog entries belonging to the specified source.
     /// </summary>
     /// <param name="source">The source or provider name to filter by.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>A read-only collection of entries matching the specified source.</returns>
-    ValueTask<IReadOnlyCollection<T>> GetAsync(string source);
+    ValueTask<IReadOnlyCollection<T>> GetAsync(string source, CancellationToken cancellationToken = default);
 }

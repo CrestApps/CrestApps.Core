@@ -5,10 +5,10 @@ namespace CrestApps.Core.AI.Models;
 
 public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneable<AIDataSource>
 {
-    [Obsolete("Do no use any more.")]
+    [Obsolete("Do not use any more.")]
     public string ProfileSource { get; set; }
 
-    [Obsolete("Do no use any more.")]
+    [Obsolete("Do not use any more.")]
     public string Type { get; set; }
 
     public string DisplayText { get; set; }

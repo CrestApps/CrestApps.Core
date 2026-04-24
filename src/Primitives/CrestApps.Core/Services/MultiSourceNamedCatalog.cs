@@ -23,37 +23,37 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
             .FirstOrDefault();
     }
 
-    public async ValueTask<IReadOnlyCollection<T>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await GetMergedEntriesAsync();
+        return await GetMergedEntriesAsync(cancellationToken);
     }
 
-    public async ValueTask<T> FindByIdAsync(string id)
+    public async ValueTask<T> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
-        var entries = await GetMergedEntriesAsync();
+        var entries = await GetMergedEntriesAsync(cancellationToken);
 
         return entries.FirstOrDefault(entry => string.Equals(GetItemId(entry), id, StringComparison.OrdinalIgnoreCase));
     }
 
-    public async ValueTask<T> FindByNameAsync(string name)
+    public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
-        var entries = await GetMergedEntriesAsync();
+        var entries = await GetMergedEntriesAsync(cancellationToken);
 
         return entries.FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
-    public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         var idSet = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var entries = await GetMergedEntriesAsync();
+        var entries = await GetMergedEntriesAsync(cancellationToken);
 
         return entries.Where(entry => idSet.Contains(GetItemId(entry))).ToArray();
     }
 
-    public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
-        var entries = await GetMergedEntriesAsync();
+        var entries = await GetMergedEntriesAsync(cancellationToken);
         var filtered = ApplyFilters(context, entries).ToList();
         var skip = (page - 1) * pageSize;
 
@@ -64,25 +64,25 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         };
     }
 
-    public ValueTask<bool> DeleteAsync(T entry)
+    public ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource.DeleteAsync(entry);
+        return _writableSource.DeleteAsync(entry, cancellationToken);
     }
 
-    public ValueTask CreateAsync(T entry)
+    public ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource.CreateAsync(entry);
+        return _writableSource.CreateAsync(entry, cancellationToken);
     }
 
-    public ValueTask UpdateAsync(T entry)
+    public ValueTask UpdateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource.UpdateAsync(entry);
+        return _writableSource.UpdateAsync(entry, cancellationToken);
     }
 
     /// <summary>
@@ -121,14 +121,17 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// </summary>
     protected virtual string GetSortKey(T entry) => entry.Name;
 
-    private async ValueTask<IReadOnlyCollection<T>> GetMergedEntriesAsync()
+    /// <summary>
+    /// Collects entries from all sources, deduplicating by name (lower-order sources win).
+    /// </summary>
+    protected async ValueTask<IReadOnlyCollection<T>> GetMergedEntriesAsync(CancellationToken cancellationToken = default)
     {
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var merged = new List<T>();
 
         foreach (var source in _sources)
         {
-            var entries = await source.GetEntriesAsync(merged);
+            var entries = await source.GetEntriesAsync(merged, cancellationToken);
 
             foreach (var entry in entries)
             {
@@ -144,7 +147,10 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         return merged;
     }
 
-    private void EnsureWritableSource()
+    /// <summary>
+    /// Throws an <see cref="InvalidOperationException"/> when no writable source is registered.
+    /// </summary>
+    protected void EnsureWritableSource()
     {
         if (_writableSource is null)
         {

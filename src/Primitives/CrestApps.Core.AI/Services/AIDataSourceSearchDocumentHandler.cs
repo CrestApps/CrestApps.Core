@@ -75,7 +75,7 @@ internal sealed class AIDataSourceSearchDocumentHandler : ISearchDocumentHandler
             return;
         }
 
-        var sourceProfile = await indexProfileManager.FindByIdAsync(profile.IndexProfileId);
+        var sourceProfile = await indexProfileManager.FindByIdAsync(profile.IndexProfileId, cancellationToken);
 
         if (sourceProfile == null ||
             string.IsNullOrWhiteSpace(sourceProfile.Name) ||
@@ -89,7 +89,7 @@ internal sealed class AIDataSourceSearchDocumentHandler : ISearchDocumentHandler
             return;
         }
 
-        var dataSources = await dataSourceCatalog.GetAllAsync();
+        var dataSources = await dataSourceCatalog.GetAllAsync(cancellationToken);
 
         if (!dataSources.Any(dataSource =>
                 string.Equals(dataSource.SourceIndexProfileName, sourceProfile.Name, StringComparison.OrdinalIgnoreCase) &&

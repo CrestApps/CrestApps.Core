@@ -34,21 +34,21 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         _collection = options.Value.AICollectionName;
     }
 
-    public async Task<AIChatSession> FindByIdAsync(string id)
+    public async Task<AIChatSession> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync();
+        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<AIChatSession> FindAsync(string id)
+    public async Task<AIChatSession> FindAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync();
+        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null)
+    public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null, CancellationToken cancellationToken = default)
     {
         var query = _session.Query<AIChatSession, AIChatSessionIndex>(collection: _collection);
 
@@ -58,12 +58,12 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         }
 
         var skip = (page - 1) * pageSize;
-        var total = await query.CountAsync();
+        var total = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderByDescending(x => x.LastActivityUtc)
             .Skip(skip)
             .Take(pageSize)
-            .ListAsync();
+            .ListAsync(cancellationToken);
 
         return new AIChatSessionResult
         {
@@ -82,7 +82,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         };
     }
 
-    public async Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context)
+    public async Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(context);
@@ -117,7 +117,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
                     Title = profile.PromptSubject,
                     Content = profileMetadata.InitialPrompt,
                     CreatedUtc = now,
-                });
+                }, cancellationToken);
             }
 
             var handlerSettings = profile.GetSettings<ResponseHandlerProfileSettings>();
@@ -131,7 +131,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         return session;
     }
 
-    public async Task SaveAsync(AIChatSession chatSession)
+    public async Task SaveAsync(AIChatSession chatSession, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(chatSession);
 
@@ -139,11 +139,11 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         await _session.SaveAsync(chatSession, _collection);
     }
 
-    public async Task<bool> DeleteAsync(string sessionId)
+    public async Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
 
-        var session = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == sessionId, collection: _collection).FirstOrDefaultAsync();
+        var session = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == sessionId, collection: _collection).FirstOrDefaultAsync(cancellationToken);
 
         if (session == null)
         {
@@ -155,11 +155,11 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         return true;
     }
 
-    public async Task<int> DeleteAllAsync(string profileId)
+    public async Task<int> DeleteAllAsync(string profileId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(profileId);
 
-        var sessions = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.ProfileId == profileId, collection: _collection).ListAsync();
+        var sessions = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.ProfileId == profileId, collection: _collection).ListAsync(cancellationToken);
         var count = 0;
 
         foreach (var s in sessions)

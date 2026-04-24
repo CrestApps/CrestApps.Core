@@ -14,6 +14,7 @@ public interface INamedSourceCatalogManager<T> : INamedCatalogManager<T>, ISourc
     /// </summary>
     /// <param name="name">The unique name of the entry.</param>
     /// <param name="source">The source or provider name of the entry.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>The matching entry, or <see langword="null"/> if not found.</returns>
-    ValueTask<T> GetAsync(string name, string source);
+    ValueTask<T> GetAsync(string name, string source, CancellationToken cancellationToken = default);
 }

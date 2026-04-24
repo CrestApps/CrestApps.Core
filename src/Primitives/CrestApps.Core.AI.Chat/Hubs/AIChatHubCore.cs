@@ -816,7 +816,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             }
 
             var profileManager = services.GetRequiredService<IAIProfileManager>();
-            var profile = await profileManager.FindByIdAsync(profileId);
+            var profile = await profileManager.FindByIdAsync(profileId, cancellationToken);
             if (profile is null)
             {
                 await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
@@ -907,7 +907,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             Content = prompt,
             CreatedUtc = utcNow,
         };
-        await promptStore.CreateAsync(userPromptRecord);
+        await promptStore.CreateAsync(userPromptRecord, cancellationToken);
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
         var conversationHistorySource = existingPrompts.ToList();
 
@@ -992,7 +992,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             assistantMessage.Content = builder.ToString();
             assistantMessage.ContentItemIds = contentItemIds.ToList();
             assistantMessage.References = references;
-            await promptStore.CreateAsync(assistantMessage);
+            await promptStore.CreateAsync(assistantMessage, cancellationToken);
         }
 
         var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
@@ -1029,9 +1029,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             Title = profile.PromptSubject,
             CreatedUtc = GetUtcNow(),
         };
-        var completionContext = await completionContextBuilder.BuildAsync(profile);
+        var completionContext = await completionContextBuilder.BuildAsync(profile, cancellationToken: cancellationToken);
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
-        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName)
+        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName, cancellationToken: cancellationToken)
             ?? throw new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile.");
         using var builder = ZString.CreateStringBuilder();
         var contentItemIds = new HashSet<string>();
@@ -1057,7 +1057,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         assistantMessage.Content = builder.ToString();
         assistantMessage.ContentItemIds = contentItemIds.ToList();
         assistantMessage.References = references;
-        await promptStore.CreateAsync(assistantMessage);
+        await promptStore.CreateAsync(assistantMessage, cancellationToken);
         await SaveChatSessionAsync(sessionManager, chatSession);
     }
 
@@ -1070,8 +1070,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var completionService = services.GetRequiredService<IAICompletionService>();
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
         var messageId = GenerateId();
-        var completionContext = await completionContextBuilder.BuildAsync(profile);
-        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName)
+        var completionContext = await completionContextBuilder.BuildAsync(profile, cancellationToken: cancellationToken);
+        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName, cancellationToken: cancellationToken)
             ?? throw new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile.");
         var references = new Dictionary<string, AICompletionReference>();
         await foreach (var chunk in completionService.CompleteStreamingAsync(chatDeployment, [new ChatMessage(ChatRole.User, prompt)], completionContext, cancellationToken))
@@ -1472,7 +1472,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         finally
         {
             sentenceChannel.Writer.TryComplete();
-            sentenceBuffer.Dispose();
+
             if (!string.IsNullOrEmpty(messageId))
             {
                 try

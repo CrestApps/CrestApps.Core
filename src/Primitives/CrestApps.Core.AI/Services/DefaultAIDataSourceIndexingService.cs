@@ -48,7 +48,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 
     public async Task SyncAllAsync(CancellationToken cancellationToken = default)
     {
-        var dataSources = await _dataSourceCatalog.GetAllAsync();
+        var dataSources = await _dataSourceCatalog.GetAllAsync(cancellationToken);
         foreach (var dataSource in dataSources)
         {
             cancellationToken.ThrowIfCancellationRequested();

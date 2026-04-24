@@ -28,12 +28,9 @@ public sealed class DataExtractionChatSessionHandler : AIChatSessionHandlerBase
         _logger = logger;
     }
 
-    public override async Task MessageCompletedAsync(ChatMessageCompletedContext context)
+    public override async Task MessageCompletedAsync(ChatMessageCompletedContext context, CancellationToken cancellationToken = default)
     {
-        var changeSet = await _dataExtractionService.ProcessAsync(
-            context.Profile,
-            context.ChatSession,
-            context.Prompts);
+        var changeSet = await _dataExtractionService.ProcessAsync(context.Profile, context.ChatSession, context.Prompts, cancellationToken);
 
         if (changeSet is null)
         {
@@ -59,7 +56,7 @@ public sealed class DataExtractionChatSessionHandler : AIChatSessionHandlerBase
         {
             foreach (var recorder in _extractedDataRecorders)
             {
-                await recorder.RecordExtractedDataAsync(context.Profile, context.ChatSession);
+                await recorder.RecordExtractedDataAsync(context.Profile, context.ChatSession, cancellationToken);
             }
         }
     }

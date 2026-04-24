@@ -14,21 +14,23 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// Asynchronously retrieves a list of model deployments for the specified client.
     /// </summary>
     /// <param name="clientName">The name of the client. Must not be null or empty.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// A ValueTask that represents the asynchronous operation. The result is an <see cref="IEnumerable{AIDeployment}"/>
     /// containing the model deployments for the specified client.
     /// </returns>
-    ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName);
+    ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously retrieves all deployments supporting the specified type.
     /// </summary>
     /// <param name="type">The deployment type to filter by.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// A ValueTask that represents the asynchronous operation. The result is an <see cref="IEnumerable{AIDeployment}"/>
     /// containing all deployments matching the specified type.
     /// </returns>
-    ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type);
+    ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resolves the default deployment of a given type for a specific client.
@@ -37,7 +39,8 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// </summary>
     /// <param name="clientName">The name of the client to resolve the default deployment for.</param>
     /// <param name="type">The deployment type to filter by.</param>
-    ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type);
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resolves a deployment using the full fallback chain:
@@ -49,7 +52,8 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// <param name="type">The deployment type to resolve.</param>
     /// <param name="deploymentName">The optional deployment name to look up directly.</param>
     /// <param name="clientName">The optional client name to scope the resolution.</param>
-    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null);
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all deployments of a given type, optionally filtered by client.
@@ -57,5 +61,6 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// </summary>
     /// <param name="type">The deployment type to filter by.</param>
     /// <param name="clientName">The optional client name to further filter results.</param>
-    ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null);
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default);
 }

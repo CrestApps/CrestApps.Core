@@ -65,7 +65,7 @@ internal sealed class AgentProxyTool : AIFunction
         try
         {
             var profileManager = arguments.Services.GetRequiredService<IAIProfileManager>();
-            var profiles = await profileManager.GetAsync(AIProfileType.Agent);
+            var profiles = await profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
             var agentProfile = profiles?.FirstOrDefault(p => string.Equals(p.Name, _agentProfileName, StringComparison.OrdinalIgnoreCase));
 
             if (agentProfile is null)
@@ -79,12 +79,12 @@ internal sealed class AgentProxyTool : AIFunction
             var contextBuilder = arguments.Services.GetRequiredService<IAICompletionContextBuilder>();
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
 
-            var context = await contextBuilder.BuildAsync(agentProfile);
+            var context = await contextBuilder.BuildAsync(agentProfile, cancellationToken: cancellationToken);
 
             // Disable tools on the agent's context to prevent infinite recursion.
             context.DisableTools = true;
 
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: context.ChatDeploymentName)
+            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: context.ChatDeploymentName, cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException($"Unable to resolve a chat deployment for agent profile '{_agentProfileName}'.");
 
             var messages = new List<ChatMessage>

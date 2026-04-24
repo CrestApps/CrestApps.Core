@@ -56,30 +56,30 @@ public sealed class YesSqlAIDocumentChunkStore : IAIDocumentChunkStore
         }
     }
 
-    public async ValueTask<AIDocumentChunk> FindByIdAsync(string id)
+    public async ValueTask<AIDocumentChunk> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIDocumentChunk, AIDocumentChunkIndex>(x => x.ItemId == id, collection: _collection).FirstOrDefaultAsync();
+        return await _session.Query<AIDocumentChunk, AIDocumentChunkIndex>(x => x.ItemId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<IReadOnlyCollection<AIDocumentChunk>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<AIDocumentChunk>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
-        var items = await _session.Query<AIDocumentChunk, AIDocumentChunkIndex>(x => x.ItemId.IsIn(ids), collection: _collection).ListAsync();
+        var items = await _session.Query<AIDocumentChunk, AIDocumentChunkIndex>(x => x.ItemId.IsIn(ids), collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<IReadOnlyCollection<AIDocumentChunk>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<AIDocumentChunk>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var items = await _session.Query<AIDocumentChunk, AIDocumentChunkIndex>(collection: _collection).ListAsync();
+        var items = await _session.Query<AIDocumentChunk, AIDocumentChunkIndex>(collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<PageResult<AIDocumentChunk>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<AIDocumentChunk>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = _session.Query<AIDocumentChunk, AIDocumentChunkIndex>(collection: _collection);
@@ -87,12 +87,12 @@ public sealed class YesSqlAIDocumentChunkStore : IAIDocumentChunkStore
 
         return new PageResult<AIDocumentChunk>
         {
-            Count = await query.CountAsync(),
-            Entries = (await query.Skip(skip).Take(pageSize).ListAsync()).ToArray(),
+            Count = await query.CountAsync(cancellationToken),
+            Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray(),
         };
     }
 
-    public async ValueTask CreateAsync(AIDocumentChunk record)
+    public async ValueTask CreateAsync(AIDocumentChunk record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -104,14 +104,14 @@ public sealed class YesSqlAIDocumentChunkStore : IAIDocumentChunkStore
         await _session.SaveAsync(record, _collection);
     }
 
-    public async ValueTask UpdateAsync(AIDocumentChunk record)
+    public async ValueTask UpdateAsync(AIDocumentChunk record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         await _session.SaveAsync(record, _collection);
     }
 
-    public ValueTask<bool> DeleteAsync(AIDocumentChunk entry)
+    public ValueTask<bool> DeleteAsync(AIDocumentChunk entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 

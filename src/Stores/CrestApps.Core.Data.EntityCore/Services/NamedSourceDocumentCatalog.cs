@@ -12,23 +12,23 @@ public class NamedSourceDocumentCatalog<T> : SourceDocumentCatalog<T>, INamedSou
     {
     }
 
-    public async ValueTask<T> FindByNameAsync(string name)
+    public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         var record = await GetReadQuery()
-            .FirstOrDefaultAsync(x => x.Name == name);
+            .FirstOrDefaultAsync(x => x.Name == name, cancellationToken);
 
         return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
-    public async ValueTask<T> GetAsync(string name, string source)
+    public async ValueTask<T> GetAsync(string name, string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(source);
 
         var record = await GetReadQuery()
-            .FirstOrDefaultAsync(x => x.Name == name && x.Source == source);
+            .FirstOrDefaultAsync(x => x.Name == name && x.Source == source, cancellationToken);
 
         return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }

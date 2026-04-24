@@ -7,7 +7,7 @@ namespace CrestApps.Core;
 public interface INameAwareModel
 {
     /// <summary>
-    /// Gets or sets the unique technical name for this model.
+    /// Gets the unique technical name for this model.
     /// </summary>
-    string Name { get; set; }
+    string Name { get; }
 }

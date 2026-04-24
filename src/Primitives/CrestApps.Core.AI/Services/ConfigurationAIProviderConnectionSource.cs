@@ -34,7 +34,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
 
     public int Order => 100;
 
-    public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries)
+    public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries, CancellationToken cancellationToken = default)
     {
         var connections = new Dictionary<string, AIProviderConnection>(StringComparer.OrdinalIgnoreCase);
         var names = knownEntries

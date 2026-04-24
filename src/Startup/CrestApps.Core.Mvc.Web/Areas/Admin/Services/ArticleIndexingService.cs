@@ -64,7 +64,7 @@ public sealed class ArticleIndexingService
             await indexManager.CreateAsync(indexProfile, BuildFields(), cancellationToken);
         }
 
-        var articles = await _articleCatalog.GetAllAsync();
+        var articles = await _articleCatalog.GetAllAsync(cancellationToken);
 
         foreach (var article in articles)
         {
@@ -142,8 +142,8 @@ public sealed class ArticleIndexingService
         {
             _logger.LogWarning(
                 "Article indexing reported failure for article '{ArticleId}' into index '{IndexName}'.",
-                article.ItemId.SanitizeLogValue(),
-                indexProfile.IndexFullName.SanitizeLogValue());
+                article.ItemId.SanitizeForLog(),
+                indexProfile.IndexFullName.SanitizeForLog());
         }
     }
 
@@ -159,7 +159,7 @@ public sealed class ArticleIndexingService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Skipping article indexing because provider '{ProviderName}' is not fully configured for search indexing.", providerName.SanitizeLogValue());
+            _logger.LogWarning(ex, "Skipping article indexing because provider '{ProviderName}' is not fully configured for search indexing.", providerName.SanitizeForLog());
             indexManager = null;
             documentManager = null;
 
@@ -168,7 +168,7 @@ public sealed class ArticleIndexingService
 
         if (indexManager == null || documentManager == null)
         {
-            _logger.LogWarning("Skipping article indexing because provider '{ProviderName}' is not configured for search indexing.", providerName.SanitizeLogValue());
+            _logger.LogWarning("Skipping article indexing because provider '{ProviderName}' is not configured for search indexing.", providerName.SanitizeForLog());
 
             return false;
         }

@@ -5,12 +5,12 @@ namespace CrestApps.Core.AI.Handlers;
 
 public abstract class AICompletionHandlerBase : IAICompletionHandler
 {
-    public virtual Task ReceivedMessageAsync(ReceivedMessageContext context)
+    public virtual Task ReceivedMessageAsync(ReceivedMessageContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
 
-    public virtual Task ReceivedUpdateAsync(ReceivedUpdateContext context)
+    public virtual Task ReceivedUpdateAsync(ReceivedUpdateContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

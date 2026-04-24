@@ -42,7 +42,7 @@ public sealed class CopilotAuthController : Controller
     {
         if (!string.IsNullOrEmpty(error))
         {
-            _logger.LogWarning("GitHub OAuth error: {Error}", error.SanitizeLogValue());
+            _logger.LogWarning("GitHub OAuth error: {Error}", error.SanitizeForLog());
             TempData["ErrorMessage"] = "GitHub authentication failed. Please try again.";
 
             return HandleOAuthReturn(state, success: false, username: null);

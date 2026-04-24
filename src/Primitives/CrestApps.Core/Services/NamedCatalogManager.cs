@@ -26,15 +26,15 @@ public class NamedCatalogManager<T> : CatalogManager<T>, INamedCatalogManager<T>
         NamedCatalog = catalog;
     }
 
-    public async ValueTask<T> FindByNameAsync(string name)
+    public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        var entry = await NamedCatalog.FindByNameAsync(name);
+        var entry = await NamedCatalog.FindByNameAsync(name, cancellationToken);
 
         if (entry is not null)
         {
-            await LoadAsync(entry);
+            await LoadAsync(entry, cancellationToken);
         }
 
         return entry;

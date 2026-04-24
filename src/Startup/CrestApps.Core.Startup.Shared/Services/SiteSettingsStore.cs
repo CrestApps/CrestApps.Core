@@ -19,13 +19,14 @@ public sealed class SiteSettingsStore
         ["GeneralSettings"] = "GeneralAISettings",
         ["DefaultOrchestrator"] = "DefaultOrchestratorSettings",
         ["DefaultDeployments"] = "DefaultAIDeploymentSettings",
-        ["Memory"] = "AIMemorySettings",
+        ["Memory"] = "AIMemoryOptions",
         ["InteractionDocuments"] = "InteractionDocumentSettings",
         ["DataSources"] = "AIDataSourceSettings",
         ["ChatInteraction"] = "ChatInteractionSettings",
         ["ChatInteractionMemory"] = "MemoryMetadata",
         ["Copilot"] = "CopilotSettings",
         ["Anthropic"] = "ClaudeSettings",
+        ["AIMemorySettings"] = "AIMemoryOptions",
     };
 
     private static readonly Dictionary<string, Dictionary<string, string>> _nestedKeyMigrations = new(StringComparer.OrdinalIgnoreCase)

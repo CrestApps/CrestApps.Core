@@ -16,20 +16,23 @@ public interface ISourceCatalogManager<T> : ICatalogManager<T>
     /// </summary>
     /// <param name="source">The source or provider name to assign to the new model.</param>
     /// <param name="data">Optional JSON data to seed the new model.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>A newly created and initialized model instance assigned to the specified source.</returns>
-    ValueTask<T> NewAsync(string source, JsonNode data = null);
+    ValueTask<T> NewAsync(string source, JsonNode data = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously retrieves all catalog entries belonging to the specified source.
     /// </summary>
     /// <param name="source">The source or provider name to filter by.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>An enumerable of entries matching the specified source.</returns>
-    ValueTask<IEnumerable<T>> GetAsync(string source);
+    ValueTask<IEnumerable<T>> GetAsync(string source, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously finds all catalog entries that belong to the specified source.
     /// </summary>
     /// <param name="source">The source or provider name to search for.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>An enumerable of entries matching the specified source.</returns>
-    ValueTask<IEnumerable<T>> FindBySourceAsync(string source);
+    ValueTask<IEnumerable<T>> FindBySourceAsync(string source, CancellationToken cancellationToken = default);
 }

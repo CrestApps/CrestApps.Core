@@ -30,6 +30,11 @@ public sealed class PreemptiveRagContext
     public object Resource { get; }
 
     /// <summary>
+    /// Gets the resource as the specified type.
+    /// </summary>
+    public T GetResource<T>() where T : class => Resource as T;
+
+    /// <summary>
     /// Gets the focused search queries extracted by the preemptive search query provider.
     /// </summary>
     public IList<string> Queries { get; }

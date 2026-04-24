@@ -13,7 +13,7 @@ namespace CrestApps.Core.AI.Handlers;
 public abstract class AIChatSessionHandlerBase : CatalogEntryHandlerBase<AIChatSession>, IAIChatSessionHandler
 {
     /// <inheritdoc/>
-    public virtual Task MessageCompletedAsync(ChatMessageCompletedContext context)
+    public virtual Task MessageCompletedAsync(ChatMessageCompletedContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

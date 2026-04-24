@@ -117,7 +117,7 @@ public sealed partial class SaveUserMemoryTool : AIFunction
                 UpdatedUtc = utcNow,
             };
 
-            await manager.CreateAsync(existingMemory);
+            await manager.CreateAsync(existingMemory, cancellationToken);
         }
         else
         {
@@ -125,7 +125,7 @@ public sealed partial class SaveUserMemoryTool : AIFunction
             existingMemory.Description = description;
             existingMemory.Content = content;
             existingMemory.UpdatedUtc = utcNow;
-            await manager.UpdateAsync(existingMemory);
+            await manager.UpdateAsync(existingMemory, cancellationToken: cancellationToken);
         }
 
         return JsonSerializer.Serialize(new

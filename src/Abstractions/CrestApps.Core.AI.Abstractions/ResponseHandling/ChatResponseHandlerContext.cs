@@ -42,6 +42,10 @@ public sealed class ChatResponseHandlerContext
     /// <summary>
     /// Gets the scoped service provider for resolving services.
     /// </summary>
+    /// <remarks>
+    /// Prefer constructor injection over resolving services from this provider.
+    /// This property is provided for extensibility scenarios where constructor injection is not available.
+    /// </remarks>
     public required IServiceProvider Services { get; init; }
 
     /// <summary>

@@ -83,7 +83,7 @@ public sealed class DataSourceSearchTool : AIFunction
             }
 
             var dataSourceStore = arguments.Services.GetRequiredService<ICatalog<AIDataSource>>();
-            var dataSource = await dataSourceStore.FindByIdAsync(dataSourceId);
+            var dataSource = await dataSourceStore.FindByIdAsync(dataSourceId, cancellationToken);
 
             if (dataSource == null)
             {
@@ -99,7 +99,7 @@ public sealed class DataSourceSearchTool : AIFunction
             }
 
             var indexProfileStore = arguments.Services.GetRequiredService<ISearchIndexProfileStore>();
-            var masterIndexProfile = await indexProfileStore.FindByNameAsync(dataSource.AIKnowledgeBaseIndexProfileName);
+            var masterIndexProfile = await indexProfileStore.FindByNameAsync(dataSource.AIKnowledgeBaseIndexProfileName, cancellationToken);
 
             if (masterIndexProfile == null)
             {

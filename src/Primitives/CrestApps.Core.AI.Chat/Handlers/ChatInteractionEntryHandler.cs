@@ -19,7 +19,7 @@ internal sealed class ChatInteractionEntryHandler : CatalogEntryHandlerBase<Chat
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public override Task InitializedAsync(InitializedContext<ChatInteraction> context)
+    public override Task InitializedAsync(InitializedContext<ChatInteraction> context, CancellationToken cancellationToken = default)
     {
         context.Model.CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 

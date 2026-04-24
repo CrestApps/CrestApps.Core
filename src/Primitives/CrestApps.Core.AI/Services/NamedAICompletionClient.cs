@@ -4,7 +4,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Infrastructure;
+using CrestApps.Core.Extensions;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Caching.Distributed;
@@ -214,7 +214,6 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         {
             DeploymentName = deploymentName,
             ClientName = ClientName,
-            ImplementationName = ClientName,
             IsStreaming = isStreaming,
         };
 

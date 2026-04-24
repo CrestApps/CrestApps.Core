@@ -39,7 +39,7 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
             return [];
         }
 
-        var connections = await _store.GetAsync(mcpConnectionIds);
+        var connections = await _store.GetAsync(mcpConnectionIds, cancellationToken);
 
         if (connections.Count == 0)
         {

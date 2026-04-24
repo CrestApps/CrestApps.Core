@@ -34,6 +34,11 @@ public sealed class OrchestrationContextBuildingContext
     public object Resource { get; }
 
     /// <summary>
+    /// Gets the resource as the specified type.
+    /// </summary>
+    public T GetResource<T>() where T : class => Resource as T;
+
+    /// <summary>
     /// Gets the mutable <see cref="OrchestrationContext"/> being built. Handlers may mutate this instance.
     /// </summary>
     public OrchestrationContext Context { get; }

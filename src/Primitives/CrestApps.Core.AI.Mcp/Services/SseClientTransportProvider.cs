@@ -1,5 +1,6 @@
 using System.Text;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
@@ -12,7 +13,10 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
     private readonly IOAuth2TokenService _oauth2TokenService;
     private readonly ILogger _logger;
 
-    public SseClientTransportProvider(IDataProtectionProvider dataProtectionProvider, IOAuth2TokenService oauth2TokenService, ILogger<SseClientTransportProvider> logger)
+    public SseClientTransportProvider(
+        IDataProtectionProvider dataProtectionProvider,
+        IOAuth2TokenService oauth2TokenService,
+        ILogger<SseClientTransportProvider> logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
         _oauth2TokenService = oauth2TokenService;
@@ -45,7 +49,7 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
             case McpClientAuthenticationType.ApiKey:
                 if (!string.IsNullOrEmpty(metadata.ApiKey))
                 {
-                    var apiKey = Unprotect(protector, metadata.ApiKey);
+                    var apiKey = DataProtectionHelper.Unprotect(protector, metadata.ApiKey, _logger, "Failed to unprotect a credential value for MCP SSE connection.");
                     var headerName = string.IsNullOrWhiteSpace(metadata.ApiKeyHeaderName) ? "Authorization" : metadata.ApiKeyHeaderName;
                     headers[headerName] = !string.IsNullOrWhiteSpace(metadata.ApiKeyPrefix) ? $"{metadata.ApiKeyPrefix} {apiKey}" : apiKey;
                 }
@@ -54,7 +58,7 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
             case McpClientAuthenticationType.Basic:
                 if (!string.IsNullOrEmpty(metadata.BasicUsername))
                 {
-                    var password = !string.IsNullOrEmpty(metadata.BasicPassword) ? Unprotect(protector, metadata.BasicPassword) : string.Empty;
+                    var password = !string.IsNullOrEmpty(metadata.BasicPassword) ? DataProtectionHelper.Unprotect(protector, metadata.BasicPassword, _logger, "Failed to unprotect a credential value for MCP SSE connection.") : string.Empty;
                     var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{metadata.BasicUsername}:{password}"));
                     headers["Authorization"] = $"Basic {credentials}";
                 }
@@ -63,7 +67,7 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
             case McpClientAuthenticationType.OAuth2ClientCredentials:
                 if (!string.IsNullOrEmpty(metadata.OAuth2TokenEndpoint) && !string.IsNullOrEmpty(metadata.OAuth2ClientId) && !string.IsNullOrEmpty(metadata.OAuth2ClientSecret))
                 {
-                    var clientSecret = Unprotect(protector, metadata.OAuth2ClientSecret);
+                    var clientSecret = DataProtectionHelper.Unprotect(protector, metadata.OAuth2ClientSecret, _logger, "Failed to unprotect a credential value for MCP SSE connection.");
                     var token = await _oauth2TokenService.AcquireTokenAsync(metadata.OAuth2TokenEndpoint, metadata.OAuth2ClientId, clientSecret, metadata.OAuth2Scopes);
                     headers["Authorization"] = $"Bearer {token}";
                 }
@@ -72,7 +76,7 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
             case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
                 if (!string.IsNullOrEmpty(metadata.OAuth2TokenEndpoint) && !string.IsNullOrEmpty(metadata.OAuth2ClientId) && !string.IsNullOrEmpty(metadata.OAuth2PrivateKey))
                 {
-                    var privateKey = Unprotect(protector, metadata.OAuth2PrivateKey);
+                    var privateKey = DataProtectionHelper.Unprotect(protector, metadata.OAuth2PrivateKey, _logger, "Failed to unprotect a credential value for MCP SSE connection.");
                     var token = await _oauth2TokenService.AcquireTokenWithPrivateKeyJwtAsync(metadata.OAuth2TokenEndpoint, metadata.OAuth2ClientId, privateKey, metadata.OAuth2KeyId, metadata.OAuth2Scopes);
                     headers["Authorization"] = $"Bearer {token}";
                 }
@@ -81,8 +85,8 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
             case McpClientAuthenticationType.OAuth2Mtls:
                 if (!string.IsNullOrEmpty(metadata.OAuth2TokenEndpoint) && !string.IsNullOrEmpty(metadata.OAuth2ClientId) && !string.IsNullOrEmpty(metadata.OAuth2ClientCertificate))
                 {
-                    var certificateBytes = Convert.FromBase64String(Unprotect(protector, metadata.OAuth2ClientCertificate));
-                    var certificatePassword = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificatePassword) ? Unprotect(protector, metadata.OAuth2ClientCertificatePassword) : null;
+                    var certificateBytes = Convert.FromBase64String(DataProtectionHelper.Unprotect(protector, metadata.OAuth2ClientCertificate, _logger, "Failed to unprotect a credential value for MCP SSE connection."));
+                    var certificatePassword = !string.IsNullOrEmpty(metadata.OAuth2ClientCertificatePassword) ? DataProtectionHelper.Unprotect(protector, metadata.OAuth2ClientCertificatePassword, _logger, "Failed to unprotect a credential value for MCP SSE connection.") : null;
                     var token = await _oauth2TokenService.AcquireTokenWithMtlsAsync(metadata.OAuth2TokenEndpoint, metadata.OAuth2ClientId, certificateBytes, certificatePassword, metadata.OAuth2Scopes);
                     headers["Authorization"] = $"Bearer {token}";
                 }
@@ -101,18 +105,5 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
         }
 
         return headers;
-    }
-
-    private string Unprotect(IDataProtector protector, string value)
-    {
-        try
-        {
-            return protector.Unprotect(value);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to unprotect a credential value for MCP SSE connection.");
-            return value;
-        }
     }
 }

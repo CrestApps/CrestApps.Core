@@ -27,7 +27,7 @@ internal sealed class AgentToolRegistryProvider : IToolRegistryProvider
         AICompletionContext context,
         CancellationToken cancellationToken = default)
     {
-        var agents = await _profileManager.GetAsync(AIProfileType.Agent);
+        var agents = await _profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
         var entries = new List<ToolRegistryEntry>();
 
         if (agents is null)

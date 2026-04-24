@@ -10,26 +10,26 @@ namespace CrestApps.Core.AI.Indexing;
 /// </summary>
 public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
 {
-    public ValueTask<SearchIndexProfile> FindByIdAsync(string id)
+    public ValueTask<SearchIndexProfile> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         return ValueTask.FromResult<SearchIndexProfile>(default);
     }
 
-    public ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAllAsync()
+    public ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return ValueTask.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
     }
 
-    public ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAsync(IEnumerable<string> ids)
+    public ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
         return ValueTask.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
     }
 
-    public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -41,28 +41,28 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         });
     }
 
-    public ValueTask<bool> DeleteAsync(SearchIndexProfile entry)
+    public ValueTask<bool> DeleteAsync(SearchIndexProfile entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 
         return ValueTask.FromResult(false);
     }
 
-    public ValueTask CreateAsync(SearchIndexProfile entry)
+    public ValueTask CreateAsync(SearchIndexProfile entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask UpdateAsync(SearchIndexProfile entry)
+    public ValueTask UpdateAsync(SearchIndexProfile entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask<SearchIndexProfile> FindByNameAsync(string name)
+    public ValueTask<SearchIndexProfile> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 

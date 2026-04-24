@@ -13,6 +13,7 @@ public interface INamedCatalog<T> : ICatalog<T>
     /// Asynchronously finds a catalog entry by its unique name.
     /// </summary>
     /// <param name="name">The unique name of the entry to find.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>The matching entry, or <see langword="null"/> if no entry with the specified name exists.</returns>
-    ValueTask<T> FindByNameAsync(string name);
+    ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default);
 }

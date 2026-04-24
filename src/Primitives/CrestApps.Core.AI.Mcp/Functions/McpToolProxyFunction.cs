@@ -47,7 +47,7 @@ internal sealed class McpToolProxyFunction : AIFunction
         }
 
         var store = arguments.Services.GetRequiredService<ISourceCatalog<McpConnection>>();
-        var connection = await store.FindByIdAsync(_connectionId);
+        var connection = await store.FindByIdAsync(_connectionId, cancellationToken);
 
         if (connection is null)
         {

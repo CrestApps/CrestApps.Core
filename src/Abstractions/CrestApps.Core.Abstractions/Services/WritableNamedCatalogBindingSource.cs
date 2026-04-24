@@ -21,15 +21,15 @@ public class WritableNamedCatalogBindingSource<T> : IWritableNamedCatalogSource<
     /// </summary>
     public int Order => 0;
 
-    public ValueTask<IReadOnlyCollection<T>> GetEntriesAsync(IReadOnlyCollection<T> knownEntries)
-        => _inner.GetAllAsync();
+    public ValueTask<IReadOnlyCollection<T>> GetEntriesAsync(IReadOnlyCollection<T> knownEntries, CancellationToken cancellationToken = default)
+        => _inner.GetAllAsync(cancellationToken);
 
-    public ValueTask<bool> DeleteAsync(T entry)
-        => _inner.DeleteAsync(entry);
+    public ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
+        => _inner.DeleteAsync(entry, cancellationToken);
 
-    public ValueTask CreateAsync(T entry)
-        => _inner.CreateAsync(entry);
+    public ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default)
+        => _inner.CreateAsync(entry, cancellationToken);
 
-    public ValueTask UpdateAsync(T entry)
-        => _inner.UpdateAsync(entry);
+    public ValueTask UpdateAsync(T entry, CancellationToken cancellationToken = default)
+        => _inner.UpdateAsync(entry, cancellationToken);
 }

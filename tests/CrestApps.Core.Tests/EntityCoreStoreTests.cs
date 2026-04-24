@@ -10,6 +10,7 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Tests;
@@ -34,18 +35,18 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await catalog.CreateAsync(profile);
+        await catalog.CreateAsync(profile, TestContext.Current.CancellationToken);
         await committer.CommitAsync(cancellationToken);
 
-        var byId = await catalog.FindByIdAsync(profile.ItemId);
-        var byName = await catalog.FindByNameAsync(profile.Name);
-        var byComposite = await catalog.GetAsync(profile.Name, profile.Source);
+        var byId = await catalog.FindByIdAsync(profile.ItemId, TestContext.Current.CancellationToken);
+        var byName = await catalog.FindByNameAsync(profile.Name, TestContext.Current.CancellationToken);
+        var byComposite = await catalog.GetAsync(profile.Name, profile.Source, TestContext.Current.CancellationToken);
         var page = await catalog.PageAsync(1, 10, new QueryContext
         {
             Name = "support",
             Source = "OpenAI",
             Sorted = true,
-        });
+        }, TestContext.Current.CancellationToken);
 
         Assert.NotNull(profile.ItemId);
         Assert.Equal(profile.ItemId, byId?.ItemId);
@@ -83,9 +84,9 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await deploymentStore.CreateAsync(deployment);
+        await deploymentStore.CreateAsync(deployment, cancellationToken);
         await committer.CommitAsync(cancellationToken);
-        Assert.Equal(deployment.ItemId, (await deploymentStore.GetAsync(deployment.Name, deployment.Source))?.ItemId);
+        Assert.Equal(deployment.ItemId, (await deploymentStore.GetAsync(deployment.Name, deployment.Source, cancellationToken))?.ItemId);
 
         var dataSource = new AIDataSource
         {
@@ -93,9 +94,9 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await dataSourceStore.CreateAsync(dataSource);
+        await dataSourceStore.CreateAsync(dataSource, cancellationToken);
         await committer.CommitAsync(cancellationToken);
-        Assert.Single(await dataSourceStore.GetAllAsync());
+        Assert.Single(await dataSourceStore.GetAllAsync(cancellationToken));
 
         var memory = new AIMemoryEntry
         {
@@ -106,7 +107,7 @@ public sealed class EntityCoreStoreTests
             UpdatedUtc = DateTime.UtcNow,
         };
 
-        await memoryStore.CreateAsync(memory);
+        await memoryStore.CreateAsync(memory, cancellationToken);
         await committer.CommitAsync(cancellationToken);
         Assert.Equal(1, await memoryStore.CountByUserAsync("user-1"));
         Assert.Equal(memory.ItemId, (await memoryStore.FindByUserAndNameAsync("user-1", "favorite-language"))?.ItemId);
@@ -120,7 +121,7 @@ public sealed class EntityCoreStoreTests
             UploadedUtc = DateTime.UtcNow,
         };
 
-        await documentStore.CreateAsync(document);
+        await documentStore.CreateAsync(document, cancellationToken);
         await committer.CommitAsync(cancellationToken);
         Assert.Single(await documentStore.GetDocumentsAsync("profile-1", "profile"));
 
@@ -134,7 +135,7 @@ public sealed class EntityCoreStoreTests
             Embedding = [0.1f, 0.2f],
         };
 
-        await chunkStore.CreateAsync(chunk);
+        await chunkStore.CreateAsync(chunk, cancellationToken);
         await committer.CommitAsync(cancellationToken);
         Assert.Single(await chunkStore.GetChunksByAIDocumentIdAsync(document.ItemId));
         Assert.Single(await chunkStore.GetChunksByReferenceAsync("profile-1", "profile"));
@@ -150,7 +151,7 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await sessionPromptStore.CreateAsync(sessionPrompt);
+        await sessionPromptStore.CreateAsync(sessionPrompt, cancellationToken);
         await committer.CommitAsync(cancellationToken);
         Assert.Equal(1, await sessionPromptStore.CountAsync("session-1"));
         Assert.Single(await sessionPromptStore.GetPromptsAsync("session-1"));
@@ -165,7 +166,7 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await interactionPromptStore.CreateAsync(interactionPrompt);
+        await interactionPromptStore.CreateAsync(interactionPrompt, cancellationToken);
         await committer.CommitAsync(cancellationToken);
         Assert.Single(await interactionPromptStore.GetPromptsAsync("interaction-1"));
         Assert.Equal(1, await interactionPromptStore.DeleteAllPromptsAsync("interaction-1"));
@@ -179,9 +180,9 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await indexProfileStore.CreateAsync(indexProfile);
+        await indexProfileStore.CreateAsync(indexProfile, cancellationToken);
         await committer.CommitAsync(cancellationToken);
-        Assert.Equal(indexProfile.ItemId, (await indexProfileStore.FindByNameAsync("docs-index"))?.ItemId);
+        Assert.Equal(indexProfile.ItemId, (await indexProfileStore.FindByNameAsync("docs-index", cancellationToken))?.ItemId);
         Assert.Single(await indexProfileStore.GetByTypeAsync("AIDocuments"));
 
         var profile = new AIProfile
@@ -192,25 +193,25 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await profileCatalog.CreateAsync(profile);
+        await profileCatalog.CreateAsync(profile, cancellationToken);
         await committer.CommitAsync(cancellationToken);
 
-        var session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
+        var session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext(), cancellationToken);
         session.Title = "Welcome";
 
-        await sessionManager.SaveAsync(session);
+        await sessionManager.SaveAsync(session, cancellationToken);
         await committer.CommitAsync(cancellationToken);
 
         var pagedSessions = await sessionManager.PageAsync(1, 10, new AIChatSessionQueryContext
         {
             ProfileId = profile.ItemId,
-        });
+        }, cancellationToken);
 
-        Assert.Equal(session.SessionId, (await sessionManager.FindByIdAsync(session.SessionId))?.SessionId);
+        Assert.Equal(session.SessionId, (await sessionManager.FindByIdAsync(session.SessionId, cancellationToken))?.SessionId);
         Assert.Single(pagedSessions.Sessions);
-        Assert.Equal(1, await sessionManager.DeleteAllAsync(profile.ItemId));
+        Assert.Equal(1, await sessionManager.DeleteAllAsync(profile.ItemId, cancellationToken));
         await committer.CommitAsync(cancellationToken);
-        Assert.Null(await sessionManager.FindAsync(session.SessionId));
+        Assert.Null(await sessionManager.FindAsync(session.SessionId, cancellationToken));
     }
 
     [Fact]
@@ -233,13 +234,13 @@ public sealed class EntityCoreStoreTests
             CreatedUtc = DateTime.UtcNow,
         };
 
-        await catalog.CreateAsync(profile);
+        await catalog.CreateAsync(profile, cancellationToken);
 
         Assert.True(dbContext.ChangeTracker.HasChanges());
 
         await committer.CommitAsync(cancellationToken);
 
-        Assert.NotNull(await catalog.FindByNameAsync(profile.Name));
+        Assert.NotNull(await catalog.FindByNameAsync(profile.Name, cancellationToken));
     }
 
     private sealed class EntityCoreTestHarness : IAsyncDisposable
@@ -262,6 +263,7 @@ public sealed class EntityCoreStoreTests
             services.AddHttpContextAccessor();
             services.AddLogging();
             services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddCoreAIServices();
             services.AddCoreEntityCoreSqliteDataStore($"Data Source={databasePath}");
             services.AddEntityCoreStores();

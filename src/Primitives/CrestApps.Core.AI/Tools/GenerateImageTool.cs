@@ -78,7 +78,7 @@ public sealed class GenerateImageTool : AIFunction
             var clientName = executionContext.ClientName;
 
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Image, clientName);
+            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Image, clientName, cancellationToken: cancellationToken);
 
             if (deployment == null)
             {

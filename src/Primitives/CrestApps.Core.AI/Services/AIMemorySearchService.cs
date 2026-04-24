@@ -66,7 +66,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
             return [];
         }
 
-        var indexProfile = await _indexProfileStore.FindByNameAsync(_memoryOptions.IndexProfileName);
+        var indexProfile = await _indexProfileStore.FindByNameAsync(_memoryOptions.IndexProfileName, cancellationToken);
 
         if (indexProfile is null || !string.Equals(indexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase))
         {

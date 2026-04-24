@@ -22,12 +22,12 @@ public sealed class YesSqlSearchIndexProfileStore : ISearchIndexProfileStore
         _collection = options.Value.DefaultCollectionName;
     }
 
-    public async ValueTask<SearchIndexProfile> FindByNameAsync(string name)
+    public async ValueTask<SearchIndexProfile> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(name);
 
         return await _session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.Name == name, collection: _collection)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type)
@@ -40,32 +40,32 @@ public sealed class YesSqlSearchIndexProfileStore : ISearchIndexProfileStore
         return items.ToArray();
     }
 
-    public async ValueTask<SearchIndexProfile> FindByIdAsync(string id)
+    public async ValueTask<SearchIndexProfile> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         return await _session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.ItemId == id, collection: _collection)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
         var items = await _session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.ItemId.IsIn(ids), collection: _collection)
-            .ListAsync();
+            .ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var items = await _session.Query<SearchIndexProfile, SearchIndexProfileIndex>(collection: _collection).ListAsync();
+        var items = await _session.Query<SearchIndexProfile, SearchIndexProfileIndex>(collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = _session.Query<SearchIndexProfile, SearchIndexProfileIndex>(collection: _collection);
@@ -73,12 +73,12 @@ public sealed class YesSqlSearchIndexProfileStore : ISearchIndexProfileStore
 
         return new PageResult<SearchIndexProfile>
         {
-            Count = await query.CountAsync(),
-            Entries = (await query.Skip(skip).Take(pageSize).ListAsync()).ToArray(),
+            Count = await query.CountAsync(cancellationToken),
+            Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray(),
         };
     }
 
-    public async ValueTask CreateAsync(SearchIndexProfile record)
+    public async ValueTask CreateAsync(SearchIndexProfile record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -90,14 +90,14 @@ public sealed class YesSqlSearchIndexProfileStore : ISearchIndexProfileStore
         await _session.SaveAsync(record, _collection);
     }
 
-    public async ValueTask UpdateAsync(SearchIndexProfile record)
+    public async ValueTask UpdateAsync(SearchIndexProfile record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         await _session.SaveAsync(record, _collection);
     }
 
-    public ValueTask<bool> DeleteAsync(SearchIndexProfile entry)
+    public ValueTask<bool> DeleteAsync(SearchIndexProfile entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 

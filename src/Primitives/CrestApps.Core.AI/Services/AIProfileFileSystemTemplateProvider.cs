@@ -28,7 +28,7 @@ public sealed class AIProfileFileSystemTemplateProvider : IAIProfileTemplateProv
         _logger = logger;
     }
 
-    public Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync()
+    public Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
         var templates = new List<AIProfileTemplate>();
         var profilesDirectory = Path.Combine(_hostEnvironment.ContentRootPath, ProfilesDirectoryPath.Replace('/', Path.DirectorySeparatorChar));

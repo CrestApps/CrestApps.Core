@@ -44,9 +44,9 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
         var username = metadata.Username;
         var remotePath = "/" + (variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty);
 
-        var password = Unprotect(protector, metadata.Password, "password", resource.ItemId);
-        var privateKey = Unprotect(protector, metadata.PrivateKey, "private key", resource.ItemId);
-        var passphrase = Unprotect(protector, metadata.Passphrase, "passphrase", resource.ItemId);
+        var password = DataProtectionHelper.Unprotect(protector, metadata.Password, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "password", resource.ItemId);
+        var privateKey = DataProtectionHelper.Unprotect(protector, metadata.PrivateKey, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "private key", resource.ItemId);
+        var passphrase = DataProtectionHelper.Unprotect(protector, metadata.Passphrase, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "passphrase", resource.ItemId);
 
         var authMethods = new List<AuthenticationMethod>();
 
@@ -121,24 +121,6 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
         finally
         {
             client.Disconnect();
-        }
-    }
-
-    private string Unprotect(IDataProtector protector, string value, string fieldName, string resourceId)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return null;
-        }
-
-        try
-        {
-            return protector.Unprotect(value);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", fieldName, resourceId);
-            return null;
         }
     }
 }

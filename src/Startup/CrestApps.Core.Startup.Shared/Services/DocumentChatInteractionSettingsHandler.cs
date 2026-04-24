@@ -7,7 +7,7 @@ namespace CrestApps.Core.Startup.Shared.Services;
 
 public sealed class DocumentChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
-    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         interaction.Alter<DocumentsMetadata>(metadata =>
         {
@@ -17,7 +17,7 @@ public sealed class DocumentChatInteractionSettingsHandler : IChatInteractionSet
         return Task.CompletedTask;
     }
 
-    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

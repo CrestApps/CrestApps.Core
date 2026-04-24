@@ -50,7 +50,7 @@ internal sealed class ListAvailableAgentsFunction : AIFunction
         try
         {
             var profileManager = arguments.Services.GetRequiredService<IAIProfileManager>();
-            var localProfiles = await profileManager.GetAsync(AIProfileType.Agent);
+            var localProfiles = await profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
             if (localProfiles is not null)
             {
                 foreach (var profile in localProfiles)
@@ -68,7 +68,7 @@ internal sealed class ListAvailableAgentsFunction : AIFunction
         {
             var connectionStore = arguments.Services.GetRequiredService<ICatalog<A2AConnection>>();
             var agentCardCache = arguments.Services.GetRequiredService<IA2AAgentCardCacheService>();
-            var connections = await connectionStore.GetAllAsync();
+            var connections = await connectionStore.GetAllAsync(cancellationToken);
             foreach (var connection in connections)
             {
                 if (string.IsNullOrWhiteSpace(connection.Endpoint))

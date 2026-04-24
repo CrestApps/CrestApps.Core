@@ -84,11 +84,11 @@ public sealed class AIProfileTemplateDocumentService
                 result.Document.StoredFileName = storageLocation.StoredFileName;
                 result.Document.StoredFilePath = storageLocation.StoragePath;
 
-                await _documentStore.CreateAsync(result.Document);
+                await _documentStore.CreateAsync(result.Document, cancellationToken);
 
                 foreach (var chunk in result.Chunks)
                 {
-                    await _chunkStore.CreateAsync(chunk);
+                    await _chunkStore.CreateAsync(chunk, cancellationToken);
                 }
 
                 await _documentIndexingService.IndexAsync(result.Document, result.Chunks, cancellationToken);
@@ -147,7 +147,7 @@ public sealed class AIProfileTemplateDocumentService
 
                 await _chunkStore.DeleteByDocumentIdAsync(documentId);
 
-                var document = await _documentStore.FindByIdAsync(documentId);
+                var document = await _documentStore.FindByIdAsync(documentId, cancellationToken);
 
                 if (document != null)
                 {
@@ -156,7 +156,7 @@ public sealed class AIProfileTemplateDocumentService
                         await _fileStore.DeleteFileAsync(document.StoredFilePath);
                     }
 
-                    await _documentStore.DeleteAsync(document);
+                    await _documentStore.DeleteAsync(document, cancellationToken);
                 }
             }
             catch (Exception ex)
@@ -194,7 +194,7 @@ public sealed class AIProfileTemplateDocumentService
                 continue;
             }
 
-            var templateDocument = await _documentStore.FindByIdAsync(docInfo.DocumentId);
+            var templateDocument = await _documentStore.FindByIdAsync(docInfo.DocumentId, cancellationToken);
 
             if (templateDocument == null)
             {
@@ -241,7 +241,7 @@ public sealed class AIProfileTemplateDocumentService
                 UploadedUtc = templateDocument.UploadedUtc,
             };
 
-            await _documentStore.CreateAsync(clonedDocument);
+            await _documentStore.CreateAsync(clonedDocument, cancellationToken);
 
             var templateChunks = await _chunkStore.GetChunksByAIDocumentIdAsync(templateDocument.ItemId);
             var clonedChunks = new List<AIDocumentChunk>(templateChunks.Count);
@@ -260,7 +260,7 @@ public sealed class AIProfileTemplateDocumentService
                 };
 
                 clonedChunks.Add(clonedChunk);
-                await _chunkStore.CreateAsync(clonedChunk);
+                await _chunkStore.CreateAsync(clonedChunk, cancellationToken);
             }
 
             if (clonedChunks.Count > 0)

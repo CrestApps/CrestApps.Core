@@ -814,7 +814,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             }
 
             var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
-            var interaction = await interactionManager.FindByIdAsync(itemId);
+            var interaction = await interactionManager.FindByIdAsync(itemId, cancellationToken);
             if (interaction == null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
@@ -850,7 +850,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 CreatedUtc = utcNow,
             };
 
-            await promptStore.CreateAsync(userPrompt);
+            await promptStore.CreateAsync(userPrompt, cancellationToken);
 
             var needsTitleUpdate = string.IsNullOrEmpty(interaction.Title);
             if (needsTitleUpdate)
@@ -892,7 +892,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             {
                 if (needsTitleUpdate)
                 {
-                    await interactionManager.UpdateAsync(interaction);
+                    await interactionManager.UpdateAsync(interaction, cancellationToken: cancellationToken);
                 }
 
                 await CommitChangesAsync(services);
@@ -948,12 +948,12 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 assistantPrompt.Text = builder.ToString();
                 assistantPrompt.References = references;
                 await OnAssistantPromptCreatedAsync(services, assistantPrompt, contentItemIds);
-                await promptStore.CreateAsync(assistantPrompt);
+                await promptStore.CreateAsync(assistantPrompt, cancellationToken);
             }
 
             if (needsTitleUpdate)
             {
-                await interactionManager.UpdateAsync(interaction);
+                await interactionManager.UpdateAsync(interaction, cancellationToken: cancellationToken);
             }
 
             await CommitChangesAsync(services);

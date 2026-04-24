@@ -114,18 +114,18 @@ public sealed class SearchIndexProfileProvisioningServiceTests
     {
         public List<SearchIndexProfile> CreatedProfiles { get; } = [];
 
-        public ValueTask CreateAsync(SearchIndexProfile model)
+        public ValueTask CreateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             CreatedProfiles.Add(model.Clone());
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<bool> DeleteAsync(SearchIndexProfile model)
+        public ValueTask<bool> DeleteAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask<SearchIndexProfile> FindByIdAsync(string id)
+        public ValueTask<SearchIndexProfile> FindByIdAsync(string id, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<SearchIndexProfile>(null);
         }
@@ -152,7 +152,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return ValueTask.FromResult(fields);
         }
 
-        public ValueTask<IEnumerable<SearchIndexProfile>> GetAllAsync()
+        public ValueTask<IEnumerable<SearchIndexProfile>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IEnumerable<SearchIndexProfile>>([]);
         }
@@ -162,12 +162,12 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return Task.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
         }
 
-        public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null)
+        public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new SearchIndexProfile());
         }
 
-        public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+        public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
             where TQuery : QueryContext
         {
             return ValueTask.FromResult(new PageResult<SearchIndexProfile>());
@@ -183,12 +183,12 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return Task.CompletedTask;
         }
 
-        public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null)
+        public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null, CancellationToken cancellationToken = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<ValidationResultDetails> ValidateAsync(SearchIndexProfile model)
+        public ValueTask<ValidationResultDetails> ValidateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new ValidationResultDetails());
         }

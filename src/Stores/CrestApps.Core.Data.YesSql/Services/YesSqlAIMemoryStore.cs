@@ -50,32 +50,32 @@ public sealed class YesSqlAIMemoryStore : IAIMemoryStore
         return items.ToArray();
     }
 
-    public async ValueTask<AIMemoryEntry> FindByIdAsync(string id)
+    public async ValueTask<AIMemoryEntry> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         return await _session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x => x.ItemId == id, collection: _collection)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<IReadOnlyCollection<AIMemoryEntry>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<AIMemoryEntry>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
         var items = await _session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x => x.ItemId.IsIn(ids), collection: _collection)
-            .ListAsync();
+            .ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<IReadOnlyCollection<AIMemoryEntry>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<AIMemoryEntry>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var items = await _session.Query<AIMemoryEntry, AIMemoryEntryIndex>(collection: _collection).ListAsync();
+        var items = await _session.Query<AIMemoryEntry, AIMemoryEntryIndex>(collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<PageResult<AIMemoryEntry>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<AIMemoryEntry>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = _session.Query<AIMemoryEntry, AIMemoryEntryIndex>(collection: _collection);
@@ -83,12 +83,12 @@ public sealed class YesSqlAIMemoryStore : IAIMemoryStore
 
         return new PageResult<AIMemoryEntry>
         {
-            Count = await query.CountAsync(),
-            Entries = (await query.Skip(skip).Take(pageSize).ListAsync()).ToArray(),
+            Count = await query.CountAsync(cancellationToken),
+            Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray(),
         };
     }
 
-    public async ValueTask CreateAsync(AIMemoryEntry record)
+    public async ValueTask CreateAsync(AIMemoryEntry record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -100,14 +100,14 @@ public sealed class YesSqlAIMemoryStore : IAIMemoryStore
         await _session.SaveAsync(record, _collection);
     }
 
-    public async ValueTask UpdateAsync(AIMemoryEntry record)
+    public async ValueTask UpdateAsync(AIMemoryEntry record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         await _session.SaveAsync(record, _collection);
     }
 
-    public ValueTask<bool> DeleteAsync(AIMemoryEntry entry)
+    public ValueTask<bool> DeleteAsync(AIMemoryEntry entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 

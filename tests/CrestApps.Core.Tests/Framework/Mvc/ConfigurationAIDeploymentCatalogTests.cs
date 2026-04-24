@@ -41,7 +41,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             ]);
 
         // Act
-        var deployments = await store.GetAllAsync();
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Contains(deployments, deployment => deployment.ItemId == "ui-deployment");
@@ -70,7 +70,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var store = CreateStore(configuration, aiOptions);
 
         // Act
-        var deployment = await store.FindByNameAsync("AzureTextToSpeech");
+        var deployment = await store.FindByNameAsync("AzureTextToSpeech", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotNull(deployment);
@@ -93,7 +93,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var store = CreateStore(configuration, aiOptions);
 
         // Act
-        var deployment = Assert.Single(await store.GetAllAsync());
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal("AzureSpeech", deployment.ClientName);
@@ -120,7 +120,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var store = CreateStore(configuration, aiOptions);
 
         // Act
-        var deployment = Assert.Single(await store.GetAllAsync());
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal("AzureOpenAI", deployment.ClientName);
@@ -146,7 +146,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var store = CreateStore(configuration, aiOptions);
 
         // Act
-        var deployment = Assert.Single(await store.GetAllAsync());
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal("OpenAI", deployment.ClientName);
@@ -185,7 +185,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var store = CreateStore(configuration, aiOptions, catalogOptions: catalogOptions);
 
         // Act
-        var deployments = await store.GetAllAsync();
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var sharedDeployment = Assert.Single(deployments, x => x.Name == "gpt-4.1");
@@ -225,7 +225,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             ]);
 
         // Act
-        var deployments = await store.GetAllAsync();
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Single(deployments);
@@ -259,23 +259,23 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     {
         public int Order => 0;
 
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetEntriesAsync(IReadOnlyCollection<AIDeployment> knownEntries)
+        public ValueTask<IReadOnlyCollection<AIDeployment>> GetEntriesAsync(IReadOnlyCollection<AIDeployment> knownEntries, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>(deployments.ToArray());
         }
 
-        public ValueTask CreateAsync(AIDeployment entry)
+        public ValueTask CreateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             deployments.Add(entry);
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<bool> DeleteAsync(AIDeployment entry)
+        public ValueTask<bool> DeleteAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             deployments.Remove(entry);
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask UpdateAsync(AIDeployment entry) => ValueTask.CompletedTask;
+        public ValueTask UpdateAsync(AIDeployment entry, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
     }
 }

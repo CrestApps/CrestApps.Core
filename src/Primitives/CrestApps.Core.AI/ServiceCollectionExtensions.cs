@@ -133,8 +133,6 @@ public static class ServiceCollectionExtensions
         // Ensure IHttpContextAccessor is available for services that need HTTP context.
 
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-        services.TryAddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-
         services
             .AddCoreAITemplating()
             .AddCoreIndexingServices()
@@ -162,6 +160,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<INamedSourceCatalogSource<AIProviderConnection>, ConfigurationAIProviderConnectionSource>());
 
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
+        services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
 
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(EmbeddedResourceAIProfileTemplateProvider)))
         {
@@ -398,7 +397,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, SystemToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, ProfileToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, AgentToolRegistryProvider>());
-        services.AddScoped<IToolRegistry, DefaultToolRegistry>();
+        services.TryAddScoped<IToolRegistry, DefaultToolRegistry>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, CompletionContextOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, PreemptiveRagOrchestrationHandler>());

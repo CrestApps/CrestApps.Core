@@ -18,17 +18,17 @@ public sealed class AIMemoryEntryIndexingHandler : CatalogEntryHandlerBase<AIMem
         _logger = logger;
     }
 
-    public override async Task CreatedAsync(CreatedContext<AIMemoryEntry> context)
+    public override async Task CreatedAsync(CreatedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
     {
         await IndexAsync(context.Model);
     }
 
-    public override async Task UpdatedAsync(UpdatedContext<AIMemoryEntry> context)
+    public override async Task UpdatedAsync(UpdatedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
     {
         await IndexAsync(context.Model);
     }
 
-    public override async Task DeletedAsync(DeletedContext<AIMemoryEntry> context)
+    public override async Task DeletedAsync(DeletedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(context.Model.ItemId))
         {
@@ -37,7 +37,7 @@ public sealed class AIMemoryEntryIndexingHandler : CatalogEntryHandlerBase<AIMem
 
         try
         {
-            await _indexingService.DeleteAsync([context.Model.ItemId]);
+            await _indexingService.DeleteAsync([context.Model.ItemId], cancellationToken);
         }
         catch (Exception ex)
         {

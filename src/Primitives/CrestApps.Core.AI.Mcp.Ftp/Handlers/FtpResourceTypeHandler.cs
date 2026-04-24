@@ -78,6 +78,7 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
 
         if (metadata.ValidateAnyCertificate)
         {
+            _logger.LogWarning("FTP connection to '{Host}' is configured to accept any certificate. This disables TLS validation and should only be used in development.", host);
             client.ValidateCertificate += (_, args) => args.Accept = true;
         }
 

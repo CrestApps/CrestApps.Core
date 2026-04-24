@@ -14,19 +14,19 @@ public class NamedSourceDocumentCatalog<T, TIndex> : SourceDocumentCatalog<T, TI
     {
     }
 
-    public async ValueTask<T> FindByNameAsync(string name)
+    public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        return await Session.Query<T, TIndex>(x => x.Name == name, collection: CollectionName).FirstOrDefaultAsync();
+        return await Session.Query<T, TIndex>(x => x.Name == name, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<T> GetAsync(string name, string source)
+    public async ValueTask<T> GetAsync(string name, string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        return await Session.Query<T, TIndex>(x => x.Name == name && x.Source == source, collection: CollectionName).FirstOrDefaultAsync();
+        return await Session.Query<T, TIndex>(x => x.Name == name && x.Source == source, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
     }
 
     protected override async ValueTask SavingAsync(T record)

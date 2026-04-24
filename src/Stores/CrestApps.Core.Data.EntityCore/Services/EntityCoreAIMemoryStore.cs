@@ -1,13 +1,14 @@
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IAIMemoryStore
 {
-    public EntityCoreAIMemoryStore(CrestAppsEntityDbContext dbContext)
-        : base(dbContext)
+    public EntityCoreAIMemoryStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<AIMemoryEntry>> logger = null)
+        : base(dbContext, logger)
     {
     }
 

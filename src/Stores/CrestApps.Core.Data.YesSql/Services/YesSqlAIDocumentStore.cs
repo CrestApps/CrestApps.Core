@@ -33,30 +33,30 @@ public sealed class YesSqlAIDocumentStore : IAIDocumentStore
         return docs.ToArray();
     }
 
-    public async ValueTask<AIDocument> FindByIdAsync(string id)
+    public async ValueTask<AIDocument> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIDocument, AIDocumentIndex>(x => x.ItemId == id, collection: _collection).FirstOrDefaultAsync();
+        return await _session.Query<AIDocument, AIDocumentIndex>(x => x.ItemId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<IReadOnlyCollection<AIDocument>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<AIDocument>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
-        var items = await _session.Query<AIDocument, AIDocumentIndex>(x => x.ItemId.IsIn(ids), collection: _collection).ListAsync();
+        var items = await _session.Query<AIDocument, AIDocumentIndex>(x => x.ItemId.IsIn(ids), collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<IReadOnlyCollection<AIDocument>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<AIDocument>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var items = await _session.Query<AIDocument, AIDocumentIndex>(collection: _collection).ListAsync();
+        var items = await _session.Query<AIDocument, AIDocumentIndex>(collection: _collection).ListAsync(cancellationToken);
 
         return items.ToArray();
     }
 
-    public async ValueTask<PageResult<AIDocument>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<AIDocument>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = _session.Query<AIDocument, AIDocumentIndex>(collection: _collection);
@@ -64,12 +64,12 @@ public sealed class YesSqlAIDocumentStore : IAIDocumentStore
 
         return new PageResult<AIDocument>
         {
-            Count = await query.CountAsync(),
-            Entries = (await query.Skip(skip).Take(pageSize).ListAsync()).ToArray(),
+            Count = await query.CountAsync(cancellationToken),
+            Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray(),
         };
     }
 
-    public async ValueTask CreateAsync(AIDocument record)
+    public async ValueTask CreateAsync(AIDocument record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -81,14 +81,14 @@ public sealed class YesSqlAIDocumentStore : IAIDocumentStore
         await _session.SaveAsync(record, _collection);
     }
 
-    public async ValueTask UpdateAsync(AIDocument record)
+    public async ValueTask UpdateAsync(AIDocument record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         await _session.SaveAsync(record, _collection);
     }
 
-    public ValueTask<bool> DeleteAsync(AIDocument entry)
+    public ValueTask<bool> DeleteAsync(AIDocument entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 

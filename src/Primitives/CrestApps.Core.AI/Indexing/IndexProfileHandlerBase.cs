@@ -32,13 +32,13 @@ public abstract class IndexProfileHandlerBase : CatalogEntryHandlerBase<SearchIn
         return Task.CompletedTask;
     }
 
-    public override async Task ValidatingAsync(ValidatingContext<SearchIndexProfile> context)
+    public override async Task ValidatingAsync(ValidatingContext<SearchIndexProfile> context, CancellationToken cancellationToken = default)
     {
-        await ValidateAsync(context.Model, context.Result);
+        await ValidateAsync(context.Model, context.Result, cancellationToken);
     }
 
-    public override async Task DeletingAsync(DeletingContext<SearchIndexProfile> context)
+    public override async Task DeletingAsync(DeletingContext<SearchIndexProfile> context, CancellationToken cancellationToken = default)
     {
-        await DeletingAsync(context.Model);
+        await DeletingAsync(context.Model, cancellationToken);
     }
 }
