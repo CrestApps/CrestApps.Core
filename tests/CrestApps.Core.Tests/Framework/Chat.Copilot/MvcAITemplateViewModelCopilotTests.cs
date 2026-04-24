@@ -72,13 +72,13 @@ public sealed class MvcAITemplateViewModelCopilotTests
     }
 
     [Fact]
-    public void FromTemplate_WhenLegacyMvcMemorySettingsExist_ShouldFallbackToLegacyValue()
+    public void FromTemplate_WhenMemoryMetadataExists_ShouldReadValue()
     {
         var template = new AIProfileTemplate
         {
             Source = AITemplateSources.Profile,
         };
-        template.Put(new MemorySettings
+        template.Put(new MemoryMetadata
         {
             EnableUserMemory = true,
         });

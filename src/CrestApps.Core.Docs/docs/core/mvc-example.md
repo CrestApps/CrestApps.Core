@@ -372,4 +372,6 @@ The middleware pipeline includes:
 dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web.csproj
 ```
 
+The MVC sample resolves its content root to the project directory automatically, so you can run this command from the repository root without breaking view, static-file, or `App_Data` discovery.
+
 The application starts on `https://localhost:5001`. Configure AI provider connections in `App_Data/appsettings.json` before using AI features.

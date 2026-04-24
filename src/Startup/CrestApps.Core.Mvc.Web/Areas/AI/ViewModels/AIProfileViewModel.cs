@@ -190,7 +190,7 @@ public sealed class AIProfileViewModel
         var settings = profile.GetSettings<AIProfileSettings>();
         var dataExtractionSettings = profile.GetSettings<AIProfileDataExtractionSettings>();
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
-        var memoryMetadata = profile.GetMemoryMetadata();
+        var memoryMetadata = profile.GetOrCreate<MemoryMetadata>();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
 
         var vm = new AIProfileViewModel
@@ -545,7 +545,7 @@ public sealed class AIProfileViewModel
             }).ToList();
         });
 
-        profile.AlterMemoryMetadata(m =>
+        profile.Alter<MemoryMetadata>(m =>
         {
             m.EnableUserMemory = EnableUserMemory;
         });

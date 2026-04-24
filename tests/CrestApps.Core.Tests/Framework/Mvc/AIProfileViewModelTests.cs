@@ -56,7 +56,7 @@ public sealed class AIProfileViewModelTests
         {
             settings.EnablePostSessionProcessing = true;
         });
-        profile.AlterMemoryMetadata(settings =>
+        profile.Alter<MemoryMetadata>(settings =>
         {
             settings.EnableUserMemory = true;
         });
@@ -263,12 +263,12 @@ public sealed class AIProfileViewModelTests
     }
 
     [Fact]
-    public void FromProfile_WhenLegacyMvcMemorySettingsExist_ShouldFallbackToLegacyValue()
+    public void FromProfile_WhenMemoryMetadataExists_ShouldReadValue()
     {
         var profile = new AIProfile();
-        profile.AlterSettings<MemorySettings>(settings =>
+        profile.Put(new MemoryMetadata
         {
-            settings.EnableUserMemory = true;
+            EnableUserMemory = true,
         });
 
         var model = AIProfileViewModel.FromProfile(profile);

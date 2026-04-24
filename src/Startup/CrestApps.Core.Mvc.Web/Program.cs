@@ -51,7 +51,11 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 //   4. MCP and custom tools
 //   5. Background tasks and pipeline
 // =============================================================================
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = SampleHostContentRootResolver.ResolveContentRoot("CrestApps.Core.Mvc.Web.csproj"),
+});
 
 // Shared sample-host defaults: HostOptions, NLog, App_Data, App_Data/appsettings.json,
 // and the SiteSettingsStore + option bridges that feed the sample admin UI.
@@ -70,6 +74,7 @@ builder.Services.AddControllersWithViews(options =>
             .RequireAuthenticatedUser()
             .Build()));
     })
+    .AddRazorRuntimeCompilation()
     .AddCrestAppsStoreCommitterFilter();
 
 builder.Services.AddHttpContextAccessor();

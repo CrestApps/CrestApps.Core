@@ -16,7 +16,7 @@ internal static class AIMemoryOrchestrationContextHelper
     {
         if (resource is AIProfile profile)
         {
-            return profile.GetMemoryMetadata().EnableUserMemory ?? false;
+            return profile.TryGet<MemoryMetadata>(out var metadata) && metadata.EnableUserMemory == true;
         }
 
         if (resource is ChatInteraction)

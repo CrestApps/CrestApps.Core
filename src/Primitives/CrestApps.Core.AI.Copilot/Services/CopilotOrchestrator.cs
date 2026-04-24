@@ -281,7 +281,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             return PermissionHandler.ApproveAll;
         }
 
-        return (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser, });
+        return (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable, });
     }
 
     private static string GetReasoningEffortValue(CopilotReasoningEffort reasoningEffort)

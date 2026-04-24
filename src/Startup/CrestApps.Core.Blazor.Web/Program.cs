@@ -50,7 +50,11 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 //   4. MCP and custom tools
 //   5. Background tasks and pipeline
 // =============================================================================
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = SampleHostContentRootResolver.ResolveContentRoot("CrestApps.Core.Blazor.Web.csproj"),
+});
 
 // Shared sample-host defaults: HostOptions, NLog, App_Data, App_Data/appsettings.json,
 // and the SiteSettingsStore + option bridges that feed the sample admin UI.

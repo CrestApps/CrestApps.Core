@@ -81,6 +81,7 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 - Prefer SOLID and DRY refactors that consolidate duplicated provider, transport, or store logic into shared abstractions before adding new one-off implementations.
 - Favor additive shared infrastructure first, then migrate consumers in behavior-safe steps when a full replacement is too risky for a single change.
 - When working in framework code meant for external adoption, optimize for consistency and long-term maintainability across providers and hosts, not just local fixes.
+- For optional provider integrations in sample hosts, do not eagerly read validated options in UI setup paths when an unconfigured provider should simply appear unavailable rather than crash the page.
 
 ## Runtime notes
 

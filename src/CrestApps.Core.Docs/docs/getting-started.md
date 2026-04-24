@@ -51,6 +51,8 @@ dotnet test .\tests\CrestApps.Core.Tests\CrestApps.Core.Tests.csproj -c Release 
 dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web.csproj
 ```
 
+The sample host resolves its content root to the MVC project directory automatically, so this command works correctly when run from the repository root.
+
 Use the MVC sample when you want to see the full framework in one place: AI providers, deployments, profiles, templates, document processing, MCP, A2A, storage, and SignalR-driven chat flows.
 
 ### Aspire host
