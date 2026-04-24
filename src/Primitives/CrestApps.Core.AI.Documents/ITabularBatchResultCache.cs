@@ -29,7 +29,7 @@ public interface ITabularBatchResultCache
     /// </summary>
     /// <param name="cacheKey">The cache key.</param>
     /// <returns>The cached entry if found; otherwise, null.</returns>
-    TabularBatchCacheEntry TryGet(string cacheKey);
+    Task<TabularBatchCacheEntry> TryGetAsync(string cacheKey);
 
     /// <summary>
     /// Stores batch results in the cache.
@@ -37,13 +37,13 @@ public interface ITabularBatchResultCache
     /// <param name="cacheKey">The cache key.</param>
     /// <param name="entry">The cache entry to store.</param>
     /// <param name="expiration">Optional custom expiration time.</param>
-    void Set(string cacheKey, TabularBatchCacheEntry entry, TimeSpan? expiration = null);
+    Task SetAsync(string cacheKey, TabularBatchCacheEntry entry, TimeSpan? expiration = null);
 
     /// <summary>
     /// Removes a specific cache entry.
     /// </summary>
     /// <param name="cacheKey">The cache key to remove.</param>
-    void Remove(string cacheKey);
+    Task RemoveAsync(string cacheKey);
 
     /// <summary>
     /// Invalidates all cached results for a specific interaction.

@@ -181,15 +181,17 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             prompts.Add(new ChatMessage(ChatRole.System, systemMessage));
         }
 
+        var materializedMessages = chatMessages.ToList();
+
         if (context.PastMessagesCount > 1)
         {
-            var skip = GetTotalMessagesToSkip(chatMessages.Count(), context.PastMessagesCount.Value);
+            var skip = GetTotalMessagesToSkip(materializedMessages.Count, context.PastMessagesCount.Value);
 
-            prompts.AddRange(chatMessages.Skip(skip).Take(context.PastMessagesCount.Value));
+            prompts.AddRange(materializedMessages.Skip(skip).Take(context.PastMessagesCount.Value));
         }
         else
         {
-            prompts.AddRange(chatMessages);
+            prompts.AddRange(materializedMessages);
         }
 
         return prompts;
@@ -212,11 +214,11 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         {
             DeploymentName = deploymentName,
             ClientName = ClientName,
-            ImplemenationName = ClientName,
+            ImplementationName = ClientName,
             IsStreaming = isStreaming,
         };
 
-        await _handlers.InvokeHandlersAsync((handler, ctx) => handler.ConfigureAsync(ctx), configureContext, Logger);
+        await _handlers.InvokeAsync((handler, ctx) => handler.ConfigureAsync(ctx), configureContext, Logger);
 
         if (!supportFunctions || (chatOptions.Tools is not null && chatOptions.Tools.Count == 0))
         {

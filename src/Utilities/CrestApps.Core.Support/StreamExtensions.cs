@@ -11,6 +11,11 @@ public static class StreamExtensions
             return stream.ToArray();
         }
 
+        if (instream.CanSeek)
+        {
+            instream.Position = 0;
+        }
+
         using var memoryStream = new MemoryStream();
         instream.CopyTo(memoryStream);
 
