@@ -22,6 +22,7 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
     public async Task<CopilotProtectedCredential> GetProtectedCredentialAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        ThrowIfInvalidFileName(userId);
 
         var filePath = GetFilePath(userId);
 
@@ -39,6 +40,7 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentNullException.ThrowIfNull(credential);
+        ThrowIfInvalidFileName(userId);
 
         var filePath = GetFilePath(userId);
         var json = JsonSerializer.Serialize(credential, _jsonOptions);
@@ -49,6 +51,7 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
     public Task ClearCredentialAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        ThrowIfInvalidFileName(userId);
 
         var filePath = GetFilePath(userId);
 
@@ -60,5 +63,14 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
         return Task.CompletedTask;
     }
 
-    private string GetFilePath(string userId) => Path.Combine(_credentialsPath, $"{userId}.json");
+    private static void ThrowIfInvalidFileName(string userId)
+    {
+        if (userId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new ArgumentException("The userId contains invalid file name characters.", nameof(userId));
+        }
+    }
+
+    private string GetFilePath(string userId)
+        => Path.Combine(_credentialsPath, $"{userId}.json");
 }

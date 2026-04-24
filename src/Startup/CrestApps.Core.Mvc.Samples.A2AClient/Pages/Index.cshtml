@@ -1,25 +1,27 @@
 @page
+@inject SampleServerSelectionService ServerSelection
+@{
+    var currentServer = ServerSelection.GetCurrent(HttpContext);
+}
 @model CrestApps.Core.Mvc.Samples.A2AClient.Pages.IndexModel
 
-<h1>MVC A2A Client Sample</h1>
+<h1>A2A Client Sample</h1>
 
-<p class="lead">This sample app connects to the A2A host served by <strong>CrestApps.Core.Mvc.Web</strong> and demonstrates listing agents and sending messages.</p>
+<p class="lead">This sample app connects to the selected A2A host and demonstrates listing agents and sending messages against either the MVC or Blazor sample server.</p>
 
 <div class="card mb-3">
     <div class="card-body">
         <h5 class="card-title">Prerequisites</h5>
         <ol class="mb-0">
-            <li>Start the <strong>CrestApps.Core.Mvc.Web</strong> application.</li>
-            <li>
-                Enable the <strong>A2A Host</strong> feature on the default tenant.
-                <ul>
-                    <li>Feature ID: <code>CrestApps.OrchardCore.AI.A2A.Host</code></li>
-                    <li>Admin UI: <strong>Tools → Features</strong></li>
-                </ul>
-            </li>
-            <li>Create at least one AI Profile of type <strong>Agent</strong> so the host has agents to expose.</li>
+            <li>Start <strong>CrestApps.Core.Mvc.Web</strong>, <strong>CrestApps.Core.Blazor.Web</strong>, or the combined Aspire host.</li>
+            <li>Use the <strong>Server</strong> buttons in the top navigation bar to switch between the available MVC Web and Blazor Web hosts.</li>
+            <li>Create at least one AI Profile of type <strong>Agent</strong> on the selected server so the host has agents to expose.</li>
         </ol>
     </div>
+</div>
+
+<div class="alert alert-secondary">
+    Active server: <strong>@currentServer.DisplayName</strong> (<code>@currentServer.Endpoint</code>)
 </div>
 
 <p>Use the navigation tabs above to explore A2A capabilities:</p>

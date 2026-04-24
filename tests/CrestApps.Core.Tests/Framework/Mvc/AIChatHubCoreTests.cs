@@ -110,37 +110,37 @@ public sealed class AIChatHubCoreTests
     {
         public AIChatSession SavedSession { get; private set; }
 
-        public Task<bool> DeleteAsync(string sessionId)
+        public Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task<int> DeleteAllAsync(string profileId)
+        public Task<int> DeleteAllAsync(string profileId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task<AIChatSession> FindAsync(string id)
+        public Task<AIChatSession> FindAsync(string id, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task<AIChatSession> FindByIdAsync(string id)
+        public Task<AIChatSession> FindByIdAsync(string id, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context)
+        public Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null)
+        public Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task SaveAsync(AIChatSession chatSession)
+        public Task SaveAsync(AIChatSession chatSession, CancellationToken cancellationToken = default)
         {
             SavedSession = chatSession;
 

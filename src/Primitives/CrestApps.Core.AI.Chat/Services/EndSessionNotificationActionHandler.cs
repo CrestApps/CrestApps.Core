@@ -20,7 +20,7 @@ public sealed class EndSessionNotificationActionHandler : IChatNotificationActio
         if (context.ChatType == ChatContextType.AIChatSession)
         {
             var sessionManager = context.Services.GetRequiredService<IAIChatSessionManager>();
-            var session = await sessionManager.FindByIdAsync(context.SessionId);
+            var session = await sessionManager.FindByIdAsync(context.SessionId, cancellationToken);
 
             if (session is null)
             {
@@ -33,7 +33,7 @@ public sealed class EndSessionNotificationActionHandler : IChatNotificationActio
 
             session.Status = ChatSessionStatus.Closed;
             session.ClosedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-            await sessionManager.SaveAsync(session);
+            await sessionManager.SaveAsync(session, cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {

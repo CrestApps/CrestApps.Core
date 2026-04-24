@@ -11,19 +11,22 @@ public interface ICatalog<T> : IReadCatalog<T>
     /// Asynchronously deletes the specified entry from the catalog.
     /// </summary>
     /// <param name="entry">The entry to delete.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns><see langword="true"/> if the entry was successfully deleted; otherwise, <see langword="false"/>.</returns>
-    ValueTask<bool> DeleteAsync(T entry);
+    ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously creates the specified entry in the catalog.
     /// </summary>
     /// <param name="entry">The entry to create.</param>
-    ValueTask CreateAsync(T entry);
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously updates the specified entry in the catalog.
     /// </summary>
     /// <param name="entry">The entry to update.</param>
-    ValueTask UpdateAsync(T entry);
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    ValueTask UpdateAsync(T entry, CancellationToken cancellationToken = default);
 
 }

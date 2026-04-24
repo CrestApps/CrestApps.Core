@@ -15,10 +15,10 @@ internal sealed class SseMcpConnectionSettingsHandler : CatalogEntryHandlerBase<
         _dataProtectionProvider = dataProtectionProvider;
     }
 
-    public override Task InitializingAsync(InitializingContext<McpConnection> context)
+    public override Task InitializingAsync(InitializingContext<McpConnection> context, CancellationToken cancellationToken = default)
         => ProtectSensitiveFieldsAsync(context.Model, context.Data);
 
-    public override Task UpdatingAsync(UpdatingContext<McpConnection> context)
+    public override Task UpdatingAsync(UpdatingContext<McpConnection> context, CancellationToken cancellationToken = default)
         => ProtectSensitiveFieldsAsync(context.Model, context.Data);
 
     private Task ProtectSensitiveFieldsAsync(McpConnection connection, JsonNode data)

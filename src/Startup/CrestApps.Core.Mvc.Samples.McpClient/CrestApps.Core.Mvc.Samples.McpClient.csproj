@@ -12,4 +12,8 @@
     <PackageReference Include="ModelContextProtocol.Core" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.Startup.Shared/CrestApps.Core.Startup.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

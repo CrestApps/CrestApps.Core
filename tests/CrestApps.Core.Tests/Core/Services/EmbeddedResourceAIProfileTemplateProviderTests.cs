@@ -15,7 +15,7 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
             typeof(AI.ServiceCollectionExtensions).Assembly,
             [new DefaultMarkdownTemplateParser()]);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.NotEmpty(templates);
         Assert.Contains(templates, template => template.ItemId == "chat-session-summarizer");
@@ -29,7 +29,7 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
             typeof(AI.ServiceCollectionExtensions).Assembly,
             [new DefaultMarkdownTemplateParser()]);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
         var template = templates.Single(t => t.ItemId == "chat-session-summarizer");
         var metadata = template.GetOrCreate<ProfileTemplateMetadata>();
 

@@ -108,7 +108,7 @@ public sealed class SearchDocumentsTool : AIFunction
             }
 
             var indexProfileStore = arguments.Services.GetRequiredService<ISearchIndexProfileStore>();
-            var indexProfile = await indexProfileStore.FindByNameAsync(settings.IndexProfileName);
+            var indexProfile = await indexProfileStore.FindByNameAsync(settings.IndexProfileName, cancellationToken);
 
             if (indexProfile == null)
             {
@@ -128,9 +128,7 @@ public sealed class SearchDocumentsTool : AIFunction
 
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(
-                AIDeploymentType.Embedding,
-                clientName: executionContext?.ClientName);
+            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding, clientName: executionContext?.ClientName, cancellationToken: cancellationToken);
 
             if (embeddingDeployment == null)
             {

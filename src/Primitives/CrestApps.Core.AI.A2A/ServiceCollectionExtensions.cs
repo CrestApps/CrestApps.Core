@@ -16,7 +16,9 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddHttpClient();
+        services.AddHttpClient(A2AConstants.HttpClientName)
+            .AddStandardResilienceHandler();
+
         services.AddMemoryCache();
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, A2AAICompletionContextBuilderHandler>());

@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI.Chat.Handlers;
 
 public sealed class PromptTemplateChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
-    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         interaction.Alter<PromptTemplateMetadata>(metadata =>
         {
@@ -14,7 +14,7 @@ public sealed class PromptTemplateChatInteractionSettingsHandler : IChatInteract
         return Task.CompletedTask;
     }
 
-    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Tests.Mcp;
 
@@ -28,7 +29,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
         var connection = CreateSseConnectionWithMetadata(new SseMcpConnectionMetadata
         {
             Endpoint = new Uri("https://mcp.example.com/sse"),
-            AuthenticationType = McpClientAuthenticationType.ApiKey,
+            AuthenticationType = ClientAuthenticationType.ApiKey,
             ApiKeyHeaderName = "Authorization",
             ApiKeyPrefix = "Bearer",
             ApiKey = "encrypted-api-key-secret",
@@ -51,7 +52,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
         var connection = CreateSseConnectionWithMetadata(new SseMcpConnectionMetadata
         {
             Endpoint = new Uri("https://mcp.example.com/sse"),
-            AuthenticationType = McpClientAuthenticationType.Basic,
+            AuthenticationType = ClientAuthenticationType.Basic,
             BasicUsername = "user",
             BasicPassword = "encrypted-password-secret",
         });
@@ -72,7 +73,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
         var connection = CreateSseConnectionWithMetadata(new SseMcpConnectionMetadata
         {
             Endpoint = new Uri("https://mcp.example.com/sse"),
-            AuthenticationType = McpClientAuthenticationType.OAuth2ClientCredentials,
+            AuthenticationType = ClientAuthenticationType.OAuth2ClientCredentials,
             OAuth2TokenEndpoint = "https://auth.example.com/token",
             OAuth2ClientId = "client-123",
             OAuth2ClientSecret = "encrypted-client-secret",
@@ -96,7 +97,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
         var connection = CreateSseConnectionWithMetadata(new SseMcpConnectionMetadata
         {
             Endpoint = new Uri("https://mcp.example.com/sse"),
-            AuthenticationType = McpClientAuthenticationType.OAuth2PrivateKeyJwt,
+            AuthenticationType = ClientAuthenticationType.OAuth2PrivateKeyJwt,
             OAuth2TokenEndpoint = "https://auth.example.com/token",
             OAuth2ClientId = "client-456",
             OAuth2PrivateKey = "encrypted-private-key-pem",
@@ -120,7 +121,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
         var connection = CreateSseConnectionWithMetadata(new SseMcpConnectionMetadata
         {
             Endpoint = new Uri("https://mcp.example.com/sse"),
-            AuthenticationType = McpClientAuthenticationType.OAuth2Mtls,
+            AuthenticationType = ClientAuthenticationType.OAuth2Mtls,
             OAuth2TokenEndpoint = "https://auth.example.com/token",
             OAuth2ClientId = "client-789",
             OAuth2ClientCertificate = "encrypted-cert-data",
@@ -145,7 +146,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
         var connection = CreateSseConnectionWithMetadata(new SseMcpConnectionMetadata
         {
             Endpoint = new Uri("https://mcp.example.com/sse"),
-            AuthenticationType = McpClientAuthenticationType.OAuth2ClientCredentials,
+            AuthenticationType = ClientAuthenticationType.OAuth2ClientCredentials,
             ApiKey = "secret-api-key",
             BasicPassword = "secret-password",
             OAuth2ClientSecret = "secret-client-secret",
@@ -203,7 +204,7 @@ public sealed class McpConnectionDeploymentSanitizationTests
         var connection = CreateSseConnectionWithMetadata(new SseMcpConnectionMetadata
         {
             Endpoint = new Uri("https://mcp.example.com/sse"),
-            AuthenticationType = McpClientAuthenticationType.OAuth2Mtls,
+            AuthenticationType = ClientAuthenticationType.OAuth2Mtls,
             ApiKey = secretValues[0],
             BasicPassword = secretValues[1],
             OAuth2ClientSecret = secretValues[2],
@@ -273,3 +274,5 @@ public sealed class McpConnectionDeploymentSanitizationTests
         return connection;
     }
 }
+
+

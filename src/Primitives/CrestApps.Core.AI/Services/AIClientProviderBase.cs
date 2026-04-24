@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Services;
@@ -23,7 +24,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-            deploymentName = connection.GetLegacyChatDeploymentName();
+            deploymentName = connection.GetStringValue("ChatDeploymentName", false);
         }
 
         if (string.IsNullOrEmpty(deploymentName))
@@ -40,7 +41,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-            deploymentName = connection.GetLegacyEmbeddingDeploymentName();
+            deploymentName = connection.GetStringValue("EmbeddingDeploymentName", false);
         }
 
         if (string.IsNullOrEmpty(deploymentName))
@@ -61,7 +62,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-            deploymentName = connection.GetLegacyImageDeploymentName();
+            deploymentName = connection.GetStringValue("ImagesDeploymentName", false);
         }
 
         if (string.IsNullOrEmpty(deploymentName))
@@ -81,7 +82,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
     {
         if (string.IsNullOrEmpty(deploymentName))
         {
-            deploymentName = connection.GetLegacySpeechToTextDeploymentName();
+            deploymentName = connection.GetStringValue("SpeechToTextDeploymentName", false);
         }
 
         if (string.IsNullOrEmpty(deploymentName))

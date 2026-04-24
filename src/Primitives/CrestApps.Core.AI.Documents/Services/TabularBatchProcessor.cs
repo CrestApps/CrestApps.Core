@@ -292,7 +292,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: sourceContext.ChatDeploymentName)
+            var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: sourceContext.ChatDeploymentName, cancellationToken: cancellationToken)
                 ?? throw new InvalidOperationException("Unable to resolve a chat deployment for batch processing.");
 
             var response = await _completionService.CompleteAsync(

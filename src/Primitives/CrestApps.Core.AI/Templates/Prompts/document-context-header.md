@@ -5,13 +5,19 @@ Parameters:
   - searchToolName: the name of the search tool for additional lookups (optional).
   - hasUserSuppliedDocumentContext: boolean flag indicating user-uploaded/session document context is present.
   - hasKnowledgeBaseDocumentContext: boolean flag indicating profile knowledge-base document context is present.
+  - hasFullUserDocumentContext: boolean flag indicating full uploaded-document content was injected because the task needs whole-file context.
 IsListable: false
 Category: RAG
 ---
 
 {% if hasUserSuppliedDocumentContext %}
 [Uploaded Document Context]
+{% if hasFullUserDocumentContext %}
+The following content includes the full text of the user's uploaded documents because the current task depends on whole-document context.
+Use this content directly when answering.
+{% else %}
 The following content was retrieved from the user's uploaded documents via semantic search. Use this information to answer the user's question accurately.
+{% endif %}
 If the documents do not contain relevant information, use your general knowledge to answer instead.
 When citing information, include the corresponding reference marker (e.g., [doc:1]) inline in your response immediately after the relevant statement.
 {% if searchToolName %}

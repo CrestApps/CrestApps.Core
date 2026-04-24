@@ -35,7 +35,7 @@ public static class ExtensibleEntityExtensions
     /// <summary>
     /// Gets a strongly-typed object stored in the entity's properties.
     /// </summary>
-    public static T GetOrCreate<T>(this ExtensibleEntity entity)
+    public static T GetOrCreate<T>(this ExtensibleEntity entity, JsonSerializerOptions jsonSerializerOptions = null)
         where T : new()
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -43,20 +43,20 @@ public static class ExtensibleEntityExtensions
         var key = typeof(T).Name;
 
         return entity.Properties.TryGetValue(key, out var value)
-            ? DeserializeValue<T>(value) ?? new T()
+            ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions) ?? new T()
             : new T();
     }
 
     /// <summary>
     /// Gets a strongly-typed object stored in the entity's properties, or null if not found.
     /// </summary>
-    public static T Get<T>(this ExtensibleEntity entity, string name)
+    public static T Get<T>(this ExtensibleEntity entity, string name, JsonSerializerOptions jsonSerializerOptions = null)
     {
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         return entity.Properties.TryGetValue(name, out var value)
-            ? DeserializeValue<T>(value)
+            ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions)
             : default;
     }
 
@@ -90,7 +90,7 @@ public static class ExtensibleEntityExtensions
     /// Tries to get a strongly-typed object stored in the entity's properties.
     /// Returns <c>true</c> if a non-null value was found and deserialized.
     /// </summary>
-    public static bool TryGet<T>(this ExtensibleEntity entity, out T result)
+    public static bool TryGet<T>(this ExtensibleEntity entity, out T result, JsonSerializerOptions jsonSerializerOptions = null)
         where T : class
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -99,11 +99,13 @@ public static class ExtensibleEntityExtensions
 
         if (entity.Properties.TryGetValue(key, out var value) && value is not null)
         {
-            result = DeserializeValue<T>(value);
+            result = DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions);
+
             return result is not null;
         }
 
         result = default;
+
         return false;
     }
 
@@ -121,14 +123,16 @@ public static class ExtensibleEntityExtensions
     /// Modifies a stored object in-place. If no object exists, a new instance is created,
     /// modified, and stored.
     /// </summary>
-    public static ExtensibleEntity Alter<T>(this ExtensibleEntity entity, Action<T> alter)
+    public static ExtensibleEntity Alter<T>(this ExtensibleEntity entity, Action<T> alter, JsonSerializerOptions jsonSerializerOptions = null)
         where T : new()
     {
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(alter);
 
-        var obj = entity.GetOrCreate<T>();
+        var obj = entity.GetOrCreate<T>(jsonSerializerOptions ?? _jsonOptions);
+
         alter(obj);
+
         entity.Put(obj);
 
         return entity;
@@ -146,7 +150,7 @@ public static class ExtensibleEntityExtensions
         return entity;
     }
 
-    private static T DeserializeValue<T>(object value)
+    private static T DeserializeValue<T>(object value, JsonSerializerOptions jsonSerializerOptions = null)
     {
         if (value is null)
         {
@@ -165,15 +169,16 @@ public static class ExtensibleEntityExtensions
                 return default;
             }
 
-            return jsonElement.Deserialize<T>(_jsonOptions);
+            return jsonElement.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions);
         }
 
         if (value is JsonNode jsonNode)
         {
-            return jsonNode.Deserialize<T>(_jsonOptions);
+            return jsonNode.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions);
         }
 
-        var json = JsonSerializer.Serialize(value, _jsonOptions);
-        return JsonSerializer.Deserialize<T>(json, _jsonOptions);
+        var json = JsonSerializer.Serialize(value, jsonSerializerOptions ?? _jsonOptions);
+
+        return JsonSerializer.Deserialize<T>(json, jsonSerializerOptions ?? _jsonOptions);
     }
 }

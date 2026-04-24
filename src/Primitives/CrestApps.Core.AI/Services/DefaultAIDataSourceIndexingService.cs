@@ -48,7 +48,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 
     public async Task SyncAllAsync(CancellationToken cancellationToken = default)
     {
-        var dataSources = await _dataSourceCatalog.GetAllAsync();
+        var dataSources = await _dataSourceCatalog.GetAllAsync(cancellationToken);
         foreach (var dataSource in dataSources)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -341,12 +341,13 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             .ToArray();
     }
 
-    private static List<string> BuildChunkIds(IEnumerable<string> referenceIds)
+    private static List<string> BuildChunkIds(IEnumerable<string> referenceIds, int maxChunksPerDocument = MaxChunkIdsPerDocument)
     {
         var chunkIds = new List<string>();
+
         foreach (var referenceId in referenceIds)
         {
-            for (var i = 0; i < MaxChunkIdsPerDocument; i++)
+            for (var i = 0; i < maxChunksPerDocument; i++)
             {
                 chunkIds.Add($"{referenceId}_{i}");
             }

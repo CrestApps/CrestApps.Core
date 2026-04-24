@@ -13,13 +13,15 @@ public interface IAICompletionHandler
     /// Handles a received message asynchronously.
     /// </summary>
     /// <param name="context">The context containing details of the received message.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    Task ReceivedMessageAsync(ReceivedMessageContext context);
+    Task ReceivedMessageAsync(ReceivedMessageContext context, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Handles a received update asynchronously.
     /// </summary>
     /// <param name="context">The context containing details of the received update.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    Task ReceivedUpdateAsync(ReceivedUpdateContext context);
+    Task ReceivedUpdateAsync(ReceivedUpdateContext context, CancellationToken cancellationToken = default);
 }

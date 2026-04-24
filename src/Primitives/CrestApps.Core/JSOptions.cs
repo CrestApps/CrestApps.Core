@@ -4,15 +4,39 @@ namespace CrestApps.Core;
 
 public static class JSOptions
 {
-    public readonly static JsonSerializerOptions Default = new();
+    public static readonly JsonSerializerOptions Default = CreateDefault();
 
-    public readonly static JsonSerializerOptions CaseInsensitive = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
+    public static readonly JsonSerializerOptions CaseInsensitive = CreateCaseInsensitive();
 
-    public readonly static JsonSerializerOptions Indented = new()
+    public static readonly JsonSerializerOptions Indented = CreateIndented();
+
+    private static JsonSerializerOptions CreateDefault()
     {
-        WriteIndented = true,
-    };
+        var options = new JsonSerializerOptions();
+        options.MakeReadOnly(populateMissingResolver: true);
+
+        return options;
+    }
+
+    private static JsonSerializerOptions CreateCaseInsensitive()
+    {
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        };
+        options.MakeReadOnly(populateMissingResolver: true);
+
+        return options;
+    }
+
+    private static JsonSerializerOptions CreateIndented()
+    {
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        };
+        options.MakeReadOnly(populateMissingResolver: true);
+
+        return options;
+    }
 }

@@ -38,6 +38,8 @@ public sealed class ResourcesModel : PageModel
             return new JsonResult(new { error = "Resource URI is required." });
         }
 
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -64,12 +66,14 @@ public sealed class ResourcesModel : PageModel
         }
         catch (Exception)
         {
-            return new JsonResult(new { error = "An error occurred while reading the resource." });
+            return new JsonResult(new { error = $"An error occurred while reading the resource from '{selectedServer.DisplayName}'." });
         }
     }
 
     private async Task LoadResourcesAsync(CancellationToken cancellationToken)
     {
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -78,7 +82,7 @@ public sealed class ResourcesModel : PageModel
         }
         catch (Exception)
         {
-            ErrorMessage ??= "An error occurred while loading resources.";
+            ErrorMessage ??= $"An error occurred while loading resources from '{selectedServer.DisplayName}'.";
             Resources = [];
         }
     }

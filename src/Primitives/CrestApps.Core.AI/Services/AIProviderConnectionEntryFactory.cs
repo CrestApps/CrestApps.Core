@@ -44,6 +44,8 @@ internal static class AIProviderConnectionEntryFactory
             }
         }
 
+        AIProviderConnectionDeploymentNameNormalizer.Normalize(values);
+
         values["DisplayText"] = string.IsNullOrWhiteSpace(connection.DisplayText)
             ? connection.Name
             : connection.DisplayText;

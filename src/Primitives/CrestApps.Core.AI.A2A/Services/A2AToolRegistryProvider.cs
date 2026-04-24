@@ -42,7 +42,7 @@ internal sealed class A2AToolRegistryProvider : IToolRegistryProvider
 
         foreach (var connectionId in connectionIds)
         {
-            var connection = await _connectionStore.FindByIdAsync(connectionId);
+            var connection = await _connectionStore.FindByIdAsync(connectionId, cancellationToken);
 
             if (connection is null || string.IsNullOrWhiteSpace(connection.Endpoint))
             {

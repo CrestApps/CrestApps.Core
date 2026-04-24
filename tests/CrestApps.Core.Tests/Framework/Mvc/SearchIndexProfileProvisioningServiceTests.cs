@@ -68,6 +68,30 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         Assert.Null(remoteManager.CreatedIndexName);
     }
 
+    [Fact]
+    public async Task Create_ShouldReturnValidationFailureWhenProviderResolutionThrows()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<ISearchIndexManager>(ElasticsearchConstants.ProviderName, static (_, _) => throw new InvalidOperationException("Elasticsearch is not configured."));
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var service = new SearchIndexProfileProvisioningService(
+            new TestSearchIndexProfileManager(),
+            serviceProvider,
+            NullLogger<SearchIndexProfileProvisioningService>.Instance);
+
+        var result = await service.CreateAsync(new SearchIndexProfile
+        {
+            Name = "articles",
+            IndexName = "articles",
+            ProviderName = ElasticsearchConstants.ProviderName,
+            Type = IndexProfileTypes.Articles,
+        }, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Errors, error => error.ErrorMessage.Contains("not configured", StringComparison.Ordinal));
+    }
+
     private static SearchIndexProfileProvisioningService CreateService(ISearchIndexProfileManager profileManager, TestRemoteSearchIndexManager remoteManager)
     {
         var services = new ServiceCollection();
@@ -114,18 +138,18 @@ public sealed class SearchIndexProfileProvisioningServiceTests
     {
         public List<SearchIndexProfile> CreatedProfiles { get; } = [];
 
-        public ValueTask CreateAsync(SearchIndexProfile model)
+        public ValueTask CreateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             CreatedProfiles.Add(model.Clone());
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<bool> DeleteAsync(SearchIndexProfile model)
+        public ValueTask<bool> DeleteAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask<SearchIndexProfile> FindByIdAsync(string id)
+        public ValueTask<SearchIndexProfile> FindByIdAsync(string id, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<SearchIndexProfile>(null);
         }
@@ -152,7 +176,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return ValueTask.FromResult(fields);
         }
 
-        public ValueTask<IEnumerable<SearchIndexProfile>> GetAllAsync()
+        public ValueTask<IEnumerable<SearchIndexProfile>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IEnumerable<SearchIndexProfile>>([]);
         }
@@ -162,12 +186,12 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return Task.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
         }
 
-        public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null)
+        public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new SearchIndexProfile());
         }
 
-        public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+        public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
             where TQuery : QueryContext
         {
             return ValueTask.FromResult(new PageResult<SearchIndexProfile>());
@@ -183,12 +207,12 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return Task.CompletedTask;
         }
 
-        public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null)
+        public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null, CancellationToken cancellationToken = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<ValidationResultDetails> ValidateAsync(SearchIndexProfile model)
+        public ValueTask<ValidationResultDetails> ValidateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new ValidationResultDetails());
         }

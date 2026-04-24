@@ -2,23 +2,29 @@ using CrestApps.Core.Data.EntityCore.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
 
 public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
 {
-    protected readonly CrestAppsEntityDbContext DbContext;
+    private const int MaxGetAllResults = 10000;
 
-    public DocumentCatalog(CrestAppsEntityDbContext dbContext)
+    protected readonly CrestAppsEntityDbContext DbContext;
+    protected readonly ILogger Logger;
+
+    public DocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
     {
         DbContext = dbContext;
+        Logger = logger;
     }
 
-    public async ValueTask<bool> DeleteAsync(T entry)
+    public async ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
+
         await DeletingAsync(entry);
-        var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == entry.ItemId);
+        var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == entry.ItemId, cancellationToken);
         if (existing is null)
         {
             return false;
@@ -29,28 +35,31 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         return true;
     }
 
-    public async ValueTask<T> FindByIdAsync(string id)
+    public async ValueTask<T> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
-        var record = await GetReadQuery().FirstOrDefaultAsync(x => x.ItemId == id);
+
+        var record = await GetReadQuery().FirstOrDefaultAsync(x => x.ItemId == id, cancellationToken);
+
         return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
-    public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids)
+    public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
+
         var itemIds = ids.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToArray();
         if (itemIds.Length == 0)
         {
             return [];
         }
 
-        var records = await GetReadQuery().Where(x => itemIds.Contains(x.ItemId)).ToListAsync();
+        var records = await GetReadQuery().Where(x => itemIds.Contains(x.ItemId)).ToListAsync(cancellationToken);
 
         return records.Select(CatalogRecordFactory.Materialize<T>).ToArray();
     }
 
-    public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context)
+    public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = GetReadQuery();
@@ -93,8 +102,8 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         }
 
         var skip = (page - 1) * pageSize;
-        var count = await query.CountAsync();
-        var records = await query.Skip(skip).Take(pageSize).ToListAsync();
+        var count = await query.CountAsync(cancellationToken);
+        var records = await query.Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
         return new PageResult<T>
         {
             Count = count,
@@ -108,15 +117,26 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         return query;
     }
 
-    public async ValueTask<IReadOnlyCollection<T>> GetAllAsync()
+    public async ValueTask<IReadOnlyCollection<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var records = await GetReadQuery().OrderBy(x => x.ItemId).ToListAsync();
+        var records = await GetReadQuery().OrderBy(x => x.ItemId).Take(MaxGetAllResults + 1).ToListAsync(cancellationToken);
+
+        if (records.Count > MaxGetAllResults)
+        {
+            Logger?.LogWarning(
+                "GetAllAsync for {EntityType} returned more than {MaxResults} results. The result set has been truncated.",
+                typeof(T).Name, MaxGetAllResults);
+
+            records.RemoveAt(records.Count - 1);
+        }
+
         return records.Select(CatalogRecordFactory.Materialize<T>).ToArray();
     }
 
-    public async ValueTask CreateAsync(T record)
+    public async ValueTask CreateAsync(T record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
+
         if (string.IsNullOrEmpty(record.ItemId))
         {
             record.ItemId = UniqueId.GenerateId();
@@ -127,16 +147,17 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         DbContext.CatalogRecords.Add(CatalogRecordFactory.Create(record));
     }
 
-    public async ValueTask UpdateAsync(T record)
+    public async ValueTask UpdateAsync(T record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
+
         if (string.IsNullOrEmpty(record.ItemId))
         {
             record.ItemId = UniqueId.GenerateId();
         }
 
         await SavingAsync(record);
-        var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == record.ItemId);
+        var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == record.ItemId, cancellationToken);
         if (existing is null)
         {
             DbContext.CatalogRecords.Add(CatalogRecordFactory.Create(record));

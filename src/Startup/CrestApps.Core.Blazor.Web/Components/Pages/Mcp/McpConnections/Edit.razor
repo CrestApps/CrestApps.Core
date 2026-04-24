@@ -10,6 +10,7 @@
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject TimeProvider TimeProvider
+@using CrestApps.Core.AI.Models
 
 <PageTitle>Edit MCP Host</PageTitle>
 
@@ -64,14 +65,14 @@ else
                 <div class="mb-3">
                     <label class="form-label">Authentication</label>
                     <select class="form-select" value="@_model.AuthenticationType" @onchange="OnAuthTypeChanged">
-                        @foreach (var authType in Enum.GetValues<McpClientAuthenticationType>())
+                        @foreach (var authType in Enum.GetValues<ClientAuthenticationType>())
                         {
                             <option value="@authType">@authType</option>
                         }
                     </select>
                 </div>
 
-                @if (_model.AuthenticationType == McpClientAuthenticationType.ApiKey)
+                @if (_model.AuthenticationType == ClientAuthenticationType.ApiKey)
                 {
                     <div class="mb-3">
                         <label class="form-label">API key header name</label>
@@ -93,7 +94,7 @@ else
                     </div>
                 }
 
-                @if (_model.AuthenticationType == McpClientAuthenticationType.Basic)
+                @if (_model.AuthenticationType == ClientAuthenticationType.Basic)
                 {
                     <div class="mb-3">
                         <label class="form-label">Username</label>
@@ -110,9 +111,9 @@ else
                     </div>
                 }
 
-                @if (_model.AuthenticationType is McpClientAuthenticationType.OAuth2ClientCredentials
-                    or McpClientAuthenticationType.OAuth2PrivateKeyJwt
-                    or McpClientAuthenticationType.OAuth2Mtls)
+                @if (_model.AuthenticationType is ClientAuthenticationType.OAuth2ClientCredentials
+                    or ClientAuthenticationType.OAuth2PrivateKeyJwt
+                    or ClientAuthenticationType.OAuth2Mtls)
                 {
                     <div class="mb-3">
                         <label class="form-label">Token endpoint</label>
@@ -130,7 +131,7 @@ else
                     </div>
                 }
 
-                @if (_model.AuthenticationType == McpClientAuthenticationType.OAuth2ClientCredentials)
+                @if (_model.AuthenticationType == ClientAuthenticationType.OAuth2ClientCredentials)
                 {
                     <div class="mb-3">
                         <label class="form-label">Client secret</label>
@@ -142,7 +143,7 @@ else
                     </div>
                 }
 
-                @if (_model.AuthenticationType == McpClientAuthenticationType.OAuth2PrivateKeyJwt)
+                @if (_model.AuthenticationType == ClientAuthenticationType.OAuth2PrivateKeyJwt)
                 {
                     <div class="mb-3">
                         <label class="form-label">Key ID</label>
@@ -159,7 +160,7 @@ else
                     </div>
                 }
 
-                @if (_model.AuthenticationType == McpClientAuthenticationType.OAuth2Mtls)
+                @if (_model.AuthenticationType == ClientAuthenticationType.OAuth2Mtls)
                 {
                     <div class="mb-3">
                         <label class="form-label">Client certificate (Base64 PFX/PKCS#12)</label>
@@ -180,7 +181,7 @@ else
                     </div>
                 }
 
-                @if (_model.AuthenticationType == McpClientAuthenticationType.CustomHeaders)
+                @if (_model.AuthenticationType == ClientAuthenticationType.CustomHeaders)
                 {
                     <div class="mb-3">
                         <label class="form-label">Additional headers (JSON)</label>
@@ -250,7 +251,7 @@ else
 
     private void OnAuthTypeChanged(ChangeEventArgs e)
     {
-        if (Enum.TryParse<McpClientAuthenticationType>(e.Value?.ToString(), out var value))
+        if (Enum.TryParse<ClientAuthenticationType>(e.Value?.ToString(), out var value))
         {
             _model.AuthenticationType = value;
         }
@@ -315,7 +316,7 @@ else
 
         switch (model.AuthenticationType)
         {
-            case McpClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
                 {
                     _errors.Add("API key is required.");
@@ -323,7 +324,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 if (string.IsNullOrWhiteSpace(model.BasicUsername))
                 {
                     _errors.Add("Username is required.");
@@ -336,7 +337,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 ValidateOAuth2Common(model);
 
                 if ((!isEditing || !model.HasOAuth2ClientSecret) && string.IsNullOrWhiteSpace(model.OAuth2ClientSecret))
@@ -346,7 +347,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 ValidateOAuth2Common(model);
 
                 if ((!isEditing || !model.HasOAuth2PrivateKey) && string.IsNullOrWhiteSpace(model.OAuth2PrivateKey))
@@ -356,7 +357,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 ValidateOAuth2Common(model);
 
                 if ((!isEditing || !model.HasOAuth2ClientCertificate) && string.IsNullOrWhiteSpace(model.OAuth2ClientCertificate))
@@ -366,7 +367,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 ValidateJsonObject(model.AdditionalHeaders, "Additional headers must be valid JSON.");
 
                 break;
@@ -467,20 +468,20 @@ else
 
         switch (model.AuthenticationType)
         {
-            case McpClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 metadata.ApiKeyHeaderName = model.ApiKeyHeaderName?.Trim();
                 metadata.ApiKeyPrefix = model.ApiKeyPrefix?.Trim();
                 metadata.ApiKey = ProtectOrReuse(model.ApiKey, existingApiKey, protector);
 
                 break;
 
-            case McpClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 metadata.BasicUsername = model.BasicUsername?.Trim();
                 metadata.BasicPassword = ProtectOrReuse(model.BasicPassword, existingBasicPassword, protector);
 
                 break;
 
-            case McpClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint?.Trim();
                 metadata.OAuth2ClientId = model.OAuth2ClientId?.Trim();
                 metadata.OAuth2Scopes = model.OAuth2Scopes?.Trim();
@@ -488,7 +489,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint?.Trim();
                 metadata.OAuth2ClientId = model.OAuth2ClientId?.Trim();
                 metadata.OAuth2Scopes = model.OAuth2Scopes?.Trim();
@@ -497,7 +498,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint?.Trim();
                 metadata.OAuth2ClientId = model.OAuth2ClientId?.Trim();
                 metadata.OAuth2Scopes = model.OAuth2Scopes?.Trim();
@@ -506,7 +507,7 @@ else
 
                 break;
 
-            case McpClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 metadata.AdditionalHeaders = string.IsNullOrWhiteSpace(model.AdditionalHeaders) ? [] : JsonSerializer.Deserialize<Dictionary<string, string>>(model.AdditionalHeaders) ?? [];
 
                 break;
@@ -576,3 +577,5 @@ else
         return model;
     }
 }
+
+

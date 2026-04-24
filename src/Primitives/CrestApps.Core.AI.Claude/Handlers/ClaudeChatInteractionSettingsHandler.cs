@@ -7,7 +7,7 @@ namespace CrestApps.Core.AI.Claude.Handlers;
 
 internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
-    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var orchestratorName = GetString(settings, "orchestratorName") ?? interaction.OrchestratorName;
         if (!string.Equals(orchestratorName, Services.ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
@@ -25,7 +25,7 @@ internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSet
         return Task.CompletedTask;
     }
 
-    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

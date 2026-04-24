@@ -41,7 +41,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
             return;
         }
 
-        var deployment = await _deploymentCatalog.FindByIdAsync(indexProfile.EmbeddingDeploymentId);
+        var deployment = await _deploymentCatalog.FindByIdAsync(indexProfile.EmbeddingDeploymentId, cancellationToken);
         if (deployment == null)
         {
             result.Fail(new ValidationResult("The selected embedding deployment could not be found.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
@@ -79,7 +79,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
     protected abstract IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions);
     private async Task<int> GetEmbeddingDimensionsAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken)
     {
-        var deployment = await _deploymentCatalog.FindByIdAsync(indexProfile.EmbeddingDeploymentId);
+        var deployment = await _deploymentCatalog.FindByIdAsync(indexProfile.EmbeddingDeploymentId, cancellationToken);
         if (deployment == null)
         {
             throw new InvalidOperationException("The selected embedding deployment could not be found.");

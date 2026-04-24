@@ -1,6 +1,7 @@
 using CrestApps.Core.Data.YesSql.Indexes;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
+using Microsoft.Extensions.Logging;
 using YesSql;
 
 namespace CrestApps.Core.Data.YesSql.Services;
@@ -9,16 +10,16 @@ public class NamedDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, IName
     where T : CatalogItem, INameAwareModel
     where TIndex : CatalogItemIndex, INameAwareIndex
 {
-    public NamedDocumentCatalog(ISession session, string collectionName = null)
-        : base(session, collectionName)
+    public NamedDocumentCatalog(ISession session, string collectionName = null, ILogger<DocumentCatalog<T, TIndex>> logger = null)
+        : base(session, collectionName, logger)
     {
     }
 
-    public async ValueTask<T> FindByNameAsync(string name)
+    public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        var item = await Session.Query<T, TIndex>(x => x.Name == name, collection: CollectionName).FirstOrDefaultAsync();
+        var item = await Session.Query<T, TIndex>(x => x.Name == name, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
 
         return item;
     }

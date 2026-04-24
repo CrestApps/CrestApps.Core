@@ -17,7 +17,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         _logger = logger;
     }
 
-    public async Task UpdatingAsync(ChatInteraction interaction, JsonElement settings)
+    public async Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var dataSourceId = GetString(settings, "dataSourceId");
         var isInScope = GetBool(settings, "isInScope") ?? false;
@@ -42,7 +42,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
             return;
         }
 
-        var dataSource = await dataSourceCatalog.FindByIdAsync(dataSourceId);
+        var dataSource = await dataSourceCatalog.FindByIdAsync(dataSourceId, cancellationToken);
         if (dataSource == null)
         {
             _logger.LogWarning("Chat interaction data source '{DataSourceId}' was not found while saving settings.", dataSourceId);
@@ -70,7 +70,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         });
     }
 
-    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

@@ -6,15 +6,13 @@ public sealed class CompletionServiceConfigureContext
 {
     public string ClientName { get; set; }
 
-    public string ImplemenationName { get; set; }
-
     public string DeploymentName { get; set; }
 
     public bool IsStreaming { get; set; }
 
     public ChatOptions ChatOptions { get; }
 
-    public readonly AICompletionContext CompletionContext;
+    public AICompletionContext CompletionContext { get; }
 
     public bool IsFunctionInvocationSupported { get; }
 

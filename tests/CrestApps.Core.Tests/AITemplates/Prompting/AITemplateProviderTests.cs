@@ -1,5 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Templates;
@@ -434,14 +435,14 @@ public sealed class FileSystemAIProfileTemplateProviderTests : IDisposable
             [new DefaultMarkdownTemplateParser()],
             NullLogger<AIProfileFileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates);
         Assert.Equal("support-agent", template.Name);
         Assert.Equal("Support Agent", template.DisplayText);
         Assert.Equal("SystemPrompt", template.Source);
         Assert.True(template.IsListable);
-        Assert.True(template.TryGet<CrestApps.Core.AI.Models.SystemPromptTemplateMetadata>(out var metadata));
+        Assert.True(template.TryGet<SystemPromptTemplateMetadata>(out var metadata));
         Assert.Equal("You are a helpful support assistant.", metadata.SystemMessage);
     }
 
@@ -463,7 +464,7 @@ public sealed class FileSystemAIProfileTemplateProviderTests : IDisposable
             [new DefaultMarkdownTemplateParser()],
             NullLogger<AIProfileFileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates);
         Assert.Equal("Nested.system-prompt", template.Name);

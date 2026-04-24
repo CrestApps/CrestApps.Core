@@ -64,7 +64,7 @@ public sealed class SettingsController : Controller
         var chatInteractionSettings = _siteSettings.Get<ChatInteractionSettings>();
         var defaultOrchestratorSettings = _siteSettings.Get<DefaultOrchestratorSettings>();
         var deploymentDefaults = _siteSettings.Get<DefaultAIDeploymentSettings>();
-        var memorySettings = _siteSettings.Get<AIMemorySettings>();
+        var memorySettings = _siteSettings.Get<AIMemoryOptions>();
         var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();
         var dataSourceSettings = _siteSettings.Get<AIDataSourceSettings>();
         var mcpServerSettings = _siteSettings.Get<McpServerOptions>();
@@ -250,7 +250,7 @@ public sealed class SettingsController : Controller
             DefaultTextToSpeechVoiceId = model.DefaultTextToSpeechVoiceId?.Trim(),
         });
 
-        _siteSettings.Set(new AIMemorySettings
+        _siteSettings.Set(new AIMemoryOptions
         {
             IndexProfileName = string.IsNullOrWhiteSpace(model.MemoryIndexProfileName)
                 ? null

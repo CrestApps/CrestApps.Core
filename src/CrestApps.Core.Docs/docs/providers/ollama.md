@@ -91,7 +91,7 @@ curl http://localhost:11434/api/tags
 ```
 
 :::tip
-This repository includes an Aspire AppHost that can orchestrate Ollama alongside the MVC sample application for local development. Run `dotnet run` from `src/Startup/CrestApps.Core.Aspire.AppHost/` to start everything together.
+This repository includes an Aspire AppHost that can orchestrate Ollama alongside both the MVC and Blazor sample hosts plus the shared MCP and A2A client samples for local development. Run `dotnet run` from `src/Startup/CrestApps.Core.Aspire.AppHost/` to start everything together.
 :::
 
 ## Model Management
@@ -178,5 +178,4 @@ Compared to cloud providers, Ollama has several differences to be aware of:
 :::warning
 Not all Ollama models support function calling. If your application relies on [Custom AI Tools](../core/tools.md), verify that your chosen model supports tool use before deploying. Models like `llama3.2` and `mistral` have good function calling support.
 :::
-
 

@@ -6,6 +6,7 @@ using Azure.Search.Documents.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Support;
 
 namespace CrestApps.Core.Azure.AISearch.Services;
 
@@ -206,7 +207,7 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
 
         if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(content))
         {
-            title = ExtractTitleFromContent(content);
+            title = content.ExtractTitleFromContent();
         }
 
         // Populate all source fields for filter field propagation.
@@ -223,24 +224,6 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
             Content = content,
             Fields = fields,
         };
-    }
-
-    private static string ExtractTitleFromContent(string content)
-    {
-        var firstLine = content.AsSpan();
-        var newlineIndex = firstLine.IndexOfAny('\r', '\n');
-
-        if (newlineIndex > 0)
-        {
-            firstLine = firstLine[..newlineIndex];
-        }
-
-        if (firstLine.Length > 200)
-        {
-            firstLine = firstLine[..200];
-        }
-
-        return firstLine.ToString().Trim();
     }
 
     /// <summary>

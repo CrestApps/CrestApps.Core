@@ -14,6 +14,8 @@ public class DefaultTemplateService : ITemplateService
     private readonly IEnumerable<ITemplateProvider> _providers;
     private readonly ITemplateEngine _renderer;
 
+    private IReadOnlyList<Template> _cachedTemplates;
+
     public DefaultTemplateService(
         IEnumerable<ITemplateProvider> providers,
         ITemplateEngine renderer)
@@ -24,6 +26,11 @@ public class DefaultTemplateService : ITemplateService
 
     public virtual async Task<IReadOnlyList<Template>> ListAsync()
     {
+        if (_cachedTemplates is not null)
+        {
+            return _cachedTemplates;
+        }
+
         var allTemplates = new List<Template>();
         var templateIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -43,6 +50,8 @@ public class DefaultTemplateService : ITemplateService
                 allTemplates.Add(template);
             }
         }
+
+        _cachedTemplates = allTemplates;
 
         return allTemplates;
     }

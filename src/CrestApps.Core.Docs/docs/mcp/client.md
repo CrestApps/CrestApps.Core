@@ -82,7 +82,7 @@ Use SSE to connect to remote MCP servers over HTTP. The `SseMcpConnectionMetadat
 public sealed class SseMcpConnectionMetadata
 {
     public Uri Endpoint { get; set; }
-    public McpClientAuthenticationType AuthenticationType { get; set; }
+    public ClientAuthenticationType AuthenticationType { get; set; }
 
     // API Key
     public string ApiKeyHeaderName { get; set; }
@@ -146,7 +146,7 @@ var metadata = new StdioMcpConnectionMetadata
 
 ## Authentication
 
-The SSE transport supports these authentication types via the `McpClientAuthenticationType` enum:
+The SSE transport supports these authentication types via the `ClientAuthenticationType` enum:
 
 | Type | Description |
 |------|-------------|
@@ -433,3 +433,4 @@ services.AddScoped<IMcpClientTransportProvider, GrpcClientTransportProvider>();
 - Authentication setup (API key, Basic, OAuth2 flows)
 - Assigning MCP connections to AI profiles
 - Viewing discovered capabilities from connected servers
+

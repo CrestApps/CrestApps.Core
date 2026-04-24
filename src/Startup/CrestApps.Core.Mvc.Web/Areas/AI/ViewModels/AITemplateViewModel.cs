@@ -309,7 +309,7 @@ public sealed class AITemplateViewModel
                 .ToList();
             }
 
-            model.EnableUserMemory = template.GetMemoryMetadata().EnableUserMemory ?? false;
+            model.EnableUserMemory = template.GetOrCreate<MemoryMetadata>().EnableUserMemory ?? false;
 
             if (template.TryGet<AIProfileSettings>(out var profileSettings))
             {
@@ -515,7 +515,7 @@ public sealed class AITemplateViewModel
                 .ToList(),
             });
 
-            template.WithMemoryMetadata(new MemoryMetadata
+            template.Put(new MemoryMetadata
             {
                 EnableUserMemory = EnableUserMemory,
             });

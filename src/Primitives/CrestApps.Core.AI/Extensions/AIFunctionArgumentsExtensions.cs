@@ -86,7 +86,7 @@ public static class AIFunctionArgumentsExtensions
             value = (T)safeValue;
             return true;
         }
-        catch
+        catch (Exception)
         {
             return false;
         }

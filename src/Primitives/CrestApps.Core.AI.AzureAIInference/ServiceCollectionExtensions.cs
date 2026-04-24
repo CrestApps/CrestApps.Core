@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.AzureAIInference.Services;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,7 +19,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, AzureAIInferenceClientProvider>());
 
-        services.AddCoreAIProfile<AzureAIInferenceCompletionClient>(AzureAIInferenceConstants.ClientName, o =>
+        services.AddCoreAIProfile<ProviderAICompletionClient<AzureAIInferenceClientMarker>>(AzureAIInferenceConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("Azure AI Inference", "Azure AI Inference / GitHub Models");
             o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI completion.");

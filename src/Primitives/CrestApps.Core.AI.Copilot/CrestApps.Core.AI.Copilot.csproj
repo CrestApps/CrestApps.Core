@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="GitHub.Copilot.SDK" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>
 
   <ItemGroup>

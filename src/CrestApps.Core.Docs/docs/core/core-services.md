@@ -166,7 +166,7 @@ Validates OData filter strings before they are passed to data source backends (E
 ```csharp
 public interface IODataValidator
 {
-    bool TryValidate(string filter, out IReadOnlyList<string> errors);
+    bool IsValidFilter(string filter);
 }
 ```
 

@@ -1323,13 +1323,17 @@
         var orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors();
         _model.Orchestrators = orchestrators.Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
 
-        var anthropicOptions = ClaudeOpts.Value;
-        _model.ClaudeIsConfigured = anthropicOptions is not null && !string.IsNullOrWhiteSpace(anthropicOptions.ApiKey) && !string.IsNullOrWhiteSpace(anthropicOptions.DefaultModel);
+        var hasAnthropicOptions = ClaudeOpts.TryGetValidValue(out ClaudeOptions anthropicOptions);
+        _model.ClaudeIsConfigured = hasAnthropicOptions && anthropicOptions.IsConfigured();
 
         if (_model.ClaudeIsConfigured)
         {
             var models = await ClaudeClientService.ListModelsAsync();
             _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, _model.ClaudeModel, anthropicOptions.DefaultModel);
+        }
+        else
+        {
+            _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], _model.ClaudeModel, anthropicOptions?.DefaultModel);
         }
 
         var copilotOptions = CopilotOpts.Value;

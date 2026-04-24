@@ -34,7 +34,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
 
     public int Order => 100;
 
-    public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries)
+    public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries, CancellationToken cancellationToken = default)
     {
         var connections = new Dictionary<string, AIProviderConnection>(StringComparer.OrdinalIgnoreCase);
         var names = knownEntries
@@ -216,6 +216,8 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             .Where(static pair => !IsConnectionMetadataKey(pair.Key))
             .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase);
 
+        AIProviderConnectionDeploymentNameNormalizer.CopyNormalized(values, properties);
+
         return new AIProviderConnection
         {
             ItemId = AIConfigurationRecordIds.CreateConnectionId(clientName, connectionName),
@@ -236,12 +238,17 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             string.Equals(key, "DisplayText", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "ConnectionNameAlias", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "ChatDeploymentName", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(key, "DeploymentName", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "DefaultChatDeploymentName", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "DefaultDeploymentName", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "EmbeddingDeploymentName", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(key, "DefaultEmbeddingDeploymentName", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "ImagesDeploymentName", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(key, "DefaultImagesDeploymentName", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "UtilityDeploymentName", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(key, "SpeechToTextDeploymentName", StringComparison.OrdinalIgnoreCase);
+            string.Equals(key, "DefaultUtilityDeploymentName", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(key, "SpeechToTextDeploymentName", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(key, "DefaultSpeechToTextDeploymentName", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Dictionary<string, object> ReadObject(IConfigurationSection section)

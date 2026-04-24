@@ -23,6 +23,12 @@ public sealed class AIToolExecutionContext
     /// </summary>
     public object Resource { get; }
 
+    /// <summary>
+    /// Gets the resource as the specified type.
+    /// </summary>
+    public T GetResource<T>()
+        where T : class => Resource as T;
+
     public AIToolExecutionContext(object resource)
     {
         ArgumentNullException.ThrowIfNull(resource);

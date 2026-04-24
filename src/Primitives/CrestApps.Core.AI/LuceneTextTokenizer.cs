@@ -23,14 +23,15 @@ namespace CrestApps.Core.AI;
 /// <para>Thread-safe: uses a shared <see cref="Analyzer"/> instance with per-thread
 /// TokenStream pooling.</para>
 /// </remarks>
-public sealed class LuceneTextTokenizer : ITextTokenizer
+public sealed partial class LuceneTextTokenizer : ITextTokenizer
 {
     private const LuceneVersion _luceneVersion = LuceneVersion.LUCENE_48;
 
     // Inserts a space between consecutive uppercase sequences and the start of a new word.
     // Handles a known limitation of Lucene 4.x WordDelimiterFilter where UPPER→letter
     // transitions don't trigger splits (e.g., "JSONSchema" → "JSON Schema").
-    private static readonly Regex _consecutiveUppercasePattern = new(@"(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.Compiled);
+    [GeneratedRegex(@"(?<=[A-Z])(?=[A-Z][a-z])")]
+    private static partial Regex ConsecutiveUppercasePattern();
 
     // Shared analyzer instance. Lucene.NET analyzers are thread-safe for GetTokenStream()
     // (the default reuse strategy uses per-thread TokenStream pooling via CloseableThreadLocal).
@@ -46,7 +47,7 @@ public sealed class LuceneTextTokenizer : ITextTokenizer
 
         // Pre-process: split consecutive uppercase sequences before a new word
         // (e.g., "JSONSchema" → "JSON Schema", "MCPServer" → "MCP Server").
-        text = _consecutiveUppercasePattern.Replace(text, " ");
+        text = ConsecutiveUppercasePattern().Replace(text, " ");
 
         var tokens = new HashSet<string>(StringComparer.Ordinal);
 

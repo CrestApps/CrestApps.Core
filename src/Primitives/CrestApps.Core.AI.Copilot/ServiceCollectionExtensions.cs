@@ -1,10 +1,12 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Copilot.Handlers;
+using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Copilot;
 
@@ -17,7 +19,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddHttpClient();
+        services.AddHttpClient(CopilotOrchestrator.HttpClientName)
+            .AddStandardResilienceHandler();
 
         services.AddOrchestrator<CopilotOrchestrator>(CopilotOrchestrator.OrchestratorName)
             .WithTitle("Copilot");
@@ -26,6 +29,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, CopilotChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, CopilotOrchestrationContextHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CopilotOptions>, CopilotOptionsValidator>());
 
         return services;
     }

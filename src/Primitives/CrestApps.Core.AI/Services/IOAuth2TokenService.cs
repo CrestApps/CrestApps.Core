@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Services;
+namespace CrestApps.Core.AI.Services;
 
 /// <summary>
 /// Acquires OAuth 2.0 access tokens using various client authentication methods,

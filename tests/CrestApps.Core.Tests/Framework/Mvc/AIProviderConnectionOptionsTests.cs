@@ -6,7 +6,6 @@ using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Services;
@@ -40,7 +39,7 @@ public sealed class AIProviderConnectionConfigurationTests
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync(TestContext.Current.CancellationToken);
         var connection = Assert.Single(connections);
 
         Assert.Equal("config-primary", connection.Name);
@@ -122,7 +121,7 @@ public sealed class AIProviderConnectionConfigurationTests
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(connections);
     }
@@ -148,7 +147,7 @@ public sealed class AIProviderConnectionConfigurationTests
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync(TestContext.Current.CancellationToken);
         var connection = Assert.Single(connections);
 
         Assert.Equal("config-primary", connection.Name);
@@ -185,7 +184,7 @@ public sealed class AIProviderConnectionConfigurationTests
                 },
             ]);
 
-        var connections = await store.GetAllAsync();
+        var connections = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains(connections, connection => connection.Name == "config-primary" && AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId));
         Assert.Contains(connections, connection => connection.Name == "ui-secondary" && connection.ItemId == "ui-connection");
@@ -218,7 +217,7 @@ public sealed class AIProviderConnectionConfigurationTests
 
         var store = CreateConnectionStore(configuration, catalogOptions: catalogOptions);
 
-        var connections = await store.GetAllAsync();
+        var connections = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains(connections, connection => connection.Name == "config-primary" && connection.ClientName == "OpenAI");
         Assert.Contains(connections, connection => connection.Name == "config-secondary" && connection.ClientName == "OpenAI");
@@ -245,10 +244,39 @@ public sealed class AIProviderConnectionConfigurationTests
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync(TestContext.Current.CancellationToken);
         var connection = Assert.Single(connections);
 
         Assert.Equal("Config primary", connection.DisplayText);
+    }
+
+    [Fact]
+    public async Task AddCrestAppsAI_WhenLegacyDeploymentSettingsConfigured_ShouldNormalizeThemIntoConnectionProperties()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:Connections:0:Name"] = "config-primary",
+                ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+                ["CrestApps:AI:Connections:0:DefaultDeploymentName"] = "legacy-chat",
+                ["CrestApps:AI:Connections:0:DefaultEmbeddingDeploymentName"] = "legacy-embedding",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
+        services.AddLogging();
+        services.AddCoreAIServices();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync(TestContext.Current.CancellationToken);
+        var connection = Assert.Single(connections);
+
+        Assert.Equal("legacy-chat", connection.Properties["ChatDeploymentName"]);
+        Assert.Equal("legacy-embedding", connection.Properties["EmbeddingDeploymentName"]);
+        Assert.False(connection.Properties.ContainsKey("DefaultDeploymentName"));
+        Assert.False(connection.Properties.ContainsKey("DefaultEmbeddingDeploymentName"));
     }
 
     [Fact]
@@ -376,7 +404,7 @@ public sealed class AIProviderConnectionConfigurationTests
         var options = serviceProvider.GetRequiredService<IOptions<AIOptions>>().Value;
 
         Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.AzureSpeechClientName));
-        Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechClientName].SupportsContainedConnection);
+        Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechClientName].UseContainedConnection);
     }
 
     [Fact]
@@ -405,7 +433,7 @@ public sealed class AIProviderConnectionConfigurationTests
         services.AddCoreAIServices();
         using var serviceProvider = services.BuildServiceProvider();
 
-        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync();
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains(connections, connection => connection.Name == "config-primary" && connection.ClientName == "OpenAI");
         Assert.Contains(connections, connection => connection.Name == "azure-secondary" && connection.ClientName == AzureOpenAIConstants.ClientName);
@@ -434,7 +462,7 @@ public sealed class AIProviderConnectionConfigurationTests
                 },
             ]);
 
-        var connections = await store.GetAllAsync();
+        var connections = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(connections);
         Assert.Equal("ui-connection", connections.Single().ItemId);
@@ -465,23 +493,23 @@ public sealed class AIProviderConnectionConfigurationTests
     {
         public int Order => 0;
 
-        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries)
+        public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IReadOnlyCollection<AIProviderConnection>>(connections.ToArray());
         }
 
-        public ValueTask CreateAsync(AIProviderConnection entry)
+        public ValueTask CreateAsync(AIProviderConnection entry, CancellationToken cancellationToken = default)
         {
             connections.Add(entry);
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<bool> DeleteAsync(AIProviderConnection entry)
+        public ValueTask<bool> DeleteAsync(AIProviderConnection entry, CancellationToken cancellationToken = default)
         {
             connections.Remove(entry);
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask UpdateAsync(AIProviderConnection entry) => ValueTask.CompletedTask;
+        public ValueTask UpdateAsync(AIProviderConnection entry, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
     }
 }

@@ -24,11 +24,11 @@ public sealed class AIDataSourceSearchDocumentHandlerTests
         };
 
         var indexProfileManager = new Mock<ISearchIndexProfileManager>();
-        indexProfileManager.Setup(manager => manager.FindByIdAsync(sourceProfile.ItemId))
+        indexProfileManager.Setup(manager => manager.FindByIdAsync(sourceProfile.ItemId, cancellationToken))
             .ReturnsAsync(sourceProfile);
 
         var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
-        dataSourceCatalog.Setup(catalog => catalog.GetAllAsync())
+        dataSourceCatalog.Setup(catalog => catalog.GetAllAsync(cancellationToken))
             .ReturnsAsync(
             [
                 new AIDataSource
@@ -68,11 +68,11 @@ public sealed class AIDataSourceSearchDocumentHandlerTests
         };
 
         var indexProfileManager = new Mock<ISearchIndexProfileManager>();
-        indexProfileManager.Setup(manager => manager.FindByIdAsync(sourceProfile.ItemId))
+        indexProfileManager.Setup(manager => manager.FindByIdAsync(sourceProfile.ItemId, cancellationToken))
             .ReturnsAsync(sourceProfile);
 
         var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
-        dataSourceCatalog.Setup(catalog => catalog.GetAllAsync())
+        dataSourceCatalog.Setup(catalog => catalog.GetAllAsync(cancellationToken))
             .ReturnsAsync(
             [
                 new AIDataSource

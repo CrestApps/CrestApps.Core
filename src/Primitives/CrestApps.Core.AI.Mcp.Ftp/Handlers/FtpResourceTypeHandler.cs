@@ -40,7 +40,8 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
         }
 
         var port = metadata.Port ?? 21;
-        var remotePath = "/" + (variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty);
+        var rawPath = variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty;
+        var remotePath = "/" + SanitizePath(rawPath);
         string password = null;
 
         if (!string.IsNullOrEmpty(metadata.Password))
@@ -78,6 +79,7 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
 
         if (metadata.ValidateAnyCertificate)
         {
+            _logger.LogWarning("FTP connection to '{Host}' is configured to accept any certificate. This disables TLS validation and should only be used in development.", host);
             client.ValidateCertificate += (_, args) => args.Accept = true;
         }
 

@@ -34,7 +34,7 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
 
         try
         {
-            var httpClient = _httpClientFactory.CreateClient();
+            var httpClient = _httpClientFactory.CreateClient(A2AConstants.HttpClientName);
 
             if (connection.TryGet<A2AConnectionMetadata>(out var metadata))
             {

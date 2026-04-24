@@ -10,5 +10,5 @@ public interface IAIProfileTemplateProvider
     /// <summary>
     /// Gets all profile templates from this provider.
     /// </summary>
-    Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync();
+    Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync(CancellationToken cancellationToken = default);
 }

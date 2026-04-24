@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.Support;
 
-public partial class Str
+public static partial class Str
 {
     public static bool IsNumeric(string phrase)
     {
@@ -38,33 +38,6 @@ public partial class Str
     }
 
     /// <summary>
-    /// Gets a null if the giving string is null or whitespace or a trimmed string.
-    /// </summary>
-    /// <param name="value"></param>
-    /// <param name="trimStart"></param>
-    /// <param name="trimEnd"></param>
-    /// <returns></returns>
-    public static string NullOrString(string value, bool trimStart = true, bool trimEnd = true)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        if (trimStart)
-        {
-            value = value.TrimStart();
-        }
-
-        if (trimEnd)
-        {
-            value = value.TrimEnd();
-        }
-
-        return value;
-    }
-
-    /// <summary>
     /// Adds a space after each Capital Letter.
     /// "HelloWorldThisIsATest" would then be "Hello World This Is A Test".
     /// </summary>
@@ -78,31 +51,6 @@ public partial class Str
         }
 
         return SpaceBeforeWords().Replace(text, " $1$2").Trim();
-    }
-
-    /// <summary>
-    /// Add ordinal to a giving number.
-    /// </summary>
-    /// <param name="num"></param>
-    /// <returns></returns>
-    public static string AddOrdinal(int num)
-    {
-        if (num <= 0)
-        {
-            return num.ToString();
-        }
-
-        return (num % 100) switch
-        {
-            11 or 12 or 13 => num + "th",
-            _ => (num % 10) switch
-            {
-                1 => num + "st",
-                2 => num + "nd",
-                3 => num + "rd",
-                _ => num + "th",
-            },
-        };
     }
 
     public static string Truncate(string value, int maxLength)
@@ -155,19 +103,6 @@ public partial class Str
         body = body.Replace(template, newline);
 
         return body;
-    }
-
-    public static string Reduce(string text, string stringToReduce, int reduceTo = 1)
-    {
-        var template = Repeat(stringToReduce, reduceTo);
-        var replaceWith = Repeat(stringToReduce, reduceTo - 1);
-
-        while (text.IndexOf(template) > -1)
-        {
-            text = text.Replace(template, replaceWith);
-        }
-
-        return text;
     }
 
     public static string Repeat(string value, int count)
@@ -226,21 +161,6 @@ public partial class Str
         }
 
         return count;
-    }
-
-    public static string StringOrNull(string str, bool trim = true)
-    {
-        if (string.IsNullOrWhiteSpace(str))
-        {
-            return null;
-        }
-
-        if (trim)
-        {
-            return str.Trim();
-        }
-
-        return str;
     }
 
     public static string UppercaseFirst(string word, bool lowercaseTheRest = true)
@@ -358,37 +278,6 @@ public partial class Str
             return text;
         }
         return string.Concat(text.AsSpan(0, pos), replace, text.AsSpan(pos + search.Length));
-    }
-
-    public static string ConvertSecondsToTimeSpan(double seconds)
-    {
-        var span = TimeSpan.FromSeconds(seconds);
-
-        return span.ToString(@"hh\:mm\:ss\:ff");
-    }
-
-    public static string Base64Encode(string plainText)
-    {
-        if (string.IsNullOrEmpty(plainText))
-        {
-            return plainText;
-        }
-
-        var plainTextBytes = Encoding.UTF8.GetBytes(plainText);
-
-        return Convert.ToBase64String(plainTextBytes);
-    }
-
-    public static string Base64Decode(string base64EncodedData)
-    {
-        if (string.IsNullOrEmpty(base64EncodedData))
-        {
-            return base64EncodedData;
-        }
-
-        var base64EncodedBytes = Convert.FromBase64String(base64EncodedData);
-
-        return Encoding.UTF8.GetString(base64EncodedBytes);
     }
 
     [GeneratedRegex(@"^\d+$")]

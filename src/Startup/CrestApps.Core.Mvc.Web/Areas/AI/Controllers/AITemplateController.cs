@@ -176,10 +176,10 @@ public sealed class AITemplateController : Controller
         model.ChatDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Utility) || d.Type.Supports(AIDeploymentType.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
-        var anthropicOptions = _anthropicOptions.Value;
+        var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out ClaudeOptions anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
-        model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
-        await PopulateClaudeModelsAsync(model);
+        model.ClaudeIsConfigured = hasAnthropicOptions && anthropicOptions.IsConfigured();
+        await PopulateClaudeModelsAsync(model, anthropicOptions);
         model.CopilotAuthenticationType = _copilotOptions.AuthenticationType;
         model.CopilotIsConfigured = IsCopilotConfigured();
         await PopulateCopilotStatusAsync(model);
@@ -261,12 +261,11 @@ public sealed class AITemplateController : Controller
         return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase) ? deployment.Name : $"{deployment.Name} ({deployment.ModelName})";
     }
 
-    private async Task PopulateClaudeModelsAsync(AITemplateViewModel model)
+    private async Task PopulateClaudeModelsAsync(AITemplateViewModel model, ClaudeOptions anthropicOptions = null)
     {
-        var anthropicOptions = _anthropicOptions.Value;
-        if (!anthropicOptions.IsConfigured())
+        if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
-            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions.DefaultModel);
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
             return;
         }
 

@@ -80,9 +80,7 @@ public sealed class GitHubOAuthService
         }
 
         // Exchange authorization code for access token.
-        var httpClient = _httpClientFactory.CreateClient();
-        httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CrestApps-OrchardCore-Copilot/1.0");
+        var httpClient = _httpClientFactory.CreateClient(CopilotOrchestrator.HttpClientName);
 
         var tokenRequest = new Dictionary<string, string>
         {
@@ -91,11 +89,14 @@ public sealed class GitHubOAuthService
             ["code"] = code
         };
 
-        var tokenResponse = await httpClient.PostAsJsonAsync(
-            "https://github.com/login/oauth/access_token",
-            tokenRequest,
-            cancellationToken);
+        using var tokenRequestMessage = new HttpRequestMessage(HttpMethod.Post, "https://github.com/login/oauth/access_token")
+        {
+            Content = JsonContent.Create(tokenRequest),
+        };
+        tokenRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        tokenRequestMessage.Headers.UserAgent.ParseAdd("CrestApps-OrchardCore-Copilot/1.0");
 
+        var tokenResponse = await httpClient.SendAsync(tokenRequestMessage, cancellationToken);
         tokenResponse.EnsureSuccessStatusCode();
 
         var tokenData = await tokenResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
@@ -108,9 +109,12 @@ public sealed class GitHubOAuthService
         }
 
         // Get user information from GitHub.
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var userRequestMessage = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+        userRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        userRequestMessage.Headers.UserAgent.ParseAdd("CrestApps-OrchardCore-Copilot/1.0");
+        userRequestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var userResponse = await httpClient.GetAsync("https://api.github.com/user", cancellationToken);
+        var userResponse = await httpClient.SendAsync(userRequestMessage, cancellationToken);
         userResponse.EnsureSuccessStatusCode();
 
         var userData = await userResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);

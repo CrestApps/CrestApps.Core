@@ -15,49 +15,49 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     {
     }
 
-    public async ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName)
+    public async ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName, CancellationToken cancellationToken = default)
     {
-        var deployments = (await Catalog.GetAllAsync())
+        var deployments = (await Catalog.GetAllAsync(cancellationToken))
             .Where(x => string.Equals(x.ClientName, clientName, StringComparison.OrdinalIgnoreCase));
 
         foreach (var deployment in deployments)
         {
-            await LoadAsync(deployment);
+            await LoadAsync(deployment, cancellationToken);
         }
 
         return deployments;
     }
 
-    public async ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type)
+    public async ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default)
     {
-        var deployments = (await Catalog.GetAllAsync())
+        var deployments = (await Catalog.GetAllAsync(cancellationToken))
             .Where(x => x.SupportsType(type));
 
         foreach (var deployment in deployments)
         {
-            await LoadAsync(deployment);
+            await LoadAsync(deployment, cancellationToken);
         }
 
         return deployments;
     }
 
-    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type)
+    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
     {
-        var deployments = await GetAllAsync(clientName);
+        var deployments = await GetAllAsync(clientName, cancellationToken);
 
         var candidates = deployments.Where(d => d.SupportsType(type));
 
         return candidates.FirstOrDefault();
     }
 
-    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null)
+    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
     {
-        return ResolveByTypeAsync(type, deploymentName, clientName);
+        return ResolveByTypeAsync(type, deploymentName, clientName, cancellationToken);
     }
 
-    public async ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null)
+    public async ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default)
     {
-        var allDeployments = await GetAllAsync();
+        var allDeployments = await GetAllAsync(cancellationToken);
 
         var filtered = allDeployments.Where(d => d.SupportsType(type));
 
@@ -69,11 +69,11 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return filtered;
     }
 
-    private async ValueTask<AIDeployment> ResolveByTypeAsync(AIDeploymentType type, string deploymentName, string clientName)
+    private async ValueTask<AIDeployment> ResolveByTypeAsync(AIDeploymentType type, string deploymentName, string clientName, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrEmpty(deploymentName))
         {
-            var deployment = await FindBySelectorAsync(deploymentName);
+            var deployment = await FindBySelectorAsync(deploymentName, cancellationToken);
 
             if (deployment != null)
             {
@@ -85,7 +85,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
 
         if (!string.IsNullOrEmpty(globalDefaultId))
         {
-            var deployment = await FindBySelectorAsync(globalDefaultId);
+            var deployment = await FindBySelectorAsync(globalDefaultId, cancellationToken);
 
             if (deployment != null)
             {
@@ -93,12 +93,12 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
             }
         }
 
-        return await GetFirstMatchingDeploymentAsync(type, clientName);
+        return await GetFirstMatchingDeploymentAsync(type, clientName, cancellationToken);
     }
 
-    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentType type, string clientName)
+    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentType type, string clientName, CancellationToken cancellationToken)
     {
-        var deployments = await GetAllAsync();
+        var deployments = await GetAllAsync(cancellationToken);
 
         return deployments.FirstOrDefault(deployment =>
         {
@@ -117,16 +117,16 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         });
     }
 
-    private async ValueTask<AIDeployment> FindBySelectorAsync(string selector)
+    private async ValueTask<AIDeployment> FindBySelectorAsync(string selector, CancellationToken cancellationToken)
     {
-        var deployment = await FindByIdAsync(selector);
+        var deployment = await FindByIdAsync(selector, cancellationToken);
 
         if (deployment != null)
         {
             return deployment;
         }
 
-        return await FindByNameAsync(selector);
+        return await FindByNameAsync(selector, cancellationToken);
     }
 
     private async ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentType type)

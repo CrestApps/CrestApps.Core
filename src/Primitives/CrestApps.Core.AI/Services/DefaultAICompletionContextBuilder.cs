@@ -21,7 +21,7 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
         _logger = logger;
     }
 
-    public async ValueTask<AICompletionContext> BuildAsync(object resource, Action<AICompletionContext> configure = null)
+    public async ValueTask<AICompletionContext> BuildAsync(object resource, Action<AICompletionContext> configure = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(resource);
 

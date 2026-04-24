@@ -121,6 +121,8 @@ That turns a profile into more than a prompt container. It becomes the contract 
 
 Profiles can opt into user memory so experiences can carry durable context forward between sessions instead of starting from zero every time.
 
+That toggle is stored directly as `MemoryMetadata`, so profile and template consumers read and write one shared metadata shape instead of carrying legacy memory-setting aliases forward.
+
 ## Profile types
 
 `AIProfile.Type` lets one model support different runtime roles.

@@ -9,7 +9,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Infrastructure;
+using CrestApps.Core.Extensions;
 using CrestApps.Core.Templates.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -488,7 +488,6 @@ omit optional fields, or split the operation into multiple smaller calls.
         {
             DeploymentName = deploymentName,
             ClientName = ClientName,
-            ImplemenationName = ClientName,
             IsStreaming = false,
         };
 
@@ -538,6 +537,6 @@ omit optional fields, or split the operation into multiple smaller calls.
 
         var record = AICompletionUsageRecordFactory.Create(context, ClientName, connectionName, deploymentName, modelName, responseId, usage?.InputTokenCount ?? 0, usage?.OutputTokenCount ?? 0, usage?.TotalTokenCount ?? 0, responseLatencyMs, isStreaming);
 
-        await observers.InvokeHandlersAsync((observer, usageRecord) => observer.UsageRecordedAsync(usageRecord, cancellationToken), record, _logger);
+        await observers.InvokeAsync((observer, usageRecord) => observer.UsageRecordedAsync(usageRecord, cancellationToken), record, _logger);
     }
 }

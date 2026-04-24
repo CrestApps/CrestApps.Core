@@ -75,7 +75,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
-        var profiles = await profileManager.GetAsync(AIProfileType.Chat);
+        var profiles = await profileManager.GetAsync(AIProfileType.Chat, cancellationToken);
 
         foreach (var profile in profiles)
         {
@@ -97,7 +97,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
 
             do
             {
-                result = await sessionManager.PageAsync(page, _pageSize, queryContext);
+                result = await sessionManager.PageAsync(page, _pageSize, queryContext, cancellationToken);
 
                 foreach (var entry in result.Sessions)
                 {
@@ -111,7 +111,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                         continue;
                     }
 
-                    var chatSession = await sessionManager.FindByIdAsync(entry.SessionId);
+                    var chatSession = await sessionManager.FindByIdAsync(entry.SessionId, cancellationToken);
 
                     if (chatSession is null || chatSession.Status != ChatSessionStatus.Active)
                     {
@@ -131,7 +131,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                         chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.None;
                     }
 
-                    await sessionManager.SaveAsync(chatSession);
+                    await sessionManager.SaveAsync(chatSession, cancellationToken);
 
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
@@ -157,7 +157,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
-        var profiles = await profileManager.GetAsync(AIProfileType.Chat);
+        var profiles = await profileManager.GetAsync(AIProfileType.Chat, cancellationToken);
 
         foreach (var profile in profiles)
         {
@@ -172,7 +172,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
 
             do
             {
-                result = await sessionManager.PageAsync(page, _pageSize, queryContext);
+                result = await sessionManager.PageAsync(page, _pageSize, queryContext, cancellationToken);
 
                 foreach (var entry in result.Sessions)
                 {
@@ -186,7 +186,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                         continue;
                     }
 
-                    var chatSession = await sessionManager.FindByIdAsync(entry.SessionId);
+                    var chatSession = await sessionManager.FindByIdAsync(entry.SessionId, cancellationToken);
 
                     if (chatSession is null)
                     {
@@ -201,7 +201,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                     if (chatSession.PostSessionProcessingAttempts >= AIChatSessionPostCloseProcessor.MaxPostCloseAttempts)
                     {
                         chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.Failed;
-                        await sessionManager.SaveAsync(chatSession);
+                        await sessionManager.SaveAsync(chatSession, cancellationToken);
 
                         _logger.LogWarning(
                             "Post-session processing for session '{SessionId}' failed after {MaxAttempts} attempts.",
@@ -219,7 +219,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
 
                     var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
                     await postCloseProcessor.ProcessAsync(profile, chatSession, prompts, cancellationToken);
-                    await sessionManager.SaveAsync(chatSession);
+                    await sessionManager.SaveAsync(chatSession, cancellationToken);
 
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {

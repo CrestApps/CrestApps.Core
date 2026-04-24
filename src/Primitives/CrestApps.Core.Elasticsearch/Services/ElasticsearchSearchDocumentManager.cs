@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Support;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Core.Bulk;
 using Microsoft.Extensions.Logging;
@@ -25,11 +26,6 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
         _elasticClient = elasticClient;
         _handlers = handlers;
         _logger = logger;
-    }
-
-    private static string SanitizeLogValue(string value)
-    {
-        return value?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? string.Empty;
     }
 
     public async Task<bool> AddOrUpdateAsync(IIndexProfileInfo profile, IReadOnlyCollection<IndexDocument> documents, CancellationToken cancellationToken = default)
@@ -62,7 +58,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             var response = await _elasticClient.BulkAsync(request, cancellationToken);
             if (!response.IsValidResponse)
             {
-                _logger.LogWarning("Elasticsearch bulk index failed for index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+                _logger.LogWarning("Elasticsearch bulk index failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
                 return false;
             }
 
@@ -72,7 +68,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error indexing documents in Elasticsearch index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error indexing documents in Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
             return false;
         }
     }
@@ -102,14 +98,14 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             var response = await _elasticClient.BulkAsync(request, cancellationToken);
             if (!response.IsValidResponse)
             {
-                _logger.LogWarning("Elasticsearch bulk delete failed for index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+                _logger.LogWarning("Elasticsearch bulk delete failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
             }
 
             await NotifyDocumentsDeletedAsync(profile, ids, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting documents from Elasticsearch index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error deleting documents from Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
         }
     }
 
@@ -123,12 +119,12 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             })), cancellationToken);
             if (!response.IsValidResponse)
             {
-                _logger.LogWarning("Elasticsearch delete all failed for index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+                _logger.LogWarning("Elasticsearch delete all failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting all documents from Elasticsearch index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error deleting all documents from Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
         }
     }
 
@@ -153,7 +149,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
 
         if (_logger.IsEnabled(LogLevel.Trace))
         {
-            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after add/update for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, SanitizeLogValue(profile.IndexFullName), documentIds.Length);
+            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after add/update for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, profile.IndexFullName.SanitizeForLog(), documentIds.Length);
         }
 
         foreach (var handler in handlers)
@@ -164,7 +160,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after indexing documents into '{IndexName}'.", handler.GetType().Name, SanitizeLogValue(profile.IndexFullName));
+                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after indexing documents into '{IndexName}'.", handler.GetType().Name, profile.IndexFullName.SanitizeForLog());
             }
         }
     }
@@ -180,7 +176,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
 
         if (_logger.IsEnabled(LogLevel.Trace))
         {
-            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after delete for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, SanitizeLogValue(profile.IndexFullName), documentIds.Count);
+            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after delete for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, profile.IndexFullName.SanitizeForLog(), documentIds.Count);
         }
 
         foreach (var handler in handlers)
@@ -191,7 +187,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after deleting documents from '{IndexName}'.", handler.GetType().Name, SanitizeLogValue(profile.IndexFullName));
+                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after deleting documents from '{IndexName}'.", handler.GetType().Name, profile.IndexFullName.SanitizeForLog());
             }
         }
     }

@@ -19,10 +19,11 @@ public interface IAICompletionContextBuilder
     /// </summary>
     /// <param name="resource">The resource object (e.g., <see cref="AIProfile"/> or <c>ChatInteraction</c>) used to seed and configure the completion context. Must not be <see langword="null"/>.</param>
     /// <param name="configure">An optional delegate to override or fine-tune the context after handlers have run <c>BuildingAsync</c> but before <c>BuiltAsync</c>.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>A task that completes with the fully built <see cref="AICompletionContext"/>.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="resource"/> is <see langword="null"/>.</exception>
     /// <seealso cref="IAICompletionContextBuilderHandler"/>
     /// <seealso cref="AICompletionContextBuildingContext"/>
     /// <seealso cref="AICompletionContextBuiltContext"/>
-    ValueTask<AICompletionContext> BuildAsync(object resource, Action<AICompletionContext> configure = null);
+    ValueTask<AICompletionContext> BuildAsync(object resource, Action<AICompletionContext> configure = null, CancellationToken cancellationToken = default);
 }

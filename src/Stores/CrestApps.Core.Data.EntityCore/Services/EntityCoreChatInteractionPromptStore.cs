@@ -1,13 +1,14 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreChatInteractionPromptStore : DocumentCatalog<ChatInteractionPrompt>, IChatInteractionPromptStore
 {
-    public EntityCoreChatInteractionPromptStore(CrestAppsEntityDbContext dbContext)
-        : base(dbContext)
+    public EntityCoreChatInteractionPromptStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<ChatInteractionPrompt>> logger = null)
+        : base(dbContext, logger)
     {
     }
 

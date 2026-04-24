@@ -34,6 +34,11 @@ public sealed class OrchestrationContextBuiltContext
     public object Resource { get; }
 
     /// <summary>
+    /// Gets the resource as the specified type.
+    /// </summary>
+    public T GetResource<T>() where T : class => Resource as T;
+
+    /// <summary>
     /// Gets the finalized <see cref="Models.OrchestrationContext"/>.
     /// </summary>
     public OrchestrationContext OrchestrationContext { get; }

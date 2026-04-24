@@ -19,35 +19,35 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         SourceCatalog = sourceCatalog;
     }
 
-    public async ValueTask<IEnumerable<T>> FindBySourceAsync(string source)
+    public async ValueTask<IEnumerable<T>> FindBySourceAsync(string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        var entries = (await Catalog.GetAllAsync()).Where(x => x.Source == source);
+        var entries = (await Catalog.GetAllAsync(cancellationToken)).Where(x => x.Source == source);
 
         foreach (var entry in entries)
         {
-            await LoadAsync(entry);
+            await LoadAsync(entry, cancellationToken);
         }
 
         return entries;
     }
 
-    public async ValueTask<IEnumerable<T>> GetAsync(string source)
+    public async ValueTask<IEnumerable<T>> GetAsync(string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        var entries = await SourceCatalog.GetAsync(source);
+        var entries = await SourceCatalog.GetAsync(source, cancellationToken);
 
         foreach (var entry in entries)
         {
-            await LoadAsync(entry);
+            await LoadAsync(entry, cancellationToken);
         }
 
         return entries;
     }
 
-    public async ValueTask<T> NewAsync(string source, JsonNode data = null)
+    public async ValueTask<T> NewAsync(string source, JsonNode data = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
 
@@ -60,10 +60,10 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         };
 
         var initializingContext = new InitializingContext<T>(entry, data);
-        await Handlers.InvokeAsync((handler, ctx) => handler.InitializingAsync(ctx), initializingContext, Logger);
+        await Handlers.InvokeAsync((handler, ctx) => handler.InitializingAsync(ctx, cancellationToken), initializingContext, Logger);
 
         var initializedContext = new InitializedContext<T>(entry);
-        await Handlers.InvokeAsync((handler, ctx) => handler.InitializedAsync(ctx), initializedContext, Logger);
+        await Handlers.InvokeAsync((handler, ctx) => handler.InitializedAsync(ctx, cancellationToken), initializedContext, Logger);
 
         if (string.IsNullOrEmpty(entry.ItemId))
         {
@@ -75,7 +75,7 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         return entry;
     }
 
-    public override ValueTask<T> NewAsync(JsonNode data = null)
+    public override ValueTask<T> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
     {
         var source = data?["Source"]?.GetValue<string>();
 
@@ -84,6 +84,6 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
             throw new InvalidOperationException("Data must contain a Source entry");
         }
 
-        return NewAsync(source, data);
+        return NewAsync(source, data, cancellationToken);
     }
 }

@@ -1,10 +1,10 @@
-using Azure.Search.Documents.Indexes;
 using CrestApps.Core.AI.Azure.AISearch.Services;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Azure.AISearch.Builders;
+using CrestApps.Core.Azure.AISearch.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,7 +18,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddKeyedScoped<IVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchVectorSearchService(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchVectorSearchService>>()));
+        services.TryAddKeyedScoped<IVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchVectorSearchService(sp.GetRequiredService<IAzureAISearchClientFactory>().CreateSearchIndexClient(), sp.GetRequiredService<ILogger<AzureAISearchVectorSearchService>>()));
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
         {
@@ -42,7 +42,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddKeyedScoped<IMemoryVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchMemoryVectorSearchService(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchMemoryVectorSearchService>>()));
+        services.TryAddKeyedScoped<IMemoryVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchMemoryVectorSearchService(sp.GetRequiredService<IAzureAISearchClientFactory>().CreateSearchIndexClient(), sp.GetRequiredService<ILogger<AzureAISearchMemoryVectorSearchService>>()));
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
         {

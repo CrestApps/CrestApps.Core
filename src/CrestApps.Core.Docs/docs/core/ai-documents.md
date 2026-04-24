@@ -254,6 +254,13 @@ public interface IVectorSearchService
 
 The user's query is embedded, and the resulting vector is compared against indexed chunks using cosine similarity.
 
+For uploaded chat-interaction and chat-session documents, the framework now switches between two context-loading strategies automatically:
+
+- targeted questions continue to use semantic chunk retrieval (`SearchDocumentsTool` and preemptive RAG)
+- whole-document tasks such as summarizing, reviewing, rewriting, translating, or extracting complete information from an attached file inject the full document text instead of a few chunks
+
+That keeps RAG efficient for lookup-style questions while avoiding partial-context answers for requests that depend on the entire uploaded file.
+
 ## Built-in Document Readers
 
 | Reader | Extensions | Embeddable | Notes |
@@ -552,5 +559,4 @@ public sealed class InteractionDocumentSettings
 | `SearchDocumentsTool` | — | System tool | Semantic vector search |
 | `ReadDocumentTool` | — | System tool | Full document read |
 | `ReadTabularDataTool` | — | System tool | Tabular data queries |
-
 

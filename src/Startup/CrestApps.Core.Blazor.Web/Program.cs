@@ -21,8 +21,8 @@ using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Blazor.Web;
-using CrestApps.Core.Blazor.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Endpoints;
+using CrestApps.Core.Blazor.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Hubs;
@@ -35,6 +35,7 @@ using CrestApps.Core.SignalR;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
 
 // =============================================================================
 // CrestApps AI Framework — Blazor Example Application
@@ -50,7 +51,11 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 //   4. MCP and custom tools
 //   5. Background tasks and pipeline
 // =============================================================================
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = SampleHostContentRootResolver.ResolveContentRoot("CrestApps.Core.Blazor.Web.csproj"),
+});
 
 // Shared sample-host defaults: HostOptions, NLog, App_Data, App_Data/appsettings.json,
 // and the SiteSettingsStore + option bridges that feed the sample admin UI.
@@ -190,7 +195,11 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 {
     branch.Use(async (context, next) =>
     {
-        var settings = context.RequestServices.GetRequiredService<SiteSettingsStore>().Get<McpServerOptions>();
+        var siteSettings = context.RequestServices.GetRequiredService<SiteSettingsStore>();
+        var settings = siteSettings.TryGet<McpServerOptions>(out var storedSettings)
+            ? storedSettings
+            : context.RequestServices.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
             await next();

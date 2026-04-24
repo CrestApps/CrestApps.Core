@@ -20,6 +20,7 @@ Model Context Protocol (MCP) implementation for CrestApps AI services.
 </ItemGroup>
 
 <ItemGroup>
+  <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   <PackageReference Include="ModelContextProtocol" />
 </ItemGroup>
 

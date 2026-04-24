@@ -4,9 +4,9 @@ namespace CrestApps.Core.AI.Models;
 
 public class ExportingAIProviderConnectionContext
 {
-    public readonly AIProviderConnection Connection;
+    public AIProviderConnection Connection { get; }
 
-    public readonly JsonObject ExportData;
+    public JsonObject ExportData { get; }
 
     public ExportingAIProviderConnectionContext(AIProviderConnection connection, JsonObject exportData)
     {

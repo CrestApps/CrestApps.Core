@@ -19,7 +19,7 @@ const config = {
   organizationName: 'CrestApps',
   projectName: 'CrestApps.Core',
 
-  onBrokenLinks: 'warn',
+  onBrokenLinks: 'throw',
 
   i18n: {
     defaultLocale: 'en',

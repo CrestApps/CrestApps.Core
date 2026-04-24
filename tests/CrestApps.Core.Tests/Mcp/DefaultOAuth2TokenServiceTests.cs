@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using CrestApps.Core.AI.Mcp.Services;
+using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 

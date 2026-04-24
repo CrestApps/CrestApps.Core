@@ -31,6 +31,12 @@ namespace CrestApps.Core.AI.Copilot.Services;
 public sealed class CopilotOrchestrator : IOrchestrator
 {
     public const string OrchestratorName = "copilot";
+
+    /// <summary>
+    /// The name of the named <see cref="System.Net.Http.HttpClient"/> used by Copilot services.
+    /// </summary>
+    public const string HttpClientName = "CrestApps.Copilot";
+
     private const string TokenProtectorPurpose = "CrestApps.Core.AI.Copilot.GitHubTokens";
 
     private readonly IToolRegistry _toolRegistry;
@@ -275,7 +281,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             return PermissionHandler.ApproveAll;
         }
 
-        return (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser, });
+        return (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable, });
     }
 
     private static string GetReasoningEffortValue(CopilotReasoningEffort reasoningEffort)

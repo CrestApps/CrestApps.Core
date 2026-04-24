@@ -71,19 +71,7 @@ var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
         options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__ExposeAgentsAsSkill", "true");
     });
 
-builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_McpClient>("MvcMcpClientSample")
-    .WithReference(mvcWeb)
-    .WaitFor(mvcWeb)
-    .WithHttpsEndpoint(5002, name: "HttpsMvcMcpClient")
-    .WithEnvironment("Mcp__Endpoint", "https://localhost:5001/mcp/sse");
-
-builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_A2AClient>("MvcA2AClientSample")
-    .WithReference(mvcWeb)
-    .WaitFor(mvcWeb)
-    .WithHttpsEndpoint(5003, name: "HttpsMvcA2AClient")
-    .WithEnvironment("A2A__Endpoint", "https://localhost:5001");
-
-builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWeb")
+var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWeb")
     .WithReference(redis)
     .WithReference(ollama)
     .WaitFor(redis)
@@ -93,7 +81,34 @@ builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWeb")
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__DefaultDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
+        options.EnvironmentVariables.Add("CrestApps__BlazorApp__MCP__Server__AuthenticationType", "None");
+        options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__AuthenticationType", "None");
+        options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__ExposeAgentsAsSkill", "true");
     });
+
+builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_McpClient>("McpClientSample")
+    .WithReference(mvcWeb)
+    .WithReference(blazorWeb)
+    .WaitFor(mvcWeb)
+    .WaitFor(blazorWeb)
+    .WithHttpsEndpoint(5002, name: "HttpsMvcMcpClient")
+    .WithEnvironment("Mcp__DefaultServer", "MvcWeb")
+    .WithEnvironment("Mcp__Servers__MvcWeb__DisplayName", "MVC Web")
+    .WithEnvironment("Mcp__Servers__MvcWeb__Endpoint", "https://localhost:5001/mcp")
+    .WithEnvironment("Mcp__Servers__BlazorWeb__DisplayName", "Blazor Web")
+    .WithEnvironment("Mcp__Servers__BlazorWeb__Endpoint", "https://localhost:5201/mcp");
+
+builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_A2AClient>("A2AClientSample")
+    .WithReference(mvcWeb)
+    .WithReference(blazorWeb)
+    .WaitFor(mvcWeb)
+    .WaitFor(blazorWeb)
+    .WithHttpsEndpoint(5003, name: "HttpsMvcA2AClient")
+    .WithEnvironment("A2A__DefaultServer", "MvcWeb")
+    .WithEnvironment("A2A__Servers__MvcWeb__DisplayName", "MVC Web")
+    .WithEnvironment("A2A__Servers__MvcWeb__Endpoint", "https://localhost:5001")
+    .WithEnvironment("A2A__Servers__BlazorWeb__DisplayName", "Blazor Web")
+    .WithEnvironment("A2A__Servers__BlazorWeb__Endpoint", "https://localhost:5201");
 
 var app = builder.Build();
 

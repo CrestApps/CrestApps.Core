@@ -22,7 +22,7 @@
             <div class="mb-3">
                 <label asp-for="AuthenticationType" class="form-label">Authentication</label>
                 <select asp-for="AuthenticationType" class="form-select" id="authType">
-                    @foreach (var authType in Enum.GetValues<CrestApps.Core.AI.A2A.Models.A2AClientAuthenticationType>())
+                    @foreach (var authType in Enum.GetValues<CrestApps.Core.AI.Models.ClientAuthenticationType>())
                     {
                         if (Model.AuthenticationType == authType)
                         {
@@ -187,4 +187,5 @@
         updateVisibility();
     });
 </script>
+
 

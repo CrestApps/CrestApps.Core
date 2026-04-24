@@ -94,7 +94,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
             return;
         }
 
-        var dataSources = await dataSourceStore.GetAllAsync();
+        var dataSources = await dataSourceStore.GetAllAsync(cancellationToken);
         var dataSourceList = dataSources?.ToList() ?? [];
         if (dataSourceList.Count == 0)
         {

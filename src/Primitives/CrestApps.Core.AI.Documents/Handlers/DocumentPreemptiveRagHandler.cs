@@ -76,8 +76,11 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         var defaultSettings = !string.IsNullOrWhiteSpace(snapshotSettings?.IndexProfileName)
             ? snapshotSettings
             : optionsSettings;
+        var userSuppliedDocuments = DocumentContextInjectionModeResolver.ResolveUserSuppliedDocuments(context);
+        var fullUserDocumentMode = DocumentContextInjectionModeResolver.Resolve(context.OrchestrationContext, userSuppliedDocuments.Count);
 
-        if (string.IsNullOrEmpty(defaultSettings.IndexProfileName))
+        if (string.IsNullOrEmpty(defaultSettings.IndexProfileName) &&
+            fullUserDocumentMode != DocumentContextInjectionMode.FullUserDocuments)
         {
             return;
         }
@@ -94,6 +97,131 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
 
     private async Task InjectPreemptiveRagContextAsync(PreemptiveRagContext context, InteractionDocumentOptions settings)
     {
+        var searchScopes = ResolveSearchScopes(context);
+
+        if (searchScopes.Count == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Document Preemptive RAG: no search scopes resolved for resource type '{ResourceType}'.", context.Resource?.GetType().Name);
+            }
+
+            return;
+        }
+
+        var showUserDocumentAwareness =
+            context.Resource is not AIProfile ||
+            searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.ChatSession);
+
+        var topN = settings.TopN > 0 ? settings.TopN : 3;
+        var hasProfileScope = searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.Profile);
+        var hasSessionScope = searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.ChatSession);
+        var keepProfileDocumentAwareness = !(context.Resource is AIProfile && hasProfileScope && hasSessionScope);
+        var userSuppliedDocuments = DocumentContextInjectionModeResolver.ResolveUserSuppliedDocuments(context);
+        var fullUserDocumentMode = DocumentContextInjectionModeResolver.Resolve(context.OrchestrationContext, userSuppliedDocuments.Count);
+        var userDocumentContext = string.Empty;
+        var invocationContext = AIInvocationScope.Current;
+        var seenDocuments = new Dictionary<string, (int Index, string FileName)>(StringComparer.OrdinalIgnoreCase);
+
+        if (fullUserDocumentMode == DocumentContextInjectionMode.FullUserDocuments)
+        {
+            userDocumentContext = await AppendFullUserDocumentContextAsync(userSuppliedDocuments, invocationContext, seenDocuments);
+            searchScopes = searchScopes
+                .Where(scope =>
+                    scope.ReferenceType != AIReferenceTypes.Document.ChatInteraction &&
+                    scope.ReferenceType != AIReferenceTypes.Document.ChatSession)
+                .ToList();
+        }
+
+        var finalResults = await SearchRelevantChunksAsync(context, settings, searchScopes, topN);
+
+        if (string.IsNullOrEmpty(userDocumentContext) && finalResults.Count == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Document Preemptive RAG: no relevant document context found for the current request.");
+            }
+
+            return;
+        }
+
+        var orchestrationContext = context.OrchestrationContext;
+
+        using var builder = ZString.CreateStringBuilder();
+
+        var arguments = new Dictionary<string, object>();
+        var hasUserSuppliedDocumentContext = !string.IsNullOrEmpty(userDocumentContext) || finalResults.Any(x =>
+            x.ReferenceType == AIReferenceTypes.Document.ChatInteraction ||
+            x.ReferenceType == AIReferenceTypes.Document.ChatSession);
+        var hasKnowledgeBaseDocumentContext = finalResults.Any(x => x.ReferenceType == AIReferenceTypes.Document.Profile);
+
+        if (!orchestrationContext.DisableTools)
+        {
+            arguments["searchToolName"] = SystemToolNames.SearchDocuments;
+        }
+
+        arguments["hasUserSuppliedDocumentContext"] = hasUserSuppliedDocumentContext;
+        arguments["hasKnowledgeBaseDocumentContext"] = hasKnowledgeBaseDocumentContext;
+        arguments["hasFullUserDocumentContext"] = !string.IsNullOrEmpty(userDocumentContext);
+
+        var header = await _templateService.RenderAsync(AITemplateIds.DocumentContextHeader, arguments);
+
+        if (!string.IsNullOrEmpty(header))
+        {
+            builder.AppendLine();
+            builder.AppendLine();
+            builder.Append(header);
+        }
+
+        if (!string.IsNullOrEmpty(userDocumentContext))
+        {
+            builder.Append(userDocumentContext);
+        }
+
+        if (finalResults.Count > 0)
+        {
+            if (settings.RetrievalMode == DocumentRetrievalMode.Hierarchical)
+            {
+                builder.Append(await AppendHierarchicalContextAsync(finalResults, topN, showUserDocumentAwareness, keepProfileDocumentAwareness, invocationContext, seenDocuments));
+            }
+            else if (showUserDocumentAwareness)
+            {
+                builder.Append(AppendChunkContext(finalResults.Take(topN), keepProfileDocumentAwareness, invocationContext, seenDocuments));
+            }
+            else
+            {
+                foreach (var (result, _) in finalResults.Take(topN))
+                {
+                    builder.AppendLine("---");
+                    builder.AppendLine(result.Chunk.Text);
+                }
+            }
+        }
+
+        if (showUserDocumentAwareness)
+        {
+            builder.Append(AddDocumentReferences(orchestrationContext, seenDocuments));
+        }
+
+        orchestrationContext.SystemMessageBuilder.Append(builder);
+    }
+
+    private async Task<List<(DocumentChunkSearchResult Result, string ReferenceType)>> SearchRelevantChunksAsync(
+        PreemptiveRagContext context,
+        InteractionDocumentOptions settings,
+        List<(string ResourceId, string ReferenceType)> searchScopes,
+        int topN)
+    {
+        if (searchScopes.Count == 0)
+        {
+            return [];
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.IndexProfileName))
+        {
+            return [];
+        }
+
         var indexProfile = await _indexProfileStore.FindByNameAsync(settings.IndexProfileName);
 
         if (indexProfile == null)
@@ -103,7 +231,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
                 _logger.LogDebug("Document Preemptive RAG: index profile '{IndexProfileName}' not found.", settings.IndexProfileName);
             }
 
-            return;
+            return [];
         }
 
         var searchService = _serviceProvider.GetKeyedService<IVectorSearchService>(indexProfile.ProviderName);
@@ -115,7 +243,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
                 _logger.LogDebug("Document Preemptive RAG: no IVectorSearchService registered for provider '{ProviderName}'.", indexProfile.ProviderName);
             }
 
-            return;
+            return [];
         }
 
         var metadata = SearchIndexProfileEmbeddingMetadataAccessor.GetMetadata(indexProfile);
@@ -135,33 +263,15 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
                     metadata?.EmbeddingDeploymentId ?? indexProfile.EmbeddingDeploymentId ?? "(null)");
             }
 
-            return;
+            return [];
         }
 
         var embeddings = await embeddingGenerator.GenerateAsync(context.Queries);
 
         if (embeddings == null || embeddings.Count == 0)
         {
-            return;
+            return [];
         }
-
-        var searchScopes = ResolveSearchScopes(context);
-
-        if (searchScopes.Count == 0)
-        {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Document Preemptive RAG: no search scopes resolved for resource type '{ResourceType}'.", context.Resource?.GetType().Name);
-            }
-
-            return;
-        }
-
-        var showUserDocumentAwareness =
-            context.Resource is not AIProfile ||
-            searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.ChatSession);
-
-        var topN = settings.TopN > 0 ? settings.TopN : 3;
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -176,9 +286,6 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
 
         var allResults = new List<(DocumentChunkSearchResult Result, string ReferenceType)>();
         var seenChunkKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var hasProfileScope = searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.Profile);
-        var hasSessionScope = searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.ChatSession);
-        var keepProfileDocumentAwareness = !(context.Resource is AIProfile && hasProfileScope && hasSessionScope);
 
         foreach (var embedding in embeddings)
         {
@@ -218,73 +325,9 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
             }
         }
 
-        var finalResults = allResults
+        return allResults
             .OrderByDescending(r => r.Result.Score)
             .ToList();
-
-        if (finalResults.Count == 0)
-        {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Document Preemptive RAG: no relevant chunks found after vector search.");
-            }
-
-            return;
-        }
-
-        var orchestrationContext = context.OrchestrationContext;
-
-        using var builder = ZString.CreateStringBuilder();
-
-        var arguments = new Dictionary<string, object>();
-        var hasUserSuppliedDocumentContext = finalResults.Any(x =>
-            x.ReferenceType == AIReferenceTypes.Document.ChatInteraction ||
-            x.ReferenceType == AIReferenceTypes.Document.ChatSession);
-        var hasKnowledgeBaseDocumentContext = finalResults.Any(x => x.ReferenceType == AIReferenceTypes.Document.Profile);
-
-        if (!orchestrationContext.DisableTools)
-        {
-            arguments["searchToolName"] = SystemToolNames.SearchDocuments;
-        }
-
-        arguments["hasUserSuppliedDocumentContext"] = hasUserSuppliedDocumentContext;
-        arguments["hasKnowledgeBaseDocumentContext"] = hasKnowledgeBaseDocumentContext;
-
-        var header = await _templateService.RenderAsync(AITemplateIds.DocumentContextHeader, arguments);
-
-        if (!string.IsNullOrEmpty(header))
-        {
-            builder.AppendLine();
-            builder.AppendLine();
-            builder.Append(header);
-        }
-
-        var invocationContext = AIInvocationScope.Current;
-        var seenDocuments = new Dictionary<string, (int Index, string FileName)>(StringComparer.OrdinalIgnoreCase);
-
-        if (settings.RetrievalMode == DocumentRetrievalMode.Hierarchical)
-        {
-            builder.Append(await AppendHierarchicalContextAsync(finalResults, topN, showUserDocumentAwareness, keepProfileDocumentAwareness, invocationContext, seenDocuments));
-        }
-        else if (showUserDocumentAwareness)
-        {
-            builder.Append(AppendChunkContext(finalResults.Take(topN), keepProfileDocumentAwareness, invocationContext, seenDocuments));
-        }
-        else
-        {
-            foreach (var (result, _) in finalResults.Take(topN))
-            {
-                builder.AppendLine("---");
-                builder.AppendLine(result.Chunk.Text);
-            }
-        }
-
-        if (showUserDocumentAwareness)
-        {
-            builder.Append(AddDocumentReferences(orchestrationContext, seenDocuments));
-        }
-
-        orchestrationContext.SystemMessageBuilder.Append(builder);
     }
 
     private static InteractionDocumentOptions ResolveSettings(object resource, InteractionDocumentOptions defaults)
@@ -386,6 +429,58 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
 
             var referenceIndex = invocationContext?.NextReferenceIndex() ?? seenDocuments.Count + 1;
             seenDocuments[document.ItemId] = (referenceIndex, _textNormalizer.NormalizeTitle(document.FileName));
+
+            builder.AppendLine("---");
+            builder.Append("[doc:");
+            builder.Append(referenceIndex);
+            builder.AppendLine("]");
+            builder.AppendLine(await DocumentContextFormatter.FormatDocumentTextFromChunksAsync(_serviceProvider, document));
+        }
+
+        return builder.ToString();
+    }
+
+    private async Task<string> AppendFullUserDocumentContextAsync(
+        IReadOnlyCollection<ChatDocumentInfo> documents,
+        AIInvocationContext invocationContext,
+        Dictionary<string, (int Index, string FileName)> seenDocuments)
+    {
+        if (documents.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var documentStore = _serviceProvider.GetService<IAIDocumentStore>();
+
+        if (documentStore == null)
+        {
+            return string.Empty;
+        }
+
+        using var builder = ZString.CreateStringBuilder();
+
+        foreach (var documentInfo in documents
+            .Where(document => !string.IsNullOrWhiteSpace(document.DocumentId))
+            .GroupBy(document => document.DocumentId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First()))
+        {
+            var document = await documentStore.FindByIdAsync(documentInfo.DocumentId);
+
+            if (document == null)
+            {
+                continue;
+            }
+
+            if (!seenDocuments.TryGetValue(document.ItemId, out var documentEntry))
+            {
+                documentEntry = (
+                    invocationContext?.NextReferenceIndex() ?? seenDocuments.Count + 1,
+                    _textNormalizer.NormalizeTitle(document.FileName ?? documentInfo.FileName));
+
+                seenDocuments[document.ItemId] = documentEntry;
+            }
+
+            var referenceIndex = documentEntry.Index;
 
             builder.AppendLine("---");
             builder.Append("[doc:");

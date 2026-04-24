@@ -130,6 +130,160 @@ public sealed class DocumentPreemptiveRagHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_SummarizeUploadedChatInteractionDocument_InjectsFullDocumentContent()
+    {
+        var documentStore = new Mock<IAIDocumentStore>();
+        documentStore.Setup(store => store.FindByIdAsync("doc-1"))
+            .Returns(new ValueTask<AIDocument>(new AIDocument
+            {
+                ItemId = "doc-1",
+                FileName = "race.pdf",
+            }));
+        var chunkStore = new Mock<IAIDocumentChunkStore>();
+        chunkStore.Setup(store => store.GetChunksByAIDocumentIdAsync("doc-1"))
+            .ReturnsAsync((IReadOnlyCollection<AIDocumentChunk>)[
+                new AIDocumentChunk
+                {
+                    AIDocumentId = "doc-1",
+                    Index = 0,
+                    Content = "Carla and Mark race their go carts.",
+                },
+                new AIDocumentChunk
+                {
+                    AIDocumentId = "doc-1",
+                    Index = 1,
+                    Content = "Carla wins the race by one lap.",
+                },
+            ]);
+        var services = new ServiceCollection()
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f])))
+            .AddSingleton<IAIDeploymentManager>(Mock.Of<IAIDeploymentManager>())
+            .AddSingleton<ISearchIndexProfileStore>(Mock.Of<ISearchIndexProfileStore>())
+            .AddSingleton<IAIDocumentStore>(documentStore.Object)
+            .AddSingleton<IAIDocumentChunkStore>(chunkStore.Object)
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions()))
+            .AddLogging()
+            .AddCoreAIDocumentProcessing()
+            .BuildServiceProvider();
+        var handler = services.GetServices<IPreemptiveRagHandler>().Single();
+        var interaction = new ChatInteraction
+        {
+            ItemId = "chat-1",
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "race.pdf",
+                },
+            ],
+        };
+        var context = new OrchestrationContext
+        {
+            UserMessage = "Summarize this document.",
+            CompletionContext = new AICompletionContext(),
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "race.pdf",
+                },
+            ],
+        };
+
+        await handler.HandleAsync(new PreemptiveRagContext(context, interaction, ["summarize the uploaded document"]));
+
+        var systemMessage = context.SystemMessageBuilder.ToString();
+        Assert.Contains("full text of the user's uploaded documents", systemMessage);
+        Assert.Contains("Carla and Mark race their go carts.", systemMessage);
+        Assert.Contains("Carla wins the race by one lap.", systemMessage);
+        Assert.Contains("[doc:1]", systemMessage);
+        Assert.True(context.Properties.ContainsKey("DocumentReferences"));
+    }
+
+    [Fact]
+    public async Task HandleAsync_SummarizeSessionDocument_InjectsFullSessionDocumentContent()
+    {
+        var documentStore = new Mock<IAIDocumentStore>();
+        documentStore.Setup(store => store.FindByIdAsync("doc-1"))
+            .Returns(new ValueTask<AIDocument>(new AIDocument
+            {
+                ItemId = "doc-1",
+                FileName = "race.pdf",
+            }));
+        var chunkStore = new Mock<IAIDocumentChunkStore>();
+        chunkStore.Setup(store => store.GetChunksByAIDocumentIdAsync("doc-1"))
+            .ReturnsAsync((IReadOnlyCollection<AIDocumentChunk>)[
+                new AIDocumentChunk
+                {
+                    AIDocumentId = "doc-1",
+                    Index = 0,
+                    Content = "Carla and Mark race their go carts.",
+                },
+                new AIDocumentChunk
+                {
+                    AIDocumentId = "doc-1",
+                    Index = 1,
+                    Content = "Carla wins the race by one lap.",
+                },
+            ]);
+        var services = new ServiceCollection()
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f])))
+            .AddSingleton<IAIDeploymentManager>(Mock.Of<IAIDeploymentManager>())
+            .AddSingleton<ISearchIndexProfileStore>(Mock.Of<ISearchIndexProfileStore>())
+            .AddSingleton<IAIDocumentStore>(documentStore.Object)
+            .AddSingleton<IAIDocumentChunkStore>(chunkStore.Object)
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions()))
+            .AddLogging()
+            .AddCoreAIDocumentProcessing()
+            .BuildServiceProvider();
+        var handler = services.GetServices<IPreemptiveRagHandler>().Single();
+        var profile = new AIProfile
+        {
+            ItemId = "profile-1",
+        };
+        var session = new AIChatSession
+        {
+            SessionId = "session-1",
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "race.pdf",
+                },
+            ],
+        };
+        var completionContext = new AICompletionContext();
+        completionContext.AdditionalProperties["Session"] = session;
+        var context = new OrchestrationContext
+        {
+            UserMessage = "Please summarize it.",
+            CompletionContext = completionContext,
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "race.pdf",
+                },
+            ],
+        };
+
+        await handler.HandleAsync(new PreemptiveRagContext(context, profile, ["summarize the uploaded document"]));
+
+        var systemMessage = context.SystemMessageBuilder.ToString();
+        Assert.Contains("full text of the user's uploaded documents", systemMessage);
+        Assert.Contains("Carla and Mark race their go carts.", systemMessage);
+        Assert.Contains("Carla wins the race by one lap.", systemMessage);
+        Assert.Contains("[doc:1]", systemMessage);
+        Assert.True(context.Properties.ContainsKey("DocumentReferences"));
+    }
+
+    [Fact]
     public async Task HandleAsync_HierarchicalMode_InjectsFullMatchedDocumentText()
     {
         var indexProfile = new SearchIndexProfile
@@ -249,6 +403,12 @@ public sealed class DocumentPreemptiveRagHandlerTests
         {
             if (id == AITemplateIds.DocumentContextHeader)
             {
+                if (arguments?.TryGetValue("hasFullUserDocumentContext", out var hasFullUserDocumentContext) == true &&
+                    hasFullUserDocumentContext is true)
+                {
+                    return Task.FromResult("[Retrieved Document Context]\nThe following content includes the full text of the user's uploaded documents.");
+                }
+
                 return Task.FromResult("[Retrieved Document Context]");
             }
 

@@ -22,7 +22,7 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
     internal static string BuildODataFilter(string dataSourceId, string filter)
     {
         // Always filter by dataSourceId.
-        var odataFilter = $"{DataSourceConstants.ColumnNames.DataSourceId} eq '{dataSourceId}'";
+        var odataFilter = $"{DataSourceConstants.ColumnNames.DataSourceId} eq '{SanitizeODataValue(dataSourceId)}'";
 
         // Merge with user-provided filter (already translated to OData for Azure).
 
@@ -182,7 +182,7 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
         {
             var searchClient = _searchIndexClient.GetSearchClient(indexProfile.IndexFullName);
 
-            var odataFilter = $"{DataSourceConstants.ColumnNames.DataSourceId} eq '{dataSourceId}'";
+            var odataFilter = $"{DataSourceConstants.ColumnNames.DataSourceId} eq '{SanitizeODataValue(dataSourceId)}'";
 
             long totalDeleted = 0;
 
@@ -250,5 +250,10 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
 
             return 0;
         }
+    }
+
+    private static string SanitizeODataValue(string value)
+    {
+        return value.Replace("'", "''");
     }
 }

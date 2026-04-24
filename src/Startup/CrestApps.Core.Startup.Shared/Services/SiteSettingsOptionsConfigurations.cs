@@ -39,7 +39,7 @@ internal sealed class SiteSettingsConfigureAIMemoryOptions : IConfigureOptions<A
 
     public void Configure(AIMemoryOptions options)
     {
-        var settings = _siteSettings.Get<AIMemorySettings>();
+        var settings = _siteSettings.Get<AIMemoryOptions>();
         options.IndexProfileName = settings.IndexProfileName;
         options.TopN = settings.TopN;
     }

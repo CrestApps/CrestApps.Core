@@ -7,7 +7,7 @@ namespace CrestApps.Core;
 public interface IDisplayTextAwareModel
 {
     /// <summary>
-    /// Gets or sets the human-readable display text for this model.
+    /// Gets the human-readable display text for this model.
     /// </summary>
-    string DisplayText { get; set; }
+    string DisplayText { get; }
 }

@@ -9,7 +9,23 @@
     <a asp-action="Create" class="btn btn-success">
         <i class="bi bi-plus-lg"></i> Create New Index Profile
     </a>
-</div>
+</div>
+
+@if (TempData["SuccessMessage"] is string successMessage)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @successMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
 @if (!Model.Any())
 {
     <div class="alert alert-info">
@@ -27,7 +43,7 @@ else
                     <th>Index Name</th>
                     <th>Provider</th>
                     <th>Type</th>
-                    <th style="width: 250px;">Actions</th>
+                    <th style="width: 420px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -43,19 +59,33 @@ else
                         </td>
                         <td><span class="badge bg-info">@item.Type</span></td>
                         <td>
-                            <a asp-action="Edit" asp-route-id="@item.ItemId" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-pencil"></i> Edit
-                            </a>
-                            <form asp-action="Delete" asp-route-id="@item.ItemId" method="post" class="d-inline">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this index profile?')">
-                                    <i class="bi bi-trash"></i> Delete
-                                </button>
-                            </form>
+                            <div class="d-flex flex-nowrap gap-2">
+                                <form asp-action="Rebuild" asp-route-id="@item.ItemId" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('Rebuild this index? This will delete the existing remote index, recreate it, and repopulate data.')">
+                                        <i class="bi bi-arrow-clockwise"></i> Rebuild
+                                    </button>
+                                </form>
+                                <form asp-action="Reindex" asp-route-id="@item.ItemId" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Reindex this profile? This will clear indexed data and repopulate it from the beginning.')">
+                                        <i class="bi bi-arrow-repeat"></i> Reindex
+                                    </button>
+                                </form>
+                                <a asp-action="Edit" asp-route-id="@item.ItemId" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@item.ItemId" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this index profile?')">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
-}
+}

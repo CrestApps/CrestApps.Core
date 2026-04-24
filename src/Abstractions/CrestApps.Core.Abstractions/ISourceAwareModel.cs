@@ -9,5 +9,9 @@ public interface ISourceAwareModel
     /// <summary>
     /// Gets or sets the name of the source or provider that owns this model.
     /// </summary>
+    /// <remarks>
+    /// The setter is retained because framework code assigns this property through
+    /// the interface type constraint (e.g., in <c>SourceCatalogManager</c>).
+    /// </remarks>
     string Source { get; set; }
 }

@@ -18,8 +18,8 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddCoreAIMcpServices();
 
         Assert.Contains(services, descriptor =>
-            descriptor.ServiceType == typeof(IOAuth2TokenService) &&
-            descriptor.ImplementationType == typeof(DefaultOAuth2TokenService) &&
+            descriptor.ServiceType == typeof(CrestApps.Core.AI.Services.IOAuth2TokenService) &&
+            descriptor.ImplementationType == typeof(CrestApps.Core.AI.Services.DefaultOAuth2TokenService) &&
             descriptor.Lifetime == ServiceLifetime.Scoped);
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(IMcpMetadataPromptGenerator) &&

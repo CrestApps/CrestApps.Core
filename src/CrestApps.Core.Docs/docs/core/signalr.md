@@ -186,8 +186,8 @@ Configure the Redis connection in your environment:
 
 ```json title="appsettings.json"
 {
-      "Configuration": "localhost:6379,allowAdmin=true"
-    }
+  "Redis": {
+    "Configuration": "localhost:6379,allowAdmin=true"
   }
 }
 ```
@@ -195,6 +195,7 @@ Configure the Redis connection in your environment:
 Or via environment variables:
 
 ```bash
+export Redis__Configuration="localhost:6379,allowAdmin=true"
 ```
 
 :::info

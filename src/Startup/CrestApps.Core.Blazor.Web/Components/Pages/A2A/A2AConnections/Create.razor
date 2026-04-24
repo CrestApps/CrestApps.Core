@@ -3,6 +3,7 @@
 @using System.Text.Json
 @using CrestApps.Core.AI.A2A
 @using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Models
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @inject ICatalog<A2AConnection> Catalog
@@ -46,14 +47,14 @@
             <div class="mb-3">
                 <label class="form-label">Authentication</label>
                 <select class="form-select" value="@_model.AuthenticationType" @onchange="OnAuthTypeChanged">
-                    @foreach (var authType in Enum.GetValues<A2AClientAuthenticationType>())
+                    @foreach (var authType in Enum.GetValues<ClientAuthenticationType>())
                     {
                         <option value="@authType">@authType</option>
                     }
                 </select>
             </div>
 
-            @if (_model.AuthenticationType == A2AClientAuthenticationType.ApiKey)
+            @if (_model.AuthenticationType == ClientAuthenticationType.ApiKey)
             {
                 <div class="mb-3">
                     <label class="form-label">API key header name</label>
@@ -71,7 +72,7 @@
                 </div>
             }
 
-            @if (_model.AuthenticationType == A2AClientAuthenticationType.Basic)
+            @if (_model.AuthenticationType == ClientAuthenticationType.Basic)
             {
                 <div class="mb-3">
                     <label class="form-label">Username</label>
@@ -84,9 +85,9 @@
                 </div>
             }
 
-            @if (_model.AuthenticationType is A2AClientAuthenticationType.OAuth2ClientCredentials
-                or A2AClientAuthenticationType.OAuth2PrivateKeyJwt
-                or A2AClientAuthenticationType.OAuth2Mtls)
+            @if (_model.AuthenticationType is ClientAuthenticationType.OAuth2ClientCredentials
+                or ClientAuthenticationType.OAuth2PrivateKeyJwt
+                or ClientAuthenticationType.OAuth2Mtls)
             {
                 <div class="mb-3">
                     <label class="form-label">Token endpoint</label>
@@ -104,7 +105,7 @@
                 </div>
             }
 
-            @if (_model.AuthenticationType == A2AClientAuthenticationType.OAuth2ClientCredentials)
+            @if (_model.AuthenticationType == ClientAuthenticationType.OAuth2ClientCredentials)
             {
                 <div class="mb-3">
                     <label class="form-label">Client secret</label>
@@ -112,7 +113,7 @@
                 </div>
             }
 
-            @if (_model.AuthenticationType == A2AClientAuthenticationType.OAuth2PrivateKeyJwt)
+            @if (_model.AuthenticationType == ClientAuthenticationType.OAuth2PrivateKeyJwt)
             {
                 <div class="mb-3">
                     <label class="form-label">Key ID</label>
@@ -125,7 +126,7 @@
                 </div>
             }
 
-            @if (_model.AuthenticationType == A2AClientAuthenticationType.OAuth2Mtls)
+            @if (_model.AuthenticationType == ClientAuthenticationType.OAuth2Mtls)
             {
                 <div class="mb-3">
                     <label class="form-label">Client certificate (Base64 PFX/PKCS#12)</label>
@@ -138,7 +139,7 @@
                 </div>
             }
 
-            @if (_model.AuthenticationType == A2AClientAuthenticationType.CustomHeaders)
+            @if (_model.AuthenticationType == ClientAuthenticationType.CustomHeaders)
             {
                 <div class="mb-3">
                     <label class="form-label">Additional headers (JSON)</label>
@@ -162,7 +163,7 @@
 
     private void OnAuthTypeChanged(ChangeEventArgs e)
     {
-        if (Enum.TryParse<A2AClientAuthenticationType>(e.Value?.ToString(), out var value))
+        if (Enum.TryParse<ClientAuthenticationType>(e.Value?.ToString(), out var value))
         {
             _model.AuthenticationType = value;
         }
@@ -208,7 +209,7 @@
 
         switch (model.AuthenticationType)
         {
-            case A2AClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
                 {
                     _errors.Add("API key is required.");
@@ -216,7 +217,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 if (string.IsNullOrWhiteSpace(model.BasicUsername))
                 {
                     _errors.Add("Username is required.");
@@ -229,7 +230,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 ValidateOAuth2Common(model);
 
                 if ((!isEditing || !model.HasOAuth2ClientSecret) && string.IsNullOrWhiteSpace(model.OAuth2ClientSecret))
@@ -239,7 +240,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 ValidateOAuth2Common(model);
 
                 if ((!isEditing || !model.HasOAuth2PrivateKey) && string.IsNullOrWhiteSpace(model.OAuth2PrivateKey))
@@ -249,7 +250,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 ValidateOAuth2Common(model);
 
                 if ((!isEditing || !model.HasOAuth2ClientCertificate) && string.IsNullOrWhiteSpace(model.OAuth2ClientCertificate))
@@ -259,7 +260,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 if (!string.IsNullOrWhiteSpace(model.AdditionalHeaders))
                 {
                     try
@@ -317,20 +318,20 @@
 
         switch (model.AuthenticationType)
         {
-            case A2AClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 metadata.ApiKeyHeaderName = model.ApiKeyHeaderName;
                 metadata.ApiKeyPrefix = model.ApiKeyPrefix;
                 metadata.ApiKey = !string.IsNullOrWhiteSpace(model.ApiKey) ? protector.Protect(model.ApiKey) : null;
 
                 break;
 
-            case A2AClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 metadata.BasicUsername = model.BasicUsername;
                 metadata.BasicPassword = !string.IsNullOrWhiteSpace(model.BasicPassword) ? protector.Protect(model.BasicPassword) : null;
 
                 break;
 
-            case A2AClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint;
                 metadata.OAuth2ClientId = model.OAuth2ClientId;
                 metadata.OAuth2Scopes = model.OAuth2Scopes;
@@ -338,7 +339,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint;
                 metadata.OAuth2ClientId = model.OAuth2ClientId;
                 metadata.OAuth2Scopes = model.OAuth2Scopes;
@@ -347,7 +348,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 metadata.OAuth2TokenEndpoint = model.OAuth2TokenEndpoint;
                 metadata.OAuth2ClientId = model.OAuth2ClientId;
                 metadata.OAuth2Scopes = model.OAuth2Scopes;
@@ -356,7 +357,7 @@
 
                 break;
 
-            case A2AClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 metadata.AdditionalHeaders = string.IsNullOrWhiteSpace(model.AdditionalHeaders) ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(model.AdditionalHeaders);
 
                 break;
@@ -365,3 +366,4 @@
         connection.Put(metadata);
     }
 }
+

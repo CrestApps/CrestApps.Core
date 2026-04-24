@@ -661,12 +661,16 @@
         _model.UtilityDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Utility) || d.Type.Supports(AIDeploymentType.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
         _model.Orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors().Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
 
-        var anthropicOptions = ClaudeOpts.Value;
-        _model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
-        if (anthropicOptions.IsConfigured())
+        var hasAnthropicOptions = ClaudeOpts.TryGetValidValue(out ClaudeOptions anthropicOptions);
+        _model.ClaudeIsConfigured = hasAnthropicOptions && anthropicOptions.IsConfigured();
+        if (_model.ClaudeIsConfigured)
         {
             var models = await ClaudeClientService.ListModelsAsync();
             _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, _model.ClaudeModel, anthropicOptions.DefaultModel);
+        }
+        else
+        {
+            _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], _model.ClaudeModel, anthropicOptions?.DefaultModel);
         }
 
         _model.CopilotIsConfigured = CopilotOpts.Value.IsConfigured();

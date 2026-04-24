@@ -1,5 +1,6 @@
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Support;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Mapping;
 using Microsoft.Extensions.Logging;
@@ -27,11 +28,6 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         _logger = logger;
     }
 
-    private static string SanitizeLogValue(string value)
-    {
-        return value?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? string.Empty;
-    }
-
     public string ComposeIndexFullName(IIndexProfileInfo profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -56,7 +52,7 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking existence of Elasticsearch index '{IndexName}'.", SanitizeLogValue(indexFullName));
+            _logger.LogError(ex, "Error checking existence of Elasticsearch index '{IndexName}'.", indexFullName.SanitizeForLog());
             throw;
         }
     }
@@ -89,13 +85,13 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
             var response = await _elasticClient.Indices.CreateAsync(profile.IndexFullName, c => c.Mappings(m => m.Properties(properties)), cancellationToken);
             if (!response.IsValidResponse)
             {
-                _logger.LogWarning("Failed to create Elasticsearch index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+                _logger.LogWarning("Failed to create Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
                 throw new InvalidOperationException($"Failed to create Elasticsearch index '{profile.IndexFullName}'.");
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating Elasticsearch index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error creating Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
             throw;
         }
     }
@@ -110,12 +106,12 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
             var response = await _elasticClient.Indices.DeleteAsync(indexFullName, cancellationToken);
             if (!response.IsValidResponse)
             {
-                _logger.LogWarning("Failed to delete Elasticsearch index '{IndexName}'.", SanitizeLogValue(indexFullName));
+                _logger.LogWarning("Failed to delete Elasticsearch index '{IndexName}'.", indexFullName.SanitizeForLog());
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting Elasticsearch index '{IndexName}'.", SanitizeLogValue(indexFullName));
+            _logger.LogError(ex, "Error deleting Elasticsearch index '{IndexName}'.", indexFullName.SanitizeForLog());
             throw;
         }
     }

@@ -30,7 +30,7 @@ public sealed class AIMemorySearchServiceTests
     {
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore
-            .Setup(store => store.FindByNameAsync("memory-profile"))
+            .Setup(store => store.FindByNameAsync("memory-profile", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SearchIndexProfile
             {
                 Name = "memory-profile",
@@ -41,7 +41,7 @@ public sealed class AIMemorySearchServiceTests
 
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager
-            .Setup(manager => manager.FindByIdAsync("deployment-1"))
+            .Setup(manager => manager.FindByIdAsync("deployment-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "deployment-1",

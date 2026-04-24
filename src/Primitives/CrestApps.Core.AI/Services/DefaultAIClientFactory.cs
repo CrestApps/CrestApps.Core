@@ -40,25 +40,16 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(deployment.ClientName))
-            {
-                continue;
-            }
+        var client = await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetChatClientAsync(conn, model));
 
-            var client = await clientProvider.GetChatClientAsync(connection, deployment.ModelName);
-
-            return new AICompletionUsageTrackingChatClient(
-                client,
-                deployment.ClientName,
-                deployment.ConnectionName,
-                deployment.ModelName,
-                _serviceProvider,
-                _logger);
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
+        return new AICompletionUsageTrackingChatClient(
+            client,
+            deployment.ClientName,
+            deployment.ConnectionName,
+            deployment.ModelName,
+            _serviceProvider,
+            _logger);
     }
 
     public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
@@ -68,17 +59,8 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(deployment.ClientName))
-            {
-                continue;
-            }
-
-            return await clientProvider.GetEmbeddingGeneratorAsync(connection, deployment.ModelName);
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
+        return await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -90,17 +72,8 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(deployment.ClientName))
-            {
-                continue;
-            }
-
-            return await clientProvider.GetImageGeneratorAsync(connection, deployment.ModelName);
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
+        return await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -112,17 +85,8 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        foreach (var clientProvider in _clientProviders)
-        {
-            if (!clientProvider.CanHandle(deployment.ClientName))
-            {
-                continue;
-            }
-
-            return await clientProvider.GetSpeechToTextClientAsync(connection, deployment.ModelName);
-        }
-
-        throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
+        return await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -134,6 +98,18 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
+        return await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
+    }
+
+    /// <summary>
+    /// Resolves a client from the first registered provider that can handle the deployment's client name.
+    /// </summary>
+    private async ValueTask<TResult> ResolveClientAsync<TResult>(
+        AIDeployment deployment,
+        AIProviderConnectionEntry connection,
+        Func<IAIClientProvider, AIProviderConnectionEntry, string, ValueTask<TResult>> factory)
+    {
         foreach (var clientProvider in _clientProviders)
         {
             if (!clientProvider.CanHandle(deployment.ClientName))
@@ -141,7 +117,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
                 continue;
             }
 
-            return await clientProvider.GetTextToSpeechClientAsync(connection, deployment.ModelName);
+            return await factory(clientProvider, connection, deployment.ModelName);
         }
 
         throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");

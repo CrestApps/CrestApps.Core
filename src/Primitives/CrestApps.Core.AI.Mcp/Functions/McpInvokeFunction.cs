@@ -67,7 +67,7 @@ internal sealed class McpInvokeFunction : AIFunction
         var inputs = GetOptionalObjectArgument(arguments, "inputs");
 
         var store = arguments.Services.GetRequiredService<ISourceCatalog<McpConnection>>();
-        var connection = await store.FindByIdAsync(clientId);
+        var connection = await store.FindByIdAsync(clientId, cancellationToken);
 
         if (connection is null)
         {

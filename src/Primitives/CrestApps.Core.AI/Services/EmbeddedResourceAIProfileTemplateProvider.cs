@@ -22,7 +22,7 @@ public sealed class EmbeddedResourceAIProfileTemplateProvider : IAIProfileTempla
         _parsers = parsers;
     }
 
-    public Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync()
+    public Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
         var templates = new List<AIProfileTemplate>();
 

@@ -22,22 +22,22 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         _timeProvider = timeProvider;
     }
 
-    public async Task<AIChatSession> FindByIdAsync(string id)
+    public async Task<AIChatSession> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        var record = await _dbContext.AIChatSessionRecords.AsNoTracking().FirstOrDefaultAsync(x => x.SessionId == id);
+        var record = await _dbContext.AIChatSessionRecords.AsNoTracking().FirstOrDefaultAsync(x => x.SessionId == id, cancellationToken);
         return record is null ? null : Materialize(record);
     }
 
-    public Task<AIChatSession> FindAsync(string id)
+    public Task<AIChatSession> FindAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return FindByIdAsync(id);
+        return FindByIdAsync(id, cancellationToken);
     }
 
-    public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null)
+    public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null, CancellationToken cancellationToken = default)
     {
         var query = _dbContext.AIChatSessionRecords.AsNoTracking();
         if (!string.IsNullOrEmpty(context?.ProfileId))
@@ -46,8 +46,8 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         }
 
         var skip = (page - 1) * pageSize;
-        var total = await query.CountAsync();
-        var records = await query.OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.LastActivityUtc).Skip(skip).Take(pageSize).ToListAsync();
+        var total = await query.CountAsync(cancellationToken);
+        var records = await query.OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.LastActivityUtc).Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
 
         return new AIChatSessionResult
         {
@@ -56,7 +56,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         };
     }
 
-    public Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context)
+    public Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(context);
@@ -110,12 +110,12 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         return Task.FromResult(session);
     }
 
-    public async Task SaveAsync(AIChatSession chatSession)
+    public async Task SaveAsync(AIChatSession chatSession, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(chatSession);
 
         chatSession.LastActivityUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == chatSession.SessionId);
+        var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == chatSession.SessionId, cancellationToken);
 
         if (record is null)
         {
@@ -127,11 +127,11 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         }
     }
 
-    public async Task<bool> DeleteAsync(string sessionId)
+    public async Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
 
-        var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == sessionId);
+        var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
 
         if (record is null)
         {
@@ -141,7 +141,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         var promptEntityType = CatalogRecordFactory.GetEntityType<AIChatSessionPrompt>();
         var promptRecords = await _dbContext.CatalogRecords
             .Where(x => x.EntityType == promptEntityType && x.SessionId == sessionId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         if (promptRecords.Count > 0)
         {
@@ -153,11 +153,11 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         return true;
     }
 
-    public async Task<int> DeleteAllAsync(string profileId)
+    public async Task<int> DeleteAllAsync(string profileId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(profileId);
 
-        var records = await _dbContext.AIChatSessionRecords.Where(x => x.ProfileId == profileId).ToListAsync();
+        var records = await _dbContext.AIChatSessionRecords.Where(x => x.ProfileId == profileId).ToListAsync(cancellationToken);
 
         if (records.Count == 0)
         {
@@ -168,7 +168,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         var promptEntityType = CatalogRecordFactory.GetEntityType<AIChatSessionPrompt>();
         var promptRecords = await _dbContext.CatalogRecords
             .Where(x => x.EntityType == promptEntityType && sessionIds.Contains(x.SessionId))
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         if (promptRecords.Count > 0)
         {

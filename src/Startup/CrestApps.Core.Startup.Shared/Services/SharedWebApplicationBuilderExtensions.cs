@@ -23,11 +23,10 @@ public static class SharedWebApplicationBuilderExtensions
 
         builder.Services.Configure<HostOptions>(options =>
         {
-            options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+            options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
         });
 
         builder.Logging.ClearProviders();
-        builder.Logging.SetMinimumLevel(LogLevel.Debug);
         builder.WebHost.UseNLog();
 
         var appDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");

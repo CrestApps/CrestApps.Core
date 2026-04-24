@@ -19,7 +19,7 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
         _logger = logger;
     }
 
-    public override async Task CreatedAsync(CreatedContext<AIDataSource> context)
+    public override async Task CreatedAsync(CreatedContext<AIDataSource> context, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -28,7 +28,7 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
                 _logger.LogTrace("AI data source catalog event '{EventName}' queued full synchronization for data source '{DataSourceId}'.", nameof(CreatedAsync), context.Model.ItemId);
             }
 
-            await _indexingQueue.QueueSyncDataSourceAsync(context.Model);
+            await _indexingQueue.QueueSyncDataSourceAsync(context.Model, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -36,7 +36,7 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
         }
     }
 
-    public override async Task UpdatedAsync(UpdatedContext<AIDataSource> context)
+    public override async Task UpdatedAsync(UpdatedContext<AIDataSource> context, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -45,7 +45,7 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
                 _logger.LogTrace("AI data source catalog event '{EventName}' queued full synchronization for data source '{DataSourceId}'.", nameof(UpdatedAsync), context.Model.ItemId);
             }
 
-            await _indexingQueue.QueueSyncDataSourceAsync(context.Model);
+            await _indexingQueue.QueueSyncDataSourceAsync(context.Model, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -53,7 +53,7 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
         }
     }
 
-    public override async Task DeletedAsync(DeletedContext<AIDataSource> context)
+    public override async Task DeletedAsync(DeletedContext<AIDataSource> context, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -62,7 +62,7 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
                 _logger.LogTrace("AI data source catalog event '{EventName}' queued cleanup for data source '{DataSourceId}'.", nameof(DeletedAsync), context.Model.ItemId);
             }
 
-            await _indexingQueue.QueueDeleteDataSourceAsync(context.Model);
+            await _indexingQueue.QueueDeleteDataSourceAsync(context.Model, cancellationToken);
         }
         catch (Exception ex)
         {

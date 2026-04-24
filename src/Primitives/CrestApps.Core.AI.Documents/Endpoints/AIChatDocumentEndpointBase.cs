@@ -11,6 +11,8 @@ namespace CrestApps.Core.AI.Documents.Endpoints;
 
 public abstract class AIChatDocumentEndpointBase
 {
+    private const long DefaultMaxFileSizeBytes = 100 * 1024 * 1024; // 100 MB
+
     protected static async Task<(bool Success, string Error, AIChatUploadedDocument UploadedDocument)> ProcessFileAsync(
         IFormFile file,
         string referenceId,
@@ -27,6 +29,11 @@ public abstract class AIChatDocumentEndpointBase
         if (file == null || file.Length == 0)
         {
             return (false, S["No file was uploaded."].Value, null);
+        }
+
+        if (file.Length > DefaultMaxFileSizeBytes)
+        {
+            return (false, S["The uploaded file exceeds the maximum allowed size of {0} MB.", DefaultMaxFileSizeBytes / (1024 * 1024)].Value, null);
         }
 
         var extension = Path.GetExtension(file.FileName);

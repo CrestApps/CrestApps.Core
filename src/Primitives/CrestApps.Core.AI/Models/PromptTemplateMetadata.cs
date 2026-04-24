@@ -15,8 +15,8 @@ public sealed class PromptTemplateMetadata
             {
                 TemplateId = selection.TemplateId,
                 Parameters = selection.Parameters is { Count: > 0 }
-            ? new Dictionary<string, object>(selection.Parameters, StringComparer.OrdinalIgnoreCase)
-            : null,
+                    ? new Dictionary<string, object>(selection.Parameters, StringComparer.OrdinalIgnoreCase)
+                    : null,
             })
         .ToList() ?? [];
     }

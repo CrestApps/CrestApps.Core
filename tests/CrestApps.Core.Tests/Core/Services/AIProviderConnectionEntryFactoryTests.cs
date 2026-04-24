@@ -61,6 +61,30 @@ public sealed class AIProviderConnectionEntryFactoryTests
         Assert.Equal("flat-key", entry["ApiKey"]);
     }
 
+    [Fact]
+    public void Create_NormalizesLegacyDeploymentNamesToCanonicalKeys()
+    {
+        var connection = new AIProviderConnection
+        {
+            Name = "openai-connection",
+            ClientName = "OpenAI",
+            Properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["DefaultDeploymentName"] = "chat-deployment",
+                ["DefaultEmbeddingDeploymentName"] = "embedding-deployment",
+                ["DefaultImagesDeploymentName"] = "image-deployment",
+                ["DefaultSpeechToTextDeploymentName"] = "speech-deployment",
+            },
+        };
+
+        var entry = AIProviderConnectionEntryFactory.Create(connection);
+
+        Assert.Equal("chat-deployment", entry["ChatDeploymentName"]);
+        Assert.Equal("embedding-deployment", entry["EmbeddingDeploymentName"]);
+        Assert.Equal("image-deployment", entry["ImagesDeploymentName"]);
+        Assert.Equal("speech-deployment", entry["SpeechToTextDeploymentName"]);
+    }
+
     private sealed class TestAzureConnectionHandler : IAIProviderConnectionHandler
     {
         public void Exporting(ExportingAIProviderConnectionContext context)

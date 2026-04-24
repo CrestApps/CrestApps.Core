@@ -23,8 +23,8 @@ using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
+using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
@@ -36,6 +36,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.Extensions.Options;
 
 // =============================================================================
 // CrestApps AI Framework — MVC Example Application
@@ -51,7 +52,11 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 //   4. MCP and custom tools
 //   5. Background tasks and pipeline
 // =============================================================================
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = SampleHostContentRootResolver.ResolveContentRoot("CrestApps.Core.Mvc.Web.csproj"),
+});
 
 // Shared sample-host defaults: HostOptions, NLog, App_Data, App_Data/appsettings.json,
 // and the SiteSettingsStore + option bridges that feed the sample admin UI.
@@ -70,6 +75,7 @@ builder.Services.AddControllersWithViews(options =>
             .RequireAuthenticatedUser()
             .Build()));
     })
+    .AddRazorRuntimeCompilation()
     .AddCrestAppsStoreCommitterFilter();
 
 builder.Services.AddHttpContextAccessor();
@@ -208,7 +214,11 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 {
     branch.Use(async (context, next) =>
     {
-        var settings = context.RequestServices.GetRequiredService<SiteSettingsStore>().Get<McpServerOptions>();
+        var siteSettings = context.RequestServices.GetRequiredService<SiteSettingsStore>();
+        var settings = siteSettings.TryGet<McpServerOptions>(out var storedSettings)
+            ? storedSettings
+            : context.RequestServices.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
             await next();

@@ -1,5 +1,3 @@
-using Azure;
-using Azure.Identity;
 using Azure.Search.Documents.Indexes;
 using CrestApps.Core.Azure.AISearch.Builders;
 using CrestApps.Core.Azure.AISearch.Services;
@@ -22,20 +20,6 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.Configure<AzureAISearchConnectionOptions>(configuration);
-        var options = new AzureAISearchConnectionOptions();
-        configuration.Bind(options);
-        if (!string.IsNullOrEmpty(options.Endpoint))
-        {
-            var endpoint = new Uri(options.Endpoint);
-            if (!string.IsNullOrEmpty(options.ApiKey))
-            {
-                services.TryAddSingleton(new SearchIndexClient(endpoint, new AzureKeyCredential(options.ApiKey)));
-            }
-            else
-            {
-                services.TryAddSingleton(new SearchIndexClient(endpoint, new DefaultAzureCredential()));
-            }
-        }
 
         return services.AddCoreAzureAISearchServices();
     }
@@ -43,6 +27,10 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions();
+        services.TryAddSingleton<IAzureAISearchClientFactory, AzureAISearchClientFactory>();
+        services.TryAddSingleton(sp => sp.GetRequiredService<IAzureAISearchClientFactory>().CreateSearchIndexClient());
 
         services.TryAddKeyedScoped<IDataSourceContentManager>(AISearchConstants.ProviderName, (sp, _)
             => new AzureAISearchDataSourceContentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<ILogger<AzureAISearchDataSourceContentManager>>()));

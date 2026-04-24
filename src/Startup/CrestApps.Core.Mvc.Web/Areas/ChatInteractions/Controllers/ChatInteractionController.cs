@@ -306,12 +306,12 @@ public sealed class ChatInteractionController : Controller
 
         // Orchestrators
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
-        var anthropicOptions = _anthropicOptions.Value;
+        var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out ClaudeOptions anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
 
         // Anthropic
-        model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
-        await PopulateClaudeModelsAsync(model);
+        model.ClaudeIsConfigured = hasAnthropicOptions && anthropicOptions.IsConfigured();
+        await PopulateClaudeModelsAsync(model, anthropicOptions);
 
         // Copilot
 
@@ -444,9 +444,9 @@ public sealed class ChatInteractionController : Controller
             .ToList();
 
         // Anthropic
-        var anthropicOptions = _anthropicOptions.Value;
-        model.ClaudeIsConfigured = anthropicOptions.IsConfigured();
-        await PopulateClaudeModelsAsync(model);
+        var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out ClaudeOptions anthropicOptions);
+        model.ClaudeIsConfigured = hasAnthropicOptions && anthropicOptions.IsConfigured();
+        await PopulateClaudeModelsAsync(model, anthropicOptions);
 
         // Copilot
 
@@ -788,12 +788,11 @@ public sealed class ChatInteractionController : Controller
         }
     }
 
-    private async Task PopulateClaudeModelsAsync(ChatInteractionViewModel model)
+    private async Task PopulateClaudeModelsAsync(ChatInteractionViewModel model, ClaudeOptions anthropicOptions = null)
     {
-        var anthropicOptions = _anthropicOptions.Value;
-        if (!anthropicOptions.IsConfigured())
+        if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
-            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions.DefaultModel);
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
             return;
         }
 
@@ -843,12 +842,11 @@ public sealed class ChatInteractionController : Controller
         }
     }
 
-    private async Task PopulateClaudeModelsAsync(ChatInteractionChatViewModel model)
+    private async Task PopulateClaudeModelsAsync(ChatInteractionChatViewModel model, ClaudeOptions anthropicOptions = null)
     {
-        var anthropicOptions = _anthropicOptions.Value;
-        if (!anthropicOptions.IsConfigured())
+        if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
-            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions.DefaultModel);
+            model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
             return;
         }
 

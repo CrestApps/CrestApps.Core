@@ -1,23 +1,27 @@
 @page
+@inject SampleServerSelectionService ServerSelection
+@{
+    var currentServer = ServerSelection.GetCurrent(HttpContext);
+}
 @model CrestApps.Core.Mvc.Samples.McpClient.Pages.IndexModel
 
-<h1>MVC MCP Client Sample</h1>
+<h1>MCP Client Sample</h1>
 
-<p class="lead">This sample app connects to the MCP server hosted by <strong>CrestApps.Core.Mvc.Web</strong> and demonstrates listing tools, prompts, and resources.</p>
+<p class="lead">This sample app connects to the selected MCP server and demonstrates listing tools, prompts, resources, and resource templates against either the MVC or Blazor sample host.</p>
 
 <div class="card mb-3">
     <div class="card-body">
         <h5 class="card-title">Prerequisites</h5>
         <ol class="mb-0">
-            <li>Start the <strong>CrestApps.Core.Mvc.Web</strong> application.</li>
-            <li>
-                Ensure the MCP Server endpoint is enabled and accessible.
-                <ul>
-                    <li>Default endpoint: <code>https://localhost:5001/mcp/sse</code></li>
-                </ul>
-            </li>
+            <li>Start <strong>CrestApps.Core.Mvc.Web</strong>, <strong>CrestApps.Core.Blazor.Web</strong>, or the combined Aspire host.</li>
+            <li>Use the <strong>Server</strong> buttons in the top navigation bar to switch between the available MVC Web and Blazor Web hosts.</li>
+            <li>Ensure the selected server exposes its MCP endpoint.</li>
         </ol>
     </div>
+</div>
+
+<div class="alert alert-secondary">
+    Active server: <strong>@currentServer.DisplayName</strong> (<code>@currentServer.Endpoint</code>)
 </div>
 
 <p>Use the navigation tabs above to explore each MCP capability:</p>

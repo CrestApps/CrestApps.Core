@@ -14,6 +14,7 @@ using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Data.EntityCore;
@@ -33,7 +34,7 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddDbContext<CrestAppsEntityDbContext>(configure);
-        services.AddScoped<IStoreCommitter, EntityCoreStoreCommitter>();
+        services.TryAddScoped<IStoreCommitter, EntityCoreStoreCommitter>();
 
         return services;
     }
@@ -146,8 +147,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<IAIChatSessionManager, EntityCoreAIChatSessionManager>();
-        services.AddScoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>();
+        services.Replace(ServiceDescriptor.Scoped<IAIChatSessionManager, EntityCoreAIChatSessionManager>());
+        services.Replace(ServiceDescriptor.Scoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>());
         services.AddScoped<ICatalog<AIChatSessionPrompt>>(sp => sp.GetRequiredService<IAIChatSessionPromptStore>());
 
         return services;
@@ -161,9 +162,9 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<IAIDocumentStore, EntityCoreAIDocumentStore>();
+        services.Replace(ServiceDescriptor.Scoped<IAIDocumentStore, EntityCoreAIDocumentStore>());
         services.AddScoped<ICatalog<AIDocument>>(sp => sp.GetRequiredService<IAIDocumentStore>());
-        services.AddScoped<IAIDocumentChunkStore, EntityCoreAIDocumentChunkStore>();
+        services.Replace(ServiceDescriptor.Scoped<IAIDocumentChunkStore, EntityCoreAIDocumentChunkStore>());
         services.AddScoped<ICatalog<AIDocumentChunk>>(sp => sp.GetRequiredService<IAIDocumentChunkStore>());
 
         return services;
@@ -177,7 +178,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<ISearchIndexProfileStore, EntityCoreSearchIndexProfileStore>();
+        services.Replace(ServiceDescriptor.Scoped<ISearchIndexProfileStore, EntityCoreSearchIndexProfileStore>());
         services.AddScoped<ICatalog<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileStore>());
 
         return services;
@@ -191,7 +192,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<IAIDataSourceStore, EntityCoreAIDataSourceStore>();
+        services.Replace(ServiceDescriptor.Scoped<IAIDataSourceStore, EntityCoreAIDataSourceStore>());
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
         return services;
@@ -205,7 +206,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<IAIMemoryStore, EntityCoreAIMemoryStore>();
+        services.Replace(ServiceDescriptor.Scoped<IAIMemoryStore, EntityCoreAIMemoryStore>());
         services.AddScoped<ICatalog<AIMemoryEntry>>(sp => sp.GetRequiredService<IAIMemoryStore>());
 
         return services;
@@ -221,7 +222,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddDocumentCatalog<ChatInteraction, DocumentCatalog<ChatInteraction>>();
-        services.AddScoped<IChatInteractionPromptStore, EntityCoreChatInteractionPromptStore>();
+        services.Replace(ServiceDescriptor.Scoped<IChatInteractionPromptStore, EntityCoreChatInteractionPromptStore>());
         services.AddScoped<ICatalog<ChatInteractionPrompt>>(sp => sp.GetRequiredService<IChatInteractionPromptStore>());
 
         return services;

@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
 
@@ -15,7 +15,7 @@ public sealed class McpConnectionViewModel
 
     public string Endpoint { get; set; }
 
-    public McpClientAuthenticationType AuthenticationType { get; set; }
+    public ClientAuthenticationType AuthenticationType { get; set; }
 
     public string ApiKeyHeaderName { get; set; }
 
@@ -65,3 +65,4 @@ public sealed class McpConnectionViewModel
 
     public string EnvironmentVariables { get; set; } = "{}";
 }
+

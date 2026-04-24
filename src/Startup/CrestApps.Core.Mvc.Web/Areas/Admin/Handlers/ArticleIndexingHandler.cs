@@ -1,5 +1,5 @@
-using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
+using CrestApps.Core.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Startup.Shared.Services;
 
@@ -18,11 +18,11 @@ public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
         _logger = logger;
     }
 
-    public override async Task CreatedAsync(CreatedContext<Article> context)
+    public override async Task CreatedAsync(CreatedContext<Article> context, CancellationToken cancellationToken = default)
     {
         try
         {
-            await _indexingService.IndexAsync(context.Model);
+            await _indexingService.IndexAsync(context.Model, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -30,11 +30,11 @@ public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
         }
     }
 
-    public override async Task UpdatedAsync(UpdatedContext<Article> context)
+    public override async Task UpdatedAsync(UpdatedContext<Article> context, CancellationToken cancellationToken = default)
     {
         try
         {
-            await _indexingService.IndexAsync(context.Model);
+            await _indexingService.IndexAsync(context.Model, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -42,11 +42,11 @@ public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
         }
     }
 
-    public override async Task DeletedAsync(DeletedContext<Article> context)
+    public override async Task DeletedAsync(DeletedContext<Article> context, CancellationToken cancellationToken = default)
     {
         try
         {
-            await _indexingService.DeleteAsync(context.Model.ItemId);
+            await _indexingService.DeleteAsync(context.Model.ItemId, cancellationToken);
         }
         catch (Exception ex)
         {

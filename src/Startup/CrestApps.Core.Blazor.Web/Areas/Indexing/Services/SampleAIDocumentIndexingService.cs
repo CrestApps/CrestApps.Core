@@ -188,7 +188,7 @@ public sealed class SampleAIDocumentIndexingService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var indexProfile = await _indexProfileStore.FindByNameAsync(settings.IndexProfileName);
+        var indexProfile = await _indexProfileStore.FindByNameAsync(settings.IndexProfileName, cancellationToken);
 
         if (indexProfile == null)
         {

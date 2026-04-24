@@ -22,7 +22,7 @@ public sealed class CancelTransferNotificationActionHandler : IChatNotificationA
         if (context.ChatType == ChatContextType.AIChatSession)
         {
             var sessionManager = context.Services.GetRequiredService<IAIChatSessionManager>();
-            var session = await sessionManager.FindByIdAsync(context.SessionId);
+            var session = await sessionManager.FindByIdAsync(context.SessionId, cancellationToken);
 
             if (session is null)
             {
@@ -32,7 +32,7 @@ public sealed class CancelTransferNotificationActionHandler : IChatNotificationA
             }
 
             session.ResponseHandlerName = null;
-            await sessionManager.SaveAsync(session);
+            await sessionManager.SaveAsync(session, cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
@@ -42,7 +42,7 @@ public sealed class CancelTransferNotificationActionHandler : IChatNotificationA
         else if (context.ChatType == ChatContextType.ChatInteraction)
         {
             var interactionManager = context.Services.GetRequiredService<ICatalogManager<ChatInteraction>>();
-            var interaction = await interactionManager.FindByIdAsync(context.SessionId);
+            var interaction = await interactionManager.FindByIdAsync(context.SessionId, cancellationToken);
 
             if (interaction is null)
             {
@@ -52,7 +52,7 @@ public sealed class CancelTransferNotificationActionHandler : IChatNotificationA
             }
 
             interaction.ResponseHandlerName = null;
-            await interactionManager.UpdateAsync(interaction);
+            await interactionManager.UpdateAsync(interaction, cancellationToken: cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {

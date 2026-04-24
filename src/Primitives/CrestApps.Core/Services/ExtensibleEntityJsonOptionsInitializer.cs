@@ -20,7 +20,14 @@ internal sealed class ExtensibleEntityJsonOptionsInitializer : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        ExtensibleEntityExtensions.JsonSerializerOptions = _options.Value.SerializerOptions;
+        // Thread-safety note: this static property assignment is performed once during
+        // hosted-service startup, before request processing begins. Assigning only when
+        // the value differs avoids overwriting if multiple hosts share the same process.
+        var configured = _options.Value.SerializerOptions;
+        if (!ReferenceEquals(ExtensibleEntityExtensions.JsonSerializerOptions, configured))
+        {
+            ExtensibleEntityExtensions.JsonSerializerOptions = configured;
+        }
 
         return Task.CompletedTask;
     }

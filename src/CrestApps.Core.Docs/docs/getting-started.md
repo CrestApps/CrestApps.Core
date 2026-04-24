@@ -51,11 +51,13 @@ dotnet test .\tests\CrestApps.Core.Tests\CrestApps.Core.Tests.csproj -c Release 
 dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web.csproj
 ```
 
+The sample host resolves its content root to the MVC project directory automatically, so this command works correctly when run from the repository root.
+
 Use the MVC sample when you want to see the full framework in one place: AI providers, deployments, profiles, templates, document processing, MCP, A2A, storage, and SignalR-driven chat flows.
 
 ### Aspire host
 
-The Aspire host boots the MVC sample and related sample clients together as a composed local environment.
+The Aspire host boots the MVC and Blazor sample hosts together with the shared A2A and MCP client samples as a composed local environment. The client samples include a server selector so you can switch between the MVC and Blazor endpoints without launching separate client projects.
 
 :::info Prerequisites
 Aspire manages containers for services like Redis. You need a container runtime such as [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running before starting the Aspire host.
@@ -131,6 +133,81 @@ By default:
 Use `ConnectionName` when a deployment should point at a shared entry from `CrestApps:AI:Connections`. Keep contained connection settings directly on the deployment only when you want a standalone deployment definition.
 
 Create an AI profile that uses your chat deployment, then use Chat Interactions to test it end to end.
+
+## Complete Hello World example
+
+Here is a minimal, self-contained `Program.cs` that sends a chat completion request using CrestApps.Core with OpenAI:
+
+```csharp
+using CrestApps.Core;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Completions;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// Register CrestApps with the OpenAI provider.
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+    )
+);
+
+var app = builder.Build();
+
+// Resolve the completion service from DI.
+using var scope = app.Services.CreateScope();
+var deploymentManager = scope.ServiceProvider.GetRequiredService<IAIDeploymentManager>();
+var completionService = scope.ServiceProvider.GetRequiredService<IAICompletionService>();
+
+// Resolve the first chat deployment.
+var deployment = await deploymentManager.FindFirstByTypeAsync(AIDeploymentType.Chat);
+
+if (deployment is null)
+{
+    Console.WriteLine("No chat deployment found. Check your CrestApps:AI:Deployments configuration.");
+    return;
+}
+
+// Send a completion request.
+var messages = new List<ChatMessage>
+{
+    new(ChatRole.User, "What is CrestApps.Core in one sentence?"),
+};
+var context = new AICompletionContext();
+
+var response = await completionService.CompleteAsync(deployment, messages, context);
+Console.WriteLine(response.Message?.Text ?? "No response.");
+```
+
+Add the matching `appsettings.json`:
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "Connections": [
+        {
+          "Name": "my-openai",
+          "ClientName": "OpenAI",
+          "ApiKey": "sk-YOUR_API_KEY_HERE"
+        }
+      ],
+      "Deployments": [
+        {
+          "Name": "gpt-4.1-mini",
+          "ConnectionName": "my-openai",
+          "ModelName": "gpt-4.1-mini",
+          "Type": "Chat"
+        }
+      ]
+    }
+  }
+}
+```
 
 ## Learn the registration model
 

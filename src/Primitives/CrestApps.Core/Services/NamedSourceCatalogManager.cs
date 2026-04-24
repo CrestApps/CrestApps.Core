@@ -17,30 +17,30 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
         NamedSourceCatalog = catalog;
     }
 
-    public async ValueTask<T> FindByNameAsync(string name)
+    public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        var entry = await NamedSourceCatalog.FindByNameAsync(name);
+        var entry = await NamedSourceCatalog.FindByNameAsync(name, cancellationToken);
 
         if (entry is not null)
         {
-            await LoadAsync(entry);
+            await LoadAsync(entry, cancellationToken);
         }
 
         return entry;
     }
 
-    public async ValueTask<T> GetAsync(string name, string source)
+    public async ValueTask<T> GetAsync(string name, string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        var entry = await NamedSourceCatalog.GetAsync(name, source);
+        var entry = await NamedSourceCatalog.GetAsync(name, source, cancellationToken);
 
         if (entry is not null)
         {
-            await LoadAsync(entry);
+            await LoadAsync(entry, cancellationToken);
         }
 
         return entry;

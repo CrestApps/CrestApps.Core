@@ -84,11 +84,11 @@ public sealed class AIProfileDocumentService
                 result.Document.StoredFileName = storageLocation.StoredFileName;
                 result.Document.StoredFilePath = storageLocation.StoragePath;
 
-                await _documentStore.CreateAsync(result.Document);
+                await _documentStore.CreateAsync(result.Document, cancellationToken);
 
                 foreach (var chunk in result.Chunks)
                 {
-                    await _chunkStore.CreateAsync(chunk);
+                    await _chunkStore.CreateAsync(chunk, cancellationToken);
                 }
 
                 await _documentIndexingService.IndexAsync(result.Document, result.Chunks, cancellationToken);
@@ -147,7 +147,7 @@ public sealed class AIProfileDocumentService
 
                 await _chunkStore.DeleteByDocumentIdAsync(documentId);
 
-                var document = await _documentStore.FindByIdAsync(documentId);
+                var document = await _documentStore.FindByIdAsync(documentId, cancellationToken);
 
                 if (document != null)
                 {
@@ -156,7 +156,7 @@ public sealed class AIProfileDocumentService
                         await _fileStore.DeleteFileAsync(document.StoredFilePath);
                     }
 
-                    await _documentStore.DeleteAsync(document);
+                    await _documentStore.DeleteAsync(document, cancellationToken);
                 }
             }
             catch (Exception ex)

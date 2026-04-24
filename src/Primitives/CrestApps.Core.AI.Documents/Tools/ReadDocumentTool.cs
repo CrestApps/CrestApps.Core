@@ -79,7 +79,7 @@ public sealed class ReadDocumentTool : AIFunction
                 return "Document store is not available.";
             }
 
-            var document = await documentStore.FindByIdAsync(documentId);
+            var document = await documentStore.FindByIdAsync(documentId, cancellationToken);
 
             if (document is null || document.ReferenceId != chatInteractionId)
             {
@@ -120,7 +120,7 @@ public sealed class ReadDocumentTool : AIFunction
                 validReferenceIds.Add(session.SessionId);
             }
 
-            var document = await documentStore.FindByIdAsync(documentId);
+            var document = await documentStore.FindByIdAsync(documentId, cancellationToken);
 
             if (document is null || !validReferenceIds.Contains(document.ReferenceId))
             {

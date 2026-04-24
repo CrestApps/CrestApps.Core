@@ -63,7 +63,7 @@ public static class DictionaryExtensions
             return null;
         }
 
-        throw new InvalidOperationException($"The '{key}' does not exists in the dictionary.");
+        throw new InvalidOperationException($"The '{key}' does not exist in the dictionary.");
     }
 
     public static bool GetBooleanOrFalseValue(this IDictionary<string, object> entry, string key, bool throwException = false)
@@ -91,6 +91,6 @@ public static class DictionaryExtensions
             return false;
         }
 
-        throw new InvalidOperationException($"The '{key}' does not exists in the dictionary.");
+        throw new InvalidOperationException($"The '{key}' does not exist in the dictionary.");
     }
 }

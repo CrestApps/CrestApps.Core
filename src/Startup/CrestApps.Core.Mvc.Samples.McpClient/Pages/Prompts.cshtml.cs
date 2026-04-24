@@ -37,6 +37,8 @@ public sealed class PromptsModel : PageModel
             return new JsonResult(new { error = "Prompt name is required." });
         }
 
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -61,12 +63,14 @@ public sealed class PromptsModel : PageModel
         }
         catch (Exception)
         {
-            return new JsonResult(new { error = "An error occurred while getting the prompt." });
+            return new JsonResult(new { error = $"An error occurred while getting the prompt from '{selectedServer.DisplayName}'." });
         }
     }
 
     private async Task LoadPromptsAsync(CancellationToken cancellationToken)
     {
+        var selectedServer = _clientFactory.GetSelectedServer();
+
         try
         {
             var client = await _clientFactory.CreateAsync(cancellationToken);
@@ -74,7 +78,7 @@ public sealed class PromptsModel : PageModel
         }
         catch (Exception)
         {
-            ErrorMessage ??= "An error occurred while loading prompts.";
+            ErrorMessage ??= $"An error occurred while loading prompts from '{selectedServer.DisplayName}'.";
             Prompts = [];
         }
     }

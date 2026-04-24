@@ -82,7 +82,7 @@ This page describes the project architecture and how the major layers depend on 
 | Project | Role |
 |---------|------|
 | `CrestApps.Core.Mvc.Web` | Standalone ASP.NET Core MVC application with full admin UI |
-| Blazor / Other | Future: Blazor Server/WASM, minimal APIs, etc. |
+| Blazor / Other | Blazor Server/WASM (`CrestApps.Core.Blazor.Web`), minimal APIs, etc. |
 
 ## Data Flow
 

@@ -38,7 +38,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
 
     public int Order => 100;
 
-    public ValueTask<IReadOnlyCollection<AIDeployment>> GetEntriesAsync(IReadOnlyCollection<AIDeployment> knownEntries)
+    public ValueTask<IReadOnlyCollection<AIDeployment>> GetEntriesAsync(IReadOnlyCollection<AIDeployment> knownEntries, CancellationToken cancellationToken = default)
     {
         var deployments = new Dictionary<string, AIDeployment>(StringComparer.OrdinalIgnoreCase);
         var names = knownEntries

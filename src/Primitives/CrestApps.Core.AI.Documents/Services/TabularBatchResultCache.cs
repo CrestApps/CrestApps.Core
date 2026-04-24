@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -22,6 +23,12 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
 
     private const string CacheKeyPrefix = "tabular_batch:";
     private static readonly TimeSpan DefaultCacheExpiration = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Tracks active cache keys per interaction so that
+    /// <see cref="InvalidateForInteraction(string)"/> can remove them.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _interactionKeys = new();
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -48,7 +55,11 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
 
         // Create a composite key from interaction ID, document hash, and prompt hash
         var promptHash = ComputeHash(prompt);
-        return $"{CacheKeyPrefix}{interactionId}:{documentContentHash}:{promptHash}";
+        var cacheKey = $"{CacheKeyPrefix}{interactionId}:{documentContentHash}:{promptHash}";
+
+        TrackKey(interactionId, cacheKey);
+
+        return cacheKey;
     }
 
     /// <inheritdoc />
@@ -74,7 +85,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
     }
 
     /// <inheritdoc />
-    public TabularBatchCacheEntry TryGet(string cacheKey)
+    public async Task<TabularBatchCacheEntry> TryGetAsync(string cacheKey)
     {
         if (string.IsNullOrWhiteSpace(cacheKey))
         {
@@ -83,7 +94,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
 
         try
         {
-            var cachedBytes = _cache.Get(cacheKey);
+            var cachedBytes = await _cache.GetAsync(cacheKey);
 
             if (cachedBytes is null || cachedBytes.Length == 0)
             {
@@ -91,6 +102,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
                 {
                     _logger.LogDebug("Cache miss for tabular batch results. Key: {CacheKey}", cacheKey);
                 }
+
                 return null;
             }
 
@@ -109,12 +121,13 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error retrieving cached batch results. Key: {CacheKey}", cacheKey);
+
             return null;
         }
     }
 
     /// <inheritdoc />
-    public void Set(string cacheKey, TabularBatchCacheEntry entry, TimeSpan? expiration = null)
+    public async Task SetAsync(string cacheKey, TabularBatchCacheEntry entry, TimeSpan? expiration = null)
     {
         if (string.IsNullOrWhiteSpace(cacheKey) || entry is null)
         {
@@ -132,7 +145,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
             };
 
             var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(entry, _jsonOptions);
-            _cache.Set(cacheKey, jsonBytes, options);
+            await _cache.SetAsync(cacheKey, jsonBytes, options);
 
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -148,7 +161,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
     }
 
     /// <inheritdoc />
-    public void Remove(string cacheKey)
+    public async Task RemoveAsync(string cacheKey)
     {
         if (string.IsNullOrWhiteSpace(cacheKey))
         {
@@ -157,7 +170,9 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
 
         try
         {
-            _cache.Remove(cacheKey);
+            await _cache.RemoveAsync(cacheKey);
+            UntrackKey(cacheKey);
+
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug("Removed cached tabular batch results. Key: {CacheKey}", cacheKey);
@@ -172,16 +187,43 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
     /// <inheritdoc />
     public void InvalidateForInteraction(string interactionId)
     {
-        // Distributed cache doesn't support prefix-based removal directly.
-        // This is a limitation - entries will expire naturally.
-        // For production, consider using Redis with SCAN/DEL or a custom key tracking mechanism.
+        if (string.IsNullOrWhiteSpace(interactionId))
+        {
+            return;
+        }
+
+        if (!_interactionKeys.TryRemove(interactionId, out var keys))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "No tracked cache keys found for interaction {InteractionId}.",
+                    interactionId);
+            }
+
+            return;
+        }
+
+        var removedCount = 0;
+
+        foreach (var key in keys.Keys)
+        {
+            try
+            {
+                _cache.Remove(key);
+                removedCount++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error removing cached batch result during invalidation. Key: {CacheKey}", key);
+            }
+        }
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "Invalidation requested for interaction {InteractionId}. " +
-                "Note: Distributed cache does not support prefix-based removal. " +
-                "Entries will expire naturally based on configured TTL.",
-                interactionId);
+                "Invalidated {Count} cached entries for interaction {InteractionId}.",
+                removedCount, interactionId);
         }
     }
 
@@ -199,8 +241,24 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         {
             return string.Empty;
         }
+
         var bytes = Encoding.UTF8.GetBytes(input);
         var hashBytes = SHA256.HashData(bytes);
+
         return Convert.ToHexString(hashBytes)[..16]; // Truncate for shorter keys
+    }
+
+    private static void TrackKey(string interactionId, string cacheKey)
+    {
+        var keys = _interactionKeys.GetOrAdd(interactionId, _ => new ConcurrentDictionary<string, byte>());
+        keys.TryAdd(cacheKey, 0);
+    }
+
+    private static void UntrackKey(string cacheKey)
+    {
+        foreach (var keys in _interactionKeys.Values)
+        {
+            keys.TryRemove(cacheKey, out _);
+        }
     }
 }

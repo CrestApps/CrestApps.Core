@@ -16,6 +16,7 @@ const sidebars = {
                 'core/getting-started-aspnet',
                 'core/interfaces',
                 'core/extensible-entity',
+                'core/ai-profiles',
                 'core/mvc-example',
             ],
         },
@@ -96,6 +97,7 @@ const sidebars = {
                 'changelog/v1.0.0',
             ],
         },
+        'glossary',
     ],
 };
 

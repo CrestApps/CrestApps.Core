@@ -1,23 +1,24 @@
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
 
 public class NamedDocumentCatalog<T> : DocumentCatalog<T>, INamedCatalog<T>
     where T : CatalogItem, INameAwareModel
 {
-    public NamedDocumentCatalog(CrestAppsEntityDbContext dbContext)
-        : base(dbContext)
+    public NamedDocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
+        : base(dbContext, logger)
     {
     }
 
-    public async ValueTask<T> FindByNameAsync(string name)
+    public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         var record = await GetReadQuery()
-            .FirstOrDefaultAsync(x => x.Name == name);
+            .FirstOrDefaultAsync(x => x.Name == name, cancellationToken);
 
         return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }

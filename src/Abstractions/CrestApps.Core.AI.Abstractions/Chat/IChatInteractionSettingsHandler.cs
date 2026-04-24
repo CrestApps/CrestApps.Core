@@ -20,12 +20,14 @@ public interface IChatInteractionSettingsHandler
     /// </summary>
     /// <param name="interaction">The <see cref="ChatInteraction"/> being updated.</param>
     /// <param name="settings">The raw settings payload from the client.</param>
-    Task UpdatingAsync(ChatInteraction interaction, JsonElement settings);
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Called after the <see cref="ChatInteraction"/> has been persisted.
     /// </summary>
     /// <param name="interaction">The updated <see cref="ChatInteraction"/>.</param>
     /// <param name="settings">The raw settings payload from the client.</param>
-    Task UpdatedAsync(ChatInteraction interaction, JsonElement settings);
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default);
 }

@@ -22,7 +22,7 @@ public sealed class PostSessionProcessingChatSessionHandler : AIChatSessionHandl
         _logger = logger;
     }
 
-    public override async Task MessageCompletedAsync(ChatMessageCompletedContext context)
+    public override async Task MessageCompletedAsync(ChatMessageCompletedContext context, CancellationToken cancellationToken = default)
     {
         if (context.ChatSession.Status != ChatSessionStatus.Closed)
         {
@@ -31,10 +31,7 @@ public sealed class PostSessionProcessingChatSessionHandler : AIChatSessionHandl
 
         try
         {
-            var result = await _postCloseProcessor.ProcessAsync(
-                context.Profile,
-                context.ChatSession,
-                context.Prompts);
+            var result = await _postCloseProcessor.ProcessAsync(context.Profile, context.ChatSession, context.Prompts, cancellationToken);
 
             context.Items[AIChatSessionHandlerContextKeys.PostCloseProcessingResult] = result;
         }

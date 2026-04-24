@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Copilot.Handlers;
 /// </summary>
 internal sealed class CopilotChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
-    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var orchestratorName = GetString(settings, "orchestratorName") ?? interaction.OrchestratorName;
         if (!string.Equals(orchestratorName, CopilotOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
@@ -32,7 +32,7 @@ internal sealed class CopilotChatInteractionSettingsHandler : IChatInteractionSe
         return Task.CompletedTask;
     }
 
-    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings)
+    public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

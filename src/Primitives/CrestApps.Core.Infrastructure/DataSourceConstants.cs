@@ -2,7 +2,7 @@ namespace CrestApps.Core.Infrastructure;
 
 public static class DataSourceConstants
 {
-    public static readonly string IndexingTaskType = "DataSourceIndex";
+    public const string IndexingTaskType = "DataSourceIndex";
 
     public static class ColumnNames
     {

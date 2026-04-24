@@ -25,8 +25,8 @@ public sealed class SaveUserMemoryToolTests
 
         var manager = new Mock<ICatalogManager<AIMemoryEntry>>();
         AIMemoryEntry createdEntry = null;
-        manager.Setup(x => x.CreateAsync(It.IsAny<AIMemoryEntry>()))
-            .Callback<AIMemoryEntry>(entry => createdEntry = entry)
+        manager.Setup(x => x.CreateAsync(It.IsAny<AIMemoryEntry>(), It.IsAny<CancellationToken>()))
+            .Callback<AIMemoryEntry, CancellationToken>((entry, _) => createdEntry = entry)
             .Returns(ValueTask.CompletedTask);
 
         var tool = new SaveUserMemoryTool();
@@ -58,8 +58,8 @@ public sealed class SaveUserMemoryToolTests
 
         var manager = new Mock<ICatalogManager<AIMemoryEntry>>();
         AIMemoryEntry createdEntry = null;
-        manager.Setup(x => x.CreateAsync(It.IsAny<AIMemoryEntry>()))
-            .Callback<AIMemoryEntry>(entry => createdEntry = entry)
+        manager.Setup(x => x.CreateAsync(It.IsAny<AIMemoryEntry>(), It.IsAny<CancellationToken>()))
+            .Callback<AIMemoryEntry, CancellationToken>((entry, _) => createdEntry = entry)
             .Returns(ValueTask.CompletedTask);
 
         var tool = new SaveUserMemoryTool();

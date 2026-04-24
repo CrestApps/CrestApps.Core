@@ -35,6 +35,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
     private readonly string _region;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
+    private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
     private string _cachedToken;
     private DateTimeOffset _tokenExpires;
@@ -351,32 +352,40 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 
     private async Task<string> GetAuthorizationTokenAsync(CancellationToken cancellationToken)
     {
-        if (_cachedToken != null && _tokenExpires > _timeProvider.GetUtcNow().AddMinutes(-1))
+        await _tokenLock.WaitAsync(cancellationToken);
+        try
         {
+            if (_cachedToken != null && _tokenExpires > _timeProvider.GetUtcNow().AddMinutes(-1))
+            {
+                return _cachedToken;
+            }
+
+            TokenCredential credential = _authType switch
+            {
+                AzureAuthenticationType.ManagedIdentity => string.IsNullOrEmpty(_identityId)
+                ? new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned)
+                : new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(_identityId)),
+                _ => new DefaultAzureCredential(),
+            };
+
+            var tokenResult = await credential.GetTokenAsync(
+                new TokenRequestContext([CognitiveServicesScope]),
+            cancellationToken);
+
+            _cachedToken = tokenResult.Token;
+            _tokenExpires = tokenResult.ExpiresOn;
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Successfully obtained authorization token for Azure Speech TTS. AuthType: {AuthType}", _authType);
+            }
+
             return _cachedToken;
         }
-
-        TokenCredential credential = _authType switch
+        finally
         {
-            AzureAuthenticationType.ManagedIdentity => string.IsNullOrEmpty(_identityId)
-            ? new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned)
-            : new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(_identityId)),
-            _ => new DefaultAzureCredential(),
-        };
-
-        var tokenResult = await credential.GetTokenAsync(
-            new TokenRequestContext([CognitiveServicesScope]),
-        cancellationToken);
-
-        _cachedToken = tokenResult.Token;
-        _tokenExpires = tokenResult.ExpiresOn;
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogDebug("Successfully obtained authorization token for Azure Speech TTS. AuthType: {AuthType}", _authType);
+            _tokenLock.Release();
         }
-
-        return _cachedToken;
     }
 
     private static string TryExtractRegion(Uri endpoint)

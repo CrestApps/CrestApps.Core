@@ -76,7 +76,7 @@ public sealed class RemoveUserMemoryTool : AIFunction
             return "No saved memory was found with that name.";
         }
 
-        await manager.DeleteAsync(existingMemory);
+        await manager.DeleteAsync(existingMemory, cancellationToken);
 
         return JsonSerializer.Serialize(new
         {

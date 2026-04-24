@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace CrestApps.Core.Support;
 
 public static class StringExtensions
@@ -14,39 +12,24 @@ public static class StringExtensions
     }
 
     /// <summary>
-    /// Sanitizes a string value for safe inclusion in log messages by removing
-    /// carriage return and newline characters that could be used for log injection.
+    /// Extracts a title from the first line of the given content, truncating to 200 characters.
     /// </summary>
-    public static string SanitizeLogValue(this string value)
+    public static string ExtractTitleFromContent(this string content)
     {
-        return value.SanitizeForLog();
-    }
+        var firstLine = content.AsSpan();
+        var newlineIndex = firstLine.IndexOfAny('\r', '\n');
 
-    public static bool Like(this string toSearch, string toFind)
-    {
-        ArgumentNullException.ThrowIfNull(toSearch);
-        ArgumentNullException.ThrowIfNull(toFind);
-
-        var match = new Regex(@"\.|\$|\^|\{|\[|\(|\||\)|\*|\+|\?|\\").Replace(toFind, ch => @"\" + ch).Replace('_', '.').Replace("%", ".*");
-
-        return new Regex(@"\A" + match + @"\z", RegexOptions.Singleline).IsMatch(toSearch);
-    }
-
-    public static bool Like(this string toSearch, string toFind, StringComparison comparison)
-    {
-        ArgumentNullException.ThrowIfNull(toSearch);
-        ArgumentNullException.ThrowIfNull(toFind);
-
-        if (comparison == StringComparison.CurrentCultureIgnoreCase || comparison == StringComparison.OrdinalIgnoreCase || comparison == StringComparison.InvariantCultureIgnoreCase)
+        if (newlineIndex > 0)
         {
-            return Like(toSearch.ToLower(), toFind.ToLower());
+            firstLine = firstLine[..newlineIndex];
         }
 
-        return Like(toSearch, toFind);
+        if (firstLine.Length > 200)
+        {
+            firstLine = firstLine[..200];
+        }
+
+        return firstLine.ToString().Trim();
     }
 
-    public static string GetControllerName(this string name)
-    {
-        return Str.TrimEnd(name, "Controller", StringComparison.OrdinalIgnoreCase);
-    }
 }

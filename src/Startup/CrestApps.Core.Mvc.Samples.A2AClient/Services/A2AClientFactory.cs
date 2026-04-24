@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using A2A;
+using CrestApps.Core.Startup.Shared.Services;
 
 namespace CrestApps.Core.Mvc.Samples.A2AClient.Services;
 
@@ -12,33 +13,37 @@ public sealed class A2AClientFactory
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly IConfiguration _configuration;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly SampleServerSelectionService _serverSelection;
 
     public A2AClientFactory(
-        IConfiguration configuration,
-        IHttpClientFactory httpClientFactory)
+        IHttpContextAccessor httpContextAccessor,
+        IHttpClientFactory httpClientFactory,
+        SampleServerSelectionService serverSelection)
     {
-        _configuration = configuration;
+        _httpContextAccessor = httpContextAccessor;
         _httpClientFactory = httpClientFactory;
+        _serverSelection = serverSelection;
     }
 
     public A2A.A2AClient Create(string agentUrl = null)
     {
-        var url = agentUrl ?? GetEndpoint() + "/a2a";
+        var server = GetSelectedServer();
+        var url = agentUrl ?? server.Endpoint.TrimEnd('/') + "/a2a";
         var httpClient = _httpClientFactory.CreateClient();
-        ApplyAuthentication(httpClient);
+        ApplyAuthentication(httpClient, server);
 
         return new A2A.A2AClient(new Uri(url), httpClient);
     }
 
     public async Task<List<AgentCard>> GetAgentCardsAsync(CancellationToken cancellationToken)
     {
-        var endpoint = GetEndpoint();
+        var server = GetSelectedServer();
         var httpClient = _httpClientFactory.CreateClient();
-        ApplyAuthentication(httpClient);
+        ApplyAuthentication(httpClient, server);
 
-        var cardUrl = $"{endpoint.TrimEnd('/')}/.well-known/agent-card.json";
+        var cardUrl = $"{server.Endpoint.TrimEnd('/')}/.well-known/agent-card.json";
         var response = await httpClient.GetAsync(cardUrl, cancellationToken);
         response.EnsureSuccessStatusCode();
 
@@ -64,27 +69,25 @@ public sealed class A2AClientFactory
         return singleCard is not null ? [singleCard] : [];
     }
 
-    private string GetEndpoint()
+    public ConfiguredServerEndpoint GetSelectedServer()
     {
-        var endpoint = _configuration["A2A:Endpoint"];
+        var httpContext = _httpContextAccessor.HttpContext;
 
-        if (string.IsNullOrWhiteSpace(endpoint))
+        if (httpContext == null)
         {
-            throw new InvalidOperationException("A2A:Endpoint is not configured.");
+            throw new InvalidOperationException("The current HTTP context is not available.");
         }
 
-        return endpoint;
+        return _serverSelection.GetCurrent(httpContext);
     }
 
-    private void ApplyAuthentication(HttpClient httpClient)
+    private static void ApplyAuthentication(HttpClient httpClient, ConfiguredServerEndpoint server)
     {
-        var apiKey = _configuration["A2A:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (string.IsNullOrWhiteSpace(server.ApiKey))
         {
             return;
         }
 
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", server.ApiKey);
     }
 }

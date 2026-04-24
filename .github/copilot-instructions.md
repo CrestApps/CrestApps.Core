@@ -72,12 +72,18 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 - Add a blank line before and after `if` blocks, `switch` statements, and loops unless the block is immediately preceded by `{`
 - Do not add a blank line between an `if`/`else`/`switch`/loop condition and its opening `{`
 - Use `var` consistently with repository style
+- Do not use `global using` files; add explicit `using` directives at the top of each file instead.
+- Prefer top-of-file `using` directives over fully qualified type names in code.
 - Only use expression-bodied members when the entire member fits on a single short line; use a full block body for anything longer or split across lines
 - Avoid `DateTime.UtcNow`; prefer injected `TimeProvider`.
 - Keep public docs and comments honest to the current code.
 - Always document new interfaces, their methods and arguments along with documenting every property on domain models using `<summary>` block.
 - Always treat warnings are errors in the solutions and ensure every warning is addressed.
 - Always learn from my prompts, preference and styles and update the `copilot-instructions.md` file with any new preferences that I share in the future.
+- Prefer SOLID and DRY refactors that consolidate duplicated provider, transport, or store logic into shared abstractions before adding new one-off implementations.
+- Favor additive shared infrastructure first, then migrate consumers in behavior-safe steps when a full replacement is too risky for a single change.
+- When working in framework code meant for external adoption, optimize for consistency and long-term maintainability across providers and hosts, not just local fixes.
+- For optional provider integrations in sample hosts, do not eagerly read validated options in UI setup paths when an unconfigured provider should simply appear unavailable rather than crash the page.
 
 ## Runtime notes
 

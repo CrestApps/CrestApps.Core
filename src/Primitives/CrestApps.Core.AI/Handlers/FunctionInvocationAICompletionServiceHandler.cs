@@ -36,7 +36,7 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
         _logger = logger;
     }
 
-    public async Task ConfigureAsync(CompletionServiceConfigureContext context)
+    public async Task ConfigureAsync(CompletionServiceConfigureContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 

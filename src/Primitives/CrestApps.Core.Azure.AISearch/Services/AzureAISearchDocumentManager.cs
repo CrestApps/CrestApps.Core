@@ -4,6 +4,7 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using AzureSearchDocument = Azure.Search.Documents.Models.SearchDocument;
 
@@ -27,11 +28,6 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         _searchIndexClient = searchIndexClient;
         _handlers = handlers;
         _logger = logger;
-    }
-
-    private static string SanitizeLogValue(string value)
-    {
-        return value?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? string.Empty;
     }
 
     public async Task<bool> AddOrUpdateAsync(IIndexProfileInfo profile, IReadOnlyCollection<IndexDocument> documents, CancellationToken cancellationToken = default)
@@ -67,12 +63,12 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Azure AI Search index documents failed for index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Azure AI Search index documents failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error indexing documents in Azure AI Search index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error indexing documents in Azure AI Search index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
             return false;
         }
     }
@@ -99,11 +95,11 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Azure AI Search delete failed for index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Azure AI Search delete failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting documents from Azure AI Search index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error deleting documents from Azure AI Search index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
         }
     }
 
@@ -149,11 +145,11 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Azure AI Search delete all failed for index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Azure AI Search delete all failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting all documents from Azure AI Search index '{IndexName}'.", SanitizeLogValue(profile.IndexFullName));
+            _logger.LogError(ex, "Error deleting all documents from Azure AI Search index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
         }
     }
 
@@ -170,7 +166,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Unable to determine key field for index '{IndexName}', defaulting to 'id'.", SanitizeLogValue(indexFullName));
+            _logger.LogWarning(ex, "Unable to determine key field for index '{IndexName}', defaulting to 'id'.", indexFullName.SanitizeForLog());
         }
 
         return "id";
@@ -197,7 +193,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
 
         if (_logger.IsEnabled(LogLevel.Trace))
         {
-            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after add/update for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, SanitizeLogValue(profile.IndexFullName), documentIds.Length);
+            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after add/update for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, profile.IndexFullName.SanitizeForLog(), documentIds.Length);
         }
 
         foreach (var handler in handlers)
@@ -208,7 +204,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after indexing documents into '{IndexName}'.", handler.GetType().Name, SanitizeLogValue(profile.IndexFullName));
+                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after indexing documents into '{IndexName}'.", handler.GetType().Name, profile.IndexFullName.SanitizeForLog());
             }
         }
     }
@@ -224,7 +220,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
 
         if (_logger.IsEnabled(LogLevel.Trace))
         {
-            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after delete for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, SanitizeLogValue(profile.IndexFullName), documentIds.Count);
+            _logger.LogTrace("Notifying {HandlerCount} search document handler(s) after delete for index '{IndexName}' with {DocumentCount} document id(s).", handlers.Length, profile.IndexFullName.SanitizeForLog(), documentIds.Count);
         }
 
         foreach (var handler in handlers)
@@ -235,7 +231,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after deleting documents from '{IndexName}'.", handler.GetType().Name, SanitizeLogValue(profile.IndexFullName));
+                _logger.LogError(ex, "Search document handler '{HandlerType}' failed after deleting documents from '{IndexName}'.", handler.GetType().Name, profile.IndexFullName.SanitizeForLog());
             }
         }
     }
