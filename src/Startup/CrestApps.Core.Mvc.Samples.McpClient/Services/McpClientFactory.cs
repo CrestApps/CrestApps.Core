@@ -28,7 +28,6 @@ public sealed class McpClientFactory
         var transportOptions = new HttpClientTransportOptions
         {
             Endpoint = new Uri(endpoint),
-            TransportMode = HttpTransportMode.Sse,
         };
 
         var transport = new HttpClientTransport(transportOptions, _loggerFactory);

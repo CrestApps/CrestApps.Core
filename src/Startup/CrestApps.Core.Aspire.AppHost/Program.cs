@@ -75,7 +75,7 @@ builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_McpClient>("MvcMcpClientS
     .WithReference(mvcWeb)
     .WaitFor(mvcWeb)
     .WithHttpsEndpoint(5002, name: "HttpsMvcMcpClient")
-    .WithEnvironment("Mcp__Endpoint", "https://localhost:5001/mcp/sse");
+    .WithEnvironment("Mcp__Endpoint", "https://localhost:5001/mcp");
 
 builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_A2AClient>("MvcA2AClientSample")
     .WithReference(mvcWeb)
