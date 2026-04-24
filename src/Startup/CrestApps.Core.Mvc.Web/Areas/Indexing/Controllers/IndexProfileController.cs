@@ -136,6 +136,99 @@ public sealed class IndexProfileController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Rebuild(string id)
+    {
+        var profile = await _indexProfileManager.FindByIdAsync(id);
+
+        if (profile == null)
+        {
+            return NotFound();
+        }
+
+        var indexManager = ResolveIndexManager(profile);
+
+        if (indexManager == null)
+        {
+            TempData["ErrorMessage"] = $"The search provider '{profile.ProviderName}' is not configured for remote index provisioning.";
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        try
+        {
+            profile.IndexFullName ??= indexManager.ComposeIndexFullName(profile);
+
+            if (await indexManager.ExistsAsync(profile, HttpContext.RequestAborted))
+            {
+                await indexManager.DeleteAsync(profile, HttpContext.RequestAborted);
+            }
+
+            var fields = await _indexProfileManager.GetFieldsAsync(profile, HttpContext.RequestAborted);
+
+            if (fields == null)
+            {
+                TempData["ErrorMessage"] = $"The index type '{profile.Type}' does not support rebuild.";
+
+                return RedirectToAction(nameof(Index));
+            }
+
+            await indexManager.CreateAsync(profile, fields, HttpContext.RequestAborted);
+            await _indexProfileManager.SynchronizeAsync(profile, HttpContext.RequestAborted);
+            TempData["SuccessMessage"] = $"The index '{GetIndexDisplayName(profile)}' was rebuilt successfully.";
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Unable to rebuild index profile '{IndexProfileId}' because the resolved remote index name is invalid.",
+                profile.ItemId.SanitizeForLog());
+            TempData["ErrorMessage"] = "Unable to rebuild the index because the remote index name is invalid.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to rebuild remote index '{IndexName}' for provider '{ProviderName}'.",
+                GetIndexDisplayName(profile).SanitizeForLog(),
+                profile.ProviderName.SanitizeForLog());
+            TempData["ErrorMessage"] = $"Unable to rebuild the remote index '{GetIndexDisplayName(profile)}'.";
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Reindex(string id)
+    {
+        var profile = await _indexProfileManager.FindByIdAsync(id);
+
+        if (profile == null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            await _indexProfileManager.ResetAsync(profile, HttpContext.RequestAborted);
+            await _indexProfileManager.SynchronizeAsync(profile, HttpContext.RequestAborted);
+            TempData["SuccessMessage"] = $"The index '{GetIndexDisplayName(profile)}' was reindexed successfully.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to reindex remote index '{IndexName}' for provider '{ProviderName}'.",
+                GetIndexDisplayName(profile).SanitizeForLog(),
+                profile.ProviderName.SanitizeForLog());
+            TempData["ErrorMessage"] = $"Unable to reindex the remote index '{GetIndexDisplayName(profile)}'.";
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string id)
     {
         var profile = await _indexProfileManager.FindByIdAsync(id);
@@ -198,6 +291,29 @@ public sealed class IndexProfileController : Controller
         await _indexProfileManager.DeleteAsync(profile);
 
         return RedirectToAction(nameof(Index));
+    }
+
+    private ISearchIndexManager ResolveIndexManager(SearchIndexProfile profile)
+    {
+        try
+        {
+            return _serviceProvider.GetKeyedService<ISearchIndexManager>(profile.ProviderName ?? string.Empty);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Skipping remote index operation for index profile '{IndexProfileId}' because provider '{ProviderName}' is not registered.",
+                profile.ItemId.SanitizeForLog(),
+                profile.ProviderName.SanitizeForLog());
+
+            return null;
+        }
+    }
+
+    private static string GetIndexDisplayName(SearchIndexProfile profile)
+    {
+        return profile.IndexFullName ?? profile.IndexName ?? profile.Name ?? profile.ItemId;
     }
 
     private async Task ValidateAsync(IndexProfileViewModel model, SearchIndexProfile profile = null, string excludeItemId = null)

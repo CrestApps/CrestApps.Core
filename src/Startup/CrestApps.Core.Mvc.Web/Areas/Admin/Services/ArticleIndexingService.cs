@@ -45,7 +45,7 @@ public sealed class ArticleIndexingService
         }
     }
 
-    public async Task SyncByIndexProfileAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken = default)
+    public async Task SyncAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(indexProfile);
 
@@ -59,6 +59,8 @@ public sealed class ArticleIndexingService
             return;
         }
 
+        indexProfile.IndexFullName ??= indexManager.ComposeIndexFullName(indexProfile);
+
         if (!await indexManager.ExistsAsync(indexProfile, cancellationToken))
         {
             await indexManager.CreateAsync(indexProfile, BuildFields(), cancellationToken);
@@ -70,6 +72,30 @@ public sealed class ArticleIndexingService
         {
             await IndexIntoProfileAsync(indexProfile, article, cancellationToken);
         }
+    }
+
+    public async Task ResetAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(indexProfile);
+
+        if (!string.Equals(indexProfile.Type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!TryResolveSearchServices(indexProfile.ProviderName, out var indexManager, out var documentManager))
+        {
+            return;
+        }
+
+        indexProfile.IndexFullName ??= indexManager.ComposeIndexFullName(indexProfile);
+
+        if (!await indexManager.ExistsAsync(indexProfile, cancellationToken))
+        {
+            return;
+        }
+
+        await documentManager.DeleteAllAsync(indexProfile, cancellationToken);
     }
 
     public async Task DeleteAsync(string articleId, CancellationToken cancellationToken = default)
@@ -117,6 +143,8 @@ public sealed class ArticleIndexingService
         {
             return;
         }
+
+        indexProfile.IndexFullName ??= indexManager.ComposeIndexFullName(indexProfile);
 
         if (!await indexManager.ExistsAsync(indexProfile, cancellationToken))
         {

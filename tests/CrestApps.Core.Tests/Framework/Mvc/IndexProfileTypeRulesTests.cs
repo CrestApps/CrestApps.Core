@@ -178,6 +178,72 @@ public sealed class IndexProfileTypeRulesTests
         Assert.True(profileManager.DeleteCalled);
     }
 
+    [Fact]
+    public async Task Rebuild_ShouldDeleteExistingRemoteIndexCreateItAndSynchronizeProfile()
+    {
+        var profile = new SearchIndexProfile
+        {
+            ItemId = "1",
+            ProviderName = ElasticsearchConstants.ProviderName,
+            IndexName = "sample-index",
+            IndexFullName = "sample-index",
+            Type = IndexProfileTypes.Articles,
+        };
+
+        var remoteManager = new TestRemoteSearchIndexManager
+        {
+            ExistsResult = true,
+        };
+
+        var profileManager = new TestSearchIndexProfileManager(profile)
+        {
+            Fields =
+            [
+                new SearchIndexField
+                {
+                    Name = "article_id",
+                    FieldType = SearchFieldType.Keyword,
+                    IsKey = true,
+                },
+            ],
+        };
+
+        var controller = CreateController(profileManager, remoteManager);
+
+        var result = await controller.Rebuild(profile.ItemId);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(IndexProfileController.Index), redirect.ActionName);
+        Assert.Equal("sample-index", remoteManager.DeletedIndexName);
+        Assert.Equal("sample-index", remoteManager.CreatedIndexName);
+        Assert.True(profileManager.SynchronizeCalled);
+        Assert.Equal("The index 'sample-index' was rebuilt successfully.", controller.TempData["SuccessMessage"]);
+    }
+
+    [Fact]
+    public async Task Reindex_ShouldResetAndSynchronizeProfile()
+    {
+        var profile = new SearchIndexProfile
+        {
+            ItemId = "1",
+            ProviderName = ElasticsearchConstants.ProviderName,
+            IndexName = "sample-index",
+            IndexFullName = "sample-index",
+            Type = IndexProfileTypes.Articles,
+        };
+
+        var profileManager = new TestSearchIndexProfileManager(profile);
+        var controller = CreateController(profileManager, null);
+
+        var result = await controller.Reindex(profile.ItemId);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(IndexProfileController.Index), redirect.ActionName);
+        Assert.True(profileManager.ResetCalled);
+        Assert.True(profileManager.SynchronizeCalled);
+        Assert.Equal("The index 'sample-index' was reindexed successfully.", controller.TempData["SuccessMessage"]);
+    }
+
     private static IndexProfileController CreateController(TestSearchIndexProfileManager profileManager, TestRemoteSearchIndexManager remoteManager)
     {
         var services = new ServiceCollection();
@@ -212,6 +278,7 @@ public sealed class IndexProfileTypeRulesTests
         public Exception DeleteException { get; set; }
         public string ComposedIndexName { get; set; }
         public string DeletedIndexName { get; private set; }
+        public string CreatedIndexName { get; private set; }
 
         public string ComposeIndexFullName(IIndexProfileInfo profile)
         {
@@ -225,6 +292,8 @@ public sealed class IndexProfileTypeRulesTests
 
         public Task CreateAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default)
         {
+            CreatedIndexName = profile.IndexFullName;
+
             return Task.CompletedTask;
         }
 
@@ -249,6 +318,9 @@ public sealed class IndexProfileTypeRulesTests
         }
 
         public bool DeleteCalled { get; private set; }
+        public bool ResetCalled { get; private set; }
+        public bool SynchronizeCalled { get; private set; }
+        public IReadOnlyCollection<SearchIndexField> Fields { get; set; } = [];
 
         public ValueTask CreateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
@@ -273,7 +345,7 @@ public sealed class IndexProfileTypeRulesTests
 
         public ValueTask<IReadOnlyCollection<SearchIndexField>> GetFieldsAsync(SearchIndexProfile profile, CancellationToken cancellationToken = default)
         {
-            return ValueTask.FromResult<IReadOnlyCollection<SearchIndexField>>(null);
+            return ValueTask.FromResult(Fields);
         }
 
         public ValueTask<IEnumerable<SearchIndexProfile>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -299,11 +371,15 @@ public sealed class IndexProfileTypeRulesTests
 
         public Task ResetAsync(SearchIndexProfile profile, CancellationToken cancellationToken = default)
         {
+            ResetCalled = true;
+
             return Task.CompletedTask;
         }
 
         public Task SynchronizeAsync(SearchIndexProfile profile, CancellationToken cancellationToken = default)
         {
+            SynchronizeCalled = true;
+
             return Task.CompletedTask;
         }
 

@@ -21,12 +21,12 @@ internal sealed class ArticleIndexProfileHandler : IndexProfileHandlerBase
             return;
         }
 
-        await _indexingService.SyncByIndexProfileAsync(indexProfile, cancellationToken);
+        await _indexingService.SyncAsync(indexProfile, cancellationToken);
     }
 
     public override Task ResetAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        return _indexingService.ResetAsync(indexProfile, cancellationToken);
     }
 
     public override ValueTask ValidateAsync(SearchIndexProfile indexProfile, ValidationResultDetails result, CancellationToken cancellationToken = default)
