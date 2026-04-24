@@ -9,6 +9,8 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Extensions;
+using CrestApps.Core.Templates.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

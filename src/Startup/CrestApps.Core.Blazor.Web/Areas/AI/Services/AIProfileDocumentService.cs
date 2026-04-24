@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Blazor.Web.Areas.Indexing.Services;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AI.Services;

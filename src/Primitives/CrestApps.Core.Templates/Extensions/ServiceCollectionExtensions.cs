@@ -1,4 +1,8 @@
 using System.Reflection;
+using CrestApps.Core.Templates.Parsing;
+using CrestApps.Core.Templates.Providers;
+using CrestApps.Core.Templates.Rendering;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Templates.Services;
 using CrestApps.Core.Support.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;

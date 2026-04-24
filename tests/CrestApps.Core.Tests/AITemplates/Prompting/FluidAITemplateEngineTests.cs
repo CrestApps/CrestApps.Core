@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using CrestApps.Core.Templates.Rendering;
 
 namespace CrestApps.Core.Tests.AITemplates.Prompting;
 

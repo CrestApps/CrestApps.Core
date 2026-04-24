@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using Microsoft.AspNetCore.DataProtection;
 

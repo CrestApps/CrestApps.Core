@@ -72,6 +72,8 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 - Add a blank line before and after `if` blocks, `switch` statements, and loops unless the block is immediately preceded by `{`
 - Do not add a blank line between an `if`/`else`/`switch`/loop condition and its opening `{`
 - Use `var` consistently with repository style
+- Do not use `global using` files; add explicit `using` directives at the top of each file instead.
+- Prefer top-of-file `using` directives over fully qualified type names in code.
 - Only use expression-bodied members when the entire member fits on a single short line; use a full block body for anything longer or split across lines
 - Avoid `DateTime.UtcNow`; prefer injected `TimeProvider`.
 - Keep public docs and comments honest to the current code.

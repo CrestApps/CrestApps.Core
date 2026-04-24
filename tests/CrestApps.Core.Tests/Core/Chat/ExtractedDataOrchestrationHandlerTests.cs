@@ -1,6 +1,8 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Models;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.Core.Chat;

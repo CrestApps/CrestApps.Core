@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Services;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core;

@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using Microsoft.Extensions.Logging;
 

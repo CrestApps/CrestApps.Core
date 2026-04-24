@@ -1,3 +1,7 @@
+using CrestApps.Core.Templates;
+using CrestApps.Core.Templates.Models;
+using CrestApps.Core.Templates.Services;
+
 namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
 public sealed class AITemplateBuilderTests

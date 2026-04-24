@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Services;
 

@@ -1,5 +1,6 @@
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;

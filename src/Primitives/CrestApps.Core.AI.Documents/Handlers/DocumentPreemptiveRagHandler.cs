@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
+using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -7,8 +7,10 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
+using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 

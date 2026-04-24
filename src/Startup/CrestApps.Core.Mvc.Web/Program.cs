@@ -1,3 +1,4 @@
+using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.Azure.AISearch;
@@ -23,6 +24,7 @@ using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
+using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;

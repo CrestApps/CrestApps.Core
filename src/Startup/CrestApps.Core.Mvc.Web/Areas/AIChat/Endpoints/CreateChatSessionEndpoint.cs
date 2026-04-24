@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.Filters;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
