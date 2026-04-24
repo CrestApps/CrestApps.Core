@@ -4,7 +4,7 @@ namespace CrestApps.Core.AI.A2A.Models;
 
 public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
 {
-    public A2AClientAuthenticationType AuthenticationType { get; set; }
+    public ClientAuthenticationType AuthenticationType { get; set; }
 
     // API Key authentication.
     public string ApiKeyHeaderName { get; set; }
@@ -40,5 +40,5 @@ public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
     // Custom headers (advanced).
     public Dictionary<string, string> AdditionalHeaders { get; set; }
 
-    ClientAuthenticationType IConnectionAuthMetadata.AuthenticationType => (ClientAuthenticationType)(int)AuthenticationType;
 }
+

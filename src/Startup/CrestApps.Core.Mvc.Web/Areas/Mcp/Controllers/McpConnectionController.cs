@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -152,14 +153,14 @@ public sealed class McpConnectionController : Controller
 
         switch (authenticationType)
         {
-            case McpClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
                 {
                     ModelState.AddModelError(nameof(model.ApiKey), "API key is required.");
                 }
 
                 break;
-            case McpClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 if (string.IsNullOrWhiteSpace(model.BasicUsername))
                 {
                     ModelState.AddModelError(nameof(model.BasicUsername), "Username is required.");
@@ -171,7 +172,7 @@ public sealed class McpConnectionController : Controller
                 }
 
                 break;
-            case McpClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 ValidateOAuth2Common(model);
                 if ((!isEditing || !model.HasOAuth2ClientSecret) && string.IsNullOrWhiteSpace(model.OAuth2ClientSecret))
                 {
@@ -179,7 +180,7 @@ public sealed class McpConnectionController : Controller
                 }
 
                 break;
-            case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 ValidateOAuth2Common(model);
                 if ((!isEditing || !model.HasOAuth2PrivateKey) && string.IsNullOrWhiteSpace(model.OAuth2PrivateKey))
                 {
@@ -187,7 +188,7 @@ public sealed class McpConnectionController : Controller
                 }
 
                 break;
-            case McpClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 ValidateOAuth2Common(model);
                 if ((!isEditing || !model.HasOAuth2ClientCertificate) && string.IsNullOrWhiteSpace(model.OAuth2ClientCertificate))
                 {
@@ -195,7 +196,7 @@ public sealed class McpConnectionController : Controller
                 }
 
                 break;
-            case McpClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 if (!string.IsNullOrWhiteSpace(model.AdditionalHeaders))
                 {
                     try
@@ -241,16 +242,16 @@ public sealed class McpConnectionController : Controller
         return false;
     }
 
-    private static bool TryResolveAuthenticationType(McpClientAuthenticationType authenticationType, out McpClientAuthenticationType resolvedAuthenticationType)
+    private static bool TryResolveAuthenticationType(ClientAuthenticationType authenticationType, out ClientAuthenticationType resolvedAuthenticationType)
     {
         switch (authenticationType)
         {
-            case McpClientAuthenticationType.ApiKey:
-            case McpClientAuthenticationType.Basic:
-            case McpClientAuthenticationType.OAuth2ClientCredentials:
-            case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
-            case McpClientAuthenticationType.OAuth2Mtls:
-            case McpClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.Basic:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.CustomHeaders:
                 resolvedAuthenticationType = authenticationType;
                 return true;
             default:
@@ -274,7 +275,7 @@ public sealed class McpConnectionController : Controller
         return TryResolveTransportKind(source, out var transportKind) ? transportKind : throw new InvalidOperationException("Connection type is not supported.");
     }
 
-    private static McpClientAuthenticationType ResolveAuthenticationType(McpClientAuthenticationType authenticationType)
+    private static ClientAuthenticationType ResolveAuthenticationType(ClientAuthenticationType authenticationType)
     {
         return TryResolveAuthenticationType(authenticationType, out var resolvedAuthenticationType) ? resolvedAuthenticationType : throw new InvalidOperationException("Authentication type is not supported.");
     }
@@ -324,30 +325,30 @@ public sealed class McpConnectionController : Controller
         metadata.AdditionalHeaders = null;
         switch (authenticationType)
         {
-            case McpClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 metadata.ApiKeyHeaderName = model.ApiKeyHeaderName?.Trim();
                 metadata.ApiKeyPrefix = model.ApiKeyPrefix?.Trim();
                 metadata.ApiKey = ProtectOrReuse(model.ApiKey, existingApiKey, protector);
                 break;
-            case McpClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 metadata.BasicUsername = model.BasicUsername?.Trim();
                 metadata.BasicPassword = ProtectOrReuse(model.BasicPassword, existingBasicPassword, protector);
                 break;
-            case McpClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 PopulateOAuthCommon(model, metadata);
                 metadata.OAuth2ClientSecret = ProtectOrReuse(model.OAuth2ClientSecret, existingOAuth2ClientSecret, protector);
                 break;
-            case McpClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 PopulateOAuthCommon(model, metadata);
                 metadata.OAuth2KeyId = model.OAuth2KeyId?.Trim();
                 metadata.OAuth2PrivateKey = ProtectOrReuse(model.OAuth2PrivateKey, existingOAuth2PrivateKey, protector);
                 break;
-            case McpClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 PopulateOAuthCommon(model, metadata);
                 metadata.OAuth2ClientCertificate = ProtectOrReuse(model.OAuth2ClientCertificate, existingCertificate, protector);
                 metadata.OAuth2ClientCertificatePassword = ProtectOrReuse(model.OAuth2ClientCertificatePassword, existingCertificatePassword, protector);
                 break;
-            case McpClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 metadata.AdditionalHeaders = string.IsNullOrWhiteSpace(model.AdditionalHeaders) ? [] : JsonSerializer.Deserialize<Dictionary<string, string>>(model.AdditionalHeaders) ?? [];
                 break;
         }
@@ -473,3 +474,4 @@ public sealed class McpConnectionController : Controller
         return model;
     }
 }
+

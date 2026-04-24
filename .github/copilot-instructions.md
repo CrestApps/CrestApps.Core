@@ -78,6 +78,9 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 - Always document new interfaces, their methods and arguments along with documenting every property on domain models using `<summary>` block.
 - Always treat warnings are errors in the solutions and ensure every warning is addressed.
 - Always learn from my prompts, preference and styles and update the `copilot-instructions.md` file with any new preferences that I share in the future.
+- Prefer SOLID and DRY refactors that consolidate duplicated provider, transport, or store logic into shared abstractions before adding new one-off implementations.
+- Favor additive shared infrastructure first, then migrate consumers in behavior-safe steps when a full replacement is too risky for a single change.
+- When working in framework code meant for external adoption, optimize for consistency and long-term maintainability across providers and hosts, not just local fixes.
 
 ## Runtime notes
 

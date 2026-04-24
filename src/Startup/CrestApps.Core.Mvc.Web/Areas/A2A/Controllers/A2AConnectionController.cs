@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -116,14 +117,14 @@ public sealed class A2AConnectionController : Controller
 
         switch (model.AuthenticationType)
         {
-            case A2AClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
                 {
                     ModelState.AddModelError(nameof(model.ApiKey), "API key is required.");
                 }
 
                 break;
-            case A2AClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 if (string.IsNullOrWhiteSpace(model.BasicUsername))
                 {
                     ModelState.AddModelError(nameof(model.BasicUsername), "Username is required.");
@@ -135,7 +136,7 @@ public sealed class A2AConnectionController : Controller
                 }
 
                 break;
-            case A2AClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 ValidateOAuth2Common(model);
                 if ((!isEditing || !model.HasOAuth2ClientSecret) && string.IsNullOrWhiteSpace(model.OAuth2ClientSecret))
                 {
@@ -143,7 +144,7 @@ public sealed class A2AConnectionController : Controller
                 }
 
                 break;
-            case A2AClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 ValidateOAuth2Common(model);
                 if ((!isEditing || !model.HasOAuth2PrivateKey) && string.IsNullOrWhiteSpace(model.OAuth2PrivateKey))
                 {
@@ -151,7 +152,7 @@ public sealed class A2AConnectionController : Controller
                 }
 
                 break;
-            case A2AClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 ValidateOAuth2Common(model);
                 if ((!isEditing || !model.HasOAuth2ClientCertificate) && string.IsNullOrWhiteSpace(model.OAuth2ClientCertificate))
                 {
@@ -159,7 +160,7 @@ public sealed class A2AConnectionController : Controller
                 }
 
                 break;
-            case A2AClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 if (!string.IsNullOrWhiteSpace(model.AdditionalHeaders))
                 {
                     try
@@ -222,30 +223,30 @@ public sealed class A2AConnectionController : Controller
         metadata.AdditionalHeaders = null;
         switch (model.AuthenticationType)
         {
-            case A2AClientAuthenticationType.ApiKey:
+            case ClientAuthenticationType.ApiKey:
                 metadata.ApiKeyHeaderName = model.ApiKeyHeaderName;
                 metadata.ApiKeyPrefix = model.ApiKeyPrefix;
                 metadata.ApiKey = ProtectOrReuse(model.ApiKey, existingApiKey, protector);
                 break;
-            case A2AClientAuthenticationType.Basic:
+            case ClientAuthenticationType.Basic:
                 metadata.BasicUsername = model.BasicUsername;
                 metadata.BasicPassword = ProtectOrReuse(model.BasicPassword, existingBasicPassword, protector);
                 break;
-            case A2AClientAuthenticationType.OAuth2ClientCredentials:
+            case ClientAuthenticationType.OAuth2ClientCredentials:
                 PopulateOAuth2Common(model, metadata);
                 metadata.OAuth2ClientSecret = ProtectOrReuse(model.OAuth2ClientSecret, existingOAuth2ClientSecret, protector);
                 break;
-            case A2AClientAuthenticationType.OAuth2PrivateKeyJwt:
+            case ClientAuthenticationType.OAuth2PrivateKeyJwt:
                 PopulateOAuth2Common(model, metadata);
                 metadata.OAuth2KeyId = model.OAuth2KeyId;
                 metadata.OAuth2PrivateKey = ProtectOrReuse(model.OAuth2PrivateKey, existingOAuth2PrivateKey, protector);
                 break;
-            case A2AClientAuthenticationType.OAuth2Mtls:
+            case ClientAuthenticationType.OAuth2Mtls:
                 PopulateOAuth2Common(model, metadata);
                 metadata.OAuth2ClientCertificate = ProtectOrReuse(model.OAuth2ClientCertificate, existingOAuth2ClientCertificate, protector);
                 metadata.OAuth2ClientCertificatePassword = ProtectOrReuse(model.OAuth2ClientCertificatePassword, existingOAuth2ClientCertificatePassword, protector);
                 break;
-            case A2AClientAuthenticationType.CustomHeaders:
+            case ClientAuthenticationType.CustomHeaders:
                 metadata.AdditionalHeaders = string.IsNullOrWhiteSpace(model.AdditionalHeaders) ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(model.AdditionalHeaders);
                 break;
         }
@@ -270,3 +271,4 @@ public sealed class A2AConnectionController : Controller
         return existingProtectedValue;
     }
 }
+

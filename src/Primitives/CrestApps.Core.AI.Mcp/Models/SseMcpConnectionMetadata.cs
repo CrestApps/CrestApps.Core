@@ -6,7 +6,7 @@ public sealed class SseMcpConnectionMetadata : IConnectionAuthMetadata
 {
     public Uri Endpoint { get; set; }
 
-    public McpClientAuthenticationType AuthenticationType { get; set; }
+    public ClientAuthenticationType AuthenticationType { get; set; }
 
     // API Key authentication.
     public string ApiKeyHeaderName { get; set; }
@@ -42,5 +42,5 @@ public sealed class SseMcpConnectionMetadata : IConnectionAuthMetadata
     // Custom headers (advanced / legacy).
     public Dictionary<string, string> AdditionalHeaders { get; set; }
 
-    ClientAuthenticationType IConnectionAuthMetadata.AuthenticationType => (ClientAuthenticationType)(int)AuthenticationType;
 }
+

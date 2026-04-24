@@ -1,9 +1,11 @@
 using System.Text;
+using System.Threading.Tasks;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Xunit;
 
 namespace CrestApps.Core.Tests.Core.Services;
 
@@ -16,7 +18,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
     {
         var builder = CreateBuilder();
 
-        var headers = await builder.BuildHeadersAsync(null, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(null, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Empty(headers);
     }
@@ -27,7 +29,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         var builder = CreateBuilder();
         var metadata = CreateMetadata(ClientAuthenticationType.Anonymous);
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Empty(headers);
     }
@@ -39,7 +41,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         var metadata = CreateMetadata(ClientAuthenticationType.ApiKey);
         metadata.ApiKey = "test-api-key";
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Single(headers);
         Assert.Equal("test-api-key", headers["Authorization"]);
@@ -53,7 +55,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         metadata.ApiKey = "my-key";
         metadata.ApiKeyHeaderName = "X-Api-Key";
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Single(headers);
         Assert.Equal("my-key", headers["X-Api-Key"]);
@@ -67,7 +69,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         metadata.ApiKey = "my-key";
         metadata.ApiKeyPrefix = "Bearer";
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Equal("Bearer my-key", headers["Authorization"]);
     }
@@ -79,7 +81,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         var metadata = CreateMetadata(ClientAuthenticationType.ApiKey);
         metadata.ApiKey = string.Empty;
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Empty(headers);
     }
@@ -92,7 +94,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         metadata.BasicUsername = "user";
         metadata.BasicPassword = "pass";
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         var expected = Convert.ToBase64String(Encoding.UTF8.GetBytes("user:pass"));
         Assert.Equal($"Basic {expected}", headers["Authorization"]);
@@ -106,7 +108,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         metadata.BasicUsername = "user";
         metadata.BasicPassword = string.Empty;
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         var expected = Convert.ToBase64String(Encoding.UTF8.GetBytes("user:"));
         Assert.Equal($"Basic {expected}", headers["Authorization"]);
@@ -119,7 +121,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         var metadata = CreateMetadata(ClientAuthenticationType.Basic);
         metadata.BasicUsername = string.Empty;
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Empty(headers);
     }
@@ -139,7 +141,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         metadata.OAuth2ClientSecret = "client-secret";
         metadata.OAuth2Scopes = "scope1 scope2";
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Equal("Bearer test-token", headers["Authorization"]);
     }
@@ -153,7 +155,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         metadata.OAuth2ClientId = "client-id";
         // Missing OAuth2ClientSecret
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Empty(headers);
     }
@@ -169,7 +171,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
             ["X-Custom-2"] = "value2",
         };
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, headers.Count);
         Assert.Equal("value1", headers["X-Custom-1"]);
@@ -183,7 +185,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         var metadata = CreateMetadata(ClientAuthenticationType.CustomHeaders);
         metadata.AdditionalHeaders = null;
 
-        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose);
+        var headers = await builder.BuildHeadersAsync(metadata, TestPurpose, TestContext.Current.CancellationToken);
 
         Assert.Empty(headers);
     }
@@ -233,3 +235,4 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         public byte[] Unprotect(byte[] protectedData) => protectedData;
     }
 }
+

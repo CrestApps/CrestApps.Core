@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Client;
 using Moq;
+using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Tests.Mcp;
 
@@ -42,7 +43,7 @@ public sealed class SseClientTransportProviderTests
     public async Task GetAsync_Anonymous_ReturnsTransportWithNoAuthHeaders()
     {
         // Arrange
-        var connection = CreateConnection(McpClientAuthenticationType.Anonymous);
+        var connection = CreateConnection(ClientAuthenticationType.Anonymous);
         var provider = CreateProvider();
 
         // Act
@@ -67,7 +68,7 @@ public sealed class SseClientTransportProviderTests
         string expectedHeaderValue)
     {
         // Arrange
-        var connection = CreateConnection(McpClientAuthenticationType.ApiKey);
+        var connection = CreateConnection(ClientAuthenticationType.ApiKey);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.ApiKeyHeaderName = headerName;
         metadata.ApiKeyPrefix = prefix;
@@ -90,7 +91,7 @@ public sealed class SseClientTransportProviderTests
         // Arrange
         var username = "testuser";
         var password = "testpass";
-        var connection = CreateConnection(McpClientAuthenticationType.Basic);
+        var connection = CreateConnection(ClientAuthenticationType.Basic);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.BasicUsername = username;
         metadata.BasicPassword = password;
@@ -111,7 +112,7 @@ public sealed class SseClientTransportProviderTests
     public async Task GetAsync_Basic_WithEmptyPassword_SetsHeaderWithEmptyPassword()
     {
         // Arrange
-        var connection = CreateConnection(McpClientAuthenticationType.Basic);
+        var connection = CreateConnection(ClientAuthenticationType.Basic);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.BasicUsername = "testuser";
         metadata.BasicPassword = null;
@@ -138,7 +139,7 @@ public sealed class SseClientTransportProviderTests
         var clientSecret = "my-client-secret";
         var scopes = "read write";
 
-        var connection = CreateConnection(McpClientAuthenticationType.OAuth2ClientCredentials);
+        var connection = CreateConnection(ClientAuthenticationType.OAuth2ClientCredentials);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = tokenEndpoint;
         metadata.OAuth2ClientId = clientId;
@@ -174,7 +175,7 @@ public sealed class SseClientTransportProviderTests
         var keyId = "key-001";
         var scopes = "api";
 
-        var connection = CreateConnection(McpClientAuthenticationType.OAuth2PrivateKeyJwt);
+        var connection = CreateConnection(ClientAuthenticationType.OAuth2PrivateKeyJwt);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = tokenEndpoint;
         metadata.OAuth2ClientId = clientId;
@@ -216,7 +217,7 @@ public sealed class SseClientTransportProviderTests
         // Protect values like the display driver does before storing.
         var protector = new PassthroughDataProtectionProvider().CreateProtector("test");
 
-        var connection = CreateConnection(McpClientAuthenticationType.OAuth2Mtls);
+        var connection = CreateConnection(ClientAuthenticationType.OAuth2Mtls);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = tokenEndpoint;
         metadata.OAuth2ClientId = clientId;
@@ -250,7 +251,7 @@ public sealed class SseClientTransportProviderTests
     public async Task GetAsync_CustomHeaders_PassesAllHeaders()
     {
         // Arrange
-        var connection = CreateConnection(McpClientAuthenticationType.CustomHeaders);
+        var connection = CreateConnection(ClientAuthenticationType.CustomHeaders);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.AdditionalHeaders = new Dictionary<string, string>
         {
@@ -276,7 +277,7 @@ public sealed class SseClientTransportProviderTests
     public async Task GetAsync_CustomHeaders_WithNullHeaders_ReturnsEmptyHeaders()
     {
         // Arrange
-        var connection = CreateConnection(McpClientAuthenticationType.CustomHeaders);
+        var connection = CreateConnection(ClientAuthenticationType.CustomHeaders);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.AdditionalHeaders = null;
         connection.Put(metadata);
@@ -294,7 +295,7 @@ public sealed class SseClientTransportProviderTests
     public async Task GetAsync_OAuth2ClientCredentials_WhenTokenAcquisitionFails_ThrowsException()
     {
         // Arrange
-        var connection = CreateConnection(McpClientAuthenticationType.OAuth2ClientCredentials);
+        var connection = CreateConnection(ClientAuthenticationType.OAuth2ClientCredentials);
         var metadata = connection.GetOrCreate<SseMcpConnectionMetadata>();
         metadata.OAuth2TokenEndpoint = "https://auth.example.com/token";
         metadata.OAuth2ClientId = "client-id";
@@ -312,7 +313,7 @@ public sealed class SseClientTransportProviderTests
         await Assert.ThrowsAsync<HttpRequestException>(() => provider.GetAsync(connection));
     }
 
-    private static McpConnection CreateConnection(McpClientAuthenticationType authType)
+    private static McpConnection CreateConnection(ClientAuthenticationType authType)
     {
         var connection = new McpConnection
         {
@@ -371,3 +372,5 @@ public sealed class SseClientTransportProviderTests
         public byte[] Unprotect(byte[] protectedData) => protectedData;
     }
 }
+
+

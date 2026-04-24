@@ -423,7 +423,7 @@ Authentication metadata is stored in `A2AConnectionMetadata`:
 public sealed class A2AConnectionMetadata
 {
     // Which authentication type to use
-    public A2AClientAuthenticationType AuthenticationType { get; set; }
+    public ClientAuthenticationType AuthenticationType { get; set; }
 
     // API Key authentication
     public string ApiKeyHeaderName { get; set; }   // Default: "Authorization"
@@ -522,7 +522,7 @@ var connection = new A2AConnection
 
 var metadata = new A2AConnectionMetadata
 {
-    AuthenticationType = A2AClientAuthenticationType.ApiKey,
+    AuthenticationType = ClientAuthenticationType.ApiKey,
     ApiKeyHeaderName = "Authorization",
     ApiKeyPrefix = "Bearer",
     ApiKey = protector.Protect("sk-partner-key-12345"),
@@ -538,7 +538,7 @@ await connectionStore.CreateAsync(connection);
 ```csharp
 var metadata = new A2AConnectionMetadata
 {
-    AuthenticationType = A2AClientAuthenticationType.OAuth2ClientCredentials,
+    AuthenticationType = ClientAuthenticationType.OAuth2ClientCredentials,
     OAuth2TokenEndpoint = "https://auth.partner.com/oauth2/token",
     OAuth2ClientId = "my-app-client-id",
     OAuth2ClientSecret = protector.Protect("my-client-secret"),
@@ -553,3 +553,4 @@ var metadata = new A2AConnectionMetadata
 - Authentication configuration forms for all supported types
 - Connection assignment to AI profiles via the profile editor
 - Agent card preview and cache invalidation
+

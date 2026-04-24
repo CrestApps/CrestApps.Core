@@ -32,7 +32,7 @@
             <div class="mb-3">
                 <label asp-for="AuthenticationType" class="form-label">Authentication</label>
                 <select asp-for="AuthenticationType" class="form-select" id="authType">
-                    @foreach (var authType in Enum.GetValues<CrestApps.Core.AI.Mcp.Models.McpClientAuthenticationType>())
+                    @foreach (var authType in Enum.GetValues<CrestApps.Core.AI.Models.ClientAuthenticationType>())
                     {
                         <option value="@((int)authType)" data-auth-type="@authType">@authType</option>
                     }
@@ -214,3 +214,4 @@
         updateAuthVisibility();
     });
 </script>
+

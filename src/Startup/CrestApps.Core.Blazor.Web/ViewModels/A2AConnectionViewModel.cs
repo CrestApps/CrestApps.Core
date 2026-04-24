@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
 
@@ -19,7 +20,7 @@ public sealed class A2AConnectionViewModel
     [Required]
     public string Endpoint { get; set; }
 
-    public A2AClientAuthenticationType AuthenticationType { get; set; }
+    public ClientAuthenticationType AuthenticationType { get; set; }
 
     public string ApiKeyHeaderName { get; set; }
 
@@ -72,8 +73,8 @@ public sealed class A2AConnectionViewModel
 
         if (connection.TryGet<A2AConnectionMetadata>(out var metadata))
         {
-            vm.AuthenticationType = metadata.AuthenticationType == A2AClientAuthenticationType.Anonymous && metadata.AdditionalHeaders is { Count: > 0 }
-                ? A2AClientAuthenticationType.CustomHeaders
+            vm.AuthenticationType = metadata.AuthenticationType == ClientAuthenticationType.Anonymous && metadata.AdditionalHeaders is { Count: > 0 }
+                ? ClientAuthenticationType.CustomHeaders
                 : metadata.AuthenticationType;
             vm.ApiKeyHeaderName = metadata.ApiKeyHeaderName;
             vm.ApiKeyPrefix = metadata.ApiKeyPrefix;
@@ -96,3 +97,4 @@ public sealed class A2AConnectionViewModel
         return vm;
     }
 }
+
