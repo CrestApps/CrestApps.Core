@@ -132,6 +132,81 @@ Use `ConnectionName` when a deployment should point at a shared entry from `Cres
 
 Create an AI profile that uses your chat deployment, then use Chat Interactions to test it end to end.
 
+## Complete Hello World example
+
+Here is a minimal, self-contained `Program.cs` that sends a chat completion request using CrestApps.Core with OpenAI:
+
+```csharp
+using CrestApps.Core;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Completions;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// Register CrestApps with the OpenAI provider.
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+    )
+);
+
+var app = builder.Build();
+
+// Resolve the completion service from DI.
+using var scope = app.Services.CreateScope();
+var deploymentManager = scope.ServiceProvider.GetRequiredService<IAIDeploymentManager>();
+var completionService = scope.ServiceProvider.GetRequiredService<IAICompletionService>();
+
+// Resolve the first chat deployment.
+var deployment = await deploymentManager.FindFirstByTypeAsync(AIDeploymentType.Chat);
+
+if (deployment is null)
+{
+    Console.WriteLine("No chat deployment found. Check your CrestApps:AI:Deployments configuration.");
+    return;
+}
+
+// Send a completion request.
+var messages = new List<ChatMessage>
+{
+    new(ChatRole.User, "What is CrestApps.Core in one sentence?"),
+};
+var context = new AICompletionContext();
+
+var response = await completionService.CompleteAsync(deployment, messages, context);
+Console.WriteLine(response.Message?.Text ?? "No response.");
+```
+
+Add the matching `appsettings.json`:
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "Connections": [
+        {
+          "Name": "my-openai",
+          "ClientName": "OpenAI",
+          "ApiKey": "sk-YOUR_API_KEY_HERE"
+        }
+      ],
+      "Deployments": [
+        {
+          "Name": "gpt-4.1-mini",
+          "ConnectionName": "my-openai",
+          "ModelName": "gpt-4.1-mini",
+          "Type": "Chat"
+        }
+      ]
+    }
+  }
+}
+```
+
 ## Learn the registration model
 
 Under the hood, each builder step still maps to the corresponding `AddCrestApps...` `IServiceCollection` extension, so hosts can still opt into the lower-level registration methods when they want that control.
