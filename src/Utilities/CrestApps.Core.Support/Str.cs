@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.Support;
 
-public partial class Str
+public static partial class Str
 {
     public static bool IsNumeric(string phrase)
     {

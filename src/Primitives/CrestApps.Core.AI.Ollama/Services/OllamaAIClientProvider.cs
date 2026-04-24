@@ -46,6 +46,19 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
         throw new NotSupportedException("Ollama does not currently support speech-to-text functionality.");
     }
 
+    /// <summary>
+    /// Clears the cached Ollama client instances, forcing new clients to be created on next use.
+    /// </summary>
+    public static void ClearCache()
+    {
+        foreach (var client in _clientCache.Values)
+        {
+            client.Dispose();
+        }
+
+        _clientCache.Clear();
+    }
+
     private static OllamaApiClient GetOllamaClient(AIProviderConnectionEntry connection, string deploymentName)
     {
         var endpoint = connection.GetEndpoint();

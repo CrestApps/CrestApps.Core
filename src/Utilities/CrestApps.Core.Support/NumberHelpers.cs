@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace CrestApps.Core.Support;
 
-public class NumberHelpers
+public static class NumberHelpers
 {
     private const string _numericChars = "1234567890";
 

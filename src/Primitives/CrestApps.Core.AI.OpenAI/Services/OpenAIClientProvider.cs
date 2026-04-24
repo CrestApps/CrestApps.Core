@@ -78,6 +78,12 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         });
     }
 
+    /// <summary>
+    /// Clears the cached OpenAI client instances, forcing new clients to be created on next use.
+    /// Useful when credentials are rotated.
+    /// </summary>
+    public static void ClearCache() => _clientCache.Clear();
+
     private static string BuildCacheKey(Uri endpoint, string apiKey)
     {
         var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(apiKey ?? string.Empty));

@@ -16,6 +16,11 @@ internal static class AzureOpenAIClientFactory
 {
     private static readonly ConcurrentDictionary<string, AzureOpenAIClient> _clientCache = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Clears the cached Azure OpenAI client instances.
+    /// </summary>
+    public static void ClearCache() => _clientCache.Clear();
+
     public static AzureOpenAIClient Create(
         AIProviderConnectionEntry connection,
         ILoggerFactory loggerFactory,

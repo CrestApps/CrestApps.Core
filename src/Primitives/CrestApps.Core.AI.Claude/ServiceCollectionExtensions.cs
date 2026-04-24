@@ -1,10 +1,12 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Claude.Handlers;
+using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Claude;
 
@@ -23,6 +25,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ClaudeClientService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, ClaudeChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ClaudeOrchestrationContextHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ClaudeOptions>, ClaudeOptionsValidator>());
 
         return services;
     }
