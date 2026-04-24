@@ -145,7 +145,7 @@ public sealed class McpConnectionController : Controller
             ModelState.AddModelError(nameof(model.Endpoint), "Endpoint must be a valid absolute URL.");
         }
 
-        if (!Enum.IsDefined(typeof(ClientAuthenticationType), model.AuthenticationType))
+        if (!Enum.IsDefined(model.AuthenticationType))
         {
             ModelState.AddModelError(nameof(model.AuthenticationType), "Authentication type is not supported.");
             return;
