@@ -251,6 +251,35 @@ public sealed class AIProviderConnectionConfigurationTests
     }
 
     [Fact]
+    public async Task AddCrestAppsAI_WhenLegacyDeploymentSettingsConfigured_ShouldNormalizeThemIntoConnectionProperties()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:Connections:0:Name"] = "config-primary",
+                ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+                ["CrestApps:AI:Connections:0:DefaultDeploymentName"] = "legacy-chat",
+                ["CrestApps:AI:Connections:0:DefaultEmbeddingDeploymentName"] = "legacy-embedding",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
+        services.AddLogging();
+        services.AddCoreAIServices();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var connections = await serviceProvider.GetRequiredService<IAIProviderConnectionStore>().GetAllAsync(TestContext.Current.CancellationToken);
+        var connection = Assert.Single(connections);
+
+        Assert.Equal("legacy-chat", connection.Properties["ChatDeploymentName"]);
+        Assert.Equal("legacy-embedding", connection.Properties["EmbeddingDeploymentName"]);
+        Assert.False(connection.Properties.ContainsKey("DefaultDeploymentName"));
+        Assert.False(connection.Properties.ContainsKey("DefaultEmbeddingDeploymentName"));
+    }
+
+    [Fact]
     public async Task AIDeploymentController_Create_ShouldPopulateConnectionsFromMergedCatalog()
     {
         var deploymentCatalog = new Mock<IAIDeploymentStore>();
@@ -375,7 +404,7 @@ public sealed class AIProviderConnectionConfigurationTests
         var options = serviceProvider.GetRequiredService<IOptions<AIOptions>>().Value;
 
         Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.AzureSpeechClientName));
-        Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechClientName].SupportsContainedConnection);
+        Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechClientName].UseContainedConnection);
     }
 
     [Fact]

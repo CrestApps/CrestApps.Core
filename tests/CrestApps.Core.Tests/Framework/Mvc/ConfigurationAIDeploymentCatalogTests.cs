@@ -25,7 +25,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             ["CrestApps:AI:Deployments:0:ApiKey"] = "secret",
         }).Build();
         var aiOptions = new AIOptions();
-        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
+        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.UseContainedConnection = true);
         var store = CreateStore(
             configuration,
             aiOptions,
@@ -66,7 +66,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             ["CrestApps:AI:Deployments:0:IsDefault"] = "true",
         }).Build();
         var aiOptions = new AIOptions();
-        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
+        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.UseContainedConnection = true);
         var store = CreateStore(configuration, aiOptions);
 
         // Act
@@ -89,7 +89,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             ["CrestApps:AI:Deployments:AzureSpeech:0:IsDefault"] = "true",
         }).Build();
         var aiOptions = new AIOptions();
-        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
+        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.UseContainedConnection = true);
         var store = CreateStore(configuration, aiOptions);
 
         // Act
@@ -175,7 +175,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
 
         var aiOptions = new AIOptions();
         aiOptions.AddDeploymentProvider("OpenAI");
-        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
+        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.UseContainedConnection = true);
 
         var catalogOptions = new AIDeploymentCatalogOptions();
         catalogOptions.DeploymentSections.Clear();
@@ -209,7 +209,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         }).Build();
 
         var aiOptions = new AIOptions();
-        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.SupportsContainedConnection = true);
+        aiOptions.AddDeploymentProvider("AzureSpeech", entry => entry.UseContainedConnection = true);
         var store = CreateStore(
             configuration,
             aiOptions,

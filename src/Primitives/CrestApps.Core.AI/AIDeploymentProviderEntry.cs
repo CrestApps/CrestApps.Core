@@ -10,8 +10,8 @@ public sealed class AIDeploymentProviderEntry
 
     /// <summary>
     /// When <c>true</c>, deployments under this provider carry their own connection
-    /// parameters (endpoint, credentials) in <see cref="AI.Models.AIDeployment.Properties"/>
+    /// parameters (endpoint, credentials) in <see cref="AIDeployment.Properties"/>
     /// instead of referencing a shared <c>AIProviderConnection</c>.
     /// </summary>
-    public bool SupportsContainedConnection { get; set; }
+    public bool UseContainedConnection { get; set; }
 }

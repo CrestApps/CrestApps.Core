@@ -40,9 +40,9 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAIDeploymentProvider(AzureOpenAIConstants.AzureSpeechClientName, o =>
         {
-            o.SupportsContainedConnection = true;
             o.DisplayName = new LocalizedString("Azure AI Services", "Azure AI Services");
             o.Description = new LocalizedString("Azure AI Services", "Use Azure AI Services speech deployments via configuration or the admin UI.");
+            o.UseContainedConnection = true;
         });
 
         return services;

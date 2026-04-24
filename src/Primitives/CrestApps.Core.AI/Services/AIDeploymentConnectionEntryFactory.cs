@@ -24,6 +24,7 @@ public static class AIDeploymentConnectionEntryFactory
         }
 
         UnprotectApiKeys(values, dataProtectionProvider);
+        AIProviderConnectionDeploymentNameNormalizer.Normalize(values);
 
         return new AIProviderConnectionEntry(values);
     }
