@@ -68,6 +68,30 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         Assert.Null(remoteManager.CreatedIndexName);
     }
 
+    [Fact]
+    public async Task Create_ShouldReturnValidationFailureWhenProviderResolutionThrows()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<ISearchIndexManager>(ElasticsearchConstants.ProviderName, static (_, _) => throw new InvalidOperationException("Elasticsearch is not configured."));
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var service = new SearchIndexProfileProvisioningService(
+            new TestSearchIndexProfileManager(),
+            serviceProvider,
+            NullLogger<SearchIndexProfileProvisioningService>.Instance);
+
+        var result = await service.CreateAsync(new SearchIndexProfile
+        {
+            Name = "articles",
+            IndexName = "articles",
+            ProviderName = ElasticsearchConstants.ProviderName,
+            Type = IndexProfileTypes.Articles,
+        }, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Errors, error => error.ErrorMessage.Contains("not configured", StringComparison.Ordinal));
+    }
+
     private static SearchIndexProfileProvisioningService CreateService(ISearchIndexProfileManager profileManager, TestRemoteSearchIndexManager remoteManager)
     {
         var services = new ServiceCollection();

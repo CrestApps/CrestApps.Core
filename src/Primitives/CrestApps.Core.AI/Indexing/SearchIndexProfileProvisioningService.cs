@@ -28,7 +28,21 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        var indexManager = _serviceProvider.GetKeyedService<ISearchIndexManager>(profile.ProviderName);
+        ISearchIndexManager indexManager;
+        try
+        {
+            indexManager = _serviceProvider.GetKeyedService<ISearchIndexManager>(profile.ProviderName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Search provider '{ProviderName}' could not be resolved for remote index provisioning.",
+                profile.ProviderName.SanitizeForLog());
+
+            return Fail("The selected search provider is not configured for remote index provisioning.", nameof(SearchIndexProfile.ProviderName));
+        }
+
         if (indexManager == null)
         {
             return Fail("The selected search provider is not configured for remote index provisioning.", nameof(SearchIndexProfile.ProviderName));

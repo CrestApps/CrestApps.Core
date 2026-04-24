@@ -4,8 +4,8 @@ using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Elasticsearch.Builders;
+using CrestApps.Core.Elasticsearch.Services;
 using CrestApps.Core.Infrastructure.Indexing;
-using Elastic.Clients.Elasticsearch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -19,7 +19,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddKeyedScoped<IVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
-            => new ElasticsearchVectorSearchService(sp.GetRequiredService<ElasticsearchClient>(), sp.GetRequiredService<ILogger<ElasticsearchVectorSearchService>>()));
+            => new ElasticsearchVectorSearchService(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetRequiredService<ILogger<ElasticsearchVectorSearchService>>()));
 
         return services.AddCoreElasticsearchSource(IndexProfileTypes.AIDocuments, descriptor =>
         {
@@ -45,7 +45,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddKeyedScoped<IMemoryVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
-            => new ElasticsearchMemoryVectorSearchService(sp.GetRequiredService<ElasticsearchClient>(), sp.GetRequiredService<ILogger<ElasticsearchMemoryVectorSearchService>>()));
+            => new ElasticsearchMemoryVectorSearchService(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetRequiredService<ILogger<ElasticsearchMemoryVectorSearchService>>()));
 
         return services.AddCoreElasticsearchSource(IndexProfileTypes.AIMemory, descriptor =>
         {

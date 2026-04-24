@@ -153,6 +153,7 @@ public sealed class IndexProfileController : Controller
                 "Skipping remote delete for index profile '{IndexProfileId}' because provider '{ProviderName}' is not registered.",
                 profile.ItemId.SanitizeForLog(),
                 profile.ProviderName.SanitizeForLog());
+
             await _indexProfileManager.DeleteAsync(profile);
 
             return RedirectToAction(nameof(Index));
