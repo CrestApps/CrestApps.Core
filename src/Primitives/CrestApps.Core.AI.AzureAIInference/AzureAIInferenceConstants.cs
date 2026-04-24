@@ -1,5 +1,3 @@
-using CrestApps.Core.AI;
-
 namespace CrestApps.Core.AI.AzureAIInference;
 
 public static class AzureAIInferenceConstants
@@ -11,7 +9,7 @@ public static class AzureAIInferenceConstants
 /// Marker type that identifies the Azure AI Inference provider for
 /// <see cref="Services.ProviderAICompletionClient{TProvider}"/>.
 /// </summary>
-public readonly struct AzureAIInferenceProviderMarker : IAIProviderMarker
+public readonly struct AzureAIInferenceClientMarker : IAIClientMarker
 {
     /// <inheritdoc />
     public static string ClientName => AzureAIInferenceConstants.ClientName;

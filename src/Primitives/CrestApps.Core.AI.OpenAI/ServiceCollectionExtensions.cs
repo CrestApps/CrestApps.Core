@@ -21,7 +21,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OpenAI.Services.OpenAIClientProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProviderConnectionHandler, OpenAIConnectionHandler>());
 
-        services.AddCoreAIProfile<ProviderAICompletionClient<OpenAIProviderMarker>>(OpenAIConstants.ClientName, o =>
+        services.AddCoreAIProfile<ProviderAICompletionClient<OpenAIClientMarker>>(OpenAIConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("OpenAI", "OpenAI");
             o.Description = new LocalizedString("OpenAI", "Use OpenAI models for AI completion.");

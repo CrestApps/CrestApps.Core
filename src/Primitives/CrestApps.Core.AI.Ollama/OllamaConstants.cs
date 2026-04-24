@@ -1,5 +1,3 @@
-using CrestApps.Core.AI;
-
 namespace CrestApps.Core.AI.Ollama;
 
 public static class OllamaConstants
@@ -11,7 +9,7 @@ public static class OllamaConstants
 /// Marker type that identifies the Ollama provider for
 /// <see cref="Services.ProviderAICompletionClient{TProvider}"/>.
 /// </summary>
-public readonly struct OllamaProviderMarker : IAIProviderMarker
+public readonly struct OllamaClientMarker : IAIClientMarker
 {
     /// <inheritdoc />
     public static string ClientName => OllamaConstants.ClientName;

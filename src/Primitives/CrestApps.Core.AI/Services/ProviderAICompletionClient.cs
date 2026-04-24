@@ -16,10 +16,10 @@ namespace CrestApps.Core.AI.Services;
 /// provider-specific subclass files.
 /// </summary>
 /// <typeparam name="TProvider">
-/// A marker type implementing <see cref="IAIProviderMarker"/> that supplies the client name.
+/// A marker type implementing <see cref="IAIClientMarker"/> that supplies the client name.
 /// </typeparam>
 public sealed class ProviderAICompletionClient<TProvider> : NamedAICompletionClient
-    where TProvider : IAIProviderMarker
+    where TProvider : IAIClientMarker
 {
     public ProviderAICompletionClient(
         IAIClientFactory aIClientFactory,

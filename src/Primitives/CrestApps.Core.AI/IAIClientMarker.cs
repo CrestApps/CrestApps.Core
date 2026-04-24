@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI;
 /// marker type so <see cref="Services.ProviderAICompletionClient{TProvider}"/>
 /// can resolve the name at compile time.
 /// </summary>
-public interface IAIProviderMarker
+public interface IAIClientMarker
 {
     /// <summary>
     /// Gets the unique client name that identifies the provider.

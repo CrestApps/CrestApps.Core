@@ -19,7 +19,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OllamaAIClientProvider>());
 
-        services.AddCoreAIProfile<ProviderAICompletionClient<OllamaProviderMarker>>(OllamaConstants.ClientName, o =>
+        services.AddCoreAIProfile<ProviderAICompletionClient<OllamaClientMarker>>(OllamaConstants.ClientName, o =>
         {
             o.DisplayName = new LocalizedString("Ollama", "Ollama");
             o.Description = new LocalizedString("Ollama", "Use locally hosted Ollama models for AI completion.");
