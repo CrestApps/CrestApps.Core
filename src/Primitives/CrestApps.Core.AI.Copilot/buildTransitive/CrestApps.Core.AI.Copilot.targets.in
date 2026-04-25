@@ -16,7 +16,8 @@
 
   <PropertyGroup>
     <_GitHubCopilotSdkVersion Condition="'$(_GitHubCopilotSdkVersion)' == ''">__GitHubCopilotSdkVersion__</_GitHubCopilotSdkVersion>
-    <_GitHubCopilotSdkBuildDir>$(NuGetPackageRoot)github.copilot.sdk/$(_GitHubCopilotSdkVersion)/build</_GitHubCopilotSdkBuildDir>
+    <_GitHubCopilotSdkPackageRoot>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))</_GitHubCopilotSdkPackageRoot>
+    <_GitHubCopilotSdkBuildDir>$(_GitHubCopilotSdkPackageRoot)github.copilot.sdk/$(_GitHubCopilotSdkVersion)/build</_GitHubCopilotSdkBuildDir>
   </PropertyGroup>
 
   <Import Project="$(_GitHubCopilotSdkBuildDir)/GitHub.Copilot.SDK.targets"
