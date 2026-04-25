@@ -9,6 +9,9 @@
       GitHub Copilot SDK-based orchestrator for AI chat sessions.
     </Description>
     <PackageTags>$(PackageTags) ai copilot github-copilot orchestration oauth</PackageTags>
+    <GeneratedBuildTransitiveDir>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)generated</GeneratedBuildTransitiveDir>
+    <GeneratedCopilotTargetsFile>$(GeneratedBuildTransitiveDir)\CrestApps.Core.AI.Copilot.targets</GeneratedCopilotTargetsFile>
+    <CopilotTargetsTemplateFile>buildTransitive\CrestApps.Core.AI.Copilot.targets.in</CopilotTargetsTemplateFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,8 +23,23 @@
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>
 
+  <Target Name="GenerateCopilotBuildTransitiveTargets"
+          BeforeTargets="GenerateNuspec;Pack"
+          Inputs="$(CopilotTargetsTemplateFile)"
+          Outputs="$(GeneratedCopilotTargetsFile)">
+    <PropertyGroup>
+      <_CopilotTargetsTemplate>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\$(CopilotTargetsTemplateFile)'))</_CopilotTargetsTemplate>
+      <_GeneratedCopilotTargets>$([System.String]::Copy('$(_CopilotTargetsTemplate)').Replace('__GitHubCopilotSdkVersion__', '$(GitHubCopilotSdkVersion)'))</_GeneratedCopilotTargets>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(GeneratedBuildTransitiveDir)" />
+    <WriteLinesToFile File="$(GeneratedCopilotTargetsFile)"
+                      Lines="$(_GeneratedCopilotTargets)"
+                      Overwrite="true" />
+  </Target>
+
   <ItemGroup>
-    <None Include="buildTransitive\**" Pack="true" PackagePath="buildTransitive\" />
+    <None Include="$(GeneratedCopilotTargetsFile)" Pack="true" PackagePath="buildTransitive\" />
   </ItemGroup>
 
   <ItemGroup>

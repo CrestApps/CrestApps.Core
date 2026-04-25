@@ -9,13 +9,15 @@
     dependency and its build targets are never imported. This buildTransitive bridge
     re-imports those targets so the CLI binary is downloaded automatically.
 
-    IMPORTANT: Update _GitHubCopilotSdkVersion when the GitHub.Copilot.SDK
-    dependency version changes in Directory.Packages.props.
+    IMPORTANT: This file is generated during pack/build from Directory.Packages.props
+    so the packaged bridge always matches the centrally managed GitHub.Copilot.SDK
+    version.
   -->
 
   <PropertyGroup>
-    <_GitHubCopilotSdkVersion Condition="'$(_GitHubCopilotSdkVersion)' == ''">0.2.2</_GitHubCopilotSdkVersion>
-    <_GitHubCopilotSdkBuildDir>$(NuGetPackageRoot)github.copilot.sdk/$(_GitHubCopilotSdkVersion)/build</_GitHubCopilotSdkBuildDir>
+    <_GitHubCopilotSdkVersion Condition="'$(_GitHubCopilotSdkVersion)' == ''">__GitHubCopilotSdkVersion__</_GitHubCopilotSdkVersion>
+    <_GitHubCopilotSdkPackageRoot>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))</_GitHubCopilotSdkPackageRoot>
+    <_GitHubCopilotSdkBuildDir>$(_GitHubCopilotSdkPackageRoot)github.copilot.sdk/$(_GitHubCopilotSdkVersion)/build</_GitHubCopilotSdkBuildDir>
   </PropertyGroup>
 
   <Import Project="$(_GitHubCopilotSdkBuildDir)/GitHub.Copilot.SDK.targets"
