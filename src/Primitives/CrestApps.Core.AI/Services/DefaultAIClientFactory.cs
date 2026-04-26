@@ -79,7 +79,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
     }
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Creates image generator.
@@ -96,7 +96,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
     }
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Creates speech to text client.
@@ -113,7 +113,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
     }
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Creates text to speech client.

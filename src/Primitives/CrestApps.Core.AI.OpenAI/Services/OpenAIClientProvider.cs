@@ -21,7 +21,8 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     /// Initializes a new instance of the <see cref="OpenAIClientProvider"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
-    public OpenAIClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)
+    public OpenAIClientProvider(IServiceProvider serviceProvider)
+        : base(serviceProvider)
     {
     }
 
@@ -56,7 +57,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
 
         return client.GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
     }
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Gets image generator.
@@ -72,7 +73,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         return client.GetImageClient(deploymentName).AsIImageGenerator();
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     }
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Gets speech to text client.
@@ -110,7 +111,8 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     /// Clears the cached OpenAI client instances, forcing new clients to be created on next use.
     /// Useful when credentials are rotated.
     /// </summary>
-    public static void ClearCache() => _clientCache.Clear();
+    public static void ClearCache()
+        => _clientCache.Clear();
 
     private static string BuildCacheKey(Uri endpoint, string apiKey)
     {

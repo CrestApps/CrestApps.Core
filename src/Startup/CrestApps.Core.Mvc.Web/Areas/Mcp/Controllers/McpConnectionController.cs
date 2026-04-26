@@ -39,7 +39,11 @@ public sealed class McpConnectionController : Controller
 
     public async Task<IActionResult> Index()
     {
-        return View((await _catalog.GetAllAsync()).OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).ToList());
+        var items = (await _catalog.GetAllAsync())
+            .OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return View(items);
     }
 
     public IActionResult Create()
@@ -62,14 +66,18 @@ public sealed class McpConnectionController : Controller
             ItemId = UniqueId.GenerateId(),
             CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime,
         };
+
         Apply(model, connection);
+
         await _catalog.CreateAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
     {
         var connection = await _catalog.FindByIdAsync(id);
+
         if (connection == null)
         {
             return NotFound();
@@ -83,19 +91,23 @@ public sealed class McpConnectionController : Controller
     public async Task<IActionResult> Edit(McpConnectionViewModel model)
     {
         var connection = await _catalog.FindByIdAsync(model.ItemId);
+
         if (connection == null)
         {
             return NotFound();
         }
 
         Validate(model, true);
+
         if (!ModelState.IsValid)
         {
             return View(model);
         }
 
         Apply(model, connection);
+
         await _catalog.UpdateAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 

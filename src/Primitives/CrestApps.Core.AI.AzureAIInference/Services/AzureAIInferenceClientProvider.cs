@@ -68,7 +68,7 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
         };
         return client.AsIEmbeddingGenerator();
     }
-    #pragma warning disable MEAI001
+#pragma warning disable MEAI001
 
     /// <summary>
     /// Gets image generator.
@@ -80,7 +80,7 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
     {
         throw new NotSupportedException("Azure AI Inference does not support image generation.");
     }
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Gets speech to text client.

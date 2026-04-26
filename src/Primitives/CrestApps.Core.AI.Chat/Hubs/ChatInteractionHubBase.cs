@@ -62,7 +62,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     // ------------------------- Scoping hook -------------------------
 
-        protected virtual Task ExecuteInScopeAsync(Func<IServiceProvider, Task> action)
+    protected virtual Task ExecuteInScopeAsync(Func<IServiceProvider, Task> action)
     {
         return action(_services);
     }
@@ -72,7 +72,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     // ------------------------- Identity hooks -------------------------
 
-        protected virtual ChatContextType GetChatContextType()
+    protected virtual ChatContextType GetChatContextType()
     {
         return ChatContextType.ChatInteraction;
     }
@@ -102,7 +102,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     // ------------------------- Authorization hooks -------------------------
 
-        protected virtual Task<bool> AuthorizeAsync(IServiceProvider services, ChatInteraction interaction)
+    protected virtual Task<bool> AuthorizeAsync(IServiceProvider services, ChatInteraction interaction)
     {
         return Task.FromResult(true);
     }
@@ -113,7 +113,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     // ------------------------- Commit hook -------------------------
 
-        protected virtual async Task CommitChangesAsync(IServiceProvider services)
+    protected virtual async Task CommitChangesAsync(IServiceProvider services)
     {
         var committer = services.GetService<IStoreCommitter>();
         if (committer is not null)
@@ -133,7 +133,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     // ------------------------- Deployment resolution -------------------------
 
-        protected virtual Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)
+    protected virtual Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)
     {
         var options = services.GetService<IOptionsMonitor<DefaultAIDeploymentSettings>>();
         return Task.FromResult(options?.CurrentValue ?? new DefaultAIDeploymentSettings());
@@ -292,11 +292,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     // ------------------------- Post-completion hooks -------------------------
 
-        protected virtual void CollectStreamingReferences(
-        IServiceProvider services,
-        ChatResponseHandlerContext handlerContext,
-        Dictionary<string, AICompletionReference> references,
-        HashSet<string> contentItemIds)
+    protected virtual void CollectStreamingReferences(
+    IServiceProvider services,
+    ChatResponseHandlerContext handlerContext,
+    Dictionary<string, AICompletionReference> references,
+    HashSet<string> contentItemIds)
     {
     }
 
@@ -393,7 +393,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     //  PUBLIC HUB METHODS - all virtual for framework-specific overrides
     // -------------------------------------------------------------------
 
-        public virtual Task StopConversation()
+    public virtual Task StopConversation()
     {
         if (Context.Items.TryGetValue(_conversationCtsKey, out var value) && value is CancellationTokenSource cts)
         {
@@ -874,7 +874,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     //  PROTECTED IMPLEMENTATION - chat prompt processing pipeline
     // -------------------------------------------------------------------
 
-        public static string GetInteractionGroupName(string itemId)
+    public static string GetInteractionGroupName(string itemId)
     {
         return $"chat-interaction-{itemId}";
     }

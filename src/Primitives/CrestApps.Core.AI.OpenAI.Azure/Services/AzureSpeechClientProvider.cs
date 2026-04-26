@@ -58,7 +58,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
     {
         throw new NotSupportedException("Azure AI Speech deployments only support speech services.");
     }
-    #pragma warning disable MEAI001
+#pragma warning disable MEAI001
 
     /// <summary>
     /// Gets image generator.
@@ -69,7 +69,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
     {
         throw new NotSupportedException("Azure AI Speech deployments only support speech services.");
     }
-    #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
+#pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
     /// <summary>
     /// Gets speech to text client.
@@ -83,7 +83,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         var client = new AzureSpeechServiceSpeechToTextClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
         return ValueTask.FromResult<ISpeechToTextClient>(client);
     }
-    #pragma warning restore MEAI001
+#pragma warning restore MEAI001
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
     /// <summary>
@@ -98,7 +98,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         var client = new AzureSpeechServiceTextToSpeechClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
         return ValueTask.FromResult<ITextToSpeechClient>(client);
     }
-    #pragma warning restore MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
+#pragma warning restore MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
     /// <summary>
     /// Gets speech voices.

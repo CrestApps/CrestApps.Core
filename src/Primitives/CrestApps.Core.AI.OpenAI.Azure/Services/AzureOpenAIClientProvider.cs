@@ -62,7 +62,7 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
             .GetEmbeddingClient(deploymentName)
             .AsIEmbeddingGenerator();
     }
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Gets image generator.

@@ -39,7 +39,7 @@ public sealed class ExportingMcpResourceContext
         McpResource resource,
         JsonObject exportData)
     {
-        
+
         ArgumentNullException.ThrowIfNull(resource);
 
         Resource = resource;

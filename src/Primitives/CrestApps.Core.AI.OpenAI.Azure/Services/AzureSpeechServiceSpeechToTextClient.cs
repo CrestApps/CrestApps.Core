@@ -67,7 +67,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         _timeProvider = timeProvider;
         _logger = logger;
     }
-    #pragma warning disable MEAI001
+#pragma warning disable MEAI001
 
     /// <summary>
     /// Gets text.

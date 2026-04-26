@@ -1303,7 +1303,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             await committer.CommitAsync();
         }
     }
-    #pragma warning disable MEAI001
+#pragma warning disable MEAI001
 
     /// <summary>
     /// Synthesizes the given text as speech and streams audio chunks to the caller.

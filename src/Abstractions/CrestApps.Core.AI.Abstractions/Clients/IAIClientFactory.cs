@@ -28,7 +28,7 @@ public interface IAIClientFactory
     /// </returns>
     ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment);
 
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Asynchronously creates an <see cref="IImageGenerator"/> from the given deployment.
@@ -39,9 +39,9 @@ public interface IAIClientFactory
     /// </returns>
     ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment);
 
-    #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Asynchronously creates an <see cref="ISpeechToTextClient"/> from the given deployment.
@@ -52,9 +52,9 @@ public interface IAIClientFactory
     /// </returns>
     ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment);
 
-    #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     /// <summary>
     /// Asynchronously creates an <see cref="ITextToSpeechClient"/> from the given deployment.
@@ -65,5 +65,5 @@ public interface IAIClientFactory
     /// </returns>
     ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment);
 
-    #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 }

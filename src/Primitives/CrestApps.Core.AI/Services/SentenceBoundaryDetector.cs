@@ -95,7 +95,7 @@ public static class SentenceBoundaryDetector
             return false;
         }
 
-        return span[i] is '.' or '!' or '?' or '?' or '\n';
+        return span[i] is '.' or '!' or '?' or '…' or '\n';
     }
 
     private static bool EndsWithSoftBoundary(ReadOnlySpan<char> span)

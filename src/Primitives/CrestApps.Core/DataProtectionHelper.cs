@@ -9,7 +9,7 @@ namespace CrestApps.Core;
 /// </summary>
 public static class DataProtectionHelper
 {
-    #pragma warning disable CA2254 // The message template is intentionally caller-supplied.
+#pragma warning disable CA2254 // The message template is intentionally caller-supplied.
 
     /// <summary>
     /// Attempts to unprotect the given value using the specified <see cref="IDataProtector"/>.

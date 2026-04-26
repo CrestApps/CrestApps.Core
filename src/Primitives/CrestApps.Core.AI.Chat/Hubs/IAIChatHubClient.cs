@@ -31,8 +31,7 @@ public interface IAIChatHubClient
     /// Sends a speech-to-text transcript fragment to the client.
     /// </summary>
     // Conversation mode (speech-to-text / text-to-speech).
-
-        Task ReceiveTranscript(string identifier, string text, bool isFinal);
+    Task ReceiveTranscript(string identifier, string text, bool isFinal);
 
     /// <summary>
     /// Sends a chunk of synthesized audio data to the client for playback.
@@ -86,8 +85,7 @@ public interface IAIChatHubClient
     /// type already exists, it is replaced.
     /// </summary>
     // Notification system messages.
-
-        Task ReceiveNotification(ChatNotification notification);
+    Task ReceiveNotification(ChatNotification notification);
 
     /// <summary>
     /// Updates an existing notification on the client. Only replaces the notification
