@@ -99,7 +99,7 @@ public sealed class AIProfileExtensionsTests
         options.Converters.Clear();
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 
-return options;
+        return options;
     }
 
     private sealed class TestSettings

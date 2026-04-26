@@ -33,7 +33,7 @@ public class SourceParityTests
 
         Assert.NotNull(dir);
 
-return dir!.FullName;
+        return dir!.FullName;
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ return dir!.FullName;
         var full = Path.Combine(s_repoRoot, repoRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Assert.True(File.Exists(full), $"Expected file does not exist: {full}");
 
-return File.ReadAllText(full);
+        return File.ReadAllText(full);
     }
 
     /// <summary>

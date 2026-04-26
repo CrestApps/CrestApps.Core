@@ -305,22 +305,22 @@ public sealed class DefaultOAuth2TokenServiceTests
         var timeProvider = TimeProvider.System;
         var logger = NullLogger<DefaultOAuth2TokenService>.Instance;
 
-return new DefaultOAuth2TokenService(factory, cache, timeProvider, logger);
+        return new DefaultOAuth2TokenService(factory, cache, timeProvider, logger);
     }
 
     private static MockHttpMessageHandler CreateHandler(TokenResponse tokenResponse, Action<HttpRequestMessage> onRequest = null)
     {
         var json = JsonSerializer.Serialize(tokenResponse);
 
-return new MockHttpMessageHandler((request, _) =>
-        {
-            onRequest?.Invoke(request);
+        return new MockHttpMessageHandler((request, _) =>
+                {
+                    onRequest?.Invoke(request);
 
-return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
-            });
-        });
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
+                    });
+                });
     }
 
     /// <summary>
@@ -332,11 +332,11 @@ return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         var bytes = content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
         var body = System.Text.Encoding.UTF8.GetString(bytes);
 
-return body.Split('&')
-            .Select(p => p.Split('='))
-            .ToDictionary(
-                p => Uri.UnescapeDataString(p[0]),
-        p => Uri.UnescapeDataString(p[1].Replace('+', ' ')));
+        return body.Split('&')
+                    .Select(p => p.Split('='))
+                    .ToDictionary(
+                        p => Uri.UnescapeDataString(p[0]),
+                p => Uri.UnescapeDataString(p[1].Replace('+', ' ')));
     }
 
     private static string GenerateTestRsaPrivateKeyPem()
@@ -360,7 +360,7 @@ return body.Split('&')
 
         var bytes = Convert.FromBase64String(padded);
 
-return System.Text.Encoding.UTF8.GetString(bytes);
+        return System.Text.Encoding.UTF8.GetString(bytes);
     }
 
     private sealed class TokenResponse

@@ -47,7 +47,7 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
 
         Session.Delete(entry, CollectionName);
 
-return true;
+        return true;
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ return true;
 
         var item = await Session.Query<T, TIndex>(x => x.ItemId == id, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
 
-return item;
+        return item;
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ return item;
 
         var items = await Session.Query<T, TIndex>(x => x.ItemId.IsIn(ids), collection: CollectionName).ListAsync(cancellationToken);
 
-return items.ToArray();
+        return items.ToArray();
     }
 
     /// <summary>
@@ -126,7 +126,7 @@ return items.ToArray();
 
         var skip = (page - 1) * pageSize;
 
-return new PageResult<T>
+        return new PageResult<T>
         {
             Count = await query.CountAsync(cancellationToken),
             Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray()

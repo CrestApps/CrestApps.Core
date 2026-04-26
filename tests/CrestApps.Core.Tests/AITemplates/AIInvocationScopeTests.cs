@@ -108,14 +108,14 @@ public sealed class AIInvocationScopeTests
             {
                 lock (errors) errors.Add($"Invocation {i}: Current was null after await.");
 
-return;
+                return;
             }
 
             if (!ReferenceEquals(current, myContext))
             {
                 lock (errors) errors.Add($"Invocation {i}: Current points to a different instance (got DataSourceId={current.DataSourceId}, expected ds-{i}).");
 
-return;
+                return;
             }
 
             if (current.DataSourceId != $"ds-{i}")

@@ -34,7 +34,7 @@ public sealed class AIDataSourceController : Controller
     {
         var dataSources = await _manager.GetAllAsync();
 
-return View(dataSources);
+        return View(dataSources);
     }
 
     public async Task<IActionResult> Create()
@@ -42,7 +42,7 @@ return View(dataSources);
         var model = new AIDataSourceViewModel();
         await PopulateDropdownsAsync(model);
 
-return View(model);
+        return View(model);
     }
 
     [HttpPost]
@@ -55,7 +55,7 @@ return View(model);
         {
             await PopulateDropdownsAsync(model);
 
-return View(model);
+            return View(model);
         }
 
         var dataSource = await _manager.NewAsync();
@@ -66,7 +66,7 @@ return View(model);
         await _manager.CreateAsync(dataSource);
         TempData["SuccessMessage"] = "Data source created successfully. Initial synchronization has been queued.";
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
@@ -81,7 +81,7 @@ return RedirectToAction(nameof(Index));
         var model = AIDataSourceViewModel.FromDataSource(dataSource);
         await PopulateDropdownsAsync(model);
 
-return View(model);
+        return View(model);
     }
 
     [HttpPost]
@@ -101,7 +101,7 @@ return View(model);
         {
             await PopulateDropdownsAsync(model);
 
-return View(model);
+            return View(model);
         }
 
         model.ApplyTo(dataSource);
@@ -109,7 +109,7 @@ return View(model);
         await _manager.UpdateAsync(dataSource);
         TempData["SuccessMessage"] = "Data source updated successfully. Synchronization has been queued.";
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -126,7 +126,7 @@ return RedirectToAction(nameof(Index));
         await _indexingQueue.QueueSyncDataSourceAsync(dataSource, HttpContext.RequestAborted);
         TempData["SuccessMessage"] = "Data source synchronization has been queued.";
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]

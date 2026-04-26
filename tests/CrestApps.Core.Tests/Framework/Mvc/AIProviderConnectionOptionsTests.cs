@@ -486,7 +486,7 @@ public sealed class AIProviderConnectionConfigurationTests
             Options.Create(catalogOptions ?? new AIProviderConnectionCatalogOptions()),
             NullLogger<ConfigurationAIProviderConnectionSource>.Instance));
 
-return new DefaultAIProviderConnectionStore(sources);
+        return new DefaultAIProviderConnectionStore(sources);
     }
 
     private sealed class TestAIProviderConnectionSource(List<AIProviderConnection> connections) : IWritableNamedSourceCatalogSource<AIProviderConnection>

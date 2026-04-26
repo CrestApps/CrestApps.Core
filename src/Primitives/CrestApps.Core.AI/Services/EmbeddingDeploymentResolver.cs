@@ -56,10 +56,10 @@ public static class EmbeddingDeploymentResolver
 
         var deployments = await deploymentManager.GetAllAsync(metadata.EmbeddingProviderName);
 
-return deployments.FirstOrDefault(deployment =>
-            deployment.SupportsType(AIDeploymentType.Embedding) &&
-            (string.Equals(deployment.Name, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(deployment.ModelName, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase)));
+        return deployments.FirstOrDefault(deployment =>
+                    deployment.SupportsType(AIDeploymentType.Embedding) &&
+                    (string.Equals(deployment.Name, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(deployment.ModelName, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase)));
 #pragma warning restore CS0618 // Type or member is obsolete
     }
 
@@ -102,7 +102,7 @@ return deployments.FirstOrDefault(deployment =>
             ModelName = metadata.EmbeddingDeploymentName,
         };
 
-return await aiClientFactory.CreateEmbeddingGeneratorAsync(legacyDeployment);
+        return await aiClientFactory.CreateEmbeddingGeneratorAsync(legacyDeployment);
 #pragma warning restore CS0618 // Type or member is obsolete
     }
 

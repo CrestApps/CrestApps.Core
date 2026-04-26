@@ -43,7 +43,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     {
         var client = GetOpenAIClient(connection);
 
-return client.GetChatClient(deploymentName).AsIChatClient();
+        return client.GetChatClient(deploymentName).AsIChatClient();
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ return client.GetChatClient(deploymentName).AsIChatClient();
     {
         var client = GetOpenAIClient(connection);
 
-return client.GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
+        return client.GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -96,15 +96,15 @@ return client.GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
         var endpoint = connection.GetEndpoint(false);
         var cacheKey = BuildCacheKey(endpoint, apiKey);
 
-return _clientCache.GetOrAdd(cacheKey, _ =>
-        {
-            if (endpoint is null)
-            {
-                return new OpenAIClient(apiKey);
-            }
+        return _clientCache.GetOrAdd(cacheKey, _ =>
+                {
+                    if (endpoint is null)
+                    {
+                        return new OpenAIClient(apiKey);
+                    }
 
-            return new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions { Endpoint = endpoint, });
-        });
+                    return new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions { Endpoint = endpoint, });
+                });
     }
 
     /// <summary>
@@ -119,6 +119,6 @@ return _clientCache.GetOrAdd(cacheKey, _ =>
         var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(apiKey ?? string.Empty));
         var keyHash = Convert.ToHexStringLower(keyBytes);
 
-return $"{endpoint?.AbsoluteUri}|{keyHash}";
+        return $"{endpoint?.AbsoluteUri}|{keyHash}";
     }
 }

@@ -21,21 +21,21 @@ public sealed class SimpleAIProfileManager : IAIProfileManager
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-return await _session.Query<AIProfile, AIProfileIndex>(x => x.ItemId == id).FirstOrDefaultAsync(cancellationToken);
+        return await _session.Query<AIProfile, AIProfileIndex>(x => x.ItemId == id).FirstOrDefaultAsync(cancellationToken);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var items = await _session.Query<AIProfile, AIProfileIndex>().ListAsync(cancellationToken);
 
-return items;
+        return items;
     }
 
     public async ValueTask<IEnumerable<AIProfile>> GetAsync(AIProfileType type, CancellationToken cancellationToken = default)
     {
         var all = await _session.Query<AIProfile, AIProfileIndex>().ListAsync(cancellationToken);
 
-return all.Where(p => p.Type == type);
+        return all.Where(p => p.Type == type);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> GetAsync(string source, CancellationToken cancellationToken = default)
@@ -44,7 +44,7 @@ return all.Where(p => p.Type == type);
 
         var items = await _session.Query<AIProfile, AIProfileIndex>(x => x.Source == source).ListAsync(cancellationToken);
 
-return items;
+        return items;
     }
 
     public async ValueTask<IEnumerable<AIProfile>> FindBySourceAsync(string source, CancellationToken cancellationToken = default)
@@ -58,7 +58,7 @@ return items;
 
         var all = await _session.Query<AIProfile, AIProfileIndex>(x => x.Name == name).ListAsync(cancellationToken);
 
-return all.FirstOrDefault();
+        return all.FirstOrDefault();
     }
 
     public async ValueTask<AIProfile> GetAsync(string name, string source, CancellationToken cancellationToken = default)
@@ -68,7 +68,7 @@ return all.FirstOrDefault();
 
         var items = await _session.Query<AIProfile, AIProfileIndex>(x => x.Name == name && x.Source == source).ListAsync(cancellationToken);
 
-return items.FirstOrDefault();
+        return items.FirstOrDefault();
     }
 
     public async ValueTask CreateAsync(AIProfile model, CancellationToken cancellationToken = default)
@@ -104,7 +104,7 @@ return items.FirstOrDefault();
         _session.Delete(model);
         await _session.SaveChangesAsync(cancellationToken);
 
-return true;
+        return true;
     }
 
     public ValueTask<AIProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
@@ -115,7 +115,7 @@ return true;
             CreatedUtc = DateTime.UtcNow,
         };
 
-return ValueTask.FromResult(profile);
+        return ValueTask.FromResult(profile);
     }
 
     public ValueTask<AIProfile> NewAsync(string source, JsonNode data = null, CancellationToken cancellationToken = default)
@@ -127,7 +127,7 @@ return ValueTask.FromResult(profile);
             CreatedUtc = DateTime.UtcNow,
         };
 
-return ValueTask.FromResult(profile);
+        return ValueTask.FromResult(profile);
     }
 
     public ValueTask<ValidationResultDetails> ValidateAsync(AIProfile model, CancellationToken cancellationToken = default)
@@ -156,7 +156,7 @@ return ValueTask.FromResult(profile);
         var total = await query.CountAsync(cancellationToken);
         var items = await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken);
 
-return new PageResult<AIProfile>
+        return new PageResult<AIProfile>
         {
             Count = total,
             Entries = items.ToArray(),

@@ -190,7 +190,7 @@ public sealed class ChatInteractionHubTests
     {
         var appDataPath = Path.Combine(Path.GetTempPath(), "copilot-chatinteractionhubtests", Guid.NewGuid().ToString("N"));
 
-return new SiteSettingsStore(appDataPath);
+        return new SiteSettingsStore(appDataPath);
     }
 
     private sealed class TestChatInteractionHub : ChatInteractionHubBase

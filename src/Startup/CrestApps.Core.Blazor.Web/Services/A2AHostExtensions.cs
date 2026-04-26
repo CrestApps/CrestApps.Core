@@ -43,7 +43,7 @@ internal static class A2AHostExtensions
 
         services.AddSingleton<ITaskManager>(CreateTaskManager);
 
-return services;
+        return services;
     }
 
     public static CrestAppsAISuiteBuilder AddA2AHost(this CrestAppsAISuiteBuilder builder)
@@ -61,7 +61,7 @@ return services;
         endpoints.MapA2A(taskManager, "a2a")
             .RequireAuthorization(A2AHostPolicyName);
 
-return endpoints;
+        return endpoints;
     }
 
     private static ITaskManager CreateTaskManager(IServiceProvider serviceProvider)
@@ -84,9 +84,9 @@ return endpoints;
             var agentName = httpContextAccessor.HttpContext?.Request.Query["agent"].FirstOrDefault();
             var targetProfile = ResolveAgentProfile(profiles, agentName);
 
-return targetProfile is not null
-                ? BuildAgentCard(targetProfile, agentUrl)
-                : BuildSkillModeCard(agentUrl, profiles);
+            return targetProfile is not null
+                            ? BuildAgentCard(targetProfile, agentUrl)
+                            : BuildSkillModeCard(agentUrl, profiles);
         };
 
         taskManager.OnTaskCreated = (agentTask, cancellationToken) =>
@@ -95,7 +95,7 @@ return targetProfile is not null
         taskManager.OnTaskUpdated = (agentTask, cancellationToken) =>
             ProcessAgentTaskAsync(taskManager, httpContextAccessor, agentTask, cancellationToken);
 
-return taskManager;
+        return taskManager;
     }
 
     private static async Task HandleWellKnownEndpointAsync(HttpContext context)
@@ -149,7 +149,7 @@ return taskManager;
                 final: true,
                 cancellationToken: cancellationToken);
 
-return;
+            return;
         }
 
         var logger = services.GetRequiredService<ILogger<TaskManager>>();
@@ -166,7 +166,7 @@ return;
                 final: true,
                 cancellationToken: cancellationToken);
 
-return;
+            return;
         }
 
         var targetProfile = await ResolveTargetProfileAsync(
@@ -181,7 +181,7 @@ return;
                 final: true,
                 cancellationToken: cancellationToken);
 
-return;
+            return;
         }
 
         try

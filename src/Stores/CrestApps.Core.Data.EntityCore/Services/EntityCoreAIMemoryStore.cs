@@ -27,9 +27,9 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
 
-return GetReadQuery()
-            .Where(x => x.UserId == userId)
-            .CountAsync();
+        return GetReadQuery()
+                    .Where(x => x.UserId == userId)
+                    .CountAsync();
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ return GetReadQuery()
         var record = await GetReadQuery()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.Name == name);
 
-return record is null ? null : CatalogRecordFactory.Materialize<AIMemoryEntry>(record);
+        return record is null ? null : CatalogRecordFactory.Materialize<AIMemoryEntry>(record);
     }
 
     /// <summary>
@@ -64,8 +64,8 @@ return record is null ? null : CatalogRecordFactory.Materialize<AIMemoryEntry>(r
             .Take(limit)
             .ToListAsync();
 
-return records
-            .Select(CatalogRecordFactory.Materialize<AIMemoryEntry>)
-            .ToArray();
+        return records
+                    .Select(CatalogRecordFactory.Materialize<AIMemoryEntry>)
+                    .ToArray();
     }
 }

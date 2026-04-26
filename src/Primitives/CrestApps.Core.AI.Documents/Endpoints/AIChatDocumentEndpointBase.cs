@@ -53,7 +53,7 @@ public abstract class AIChatDocumentEndpointBase
         {
             logger.LogError("No IDocumentFileStore is registered for uploaded AI documents.");
 
-return (false, S["Failed to process file."].Value, null);
+            return (false, S["Failed to process file."].Value, null);
         }
 
         try
@@ -124,7 +124,7 @@ return (false, S["Failed to process file."].Value, null);
 
         var singleFile = form.Files.GetFile("file");
 
-return singleFile == null ? [] : [singleFile];
+        return singleFile == null ? [] : [singleFile];
     }
 
     /// <summary>

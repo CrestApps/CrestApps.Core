@@ -63,7 +63,7 @@ public sealed class ExternalChatRelayConnectionManager : IExternalChatRelayManag
         {
             await relay.DisposeAsync();
 
-return _relays[sessionId];
+            return _relays[sessionId];
         }
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -84,7 +84,7 @@ return _relays[sessionId];
 
         _relays.TryGetValue(sessionId, out var relay);
 
-return relay;
+        return relay;
     }
 
     /// <summary>

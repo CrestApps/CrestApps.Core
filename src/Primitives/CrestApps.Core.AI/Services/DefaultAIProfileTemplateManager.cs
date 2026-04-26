@@ -26,11 +26,6 @@ public sealed class DefaultAIProfileTemplateManager : NamedSourceCatalogManager<
         ILogger<DefaultAIProfileTemplateManager> logger)
         : base(catalog, handlers, logger)
     {
-        ArgumentNullException.ThrowIfNull(catalog);
-        ArgumentNullException.ThrowIfNull(handlers);
-        ArgumentNullException.ThrowIfNull(providers);
-        ArgumentNullException.ThrowIfNull(logger);
-
         _providers = providers;
     }
 
@@ -42,7 +37,7 @@ public sealed class DefaultAIProfileTemplateManager : NamedSourceCatalogManager<
     {
         var dbTemplates = await base.GetAllAsync(cancellationToken);
 
-return await MergeWithProvidersAsync(dbTemplates);
+        return await MergeWithProvidersAsync(dbTemplates);
     }
 
     /// <summary>
@@ -85,7 +80,7 @@ return await MergeWithProvidersAsync(dbTemplates);
 
         var dbTemplates = await base.GetAsync(source, cancellationToken);
 
-return await MergeWithProvidersAsync(dbTemplates, source);
+        return await MergeWithProvidersAsync(dbTemplates, source);
     }
 
     /// <summary>
@@ -99,7 +94,7 @@ return await MergeWithProvidersAsync(dbTemplates, source);
 
         var dbTemplates = await base.FindBySourceAsync(source, cancellationToken);
 
-return await MergeWithProvidersAsync(dbTemplates, source);
+        return await MergeWithProvidersAsync(dbTemplates, source);
     }
 
     /// <summary>
@@ -110,7 +105,7 @@ return await MergeWithProvidersAsync(dbTemplates, source);
     {
         var templates = await GetAllAsync(cancellationToken);
 
-return templates.Where(template => template.IsListable);
+        return templates.Where(template => template.IsListable);
     }
 
     private async Task<IEnumerable<AIProfileTemplate>> MergeWithProvidersAsync(IEnumerable<AIProfileTemplate> dbTemplates, string source = null)

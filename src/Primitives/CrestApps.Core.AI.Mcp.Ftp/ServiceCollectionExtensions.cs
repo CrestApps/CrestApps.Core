@@ -20,16 +20,16 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-return services.AddCoreAIMcpResourceType<FtpResourceTypeHandler>(FtpResourceConstants.Type, entry =>
-        {
-            entry.DisplayName = new LocalizedString("FTP", "FTP/FTPS");
-            entry.Description = new LocalizedString("FTP Description", "Reads content from FTP/FTPS servers.");
-            entry.SupportedVariables = [new McpResourceVariable("path")
+        return services.AddCoreAIMcpResourceType<FtpResourceTypeHandler>(FtpResourceConstants.Type, entry =>
+                {
+                    entry.DisplayName = new LocalizedString("FTP", "FTP/FTPS");
+                    entry.Description = new LocalizedString("FTP Description", "Reads content from FTP/FTPS servers.");
+                    entry.SupportedVariables = [new McpResourceVariable("path")
             {
                 Description = new LocalizedString("FTP Path", "The remote file path on the FTP server.")
             }, ];
-            configure?.Invoke(entry);
-        });
+                    configure?.Invoke(entry);
+                });
     }
 
     /// <summary>

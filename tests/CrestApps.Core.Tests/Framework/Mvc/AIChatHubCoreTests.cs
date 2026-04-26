@@ -90,7 +90,7 @@ public sealed class AIChatHubCoreTests
 
             Assert.NotNull(method);
 
-return (bool)method.Invoke(null, new object[] { status });
+            return (bool)method.Invoke(null, new object[] { status });
         }
     }
 
@@ -102,7 +102,7 @@ return (bool)method.Invoke(null, new object[] { status });
         {
             WasCommitted = true;
 
-return ValueTask.CompletedTask;
+            return ValueTask.CompletedTask;
         }
     }
 
@@ -144,7 +144,7 @@ return ValueTask.CompletedTask;
         {
             SavedSession = chatSession;
 
-return Task.CompletedTask;
+            return Task.CompletedTask;
         }
     }
 }

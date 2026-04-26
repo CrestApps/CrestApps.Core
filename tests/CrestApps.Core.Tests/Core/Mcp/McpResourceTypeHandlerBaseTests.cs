@@ -104,7 +104,7 @@ public sealed class McpResourceTypeHandlerBaseTests
         {
             LastVariables = variables;
 
-return Task.FromResult(new ReadResourceResult
+            return Task.FromResult(new ReadResourceResult
             {
                 Contents = [new TextResourceContents { Uri = resource.Resource.Uri, Text = "ok" }],
             });

@@ -19,7 +19,7 @@ public static class PdfServiceCollectionExtensions
 
         services.AddCoreAIIngestionDocumentReader<PdfIngestionDocumentReader>(".pdf");
 
-return services;
+        return services;
     }
 
     /// <summary>

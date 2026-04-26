@@ -71,6 +71,6 @@ public sealed class SampleAICompletionUsageService : IAICompletionUsageObserver
             .OrderByDescending(x => x.CreatedUtc)
             .ToList();
 
-return Task.FromResult(result);
+        return Task.FromResult(result);
     }
 }

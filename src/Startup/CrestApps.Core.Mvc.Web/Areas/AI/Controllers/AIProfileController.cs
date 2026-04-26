@@ -321,20 +321,20 @@ public sealed class AIProfileController : Controller
     {
         var allIds = (await _a2aConnectionCatalog.GetAllAsync()).Select(connection => connection.ItemId).ToHashSet(StringComparer.Ordinal);
 
-return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        return (selectedIds ?? [])
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
     }
 
     private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _mcpConnectionCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
 
-return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        return (selectedIds ?? [])
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
     }
 
     private async Task PopulateAttachedDocumentsAsync(AIProfileViewModel model, string referenceId, string referenceType)
@@ -534,8 +534,8 @@ return (selectedIds ?? [])
     {
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
-return model.CostMultiplier > 0
-            ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
-            : name;
+        return model.CostMultiplier > 0
+                    ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
+                    : name;
     }
 }

@@ -32,9 +32,10 @@ public static class AIDeploymentConnectionEntryFactory
         }
 
         UnprotectApiKeys(values, dataProtectionProvider);
+
         AIProviderConnectionDeploymentNameNormalizer.Normalize(values);
 
-return new AIProviderConnectionEntry(values);
+        return new AIProviderConnectionEntry(values);
     }
 
     private static void UnprotectApiKeys(IDictionary<string, object> values, IDataProtectionProvider dataProtectionProvider)

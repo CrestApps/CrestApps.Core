@@ -98,10 +98,10 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         services.AddKeyedSingleton<ISearchIndexManager>(ElasticsearchConstants.ProviderName, remoteManager);
         var serviceProvider = services.BuildServiceProvider();
 
-return new SearchIndexProfileProvisioningService(
-            profileManager,
-            serviceProvider,
-            NullLogger<SearchIndexProfileProvisioningService>.Instance);
+        return new SearchIndexProfileProvisioningService(
+                    profileManager,
+                    serviceProvider,
+                    NullLogger<SearchIndexProfileProvisioningService>.Instance);
     }
 
     private sealed class TestRemoteSearchIndexManager : ISearchIndexManager

@@ -43,6 +43,6 @@ public sealed class StoreCommitterEndpointFilter : IEndpointFilter
 
         await _committer.CommitAsync(context.HttpContext.RequestAborted);
 
-return result;
+        return result;
     }
 }

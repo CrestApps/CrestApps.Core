@@ -191,14 +191,14 @@ public sealed class ArticleIndexingService
             indexManager = null;
             documentManager = null;
 
-return false;
+            return false;
         }
 
         if (indexManager == null || documentManager == null)
         {
             _logger.LogWarning("Skipping article indexing because provider '{ProviderName}' is not configured for search indexing.", providerName.SanitizeForLog());
 
-return false;
+            return false;
         }
 
         return true;

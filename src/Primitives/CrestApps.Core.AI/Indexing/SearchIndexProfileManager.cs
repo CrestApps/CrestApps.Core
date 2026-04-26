@@ -41,7 +41,7 @@ public sealed class SearchIndexProfileManager : CatalogManager<SearchIndexProfil
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-return _store.FindByNameAsync(name);
+        return _store.FindByNameAsync(name);
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ return _store.FindByNameAsync(name);
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
 
-return _store.GetByTypeAsync(type);
+        return _store.GetByTypeAsync(type);
     }
 
     /// <summary>

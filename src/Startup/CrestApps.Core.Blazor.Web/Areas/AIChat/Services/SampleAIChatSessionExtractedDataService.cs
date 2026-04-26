@@ -17,7 +17,7 @@ public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtr
         {
             _store.TryRemove(session.SessionId, out _);
 
-return Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         var record = _store.GetOrAdd(session.SessionId, _ => new AIChatSessionExtractedDataRecord
@@ -34,7 +34,7 @@ return Task.CompletedTask;
             .Where(pair => pair.Value.Values.Count > 0)
             .ToDictionary(pair => pair.Key, pair => pair.Value.Values.ToList(), StringComparer.OrdinalIgnoreCase);
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<AIChatSessionExtractedDataRecord>> GetAsync(string profileId, DateTime? startDateUtc, DateTime? endDateUtc, CancellationToken cancellationToken = default)
@@ -60,6 +60,6 @@ return Task.CompletedTask;
             .OrderByDescending(x => x.SessionStartedUtc)
             .ToList();
 
-return Task.FromResult(result);
+        return Task.FromResult(result);
     }
 }

@@ -32,7 +32,7 @@ internal static class DocumentContextFormatter
 
         var text = string.Join(Environment.NewLine, chunks.OrderBy(c => c.Index).Select(c => c.Content));
 
-return FormatDocumentText(document.FileName, text, maxLength);
+        return FormatDocumentText(document.FileName, text, maxLength);
     }
 
     /// <summary>

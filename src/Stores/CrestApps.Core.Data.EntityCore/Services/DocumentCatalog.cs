@@ -44,7 +44,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
 
         DbContext.CatalogRecords.Remove(existing);
 
-return true;
+        return true;
     }
 
     /// <summary>
@@ -58,7 +58,7 @@ return true;
 
         var record = await GetReadQuery().FirstOrDefaultAsync(x => x.ItemId == id, cancellationToken);
 
-return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
+        return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
 
         var records = await GetReadQuery().Where(x => itemIds.Contains(x.ItemId)).ToListAsync(cancellationToken);
 
-return records.Select(CatalogRecordFactory.Materialize<T>).ToArray();
+        return records.Select(CatalogRecordFactory.Materialize<T>).ToArray();
     }
 
     /// <summary>

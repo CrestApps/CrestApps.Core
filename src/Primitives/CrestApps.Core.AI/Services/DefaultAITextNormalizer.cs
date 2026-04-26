@@ -32,7 +32,7 @@ public sealed partial class DefaultAITextNormalizer : IAITextNormalizer
         text = HorizontalSpacesRegex().Replace(text, " ");
         text = MultipleNewlinesRegex().Replace(text, "\n\n");
 
-return Task.FromResult(text.Trim());
+        return Task.FromResult(text.Trim());
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ return Task.FromResult(text.Trim());
         title = StripHtml(title);
         title = AllWhitespaceRegex().Replace(title, " ");
 
-return title.Trim();
+        return title.Trim();
     }
 
     private static List<string> ChunkText(string text, CancellationToken cancellationToken)
@@ -147,7 +147,7 @@ return title.Trim();
         text = WebUtility.HtmlDecode(text);
         text = text.Replace("\u00B6", string.Empty, StringComparison.Ordinal);
 
-return text;
+        return text;
     }
 
     [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase)]

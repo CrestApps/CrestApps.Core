@@ -71,7 +71,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
 
             await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
 
-return true;
+            return true;
         }
         catch (RequestFailedException ex)
         {

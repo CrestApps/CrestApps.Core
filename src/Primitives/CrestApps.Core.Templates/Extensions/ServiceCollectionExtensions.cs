@@ -69,9 +69,9 @@ public static class ServiceCollectionExtensions
         {
             var parsers = sp.GetServices<ITemplateParser>();
 
-return new EmbeddedResourceTemplateProvider(assembly, parsers, source, featureId);
+            return new EmbeddedResourceTemplateProvider(assembly, parsers, source, featureId);
         });
 
-return services;
+        return services;
     }
 }

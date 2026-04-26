@@ -19,7 +19,7 @@ public static class ParityHelpers
         var locator = page.Locator($"{scopeSelector} .nav-link");
         var raw = await locator.AllInnerTextsAsync();
 
-return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
+        return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
     }
 
     /// <summary>
@@ -30,7 +30,7 @@ return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
         var locator = page.Locator($"{scopeSelector} label");
         var raw = await locator.AllInnerTextsAsync();
 
-return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
+        return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
     }
 
     /// <summary>
@@ -41,7 +41,7 @@ return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
         var locator = page.Locator($"{scopeSelector} button, {scopeSelector} input[type=submit]");
         var raw = await locator.AllInnerTextsAsync();
 
-return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
+        return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
         var locator = page.Locator($"{scopeSelector} h1, {scopeSelector} h2, {scopeSelector} h3, {scopeSelector} h4, {scopeSelector} h5, {scopeSelector} h6");
         var raw = await locator.AllInnerTextsAsync();
 
-return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
+        return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
         var locator = page.Locator($"{scopeSelector} table thead th");
         var raw = await locator.AllInnerTextsAsync();
 
-return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
+        return raw.Select(NormalizeWhitespace).Where(s => s.Length > 0).ToArray();
     }
 
     /// <summary>

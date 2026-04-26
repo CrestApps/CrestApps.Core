@@ -126,7 +126,7 @@ public static class RemoveChatSessionDocument
             };
             await InvokeRemovedHandlersAsync(eventHandlers, context, httpContext.RequestAborted);
 
-return TypedResults.Ok(new
+            return TypedResults.Ok(new
             {
                 documents = session.Documents ?? [],
             });

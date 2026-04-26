@@ -61,7 +61,7 @@ public sealed class AIChatSessionPostCloseProcessor
                 && analyticsMetadata.EnableConversionMetrics
                 && analyticsMetadata.ConversionGoals.Count > 0;
 
-return needsPostSessionTasks || needsAnalytics || needsConversionGoals;
+            return needsPostSessionTasks || needsAnalytics || needsConversionGoals;
         }
 
         return needsPostSessionTasks;

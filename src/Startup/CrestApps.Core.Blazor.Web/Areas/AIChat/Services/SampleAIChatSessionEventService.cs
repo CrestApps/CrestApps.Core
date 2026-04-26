@@ -29,7 +29,7 @@ public sealed class SampleAIChatSessionEventService
         };
         _store[chatSession.SessionId] = evt;
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task RecordSessionEndedAsync(AIChatSession chatSession, int promptCount, bool isResolved)
@@ -57,7 +57,7 @@ return Task.CompletedTask;
             };
             _store[chatSession.SessionId] = evt;
 
-return Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         var endTime = chatSession.ClosedAtUtc ?? TimeProvider.System.GetUtcNow().UtcDateTime;
@@ -66,7 +66,7 @@ return Task.CompletedTask;
         evt.IsResolved = isResolved;
         evt.HandleTimeSeconds = (endTime - evt.SessionStartedUtc).TotalSeconds;
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task RecordCompletionUsageAsync(string sessionId, int inputTokens, int outputTokens)
@@ -81,7 +81,7 @@ return Task.CompletedTask;
         evt.TotalInputTokens += inputTokens;
         evt.TotalOutputTokens += outputTokens;
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task RecordResponseLatencyAsync(string sessionId, double responseLatencyMs)
@@ -96,7 +96,7 @@ return Task.CompletedTask;
         evt.CompletionCount++;
         evt.AverageResponseLatencyMs = ((evt.AverageResponseLatencyMs * (evt.CompletionCount - 1)) + responseLatencyMs) / evt.CompletionCount;
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task RecordConversionMetricsAsync(string sessionId, List<ConversionGoalResult> goalResults)
@@ -113,7 +113,7 @@ return Task.CompletedTask;
         evt.ConversionScore = goalResults.Sum(result => result.Score);
         evt.ConversionMaxScore = goalResults.Sum(result => result.MaxScore);
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task RecordUserRatingAsync(string sessionId, int thumbsUpCount, int thumbsDownCount)
@@ -129,7 +129,7 @@ return Task.CompletedTask;
         evt.ThumbsDownCount = thumbsDownCount;
         evt.UserRating = thumbsUpCount + thumbsDownCount > 0 ? thumbsUpCount >= thumbsDownCount : null;
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<AIChatSessionEvent>> GetAsync(string profileId, DateTime? startDateUtc, DateTime? endDateUtc, CancellationToken cancellationToken = default)
@@ -157,6 +157,6 @@ return Task.CompletedTask;
             .OrderByDescending(x => x.SessionStartedUtc)
             .ToList();
 
-return Task.FromResult(result);
+        return Task.FromResult(result);
     }
 }

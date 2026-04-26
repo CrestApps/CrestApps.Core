@@ -34,7 +34,7 @@ public static class JsonExtractor
         // Strip markdown code fences if present.
         trimmed = StripCodeFence(trimmed);
 
-return ExtractBracedObject(trimmed);
+        return ExtractBracedObject(trimmed);
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ return ExtractBracedObject(trimmed);
             RegexOptions.None,
             TimeSpan.FromSeconds(1));
 
-return match.Success ? match.Groups[1].Value.Trim() : null;
+        return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 
     /// <summary>

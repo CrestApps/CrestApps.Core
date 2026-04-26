@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
 
         configure(new CrestAppsCoreBuilder(services));
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ return services;
 
         configure(new CrestAppsIndexingBuilder(builder.Services));
 
-return builder;
+        return builder;
     }
 
     /// <summary>
@@ -58,7 +58,7 @@ return builder;
 
         services.TryAddScoped<IODataValidator, ODataFilterValidator>();
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ return services;
         services.TryAddScoped(typeof(ISourceCatalogManager<>), typeof(SourceCatalogManager<>));
         services.TryAddScoped(typeof(INamedSourceCatalogManager<>), typeof(NamedSourceCatalogManager<>));
 
-return services;
+        return services;
     }
 
     /// <summary>

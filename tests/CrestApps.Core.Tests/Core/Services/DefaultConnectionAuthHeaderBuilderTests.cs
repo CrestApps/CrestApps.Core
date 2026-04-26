@@ -194,7 +194,7 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         tokenService ??= Mock.Of<IOAuth2TokenService>();
         var logger = NullLogger<DefaultConnectionAuthHeaderBuilder>.Instance;
 
-return new DefaultConnectionAuthHeaderBuilder(dataProtectionProvider, tokenService, logger);
+        return new DefaultConnectionAuthHeaderBuilder(dataProtectionProvider, tokenService, logger);
     }
 
     private static TestConnectionAuthMetadata CreateMetadata(ClientAuthenticationType authType)

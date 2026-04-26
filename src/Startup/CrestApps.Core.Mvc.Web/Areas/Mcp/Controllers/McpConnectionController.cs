@@ -43,7 +43,7 @@ public sealed class McpConnectionController : Controller
             .OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-return View(items);
+        return View(items);
     }
 
     public IActionResult Create()
@@ -71,7 +71,7 @@ return View(items);
 
         await _catalog.CreateAsync(connection);
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
@@ -108,7 +108,7 @@ return RedirectToAction(nameof(Index));
 
         await _catalog.UpdateAsync(connection);
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -124,7 +124,7 @@ return RedirectToAction(nameof(Index));
 
         await _catalog.DeleteAsync(connection);
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     private void Validate(McpConnectionViewModel model, bool isEditing)
@@ -138,7 +138,7 @@ return RedirectToAction(nameof(Index));
         {
             ModelState.AddModelError(nameof(model.Source), "Connection type is not supported.");
 
-return;
+            return;
         }
 
         switch (transportKind)

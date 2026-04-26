@@ -28,7 +28,7 @@ public static class SpeechVoiceLocalizationHelper
         AddCultureHierarchy(allowedCultures, currentCulture?.Name);
         AddCultureHierarchy(allowedCultures, currentUICulture?.Name);
 
-return allowedCultures;
+        return allowedCultures;
     }
 
     /// <summary>

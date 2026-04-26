@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
             o.Description = new LocalizedString("Ollama", "Use locally hosted Ollama models for AI completion.");
         });
 
-return services;
+        return services;
     }
 
     /// <summary>

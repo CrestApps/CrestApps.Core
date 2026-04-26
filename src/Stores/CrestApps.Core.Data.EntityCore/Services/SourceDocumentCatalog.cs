@@ -33,8 +33,8 @@ public class SourceDocumentCatalog<T> : DocumentCatalog<T>, ISourceCatalog<T>
             .Where(x => x.Source == source)
             .ToListAsync(cancellationToken);
 
-return records
-            .Select(CatalogRecordFactory.Materialize<T>)
-            .ToArray();
+        return records
+                    .Select(CatalogRecordFactory.Materialize<T>)
+                    .ToArray();
     }
 }

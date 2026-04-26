@@ -98,7 +98,7 @@ public sealed class DataSourceSearchTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no data source configured for this profile.", Name);
 
-return "No data source is configured for this profile.";
+                return "No data source is configured for this profile.";
             }
 
             var dataSourceStore = arguments.Services.GetRequiredService<ICatalog<AIDataSource>>();
@@ -115,7 +115,7 @@ return "No data source is configured for this profile.";
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no knowledge base index configured for data source '{DataSourceId}'.", Name, dataSourceId);
 
-return "No knowledge base index is configured for this data source. Please configure a knowledge base index in the data source settings.";
+                return "No knowledge base index is configured for this data source. Please configure a knowledge base index in the data source settings.";
             }
 
             var indexProfileStore = arguments.Services.GetRequiredService<ISearchIndexProfileStore>();
@@ -134,7 +134,7 @@ return "No knowledge base index is configured for this data source. Please confi
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no vector search service for provider '{ProviderName}'.", Name, masterIndexProfile.ProviderName);
 
-return $"No vector search service is available for provider '{masterIndexProfile.ProviderName}'.";
+                return $"No vector search service is available for provider '{masterIndexProfile.ProviderName}'.";
             }
 
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
@@ -160,7 +160,7 @@ return $"No vector search service is available for provider '{masterIndexProfile
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: could not generate embedding for query.", Name);
 
-return "Failed to generate embedding for the search query.";
+                return "Failed to generate embedding for the search query.";
             }
 
             var ragMetadata = GetRagMetadata(executionContext);

@@ -55,10 +55,10 @@ public sealed class AzureAISearchClientFactory : IAzureAISearchClientFactory
 
         var normalizedIndexFullName = indexFullName.Trim();
 
-return _clients.GetOrAdd(normalizedIndexFullName, static (name, factory) =>
-        {
-            return factory.CreateSearchIndexClient().GetSearchClient(name);
-        }, this);
+        return _clients.GetOrAdd(normalizedIndexFullName, static (name, factory) =>
+                {
+                    return factory.CreateSearchIndexClient().GetSearchClient(name);
+                }, this);
     }
 
     private static SearchIndexClient CreateSearchIndexClient(AzureAISearchConnectionOptions configuration)

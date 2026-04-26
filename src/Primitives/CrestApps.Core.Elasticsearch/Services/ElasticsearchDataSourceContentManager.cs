@@ -116,7 +116,7 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
             {
                 _logger.LogWarning("Elasticsearch data source vector search failed: {Error}", response.DebugInformation);
 
-return [];
+                return [];
             }
 
             var results = new List<DataSourceSearchResult>();
@@ -181,7 +181,7 @@ return [];
         {
             _logger.LogError(ex, "Error performing data source vector search in Elasticsearch index '{IndexName}'", indexProfile.IndexFullName);
 
-return [];
+            return [];
         }
     }
 
@@ -215,7 +215,7 @@ return [];
                 _logger.LogWarning("Elasticsearch delete by data source ID failed for index '{IndexName}': {Error}",
                 indexProfile.IndexFullName, response.DebugInformation);
 
-return 0;
+                return 0;
             }
 
             return response.Deleted ?? 0;
@@ -225,7 +225,7 @@ return 0;
             _logger.LogError(ex, "Error deleting documents by data source ID '{DataSourceId}' from Elasticsearch index '{IndexName}'.",
             dataSourceId, indexProfile.IndexFullName);
 
-return 0;
+            return 0;
         }
     }
 }

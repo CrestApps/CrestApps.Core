@@ -260,7 +260,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 
         _logger.LogWarning("Failed to retrieve voices. Reason: {Reason}", result.Reason);
 
-return [];
+        return [];
     }
 
     /// <summary>
@@ -272,7 +272,7 @@ return [];
     {
         ArgumentNullException.ThrowIfNull(serviceType);
 
-return serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
+        return serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
     }
 
     /// <summary>
@@ -338,7 +338,7 @@ return serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
         // Default to MP3 output for browser compatibility.
         config.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3);
 
-return config;
+        return config;
     }
 
     private async Task<SpeechConfig> CreateRegionBasedConfigAsync(string region, CancellationToken cancellationToken)
@@ -374,7 +374,7 @@ return config;
         var config = SpeechConfig.FromEndpoint(_endpoint);
         config.AuthorizationToken = token;
 
-return config;
+        return config;
     }
 
     private async Task<string> GetAuthorizationTokenAsync(CancellationToken cancellationToken)

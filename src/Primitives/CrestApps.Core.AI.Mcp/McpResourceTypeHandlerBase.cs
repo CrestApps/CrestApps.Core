@@ -36,7 +36,7 @@ public abstract class McpResourceTypeHandlerBase : IMcpResourceTypeHandler
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(variables);
 
-return GetResultAsync(resource, variables, cancellationToken);
+        return GetResultAsync(resource, variables, cancellationToken);
     }
 
     /// <summary>

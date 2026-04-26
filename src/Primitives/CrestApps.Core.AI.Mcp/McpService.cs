@@ -49,7 +49,7 @@ public sealed class McpService
         {
             _logger.LogWarning("Unable to find an implementation of '{TypeName}' that supports the connection. Not supported transport type.", nameof(IMcpClientTransportProvider));
 
-return null;
+            return null;
         }
 
         return await McpClient.CreateAsync(transport);

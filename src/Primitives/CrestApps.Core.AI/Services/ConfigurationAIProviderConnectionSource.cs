@@ -236,7 +236,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
 
         AIProviderConnectionDeploymentNameNormalizer.CopyNormalized(values, properties);
 
-return new AIProviderConnection
+        return new AIProviderConnection
         {
             ItemId = AIConfigurationRecordIds.CreateConnectionId(clientName, connectionName),
             Name = connectionName,

@@ -107,7 +107,7 @@ public sealed class PostSessionProcessingService
             Temperature = 0f,
         }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession), null, cancellationToken);
 
-return response.Result?.Resolved ?? false;
+        return response.Result?.Resolved ?? false;
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ return response.Result?.Resolved ?? false;
                 session.SessionId,
                 AITemplateIds.PostSessionAnalysisPrompt);
 
-return null;
+            return null;
         }
 
         var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysis);
@@ -686,16 +686,16 @@ return null;
             tasks.Count,
             responseText?.Length ?? 0);
 
-return tasks.ToDictionary(
-            task => task.Name,
-            task => new PostSessionResult
-            {
-                Name = task.Name,
-                Status = PostSessionTaskResultStatus.Failed,
-                ErrorMessage = errorMessage,
-                ProcessedAtUtc = now,
-            },
-            StringComparer.OrdinalIgnoreCase);
+        return tasks.ToDictionary(
+                    task => task.Name,
+                    task => new PostSessionResult
+                    {
+                        Name = task.Name,
+                        Status = PostSessionTaskResultStatus.Failed,
+                        ErrorMessage = errorMessage,
+                        ProcessedAtUtc = now,
+                    },
+                    StringComparer.OrdinalIgnoreCase);
     }
 
     private static string CreateResponseLogPreview(string responseText)
@@ -710,7 +710,7 @@ return tasks.ToDictionary(
             .Replace("\r", "\\r", StringComparison.Ordinal)
             .Replace("\n", "\\n", StringComparison.Ordinal);
 
-return normalized.Length > 2000 ? normalized[..2000] + "..." : normalized;
+        return normalized.Length > 2000 ? normalized[..2000] + "..." : normalized;
     }
 
     private Dictionary<string, PostSessionResult> ApplyResults(

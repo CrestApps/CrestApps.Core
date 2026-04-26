@@ -55,7 +55,7 @@ public static class ArticleSeeder
         var seedEntries = JsonSerializer.Deserialize<List<ArticleSeedEntry>>(stream, _jsonOptions)
             ?? throw new InvalidOperationException("Failed to deserialize seed articles.");
 
-return seedEntries.Select(entry => new Article
+        return seedEntries.Select(entry => new Article
         {
             ItemId = UniqueId.GenerateId(),
             Title = entry.Title,

@@ -128,7 +128,7 @@ public sealed class SettingsController : Controller
         await PopulateAdminWidgetProfilesAsync(model);
         await PopulateClaudeModelsAsync(model);
 
-return View(model);
+        return View(model);
     }
 
     [HttpPost]
@@ -215,7 +215,7 @@ return View(model);
             await PopulateAdminWidgetProfilesAsync(model);
             await PopulateClaudeModelsAsync(model);
 
-return View(nameof(Index), model);
+            return View(nameof(Index), model);
         }
 
         // Save general AI settings.
@@ -348,7 +348,7 @@ return View(nameof(Index), model);
 
         TempData["SuccessMessage"] = "Settings saved successfully.";
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     private async Task PopulateDeploymentDropdownsAsync(SettingsViewModel model)
@@ -415,30 +415,30 @@ return RedirectToAction(nameof(Index));
     {
         var groups = new Dictionary<string, SelectListGroup>(StringComparer.OrdinalIgnoreCase);
 
-return deployments
-            .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(d =>
-            {
-                SelectListGroup group = null;
-                var groupKey = d.ConnectionName;
+        return deployments
+                    .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(d =>
+                    {
+                        SelectListGroup group = null;
+                        var groupKey = d.ConnectionName;
 
-                if (!string.IsNullOrEmpty(groupKey) && !groups.TryGetValue(groupKey, out group))
-                {
-                    group = new SelectListGroup { Name = groupKey };
+                        if (!string.IsNullOrEmpty(groupKey) && !groups.TryGetValue(groupKey, out group))
+                        {
+                            group = new SelectListGroup { Name = groupKey };
 
-                    groups[groupKey] = group;
-                }
+                            groups[groupKey] = group;
+                        }
 
-                var label = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
-                    ? d.Name
-                    : $"{d.Name} ({d.ModelName})";
+                        var label = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
+                            ? d.Name
+                            : $"{d.Name} ({d.ModelName})";
 
-return new SelectListItem(label, d.Name)
-                {
-                    Group = group,
-                };
-            });
+                        return new SelectListItem(label, d.Name)
+                        {
+                            Group = group,
+                        };
+                    });
     }
 
     private async Task NormalizeDeploymentSelectorsAsync(SettingsViewModel model)
@@ -460,7 +460,7 @@ return new SelectListItem(label, d.Name)
 
         var deployment = await _deploymentManager.FindByIdAsync(selector);
 
-return deployment?.Name ?? selector;
+        return deployment?.Name ?? selector;
     }
 
     [HttpGet]
@@ -490,7 +490,7 @@ return deployment?.Name ?? selector;
                 Gender = voice.Gender.ToString(),
             });
 
-return Json(new { voices });
+        return Json(new { voices });
     }
 
     private static string GetCultureDisplayName(string language)

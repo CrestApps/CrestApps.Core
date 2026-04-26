@@ -33,7 +33,7 @@ public sealed class CancelTransferNotificationActionHandler : IChatNotificationA
             {
                 logger.LogWarning("Cancel transfer failed: session '{SessionId}' not found.", context.SessionId);
 
-return;
+                return;
             }
 
             session.ResponseHandlerName = null;
@@ -53,7 +53,7 @@ return;
             {
                 logger.LogWarning("Cancel transfer failed: interaction '{SessionId}' not found.", context.SessionId);
 
-return;
+                return;
             }
 
             interaction.ResponseHandlerName = null;

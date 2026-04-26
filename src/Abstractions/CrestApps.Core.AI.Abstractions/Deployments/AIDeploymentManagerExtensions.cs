@@ -22,14 +22,14 @@ public static class AIDeploymentManagerExtensions
     {
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
-return await deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentType.Utility,
-            utilityDeploymentName,
-            clientName)
-        ?? await deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentType.Chat,
-            chatDeploymentName,
-            clientName);
+        return await deploymentManager.ResolveOrDefaultAsync(
+                    AIDeploymentType.Utility,
+                    utilityDeploymentName,
+                    clientName)
+            ?? await deploymentManager.ResolveOrDefaultAsync(
+                    AIDeploymentType.Chat,
+                    chatDeploymentName,
+                    clientName);
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ return await deploymentManager.ResolveOrDefaultAsync(
 
         var deployment = await deploymentManager.ResolveOrDefaultAsync(type, deploymentName, clientName);
 
-return deployment
+        return deployment
             ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for type '{type}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
     }
 
@@ -70,7 +70,7 @@ return deployment
 
         var deployment = await deploymentManager.ResolveUtilityOrDefaultAsync(utilityDeploymentName, chatDeploymentName, clientName);
 
-return deployment
+        return deployment
             ?? throw new InvalidOperationException($"Unable to resolve a utility AI deployment using utilityDeploymentName '{utilityDeploymentName ?? "(null)"}', chatDeploymentName '{chatDeploymentName ?? "(null)"}', and clientName '{clientName ?? "(null)"}'.");
     }
 }

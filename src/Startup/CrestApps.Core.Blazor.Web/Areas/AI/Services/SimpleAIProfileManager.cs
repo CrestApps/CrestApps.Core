@@ -19,7 +19,7 @@ public sealed class SimpleAIProfileManager : IAIProfileManager
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-return await _catalog.FindByIdAsync(id, cancellationToken);
+        return await _catalog.FindByIdAsync(id, cancellationToken);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -31,14 +31,14 @@ return await _catalog.FindByIdAsync(id, cancellationToken);
     {
         var all = await _catalog.GetAllAsync(cancellationToken);
 
-return all.Where(p => p.Type == type);
+        return all.Where(p => p.Type == type);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> GetAsync(string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-return await _catalog.GetAsync(source, cancellationToken);
+        return await _catalog.GetAsync(source, cancellationToken);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> FindBySourceAsync(string source, CancellationToken cancellationToken = default)
@@ -50,7 +50,7 @@ return await _catalog.GetAsync(source, cancellationToken);
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-return await _catalog.FindByNameAsync(name, cancellationToken);
+        return await _catalog.FindByNameAsync(name, cancellationToken);
     }
 
     public async ValueTask<AIProfile> GetAsync(string name, string source, CancellationToken cancellationToken = default)
@@ -58,7 +58,7 @@ return await _catalog.FindByNameAsync(name, cancellationToken);
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-return await _catalog.GetAsync(name, source, cancellationToken);
+        return await _catalog.GetAsync(name, source, cancellationToken);
     }
 
     public async ValueTask CreateAsync(AIProfile model, CancellationToken cancellationToken = default)
@@ -89,7 +89,7 @@ return await _catalog.GetAsync(name, source, cancellationToken);
     {
         ArgumentNullException.ThrowIfNull(model);
 
-return await _catalog.DeleteAsync(model, cancellationToken);
+        return await _catalog.DeleteAsync(model, cancellationToken);
     }
 
     public ValueTask<AIProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
@@ -100,7 +100,7 @@ return await _catalog.DeleteAsync(model, cancellationToken);
             CreatedUtc = DateTime.UtcNow,
         };
 
-return ValueTask.FromResult(profile);
+        return ValueTask.FromResult(profile);
     }
 
     public ValueTask<AIProfile> NewAsync(string source, JsonNode data = null, CancellationToken cancellationToken = default)
@@ -112,7 +112,7 @@ return ValueTask.FromResult(profile);
             CreatedUtc = DateTime.UtcNow,
         };
 
-return ValueTask.FromResult(profile);
+        return ValueTask.FromResult(profile);
     }
 
     public ValueTask<ValidationResultDetails> ValidateAsync(AIProfile model, CancellationToken cancellationToken = default)

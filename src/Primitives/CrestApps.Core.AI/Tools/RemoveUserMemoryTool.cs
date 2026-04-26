@@ -100,7 +100,7 @@ public sealed class RemoveUserMemoryTool : AIFunction
 
         await manager.DeleteAsync(existingMemory, cancellationToken);
 
-return JsonSerializer.Serialize(new
+        return JsonSerializer.Serialize(new
         {
             existingMemory.ItemId,
             existingMemory.Name,

@@ -69,7 +69,7 @@ public sealed class PreemptiveSearchQueryProvider
         var queries = await ExtractSearchQueriesAsync(context);
         context.Properties[CacheKey] = queries;
 
-return queries;
+        return queries;
     }
 
     private async Task<IList<string>> ExtractSearchQueriesAsync(OrchestrationContext context)
@@ -122,13 +122,13 @@ return queries;
 
             var queries = ParseSearchQueries(response.Text);
 
-return queries.Count > 0 ? queries : [context.UserMessage];
+            return queries.Count > 0 ? queries : [context.UserMessage];
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to extract search queries using utility model. Falling back to raw user message.");
 
-return [context.UserMessage];
+            return [context.UserMessage];
         }
     }
 

@@ -25,7 +25,7 @@ TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
     {
         eventArgs.SetObserved();
 
-return;
+        return;
     }
 
     WriteCrashEntry("Unobserved task exception", eventArgs.Exception);

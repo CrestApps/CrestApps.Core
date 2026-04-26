@@ -7,21 +7,37 @@ public class PlaywrightFixture : IAsyncLifetime
 {
     public IPlaywright Playwright { get; private set; } = null!;
     public IBrowser Browser { get; private set; } = null!;
+    public string BrowserUnavailableReason { get; private set; }
 
     public async ValueTask InitializeAsync()
     {
-        Playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-        Browser = await Playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        try
         {
-            Headless = true
-        });
+            Playwright = await Microsoft.Playwright.Playwright.CreateAsync();
+            Browser = await Playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true
+            });
+        }
+        catch (PlaywrightException ex)
+        {
+            BrowserUnavailableReason = $"Playwright browser is unavailable. Install the required browser binaries before running sample UI tests. {ex.Message}";
+            Playwright?.Dispose();
+            Playwright = null!;
+            Browser = null!;
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
-        await Browser.DisposeAsync();
-        Playwright.Dispose();
+
+        if (Browser is not null)
+        {
+            await Browser.DisposeAsync();
+        }
+
+        Playwright?.Dispose();
     }
 
     public static string GetBaseUrl(AppInstance app) => app switch
@@ -33,6 +49,11 @@ public class PlaywrightFixture : IAsyncLifetime
 
     public async Task<IPage> CreatePageAsync()
     {
+        if (!string.IsNullOrWhiteSpace(BrowserUnavailableReason))
+        {
+            Assert.Skip(BrowserUnavailableReason);
+        }
+
         return await Browser.NewPageAsync();
     }
 

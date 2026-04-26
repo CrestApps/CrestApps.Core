@@ -32,7 +32,7 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedScoped<IChatNotificationActionHandler, CancelTransferNotificationActionHandler>(ChatNotificationActionNames.CancelTransfer);
         services.TryAddKeyedScoped<IChatNotificationActionHandler, EndSessionNotificationActionHandler>(ChatNotificationActionNames.EndSession);
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -54,7 +54,7 @@ return services;
             options.MaximumReceiveMessageSize = 10 * 1024 * 1024;
         });
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ return services;
             o.MemberAccessStrategy.Register<ExtractedFieldChange>();
         });
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ return services;
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, PromptTemplateChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, ChatInteractionEntryHandler>());
 
-return services;
+        return services;
     }
 
     /// <summary>

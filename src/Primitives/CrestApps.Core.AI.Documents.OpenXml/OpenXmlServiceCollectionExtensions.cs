@@ -23,7 +23,7 @@ public static class OpenXmlServiceCollectionExtensions
             new ExtractorExtension(".xlsx", false),
             ".pptx");
 
-return services;
+        return services;
     }
 
     /// <summary>

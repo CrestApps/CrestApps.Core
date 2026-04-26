@@ -129,7 +129,7 @@ internal sealed class A2AAgentProxyTool : AIFunction
 
             var responseText = ExtractTextFromResponse(response);
 
-return responseText ?? "The remote agent did not produce a text response.";
+            return responseText ?? "The remote agent did not produce a text response.";
         }
         catch (OperationCanceledException)
         {
@@ -139,7 +139,7 @@ return responseText ?? "The remote agent did not produce a text response.";
         {
             logger.LogError(ex, "Failed to communicate with remote A2A agent '{AgentName}' at '{Endpoint}'.", _agentName, _endpoint);
 
-return $"An error occurred while communicating with remote agent '{_agentName}'.";
+            return $"An error occurred while communicating with remote agent '{_agentName}'.";
         }
     }
 

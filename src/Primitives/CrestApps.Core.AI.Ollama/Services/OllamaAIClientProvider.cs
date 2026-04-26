@@ -93,6 +93,6 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
         var endpoint = connection.GetEndpoint();
         var cacheKey = $"{endpoint.AbsoluteUri}|{deploymentName}";
 
-return _clientCache.GetOrAdd(cacheKey, _ => new OllamaApiClient(endpoint, deploymentName));
+        return _clientCache.GetOrAdd(cacheKey, _ => new OllamaApiClient(endpoint, deploymentName));
     }
 }

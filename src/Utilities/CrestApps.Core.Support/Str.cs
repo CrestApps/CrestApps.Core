@@ -43,7 +43,7 @@ public static partial class Str
         // replace spaces with hyphens
         str = ReplaceSpaceWithHyphens().Replace(str, "-");
 
-return str;
+        return str;
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ return str;
 
         var sentence = string.Join(new string(glue), valuable);
 
-return sentence;
+        return sentence;
     }
 
     /// <summary>
@@ -135,7 +135,7 @@ return sentence;
 
         body = body.Replace(template, newline);
 
-return body;
+        return body;
     }
 
     /// <summary>
@@ -196,7 +196,7 @@ return body;
         {
             var index = subject.Length - pattern.Length;
 
-return subject.Substring(0, index);
+            return subject.Substring(0, index);
         }
 
         return subject;
@@ -350,7 +350,7 @@ return subject.Substring(0, index);
 
         var substring = str.Substring(index + lastString.Length, str.Length - (index + lastString.Length));
 
-return substring;
+        return substring;
     }
 
     /// <summary>
@@ -369,7 +369,7 @@ return substring;
 
         var substring = str.Substring(index + lastString.Length, str.Length - (index + lastString.Length));
 
-return substring;
+        return substring;
     }
 
     /// <summary>

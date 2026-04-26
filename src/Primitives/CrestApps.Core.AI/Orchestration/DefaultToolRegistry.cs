@@ -144,6 +144,6 @@ internal sealed class DefaultToolRegistry : IToolRegistry
         var forwardScore = (double)matchCount / queryTokens.Count;
         var reverseScore = (double)matchCount / entryTokens.Count;
 
-return Math.Max(forwardScore, reverseScore);
+        return Math.Max(forwardScore, reverseScore);
     }
 }

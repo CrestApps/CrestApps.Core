@@ -271,6 +271,6 @@ public sealed class McpConnectionDeploymentSanitizationTests
 
         connection.Put(metadata);
 
-return connection;
+        return connection;
     }
 }

@@ -39,13 +39,13 @@ public static partial class RagTextNormalizer
             var document = await ParseDocumentAsync(strippedText, cancellationToken);
             var normalized = JoinDocumentText(document);
 
-return NormalizeContentWhitespace(normalized).Trim();
+            return NormalizeContentWhitespace(normalized).Trim();
         }
         catch (NotSupportedException ex) when (IsUnsupportedMarkdownInline(ex))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-return FallbackNormalizeContent(strippedText);
+            return FallbackNormalizeContent(strippedText);
         }
     }
 
@@ -81,7 +81,7 @@ return FallbackNormalizeContent(strippedText);
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-return FallbackChunkText(FallbackNormalizeContent(strippedText), cancellationToken);
+            return FallbackChunkText(FallbackNormalizeContent(strippedText), cancellationToken);
         }
     }
 
@@ -136,7 +136,7 @@ return FallbackChunkText(FallbackNormalizeContent(strippedText), cancellationTok
         text = HorizontalSpacesRegex().Replace(text, " ");
         text = MultipleNewlinesRegex().Replace(text, "\n\n");
 
-return text;
+        return text;
     }
 
     private static string FallbackNormalizeContent(string text)

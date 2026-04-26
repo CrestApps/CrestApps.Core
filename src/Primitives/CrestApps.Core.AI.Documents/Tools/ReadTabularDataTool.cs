@@ -239,6 +239,6 @@ public sealed class ReadTabularDataTool : AIFunction
         builder.Append(lines.Length - 1);
         builder.AppendLine(" data rows)");
 
-return builder.ToString();
+        return builder.ToString();
     }
 }

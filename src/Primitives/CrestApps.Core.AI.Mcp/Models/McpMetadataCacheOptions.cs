@@ -20,8 +20,8 @@ public sealed class McpMetadataCacheOptions
     {
         var minutes = CacheExpirationMinutes;
 
-return minutes > 0
-        ? TimeSpan.FromMinutes(minutes)
-        : _defaultCacheDuration;
+        return minutes > 0
+                ? TimeSpan.FromMinutes(minutes)
+                : _defaultCacheDuration;
     }
 }

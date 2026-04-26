@@ -185,7 +185,7 @@ public sealed class DefaultChatNotificationSenderTests
         var services = new ServiceCollection();
         services.AddKeyedSingleton(chatType, transport);
 
-return new DefaultChatNotificationSender(services.BuildServiceProvider());
+        return new DefaultChatNotificationSender(services.BuildServiceProvider());
     }
 
     private static DefaultChatNotificationSender CreateSenderWithNoOpTransport()
@@ -195,6 +195,6 @@ return new DefaultChatNotificationSender(services.BuildServiceProvider());
             ChatContextType.AIChatSession,
             Mock.Of<IChatNotificationTransport>());
 
-return new DefaultChatNotificationSender(services.BuildServiceProvider());
+        return new DefaultChatNotificationSender(services.BuildServiceProvider());
     }
 }

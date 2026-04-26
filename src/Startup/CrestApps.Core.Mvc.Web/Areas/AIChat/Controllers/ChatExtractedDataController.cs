@@ -72,7 +72,7 @@ public sealed class ChatExtractedDataController : Controller
 
         var fileName = $"chat-extracted-data-{_timeProvider.GetUtcNow():yyyyMMdd-HHmmss}.csv";
 
-return File(Encoding.UTF8.GetBytes(GenerateCsv(rows, columns)), "text/csv", fileName);
+        return File(Encoding.UTF8.GetBytes(GenerateCsv(rows, columns)), "text/csv", fileName);
     }
 
     private async Task<ChatExtractedDataIndexViewModel> BuildViewModelAsync(ChatExtractedDataIndexViewModel model, bool showReport)

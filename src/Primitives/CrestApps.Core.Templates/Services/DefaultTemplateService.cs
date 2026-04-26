@@ -61,7 +61,7 @@ public class DefaultTemplateService : ITemplateService
 
         _cachedTemplates = allTemplates;
 
-return allTemplates;
+        return allTemplates;
     }
 
     /// <summary>
@@ -74,8 +74,8 @@ return allTemplates;
 
         var allTemplates = await ListAsync();
 
-return allTemplates.FirstOrDefault(t =>
-            string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase));
+        return allTemplates.FirstOrDefault(t =>
+                    string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ return allTemplates.FirstOrDefault(t =>
         var template = await GetAsync(id)
             ?? throw new KeyNotFoundException($"template with ID '{id}' was not found.");
 
-return await _renderer.RenderAsync(template.Content, arguments);
+        return await _renderer.RenderAsync(template.Content, arguments);
     }
 
     /// <summary>

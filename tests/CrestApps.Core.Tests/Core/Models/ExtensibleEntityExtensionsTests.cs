@@ -29,7 +29,7 @@ public sealed class ExtensibleEntityExtensionsTests
         options.Converters.Clear();
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 
-return options;
+        return options;
     }
 
     private sealed class TestExtensibleEntity : ExtensibleEntity

@@ -29,8 +29,8 @@ public sealed class YesSqlSearchIndexProfileStore : DocumentCatalog<SearchIndexP
     {
         ArgumentNullException.ThrowIfNull(name);
 
-return await Session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.Name == name, collection: CollectionName)
-            .FirstOrDefaultAsync(cancellationToken);
+        return await Session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.Name == name, collection: CollectionName)
+                    .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>
@@ -44,6 +44,6 @@ return await Session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.N
         var items = await Session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.Type == type, collection: CollectionName)
             .ListAsync();
 
-return items.ToArray();
+        return items.ToArray();
     }
 }

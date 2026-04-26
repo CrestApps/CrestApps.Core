@@ -80,6 +80,6 @@ public sealed class CurrentDateTimeTool : AIFunction
 
         var result = now.ToString(format, CultureInfo.InvariantCulture);
 
-return new ValueTask<object>($"The current date and time is: {result} (UTC offset: {now.Offset})");
+        return new ValueTask<object>($"The current date and time is: {result} (UTC offset: {now.Offset})");
     }
 }

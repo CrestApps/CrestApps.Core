@@ -14,7 +14,7 @@ public sealed class DocumentChatInteractionSettingsHandler : IChatInteractionSet
             metadata.RetrievalMode = GetRetrievalMode(settings, "documentRetrievalMode");
         });
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)

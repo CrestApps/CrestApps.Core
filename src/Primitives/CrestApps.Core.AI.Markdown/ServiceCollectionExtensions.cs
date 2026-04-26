@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IAITextNormalizer, MarkdownAITextNormalizer>();
 
-return services;
+        return services;
     }
 
     /// <summary>

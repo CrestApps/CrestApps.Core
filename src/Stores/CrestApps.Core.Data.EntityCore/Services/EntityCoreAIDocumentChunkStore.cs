@@ -31,9 +31,9 @@ public sealed class EntityCoreAIDocumentChunkStore : DocumentCatalog<AIDocumentC
             .Where(x => x.AIDocumentId == documentId)
             .ToListAsync();
 
-return records
-            .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
-            .ToArray();
+        return records
+                    .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
+                    .ToArray();
     }
 
     /// <summary>
@@ -50,9 +50,9 @@ return records
             .Where(x => x.ReferenceId == referenceId && x.ReferenceType == referenceType)
             .ToListAsync();
 
-return records
-            .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
-            .ToArray();
+        return records
+                    .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
+                    .ToArray();
     }
 
     /// <summary>

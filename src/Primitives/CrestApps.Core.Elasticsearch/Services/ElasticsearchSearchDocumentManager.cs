@@ -77,7 +77,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
 
             await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
 
-return true;
+            return true;
         }
         catch (Exception ex)
         {

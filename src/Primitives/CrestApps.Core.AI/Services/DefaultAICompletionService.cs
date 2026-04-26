@@ -60,7 +60,7 @@ public sealed class DefaultAICompletionService : IAICompletionService
 
         await InvokeHandlersAsync(handler => handler.ReceivedMessageAsync(updateContext));
 
-return response;
+        return response;
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ return response;
     private IAICompletionClient ResolveClient(AIDeployment deployment)
     {
         var clientName = deployment.ClientName
-        ?? throw new AIDeploymentConfigurationException($"The deployment '{deployment.Name}' does not have a client name assigned.");
+            ?? throw new AIDeploymentConfigurationException($"The deployment '{deployment.Name}' does not have a client name assigned.");
 
         if (!_aiOptions.Clients.TryGetValue(clientName, out var clientType))
         {
@@ -114,6 +114,6 @@ return response;
         }
 
         return _serviceProvider.GetService(clientType) as IAICompletionClient
-        ?? throw new InvalidOperationException($"No completion client registered for '{clientName}'.");
+            ?? throw new InvalidOperationException($"No completion client registered for '{clientName}'.");
     }
 }

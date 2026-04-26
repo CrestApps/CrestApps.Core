@@ -33,14 +33,14 @@ public sealed class DocumentFileSystemFileStoreOptionsConfiguration : IConfigure
         {
             options.BasePath = Path.Combine(_env.ContentRootPath, "App_Data", "Documents");
 
-return;
+            return;
         }
 
         if (Path.IsPathRooted(configuredBasePath))
         {
             options.BasePath = configuredBasePath;
 
-return;
+            return;
         }
 
         options.BasePath = Path.Combine(_env.ContentRootPath, configuredBasePath);

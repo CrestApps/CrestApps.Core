@@ -81,6 +81,6 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             })
         );
 
-return services;
+        return services;
     }
 }

@@ -29,6 +29,6 @@ public static class MediaTypeHelper
             _ => null,
         };
 
-return mediaType ?? fallbackContentType ?? "text/plain";
+        return mediaType ?? fallbackContentType ?? "text/plain";
     }
 }

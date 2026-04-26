@@ -252,7 +252,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             Options.Create(catalogOptions ?? new AIDeploymentCatalogOptions()),
             NullLogger<ConfigurationAIDeploymentSource>.Instance));
 
-return new DefaultAIDeploymentStore(sources);
+        return new DefaultAIDeploymentStore(sources);
     }
 
     private sealed class TestAIDeploymentSource(List<AIDeployment> deployments) : IWritableNamedSourceCatalogSource<AIDeployment>

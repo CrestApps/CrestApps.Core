@@ -98,19 +98,19 @@ public sealed class AIMemoryPreemptiveRagHandlerTests
             },
         };
 
-return new AIMemoryPreemptiveRagHandler(
-            memorySearchService.Object,
-            new FakeAITemplateService(),
-            Options.Create(new GeneralAIOptions
-            {
-                EnablePreemptiveMemoryRetrieval = enablePreemptiveMemoryRetrieval,
-            }),
-            Options.Create(new ChatInteractionMemoryOptions
-            {
-                EnableUserMemory = enableChatInteractionMemory,
-            }),
-            httpContextAccessor,
-            NullLogger<AIMemoryPreemptiveRagHandler>.Instance);
+        return new AIMemoryPreemptiveRagHandler(
+                    memorySearchService.Object,
+                    new FakeAITemplateService(),
+                    Options.Create(new GeneralAIOptions
+                    {
+                        EnablePreemptiveMemoryRetrieval = enablePreemptiveMemoryRetrieval,
+                    }),
+                    Options.Create(new ChatInteractionMemoryOptions
+                    {
+                        EnableUserMemory = enableChatInteractionMemory,
+                    }),
+                    httpContextAccessor,
+                    NullLogger<AIMemoryPreemptiveRagHandler>.Instance);
     }
 
     private sealed class FakeAITemplateService : ITemplateService

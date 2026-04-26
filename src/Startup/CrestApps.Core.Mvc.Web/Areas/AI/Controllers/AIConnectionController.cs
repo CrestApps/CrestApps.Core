@@ -31,7 +31,7 @@ public sealed class AIConnectionController : Controller
             return model;
         }).ToList();
 
-return View(models.OrderBy(static model => model.DisplayText ?? model.Name, StringComparer.OrdinalIgnoreCase).ToList());
+        return View(models.OrderBy(static model => model.DisplayText ?? model.Name, StringComparer.OrdinalIgnoreCase).ToList());
     }
 
     public IActionResult Create()

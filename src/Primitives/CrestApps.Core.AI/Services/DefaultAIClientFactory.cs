@@ -56,13 +56,13 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetChatClientAsync(conn, model));
 
-return new AICompletionUsageTrackingChatClient(
-            client,
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName,
-            _serviceProvider,
-            _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
+        return new AICompletionUsageTrackingChatClient(
+                    client,
+                    deployment.ClientName,
+                    deployment.ConnectionName,
+                    deployment.ModelName,
+                    _serviceProvider,
+                    _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
     }
 
     /// <summary>
@@ -76,8 +76,8 @@ return new AICompletionUsageTrackingChatClient(
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
+        return await ResolveClientAsync(deployment, connection,
+                    (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -93,8 +93,8 @@ return await ResolveClientAsync(deployment, connection,
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
+        return await ResolveClientAsync(deployment, connection,
+                    (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -110,8 +110,8 @@ return await ResolveClientAsync(deployment, connection,
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
+        return await ResolveClientAsync(deployment, connection,
+                    (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -127,8 +127,8 @@ return await ResolveClientAsync(deployment, connection,
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
+        return await ResolveClientAsync(deployment, connection,
+                    (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
     }
 
     /// <summary>

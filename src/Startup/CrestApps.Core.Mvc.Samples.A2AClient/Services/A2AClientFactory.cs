@@ -34,7 +34,7 @@ public sealed class A2AClientFactory
         var httpClient = _httpClientFactory.CreateClient();
         ApplyAuthentication(httpClient, server);
 
-return new A2A.A2AClient(new Uri(url), httpClient);
+        return new A2A.A2AClient(new Uri(url), httpClient);
     }
 
     public async Task<List<AgentCard>> GetAgentCardsAsync(CancellationToken cancellationToken)
@@ -66,7 +66,7 @@ return new A2A.A2AClient(new Uri(url), httpClient);
 
         var singleCard = JsonSerializer.Deserialize<AgentCard>(json, _jsonOptions);
 
-return singleCard is not null ? [singleCard] : [];
+        return singleCard is not null ? [singleCard] : [];
     }
 
     public ConfiguredServerEndpoint GetSelectedServer()

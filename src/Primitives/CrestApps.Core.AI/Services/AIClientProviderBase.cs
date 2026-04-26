@@ -51,7 +51,7 @@ public abstract class AIClientProviderBase : IAIClientProvider
         var client = GetChatClient(connection, deploymentName);
         var builder = new ChatClientBuilder(client);
 
-return ValueTask.FromResult(builder.Build(_serviceProvider));
+        return ValueTask.FromResult(builder.Build(_serviceProvider));
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ return ValueTask.FromResult(builder.Build(_serviceProvider));
         var client = GetEmbeddingGenerator(connection, deploymentName);
         var builder = new EmbeddingGeneratorBuilder<string, Embedding<float>>(client);
 
-return ValueTask.FromResult(builder.Build(_serviceProvider));
+        return ValueTask.FromResult(builder.Build(_serviceProvider));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -99,7 +99,7 @@ return ValueTask.FromResult(builder.Build(_serviceProvider));
 
         var generator = GetImageGenerator(connection, deploymentName);
 
-return ValueTask.FromResult(generator);
+        return ValueTask.FromResult(generator);
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.

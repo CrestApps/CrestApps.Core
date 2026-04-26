@@ -63,7 +63,7 @@ public abstract class BothAppsTestBase : IClassFixture<PlaywrightFixture>
         await blazorPage.GotoAsync(TestConstants.BlazorBaseUrl + blazorPath);
         await blazorPage.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-return (mvcPage, blazorPage);
+        return (mvcPage, blazorPage);
     }
 
     /// <summary>

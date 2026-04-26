@@ -247,7 +247,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         {
             _logger.LogWarning(ex, "Planning phase failed. Falling back to full tool injection.");
 
-return null;
+            return null;
         }
     }
 
@@ -443,7 +443,7 @@ return null;
 
         sb.Append(context.UserMessage);
 
-return sb.ToString();
+        return sb.ToString();
     }
 
     /// <summary>

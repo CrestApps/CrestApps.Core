@@ -86,9 +86,9 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
         var utcNow = _timeProvider.GetUtcNow();
         runDateUtc = DateOnly.FromDateTime(utcNow.UtcDateTime);
 
-return utcNow.Hour == 2 &&
-            utcNow.Minute < 30 &&
-            _lastRunDateUtc != runDateUtc;
+        return utcNow.Hour == 2 &&
+                    utcNow.Minute < 30 &&
+                    _lastRunDateUtc != runDateUtc;
     }
 
     private async Task AlignDataSourcesAsync(IServiceProvider services, CancellationToken cancellationToken)

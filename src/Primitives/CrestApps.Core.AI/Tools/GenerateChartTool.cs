@@ -78,7 +78,7 @@ public sealed class GenerateChartTool : AIFunction
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'data_description'.", Name);
 
-return "Unable to find a 'data_description' argument in the arguments parameter.";
+            return "Unable to find a 'data_description' argument in the arguments parameter.";
         }
 
         try
@@ -89,7 +89,7 @@ return "Unable to find a 'data_description' argument in the arguments parameter.
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: execution context is missing.", Name);
 
-return $"Chart generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
+                return $"Chart generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
             }
 
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
@@ -101,7 +101,7 @@ return $"Chart generation is not available. The {nameof(AIToolExecutionContext)}
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no chat model deployment configured.", Name);
 
-return "Chart generation is not available. No chat model deployment is configured.";
+                return "Chart generation is not available. No chat model deployment is configured.";
             }
 
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
@@ -132,7 +132,7 @@ return "Chart generation is not available. No chat model deployment is configure
             {
                 logger.LogWarning("AI tool '{ToolName}' received an empty response from the chat client.", Name);
 
-return "Failed to generate chart configuration.";
+                return "Failed to generate chart configuration.";
             }
 
             var chartConfig = JsonExtractor.ExtractJsonObject(response.Text);
@@ -141,7 +141,7 @@ return "Failed to generate chart configuration.";
             {
                 logger.LogWarning("AI tool '{ToolName}' failed to extract valid JSON from the chat response.", Name);
 
-return "Failed to generate valid chart configuration.";
+                return "Failed to generate valid chart configuration.";
             }
 
             // Validate it's valid Chart.js JSON.
@@ -153,14 +153,14 @@ return "Failed to generate valid chart configuration.";
                 {
                     logger.LogWarning("AI tool '{ToolName}' generated chart config missing 'type' or 'data' properties.", Name);
 
-return "Generated chart configuration is missing required properties.";
+                    return "Generated chart configuration is missing required properties.";
                 }
             }
             catch (JsonException)
             {
                 logger.LogWarning("AI tool '{ToolName}' generated invalid JSON for chart configuration.", Name);
 
-return "Failed to generate valid chart configuration.";
+                return "Failed to generate valid chart configuration.";
             }
 
             if (logger.IsEnabled(LogLevel.Debug))
@@ -174,7 +174,7 @@ return "Failed to generate valid chart configuration.";
         {
             logger.LogError(ex, "Error during chart generation.");
 
-return "An error occurred while generating the chart.";
+            return "An error occurred while generating the chart.";
         }
     }
 }

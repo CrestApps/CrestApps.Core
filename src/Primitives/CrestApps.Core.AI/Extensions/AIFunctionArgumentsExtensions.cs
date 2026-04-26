@@ -19,7 +19,7 @@ public static class AIFunctionArgumentsExtensions
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(key);
 
-return arguments.TryGetValue(key, out value) && value is not null;
+        return arguments.TryGetValue(key, out value) && value is not null;
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ return arguments.TryGetValue(key, out value) && value is not null;
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(key);
 
-return arguments.TryGetFirstString(key, false, out value);
+        return arguments.TryGetFirstString(key, false, out value);
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ return arguments.TryGetFirstString(key, false, out value);
 
         value = null;
 
-return false;
+        return false;
     }
 
     /// <summary>

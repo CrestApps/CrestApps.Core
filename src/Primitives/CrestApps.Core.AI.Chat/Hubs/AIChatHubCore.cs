@@ -1695,7 +1695,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var prompts = await promptStore.GetPromptsAsync(sessionId);
         var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
 
-return prompt?.References;
+        return prompt?.References;
     }
 #pragma warning restore MEAI001
 

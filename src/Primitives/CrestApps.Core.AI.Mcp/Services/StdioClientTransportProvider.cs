@@ -30,6 +30,6 @@ public sealed class StdioClientTransportProvider : IMcpClientTransportProvider
 
         var transport = new StdioClientTransport(new StdioClientTransportOptions { Name = connection.DisplayText, Command = metadata.Command, Arguments = metadata.Arguments, WorkingDirectory = metadata.WorkingDirectory, EnvironmentVariables = metadata.EnvironmentVariables, });
 
-return Task.FromResult<IClientTransport>(transport);
+        return Task.FromResult<IClientTransport>(transport);
     }
 }

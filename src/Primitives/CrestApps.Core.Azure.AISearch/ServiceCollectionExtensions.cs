@@ -29,7 +29,7 @@ public static class ServiceCollectionExtensions
 
         services.Configure<AzureAISearchConnectionOptions>(configuration);
 
-return services.AddCoreAzureAISearchServices();
+        return services.AddCoreAzureAISearchServices();
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ return services.AddCoreAzureAISearchServices();
         services.TryAddKeyedScoped<ISearchDocumentManager>(AISearchConstants.ProviderName, (sp, _)
             => new AzureAISearchDocumentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetServices<ISearchDocumentHandler>(), sp.GetRequiredService<ILogger<AzureAISearchDocumentManager>>()));
 
-return services;
+        return services;
     }
 
     /// <summary>

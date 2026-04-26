@@ -36,7 +36,7 @@ public static class DataProtectionHelper
         {
             logger.LogWarning(ex, errorMessage, args);
 
-return value;
+            return value;
         }
     }
 #pragma warning restore CA2254

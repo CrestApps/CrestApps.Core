@@ -8,7 +8,7 @@ public static class CopilotSettingsExtensions
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-return settings.AuthenticationType switch
+        return settings.AuthenticationType switch
         {
             CopilotAuthenticationType.GitHubOAuth =>
             !string.IsNullOrWhiteSpace(settings.ClientId) &&
@@ -28,7 +28,7 @@ return settings.AuthenticationType switch
     {
         ArgumentNullException.ThrowIfNull(options);
 
-return options.AuthenticationType switch
+        return options.AuthenticationType switch
         {
             CopilotAuthenticationType.GitHubOAuth =>
             !string.IsNullOrWhiteSpace(options.ClientId) &&

@@ -32,7 +32,7 @@ public class NamedDocumentCatalog<T> : DocumentCatalog<T>, INamedCatalog<T>
         var record = await GetReadQuery()
             .FirstOrDefaultAsync(x => x.Name == name, cancellationToken);
 
-return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
+        return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
     /// <summary>

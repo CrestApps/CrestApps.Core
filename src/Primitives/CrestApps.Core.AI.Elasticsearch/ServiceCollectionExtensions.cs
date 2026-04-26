@@ -28,11 +28,11 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedScoped<IVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchVectorSearchService(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetRequiredService<ILogger<ElasticsearchVectorSearchService>>()));
 
-return services.AddCoreElasticsearchSource(IndexProfileTypes.AIDocuments, descriptor =>
-        {
-            descriptor.DisplayName = "AI Documents";
-            descriptor.Description = "Create an Elasticsearch index for uploaded and embedded AI document chunks.";
-        }).AddCoreAIDocumentIndexProfileHandler();
+        return services.AddCoreElasticsearchSource(IndexProfileTypes.AIDocuments, descriptor =>
+                {
+                    descriptor.DisplayName = "AI Documents";
+                    descriptor.Description = "Create an Elasticsearch index for uploaded and embedded AI document chunks.";
+                }).AddCoreAIDocumentIndexProfileHandler();
     }
 
     /// <summary>
@@ -43,12 +43,12 @@ return services.AddCoreElasticsearchSource(IndexProfileTypes.AIDocuments, descri
     {
         ArgumentNullException.ThrowIfNull(services);
 
-return services.AddCoreElasticsearchSource(IndexProfileTypes.DataSource, descriptor =>
-        {
-            descriptor.DisplayName = "Data Source";
-            descriptor.Description = "Create an Elasticsearch index for AI knowledge base data source documents.";
-        }).AddCoreAIDataSourceRag()
-        .AddCoreAIDataSourceIndexProfileHandler();
+        return services.AddCoreElasticsearchSource(IndexProfileTypes.DataSource, descriptor =>
+                {
+                    descriptor.DisplayName = "Data Source";
+                    descriptor.Description = "Create an Elasticsearch index for AI knowledge base data source documents.";
+                }).AddCoreAIDataSourceRag()
+                .AddCoreAIDataSourceIndexProfileHandler();
     }
 
     /// <summary>
@@ -62,11 +62,11 @@ return services.AddCoreElasticsearchSource(IndexProfileTypes.DataSource, descrip
         services.TryAddKeyedScoped<IMemoryVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchMemoryVectorSearchService(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetRequiredService<ILogger<ElasticsearchMemoryVectorSearchService>>()));
 
-return services.AddCoreElasticsearchSource(IndexProfileTypes.AIMemory, descriptor =>
-        {
-            descriptor.DisplayName = "AI Memory";
-            descriptor.Description = "Create an Elasticsearch index for user and system memory records.";
-        }).AddCoreAIMemoryIndexProfileHandler();
+        return services.AddCoreElasticsearchSource(IndexProfileTypes.AIMemory, descriptor =>
+                {
+                    descriptor.DisplayName = "AI Memory";
+                    descriptor.Description = "Create an Elasticsearch index for user and system memory records.";
+                }).AddCoreAIMemoryIndexProfileHandler();
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ return services.AddCoreElasticsearchSource(IndexProfileTypes.AIMemory, descripto
             .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", type, configure)
         );
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -98,7 +98,7 @@ return services;
 
         builder.Services.AddCoreElasticsearchAIDocumentSource();
 
-return builder;
+        return builder;
     }
 
     /// <summary>
@@ -111,7 +111,7 @@ return builder;
 
         builder.Services.AddCoreElasticsearchAIDataSource();
 
-return builder;
+        return builder;
     }
 
     /// <summary>
@@ -124,6 +124,6 @@ return builder;
 
         builder.Services.AddCoreElasticsearchAIMemorySource();
 
-return builder;
+        return builder;
     }
 }

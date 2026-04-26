@@ -28,9 +28,9 @@ internal static class AIHubErrorMessageHelper
         {
             var retryAfterMessage = ExtractRetryAfterMessage(message);
 
-return string.IsNullOrWhiteSpace(retryAfterMessage)
-                ? S["Rate limit reached. Please wait and try again later."]
-                : S["Rate limit reached. {0}", retryAfterMessage];
+            return string.IsNullOrWhiteSpace(retryAfterMessage)
+                            ? S["Rate limit reached. Please wait and try again later."]
+                            : S["Rate limit reached. {0}", retryAfterMessage];
         }
 
         if (ex is HttpRequestException httpEx)

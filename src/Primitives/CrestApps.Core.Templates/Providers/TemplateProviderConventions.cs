@@ -57,7 +57,7 @@ internal static class TemplateProviderConventions
         {
             defaultKind = SystemPromptKind;
 
-return relativeResourcePath[PromptsPathSegment.Length..];
+            return relativeResourcePath[PromptsPathSegment.Length..];
         }
 
         return relativeResourcePath;

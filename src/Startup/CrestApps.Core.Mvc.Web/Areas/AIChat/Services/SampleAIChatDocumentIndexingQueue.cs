@@ -11,7 +11,7 @@ public sealed class SampleAIChatDocumentIndexingQueue : ISampleAIChatDocumentInd
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(chunks);
 
-return _channel.Writer.WriteAsync(SampleAIChatDocumentIndexingWorkItem.ForIndex(document, chunks.ToArray()), cancellationToken);
+        return _channel.Writer.WriteAsync(SampleAIChatDocumentIndexingWorkItem.ForIndex(document, chunks.ToArray()), cancellationToken);
     }
 
     public ValueTask QueueDeleteChunksAsync(IReadOnlyCollection<string> chunkIds, CancellationToken cancellationToken = default)

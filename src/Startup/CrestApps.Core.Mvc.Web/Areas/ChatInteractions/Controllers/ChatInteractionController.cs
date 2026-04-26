@@ -126,7 +126,7 @@ public sealed class ChatInteractionController : Controller
     {
         var interactions = await _interactionManager.GetAllAsync();
 
-return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
+        return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
     }
 
     public async Task<IActionResult> Create()
@@ -141,7 +141,7 @@ return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
 
         await _interactionManager.CreateAsync(interaction);
 
-return RedirectToAction(nameof(Chat), new { id = interaction.ItemId });
+        return RedirectToAction(nameof(Chat), new { id = interaction.ItemId });
     }
 
     [HttpPost]
@@ -152,7 +152,7 @@ return RedirectToAction(nameof(Chat), new { id = interaction.ItemId });
         {
             await PopulateDropdownsAsync(model);
 
-return View(model);
+            return View(model);
         }
 
         var interaction = await _interactionManager.NewAsync();
@@ -270,7 +270,7 @@ return View(model);
 
         await PopulateChatDropdownsAsync(model);
 
-return View(model);
+        return View(model);
     }
 
     [HttpPost]
@@ -289,7 +289,7 @@ return View(model);
 
         await _interactionManager.DeleteAsync(interaction);
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     private async Task PopulateDropdownsAsync(ChatInteractionViewModel model)
@@ -670,11 +670,11 @@ return RedirectToAction(nameof(Index));
             .Select(connection => connection.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
-return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+        return (selectedIds ?? [])
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
 
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
     }
 
     private async Task<List<string>> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
@@ -683,11 +683,11 @@ return (selectedIds ?? [])
             .Select(c => c.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
-return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+        return (selectedIds ?? [])
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
 
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
     }
 
     private List<string> GetValidToolNames(IEnumerable<string> selectedNames)
@@ -707,11 +707,11 @@ return (selectedIds ?? [])
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-return (selectedNames ?? [])
-            .Where(name => !string.IsNullOrWhiteSpace(name) && allNames.Contains(name))
+        return (selectedNames ?? [])
+                    .Where(name => !string.IsNullOrWhiteSpace(name) && allNames.Contains(name))
 
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
     }
 
     private async Task UploadDocumentsAsync(ChatInteraction interaction, List<IFormFile> files)
@@ -864,8 +864,8 @@ return (selectedNames ?? [])
     {
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
-return model.CostMultiplier > 0
-            ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
-            : name;
+        return model.CostMultiplier > 0
+                    ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
+                    : name;
     }
 }

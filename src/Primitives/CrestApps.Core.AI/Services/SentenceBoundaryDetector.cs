@@ -102,7 +102,7 @@ public static class SentenceBoundaryDetector
     {
         var last = span[^1];
 
-return last is ',' or ';' or ':' or '-';
+        return last is ',' or ';' or ':' or '-';
     }
 
     private static bool IsTrailingWrapper(char c)

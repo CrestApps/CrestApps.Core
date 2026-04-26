@@ -216,7 +216,7 @@ public sealed class DefaultMcpMetadataPromptGenerator : IMcpMetadataPromptGenera
                 ? itemTypeElement.GetString()
                 : "object";
 
-return $"{itemType}[]";
+            return $"{itemType}[]";
         }
 
         return type;

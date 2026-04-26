@@ -78,7 +78,7 @@ public sealed class GenerateImageTool : AIFunction
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'prompt'.", Name);
 
-return "Unable to find a 'prompt' argument in the arguments parameter.";
+            return "Unable to find a 'prompt' argument in the arguments parameter.";
         }
 
         try
@@ -89,7 +89,7 @@ return "Unable to find a 'prompt' argument in the arguments parameter.";
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: execution context is missing.", Name);
 
-return $"Image generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
+                return $"Image generation is not available. The {nameof(AIToolExecutionContext)} is missing from the invocation context.";
             }
 
             var clientName = executionContext.ClientName;
@@ -101,7 +101,7 @@ return $"Image generation is not available. The {nameof(AIToolExecutionContext)}
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no image model deployment configured.", Name);
 
-return "Image generation is not available. No image model deployment is configured.";
+                return "Image generation is not available. No image model deployment is configured.";
             }
 
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
@@ -127,7 +127,7 @@ return "Image generation is not available. No image model deployment is configur
             {
                 logger.LogWarning("AI tool '{ToolName}' returned no images.", Name);
 
-return "No images were generated.";
+                return "No images were generated.";
             }
 
             using var builder = ZString.CreateStringBuilder();
@@ -169,7 +169,7 @@ return "No images were generated.";
         {
             logger.LogError(ex, "Error during image generation.");
 
-return "An error occurred while generating the image.";
+            return "An error occurred while generating the image.";
         }
     }
 

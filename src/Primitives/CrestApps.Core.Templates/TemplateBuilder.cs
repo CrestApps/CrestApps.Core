@@ -24,7 +24,7 @@ public sealed class TemplateBuilder
     {
         _separator = separator ?? string.Empty;
 
-return this;
+        return this;
     }
 
     /// <summary>

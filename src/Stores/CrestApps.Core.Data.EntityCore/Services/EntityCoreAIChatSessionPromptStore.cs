@@ -32,9 +32,9 @@ public sealed class EntityCoreAIChatSessionPromptStore : DocumentCatalog<AIChatS
             .OrderBy(x => x.CreatedUtc)
             .ToListAsync();
 
-return records
-            .Select(CatalogRecordFactory.Materialize<AIChatSessionPrompt>)
-            .ToArray();
+        return records
+                    .Select(CatalogRecordFactory.Materialize<AIChatSessionPrompt>)
+                    .ToArray();
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ return records
 
         DbContext.CatalogRecords.RemoveRange(records);
 
-return records.Count;
+        return records.Count;
     }
 
     /// <summary>
@@ -67,8 +67,8 @@ return records.Count;
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
 
-return GetReadQuery()
-            .Where(x => x.SessionId == sessionId)
-            .CountAsync();
+        return GetReadQuery()
+                    .Where(x => x.SessionId == sessionId)
+                    .CountAsync();
     }
 }

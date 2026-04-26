@@ -21,7 +21,7 @@ public sealed class AccountController : Controller
     {
         ViewData["ReturnUrl"] = returnUrl;
 
-return View();
+        return View();
     }
 
     [HttpPost]
@@ -57,7 +57,7 @@ return View();
         ViewData["Error"] = "Invalid username or password.";
         ViewData["ReturnUrl"] = returnUrl;
 
-return View();
+        return View();
     }
 
     [HttpPost]
@@ -66,7 +66,7 @@ return View();
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-return RedirectToAction("Index", "Home");
+        return RedirectToAction("Index", "Home");
     }
 
     [AllowAnonymous]

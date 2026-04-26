@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAISseMcpClientTransport();
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ return services;
             });
         });
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ return services;
             });
         });
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -118,7 +118,7 @@ return services;
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, McpToolRegistryProvider>());
         services.AddCoreAITool<McpInvokeFunction>(McpInvokeFunction.FunctionName);
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -166,7 +166,7 @@ return services;
         services.TryAddScoped<IMcpServerPromptService, DefaultMcpServerPromptService>();
         services.TryAddScoped<IMcpServerResourceService, DefaultMcpServerResourceService>();
 
-return services;
+        return services;
     }
 
     /// <summary>
@@ -216,6 +216,6 @@ return services;
         // Register as keyed service for direct lookup by type
         services.AddKeyedScoped<IMcpResourceTypeHandler>(type, (sp, key) => sp.GetRequiredService<THandler>());
 
-return services;
+        return services;
     }
 }

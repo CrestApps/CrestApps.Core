@@ -79,7 +79,7 @@ public sealed class ReadDocumentTool : AIFunction
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'document_id'.", Name);
 
-return "Unable to find a 'document_id' argument in the arguments parameter.";
+            return "Unable to find a 'document_id' argument in the arguments parameter.";
         }
 
         var executionContext = AIInvocationScope.Current?.ToolExecutionContext;
@@ -93,7 +93,7 @@ return "Unable to find a 'document_id' argument in the arguments parameter.";
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: document store is not available.", Name);
 
-return "Document store is not available.";
+                return "Document store is not available.";
             }
 
             var document = await documentStore.FindByIdAsync(documentId, cancellationToken);
@@ -102,7 +102,7 @@ return "Document store is not available.";
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: document '{DocumentId}' was not found in this session.", Name, documentId);
 
-return $"Document with ID '{documentId}' was not found in this session.";
+                return $"Document with ID '{documentId}' was not found in this session.";
             }
 
             if (logger.IsEnabled(LogLevel.Debug))
@@ -121,7 +121,7 @@ return $"Document with ID '{documentId}' was not found in this session.";
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: document store is not available.", Name);
 
-return "Document store is not available.";
+                return "Document store is not available.";
             }
 
             // The document could belong to either the profile or a chat session.
@@ -143,7 +143,7 @@ return "Document store is not available.";
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: document '{DocumentId}' was not found.", Name, documentId);
 
-return $"Document with ID '{documentId}' was not found.";
+                return $"Document with ID '{documentId}' was not found.";
             }
 
             if (logger.IsEnabled(LogLevel.Debug))
@@ -156,7 +156,7 @@ return $"Document with ID '{documentId}' was not found.";
 
         logger.LogWarning("AI tool '{ToolName}' failed: no active chat interaction session or AI profile.", Name);
 
-return "Document access requires an active chat interaction session or AI profile.";
+        return "Document access requires an active chat interaction session or AI profile.";
     }
 
     private static async Task<string> FormatDocumentTextFromChunksAsync(IServiceProvider services, AIDocument document)

@@ -373,7 +373,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         interaction.McpConnectionIds = JsonHelper.GetStringArray(settings, "mcpConnectionIds");
         interaction.A2AConnectionIds = JsonHelper.GetStringArray(settings, "a2aConnectionIds");
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -1519,7 +1519,7 @@ return Task.CompletedTask;
         var prompts = await promptStore.GetPromptsAsync(itemId);
         var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
 
-return prompt?.References;
+        return prompt?.References;
     }
 
     // ----------------- STT transcription (input mode) -----------------

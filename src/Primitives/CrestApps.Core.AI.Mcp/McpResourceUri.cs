@@ -96,7 +96,7 @@ public static partial class McpResourceUri
 
         variables = result;
 
-return true;
+        return true;
     }
 
     /// <summary>

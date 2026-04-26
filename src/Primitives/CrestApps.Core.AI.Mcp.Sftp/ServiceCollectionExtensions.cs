@@ -20,16 +20,16 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-return services.AddCoreAIMcpResourceType<SftpResourceTypeHandler>(SftpResourceConstants.Type, entry =>
-        {
-            entry.DisplayName = new LocalizedString("SFTP", "SFTP");
-            entry.Description = new LocalizedString("SFTP Description", "Reads content from SFTP servers.");
-            entry.SupportedVariables = [new McpResourceVariable("path")
+        return services.AddCoreAIMcpResourceType<SftpResourceTypeHandler>(SftpResourceConstants.Type, entry =>
+                {
+                    entry.DisplayName = new LocalizedString("SFTP", "SFTP");
+                    entry.Description = new LocalizedString("SFTP Description", "Reads content from SFTP servers.");
+                    entry.SupportedVariables = [new McpResourceVariable("path")
             {
                 Description = new LocalizedString("SFTP Path", "The remote file path on the SFTP server.")
             }, ];
-            configure?.Invoke(entry);
-        });
+                    configure?.Invoke(entry);
+                });
     }
 
     /// <summary>

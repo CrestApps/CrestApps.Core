@@ -42,7 +42,7 @@ public static class AuthEndpoints
 
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
-return Results.LocalRedirect(returnUrl);
+                return Results.LocalRedirect(returnUrl);
             }
 
             var redirectUrl = QueryString.Create(new Dictionary<string, string>
@@ -51,7 +51,7 @@ return Results.LocalRedirect(returnUrl);
                 ["error"] = "Invalid username or password.",
             });
 
-return Results.LocalRedirect($"/account/login{redirectUrl}");
+            return Results.LocalRedirect($"/account/login{redirectUrl}");
         });
 
         endpoints.MapPost("/Account/Logout", async (HttpContext context, IAntiforgery antiforgery) =>
@@ -63,9 +63,9 @@ return Results.LocalRedirect($"/account/login{redirectUrl}");
 
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-return Results.Redirect("/");
+            return Results.Redirect("/");
         });
 
-return endpoints;
+        return endpoints;
     }
 }

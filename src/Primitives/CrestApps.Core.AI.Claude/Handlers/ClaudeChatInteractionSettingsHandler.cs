@@ -29,7 +29,7 @@ internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSet
             metadata.EffortLevel = GetEnum<ClaudeEffortLevel>(settings, "anthropicEffortLevel");
         });
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     /// <summary>

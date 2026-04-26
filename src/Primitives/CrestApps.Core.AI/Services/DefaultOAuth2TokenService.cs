@@ -74,7 +74,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 
         using var httpClient = _httpClientFactory.CreateClient(nameof(DefaultOAuth2TokenService));
 
-return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
+        return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
 
     /// <summary>
@@ -113,7 +113,7 @@ return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheK
 
         using var httpClient = _httpClientFactory.CreateClient(nameof(DefaultOAuth2TokenService));
 
-return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
+        return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheK
             handler.ClientCertificates.Add(certificate);
             using var httpClient = new HttpClient(handler);
 
-return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
+            return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
         }
     }
 
@@ -181,7 +181,7 @@ return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheK
         var expiration = tokenResponse.ExpiresIn > ExpirationBufferSeconds ? TimeSpan.FromSeconds(tokenResponse.ExpiresIn - ExpirationBufferSeconds) : TimeSpan.FromMinutes(5);
         _cache.Set(cacheKey, tokenResponse.AccessToken, expiration);
 
-return tokenResponse.AccessToken;
+        return tokenResponse.AccessToken;
     }
 
     private string CreateClientAssertion(string tokenEndpoint, string clientId, string privateKeyPem, string keyId)
@@ -213,7 +213,7 @@ return tokenResponse.AccessToken;
         rsa.ImportFromPem(privateKeyPem);
         var signature = rsa.SignData(dataToSign, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
-return $"{headerBase64}.{payloadBase64}.{Base64UrlEncode(signature)}";
+        return $"{headerBase64}.{payloadBase64}.{Base64UrlEncode(signature)}";
     }
 
     private static string Base64UrlEncode(byte[] input)

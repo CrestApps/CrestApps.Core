@@ -31,7 +31,7 @@ public sealed class YesSqlAIDocumentChunkStore : DocumentCatalog<AIDocumentChunk
         var chunks = await Session.Query<AIDocumentChunk, AIDocumentChunkIndex>(x =>
             x.AIDocumentId == documentId, collection: CollectionName).ListAsync();
 
-return chunks.ToArray();
+        return chunks.ToArray();
     }
 
     /// <summary>
@@ -47,7 +47,7 @@ return chunks.ToArray();
         var chunks = await Session.Query<AIDocumentChunk, AIDocumentChunkIndex>(x =>
             x.ReferenceId == referenceId && x.ReferenceType == referenceType, collection: CollectionName).ListAsync();
 
-return chunks.ToArray();
+        return chunks.ToArray();
     }
 
     /// <summary>

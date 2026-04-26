@@ -27,6 +27,6 @@ public sealed class DefaultAIToolsService : IAIToolsService
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-return ValueTask.FromResult(_serviceProvider.GetKeyedService<AITool>(name));
+        return ValueTask.FromResult(_serviceProvider.GetKeyedService<AITool>(name));
     }
 }

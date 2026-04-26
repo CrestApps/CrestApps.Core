@@ -71,7 +71,7 @@ public class CatalogManager<T> : ICatalogManager<T>
         var deletedContext = new DeletedContext<T>(entry);
         await Handlers.InvokeAsync((handler, ctx) => handler.DeletedAsync(ctx, cancellationToken), deletedContext, Logger);
 
-return removed;
+        return removed;
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ return removed;
         {
             await LoadAsync(entry, cancellationToken);
 
-return entry;
+            return entry;
         }
 
         return null!;
@@ -193,7 +193,7 @@ return entry;
         var validatedContext = new ValidatedContext<T>(entry, validatingContext.Result);
         await Handlers.InvokeAsync((handler, ctx) => handler.ValidatedAsync(ctx, cancellationToken), validatedContext, Logger);
 
-return validatingContext.Result;
+        return validatingContext.Result;
     }
 
     /// <summary>

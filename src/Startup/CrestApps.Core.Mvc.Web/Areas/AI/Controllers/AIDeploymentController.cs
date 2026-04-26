@@ -50,16 +50,16 @@ public sealed class AIDeploymentController : Controller
     {
         var deployments = await _deploymentCatalog.GetAllAsync();
 
-return View(deployments
-            .Select(deployment =>
-            {
-                var model = AIDeploymentViewModel.FromDeployment(deployment);
-                model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
+        return View(deployments
+                    .Select(deployment =>
+                    {
+                        var model = AIDeploymentViewModel.FromDeployment(deployment);
+                        model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
 
-                return model;
-            })
-            .OrderBy(static deployment => deployment.TechnicalName, StringComparer.OrdinalIgnoreCase)
-            .ToList());
+                        return model;
+                    })
+                    .OrderBy(static deployment => deployment.TechnicalName, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
     }
 
     public async Task<IActionResult> Create()
@@ -67,7 +67,7 @@ return View(deployments
         var model = new AIDeploymentViewModel();
         await PopulateDropdownsAsync(model);
 
-return View(model);
+        return View(model);
     }
 
     [HttpPost]
@@ -95,7 +95,7 @@ return View(model);
         {
             await PopulateDropdownsAsync(model);
 
-return View(model);
+            return View(model);
         }
 
         // Clear connection for standalone providers.
@@ -115,7 +115,7 @@ return View(model);
 
         await _deploymentCatalog.CreateAsync(deployment);
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
@@ -137,7 +137,7 @@ return RedirectToAction(nameof(Index));
         var model = AIDeploymentViewModel.FromDeployment(deployment);
         await PopulateDropdownsAsync(model);
 
-return View(model);
+        return View(model);
     }
 
     [HttpPost]
@@ -172,7 +172,7 @@ return View(model);
         {
             await PopulateDropdownsAsync(model);
 
-return View(model);
+            return View(model);
         }
 
         var existing = await _deploymentCatalog.FindByIdAsync(model.ItemId);
@@ -200,7 +200,7 @@ return View(model);
 
         await _deploymentCatalog.UpdateAsync(existing);
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -223,7 +223,7 @@ return RedirectToAction(nameof(Index));
 
         await _deploymentCatalog.DeleteAsync(deployment);
 
-return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index));
     }
 
     private async Task PopulateDropdownsAsync(AIDeploymentViewModel model)
@@ -245,7 +245,7 @@ return RedirectToAction(nameof(Index));
                     ? $"{connectionAlias} ({connection.ClientName})"
                     : connectionAlias;
 
-return new SelectListItem(displayName, connection.Name);
+                return new SelectListItem(displayName, connection.Name);
             })
             .ToList();
         model.Providers = _providers;

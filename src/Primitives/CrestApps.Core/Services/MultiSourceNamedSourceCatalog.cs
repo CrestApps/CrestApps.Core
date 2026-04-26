@@ -30,9 +30,9 @@ public abstract class MultiSourceNamedSourceCatalog<T> : MultiSourceNamedCatalog
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
 
-return entries
-            .Where(entry => string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        return entries
+                    .Where(entry => string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
     }
 
     /// <summary>
@@ -45,9 +45,9 @@ return entries
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
 
-return entries.FirstOrDefault(entry =>
-            string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase))!;
+        return entries.FirstOrDefault(entry =>
+                    string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase))!;
     }
 
     /// <summary>

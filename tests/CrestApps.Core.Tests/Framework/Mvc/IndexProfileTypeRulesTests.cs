@@ -295,7 +295,7 @@ public sealed class IndexProfileTypeRulesTests
         {
             CreatedIndexName = profile.IndexFullName;
 
-return Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         public Task DeleteAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
@@ -376,14 +376,14 @@ return Task.CompletedTask;
         {
             ResetCalled = true;
 
-return Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         public Task SynchronizeAsync(SearchIndexProfile profile, CancellationToken cancellationToken = default)
         {
             SynchronizeCalled = true;
 
-return Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null, CancellationToken cancellationToken = default)

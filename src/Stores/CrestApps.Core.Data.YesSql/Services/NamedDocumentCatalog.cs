@@ -35,7 +35,7 @@ public class NamedDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, IName
 
         var item = await Session.Query<T, TIndex>(x => x.Name == name, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
 
-return item;
+        return item;
     }
 
     /// <summary>

@@ -33,6 +33,6 @@ public class SourceDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, ISou
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-return (await Session.Query<T, TIndex>(x => x.Source == source, collection: CollectionName).ListAsync(cancellationToken)).ToArray();
+        return (await Session.Query<T, TIndex>(x => x.Source == source, collection: CollectionName).ListAsync(cancellationToken)).ToArray();
     }
 }

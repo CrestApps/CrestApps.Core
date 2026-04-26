@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
             o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI completion.");
         });
 
-return services;
+        return services;
     }
 
     /// <summary>

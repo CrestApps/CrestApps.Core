@@ -32,7 +32,7 @@ public sealed class AgentsModel : PageModel
     {
         await LoadAgentCardsAsync(cancellationToken);
 
-return Page();
+        return Page();
     }
 
     public async Task<IActionResult> OnPostSendMessageAsync(string agentUrl, string agentName, string message, bool stream, CancellationToken cancellationToken)
@@ -78,26 +78,26 @@ return Page();
 
             var responseText = ExtractTextFromResponse(response);
 
-return new JsonResult(new { response = responseText ?? "The agent did not produce a text response." });
+            return new JsonResult(new { response = responseText ?? "The agent did not produce a text response." });
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
             _logger.LogWarning(ex, "Authentication failed when communicating with the A2A agent.");
 
-return new JsonResult(new
+            return new JsonResult(new
             {
                 error = "Authentication failed (401 Unauthorized). " +
-                "The A2A host requires authentication. Check the agent card's security schemes for details."
+                            "The A2A host requires authentication. Check the agent card's security schemes for details."
             });
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
             _logger.LogWarning(ex, "Access denied when communicating with the A2A agent.");
 
-return new JsonResult(new
+            return new JsonResult(new
             {
                 error = "Access denied (403 Forbidden). " +
-                "You do not have permission to access this agent."
+                            "You do not have permission to access this agent."
             });
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -111,7 +111,7 @@ return new JsonResult(new
         {
             _logger.LogError(ex, "Failed to communicate with the A2A agent at '{AgentUrl}'.", agentUrl);
 
-return new JsonResult(new { error = $"An error occurred while communicating with the agent: {ex.Message}" });
+            return new JsonResult(new { error = $"An error occurred while communicating with the agent: {ex.Message}" });
         }
     }
 

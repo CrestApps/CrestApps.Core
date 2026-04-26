@@ -33,30 +33,30 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 
         options = NormalizeOptions(options, storeOptions);
 
-return schemaBuilder.CreateMapIndexTableAsync<AIChatSessionMetricsIndex>(table => table
-            .Column<string>(nameof(AIChatSessionMetricsIndex.SessionId), column => column.WithLength(options.SessionIdLength))
-            .Column<string>(nameof(AIChatSessionMetricsIndex.ProfileId), column => column.WithLength(options.ProfileIdLength))
-            .Column<string>(nameof(AIChatSessionMetricsIndex.VisitorId), column => column.WithLength(options.VisitorIdLength))
-            .Column<string>(nameof(AIChatSessionMetricsIndex.UserId), column => column.WithLength(options.UserIdLength))
-            .Column<bool>(nameof(AIChatSessionMetricsIndex.IsAuthenticated))
-            .Column<DateTime>(nameof(AIChatSessionMetricsIndex.SessionStartedUtc))
-            .Column<DateTime?>(nameof(AIChatSessionMetricsIndex.SessionEndedUtc))
-            .Column<int>(nameof(AIChatSessionMetricsIndex.MessageCount))
-            .Column<double>(nameof(AIChatSessionMetricsIndex.HandleTimeSeconds))
-            .Column<bool>(nameof(AIChatSessionMetricsIndex.IsResolved))
-            .Column<int>(nameof(AIChatSessionMetricsIndex.HourOfDay))
-            .Column<int>(nameof(AIChatSessionMetricsIndex.DayOfWeek))
-            .Column<int>(nameof(AIChatSessionMetricsIndex.TotalInputTokens), column => column.WithDefault(0))
-            .Column<int>(nameof(AIChatSessionMetricsIndex.TotalOutputTokens), column => column.WithDefault(0))
-            .Column<double>(nameof(AIChatSessionMetricsIndex.AverageResponseLatencyMs), column => column.WithDefault(0))
-            .Column<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0))
-            .Column<bool?>(nameof(AIChatSessionMetricsIndex.UserRating), column => column.Nullable())
-            .Column<int>(nameof(AIChatSessionMetricsIndex.ThumbsUpCount), column => column.WithDefault(0))
-            .Column<int>(nameof(AIChatSessionMetricsIndex.ThumbsDownCount), column => column.WithDefault(0))
-            .Column<int?>(nameof(AIChatSessionMetricsIndex.ConversionScore), column => column.Nullable())
-            .Column<int?>(nameof(AIChatSessionMetricsIndex.ConversionMaxScore), column => column.Nullable())
-            .Column<DateTime>(nameof(AIChatSessionMetricsIndex.CreatedUtc)),
-            collection: options.CollectionName);
+        return schemaBuilder.CreateMapIndexTableAsync<AIChatSessionMetricsIndex>(table => table
+                    .Column<string>(nameof(AIChatSessionMetricsIndex.SessionId), column => column.WithLength(options.SessionIdLength))
+                    .Column<string>(nameof(AIChatSessionMetricsIndex.ProfileId), column => column.WithLength(options.ProfileIdLength))
+                    .Column<string>(nameof(AIChatSessionMetricsIndex.VisitorId), column => column.WithLength(options.VisitorIdLength))
+                    .Column<string>(nameof(AIChatSessionMetricsIndex.UserId), column => column.WithLength(options.UserIdLength))
+                    .Column<bool>(nameof(AIChatSessionMetricsIndex.IsAuthenticated))
+                    .Column<DateTime>(nameof(AIChatSessionMetricsIndex.SessionStartedUtc))
+                    .Column<DateTime?>(nameof(AIChatSessionMetricsIndex.SessionEndedUtc))
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.MessageCount))
+                    .Column<double>(nameof(AIChatSessionMetricsIndex.HandleTimeSeconds))
+                    .Column<bool>(nameof(AIChatSessionMetricsIndex.IsResolved))
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.HourOfDay))
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.DayOfWeek))
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.TotalInputTokens), column => column.WithDefault(0))
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.TotalOutputTokens), column => column.WithDefault(0))
+                    .Column<double>(nameof(AIChatSessionMetricsIndex.AverageResponseLatencyMs), column => column.WithDefault(0))
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0))
+                    .Column<bool?>(nameof(AIChatSessionMetricsIndex.UserRating), column => column.Nullable())
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.ThumbsUpCount), column => column.WithDefault(0))
+                    .Column<int>(nameof(AIChatSessionMetricsIndex.ThumbsDownCount), column => column.WithDefault(0))
+                    .Column<int?>(nameof(AIChatSessionMetricsIndex.ConversionScore), column => column.Nullable())
+                    .Column<int?>(nameof(AIChatSessionMetricsIndex.ConversionMaxScore), column => column.Nullable())
+                    .Column<DateTime>(nameof(AIChatSessionMetricsIndex.CreatedUtc)),
+                    collection: options.CollectionName);
     }
 
     /// <summary>
@@ -101,10 +101,10 @@ return schemaBuilder.CreateMapIndexTableAsync<AIChatSessionMetricsIndex>(table =
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
 
-return schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(table =>
-        {
-            table.AddColumn<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0));
-        }, collection: storeOptions?.AICollectionName);
+        return schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(table =>
+                {
+                    table.AddColumn<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0));
+                }, collection: storeOptions?.AICollectionName);
     }
 
     private static AIChatSessionMetricsIndexSchemaOptions NormalizeOptions(AIChatSessionMetricsIndexSchemaOptions options, YesSqlStoreOptions storeOptions)

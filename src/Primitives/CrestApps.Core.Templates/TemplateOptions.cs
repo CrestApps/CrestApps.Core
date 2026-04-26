@@ -42,7 +42,7 @@ public sealed class TemplateOptions
 
         Templates.Add(template);
 
-return this;
+        return this;
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ return this;
 
         Templates.Add(template);
 
-return this;
+        return this;
     }
 
     /// <summary>
@@ -80,6 +80,6 @@ return this;
 
         DiscoveryPaths.Add(path);
 
-return this;
+        return this;
     }
 }

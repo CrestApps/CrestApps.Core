@@ -117,7 +117,7 @@ public sealed class DocumentFileStoreRegistrationTests
         var path = Path.Combine(Path.GetTempPath(), "crestapps-core-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
 
-return path;
+        return path;
     }
 
     private static void DeleteDirectory(string path)
@@ -145,14 +145,14 @@ return path;
         {
             ArgumentNullException.ThrowIfNull(fileName);
 
-return Task.FromResult(true);
+            return Task.FromResult(true);
         }
 
         public Task<Stream> GetFileAsync(string fileName)
         {
             ArgumentNullException.ThrowIfNull(fileName);
 
-return Task.FromResult<Stream>(new MemoryStream());
+            return Task.FromResult<Stream>(new MemoryStream());
         }
 
         public Task<string> SaveFileAsync(string fileName, Stream content)
@@ -160,7 +160,7 @@ return Task.FromResult<Stream>(new MemoryStream());
             ArgumentNullException.ThrowIfNull(fileName);
             ArgumentNullException.ThrowIfNull(content);
 
-return Task.FromResult(fileName);
+            return Task.FromResult(fileName);
         }
     }
 }

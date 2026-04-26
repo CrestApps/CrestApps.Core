@@ -61,7 +61,7 @@ internal sealed class SseMcpConnectionSettingsHandler : CatalogEntryHandlerBase<
 
         connection.Put(metadata);
 
-return Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     private static void ProtectField(IDataProtector protector, JsonObject node, string fieldName, Action<string> setter)

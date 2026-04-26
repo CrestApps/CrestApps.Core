@@ -27,11 +27,11 @@ public static class ServiceCollectionExtensions
 
         services.TryAddKeyedScoped<IVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchVectorSearchService(sp.GetRequiredService<IAzureAISearchClientFactory>().CreateSearchIndexClient(), sp.GetRequiredService<ILogger<AzureAISearchVectorSearchService>>()));
 
-return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
-        {
-            descriptor.DisplayName = "AI Documents";
-            descriptor.Description = "Create an Azure AI Search index for uploaded and embedded AI document chunks.";
-        }).AddCoreAIDocumentIndexProfileHandler();
+        return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
+                {
+                    descriptor.DisplayName = "AI Documents";
+                    descriptor.Description = "Create an Azure AI Search index for uploaded and embedded AI document chunks.";
+                }).AddCoreAIDocumentIndexProfileHandler();
     }
 
     /// <summary>
@@ -42,11 +42,11 @@ return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descri
     {
         ArgumentNullException.ThrowIfNull(services);
 
-return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
-        {
-            descriptor.DisplayName = "Data Source";
-            descriptor.Description = "Create an Azure AI Search index for AI knowledge base data source documents.";
-        }).AddCoreAIDataSourceRag().AddCoreAIDataSourceIndexProfileHandler();
+        return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
+                {
+                    descriptor.DisplayName = "Data Source";
+                    descriptor.Description = "Create an Azure AI Search index for AI knowledge base data source documents.";
+                }).AddCoreAIDataSourceRag().AddCoreAIDataSourceIndexProfileHandler();
     }
 
     /// <summary>
@@ -59,11 +59,11 @@ return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descrip
 
         services.TryAddKeyedScoped<IMemoryVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchMemoryVectorSearchService(sp.GetRequiredService<IAzureAISearchClientFactory>().CreateSearchIndexClient(), sp.GetRequiredService<ILogger<AzureAISearchMemoryVectorSearchService>>()));
 
-return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
-        {
-            descriptor.DisplayName = "AI Memory";
-            descriptor.Description = "Create an Azure AI Search index for user and system memory records.";
-        }).AddCoreAIMemoryIndexProfileHandler();
+        return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
+                {
+                    descriptor.DisplayName = "AI Memory";
+                    descriptor.Description = "Create an Azure AI Search index for user and system memory records.";
+                }).AddCoreAIMemoryIndexProfileHandler();
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descripto
 
         builder.Services.AddCoreAzureAISearchAIDocumentSource();
 
-return builder;
+        return builder;
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ return builder;
 
         builder.Services.AddCoreAzureAISearchAIDataSource();
 
-return builder;
+        return builder;
     }
 
     /// <summary>
@@ -119,6 +119,6 @@ return builder;
 
         builder.Services.AddCoreAzureAISearchAIMemorySource();
 
-return builder;
+        return builder;
     }
 }

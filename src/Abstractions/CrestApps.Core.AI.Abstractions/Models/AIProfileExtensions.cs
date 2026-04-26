@@ -53,12 +53,12 @@ public static class AIProfileExtensions
         {
             settings = null;
 
-return false;
+            return false;
         }
 
         settings = node.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions);
 
-return true;
+        return true;
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ return true;
 
         profile.Settings[typeof(T).Name] = JsonExtensions.FromObject(settingsToMerge, jsonSerializerOptions ?? _jsonOptions);
 
-return profile;
+        return profile;
     }
 
     /// <summary>
@@ -99,6 +99,6 @@ return profile;
 
         profile.Settings[typeof(T).Name] = jObject;
 
-return profile;
+        return profile;
     }
 }

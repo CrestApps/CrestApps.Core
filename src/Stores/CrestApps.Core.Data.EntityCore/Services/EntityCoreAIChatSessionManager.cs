@@ -54,7 +54,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-return FindByIdAsync(id, cancellationToken);
+        return FindByIdAsync(id, cancellationToken);
     }
 
     /// <summary>
@@ -76,7 +76,7 @@ return FindByIdAsync(id, cancellationToken);
         var total = await query.CountAsync(cancellationToken);
         var records = await query.OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.LastActivityUtc).Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
 
-return new AIChatSessionResult
+        return new AIChatSessionResult
         {
             Count = total,
             Sessions = records.Select(s => new AIChatSessionEntry { SessionId = s.SessionId, ProfileId = s.ProfileId, Title = s.Title, UserId = s.UserId, ClientId = s.ClientId, Status = s.Status, CreatedUtc = s.CreatedUtc, LastActivityUtc = s.LastActivityUtc, }),
@@ -193,7 +193,7 @@ return new AIChatSessionResult
 
         _dbContext.AIChatSessionRecords.Remove(record);
 
-return true;
+        return true;
     }
 
     /// <summary>
@@ -225,7 +225,7 @@ return true;
 
         _dbContext.AIChatSessionRecords.RemoveRange(records);
 
-return records.Count;
+        return records.Count;
     }
 
     private static AIChatSession Materialize(AIChatSessionRecord record)

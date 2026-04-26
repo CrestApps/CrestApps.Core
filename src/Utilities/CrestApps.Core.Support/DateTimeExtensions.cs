@@ -55,7 +55,7 @@ public static class DateTimeExtensions
     {
         var start = dateTime.StartOfMonth();
 
-return start.AddMonths(1).AddSeconds(-1);
+        return start.AddMonths(1).AddSeconds(-1);
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ return start.AddMonths(1).AddSeconds(-1);
     {
         var diff = (7 + (dateTime.DayOfWeek - startOfWeek)) % 7;
 
-return dateTime.AddDays(-1 * diff).Date;
+        return dateTime.AddDays(-1 * diff).Date;
     }
 
     /// <summary>
@@ -79,6 +79,6 @@ return dateTime.AddDays(-1 * diff).Date;
     {
         var diff = (7 - (dateTime.DayOfWeek - startOfWeek)) % 7;
 
-return dateTime.AddDays(1 * diff).Date;
+        return dateTime.AddDays(1 * diff).Date;
     }
 }

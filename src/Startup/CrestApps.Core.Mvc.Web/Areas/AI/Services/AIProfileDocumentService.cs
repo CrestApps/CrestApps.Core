@@ -180,7 +180,7 @@ public sealed class AIProfileDocumentService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-return RemoveDocumentsAsync(profile, documentIds, cancellationToken);
+        return RemoveDocumentsAsync(profile, documentIds, cancellationToken);
     }
 
     private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIProfile profile)
