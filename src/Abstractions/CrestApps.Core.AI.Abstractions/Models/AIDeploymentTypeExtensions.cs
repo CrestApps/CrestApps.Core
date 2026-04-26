@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Extension methods for the <see cref="AIDeploymentType"/> flags enum.
+/// </summary>
 public static class AIDeploymentTypeExtensions
 {
     private static readonly AIDeploymentType _allSupportedTypes = Enum.GetValues<AIDeploymentType>().Where(type => type != AIDeploymentType.None).Aggregate(AIDeploymentType.None, static (current, type) => current | type);

@@ -5,6 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.AI.Documents.OpenXml;
 
+/// <summary>
+/// Provides extension methods for open Xml Service Collection.
+/// </summary>
 public static class OpenXmlServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIOpenXmlDocumentProcessing(this IServiceCollection services)

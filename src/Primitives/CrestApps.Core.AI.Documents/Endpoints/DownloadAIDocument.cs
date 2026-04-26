@@ -10,6 +10,9 @@ using Microsoft.AspNetCore.Routing;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Provides functionality for download AI Document.
+/// </summary>
 public static class DownloadAIDocument
 {
     public const string DefaultRouteName = "DownloadAIDocument";

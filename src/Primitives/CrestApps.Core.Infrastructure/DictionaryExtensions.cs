@@ -2,6 +2,9 @@ using System.Text.Json;
 
 namespace CrestApps.Core.Infrastructure;
 
+/// <summary>
+/// Provides extension methods for dictionary.
+/// </summary>
 public static class DictionaryExtensions
 {
     public static string GetApiKey(this IDictionary<string, object> entry, bool throwException = true)

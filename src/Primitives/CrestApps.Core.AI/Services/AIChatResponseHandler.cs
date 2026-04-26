@@ -17,6 +17,9 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
     /// </summary>
     public const string HandlerName = ChatResponseHandlerNames.AI;
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     /// <inheritdoc />
     public string Name => HandlerName;
 

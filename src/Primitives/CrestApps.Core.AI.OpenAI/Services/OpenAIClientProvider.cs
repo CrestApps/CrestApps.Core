@@ -10,6 +10,9 @@ using OpenAI;
 
 namespace CrestApps.Core.AI.OpenAI.Services;
 
+/// <summary>
+/// Represents the open AI Client Provider.
+/// </summary>
 public sealed class OpenAIClientProvider : AIClientProviderBase
 {
     private static readonly ConcurrentDictionary<string, OpenAIClient> _clientCache = new(StringComparer.Ordinal);

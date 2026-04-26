@@ -3,6 +3,9 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for AI Completion Usage Record Factory.
+/// </summary>
 public static class AICompletionUsageRecordFactory
 {
     public static AICompletionUsageRecord Create(AICompletionContext completionContext, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)

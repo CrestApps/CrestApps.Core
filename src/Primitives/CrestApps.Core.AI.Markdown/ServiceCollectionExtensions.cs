@@ -5,6 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.AI.Markdown;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIMarkdown(this IServiceCollection services)

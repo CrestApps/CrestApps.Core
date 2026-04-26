@@ -7,6 +7,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreIndexingServices(this IServiceCollection services)

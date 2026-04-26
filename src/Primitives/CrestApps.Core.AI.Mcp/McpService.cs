@@ -4,6 +4,9 @@ using ModelContextProtocol.Client;
 
 namespace CrestApps.Core.AI.Mcp;
 
+/// <summary>
+/// Represents the MCP Service.
+/// </summary>
 public sealed class McpService
 {
     private readonly IEnumerable<IMcpClientTransportProvider> _providers;

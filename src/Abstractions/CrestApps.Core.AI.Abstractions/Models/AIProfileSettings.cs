@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// General settings stored on <see cref="AIProfile.Settings"/> to control UI and editing behavior for a profile.
+/// </summary>
 public sealed class AIProfileSettings
 {
     /// <summary>

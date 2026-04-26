@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for AI Provider Name Normalizer.
+/// </summary>
 public static class AIProviderNameNormalizer
 {
     private const string _azureOpenAIClientName = "Azure";

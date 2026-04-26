@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Documents;
 
+/// <summary>
+/// Provides functionality for document File Storage Path.
+/// </summary>
 public static class DocumentFileStoragePath
 {
     public static (string StoredFileName, string StoragePath) Create(string referenceType, string referenceId, string fileName)

@@ -12,6 +12,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Azure.AISearch;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services, IConfigurationSection configuration)

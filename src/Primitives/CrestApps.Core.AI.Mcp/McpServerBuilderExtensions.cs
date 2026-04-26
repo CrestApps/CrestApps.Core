@@ -10,6 +10,9 @@ using ModelContextProtocol.Server;
 
 namespace CrestApps.Core.AI.Mcp;
 
+/// <summary>
+/// Provides extension methods for MCP Server Builder.
+/// </summary>
 public static class McpServerBuilderExtensions
 {
     /// <summary>

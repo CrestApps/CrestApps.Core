@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Represents the prompt Template Metadata.
+/// </summary>
 public sealed class PromptTemplateMetadata
 {
     /// <summary>

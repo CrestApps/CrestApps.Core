@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Chat.Services;
 
+/// <summary>
+/// Represents the data Extraction Service.
+/// </summary>
 public sealed class DataExtractionService
 {
     private readonly IAIClientFactory _clientFactory;

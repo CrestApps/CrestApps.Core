@@ -3,6 +3,9 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for search Index Profile Embedding Metadata Accessor.
+/// </summary>
 public static class SearchIndexProfileEmbeddingMetadataAccessor
 {
     private const string ChatInteractionMetadataKey = "ChatInteractionIndexProfileMetadata";

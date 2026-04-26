@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Tools;
 
+/// <summary>
+/// Represents the save User Memory Tool.
+/// </summary>
 public sealed partial class SaveUserMemoryTool : AIFunction
 {
     public const string TheName = "save_user_memory";
@@ -40,12 +43,24 @@ public sealed partial class SaveUserMemoryTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Creates or updates a durable memory for the current authenticated user, such as a preference, project, recurring topic, interest, or other reusable background detail.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } =
         new Dictionary<string, object>()
         {

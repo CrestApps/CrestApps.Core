@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Metadata about a document that has been uploaded and attached to a chat session.
+/// </summary>
 public sealed class ChatDocumentInfo
 {
     /// <summary>

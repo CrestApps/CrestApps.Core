@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Tools;
 
+/// <summary>
+/// Represents the search User Memories Tool.
+/// </summary>
 public sealed class SearchUserMemoriesTool : AIFunction
 {
     public const string TheName = "search_user_memories";
@@ -32,12 +35,24 @@ public sealed class SearchUserMemoriesTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Searches the current authenticated user's private memories for relevant preferences, projects, recurring topics, interests, and other durable details.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } =
         new Dictionary<string, object>()
         {

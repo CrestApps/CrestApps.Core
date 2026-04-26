@@ -4,6 +4,9 @@ using CrestApps.Core.AI.Mcp.Models;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the default MCP Metadata Prompt Generator.
+/// </summary>
 public sealed class DefaultMcpMetadataPromptGenerator : IMcpMetadataPromptGenerator
 {
     public string Generate(IReadOnlyList<McpServerCapabilities> capabilities)

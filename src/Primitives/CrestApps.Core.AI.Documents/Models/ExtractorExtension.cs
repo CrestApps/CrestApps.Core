@@ -1,8 +1,17 @@
 namespace CrestApps.Core.AI.Documents.Models;
 
+/// <summary>
+/// Represents the extractor Extension.
+/// </summary>
 public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquatable<string>
 {
+    /// <summary>
+    /// Gets the extension.
+    /// </summary>
     public string Extension { get; }
+    /// <summary>
+    /// Gets the embeddable.
+    /// </summary>
     public bool Embeddable { get; }
 
     public ExtractorExtension(

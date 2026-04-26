@@ -2,6 +2,9 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Handlers;
 
+/// <summary>
+/// Represents the AI Provider Connection Handler Base.
+/// </summary>
 public abstract class AIProviderConnectionHandlerBase : IAIProviderConnectionHandler
 {
     public virtual void Exporting(ExportingAIProviderConnectionContext context)

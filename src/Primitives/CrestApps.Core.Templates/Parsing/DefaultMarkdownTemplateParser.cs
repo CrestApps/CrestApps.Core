@@ -24,6 +24,9 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
     private const string FrontMatterDelimiter = "---";
     private const string JsonFenceOpen = "```json";
     private const string FenceClose = "```";
+    /// <summary>
+    /// Gets the supported Extensions.
+    /// </summary>
     /// <inheritdoc />
     public IReadOnlyList<string> SupportedExtensions { get; } = [".md"];
 

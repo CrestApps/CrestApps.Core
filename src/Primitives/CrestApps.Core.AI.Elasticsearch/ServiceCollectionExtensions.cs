@@ -12,6 +12,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Elasticsearch;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreElasticsearchAIDocumentSource(this IServiceCollection services)

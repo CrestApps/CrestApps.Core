@@ -3,6 +3,9 @@ using CrestApps.Core.Services;
 
 namespace CrestApps.Core.Handlers;
 
+/// <summary>
+/// Represents the catalog Entry Handler Base.
+/// </summary>
 public abstract class CatalogEntryHandlerBase<T> : ICatalogEntryHandler<T>
 {
     public virtual Task DeletedAsync(DeletedContext<T> context, CancellationToken cancellationToken = default)

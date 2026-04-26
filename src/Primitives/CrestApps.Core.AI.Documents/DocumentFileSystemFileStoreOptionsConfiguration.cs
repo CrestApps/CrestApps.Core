@@ -3,6 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents;
 
+/// <summary>
+/// Represents the document File System File Store Options Configuration.
+/// </summary>
 public sealed class DocumentFileSystemFileStoreOptionsConfiguration : IConfigureOptions<DocumentFileSystemFileStoreOptions>
 {
     private readonly IHostEnvironment _env;

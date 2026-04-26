@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Indexing;
 
+/// <summary>
+/// Represents the AI Document Search Index Profile Handler.
+/// </summary>
 public sealed class AIDocumentSearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
     public AIDocumentSearchIndexProfileHandler(

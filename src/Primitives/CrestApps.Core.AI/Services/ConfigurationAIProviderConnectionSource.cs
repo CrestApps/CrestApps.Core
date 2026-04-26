@@ -32,6 +32,9 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the order.
+    /// </summary>
     public int Order => 100;
 
     public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries, CancellationToken cancellationToken = default)

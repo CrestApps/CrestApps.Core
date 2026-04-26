@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the search Index Profile Provisioning Service.
+/// </summary>
 public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileProvisioningService
 {
     private readonly ISearchIndexProfileManager _indexProfileManager;

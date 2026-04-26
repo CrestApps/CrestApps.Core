@@ -62,6 +62,9 @@ public sealed class CopilotOrchestrator : IOrchestrator
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public string Name => OrchestratorName;
 
     public async IAsyncEnumerable<ChatResponseUpdate> ExecuteStreamingAsync(OrchestrationContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)

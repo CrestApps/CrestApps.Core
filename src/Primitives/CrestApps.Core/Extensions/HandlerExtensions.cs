@@ -2,6 +2,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Extensions;
 
+/// <summary>
+/// Provides extension methods for handler.
+/// </summary>
 public static class HandlerExtensions
 {
     /// <summary>

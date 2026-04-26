@@ -17,6 +17,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Provides functionality for upload Chat Session Document.
+/// </summary>
 public static class UploadChatSessionDocument
 {
     /// <summary>

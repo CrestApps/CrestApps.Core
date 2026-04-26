@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Documents.Models;
 
+/// <summary>
+/// Represents the interaction Document Options.
+/// </summary>
 public sealed class InteractionDocumentOptions
 {
     /// <summary>

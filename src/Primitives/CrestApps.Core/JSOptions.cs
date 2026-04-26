@@ -2,6 +2,9 @@ using System.Text.Json;
 
 namespace CrestApps.Core;
 
+/// <summary>
+/// Provides functionality for JS Options.
+/// </summary>
 public static class JSOptions
 {
     public static readonly JsonSerializerOptions Default = CreateDefault();

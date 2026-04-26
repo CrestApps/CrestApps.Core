@@ -6,6 +6,9 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Mcp.Sftp;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAISftpMcpResources(this IServiceCollection services, Action<McpResourceTypeEntry> configure = null)

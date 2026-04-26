@@ -3,6 +3,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Services;
 
+/// <summary>
+/// Represents the named Catalog Manager.
+/// </summary>
 public class NamedCatalogManager<T> : CatalogManager<T>, INamedCatalogManager<T>
     where T : CatalogItem, INameAwareModel, new()
 {

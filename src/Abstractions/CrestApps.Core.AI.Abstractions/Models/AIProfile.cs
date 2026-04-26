@@ -5,6 +5,10 @@ using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Represents an AI profile that encapsulates chat, agent, or embedding configuration
+/// used to drive AI completion behavior across sessions and interactions.
+/// </summary>
 public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, ICloneable<AIProfile>
 {
     /// <summary>
@@ -47,6 +51,9 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
     /// </summary>
     public string UtilityDeploymentName { get; set; }
 
+    /// <summary>
+    /// Gets or sets the legacy chat deployment identifier that maps to <see cref="ChatDeploymentName"/>.
+    /// </summary>
     [JsonIgnore]
     [Obsolete("Use ChatDeploymentName instead. Retained for backward compatibility.")]
     public string ChatDeploymentId
@@ -55,6 +62,9 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
         set => ChatDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the legacy utility deployment identifier that maps to <see cref="UtilityDeploymentName"/>.
+    /// </summary>
     [JsonIgnore]
     [Obsolete("Use UtilityDeploymentName instead. Retained for backward compatibility.")]
     public string UtilityDeploymentId
@@ -63,6 +73,9 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
         set => UtilityDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the legacy deployment identifier that maps to <see cref="ChatDeploymentName"/>.
+    /// </summary>
     [Obsolete("Use ChatDeploymentName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string DeploymentId

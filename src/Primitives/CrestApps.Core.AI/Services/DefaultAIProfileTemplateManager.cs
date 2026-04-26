@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Profile Template Manager.
+/// </summary>
 public sealed class DefaultAIProfileTemplateManager : NamedSourceCatalogManager<AIProfileTemplate>, IAIProfileTemplateManager
 {
     private readonly IEnumerable<IAIProfileTemplateProvider> _providers;

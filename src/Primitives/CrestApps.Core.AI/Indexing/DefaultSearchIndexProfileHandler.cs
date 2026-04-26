@@ -4,6 +4,9 @@ using CrestApps.Core.Models;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the default Search Index Profile Handler.
+/// </summary>
 public sealed class DefaultSearchIndexProfileHandler : IndexProfileHandlerBase
 {
     public override ValueTask ValidateAsync(

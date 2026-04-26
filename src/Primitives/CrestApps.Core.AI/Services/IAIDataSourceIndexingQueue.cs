@@ -2,6 +2,9 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Defines the contract for IAI Data Source Indexing Queue.
+/// </summary>
 public interface IAIDataSourceIndexingQueue
 {
     /// <summary>

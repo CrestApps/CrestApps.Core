@@ -3,6 +3,9 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Handlers;
 
+/// <summary>
+/// Represents the AI Completion Handler Base.
+/// </summary>
 public abstract class AICompletionHandlerBase : IAICompletionHandler
 {
     public virtual Task ReceivedMessageAsync(ReceivedMessageContext context, CancellationToken cancellationToken = default)

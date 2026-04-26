@@ -16,6 +16,9 @@ public abstract class McpResourceTypeHandlerBase : IMcpResourceTypeHandler
         Type = type;
     }
 
+    /// <summary>
+    /// Gets the type.
+    /// </summary>
     /// <inheritdoc/>
     public string Type { get; }
 

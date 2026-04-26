@@ -6,6 +6,9 @@ using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the AI Client Provider Base.
+/// </summary>
 public abstract class AIClientProviderBase : IAIClientProvider
 {
     private readonly IServiceProvider _serviceProvider;

@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default Speech Voice Resolver.
+/// </summary>
 public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
 {
     private readonly IEnumerable<IAIClientProvider> _clientProviders;

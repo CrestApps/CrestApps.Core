@@ -5,6 +5,9 @@ using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for embedding Deployment Resolver.
+/// </summary>
 public static class EmbeddingDeploymentResolver
 {
     public static async Task<AIDeployment> FindEmbeddingDeploymentAsync(

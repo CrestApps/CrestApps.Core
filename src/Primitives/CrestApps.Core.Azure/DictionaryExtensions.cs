@@ -3,6 +3,9 @@ using CrestApps.Core.Azure.Models;
 
 namespace CrestApps.Core.Azure;
 
+/// <summary>
+/// Provides extension methods for dictionary.
+/// </summary>
 public static class DictionaryExtensions
 {
     public static AzureAuthenticationType GetAzureAuthenticationType(this IDictionary<string, object> entry)

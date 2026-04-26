@@ -11,6 +11,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the AI Memory Search Service.
+/// </summary>
 public sealed class AIMemorySearchService : IAIMemorySearchService
 {
     private readonly IServiceProvider _serviceProvider;

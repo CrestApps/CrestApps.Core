@@ -4,6 +4,9 @@ using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the AI Completion Service Base.
+/// </summary>
 public abstract class AICompletionServiceBase
 {
     protected readonly ITemplateService AITemplateService;

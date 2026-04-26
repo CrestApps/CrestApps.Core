@@ -5,6 +5,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CrestApps.Core;
 
+/// <summary>
+/// Extension methods on <see cref="Microsoft.Extensions.DependencyInjection.IServiceCollection"/>
+/// for registering catalog implementations with the appropriate interface bindings.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddDocumentCatalog<TModel, T>(this IServiceCollection services)

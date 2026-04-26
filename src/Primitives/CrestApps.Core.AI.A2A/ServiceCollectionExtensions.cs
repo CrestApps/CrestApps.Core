@@ -10,6 +10,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CrestApps.Core.AI.A2A;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIA2AClient(this IServiceCollection services)

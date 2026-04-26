@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.AzureAIInference;
 
+/// <summary>
+/// Provides functionality for azure AI Inference Constants.
+/// </summary>
 public static class AzureAIInferenceConstants
 {
     public const string ClientName = "AzureAIInference";
@@ -11,6 +14,9 @@ public static class AzureAIInferenceConstants
 /// </summary>
 public readonly struct AzureAIInferenceClientMarker : IAIClientMarker
 {
+    /// <summary>
+    /// Gets the client Name.
+    /// </summary>
     /// <inheritdoc />
     public static string ClientName => AzureAIInferenceConstants.ClientName;
 }

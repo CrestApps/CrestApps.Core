@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Holds the extracted state for a single data-extraction field across the lifetime of a session.
+/// </summary>
 public sealed class ExtractedFieldState
 {
     /// <summary>

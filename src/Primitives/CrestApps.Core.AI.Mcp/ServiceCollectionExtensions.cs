@@ -12,6 +12,9 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Mcp;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoreAIMcpServices(this IServiceCollection services)

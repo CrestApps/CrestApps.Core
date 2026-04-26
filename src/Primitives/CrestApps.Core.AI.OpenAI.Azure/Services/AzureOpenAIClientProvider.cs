@@ -8,6 +8,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
+/// <summary>
+/// Represents the azure Open AI Client Provider.
+/// </summary>
 public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 {
     private readonly ILoggerFactory _loggerFactory;

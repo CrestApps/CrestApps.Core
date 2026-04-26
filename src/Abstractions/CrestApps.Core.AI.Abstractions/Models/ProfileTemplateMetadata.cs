@@ -32,6 +32,9 @@ public sealed class ProfileTemplateMetadata
     /// </summary>
     public string UtilityDeploymentName { get; set; }
 
+    /// <summary>
+    /// Gets or sets the legacy chat deployment identifier that maps to <see cref="ChatDeploymentName"/>.
+    /// </summary>
     [JsonIgnore]
     [Obsolete("Use ChatDeploymentName instead. Retained for backward compatibility.")]
     public string ChatDeploymentId
@@ -40,6 +43,9 @@ public sealed class ProfileTemplateMetadata
         set => ChatDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the legacy utility deployment identifier that maps to <see cref="UtilityDeploymentName"/>.
+    /// </summary>
     [JsonIgnore]
     [Obsolete("Use UtilityDeploymentName instead. Retained for backward compatibility.")]
     public string UtilityDeploymentId

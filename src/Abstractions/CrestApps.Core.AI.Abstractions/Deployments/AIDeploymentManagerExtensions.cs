@@ -2,6 +2,9 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Deployments;
 
+/// <summary>
+/// Extension methods for <see cref="IAIDeploymentManager"/> that provide convenience deployment resolution helpers.
+/// </summary>
 public static class AIDeploymentManagerExtensions
 {
     public static async ValueTask<AIDeployment> ResolveUtilityOrDefaultAsync(

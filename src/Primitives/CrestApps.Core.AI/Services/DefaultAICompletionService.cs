@@ -9,6 +9,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Completion Service.
+/// </summary>
 public sealed class DefaultAICompletionService : IAICompletionService
 {
     private readonly IServiceProvider _serviceProvider;

@@ -15,8 +15,14 @@ public sealed class AIDataSourceOptions
 
     public const int MaxTopNDocuments = 20;
 
+    /// <summary>
+    /// Gets or sets the default Strictness.
+    /// </summary>
     public int DefaultStrictness { get; set; } = 3;
 
+    /// <summary>
+    /// Gets or sets the default Top N Documents.
+    /// </summary>
     public int DefaultTopNDocuments { get; set; } = 5;
 
     public void AddFieldMapping(string providerName, string indexProfileType, Action<DataSourceFieldMapping> configure)

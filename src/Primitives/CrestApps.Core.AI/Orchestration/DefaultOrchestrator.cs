@@ -59,6 +59,9 @@ public sealed class DefaultOrchestrator : IOrchestrator
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public string Name => OrchestratorName;
 
     public async IAsyncEnumerable<ChatResponseUpdate> ExecuteStreamingAsync(

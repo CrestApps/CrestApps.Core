@@ -4,6 +4,11 @@ using CrestApps.Core.Services;
 
 namespace CrestApps.Core.Infrastructure.Indexing;
 
+/// <summary>
+/// Extends <see cref="ICatalogEntryHandler{T}"/> with indexing-specific lifecycle operations
+/// for <see cref="SearchIndexProfile"/> entries, including field generation, synchronization,
+/// reset, and delete preparation.
+/// </summary>
 public interface IIndexProfileHandler : ICatalogEntryHandler<SearchIndexProfile>
 {
     /// <summary>

@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Services;
 
+/// <summary>
+/// Represents the catalog Manager.
+/// </summary>
 public class CatalogManager<T> : ICatalogManager<T>
     where T : CatalogItem, new()
 {

@@ -9,6 +9,9 @@ using Renci.SshNet;
 
 namespace CrestApps.Core.AI.Mcp.Sftp.Handlers;
 
+/// <summary>
+/// Represents the SFTP Resource Type Handler.
+/// </summary>
 public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
 {
     private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();

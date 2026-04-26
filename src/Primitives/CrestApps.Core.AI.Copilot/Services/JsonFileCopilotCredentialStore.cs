@@ -3,6 +3,9 @@ using Microsoft.Extensions.Hosting;
 
 namespace CrestApps.Core.AI.Copilot.Services;
 
+/// <summary>
+/// Represents the json File Copilot Credential Store.
+/// </summary>
 public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()

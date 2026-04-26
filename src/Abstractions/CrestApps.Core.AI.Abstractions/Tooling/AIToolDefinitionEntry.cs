@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Tooling;
 
+/// <summary>
+/// Describes a registered AI tool definition, including its CLR type, display metadata, and runtime attributes.
+/// </summary>
 public sealed class AIToolDefinitionEntry
 {
     public AIToolDefinitionEntry(Type type)
@@ -9,14 +12,29 @@ public sealed class AIToolDefinitionEntry
         ToolType = type;
     }
 
+    /// <summary>
+    /// Gets the CLR type of the AI tool.
+    /// </summary>
     public Type ToolType { get; }
 
+    /// <summary>
+    /// Gets or sets the display title for this tool.
+    /// </summary>
     public string Title { get; set; }
 
+    /// <summary>
+    /// Gets or sets a description of the tool's capabilities.
+    /// </summary>
     public string Description { get; set; }
 
+    /// <summary>
+    /// Gets or sets the category for grouping this tool in the UI.
+    /// </summary>
     public string Category { get; set; }
 
+    /// <summary>
+    /// Gets the registered technical name of this tool.
+    /// </summary>
     public string Name { get; internal set; }
 
     /// <summary>

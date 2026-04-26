@@ -2,6 +2,9 @@ using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.AI.Documents;
 
+/// <summary>
+/// Represents the file System File Store.
+/// </summary>
 public sealed class FileSystemFileStore : IDocumentFileStore
 {
     private static readonly Regex _safePathSegmentExpression = new("^[a-zA-Z0-9._-]+$", RegexOptions.Compiled);

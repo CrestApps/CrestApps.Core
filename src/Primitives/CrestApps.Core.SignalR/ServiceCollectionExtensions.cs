@@ -6,6 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.SignalR;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>

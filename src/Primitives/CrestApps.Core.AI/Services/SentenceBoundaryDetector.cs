@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for sentence Boundary Detector.
+/// </summary>
 public static class SentenceBoundaryDetector
 {
     private static readonly HashSet<string> _abbreviations = new(StringComparer.OrdinalIgnoreCase)

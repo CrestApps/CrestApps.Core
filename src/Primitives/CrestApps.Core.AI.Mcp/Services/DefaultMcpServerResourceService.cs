@@ -7,6 +7,9 @@ using ModelContextProtocol.Server;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the default MCP Server Resource Service.
+/// </summary>
 public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
 {
     private readonly ISourceCatalog<McpResource> _catalog;

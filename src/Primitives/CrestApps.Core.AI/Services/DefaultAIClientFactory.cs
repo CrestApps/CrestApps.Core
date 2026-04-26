@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Client Factory.
+/// </summary>
 public sealed class DefaultAIClientFactory : IAIClientFactory
 {
     private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;

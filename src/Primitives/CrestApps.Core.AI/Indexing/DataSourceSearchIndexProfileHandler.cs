@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the data Source Search Index Profile Handler.
+/// </summary>
 public sealed class DataSourceSearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
     public DataSourceSearchIndexProfileHandler(

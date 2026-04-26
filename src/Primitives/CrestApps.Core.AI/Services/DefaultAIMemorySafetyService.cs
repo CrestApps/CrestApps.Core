@@ -3,6 +3,9 @@ using CrestApps.Core.AI.Memory;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Memory Safety Service.
+/// </summary>
 public sealed partial class DefaultAIMemorySafetyService : IAIMemorySafetyService
 {
     public bool TryValidate(string name, string description, string content, out string errorMessage)

@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the AI Deployment Manager Base.
+/// </summary>
 public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDeployment>, IAIDeploymentManager
 {
     public AIDeploymentManagerBase(

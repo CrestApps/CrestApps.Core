@@ -3,6 +3,9 @@ using ModelContextProtocol.Client;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the stdio Client Transport Provider.
+/// </summary>
 public sealed class StdioClientTransportProvider : IMcpClientTransportProvider
 {
     public bool CanHandle(McpConnection connection)

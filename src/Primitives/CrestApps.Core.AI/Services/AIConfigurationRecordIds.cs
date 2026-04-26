@@ -3,6 +3,9 @@ using System.Text;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for AI Configuration Record I Ds.
+/// </summary>
 public static class AIConfigurationRecordIds
 {
     private const string _connectionPrefix = "cfgc";

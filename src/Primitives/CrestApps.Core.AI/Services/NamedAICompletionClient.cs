@@ -12,6 +12,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the named AI Completion Client.
+/// </summary>
 public abstract class NamedAICompletionClient : AICompletionServiceBase, IAICompletionClient
 {
     public const string DefaultLogCategory = "AICompletionService";
@@ -49,6 +52,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         _handlers = handlers;
     }
 
+    /// <summary>
+    /// Gets the client Name.
+    /// </summary>
     public string ClientName { get; }
 
     protected virtual ValueTask ConfigureChatOptionsAsync(CompletionServiceConfigureContext configureContext)

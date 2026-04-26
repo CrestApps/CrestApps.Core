@@ -2,6 +2,9 @@ using System.Globalization;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for speech Language Helper.
+/// </summary>
 public static class SpeechLanguageHelper
 {
     private static readonly HashSet<string> _knownCultureNames = CultureInfo.GetCultures(CultureTypes.AllCultures)

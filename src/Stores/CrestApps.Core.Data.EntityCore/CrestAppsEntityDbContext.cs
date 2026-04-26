@@ -4,6 +4,10 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Data.EntityCore;
 
+/// <summary>
+/// Entity Framework Core database context for CrestApps.Core, managing the
+/// <see cref="CatalogRecord"/> and <see cref="AIChatSessionRecord"/> tables.
+/// </summary>
 public sealed class CrestAppsEntityDbContext : DbContext
 {
     private readonly EntityCoreDataStoreOptions _options;
@@ -16,8 +20,14 @@ public sealed class CrestAppsEntityDbContext : DbContext
         _options = storeOptions.Value;
     }
 
+    /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="CatalogRecord"/> rows.
+    /// </summary>
     public DbSet<CatalogRecord> CatalogRecords => Set<CatalogRecord>();
 
+    /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AIChatSessionRecord"/> rows.
+    /// </summary>
     public DbSet<AIChatSessionRecord> AIChatSessionRecords => Set<AIChatSessionRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the embedding Search Index Profile Handler Base.
+/// </summary>
 public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandlerBase
 {
     private readonly string _type;

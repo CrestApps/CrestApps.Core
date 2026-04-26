@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
 
+/// <summary>
+/// Represents the data Source Chat Interaction Settings Handler.
+/// </summary>
 public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
     private readonly IServiceProvider _serviceProvider;

@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Tools;
 
+/// <summary>
+/// Represents the list User Memories Tool.
+/// </summary>
 public sealed class ListUserMemoriesTool : AIFunction
 {
     public const string TheName = "list_user_memories";
@@ -25,12 +28,24 @@ public sealed class ListUserMemoriesTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Lists the current authenticated user's private memories.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } =
         new Dictionary<string, object>()
         {

@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// UI and admin-menu settings stored on an <see cref="AIProfile"/> of type <see cref="AIProfileType.Chat"/>.
+/// </summary>
 public sealed class AIChatProfileSettings
 {
     /// <summary>

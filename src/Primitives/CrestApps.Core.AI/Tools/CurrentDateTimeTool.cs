@@ -32,10 +32,19 @@ public sealed class CurrentDateTimeTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Returns the current date and time, optionally in a specific timezone and format.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
     protected override ValueTask<object> InvokeCoreAsync(

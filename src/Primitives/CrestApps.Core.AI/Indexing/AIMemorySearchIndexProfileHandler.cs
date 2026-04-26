@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the AI Memory Search Index Profile Handler.
+/// </summary>
 public sealed class AIMemorySearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
     private const string _memoryIdFieldName = "memoryId";

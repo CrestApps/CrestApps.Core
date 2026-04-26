@@ -3,6 +3,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Services;
 
+/// <summary>
+/// Represents the named Source Catalog Manager.
+/// </summary>
 public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatalogManager<T>, ISourceCatalogManager<T>, INamedSourceCatalogManager<T>
     where T : CatalogItem, INameAwareModel, ISourceAwareModel, new()
 {

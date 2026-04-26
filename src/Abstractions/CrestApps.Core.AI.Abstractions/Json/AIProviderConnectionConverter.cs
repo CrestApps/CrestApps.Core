@@ -4,6 +4,10 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Json;
 
+/// <summary>
+/// A <see cref="JsonConverter{T}"/> for <see cref="AIProviderConnectionEntry"/> that
+/// serializes the entry as a flat key-value dictionary.
+/// </summary>
 public sealed class AIProviderConnectionConverter : JsonConverter<AIProviderConnectionEntry>
 {
     public override AIProviderConnectionEntry Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

@@ -3,6 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Tools Service.
+/// </summary>
 public sealed class DefaultAIToolsService : IAIToolsService
 {
     private readonly IServiceProvider _serviceProvider;

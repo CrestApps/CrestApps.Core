@@ -3,6 +3,9 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
 
+/// <summary>
+/// Represents the prompt Template Chat Interaction Settings Handler.
+/// </summary>
 public sealed class PromptTemplateChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
     public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)

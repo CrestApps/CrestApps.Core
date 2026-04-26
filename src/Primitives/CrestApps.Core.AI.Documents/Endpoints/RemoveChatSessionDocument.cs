@@ -10,6 +10,9 @@ using Microsoft.AspNetCore.Routing;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Provides functionality for remove Chat Session Document.
+/// </summary>
 public static class RemoveChatSessionDocument
 {
     /// <summary>

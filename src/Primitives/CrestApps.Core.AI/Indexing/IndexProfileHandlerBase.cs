@@ -5,6 +5,9 @@ using CrestApps.Core.Models;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the index Profile Handler Base.
+/// </summary>
 public abstract class IndexProfileHandlerBase : CatalogEntryHandlerBase<SearchIndexProfile>, IIndexProfileHandler
 {
     public virtual ValueTask ValidateAsync(SearchIndexProfile indexProfile, ValidationResultDetails result, CancellationToken cancellationToken = default)

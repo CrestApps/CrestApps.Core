@@ -1,7 +1,15 @@
 namespace CrestApps.Core.Infrastructure.Indexing;
 
+/// <summary>
+/// Options that hold the registered collection of <see cref="IndexProfileSourceDescriptor"/> entries.
+/// Register descriptors via <see cref="AddOrUpdate"/> during application startup to declare which
+/// providers support which profile types.
+/// </summary>
 public sealed class IndexProfileSourceOptions
 {
+    /// <summary>
+    /// Gets the list of registered index profile source descriptors.
+    /// </summary>
     public List<IndexProfileSourceDescriptor> Sources { get; } = [];
 
     public void AddOrUpdate(

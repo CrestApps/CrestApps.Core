@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.A2A;
 
+/// <summary>
+/// Provides functionality for A 2 A Constants.
+/// </summary>
 public static class A2AConstants
 {
     public const string DataProtectionPurpose = "A2AClientConnection";

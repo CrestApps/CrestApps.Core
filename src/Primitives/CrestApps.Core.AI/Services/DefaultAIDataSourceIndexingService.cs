@@ -12,6 +12,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Data Source Indexing Service.
+/// </summary>
 public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingService
 {
     private const int BatchSize = 250;

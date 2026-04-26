@@ -2,6 +2,10 @@ using CrestApps.Core.AI.ResponseHandling;
 
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Represents the full state of an AI chat session, including its configuration, document attachments,
+/// extracted data fields, and post-session processing results.
+/// </summary>
 public sealed class AIChatSession : ExtensibleEntity
 {
     /// <summary>

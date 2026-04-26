@@ -7,6 +7,9 @@ using OllamaSharp;
 
 namespace CrestApps.Core.AI.Ollama.Services;
 
+/// <summary>
+/// Represents the ollama AI Client Provider.
+/// </summary>
 public sealed class OllamaAIClientProvider : AIClientProviderBase
 {
     private static readonly ConcurrentDictionary<string, OllamaApiClient> _clientCache = new(StringComparer.Ordinal);

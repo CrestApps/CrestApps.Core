@@ -36,6 +36,9 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the order.
+    /// </summary>
     public int Order => 100;
 
     public ValueTask<IReadOnlyCollection<AIDeployment>> GetEntriesAsync(IReadOnlyCollection<AIDeployment> knownEntries, CancellationToken cancellationToken = default)

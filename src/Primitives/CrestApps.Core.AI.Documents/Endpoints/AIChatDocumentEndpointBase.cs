@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Represents the AI Chat Document Endpoint Base.
+/// </summary>
 public abstract class AIChatDocumentEndpointBase
 {
     private const long DefaultMaxFileSizeBytes = 100 * 1024 * 1024; // 100 MB

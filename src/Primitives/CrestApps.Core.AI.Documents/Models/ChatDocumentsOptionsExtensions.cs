@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Documents.Models;
 
+/// <summary>
+/// Provides extension methods for chat Documents Options.
+/// </summary>
 public static class ChatDocumentsOptionsExtensions
 {
     public static string GetAllowedFileExtensionsAcceptValue(this ChatDocumentsOptions options)

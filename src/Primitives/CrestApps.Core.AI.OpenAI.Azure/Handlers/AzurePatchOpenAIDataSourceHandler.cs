@@ -3,6 +3,9 @@ using OpenAI.Chat;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Handlers;
 
+/// <summary>
+/// Represents the azure Patch Open AI Data Source Handler.
+/// </summary>
 public sealed class AzurePatchOpenAIDataSourceHandler : IOpenAIChatOptionsConfiguration
 {
     public void Configure(CompletionServiceConfigureContext context, ChatCompletionOptions chatCompletionOptions)

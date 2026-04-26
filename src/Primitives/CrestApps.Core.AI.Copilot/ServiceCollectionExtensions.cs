@@ -10,6 +10,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Copilot;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>

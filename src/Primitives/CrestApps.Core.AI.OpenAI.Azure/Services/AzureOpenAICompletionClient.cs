@@ -19,6 +19,9 @@ using OpenAI.Chat;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
+/// <summary>
+/// Represents the azure Open AI Completion Client.
+/// </summary>
 public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICompletionClient
 {
     private readonly IServiceProvider _serviceProvider;
@@ -55,6 +58,9 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         _logger = loggerFactory.CreateLogger<AzureOpenAICompletionClient>();
     }
 
+    /// <summary>
+    /// Gets the client Name.
+    /// </summary>
     public string ClientName
     {
         get

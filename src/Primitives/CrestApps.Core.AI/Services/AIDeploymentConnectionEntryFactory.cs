@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for AI Deployment Connection Entry Factory.
+/// </summary>
 public static class AIDeploymentConnectionEntryFactory
 {
     private const string ConnectionProtectorName = "AIProviderConnection";

@@ -10,6 +10,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCrestAppsCore(this IServiceCollection services, Action<CrestAppsCoreBuilder> configure)

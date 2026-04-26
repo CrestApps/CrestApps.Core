@@ -6,6 +6,9 @@ using ModelContextProtocol.Server;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the default MCP Server Prompt Service.
+/// </summary>
 public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
 {
     private readonly INamedCatalog<McpPrompt> _catalog;

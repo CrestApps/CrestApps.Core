@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the search Index Profile Manager.
+/// </summary>
 public sealed class SearchIndexProfileManager : CatalogManager<SearchIndexProfile>, ISearchIndexProfileManager
 {
     private readonly ISearchIndexProfileStore _store;

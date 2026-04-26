@@ -1,25 +1,40 @@
 namespace CrestApps.Core.AI.Memory;
 
+/// <summary>
+/// Provides functionality for memory Constants.
+/// </summary>
 public static class MemoryConstants
 {
     public const string CollectionName = "AIMemory";
     public const string IndexingTaskType = "AIMemory";
 
+    /// <summary>
+    /// Provides functionality for feature.
+    /// </summary>
     public static class Feature
     {
         public const string Memory = "CrestApps.OrchardCore.AI.Memory";
     }
 
+    /// <summary>
+    /// Provides functionality for completion Context Keys.
+    /// </summary>
     public static class CompletionContextKeys
     {
         public const string UserId = "AIMemoryUserId";
     }
 
+    /// <summary>
+    /// Provides functionality for tool Purposes.
+    /// </summary>
     public static class ToolPurposes
     {
         public const string UserMemory = "user_memory";
     }
 
+    /// <summary>
+    /// Provides functionality for column Names.
+    /// </summary>
     public static class ColumnNames
     {
         public const string MemoryId = "memoryId";
@@ -31,6 +46,9 @@ public static class MemoryConstants
         public const string Embedding = "embedding";
     }
 
+    /// <summary>
+    /// Provides functionality for template I Ds.
+    /// </summary>
     public static class TemplateIds
     {
         public const string MemoryAvailability = "memory-availability";

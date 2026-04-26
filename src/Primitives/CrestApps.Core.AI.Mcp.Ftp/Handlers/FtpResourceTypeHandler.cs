@@ -9,6 +9,9 @@ using ModelContextProtocol.Protocol;
 
 namespace CrestApps.Core.AI.Mcp.Ftp.Handlers;
 
+/// <summary>
+/// Represents the FTP Resource Type Handler.
+/// </summary>
 public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
 {
     private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();

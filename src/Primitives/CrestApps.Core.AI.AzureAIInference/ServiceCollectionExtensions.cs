@@ -8,6 +8,9 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.AzureAIInference;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>

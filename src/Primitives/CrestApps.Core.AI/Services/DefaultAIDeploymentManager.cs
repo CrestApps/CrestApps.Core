@@ -6,6 +6,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Deployment Manager.
+/// </summary>
 public sealed class DefaultAIDeploymentManager : AIDeploymentManagerBase
 {
     private readonly IOptionsMonitor<DefaultAIDeploymentSettings> _deploymentSettings;

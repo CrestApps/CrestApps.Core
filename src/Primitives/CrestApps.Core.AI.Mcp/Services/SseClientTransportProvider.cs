@@ -4,6 +4,9 @@ using ModelContextProtocol.Client;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the sse Client Transport Provider.
+/// </summary>
 public sealed class SseClientTransportProvider : IMcpClientTransportProvider
 {
     private readonly IConnectionAuthHeaderBuilder _authHeaderBuilder;

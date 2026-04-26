@@ -8,6 +8,9 @@ namespace CrestApps.Core.Infrastructure;
 /// </summary>
 public static class DocumentIndexConstants
 {
+    /// <summary>
+    /// Provides functionality for column Names.
+    /// </summary>
     public static class ColumnNames
     {
         public const string ChunkId = "chunkId";
