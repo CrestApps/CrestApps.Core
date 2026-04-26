@@ -18,6 +18,12 @@ public sealed class AIProfileFileSystemTemplateProvider : IAIProfileTemplateProv
     private readonly IEnumerable<ITemplateParser> _parsers;
     private readonly ILogger<AIProfileFileSystemTemplateProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProfileFileSystemTemplateProvider"/> class.
+    /// </summary>
+    /// <param name="hostEnvironment">The host environment.</param>
+    /// <param name="parsers">The parsers.</param>
+    /// <param name="logger">The logger.</param>
     public AIProfileFileSystemTemplateProvider(
         IHostEnvironment hostEnvironment,
         IEnumerable<ITemplateParser> parsers,
@@ -28,6 +34,10 @@ public sealed class AIProfileFileSystemTemplateProvider : IAIProfileTemplateProv
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets templates.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
         var templates = new List<AIProfileTemplate>();

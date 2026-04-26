@@ -12,6 +12,7 @@ public static class JsonExtractor
     /// Extracts the first valid JSON object from text that may include markdown code
     /// fences, surrounding prose, or other non-JSON content.
     /// </summary>
+    /// <param name="text">The raw text that may contain a JSON object.</param>
     /// <remarks>
     /// The extraction proceeds through three strategies in order:
     /// <list type="number">
@@ -20,7 +21,6 @@ public static class JsonExtractor
     ///         correctly handles string escapes.</item>
     /// </list>
     /// </remarks>
-    /// <param name="text">The raw text that may contain a JSON object.</param>
     /// <returns>The extracted JSON string, or <see langword="null"/> if no valid JSON object was found.</returns>
     public static string ExtractJsonObject(string text)
     {

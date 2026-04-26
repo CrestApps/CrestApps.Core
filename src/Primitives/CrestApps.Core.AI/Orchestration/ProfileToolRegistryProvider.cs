@@ -15,11 +15,20 @@ internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
 {
     private readonly IOptions<AIToolDefinitionOptions> _toolDefinitions;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ProfileToolRegistryProvider"/> class.
+    /// </summary>
+    /// <param name="toolDefinitions">The tool definitions.</param>
     public ProfileToolRegistryProvider(IOptions<AIToolDefinitionOptions> toolDefinitions)
     {
         _toolDefinitions = toolDefinitions;
     }
 
+    /// <summary>
+    /// Gets tools.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<IReadOnlyList<ToolRegistryEntry>> GetToolsAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default)
@@ -41,7 +50,7 @@ internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
                 continue;
             }
 
-            // Skip system tools — they are provided by SystemToolRegistryProvider.
+            // Skip system tools - they are provided by SystemToolRegistryProvider.
             if (definition.IsSystemTool)
             {
                 continue;

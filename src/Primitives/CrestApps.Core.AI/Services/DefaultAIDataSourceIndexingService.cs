@@ -12,6 +12,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Data Source Indexing Service.
+/// </summary>
 public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingService
 {
     private const int BatchSize = 250;
@@ -24,8 +27,19 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAIDataSourceIndexingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIDataSourceIndexingService"/> class.
+    /// </summary>
+    /// <param name="dataSourceCatalog">The data source catalog.</param>
+    /// <param name="indexProfileManager">The index profile manager.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="textNormalizer">The text normalizer.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultAIDataSourceIndexingService(
         ICatalog<AIDataSource> dataSourceCatalog,
         ISearchIndexProfileManager indexProfileManager,
@@ -46,6 +60,10 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         _logger = logger;
     }
 
+    /// <summary>
+    /// Syncs all.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncAllAsync(CancellationToken cancellationToken = default)
     {
         var dataSources = await _dataSourceCatalog.GetAllAsync(cancellationToken);
@@ -67,6 +85,11 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         }
     }
 
+    /// <summary>
+    /// Syncs data source.
+    /// </summary>
+    /// <param name="dataSource">The data source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncDataSourceAsync(AIDataSource dataSource, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
@@ -83,11 +106,22 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: false, cancellationToken);
     }
 
+    /// <summary>
+    /// Syncs source documents.
+    /// </summary>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         await SyncSourceDocumentsAsync(null, documentIds, cancellationToken);
     }
 
+    /// <summary>
+    /// Syncs source documents.
+    /// </summary>
+    /// <param name="sourceIndexProfileName">The source index profile name.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         var ids = NormalizeDocumentIds(documentIds);
@@ -111,11 +145,22 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         }
     }
 
+    /// <summary>
+    /// Removes source documents.
+    /// </summary>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task RemoveSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         await RemoveSourceDocumentsAsync(null, documentIds, cancellationToken);
     }
 
+    /// <summary>
+    /// Removes source documents.
+    /// </summary>
+    /// <param name="sourceIndexProfileName">The source index profile name.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task RemoveSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         var ids = NormalizeDocumentIds(documentIds);
@@ -138,6 +183,11 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         }
     }
 
+    /// <summary>
+    /// Deletes data source documents.
+    /// </summary>
+    /// <param name="dataSource">The data source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteDataSourceDocumentsAsync(AIDataSource dataSource, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
@@ -270,12 +320,14 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (knowledgeBaseProfile == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index profile '{IndexProfileName}' was not found.", dataSource.ItemId, dataSource.AIKnowledgeBaseIndexProfileName);
+
             return null;
         }
 
         if (!string.Equals(knowledgeBaseProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index profile '{IndexProfileName}' is not a data-source profile.", dataSource.ItemId, knowledgeBaseProfile.Name);
+
             return null;
         }
 
@@ -285,6 +337,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (indexManager == null || documentManager == null || contentManager == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because provider '{ProviderName}' is not fully configured for data-source indexing.", dataSource.ItemId, knowledgeBaseProfile.ProviderName);
+
             return null;
         }
 
@@ -302,6 +355,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (sourceProfile == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because source index profile '{IndexProfileName}' was not found.", dataSource.ItemId, dataSource.SourceIndexProfileName);
+
             return null;
         }
 
@@ -309,6 +363,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (documentReader == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because provider '{ProviderName}' cannot read source documents.", dataSource.ItemId, sourceProfile.ProviderName);
+
             return null;
         }
 
@@ -317,6 +372,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (embeddingGenerator == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);
+
             return null;
         }
 

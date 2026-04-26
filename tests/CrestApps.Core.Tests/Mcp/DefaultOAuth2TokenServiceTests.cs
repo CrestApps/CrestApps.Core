@@ -313,14 +313,14 @@ public sealed class DefaultOAuth2TokenServiceTests
         var json = JsonSerializer.Serialize(tokenResponse);
 
         return new MockHttpMessageHandler((request, _) =>
-        {
-            onRequest?.Invoke(request);
+                {
+                    onRequest?.Invoke(request);
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
-            });
-        });
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
+                    });
+                });
     }
 
     /// <summary>
@@ -333,15 +333,16 @@ public sealed class DefaultOAuth2TokenServiceTests
         var body = System.Text.Encoding.UTF8.GetString(bytes);
 
         return body.Split('&')
-            .Select(p => p.Split('='))
-            .ToDictionary(
-                p => Uri.UnescapeDataString(p[0]),
-        p => Uri.UnescapeDataString(p[1].Replace('+', ' ')));
+                    .Select(p => p.Split('='))
+                    .ToDictionary(
+                        p => Uri.UnescapeDataString(p[0]),
+                p => Uri.UnescapeDataString(p[1].Replace('+', ' ')));
     }
 
     private static string GenerateTestRsaPrivateKeyPem()
     {
         using var rsa = System.Security.Cryptography.RSA.Create(2048);
+
         return rsa.ExportRSAPrivateKeyPem();
     }
 
@@ -364,7 +365,10 @@ public sealed class DefaultOAuth2TokenServiceTests
 
     private sealed class TokenResponse
     {
-        public TokenResponse(string accessToken, string tokenType, int expiresIn)
+        public TokenResponse(
+            string accessToken,
+            string tokenType,
+            int expiresIn)
         {
             AccessToken = accessToken;
             TokenType = tokenType;

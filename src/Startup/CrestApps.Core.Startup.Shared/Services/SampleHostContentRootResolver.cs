@@ -12,10 +12,10 @@ public static class SampleHostContentRootResolver
     /// <param name="projectFileName">The sample host project file name.</param>
     /// <param name="baseDirectory">
     /// The base directory to walk upwards from. Defaults to <see cref="AppContext.BaseDirectory"/>.
-    /// </param>
     /// <param name="fallbackContentRoot">
     /// The content root to use when the project directory cannot be found.
     /// Defaults to <see cref="Directory.GetCurrentDirectory"/>.
+    /// </param>
     /// </param>
     public static string ResolveContentRoot(
         string projectFileName,

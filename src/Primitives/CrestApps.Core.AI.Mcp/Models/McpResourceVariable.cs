@@ -8,6 +8,10 @@ namespace CrestApps.Core.AI.Mcp.Models;
 /// </summary>
 public sealed class McpResourceVariable
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpResourceVariable"/> class.
+    /// </summary>
+    /// <param name="name">The name.</param>
     public McpResourceVariable(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);

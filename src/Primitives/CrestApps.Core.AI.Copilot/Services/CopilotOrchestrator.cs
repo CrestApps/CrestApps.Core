@@ -44,8 +44,17 @@ public sealed class CopilotOrchestrator : IOrchestrator
     private readonly ICopilotCredentialStore _credentialStore;
     private readonly IOptions<CopilotOptions> _options;
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<CopilotOrchestrator> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CopilotOrchestrator"/> class.
+    /// </summary>
+    /// <param name="toolRegistry">The tool registry.</param>
+    /// <param name="oauthService">The oauth service.</param>
+    /// <param name="credentialStore">The credential store.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="logger">The logger.</param>
     public CopilotOrchestrator(
         IToolRegistry toolRegistry,
         GitHubOAuthService oauthService,
@@ -62,8 +71,16 @@ public sealed class CopilotOrchestrator : IOrchestrator
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public string Name => OrchestratorName;
 
+    /// <summary>
+    /// Executes streaming.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<ChatResponseUpdate> ExecuteStreamingAsync(OrchestrationContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -132,7 +149,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
 
         if (settings.AuthenticationType == CopilotAuthenticationType.ApiKey)
         {
-            // BYOK mode — configure provider on the session config.
+            // BYOK mode - configure provider on the session config.
             // The GitHub token is NOT used in this mode; instead, the API key
             // is passed via SessionConfig.Provider (see ConfigureByokProvider).
             ConfigureByokProvider(sessionConfig, settings);
@@ -193,7 +210,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         var clientOptions = new CopilotClientOptions();
         if (settings.AuthenticationType == CopilotAuthenticationType.ApiKey)
         {
-            // BYOK mode — no GitHub token needed; provider config is on SessionConfig.
+            // BYOK mode - no GitHub token needed; provider config is on SessionConfig.
             clientOptions.UseLoggedInUser = false;
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -202,7 +219,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         }
         else
         {
-            // GitHub OAuth mode — resolve access token.
+            // GitHub OAuth mode - resolve access token.
             string accessToken = null;
             // First, try profile-level credentials from the metadata.
             if (metadata is not null && !string.IsNullOrEmpty(metadata.ProtectedAccessToken))
@@ -463,6 +480,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         sb.AppendLine();
         sb.AppendLine("[Current Message]");
         sb.Append(context.UserMessage);
+
         return sb.ToString();
     }
 
@@ -479,11 +497,12 @@ public sealed class CopilotOrchestrator : IOrchestrator
         }
 
         // Resolve the MCP connection store from the service provider.
-        // This is optional — if the MCP module isn't enabled, no connections are configured.
+        // This is optional - if the MCP module isn't enabled, no connections are configured.
         var connectionStore = context.ServiceProvider?.GetService<IReadCatalog<McpConnection>>();
         if (connectionStore is null)
         {
             _logger.LogDebug("CopilotOrchestrator: MCP connection store not available; skipping MCP configuration.");
+
             return;
         }
 
@@ -545,8 +564,8 @@ public sealed class CopilotOrchestrator : IOrchestrator
     }
 
     /// <summary>
-    /// A thin wrapper around an <see cref = "AIFunction"/> that ensures
-    /// <see cref = "AIFunctionArguments.Services"/> is always set before the
+    /// A thin wrapper around an <see cref="AIFunction"/> that ensures
+    /// <see cref="AIFunctionArguments.Services"/> is always set before the
     /// inner function is invoked. The Copilot SDK does not populate this
     /// property, but tools depend on it for scoped service resolution.
     /// </summary>
@@ -555,6 +574,11 @@ public sealed class CopilotOrchestrator : IOrchestrator
         private readonly AIFunction _inner;
         private readonly IServiceProvider _services;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ServiceInjectedAIFunction"/> class.
+        /// </summary>
+        /// <param name="inner">The inner catalog.</param>
+        /// <param name="services">The service collection.</param>
         public ServiceInjectedAIFunction(
             AIFunction inner,
             IServiceProvider services)
@@ -592,9 +616,15 @@ public sealed class CopilotOrchestrator : IOrchestrator
             }
         }
 
+        /// <summary>
+        /// Invokes core.
+        /// </summary>
+        /// <param name="arguments">The arguments.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
         protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
         {
             arguments.Services ??= _services;
+
             return _inner.InvokeAsync(arguments, cancellationToken);
         }
     }

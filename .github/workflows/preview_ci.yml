@@ -85,4 +85,3 @@ jobs:
       run: |
         dotnet pack -c Release --no-build
         dotnet nuget push './src/**/*.nupkg' -t 600 -k ${{secrets.CLOUDSMITH_API_KEY}} -n -s https://nuget.cloudsmith.io/crestapps/crestapps-core/v3/index.json --skip-duplicate
-

@@ -16,13 +16,16 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Provides functionality for upload Chat Interaction Document.
+/// </summary>
 public static class UploadChatInteractionDocument
 {
     /// <summary>
     /// Adds the chat interaction document upload endpoint.
     /// </summary>
-    /// <param name = "builder">The route builder.</param>
-    /// <param name = "routeName">An optional route name for URL generation.</param>
+    /// <param name="builder">The route builder.</param>
+    /// <param name="routeName">An optional route name for URL generation.</param>
     /// <returns>The route builder.</returns>
     public static IEndpointRouteBuilder AddUploadChatInteractionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
@@ -39,6 +42,22 @@ public static class UploadChatInteractionDocument
 
     private sealed class UploadChatInteractionDocumentEndpoint : AIChatDocumentEndpointBase
     {
+        /// <summary>
+        /// Handles the operation.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        /// <param name="interactionManager">The interaction manager.</param>
+        /// <param name="deploymentManager">The deployment manager.</param>
+        /// <param name="aiClientFactory">The ai client factory.</param>
+        /// <param name="documentStore">The document store.</param>
+        /// <param name="chunkStore">The chunk store.</param>
+        /// <param name="fileStore">The file store.</param>
+        /// <param name="documentProcessingService">The document processing service.</param>
+        /// <param name="authorizationService">The authorization service.</param>
+        /// <param name="eventHandlers">The event handlers.</param>
+        /// <param name="documentOptions">The document options.</param>
+        /// <param name="loggerFactory">The logger factory.</param>
+        /// <param name="localizerFactory">The localizer factory.</param>
         public static async Task<IResult> HandleAsync(
             HttpRequest request,
             [FromServices] ICatalogManager<ChatInteraction> interactionManager,

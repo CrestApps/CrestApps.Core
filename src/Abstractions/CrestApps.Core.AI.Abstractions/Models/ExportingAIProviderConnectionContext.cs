@@ -2,13 +2,30 @@ using System.Text.Json.Nodes;
 
 namespace CrestApps.Core.AI.Models;
 
-public class ExportingAIProviderConnectionContext
+/// <summary>
+/// Context passed to event handlers when an AI provider connection is being exported,
+/// providing access to the connection and its serialized export payload.
+/// </summary>
+public sealed class ExportingAIProviderConnectionContext
 {
+    /// <summary>
+    /// Gets the AI provider connection being exported.
+    /// </summary>
     public AIProviderConnection Connection { get; }
 
+    /// <summary>
+    /// Gets the mutable JSON object that will be serialized as the export payload.
+    /// </summary>
     public JsonObject ExportData { get; }
 
-    public ExportingAIProviderConnectionContext(AIProviderConnection connection, JsonObject exportData)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExportingAIProviderConnectionContext"/> class.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="exportData">The export data.</param>
+    public ExportingAIProviderConnectionContext(
+        AIProviderConnection connection,
+        JsonObject exportData)
     {
         ArgumentNullException.ThrowIfNull(connection);
 

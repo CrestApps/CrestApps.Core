@@ -22,8 +22,17 @@ public sealed class ClaudeOrchestrator : IOrchestrator
     private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
     private readonly DefaultAIOptions _defaultOptions;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly ILogger _logger;
+    private readonly ILogger<ClaudeOrchestrator> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ClaudeOrchestrator"/> class.
+    /// </summary>
+    /// <param name="toolRegistry">The tool registry.</param>
+    /// <param name="clientService">The client service.</param>
+    /// <param name="anthropicOptions">The anthropic options.</param>
+    /// <param name="defaultOptions">The default options.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="logger">The logger.</param>
     public ClaudeOrchestrator(
         IToolRegistry toolRegistry,
         ClaudeClientService clientService,
@@ -40,8 +49,16 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public string Name => OrchestratorName;
 
+    /// <summary>
+    /// Executes streaming.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<ChatResponseUpdate> ExecuteStreamingAsync(
         OrchestrationContext context,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)

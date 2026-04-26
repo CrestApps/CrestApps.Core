@@ -9,13 +9,21 @@ using Renci.SshNet;
 
 namespace CrestApps.Core.AI.Mcp.Sftp.Handlers;
 
+/// <summary>
+/// Represents the SFTP Resource Type Handler.
+/// </summary>
 public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
 {
     private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<SftpResourceTypeHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SftpResourceTypeHandler"/> class.
+    /// </summary>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="logger">The logger.</param>
     public SftpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,
         ILogger<SftpResourceTypeHandler> logger)
@@ -25,6 +33,12 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets result.
+    /// </summary>
+    /// <param name="resource">The resource.</param>
+    /// <param name="variables">The variables.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async Task<ReadResourceResult> GetResultAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken)
     {
         if (!resource.TryGet<SftpConnectionMetadata>(out var metadata))

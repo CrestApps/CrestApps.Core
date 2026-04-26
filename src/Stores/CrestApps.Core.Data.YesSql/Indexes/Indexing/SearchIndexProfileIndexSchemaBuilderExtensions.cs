@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.Indexing;
 
 public static class SearchIndexProfileIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates search index profile index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateSearchIndexProfileIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

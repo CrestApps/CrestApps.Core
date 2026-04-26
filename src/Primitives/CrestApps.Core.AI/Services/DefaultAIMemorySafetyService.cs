@@ -3,8 +3,18 @@ using CrestApps.Core.AI.Memory;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Memory Safety Service.
+/// </summary>
 public sealed partial class DefaultAIMemorySafetyService : IAIMemorySafetyService
 {
+    /// <summary>
+    /// Tries to validate.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="description">The description.</param>
+    /// <param name="content">The content.</param>
+    /// <param name="errorMessage">The error message.</param>
     public bool TryValidate(string name, string description, string content, out string errorMessage)
     {
         errorMessage = null;
@@ -12,24 +22,28 @@ public sealed partial class DefaultAIMemorySafetyService : IAIMemorySafetyServic
         if (string.IsNullOrWhiteSpace(name))
         {
             errorMessage = "Memory name is required.";
+
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(description))
         {
             errorMessage = "Memory description is required.";
+
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(content))
         {
             errorMessage = "Memory content is required.";
+
             return false;
         }
 
         if (LooksSensitive(content) || LooksSensitive(name) || LooksSensitive(description))
         {
             errorMessage = "Sensitive information must not be stored in user memory.";
+
             return false;
         }
 

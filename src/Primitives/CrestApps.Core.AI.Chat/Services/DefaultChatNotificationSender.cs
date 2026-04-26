@@ -12,11 +12,21 @@ public sealed class DefaultChatNotificationSender : IChatNotificationSender
 {
     private readonly IServiceProvider _serviceProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultChatNotificationSender"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
     public DefaultChatNotificationSender(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
     }
 
+    /// <summary>
+    /// Sends the operation.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="chatType">The chat type.</param>
+    /// <param name="notification">The notification.</param>
     public Task SendAsync(string sessionId, ChatContextType chatType, ChatNotification notification)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
@@ -27,6 +37,12 @@ public sealed class DefaultChatNotificationSender : IChatNotificationSender
         return transport.SendNotificationAsync(sessionId, notification);
     }
 
+    /// <summary>
+    /// Updates the operation.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="chatType">The chat type.</param>
+    /// <param name="notification">The notification.</param>
     public Task UpdateAsync(string sessionId, ChatContextType chatType, ChatNotification notification)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
@@ -37,6 +53,12 @@ public sealed class DefaultChatNotificationSender : IChatNotificationSender
         return transport.UpdateNotificationAsync(sessionId, notification);
     }
 
+    /// <summary>
+    /// Removes the operation.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="chatType">The chat type.</param>
+    /// <param name="notificationType">The notification type.</param>
     public Task RemoveAsync(string sessionId, ChatContextType chatType, string notificationType)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);

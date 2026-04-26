@@ -23,8 +23,8 @@ using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
+using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
@@ -39,7 +39,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Extensions.Options;
 
 // =============================================================================
-// CrestApps AI Framework — MVC Example Application
+// CrestApps AI Framework - MVC Example Application
 // =============================================================================
 // This sample keeps the normal ASP.NET Core MVC setup small, moves reusable
 // sample-host plumbing behind extensions, and leaves the CrestApps feature
@@ -222,6 +222,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
             await next();
+
             return;
         }
 
@@ -232,22 +233,26 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
             if (!string.IsNullOrEmpty(settings.ApiKey) && string.Equals(providedKey, settings.ApiKey, StringComparison.Ordinal))
             {
                 await next();
+
                 return;
             }
 
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
             return;
         }
 
         if (context.User.Identity?.IsAuthenticated != true)
         {
             await context.ChallengeAsync();
+
             return;
         }
 
         if (settings.RequireAccessPermission && !context.User.IsInRole("Administrator"))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
             return;
         }
 

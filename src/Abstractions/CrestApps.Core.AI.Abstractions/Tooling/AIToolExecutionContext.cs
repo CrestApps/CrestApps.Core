@@ -29,6 +29,10 @@ public sealed class AIToolExecutionContext
     public T GetResource<T>()
         where T : class => Resource as T;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIToolExecutionContext"/> class.
+    /// </summary>
+    /// <param name="resource">The resource.</param>
     public AIToolExecutionContext(object resource)
     {
         ArgumentNullException.ThrowIfNull(resource);

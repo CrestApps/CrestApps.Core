@@ -169,5 +169,3 @@ public interface IODataValidator
     bool IsValidFilter(string filter);
 }
 ```
-
-

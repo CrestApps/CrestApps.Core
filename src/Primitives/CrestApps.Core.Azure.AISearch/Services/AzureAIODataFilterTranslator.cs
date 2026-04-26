@@ -11,6 +11,10 @@ namespace CrestApps.Core.Azure.AISearch.Services;
 /// </summary>
 internal sealed class AzureAIODataFilterTranslator : IODataFilterTranslator
 {
+    /// <summary>
+    /// Translates the operation.
+    /// </summary>
+    /// <param name="odataFilter">The odata filter.</param>
     public string Translate(string odataFilter)
     {
         if (string.IsNullOrWhiteSpace(odataFilter))
@@ -72,7 +76,7 @@ internal sealed class AzureAIODataFilterTranslator : IODataFilterTranslator
                 }
                 else
                 {
-                    // This is a field name — prefix with filters/.
+                    // This is a field name - prefix with filters/.
 
                     if (!token.StartsWith($"{DataSourceConstants.ColumnNames.Filters}/", StringComparison.OrdinalIgnoreCase))
                     {

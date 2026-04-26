@@ -35,6 +35,8 @@ public static class ExtensibleEntityExtensions
     /// <summary>
     /// Gets a strongly-typed object stored in the entity's properties.
     /// </summary>
+    /// <param name="entity">The entity.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     public static T GetOrCreate<T>(this ExtensibleEntity entity, JsonSerializerOptions jsonSerializerOptions = null)
         where T : new()
     {
@@ -43,8 +45,8 @@ public static class ExtensibleEntityExtensions
         var key = typeof(T).Name;
 
         return entity.Properties.TryGetValue(key, out var value)
-            ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions) ?? new T()
-            : new T();
+                    ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions) ?? new T()
+                    : new T();
     }
 
     /// <summary>
@@ -56,13 +58,15 @@ public static class ExtensibleEntityExtensions
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         return entity.Properties.TryGetValue(name, out var value)
-            ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions)
-            : default;
+                    ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions)
+                    : default;
     }
 
     /// <summary>
     /// Stores a strongly-typed object in the entity's properties using the type name as key.
     /// </summary>
+    /// <param name="entity">The entity.</param>
+    /// <param name="value">The value.</param>
     public static ExtensibleEntity Put<T>(this ExtensibleEntity entity, T value)
         where T : new()
     {
@@ -76,6 +80,9 @@ public static class ExtensibleEntityExtensions
     /// <summary>
     /// Stores a value in the entity's properties using a named key.
     /// </summary>
+    /// <param name="entity">The entity.</param>
+    /// <param name="name">The name.</param>
+    /// <param name="value">The value.</param>
     public static ExtensibleEntity Put(this ExtensibleEntity entity, string name, object value)
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -123,6 +130,9 @@ public static class ExtensibleEntityExtensions
     /// Modifies a stored object in-place. If no object exists, a new instance is created,
     /// modified, and stored.
     /// </summary>
+    /// <param name="entity">The entity.</param>
+    /// <param name="alter">The alter.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     public static ExtensibleEntity Alter<T>(this ExtensibleEntity entity, Action<T> alter, JsonSerializerOptions jsonSerializerOptions = null)
         where T : new()
     {

@@ -6,6 +6,9 @@ namespace CrestApps.Core.AI;
 /// </summary>
 public static class AIReferenceTypes
 {
+    /// <summary>
+    /// Provides functionality for document.
+    /// </summary>
     public static class Document
     {
         public const string Profile = "profile";
@@ -17,6 +20,9 @@ public static class AIReferenceTypes
         public const string ChatSession = "chat-session";
     }
 
+    /// <summary>
+    /// Provides functionality for data Source.
+    /// </summary>
     public static class DataSource
     {
         public const string Document = "Document";

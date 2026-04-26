@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for sentence Boundary Detector.
+/// </summary>
 public static class SentenceBoundaryDetector
 {
     private static readonly HashSet<string> _abbreviations = new(StringComparer.OrdinalIgnoreCase)
@@ -18,6 +21,10 @@ public static class SentenceBoundaryDetector
     private const int SoftBoundaryMinLength = 120;
     private const int ForceFlushLength = 200;
 
+    /// <summary>
+    /// Ends with sentence boundarys with sentence boundary.
+    /// </summary>
+    /// <param name="text">The text.</param>
     public static bool EndsWithSentenceBoundary(string text)
     {
         if (text is null || text.Length == 0)
@@ -28,6 +35,10 @@ public static class SentenceBoundaryDetector
         return EndsWithSentenceBoundary(text.AsSpan());
     }
 
+    /// <summary>
+    /// Endss with sentence boundary.
+    /// </summary>
+    /// <param name="span">The span.</param>
     public static bool EndsWithSentenceBoundary(ReadOnlySpan<char> span)
     {
         // Trim trailing spaces, tabs, and carriage returns but preserve
@@ -105,6 +116,7 @@ public static class SentenceBoundaryDetector
         var lastWord = lastSpace >= 0 ? span[(lastSpace + 1)..] : span;
 
         // fallback: convert lastWord to lowercase string to check abbreviation
+
         return _abbreviations.Contains(lastWord.ToString());
     }
 }

@@ -12,7 +12,7 @@ public sealed class McpCapabilityResolverOptions
     public float SimilarityThreshold { get; set; } = 0.3f;
 
     /// <summary>
-    /// Gets or sets the minimum keyword match score (0–1) required for a capability
+    /// Gets or sets the minimum keyword match score (0-1) required for a capability
     /// to be considered relevant when using keyword-based fallback matching. Default is 0.2.
     /// </summary>
     public float KeywordMatchThreshold { get; set; } = 0.2f;

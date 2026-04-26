@@ -7,30 +7,56 @@ using OllamaSharp;
 
 namespace CrestApps.Core.AI.Ollama.Services;
 
+/// <summary>
+/// Represents the ollama AI Client Provider.
+/// </summary>
 public sealed class OllamaAIClientProvider : AIClientProviderBase
 {
     private static readonly ConcurrentDictionary<string, OllamaApiClient> _clientCache = new(StringComparer.Ordinal);
 
-    public OllamaAIClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OllamaAIClientProvider"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    public OllamaAIClientProvider(IServiceProvider serviceProvider)
+        : base(serviceProvider)
     {
     }
 
+    /// <summary>
+    /// Gets provider name.
+    /// </summary>
     protected override string GetProviderName()
     {
         return OllamaConstants.ClientName;
     }
 
+    /// <summary>
+    /// Gets chat client.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
         return GetOllamaClient(connection, deploymentName);
     }
 
+    /// <summary>
+    /// Gets embedding generator.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override IEmbeddingGenerator<string, Embedding<float>> GetEmbeddingGenerator(AIProviderConnectionEntry connection, string deploymentName)
     {
         return GetOllamaClient(connection, deploymentName);
     }
 
 #pragma warning disable MEAI001
+    /// <summary>
+    /// Gets image generator.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override IImageGenerator GetImageGenerator(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001
     {
@@ -38,10 +64,13 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
+    /// <summary>
+    /// Gets speech to text client.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override ISpeechToTextClient GetSpeechToTextClient(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     {
         throw new NotSupportedException("Ollama does not currently support speech-to-text functionality.");
     }

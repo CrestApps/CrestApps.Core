@@ -15,8 +15,14 @@ internal sealed class A2AToolRegistryProvider : IToolRegistryProvider
 {
     private readonly ICatalog<A2AConnection> _connectionStore;
     private readonly IA2AAgentCardCacheService _agentCardCache;
-    private readonly ILogger _logger;
+    private readonly ILogger<A2AToolRegistryProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="A2AToolRegistryProvider"/> class.
+    /// </summary>
+    /// <param name="connectionStore">The connection store.</param>
+    /// <param name="agentCardCache">The agent card cache.</param>
+    /// <param name="logger">The logger.</param>
     public A2AToolRegistryProvider(
         ICatalog<A2AConnection> connectionStore,
         IA2AAgentCardCacheService agentCardCache,
@@ -27,6 +33,11 @@ internal sealed class A2AToolRegistryProvider : IToolRegistryProvider
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets tools.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyList<ToolRegistryEntry>> GetToolsAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default)

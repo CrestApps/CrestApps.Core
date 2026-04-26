@@ -66,6 +66,7 @@ public sealed class SampleAIChatSessionEventService
                 CreatedUtc = now,
             };
             await _session.SaveAsync(evt);
+
             return;
         }
 
@@ -161,6 +162,7 @@ public sealed class SampleAIChatSessionEventService
         }
 
         var events = await query.ListAsync(cancellationToken);
+
         return events.OrderByDescending(x => x.SessionStartedUtc).ToList();
     }
 

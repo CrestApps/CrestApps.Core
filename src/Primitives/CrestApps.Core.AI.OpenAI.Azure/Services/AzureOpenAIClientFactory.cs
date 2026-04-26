@@ -21,6 +21,12 @@ internal static class AzureOpenAIClientFactory
     /// </summary>
     public static void ClearCache() => _clientCache.Clear();
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="options">The options.</param>
     public static AzureOpenAIClient Create(
         AIProviderConnectionEntry connection,
         ILoggerFactory loggerFactory,
@@ -35,25 +41,25 @@ internal static class AzureOpenAIClientFactory
         var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}";
 
         return _clientCache.GetOrAdd(cacheKey, _ =>
-        {
-            var clientOptions = new AzureOpenAIClientOptions
-            {
-                ClientLoggingOptions = new ClientLoggingOptions
                 {
-                    LoggerFactory = loggerFactory,
-                    EnableLogging = options?.EnableLogging ?? false,
-                    EnableMessageLogging = options?.EnableMessageLogging ?? false,
-                    EnableMessageContentLogging = options?.EnableMessageContentLogging ?? false,
-                },
-            };
+                    var clientOptions = new AzureOpenAIClientOptions
+                    {
+                        ClientLoggingOptions = new ClientLoggingOptions
+                        {
+                            LoggerFactory = loggerFactory,
+                            EnableLogging = options?.EnableLogging ?? false,
+                            EnableMessageLogging = options?.EnableMessageLogging ?? false,
+                            EnableMessageContentLogging = options?.EnableMessageContentLogging ?? false,
+                        },
+                    };
 
-            return authType switch
-            {
-                AzureAuthenticationType.ApiKey => new AzureOpenAIClient(endpoint, new ApiKeyCredential(connection.GetApiKey()), clientOptions),
-                AzureAuthenticationType.ManagedIdentity => new AzureOpenAIClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId)), clientOptions),
-                AzureAuthenticationType.Default => new AzureOpenAIClient(endpoint, new DefaultAzureCredential(), clientOptions),
-                _ => throw new NotSupportedException("The provided authentication type is not supported."),
-            };
-        });
+                    return authType switch
+                    {
+                        AzureAuthenticationType.ApiKey => new AzureOpenAIClient(endpoint, new ApiKeyCredential(connection.GetApiKey()), clientOptions),
+                        AzureAuthenticationType.ManagedIdentity => new AzureOpenAIClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId)), clientOptions),
+                        AzureAuthenticationType.Default => new AzureOpenAIClient(endpoint, new DefaultAzureCredential(), clientOptions),
+                        _ => throw new NotSupportedException("The provided authentication type is not supported."),
+                    };
+                });
     }
 }

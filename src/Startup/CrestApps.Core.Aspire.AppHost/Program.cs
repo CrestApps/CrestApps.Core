@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-// File-based crash log — Console.Error output is lost when the process dies,
+// File-based crash log - Console.Error output is lost when the process dies,
 // so we write to a persistent file as well.
 var crashLogPath = Path.Combine(AppContext.BaseDirectory, "apphost-crash.log");
 

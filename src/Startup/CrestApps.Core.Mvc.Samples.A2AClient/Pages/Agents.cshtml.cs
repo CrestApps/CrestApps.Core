@@ -11,7 +11,9 @@ public sealed class AgentsModel : PageModel
     private readonly A2AClientFactory _clientFactory;
     private readonly ILogger<AgentsModel> _logger;
 
-    public AgentsModel(A2AClientFactory clientFactory, ILogger<AgentsModel> logger)
+    public AgentsModel(
+        A2AClientFactory clientFactory,
+        ILogger<AgentsModel> logger)
     {
         _clientFactory = clientFactory;
         _logger = logger;
@@ -69,7 +71,7 @@ public sealed class AgentsModel : PageModel
 
             if (stream)
             {
-                return new StreamingA2AResult(client, sendParams, _logger);
+                return new StreamingA2AResult(client, sendParams, HttpContext.RequestServices.GetRequiredService<ILogger<StreamingA2AResult>>());
             }
 
             var response = await client.SendMessageAsync(sendParams, cancellationToken);
@@ -85,7 +87,7 @@ public sealed class AgentsModel : PageModel
             return new JsonResult(new
             {
                 error = "Authentication failed (401 Unauthorized). " +
-                "The A2A host requires authentication. Check the agent card's security schemes for details."
+                            "The A2A host requires authentication. Check the agent card's security schemes for details."
             });
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
@@ -95,7 +97,7 @@ public sealed class AgentsModel : PageModel
             return new JsonResult(new
             {
                 error = "Access denied (403 Forbidden). " +
-                "You do not have permission to access this agent."
+                            "You do not have permission to access this agent."
             });
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -183,9 +185,12 @@ public sealed class AgentsModel : PageModel
     {
         private readonly A2A.A2AClient _client;
         private readonly MessageSendParams _sendParams;
-        private readonly ILogger _logger;
+        private readonly ILogger<StreamingA2AResult> _logger;
 
-        public StreamingA2AResult(A2A.A2AClient client, MessageSendParams sendParams, ILogger logger)
+        public StreamingA2AResult(
+            A2A.A2AClient client,
+            MessageSendParams sendParams,
+            ILogger<StreamingA2AResult> logger)
         {
             _client = client;
             _sendParams = sendParams;

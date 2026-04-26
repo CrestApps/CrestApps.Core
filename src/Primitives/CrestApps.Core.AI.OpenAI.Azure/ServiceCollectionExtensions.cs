@@ -11,11 +11,15 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.OpenAI.Azure;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the Azure OpenAI client provider.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIAzureOpenAI(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -48,6 +52,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds azure open ai.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAISuiteBuilder AddAzureOpenAI(this CrestAppsAISuiteBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

@@ -1,11 +1,28 @@
 namespace CrestApps.Core.AI.Documents.Models;
 
+/// <summary>
+/// Represents the extractor Extension.
+/// </summary>
 public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquatable<string>
 {
+    /// <summary>
+    /// Gets the extension.
+    /// </summary>
     public string Extension { get; }
+
+    /// <summary>
+    /// Gets the embeddable.
+    /// </summary>
     public bool Embeddable { get; }
 
-    public ExtractorExtension(string extension, bool embeddable = true)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExtractorExtension"/> class.
+    /// </summary>
+    /// <param name="extension">The extension.</param>
+    /// <param name="embeddable">The embeddable.</param>
+    public ExtractorExtension(
+        string extension,
+        bool embeddable = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);
         // Normalize once
@@ -16,19 +33,32 @@ public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquata
     private static string Normalize(string extension)
     {
         var ext = extension.StartsWith('.') ? extension : "." + extension;
+
         return ext.ToLowerInvariant();
     }
 
+    /// <summary>
+    /// Equalss the operation.
+    /// </summary>
+    /// <param name="other">The other.</param>
     public bool Equals(ExtractorExtension other)
     {
         return other is not null && string.Equals(Extension, other.Extension, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Equalss the operation.
+    /// </summary>
+    /// <param name="extension">The extension.</param>
     public bool Equals(string extension)
     {
         return extension is not null && string.Equals(Extension, Normalize(extension), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Equalss the operation.
+    /// </summary>
+    /// <param name="obj">The obj.</param>
     public override bool Equals(object obj)
     {
         return obj switch
@@ -39,6 +69,9 @@ public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquata
         };
     }
 
+    /// <summary>
+    /// Gets hash code.
+    /// </summary>
     public override int GetHashCode()
     {
         return StringComparer.Ordinal.GetHashCode(Extension);
@@ -64,5 +97,8 @@ public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquata
         return new(extension);
     }
 
+    /// <summary>
+    /// Tos string.
+    /// </summary>
     public override string ToString() => Extension;
 }

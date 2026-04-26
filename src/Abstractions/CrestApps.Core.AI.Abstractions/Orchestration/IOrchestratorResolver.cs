@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI.Orchestration;
 /// the configured orchestrator name.
 /// </summary>
 /// <remarks>
-/// Resolution order: explicit name → system default.
+/// Resolution order: explicit name -> system default.
 /// If no name is specified or the named orchestrator is not found, the system default is returned.
 /// </remarks>
 public interface IOrchestratorResolver

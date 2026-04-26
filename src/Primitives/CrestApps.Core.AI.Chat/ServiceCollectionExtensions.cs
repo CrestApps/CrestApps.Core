@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
     /// The sender dispatches notifications to keyed <see cref="IChatNotificationTransport"/>
     /// implementations, which must be registered separately by each host (OrchardCore, MVC, etc.).
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatNotifications(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -60,6 +61,7 @@ public static class ServiceCollectionExtensions
     /// Adds shared chat-session processing services used by both AI profile chat
     /// and chat interactions across hosts.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatSessionProcessing(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -82,6 +84,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds the default chat interaction handlers.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatInteractions(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -99,6 +102,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds chat interactions.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsAISuiteBuilder AddChatInteractions(this CrestAppsAISuiteBuilder builder, Action<CrestAppsChatInteractionsBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -113,11 +121,15 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Configures chat hub options.
+    /// </summary>
     public static CrestAppsChatInteractionsBuilder ConfigureChatHubOptions<THub>(this CrestAppsChatInteractionsBuilder builder) where THub : Hub
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.ConfigureCrestAppsChatHubOptions<THub>();
+
         return builder;
     }
 }

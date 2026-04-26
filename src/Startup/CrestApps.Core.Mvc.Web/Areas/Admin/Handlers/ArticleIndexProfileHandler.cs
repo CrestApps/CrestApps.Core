@@ -69,6 +69,7 @@ internal sealed class ArticleIndexProfileHandler : IndexProfileHandlerBase
             FieldType = SearchFieldType.DateTime,
             IsFilterable = true,
         }, ];
+
         return ValueTask.FromResult(fields);
     }
 }

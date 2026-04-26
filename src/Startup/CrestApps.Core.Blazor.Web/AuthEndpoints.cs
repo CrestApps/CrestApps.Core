@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -47,7 +45,7 @@ public static class AuthEndpoints
                 return Results.LocalRedirect(returnUrl);
             }
 
-            var redirectUrl = QueryString.Create(new Dictionary<string, string?>
+            var redirectUrl = QueryString.Create(new Dictionary<string, string>
             {
                 ["returnUrl"] = returnUrl,
                 ["error"] = "Invalid username or password.",

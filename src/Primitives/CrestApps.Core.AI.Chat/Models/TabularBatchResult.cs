@@ -44,6 +44,11 @@ public sealed class TabularBatchResult
     /// <summary>
     /// Creates a successful batch result.
     /// </summary>
+    /// <param name="batchIndex">The batch index.</param>
+    /// <param name="rowStart">The row start.</param>
+    /// <param name="rowEnd">The row end.</param>
+    /// <param name="rowCount">The row count.</param>
+    /// <param name="output">The output.</param>
     public static TabularBatchResult CreateSuccess(int batchIndex, int rowStart, int rowEnd, int rowCount, string output)
     {
         return new TabularBatchResult
@@ -60,6 +65,11 @@ public sealed class TabularBatchResult
     /// <summary>
     /// Creates a failed batch result.
     /// </summary>
+    /// <param name="batchIndex">The batch index.</param>
+    /// <param name="rowStart">The row start.</param>
+    /// <param name="rowEnd">The row end.</param>
+    /// <param name="rowCount">The row count.</param>
+    /// <param name="error">The error.</param>
     public static TabularBatchResult CreateFailure(int batchIndex, int rowStart, int rowEnd, int rowCount, string error)
     {
         return new TabularBatchResult

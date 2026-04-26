@@ -261,4 +261,3 @@ Deleting an index removes all indexed documents permanently. Re-indexing from th
 **Fix:**
 - Trigger indexing from the admin UI or via the data source management API
 - Verify the index name matches what the application expects: `curl -u elastic:changeme http://localhost:9200/_cat/indices?v`
-

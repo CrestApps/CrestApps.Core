@@ -1,0 +1,34 @@
+<Project>
+
+  <Target Name="RegenerateFrameworkAssemblyAttributes"
+          BeforeTargets="GenerateTargetFrameworkMonikerAttribute"
+          Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true' and '$(TargetFrameworkMonikerAssemblyAttributesPath)' != ''">
+    <Delete Files="$(TargetFrameworkMonikerAssemblyAttributesPath)" />
+  </Target>
+
+  <Target Name="DeleteStaleRazorAssemblyInfo"
+          BeforeTargets="CoreCompile"
+          Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true'">
+    <ItemGroup>
+      <_StaleRazorAssemblyInfoFiles Include="$(IntermediateOutputPath)*.AssemblyInfo.cs;
+                                             $(IntermediateOutputPath)*.AssemblyInfoInputs.cache;
+                                             $(IntermediateOutputPath)*.GeneratedMSBuildEditorConfig.editorconfig;
+                                             $(IntermediateOutputPath)*.GlobalUsings.g.cs;
+                                             $(IntermediateOutputPath)*.RazorAssemblyInfo.cs;
+                                             $(IntermediateOutputPath)*.MvcApplicationPartsAssemblyInfo.cs;
+                                             $(IntermediateOutputPath)*.RazorAssemblyInfo.cache;
+                                             $(IntermediateOutputPath)*.MvcApplicationPartsAssemblyInfo.cache"
+                                    Exclude="$(IntermediateOutputPath)$(AssemblyName).AssemblyInfo.cs;
+                                             $(IntermediateOutputPath)$(AssemblyName).AssemblyInfoInputs.cache;
+                                             $(IntermediateOutputPath)$(AssemblyName).GeneratedMSBuildEditorConfig.editorconfig;
+                                             $(IntermediateOutputPath)$(AssemblyName).GlobalUsings.g.cs;
+                                             $(IntermediateOutputPath)$(AssemblyName).RazorAssemblyInfo.cs;
+                                             $(IntermediateOutputPath)$(AssemblyName).MvcApplicationPartsAssemblyInfo.cs;
+                                             $(IntermediateOutputPath)$(AssemblyName).RazorAssemblyInfo.cache;
+                                             $(IntermediateOutputPath)$(AssemblyName).MvcApplicationPartsAssemblyInfo.cache" />
+    </ItemGroup>
+
+    <Delete Files="@(_StaleRazorAssemblyInfoFiles)" />
+  </Target>
+
+</Project>

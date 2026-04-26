@@ -48,6 +48,9 @@ public sealed class DefaultAIDeploymentSettings
     /// </summary>
     public string DefaultTextToSpeechDeploymentName { get; set; }
 
+    /// <summary>
+    /// Gets or sets the default Chat Deployment ID.
+    /// </summary>
     [Obsolete("Use DefaultChatDeploymentName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string DefaultChatDeploymentId
@@ -56,6 +59,9 @@ public sealed class DefaultAIDeploymentSettings
         set => DefaultChatDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the default Utility Deployment ID.
+    /// </summary>
     [Obsolete("Use DefaultUtilityDeploymentName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string DefaultUtilityDeploymentId
@@ -64,6 +70,9 @@ public sealed class DefaultAIDeploymentSettings
         set => DefaultUtilityDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the default Embedding Deployment ID.
+    /// </summary>
     [Obsolete("Use DefaultEmbeddingDeploymentName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string DefaultEmbeddingDeploymentId
@@ -72,6 +81,9 @@ public sealed class DefaultAIDeploymentSettings
         set => DefaultEmbeddingDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the default Image Deployment ID.
+    /// </summary>
     [Obsolete("Use DefaultImageDeploymentName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string DefaultImageDeploymentId
@@ -80,6 +92,9 @@ public sealed class DefaultAIDeploymentSettings
         set => DefaultImageDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the default Speech To Text Deployment ID.
+    /// </summary>
     [Obsolete("Use DefaultSpeechToTextDeploymentName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string DefaultSpeechToTextDeploymentId
@@ -88,6 +103,9 @@ public sealed class DefaultAIDeploymentSettings
         set => DefaultSpeechToTextDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the default Text To Speech Deployment ID.
+    /// </summary>
     [Obsolete("Use DefaultTextToSpeechDeploymentName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string DefaultTextToSpeechDeploymentId
@@ -96,36 +114,54 @@ public sealed class DefaultAIDeploymentSettings
         set => DefaultTextToSpeechDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets the legacy Default Chat Deployment ID.
+    /// </summary>
     [JsonPropertyName("DefaultChatDeploymentId")]
     public string LegacyDefaultChatDeploymentId
     {
         set => DefaultChatDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets the legacy Default Utility Deployment ID.
+    /// </summary>
     [JsonPropertyName("DefaultUtilityDeploymentId")]
     public string LegacyDefaultUtilityDeploymentId
     {
         set => DefaultUtilityDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets the legacy Default Embedding Deployment ID.
+    /// </summary>
     [JsonPropertyName("DefaultEmbeddingDeploymentId")]
     public string LegacyDefaultEmbeddingDeploymentId
     {
         set => DefaultEmbeddingDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets the legacy Default Image Deployment ID.
+    /// </summary>
     [JsonPropertyName("DefaultImageDeploymentId")]
     public string LegacyDefaultImageDeploymentId
     {
         set => DefaultImageDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets the legacy Default Speech To Text Deployment ID.
+    /// </summary>
     [JsonPropertyName("DefaultSpeechToTextDeploymentId")]
     public string LegacyDefaultSpeechToTextDeploymentId
     {
         set => DefaultSpeechToTextDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets the legacy Default Text To Speech Deployment ID.
+    /// </summary>
     [JsonPropertyName("DefaultTextToSpeechDeploymentId")]
     public string LegacyDefaultTextToSpeechDeploymentId
     {

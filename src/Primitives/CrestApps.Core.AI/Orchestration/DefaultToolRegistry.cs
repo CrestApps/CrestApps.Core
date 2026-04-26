@@ -13,8 +13,14 @@ internal sealed class DefaultToolRegistry : IToolRegistry
 {
     private readonly IEnumerable<IToolRegistryProvider> _providers;
     private readonly ITextTokenizer _tokenizer;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultToolRegistry> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultToolRegistry"/> class.
+    /// </summary>
+    /// <param name="providers">The providers.</param>
+    /// <param name="tokenizer">The tokenizer.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultToolRegistry(
         IEnumerable<IToolRegistryProvider> providers,
         ITextTokenizer tokenizer,
@@ -25,6 +31,11 @@ internal sealed class DefaultToolRegistry : IToolRegistry
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyList<ToolRegistryEntry>> GetAllAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default)
@@ -55,6 +66,13 @@ internal sealed class DefaultToolRegistry : IToolRegistry
         return allEntries;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="topK">The top k.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyList<ToolRegistryEntry>> SearchAsync(
         string query,
         int topK,

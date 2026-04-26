@@ -11,6 +11,10 @@ public sealed class CompositeAIReferenceLinkResolver
 {
     private readonly IServiceProvider _serviceProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CompositeAIReferenceLinkResolver"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
     public CompositeAIReferenceLinkResolver(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;

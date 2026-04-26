@@ -7,12 +7,21 @@ using ModelContextProtocol.Server;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the default MCP Server Resource Service.
+/// </summary>
 public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
 {
     private readonly ISourceCatalog<McpResource> _catalog;
     private readonly IEnumerable<IMcpResourceProvider> _resourceProviders;
     private readonly IEnumerable<McpServerResource> _sdkResources;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultMcpServerResourceService"/> class.
+    /// </summary>
+    /// <param name="catalog">The catalog.</param>
+    /// <param name="resourceProviders">The resource providers.</param>
+    /// <param name="sdkResources">The sdk resources.</param>
     public DefaultMcpServerResourceService(
         ISourceCatalog<McpResource> catalog,
         IEnumerable<IMcpResourceProvider> resourceProviders,
@@ -23,11 +32,17 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
         _sdkResources = sdkResources;
     }
 
+    /// <summary>
+    /// Lists the operation.
+    /// </summary>
     public async Task<IList<Resource>> ListAsync()
     {
         return (await GetAllResourcesAsync()).Where(resource => resource.Uri is null || !McpResourceUri.IsTemplate(resource.Uri)).ToList();
     }
 
+    /// <summary>
+    /// Lists templates.
+    /// </summary>
     public async Task<IList<ResourceTemplate>> ListTemplatesAsync()
     {
         var templates = new List<ResourceTemplate>();
@@ -42,6 +57,11 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
         return templates;
     }
 
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<ReadResourceResult> ReadAsync(RequestContext<ReadResourceRequestParams> request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

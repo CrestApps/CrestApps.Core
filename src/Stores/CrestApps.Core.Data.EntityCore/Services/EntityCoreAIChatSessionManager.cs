@@ -15,21 +15,41 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     private readonly CrestAppsEntityDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
 
-    public EntityCoreAIChatSessionManager(IHttpContextAccessor httpContextAccessor, CrestAppsEntityDbContext dbContext, TimeProvider timeProvider)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EntityCoreAIChatSessionManager"/> class.
+    /// </summary>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    public EntityCoreAIChatSessionManager(
+        IHttpContextAccessor httpContextAccessor,
+        CrestAppsEntityDbContext dbContext,
+        TimeProvider timeProvider)
     {
         _httpContextAccessor = httpContextAccessor;
         _dbContext = dbContext;
         _timeProvider = timeProvider;
     }
 
+    /// <summary>
+    /// Finds by id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AIChatSession> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         var record = await _dbContext.AIChatSessionRecords.AsNoTracking().FirstOrDefaultAsync(x => x.SessionId == id, cancellationToken);
+
         return record is null ? null : Materialize(record);
     }
 
+    /// <summary>
+    /// Finds the operation.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<AIChatSession> FindAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -37,6 +57,13 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         return FindByIdAsync(id, cancellationToken);
     }
 
+    /// <summary>
+    /// Pages the operation.
+    /// </summary>
+    /// <param name="page">The page.</param>
+    /// <param name="pageSize">The page size.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null, CancellationToken cancellationToken = default)
     {
         var query = _dbContext.AIChatSessionRecords.AsNoTracking();
@@ -56,6 +83,12 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         };
     }
 
+    /// <summary>
+    /// News the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -110,6 +143,11 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         return Task.FromResult(session);
     }
 
+    /// <summary>
+    /// Saves the operation.
+    /// </summary>
+    /// <param name="chatSession">The chat session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SaveAsync(AIChatSession chatSession, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(chatSession);
@@ -127,6 +165,11 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         }
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
@@ -153,6 +196,11 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         return true;
     }
 
+    /// <summary>
+    /// Deletes all.
+    /// </summary>
+    /// <param name="profileId">The profile id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<int> DeleteAllAsync(string profileId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(profileId);

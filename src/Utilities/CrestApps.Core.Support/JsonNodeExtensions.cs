@@ -4,6 +4,10 @@ namespace CrestApps.Core.Support;
 
 public static class JsonNodeExtensions
 {
+    /// <summary>
+    /// Gets string value.
+    /// </summary>
+    /// <param name="node">The node.</param>
     public static string GetStringValue(this JsonNode node)
     {
         if (node == null)
@@ -24,9 +28,18 @@ public static class JsonNodeExtensions
         return node.ToJsonString();
     }
 
+    /// <summary>
+    /// Gets boolean value.
+    /// </summary>
+    /// <param name="node">The node.</param>
     public static bool GetBooleanValue(this JsonNode node)
         => node.TryGetBooleanValue(out var value) && value;
 
+    /// <summary>
+    /// Tries to get boolean value.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="value">The value.</param>
     public static bool TryGetBooleanValue(this JsonNode node, out bool value)
     {
         value = default;
@@ -45,6 +58,10 @@ public static class JsonNodeExtensions
             bool.TryParse(stringValue, out value);
     }
 
+    /// <summary>
+    /// Gets raw value.
+    /// </summary>
+    /// <param name="node">The node.</param>
     public static object GetRawValue(this JsonNode node)
     {
         if (node == null)

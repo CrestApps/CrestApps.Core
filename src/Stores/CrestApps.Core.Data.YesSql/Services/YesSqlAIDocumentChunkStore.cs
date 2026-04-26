@@ -8,6 +8,11 @@ namespace CrestApps.Core.Data.YesSql.Services;
 
 public sealed class YesSqlAIDocumentChunkStore : DocumentCatalog<AIDocumentChunk, AIDocumentChunkIndex>, IAIDocumentChunkStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="YesSqlAIDocumentChunkStore"/> class.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="options">The options.</param>
     public YesSqlAIDocumentChunkStore(
         ISession session,
         IOptions<YesSqlStoreOptions> options)
@@ -15,6 +20,10 @@ public sealed class YesSqlAIDocumentChunkStore : DocumentCatalog<AIDocumentChunk
     {
     }
 
+    /// <summary>
+    /// Gets chunks by ai document id.
+    /// </summary>
+    /// <param name="documentId">The document id.</param>
     public async Task<IReadOnlyCollection<AIDocumentChunk>> GetChunksByAIDocumentIdAsync(string documentId)
     {
         ArgumentException.ThrowIfNullOrEmpty(documentId);
@@ -25,6 +34,11 @@ public sealed class YesSqlAIDocumentChunkStore : DocumentCatalog<AIDocumentChunk
         return chunks.ToArray();
     }
 
+    /// <summary>
+    /// Gets chunks by reference.
+    /// </summary>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="referenceType">The reference type.</param>
     public async Task<IReadOnlyCollection<AIDocumentChunk>> GetChunksByReferenceAsync(string referenceId, string referenceType)
     {
         ArgumentException.ThrowIfNullOrEmpty(referenceId);
@@ -36,6 +50,10 @@ public sealed class YesSqlAIDocumentChunkStore : DocumentCatalog<AIDocumentChunk
         return chunks.ToArray();
     }
 
+    /// <summary>
+    /// Deletes by document id.
+    /// </summary>
+    /// <param name="documentId">The document id.</param>
     public async Task DeleteByDocumentIdAsync(string documentId)
     {
         ArgumentException.ThrowIfNullOrEmpty(documentId);

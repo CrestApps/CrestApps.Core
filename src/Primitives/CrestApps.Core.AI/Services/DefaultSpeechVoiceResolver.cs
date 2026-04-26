@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default Speech Voice Resolver.
+/// </summary>
 public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
 {
     private readonly IEnumerable<IAIClientProvider> _clientProviders;
@@ -13,6 +16,13 @@ public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
     private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultSpeechVoiceResolver"/> class.
+    /// </summary>
+    /// <param name="clientProviders">The client providers.</param>
+    /// <param name="connectionHandlers">The connection handlers.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="connectionCatalog">The connection catalog.</param>
     public DefaultSpeechVoiceResolver(
         IEnumerable<IAIClientProvider> clientProviders,
         IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
@@ -25,6 +35,10 @@ public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
         _connectionCatalog = connectionCatalog;
     }
 
+    /// <summary>
+    /// Gets speech voices.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async Task<SpeechVoice[]> GetSpeechVoicesAsync(AIDeployment deployment)
     {
         ArgumentNullException.ThrowIfNull(deployment);

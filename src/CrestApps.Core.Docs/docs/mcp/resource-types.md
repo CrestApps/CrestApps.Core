@@ -120,5 +120,3 @@ protected abstract Task<McpResourceReadResult> GetResultAsync(
     McpResourceReadContext context,
     CancellationToken cancellationToken);
 ```
-
-

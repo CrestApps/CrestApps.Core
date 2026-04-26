@@ -10,14 +10,28 @@ internal sealed class SseMcpConnectionSettingsHandler : CatalogEntryHandlerBase<
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SseMcpConnectionSettingsHandler"/> class.
+    /// </summary>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
     public SseMcpConnectionSettingsHandler(IDataProtectionProvider dataProtectionProvider)
     {
         _dataProtectionProvider = dataProtectionProvider;
     }
 
+    /// <summary>
+    /// Initializings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override Task InitializingAsync(InitializingContext<McpConnection> context, CancellationToken cancellationToken = default)
         => ProtectSensitiveFieldsAsync(context.Model, context.Data);
 
+    /// <summary>
+    /// Updatings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override Task UpdatingAsync(UpdatingContext<McpConnection> context, CancellationToken cancellationToken = default)
         => ProtectSensitiveFieldsAsync(context.Model, context.Data);
 

@@ -1,9 +1,15 @@
 namespace CrestApps.Core.Infrastructure;
 
+/// <summary>
+/// Provides functionality for data Source Constants.
+/// </summary>
 public static class DataSourceConstants
 {
     public const string IndexingTaskType = "DataSourceIndex";
 
+    /// <summary>
+    /// Provides functionality for column Names.
+    /// </summary>
     public static class ColumnNames
     {
         public const string ReferenceId = "referenceId";

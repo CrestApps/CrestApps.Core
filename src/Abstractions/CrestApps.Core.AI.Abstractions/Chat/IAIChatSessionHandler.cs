@@ -21,7 +21,7 @@ public interface IAIChatSessionHandler : ICatalogEntryHandler<AIChatSession>
     /// The context describing the completed message exchange, including the
     /// profile, session, messages, and an <see cref="IServiceProvider"/> scoped
     /// to the current request.
-    /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// </param>
     Task MessageCompletedAsync(ChatMessageCompletedContext context, CancellationToken cancellationToken = default);
 }

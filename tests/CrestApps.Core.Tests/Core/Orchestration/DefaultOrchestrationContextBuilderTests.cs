@@ -160,12 +160,14 @@ public sealed class DefaultOrchestrationContextBuilderTests
         public Task BuildingAsync(OrchestrationContextBuildingContext context)
         {
             _building?.Invoke(context);
+
             return Task.CompletedTask;
         }
 
         public Task BuiltAsync(OrchestrationContextBuiltContext context)
         {
             _built?.Invoke(context);
+
             return Task.CompletedTask;
         }
     }

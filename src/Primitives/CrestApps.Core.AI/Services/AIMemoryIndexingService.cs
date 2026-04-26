@@ -11,6 +11,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the AI Memory Indexing Service.
+/// </summary>
 public sealed class AIMemoryIndexingService
 {
     private readonly IAIMemoryStore _memoryStore;
@@ -19,8 +22,18 @@ public sealed class AIMemoryIndexingService
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIMemoryIndexingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemoryIndexingService"/> class.
+    /// </summary>
+    /// <param name="memoryStore">The memory store.</param>
+    /// <param name="memoryOptions">The memory options.</param>
+    /// <param name="indexProfileStore">The index profile store.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public AIMemoryIndexingService(
         IAIMemoryStore memoryStore,
         IOptions<AIMemoryOptions> memoryOptions,
@@ -39,6 +52,11 @@ public sealed class AIMemoryIndexingService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Indexs the operation.
+    /// </summary>
+    /// <param name="memory">The memory.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task IndexAsync(AIMemoryEntry memory, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(memory);
@@ -56,6 +74,7 @@ public sealed class AIMemoryIndexingService
         if (indexManager is null || documentManager is null)
         {
             _logger.LogWarning("Skipping AI memory indexing because provider '{ProviderName}' is not configured for search indexing.", indexProfile.ProviderName);
+
             return;
         }
 
@@ -75,6 +94,7 @@ public sealed class AIMemoryIndexingService
         if (vector is not { Length: > 0 })
         {
             _logger.LogWarning("Skipping AI memory indexing for '{MemoryId}' because no embedding was generated.", memory.ItemId);
+
             return;
         }
 
@@ -106,6 +126,11 @@ public sealed class AIMemoryIndexingService
         }
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="memoryIds">The memory ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAsync(IEnumerable<string> memoryIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(memoryIds);
@@ -132,12 +157,17 @@ public sealed class AIMemoryIndexingService
         if (documentManager is null)
         {
             _logger.LogWarning("Skipping AI memory index cleanup because provider '{ProviderName}' is not configured for search indexing.", indexProfile.ProviderName);
+
             return;
         }
 
         await documentManager.DeleteAsync(indexProfile, ids, cancellationToken);
     }
 
+    /// <summary>
+    /// Syncs the operation.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncAsync(CancellationToken cancellationToken = default)
     {
         var indexProfile = await GetConfiguredIndexProfileAsync(cancellationToken);
@@ -169,12 +199,14 @@ public sealed class AIMemoryIndexingService
         if (indexProfile is null)
         {
             _logger.LogWarning("AI memory indexing is configured to use '{IndexProfileName}', but that index profile was not found.", _memoryOptions.IndexProfileName);
+
             return null;
         }
 
         if (!string.Equals(indexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("AI memory indexing requires an '{ExpectedType}' index profile, but '{IndexProfileName}' is '{ActualType}'.", IndexProfileTypes.AIMemory, _memoryOptions.IndexProfileName, indexProfile.Type);
+
             return null;
         }
 

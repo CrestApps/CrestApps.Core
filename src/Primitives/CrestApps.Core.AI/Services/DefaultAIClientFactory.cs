@@ -3,10 +3,14 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the default AI Client Factory.
+/// </summary>
 public sealed class DefaultAIClientFactory : IAIClientFactory
 {
     private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
@@ -15,14 +19,20 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIClientFactory"/> class.
+    /// </summary>
+    /// <param name="clientProviders">The client providers.</param>
+    /// <param name="connectionHandlers">The connection handlers.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="connectionCatalog">The connection catalog.</param>
     public DefaultAIClientFactory(
         IEnumerable<IAIClientProvider> clientProviders,
         IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
         IDataProtectionProvider dataProtectionProvider,
         IServiceProvider serviceProvider,
-        ILogger<DefaultAIClientFactory> logger,
         INamedSourceCatalog<AIProviderConnection> connectionCatalog)
     {
         _connectionCatalog = connectionCatalog;
@@ -30,9 +40,12 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         _connectionHandlers = connectionHandlers;
         _dataProtectionProvider = dataProtectionProvider;
         _serviceProvider = serviceProvider;
-        _logger = logger;
     }
 
+    /// <summary>
+    /// Creates chat client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -44,14 +57,18 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
             (provider, conn, model) => provider.GetChatClientAsync(conn, model));
 
         return new AICompletionUsageTrackingChatClient(
-            client,
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName,
-            _serviceProvider,
-            _logger);
+                    client,
+                    deployment.ClientName,
+                    deployment.ConnectionName,
+                    deployment.ModelName,
+                    _serviceProvider,
+                    _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
     }
 
+    /// <summary>
+    /// Creates embedding generator.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -60,10 +77,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var connection = await GetConnectionEntryAsync(deployment);
 
         return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
+                    (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    /// <summary>
+    /// Creates image generator.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
@@ -73,10 +94,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var connection = await GetConnectionEntryAsync(deployment);
 
         return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
+                    (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    /// <summary>
+    /// Creates speech to text client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
@@ -86,10 +111,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var connection = await GetConnectionEntryAsync(deployment);
 
         return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
+                    (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    /// <summary>
+    /// Creates text to speech client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
@@ -99,7 +128,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var connection = await GetConnectionEntryAsync(deployment);
 
         return await ResolveClientAsync(deployment, connection,
-            (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
+                    (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
     }
 
     /// <summary>
@@ -138,6 +167,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         }
 
         // Contained-connection deployment: build an AIProviderConnectionEntry from the deployment's Properties.
+
         return AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
     }
 }

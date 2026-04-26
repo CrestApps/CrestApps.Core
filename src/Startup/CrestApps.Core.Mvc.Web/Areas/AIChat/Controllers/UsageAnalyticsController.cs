@@ -13,7 +13,9 @@ public sealed class UsageAnalyticsController : Controller
 {
     private readonly SampleAICompletionUsageService _usageService;
     private readonly GeneralAIOptions _generalAIOptions;
-    public UsageAnalyticsController(SampleAICompletionUsageService usageService, IOptions<GeneralAIOptions> generalAIOptions)
+    public UsageAnalyticsController(
+        SampleAICompletionUsageService usageService,
+        IOptions<GeneralAIOptions> generalAIOptions)
     {
         _usageService = usageService;
         _generalAIOptions = generalAIOptions.Value;
@@ -33,6 +35,7 @@ public sealed class UsageAnalyticsController : Controller
         model.IsAIUsageTrackingEnabled = _generalAIOptions.EnableAIUsageTracking;
         var records = await _usageService.GetAsync(model.StartDateUtc, model.EndDateUtc);
         ApplyReport(model, records);
+
         return View("Index", model);
     }
 
@@ -53,6 +56,7 @@ public sealed class UsageAnalyticsController : Controller
         }).Select(group =>
         {
             var latencySamples = group.Where(record => record.ResponseLatencyMs > 0).ToList();
+
             return new AICompletionUsageSummaryViewModel
             {
                 UserLabel = group.Key.UserLabel,

@@ -16,12 +16,23 @@ public sealed class EmbeddedResourceAIProfileTemplateProvider : IAIProfileTempla
     private readonly Assembly _assembly;
     private readonly IEnumerable<ITemplateParser> _parsers;
 
-    public EmbeddedResourceAIProfileTemplateProvider(Assembly assembly, IEnumerable<ITemplateParser> parsers)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EmbeddedResourceAIProfileTemplateProvider"/> class.
+    /// </summary>
+    /// <param name="assembly">The assembly.</param>
+    /// <param name="parsers">The parsers.</param>
+    public EmbeddedResourceAIProfileTemplateProvider(
+        Assembly assembly,
+        IEnumerable<ITemplateParser> parsers)
     {
         _assembly = assembly;
         _parsers = parsers;
     }
 
+    /// <summary>
+    /// Gets templates.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
         var templates = new List<AIProfileTemplate>();

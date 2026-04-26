@@ -99,9 +99,9 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         var serviceProvider = services.BuildServiceProvider();
 
         return new SearchIndexProfileProvisioningService(
-            profileManager,
-            serviceProvider,
-            NullLogger<SearchIndexProfileProvisioningService>.Instance);
+                    profileManager,
+                    serviceProvider,
+                    NullLogger<SearchIndexProfileProvisioningService>.Instance);
     }
 
     private sealed class TestRemoteSearchIndexManager : ISearchIndexManager
@@ -125,6 +125,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         {
             CreatedIndexName = profile.IndexFullName;
             CreatedFields = fields;
+
             return Task.CompletedTask;
         }
 
@@ -141,6 +142,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         public ValueTask CreateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             CreatedProfiles.Add(model.Clone());
+
             return ValueTask.CompletedTask;
         }
 
@@ -173,6 +175,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
                 IsKey = true,
                 IsFilterable = true,
             }, ];
+
             return ValueTask.FromResult(fields);
         }
 

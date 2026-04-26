@@ -4,7 +4,7 @@ namespace CrestApps.Core.AI.Models;
 /// Settings stored on <see cref="AIProfile.Settings"/> to control the chat mode
 /// and voice features for chat UIs using this profile.
 /// </summary>
-public class ChatModeProfileSettings
+public sealed class ChatModeProfileSettings
 {
     /// <summary>
     /// Gets or sets the chat mode for this profile.

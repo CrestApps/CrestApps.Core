@@ -35,6 +35,10 @@ public static class RenderTemplateTag
     /// <summary>
     /// Tag handler invoked by the Fluid engine when <c>{% render_ai_template "id" %}</c> is encountered.
     /// </summary>
+    /// <param name="expression">The expression.</param>
+    /// <param name="writer">The JSON writer.</param>
+    /// <param name="encoder">The encoder.</param>
+    /// <param name="context">The context.</param>
     public static async ValueTask<Completion> WriteToAsync(
         Expression expression,
         TextWriter writer,

@@ -93,7 +93,10 @@ public sealed class SelectOption
     {
     }
 
-    public SelectOption(string text, string value, bool selected = false)
+    public SelectOption(
+        string text,
+        string value,
+        bool selected = false)
     {
         Text = text;
         Value = value;

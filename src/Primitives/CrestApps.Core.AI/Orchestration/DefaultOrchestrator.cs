@@ -37,8 +37,19 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private readonly IToolRegistry _toolRegistry;
     private readonly ITextTokenizer _tokenizer;
     private readonly DefaultOrchestratorOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultOrchestrator> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultOrchestrator"/> class.
+    /// </summary>
+    /// <param name="completionService">The completion service.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="toolRegistry">The tool registry.</param>
+    /// <param name="tokenizer">The tokenizer.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultOrchestrator(
         IAICompletionService completionService,
         IAIClientFactory aiClientFactory,
@@ -59,8 +70,16 @@ public sealed class DefaultOrchestrator : IOrchestrator
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public string Name => OrchestratorName;
 
+    /// <summary>
+    /// Executes streaming.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<ChatResponseUpdate> ExecuteStreamingAsync(
         OrchestrationContext context,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -275,6 +294,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         if (string.IsNullOrWhiteSpace(scoringText))
         {
             // No scoring text available; return capped tools by original order.
+
             return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>(
                 scopedCandidates
                 .Take(Math.Max(budget, _options.MaxToolCount))
@@ -409,7 +429,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     {
         using var sb = ZString.CreateStringBuilder();
 
-        // Include the last assistant reply for context (e.g., "I created article X" → "yes" makes sense).
+        // Include the last assistant reply for context (e.g., "I created article X" -> "yes" makes sense).
         if (context.ConversationHistory is { Count: > 0 })
         {
             var lastAssistantMessage = context.ConversationHistory

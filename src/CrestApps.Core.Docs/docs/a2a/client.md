@@ -546,11 +546,8 @@ var metadata = new A2AConnectionMetadata
 };
 ```
 
-
-
 - Admin UI for creating and managing A2A connections
 - Built-in `ICatalog<A2AConnection>` backed by YesSql
 - Authentication configuration forms for all supported types
 - Connection assignment to AI profiles via the profile editor
 - Agent card preview and cache invalidation
-

@@ -5,11 +5,21 @@ using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Represents a configured AI provider connection that associates a client implementation
+/// with its credentials and settings used to reach an AI backend.
+/// </summary>
 [JsonConverter(typeof(AIProviderConnectionJsonConverter))]
 public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, ICloneable<AIProviderConnection>
 {
+    /// <summary>
+    /// Gets or sets the unique technical name used to identify this connection in settings and deployments.
+    /// </summary>
     public string Name { get; set; }
 
+    /// <summary>
+    /// Gets or sets the human-readable display name for this connection.
+    /// </summary>
     public string DisplayText { get; set; }
 
     /// <summary>
@@ -23,6 +33,9 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
         set => Source = value;
     }
 
+    /// <summary>
+    /// Gets or sets the legacy provider name that maps to <see cref="ClientName"/>.
+    /// </summary>
     [Obsolete("Use ClientName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string ProviderName
@@ -31,10 +44,19 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
         set => Source = value;
     }
 
+    /// <summary>
+    /// Gets or sets the UTC timestamp when this connection was created.
+    /// </summary>
     public DateTime CreatedUtc { get; set; }
 
+    /// <summary>
+    /// Gets or sets the identifier of the user who created this connection.
+    /// </summary>
     public string Author { get; set; }
 
+    /// <summary>
+    /// Gets or sets the owner identifier associated with this connection.
+    /// </summary>
     public string OwnerId { get; set; }
 
     /// <summary>
@@ -43,6 +65,9 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
     /// </summary>
     public bool IsReadOnly { get; set; }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public AIProviderConnection Clone()
     {
         return new AIProviderConnection

@@ -5,8 +5,19 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Json;
 
+/// <summary>
+/// A <see cref="JsonConverter{T}"/> for <see cref="AIProviderConnection"/> that handles
+/// backward-compatible serialization of legacy property names and the
+/// <see cref="AIProviderConnection.Properties"/> bag.
+/// </summary>
 public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProviderConnection>
 {
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="reader">The JSON reader.</param>
+    /// <param name="typeToConvert">The type to convert.</param>
+    /// <param name="options">The options.</param>
     public override AIProviderConnection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         var node = JsonNode.Parse(ref reader)?.AsObject();
@@ -51,6 +62,12 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
         return connection;
     }
 
+    /// <summary>
+    /// Writes the operation.
+    /// </summary>
+    /// <param name="writer">The JSON writer.</param>
+    /// <param name="value">The value.</param>
+    /// <param name="options">The options.</param>
     public override void Write(Utf8JsonWriter writer, AIProviderConnection value, JsonSerializerOptions options)
     {
         writer.WriteStartObject();

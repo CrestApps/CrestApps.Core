@@ -19,14 +19,20 @@ namespace CrestApps.Core.AI.Documents.Handlers;
 /// Document processing tools are registered as system tools and are always included
 /// by the orchestrator. This handler provides the model with document metadata
 /// and tool descriptions. The resource ID is resolved server-side from
-/// <see cref="AIToolExecutionContext.Resource"/> — it is never exposed to the model.
+/// <see cref="AIToolExecutionContext.Resource"/> - it is never exposed to the model.
 /// </remarks>
 public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
     private readonly AIToolDefinitionOptions _toolDefinitions;
     private readonly ITemplateService _templateService;
-    private readonly ILogger _logger;
+    private readonly ILogger<DocumentOrchestrationHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentOrchestrationHandler"/> class.
+    /// </summary>
+    /// <param name="toolDefinitions">The tool definitions.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="logger">The logger.</param>
     public DocumentOrchestrationHandler(
         IOptions<AIToolDefinitionOptions> toolDefinitions,
         ITemplateService templateService,
@@ -37,6 +43,10 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         _logger = logger;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuildingAsync(OrchestrationContextBuildingContext context)
     {
         if (context.Resource is ChatInteraction interaction &&
@@ -73,6 +83,10 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuiltAsync(OrchestrationContextBuiltContext context)
     {
         IEnumerable<ChatDocumentInfo> knowledgeBaseDocuments = null;

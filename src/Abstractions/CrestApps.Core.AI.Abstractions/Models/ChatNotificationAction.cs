@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Models;
 /// <c>HandleNotificationAction</c> hub method, which dispatches to
 /// registered <see cref="IChatNotificationActionHandler"/> implementations.
 /// </summary>
-public class ChatNotificationAction
+public sealed class ChatNotificationAction
 {
     /// <summary>
     /// Gets or sets the unique action identifier.

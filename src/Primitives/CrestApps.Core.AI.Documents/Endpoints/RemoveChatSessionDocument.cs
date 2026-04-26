@@ -10,13 +10,16 @@ using Microsoft.AspNetCore.Routing;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Provides functionality for remove Chat Session Document.
+/// </summary>
 public static class RemoveChatSessionDocument
 {
     /// <summary>
     /// Adds the chat session document removal endpoint.
     /// </summary>
-    /// <param name = "builder">The route builder.</param>
-    /// <param name = "routeName">An optional route name for URL generation.</param>
+    /// <param name="builder">The route builder.</param>
+    /// <param name="routeName">An optional route name for URL generation.</param>
     /// <returns>The route builder.</returns>
     public static IEndpointRouteBuilder AddRemoveChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
@@ -33,6 +36,18 @@ public static class RemoveChatSessionDocument
 
     private sealed class RemoveChatSessionDocumentEndpoint : AIChatDocumentEndpointBase
     {
+        /// <summary>
+        /// Handles the operation.
+        /// </summary>
+        /// <param name="requestModel">The request model.</param>
+        /// <param name="httpContext">The http context.</param>
+        /// <param name="sessionManager">The session manager.</param>
+        /// <param name="profileManager">The profile manager.</param>
+        /// <param name="documentStore">The document store.</param>
+        /// <param name="chunkStore">The chunk store.</param>
+        /// <param name="fileStore">The file store.</param>
+        /// <param name="authorizationService">The authorization service.</param>
+        /// <param name="eventHandlers">The event handlers.</param>
         public static async Task<IResult> HandleAsync(
             [FromBody] RemoveDocumentRequest requestModel,
             HttpContext httpContext,

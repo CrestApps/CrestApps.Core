@@ -30,11 +30,16 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Adds the reusable templating services plus the built-in AI template source definitions.
     /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">The action used to configure.</param>
     public static IServiceCollection AddCoreAITemplating(
         this IServiceCollection services,
         Action<TemplateOptions> configure = null)
@@ -69,8 +74,6 @@ public static class ServiceCollectionExtensions
     /// Call <see cref="AIToolBuilder{TTool}.Selectable"/> to make the tool visible for user selection.
     /// </summary>
     /// <typeparam name="TTool">The tool type implementing <see cref="AITool"/>.</typeparam>
-    /// <param name="services">The service collection.</param>
-    /// <param name="name">The unique name for this tool.</param>
     /// <returns>A builder for fluent configuration of the tool.</returns>
     public static AIToolBuilder<TTool> AddCoreAITool<TTool>(this IServiceCollection services, string name)
         where TTool : AITool
@@ -125,6 +128,7 @@ public static class ServiceCollectionExtensions
     /// Adds core CrestApps AI services to the service collection.
     /// This is the main entry point for any ASP.NET Core application to use CrestApps AI.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -183,6 +187,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds ai suite.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsCoreBuilder AddAISuite(this CrestAppsCoreBuilder builder, Action<CrestAppsAISuiteBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -200,6 +209,9 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds core ai profile.
+    /// </summary>
     public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string clientName, Action<AIProfileProviderEntry> configure = null)
         where TClient : class, IAICompletionClient
     {
@@ -207,13 +219,19 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(clientName);
 
         return services
-            .Configure<AIOptions>(o =>
-            {
-                o.AddProfileSource(clientName, configure);
-            })
-            .AddCoreAICompletionClient<TClient>(clientName);
+                    .Configure<AIOptions>(o =>
+                    {
+                        o.AddProfileSource(clientName, configure);
+                    })
+                    .AddCoreAICompletionClient<TClient>(clientName);
     }
 
+    /// <summary>
+    /// Adds core ai deployment provider.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public static IServiceCollection AddCoreAIDeploymentProvider(this IServiceCollection services, string clientName, Action<AIDeploymentProviderEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -228,6 +246,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai completion client.
+    /// </summary>
     public static IServiceCollection AddCoreAICompletionClient<TClient>(this IServiceCollection services, string clientName)
         where TClient : class, IAICompletionClient
     {
@@ -245,6 +266,12 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai connection source.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public static IServiceCollection AddCoreAIConnectionSource(this IServiceCollection services, string clientName, Action<AIProviderConnectionOptionsEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -258,6 +285,12 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai template source.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="sourceName">The source name.</param>
+    /// <param name="configure">The configure.</param>
     public static IServiceCollection AddCoreAITemplateSource(this IServiceCollection services, string sourceName, Action<AITemplateSourceEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -271,6 +304,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai data source rag.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDataSourceRag(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -291,6 +328,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai memory.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIMemory(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -330,6 +371,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds ai memory.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsAISuiteBuilder AddAIMemory(this CrestAppsAISuiteBuilder builder, Action<CrestAppsAIMemoryBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -348,6 +394,7 @@ public static class ServiceCollectionExtensions
     /// Adds the orchestration services including the default progressive tool orchestrator,
     /// tool registry, orchestration context builder, and orchestrator resolver.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIOrchestration(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

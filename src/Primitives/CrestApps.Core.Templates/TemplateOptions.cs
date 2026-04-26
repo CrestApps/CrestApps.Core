@@ -23,6 +23,7 @@ public sealed class TemplateOptions
     /// Keys not in this set are placed in <see cref="TemplateMetadata.AdditionalProperties"/>.
     /// Additional keys can be registered for future extensibility (e.g., AI Profile parameters).
     /// </summary>
+    /// <param name="OrdinalIgnoreCase">The ordinal ignore case.</param>
     public HashSet<string> ReservedMetadataKeys { get; } = new(StringComparer.OrdinalIgnoreCase)
     {
         "Title",
@@ -34,6 +35,7 @@ public sealed class TemplateOptions
     /// <summary>
     /// Registers a prompt template from code.
     /// </summary>
+    /// <param name="template">The template.</param>
     public TemplateOptions AddTemplate(Template template)
     {
         ArgumentNullException.ThrowIfNull(template);
@@ -46,6 +48,9 @@ public sealed class TemplateOptions
     /// <summary>
     /// Registers a prompt template with minimal configuration.
     /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="content">The content.</param>
+    /// <param name="configureMetadata">The configure metadata.</param>
     public TemplateOptions AddTemplate(string id, string content, Action<TemplateMetadata> configureMetadata = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -68,6 +73,7 @@ public sealed class TemplateOptions
     /// <summary>
     /// Adds a file system path to scan for prompt template files.
     /// </summary>
+    /// <param name="path">The path.</param>
     public TemplateOptions AddDiscoveryPath(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

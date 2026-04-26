@@ -233,4 +233,3 @@ public sealed class DefaultConnectionAuthHeaderBuilderTests
         public byte[] Unprotect(byte[] protectedData) => protectedData;
     }
 }
-

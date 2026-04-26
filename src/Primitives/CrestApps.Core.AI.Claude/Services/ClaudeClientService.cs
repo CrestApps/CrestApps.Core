@@ -12,8 +12,13 @@ namespace CrestApps.Core.AI.Claude.Services;
 public sealed class ClaudeClientService
 {
     private readonly IOptionsSnapshot<ClaudeOptions> _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<ClaudeClientService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ClaudeClientService"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
     public ClaudeClientService(
         IOptionsSnapshot<ClaudeOptions> options,
         ILogger<ClaudeClientService> logger)
@@ -22,6 +27,9 @@ public sealed class ClaudeClientService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Creates client.
+    /// </summary>
     public AnthropicClient CreateClient()
     {
         var options = _options.Value;
@@ -43,6 +51,10 @@ public sealed class ClaudeClientService
         return new AnthropicClient(clientOptions);
     }
 
+    /// <summary>
+    /// Lists models.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyCollection<ClaudeModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
         var options = _options.Value;
@@ -87,6 +99,7 @@ public sealed class ClaudeClientService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error listing Claude models.");
+
             return [];
         }
     }

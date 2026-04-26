@@ -11,6 +11,9 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the AI Memory Search Service.
+/// </summary>
 public sealed class AIMemorySearchService : IAIMemorySearchService
 {
     private readonly IServiceProvider _serviceProvider;
@@ -18,8 +21,17 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly AIMemoryOptions _memoryOptions;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIMemorySearchService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemorySearchService"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="indexProfileStore">The index profile store.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="memoryOptions">The memory options.</param>
+    /// <param name="logger">The logger.</param>
     public AIMemorySearchService(
         IServiceProvider serviceProvider,
         ISearchIndexProfileStore indexProfileStore,
@@ -36,6 +48,13 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="queries">The queries.</param>
+    /// <param name="requestedTopN">The requested top n.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<AIMemorySearchResult>> SearchAsync(
         string userId,
         IEnumerable<string> queries,
@@ -45,6 +64,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogDebug("Skipping AI memory search because the user ID is missing.");
+
             return [];
         }
 
@@ -57,12 +77,14 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         if (normalizedQueries is not { Length: > 0 })
         {
             _logger.LogDebug("Skipping AI memory search because no non-empty queries were provided.");
+
             return [];
         }
 
         if (string.IsNullOrWhiteSpace(_memoryOptions.IndexProfileName))
         {
             _logger.LogDebug("Skipping AI memory search because no AI Memory index profile is configured.");
+
             return [];
         }
 
@@ -77,6 +99,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                     _memoryOptions.IndexProfileName,
                     IndexProfileTypes.AIMemory);
             }
+
             return [];
         }
 
@@ -90,6 +113,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                     "Skipping AI memory search because provider '{ProviderName}' does not have a registered memory vector-search service.",
                     indexProfile.ProviderName);
             }
+
             return [];
         }
 
@@ -110,6 +134,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                     "AI memory search produced no embeddings for configured index profile '{IndexProfileName}'.",
                     indexProfile.Name);
             }
+
             return [];
         }
 
@@ -169,6 +194,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         if (string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentId))
         {
             _logger.LogWarning("AI memory index profile '{IndexProfileName}' is missing an embedding deployment.", indexProfile.Name);
+
             return null;
         }
 
@@ -183,6 +209,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                 "AI memory index profile '{IndexProfileName}' could not resolve embedding deployment '{EmbeddingDeploymentId}'.",
                 indexProfile.Name,
                 indexProfile.EmbeddingDeploymentId);
+
             return null;
         }
 

@@ -3,20 +3,42 @@ using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Represents an AI data source that links an index profile to an AI knowledge base
+/// for document retrieval and augmented generation.
+/// </summary>
 public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneable<AIDataSource>
 {
+    /// <summary>
+    /// Gets or sets the legacy profile source value retained for backward compatibility.
+    /// </summary>
     [Obsolete("Do not use any more.")]
     public string ProfileSource { get; set; }
 
+    /// <summary>
+    /// Gets or sets the legacy data source type retained for backward compatibility.
+    /// </summary>
     [Obsolete("Do not use any more.")]
     public string Type { get; set; }
 
+    /// <summary>
+    /// Gets or sets the human-readable display name for this data source.
+    /// </summary>
     public string DisplayText { get; set; }
 
+    /// <summary>
+    /// Gets or sets the UTC timestamp when this data source was created.
+    /// </summary>
     public DateTime CreatedUtc { get; set; }
 
+    /// <summary>
+    /// Gets or sets the identifier of the user who created this data source.
+    /// </summary>
     public string Author { get; set; }
 
+    /// <summary>
+    /// Gets or sets the owner identifier associated with this data source.
+    /// </summary>
     public string OwnerId { get; set; }
 
     /// <summary>
@@ -45,6 +67,9 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneab
     /// </summary>
     public string ContentFieldName { get; set; }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public AIDataSource Clone()
     {
         return new AIDataSource

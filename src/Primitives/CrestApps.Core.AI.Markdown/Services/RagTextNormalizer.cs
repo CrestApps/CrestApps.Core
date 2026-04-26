@@ -9,8 +9,8 @@ namespace CrestApps.Core.AI.Services;
 
 /// <summary>
 /// Provides text normalization and chunking utilities for RAG (Retrieval-Augmented Generation) content.
-/// Strips HTML tags, uses <see cref = "MarkdownReader"/> for Markdown-to-plain-text conversion,
-/// and provides token-aware chunking via <see cref = "DocumentTokenChunker"/>.
+/// Strips HTML tags, uses <see cref="MarkdownReader"/> for Markdown-to-plain-text conversion,
+/// and provides token-aware chunking via <see cref="DocumentTokenChunker"/>.
 /// </summary>
 public static partial class RagTextNormalizer
 {
@@ -20,6 +20,11 @@ public static partial class RagTextNormalizer
     private static readonly MarkdownReader _reader = CreateMarkdownReader();
     private static readonly DocumentTokenChunker _defaultChunker = CreateDefaultChunker();
 
+    /// <summary>
+    /// Normalize contents content.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public static async Task<string> NormalizeContentAsync(string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -44,6 +49,11 @@ public static partial class RagTextNormalizer
         }
     }
 
+    /// <summary>
+    /// Normalizes and chunk.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public static async Task<List<string>> NormalizeAndChunkAsync(string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -75,6 +85,10 @@ public static partial class RagTextNormalizer
         }
     }
 
+    /// <summary>
+    /// Normalizes title.
+    /// </summary>
+    /// <param name="title">The title.</param>
     public static string NormalizeTitle(string title)
     {
         if (string.IsNullOrWhiteSpace(title))
@@ -84,6 +98,7 @@ public static partial class RagTextNormalizer
 
         title = StripHtml(title);
         title = AllWhitespaceRegex().Replace(title, " ");
+
         return title.Trim();
     }
 
@@ -94,6 +109,7 @@ public static partial class RagTextNormalizer
         text = HtmlTagRegex().Replace(text, string.Empty);
         text = WebUtility.HtmlDecode(text);
         text = text.Replace("\u00B6", string.Empty);
+
         return text;
     }
 
@@ -106,6 +122,7 @@ public static partial class RagTextNormalizer
     private static async Task<IngestionDocument> ParseDocumentAsync(string text, CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+
         return await _reader.ReadAsync(stream, "inmemory", "text/markdown", cancellationToken);
     }
 

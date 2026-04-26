@@ -17,8 +17,13 @@ namespace CrestApps.Core.AI.Azure.AISearch.Services;
 internal sealed class AzureAISearchVectorSearchService : IVectorSearchService
 {
     private readonly SearchIndexClient _searchIndexClient;
-    private readonly ILogger _logger;
+    private readonly ILogger<AzureAISearchVectorSearchService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureAISearchVectorSearchService"/> class.
+    /// </summary>
+    /// <param name="searchIndexClient">The search index client.</param>
+    /// <param name="logger">The logger.</param>
     public AzureAISearchVectorSearchService(
         SearchIndexClient searchIndexClient,
         ILogger<AzureAISearchVectorSearchService> logger)
@@ -27,6 +32,15 @@ internal sealed class AzureAISearchVectorSearchService : IVectorSearchService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="referenceType">The reference type.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<DocumentChunkSearchResult>> SearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,
@@ -138,12 +152,14 @@ internal sealed class AzureAISearchVectorSearchService : IVectorSearchService
         {
             _logger.LogError(ex, "Azure AI Search request failed for index '{IndexName}': {Message}",
                 indexProfile.IndexFullName, ex.Message);
+
             return [];
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error performing vector search in Azure AI Search index '{IndexName}'.",
                 indexProfile.IndexFullName);
+
             return [];
         }
     }

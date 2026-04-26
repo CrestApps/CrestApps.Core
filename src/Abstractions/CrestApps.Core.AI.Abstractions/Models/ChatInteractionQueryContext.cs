@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI.Models;
 /// <summary>
 /// Context for querying chat interactions.
 /// </summary>
-public class ChatInteractionQueryContext : QueryContext
+public sealed class ChatInteractionQueryContext : QueryContext
 {
     /// <summary>
     /// Gets or sets the user ID to filter interactions by.

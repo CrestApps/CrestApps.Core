@@ -5,6 +5,11 @@ namespace CrestApps.Core.Support;
 
 public static class TypeExtensions
 {
+    /// <summary>
+    /// Gets safe object.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="value">The value.</param>
     public static object GetSafeObject(this Type type, string value)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -100,16 +105,21 @@ public static class TypeExtensions
         ArgumentNullException.ThrowIfNull(predicate);
 
         return type.BaseTypes()
-            .Any(predicate);
+                    .Any(predicate);
     }
 
+    /// <summary>
+    /// Firsts particular type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="generic">The generic.</param>
     public static Type FirstParticularType(this Type type, Type generic)
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(generic);
 
         return type.BaseTypes()
-            .FirstOrDefault(generic.IsAssignableFrom);
+                    .FirstOrDefault(generic.IsAssignableFrom);
     }
 
     /// <summary>
@@ -180,6 +190,10 @@ public static class TypeExtensions
         return _fractionalNumericTypes.Contains(t);
     }
 
+    /// <summary>
+    /// Determines whether date time.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool IsDateTime(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -189,6 +203,10 @@ public static class TypeExtensions
         return t == typeof(DateTime);
     }
 
+    /// <summary>
+    /// Determines whether true enum.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool IsTrueEnum(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -198,6 +216,10 @@ public static class TypeExtensions
         return t.IsEnum;
     }
 
+    /// <summary>
+    /// Determines whether boolean.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool IsBoolean(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -207,6 +229,10 @@ public static class TypeExtensions
         return t == typeof(bool);
     }
 
+    /// <summary>
+    /// Determines whether string.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool IsString(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -216,17 +242,26 @@ public static class TypeExtensions
         return t == typeof(string);
     }
 
+    /// <summary>
+    /// Determines whether single value type.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool IsSingleValueType(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
         return type.IsNumeric()
-            || type.IsBoolean()
-                || type.IsDateTime()
-                    || type.IsString()
-                        || type.IsTrueEnum();
+                    || type.IsBoolean()
+                        || type.IsDateTime()
+                            || type.IsString()
+                                || type.IsTrueEnum();
     }
 
+    /// <summary>
+    /// Extracts generic interface.
+    /// </summary>
+    /// <param name="queryType">The query type.</param>
+    /// <param name="interfaceType">The interface type.</param>
     public static Type ExtractGenericInterface(this Type queryType, Type interfaceType)
     {
         ArgumentNullException.ThrowIfNull(queryType);
@@ -237,6 +272,11 @@ public static class TypeExtensions
         return matchesInterface(queryType) ? queryType : queryType.GetInterfaces().FirstOrDefault(matchesInterface);
     }
 
+    /// <summary>
+    /// Gets type arguments if match.
+    /// </summary>
+    /// <param name="closedType">The closed type.</param>
+    /// <param name="matchingOpenType">The matching open type.</param>
     public static Type[] GetTypeArgumentsIfMatch(this Type closedType, Type matchingOpenType)
     {
         ArgumentNullException.ThrowIfNull(closedType);
@@ -252,6 +292,11 @@ public static class TypeExtensions
         return (matchingOpenType == openType) ? closedType.GetGenericArguments() : null;
     }
 
+    /// <summary>
+    /// Determines whether compatible object.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="value">The value.</param>
     public static bool IsCompatibleObject(this Type type, object value)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -259,6 +304,10 @@ public static class TypeExtensions
         return (value == null && TypeAllowsNullValue(type)) || type.IsInstanceOfType(value);
     }
 
+    /// <summary>
+    /// Determines whether nullable value type.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool IsNullableValueType(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -266,6 +315,10 @@ public static class TypeExtensions
         return Nullable.GetUnderlyingType(type) != null;
     }
 
+    /// <summary>
+    /// Types allows null value.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool TypeAllowsNullValue(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -273,6 +326,10 @@ public static class TypeExtensions
         return !type.IsValueType || IsNullableValueType(type);
     }
 
+    /// <summary>
+    /// Determines whether true generic type.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static bool IsTrueGenericType(this Type type)
     {
         ArgumentNullException.ThrowIfNull(type);

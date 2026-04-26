@@ -501,12 +501,14 @@ public sealed class AIProviderConnectionConfigurationTests
         public ValueTask CreateAsync(AIProviderConnection entry, CancellationToken cancellationToken = default)
         {
             connections.Add(entry);
+
             return ValueTask.CompletedTask;
         }
 
         public ValueTask<bool> DeleteAsync(AIProviderConnection entry, CancellationToken cancellationToken = default)
         {
             connections.Remove(entry);
+
             return ValueTask.FromResult(true);
         }
 

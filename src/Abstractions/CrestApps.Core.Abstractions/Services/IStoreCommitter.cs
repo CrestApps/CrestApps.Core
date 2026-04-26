@@ -12,5 +12,9 @@ namespace CrestApps.Core.Services;
 /// </summary>
 public interface IStoreCommitter
 {
+    /// <summary>
+    /// Commits the operation.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     ValueTask CommitAsync(CancellationToken cancellationToken = default);
 }

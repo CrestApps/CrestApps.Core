@@ -16,8 +16,14 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
 
     private readonly IMcpServerMetadataCacheProvider _metadataProvider;
     private readonly ISourceCatalog<McpConnection> _store;
-    private readonly ILogger _logger;
+    private readonly ILogger<McpToolRegistryProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpToolRegistryProvider"/> class.
+    /// </summary>
+    /// <param name="metadataProvider">The metadata provider.</param>
+    /// <param name="store">The store.</param>
+    /// <param name="logger">The logger.</param>
     public McpToolRegistryProvider(
         IMcpServerMetadataCacheProvider metadataProvider,
         ISourceCatalog<McpConnection> store,
@@ -28,6 +34,11 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets tools.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyList<ToolRegistryEntry>> GetToolsAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default)

@@ -102,6 +102,7 @@ public static partial class McpResourceUri
     /// <summary>
     /// Determines whether the given URI contains template variables (e.g., {name}).
     /// </summary>
+    /// <param name="uri">The uri.</param>
     public static bool IsTemplate(string uri)
     {
         return !string.IsNullOrWhiteSpace(uri) && uri.AsSpan().Trim().Contains('{');

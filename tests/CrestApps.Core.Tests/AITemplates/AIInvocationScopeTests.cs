@@ -9,7 +9,7 @@ namespace CrestApps.Core.Tests.AITemplates;
 ///
 /// <para>
 /// <b>How AsyncLocal works:</b>
-/// <c>AsyncLocal&lt;T&gt;</c> stores a value that is local to the current async control
+/// <c>AsyncLocal<T></c> stores a value that is local to the current async control
 /// flow. When you <c>await</c> a task, the runtime captures the current
 /// <c>ExecutionContext</c> (which contains all AsyncLocal values) and restores it when
 /// the continuation runs — even if the continuation runs on a different thread-pool
@@ -19,7 +19,7 @@ namespace CrestApps.Core.Tests.AITemplates;
 /// </para>
 ///
 /// <para>
-/// This is fundamentally different from <c>ThreadLocal&lt;T&gt;</c> (which is pinned to
+/// This is fundamentally different from <c>ThreadLocal<T></c> (which is pinned to
 /// the OS thread) and from <c>HttpContext.Items</c> (which is pinned to the HTTP
 /// request/connection and shared by all code running on that connection).
 /// </para>
@@ -229,4 +229,3 @@ public sealed class AIInvocationScopeTests
         Assert.False(contextB.Items.ContainsKey("key"));
     }
 }
-

@@ -19,7 +19,7 @@ namespace CrestApps.Core.Elasticsearch.Services;
 internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContentManager
 {
     private readonly ElasticsearchClient _elasticClient;
-    private readonly ILogger _logger;
+    private readonly ILogger<ElasticsearchDataSourceContentManager> _logger;
 
     internal static List<(string Kind, string Value)> BuildMustQueryDebug(string dataSourceId, string filter)
     {
@@ -39,6 +39,11 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
         return list;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ElasticsearchDataSourceContentManager"/> class.
+    /// </summary>
+    /// <param name="elasticClient">The elastic client.</param>
+    /// <param name="logger">The logger.</param>
     public ElasticsearchDataSourceContentManager(
         ElasticsearchClient elasticClient,
         ILogger<ElasticsearchDataSourceContentManager> logger)
@@ -47,6 +52,15 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="filter">The filter.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,
@@ -171,6 +185,12 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
         }
     }
 
+    /// <summary>
+    /// Deletes by data source id.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<long> DeleteByDataSourceIdAsync(
         IIndexProfileInfo indexProfile,
         string dataSourceId,

@@ -10,15 +10,28 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
 {
     internal readonly IStringLocalizer S;
 
-    public AIProfileHandler(
-        IStringLocalizer<AIProfileHandler> stringLocalizer)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProfileHandler"/> class.
+    /// </summary>
+    /// <param name="stringLocalizer">The string localizer.</param>
+    public AIProfileHandler(IStringLocalizer<AIProfileHandler> stringLocalizer)
     {
         S = stringLocalizer;
     }
 
+    /// <summary>
+    /// Initializings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override Task InitializingAsync(InitializingContext<AIProfile> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 
+    /// <summary>
+    /// Updatings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override Task UpdatingAsync(UpdatingContext<AIProfile> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 

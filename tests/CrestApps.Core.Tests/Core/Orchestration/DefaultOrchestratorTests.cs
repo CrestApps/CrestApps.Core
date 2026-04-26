@@ -13,7 +13,6 @@ using Microsoft.Extensions.Options;
 using Moq;
 
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
-
 namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class DefaultOrchestratorTests
@@ -372,6 +371,7 @@ public sealed class DefaultOrchestratorTests
                 Name = "test-model",
                 ClientName = "test-client",
             });
+
         return new DefaultOrchestrator(completionService ?? new FakeCompletionService("default response"), new FakeAIClientFactory(), new FakeAITemplateService(), deploymentManager.Object, toolRegistry ?? new FakeToolRegistry([]), new LuceneTextTokenizer(), Options.Create(new DefaultOrchestratorOptions()), NullLogger<DefaultOrchestrator>.Instance);
     }
 
@@ -443,6 +443,7 @@ public sealed class DefaultOrchestratorTests
 
             var text = PlanningResponse ?? "No plan";
             var response = new ChatResponse([new ChatMessage(ChatRole.Assistant, text)]);
+
             return Task.FromResult(response);
         }
 

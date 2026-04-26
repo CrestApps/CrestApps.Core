@@ -8,16 +8,23 @@ namespace CrestApps.Core.AI.Copilot.Handlers;
 
 /// <summary>
 /// Handles Copilot-specific settings (model and flags) when a
-/// <see cref = "ChatInteraction"/> is saved via the SignalR hub.
+/// <see cref="ChatInteraction"/> is saved via the SignalR hub.
 /// </summary>
 internal sealed class CopilotChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
+    /// <summary>
+    /// Updatings the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var orchestratorName = GetString(settings, "orchestratorName") ?? interaction.OrchestratorName;
         if (!string.Equals(orchestratorName, CopilotOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
         {
             interaction.Remove<CopilotSessionMetadata>();
+
             return Task.CompletedTask;
         }
 
@@ -29,9 +36,16 @@ internal sealed class CopilotChatInteractionSettingsHandler : IChatInteractionSe
             metadata.IsAllowAll = isAllowAll;
             metadata.ReasoningEffort = GetEnum<CopilotReasoningEffort>(settings, "copilotReasoningEffort");
         });
+
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Updateds the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;

@@ -1,4 +1,3 @@
-#nullable enable
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,11 +22,20 @@ public sealed class StoreCommitterHubFilter : IHubFilter
 {
     private readonly ILogger<StoreCommitterHubFilter> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StoreCommitterHubFilter"/> class.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
     public StoreCommitterHubFilter(ILogger<StoreCommitterHubFilter> logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Invokes method.
+    /// </summary>
+    /// <param name="invocationContext">The invocation context.</param>
+    /// <param name="next">The next.</param>
     public async ValueTask<object?> InvokeMethodAsync(
         HubInvocationContext invocationContext,
         Func<HubInvocationContext, ValueTask<object?>> next)
@@ -45,11 +53,22 @@ public sealed class StoreCommitterHubFilter : IHubFilter
         return result;
     }
 
+    /// <summary>
+    /// Ons connected.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="next">The next.</param>
     public Task OnConnectedAsync(HubLifetimeContext context, Func<HubLifetimeContext, Task> next)
     {
         return next(context);
     }
 
+    /// <summary>
+    /// Ons disconnected.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="exception">The exception.</param>
+    /// <param name="next">The next.</param>
     public Task OnDisconnectedAsync(HubLifetimeContext context, Exception? exception, Func<HubLifetimeContext, Exception?, Task> next)
     {
         return next(context, exception);

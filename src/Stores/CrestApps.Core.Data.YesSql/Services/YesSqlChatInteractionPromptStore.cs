@@ -8,6 +8,11 @@ namespace CrestApps.Core.Data.YesSql.Services;
 
 public sealed class YesSqlChatInteractionPromptStore : DocumentCatalog<ChatInteractionPrompt, ChatInteractionPromptIndex>, IChatInteractionPromptStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="YesSqlChatInteractionPromptStore"/> class.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="options">The options.</param>
     public YesSqlChatInteractionPromptStore(
         ISession session,
         IOptions<YesSqlStoreOptions> options)
@@ -15,6 +20,10 @@ public sealed class YesSqlChatInteractionPromptStore : DocumentCatalog<ChatInter
     {
     }
 
+    /// <summary>
+    /// Gets prompts.
+    /// </summary>
+    /// <param name="chatInteractionId">The chat interaction id.</param>
     public async Task<IReadOnlyCollection<ChatInteractionPrompt>> GetPromptsAsync(string chatInteractionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(chatInteractionId);
@@ -26,6 +35,10 @@ public sealed class YesSqlChatInteractionPromptStore : DocumentCatalog<ChatInter
         return prompts.OrderBy(p => p.CreatedUtc).ToArray();
     }
 
+    /// <summary>
+    /// Deletes all prompts.
+    /// </summary>
+    /// <param name="chatInteractionId">The chat interaction id.</param>
     public async Task<int> DeleteAllPromptsAsync(string chatInteractionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(chatInteractionId);

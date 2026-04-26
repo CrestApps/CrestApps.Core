@@ -3,13 +3,44 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for AI Completion Usage Record Factory.
+/// </summary>
 public static class AICompletionUsageRecordFactory
 {
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="completionContext">The completion context.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="connectionName">The connection name.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="modelName">The model name.</param>
+    /// <param name="responseId">The response id.</param>
+    /// <param name="inputTokenCount">The input token count.</param>
+    /// <param name="outputTokenCount">The output token count.</param>
+    /// <param name="totalTokenCount">The total token count.</param>
+    /// <param name="responseLatencyMs">The response latency ms.</param>
+    /// <param name="isStreaming">Indicates whether streaming.</param>
     public static AICompletionUsageRecord Create(AICompletionContext completionContext, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)
     {
         return Create(completionContext?.AdditionalProperties, clientName, connectionName, deploymentName, modelName, responseId, inputTokenCount, outputTokenCount, totalTokenCount, responseLatencyMs, isStreaming);
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="additionalProperties">The additional properties.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="connectionName">The connection name.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="modelName">The model name.</param>
+    /// <param name="responseId">The response id.</param>
+    /// <param name="inputTokenCount">The input token count.</param>
+    /// <param name="outputTokenCount">The output token count.</param>
+    /// <param name="totalTokenCount">The total token count.</param>
+    /// <param name="responseLatencyMs">The response latency ms.</param>
+    /// <param name="isStreaming">The is streaming.</param>
     public static AICompletionUsageRecord Create(IReadOnlyDictionary<string, object> additionalProperties, string clientName, string connectionName, string deploymentName, string modelName, string responseId, long inputTokenCount, long outputTokenCount, long totalTokenCount, double responseLatencyMs, bool isStreaming)
     {
         var record = new AICompletionUsageRecord

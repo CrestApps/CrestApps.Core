@@ -10,7 +10,6 @@ using Microsoft.Extensions.Options;
 using Moq;
 
 #pragma warning disable MEAI001
-
 namespace CrestApps.Core.Tests.Modules.AI.Memory.Handlers;
 
 public sealed class AIMemoryPreemptiveRagHandlerTests
@@ -100,18 +99,18 @@ public sealed class AIMemoryPreemptiveRagHandlerTests
         };
 
         return new AIMemoryPreemptiveRagHandler(
-            memorySearchService.Object,
-            new FakeAITemplateService(),
-            Options.Create(new GeneralAIOptions
-            {
-                EnablePreemptiveMemoryRetrieval = enablePreemptiveMemoryRetrieval,
-            }),
-            Options.Create(new ChatInteractionMemoryOptions
-            {
-                EnableUserMemory = enableChatInteractionMemory,
-            }),
-            httpContextAccessor,
-            NullLogger<AIMemoryPreemptiveRagHandler>.Instance);
+                    memorySearchService.Object,
+                    new FakeAITemplateService(),
+                    Options.Create(new GeneralAIOptions
+                    {
+                        EnablePreemptiveMemoryRetrieval = enablePreemptiveMemoryRetrieval,
+                    }),
+                    Options.Create(new ChatInteractionMemoryOptions
+                    {
+                        EnableUserMemory = enableChatInteractionMemory,
+                    }),
+                    httpContextAccessor,
+                    NullLogger<AIMemoryPreemptiveRagHandler>.Instance);
     }
 
     private sealed class FakeAITemplateService : ITemplateService

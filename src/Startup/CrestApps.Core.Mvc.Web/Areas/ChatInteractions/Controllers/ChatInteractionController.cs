@@ -621,6 +621,7 @@ public sealed class ChatInteractionController : Controller
         }
 
         var dataSource = await _dataSourceCatalog.FindByIdAsync(dataSourceId);
+
         return dataSource?.ItemId;
     }
 
@@ -670,10 +671,10 @@ public sealed class ChatInteractionController : Controller
             .ToHashSet(StringComparer.Ordinal);
 
         return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
 
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
     }
 
     private async Task<List<string>> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
@@ -683,10 +684,10 @@ public sealed class ChatInteractionController : Controller
             .ToHashSet(StringComparer.Ordinal);
 
         return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
 
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
     }
 
     private List<string> GetValidToolNames(IEnumerable<string> selectedNames)
@@ -707,10 +708,10 @@ public sealed class ChatInteractionController : Controller
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return (selectedNames ?? [])
-            .Where(name => !string.IsNullOrWhiteSpace(name) && allNames.Contains(name))
+                    .Where(name => !string.IsNullOrWhiteSpace(name) && allNames.Contains(name))
 
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
     }
 
     private async Task UploadDocumentsAsync(ChatInteraction interaction, List<IFormFile> files)
@@ -793,6 +794,7 @@ public sealed class ChatInteractionController : Controller
         if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
+
             return;
         }
 
@@ -803,6 +805,7 @@ public sealed class ChatInteractionController : Controller
     private async Task<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>> CreateEmbeddingGeneratorAsync()
     {
         var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
+
         return deployment == null
             ? null
             : await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
@@ -847,6 +850,7 @@ public sealed class ChatInteractionController : Controller
         if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
+
             return;
         }
 
@@ -861,7 +865,7 @@ public sealed class ChatInteractionController : Controller
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
         return model.CostMultiplier > 0
-            ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
-            : name;
+                    ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
+                    : name;
     }
 }

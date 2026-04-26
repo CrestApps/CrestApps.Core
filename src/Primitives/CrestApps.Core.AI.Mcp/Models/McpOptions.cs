@@ -2,9 +2,16 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Mcp.Models;
 
+/// <summary>
+/// Represents the MCP Options.
+/// </summary>
 public sealed class McpOptions
 {
     private readonly Dictionary<string, McpResourceTypeEntry> _resourceTypes = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets the resource Types.
+    /// </summary>
     public IReadOnlyDictionary<string, McpResourceTypeEntry> ResourceTypes
     {
         get
@@ -13,6 +20,11 @@ public sealed class McpOptions
         }
     }
 
+    /// <summary>
+    /// Adds resource type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="configure">The configure.</param>
     public void AddResourceType(string type, Action<McpResourceTypeEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
@@ -35,15 +47,33 @@ public sealed class McpOptions
     }
 }
 
+/// <summary>
+/// Represents the MCP Resource Type Entry.
+/// </summary>
 public sealed class McpResourceTypeEntry
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpResourceTypeEntry"/> class.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public McpResourceTypeEntry(string type)
     {
         Type = type;
     }
 
+    /// <summary>
+    /// Gets or sets the type.
+    /// </summary>
     public string Type { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the display Name.
+    /// </summary>
     public LocalizedString DisplayName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the description.
+    /// </summary>
     public LocalizedString Description { get; set; }
 
     /// <summary>

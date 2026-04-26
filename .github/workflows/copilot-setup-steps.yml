@@ -24,4 +24,3 @@ jobs:
 
       - name: Restore NuGet packages
         run: dotnet restore
-

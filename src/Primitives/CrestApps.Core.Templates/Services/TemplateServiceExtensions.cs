@@ -20,7 +20,7 @@ public static class TemplateServiceExtensions
         var templates = await templateService.ListAsync();
 
         return (templates ?? [])
-            .Where(template => template.Kind is not null && string.Equals(template.Kind, kind, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+                    .Where(template => template.Kind is not null && string.Equals(template.Kind, kind, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
     }
 }

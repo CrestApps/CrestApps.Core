@@ -379,5 +379,3 @@ public sealed class PermissionContextHandler(
         => Task.CompletedTask;
 }
 ```
-
-

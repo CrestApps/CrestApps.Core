@@ -193,6 +193,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var deploymentManager = new Mock<IAIDeploymentManager>();
         var queryProvider = new PreemptiveSearchQueryProvider(new NullAIClientFactory(), deploymentManager.Object, templateService, NullLogger<PreemptiveSearchQueryProvider>.Instance);
         var settings = Options.Create(new DefaultOrchestratorSettings { EnablePreemptiveRag = enablePreemptiveRag });
+
         return new PreemptiveRagOrchestrationHandler(handlers, queryProvider, templateService, settings, NullLogger<PreemptiveRagOrchestrationHandler>.Instance);
     }
 

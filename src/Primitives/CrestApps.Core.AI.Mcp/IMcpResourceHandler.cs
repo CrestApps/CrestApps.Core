@@ -11,6 +11,7 @@ public interface IMcpResourceHandler
     /// <summary>
     /// Called during resource export to allow modification of export data.
     /// </summary>
+    /// <param name="context">The context.</param>
     void Exporting(ExportingMcpResourceContext context);
 }
 
@@ -29,8 +30,16 @@ public sealed class ExportingMcpResourceContext
     /// </summary>
     public readonly JsonObject ExportData;
 
-    public ExportingMcpResourceContext(McpResource resource, JsonObject exportData)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExportingMcpResourceContext"/> class.
+    /// </summary>
+    /// <param name="resource">The resource.</param>
+    /// <param name="exportData">The export data.</param>
+    public ExportingMcpResourceContext(
+        McpResource resource,
+        JsonObject exportData)
     {
+
         ArgumentNullException.ThrowIfNull(resource);
 
         Resource = resource;

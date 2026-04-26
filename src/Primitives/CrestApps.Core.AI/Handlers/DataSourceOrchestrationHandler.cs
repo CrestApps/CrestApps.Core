@@ -11,20 +11,37 @@ internal sealed class DataSourceOrchestrationHandler : IOrchestrationContextBuil
 {
     private readonly AIToolDefinitionOptions _toolDefinitions;
     private readonly ITemplateService _templateService;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataSourceOrchestrationHandler> _logger;
 
-    public DataSourceOrchestrationHandler(IOptions<AIToolDefinitionOptions> toolDefinitions, ITemplateService templateService, ILogger<DataSourceOrchestrationHandler> logger)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataSourceOrchestrationHandler"/> class.
+    /// </summary>
+    /// <param name="toolDefinitions">The tool definitions.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="logger">The logger.</param>
+    public DataSourceOrchestrationHandler(
+        IOptions<AIToolDefinitionOptions> toolDefinitions,
+        ITemplateService templateService,
+        ILogger<DataSourceOrchestrationHandler> logger)
     {
         _toolDefinitions = toolDefinitions.Value;
         _templateService = templateService;
         _logger = logger;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuildingAsync(OrchestrationContextBuildingContext context)
     {
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuiltAsync(OrchestrationContextBuiltContext context)
     {
         if (context.OrchestrationContext.CompletionContext == null || string.IsNullOrWhiteSpace(context.OrchestrationContext.CompletionContext.DataSourceId))

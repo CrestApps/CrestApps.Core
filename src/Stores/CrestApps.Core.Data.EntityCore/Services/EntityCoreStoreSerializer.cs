@@ -8,11 +8,18 @@ internal static class EntityCoreStoreSerializer
     {
         PropertyNameCaseInsensitive = true,
     };
+
+    /// <summary>
+    /// Serializes the operation.
+    /// </summary>
     public static string Serialize<T>(T value)
     {
         return JsonSerializer.Serialize(value, _jsonSerializerOptions);
     }
 
+    /// <summary>
+    /// Deserializes the operation.
+    /// </summary>
     public static T Deserialize<T>(string payload)
     {
         return JsonSerializer.Deserialize<T>(payload, _jsonSerializerOptions);

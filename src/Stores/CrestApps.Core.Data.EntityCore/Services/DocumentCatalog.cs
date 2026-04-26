@@ -13,12 +13,24 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     protected readonly CrestAppsEntityDbContext DbContext;
     protected readonly ILogger Logger;
 
-    public DocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentCatalog"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
+    public DocumentCatalog(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<T>> logger = null)
     {
         DbContext = dbContext;
         Logger = logger;
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -35,6 +47,11 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         return true;
     }
 
+    /// <summary>
+    /// Finds by id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -44,6 +61,11 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="ids">The ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
@@ -59,6 +81,9 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         return records.Select(CatalogRecordFactory.Materialize<T>).ToArray();
     }
 
+    /// <summary>
+    /// Pages the operation.
+    /// </summary>
     public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
@@ -104,6 +129,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         var skip = (page - 1) * pageSize;
         var count = await query.CountAsync(cancellationToken);
         var records = await query.Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
+
         return new PageResult<T>
         {
             Count = count,
@@ -111,12 +137,19 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         };
     }
 
+    /// <summary>
+    /// Applies paging.
+    /// </summary>
     protected virtual IQueryable<CatalogRecord> ApplyPaging<TQuery>(IQueryable<CatalogRecord> query, TQuery context)
         where TQuery : QueryContext
     {
         return query;
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var records = await GetReadQuery().OrderBy(x => x.ItemId).Take(MaxGetAllResults + 1).ToListAsync(cancellationToken);
@@ -133,6 +166,11 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         return records.Select(CatalogRecordFactory.Materialize<T>).ToArray();
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask CreateAsync(T record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -147,6 +185,11 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         DbContext.CatalogRecords.Add(CatalogRecordFactory.Create(record));
     }
 
+    /// <summary>
+    /// Updates the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask UpdateAsync(T record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -168,21 +211,35 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         }
     }
 
+    /// <summary>
+    /// Gets read query.
+    /// </summary>
     protected IQueryable<CatalogRecord> GetReadQuery()
     {
         return DbContext.CatalogRecords.AsNoTracking().Where(x => x.EntityType == CatalogRecordFactory.GetEntityType<T>());
     }
 
+    /// <summary>
+    /// Gets tracked query.
+    /// </summary>
     protected IQueryable<CatalogRecord> GetTrackedQuery()
     {
         return DbContext.CatalogRecords.Where(x => x.EntityType == CatalogRecordFactory.GetEntityType<T>());
     }
 
+    /// <summary>
+    /// Deletings the operation.
+    /// </summary>
+    /// <param name="model">The model.</param>
     protected virtual ValueTask DeletingAsync(T model)
     {
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Savings the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
     protected virtual ValueTask SavingAsync(T record)
     {
         return ValueTask.CompletedTask;

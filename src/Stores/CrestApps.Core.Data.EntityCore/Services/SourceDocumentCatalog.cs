@@ -8,11 +8,23 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 public class SourceDocumentCatalog<T> : DocumentCatalog<T>, ISourceCatalog<T>
     where T : CatalogItem, ISourceAwareModel
 {
-    public SourceDocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SourceDocumentCatalog"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
+    public SourceDocumentCatalog(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<T>> logger = null)
         : base(dbContext, logger)
     {
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAsync(string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
@@ -22,7 +34,7 @@ public class SourceDocumentCatalog<T> : DocumentCatalog<T>, ISourceCatalog<T>
             .ToListAsync(cancellationToken);
 
         return records
-            .Select(CatalogRecordFactory.Materialize<T>)
-            .ToArray();
+                    .Select(CatalogRecordFactory.Materialize<T>)
+                    .ToArray();
     }
 }

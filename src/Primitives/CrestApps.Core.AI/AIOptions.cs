@@ -3,6 +3,9 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI;
 
+/// <summary>
+/// Represents the AI Options.
+/// </summary>
 public sealed class AIOptions
 {
     private readonly Dictionary<string, Type> _clients = new(StringComparer.OrdinalIgnoreCase);
@@ -10,6 +13,10 @@ public sealed class AIOptions
     private readonly Dictionary<string, AIDeploymentProviderEntry> _deployments = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AIProviderConnectionOptionsEntry> _connectionSources = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AITemplateSourceEntry> _templateSources = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets the clients.
+    /// </summary>
     public IReadOnlyDictionary<string, Type> Clients
     {
         get
@@ -18,6 +25,9 @@ public sealed class AIOptions
         }
     }
 
+    /// <summary>
+    /// Gets the profile Sources.
+    /// </summary>
     public IReadOnlyDictionary<string, AIProfileProviderEntry> ProfileSources
     {
         get
@@ -26,6 +36,9 @@ public sealed class AIOptions
         }
     }
 
+    /// <summary>
+    /// Gets the deployments.
+    /// </summary>
     public IReadOnlyDictionary<string, AIDeploymentProviderEntry> Deployments
     {
         get
@@ -34,6 +47,9 @@ public sealed class AIOptions
         }
     }
 
+    /// <summary>
+    /// Gets the connection Sources.
+    /// </summary>
     public IReadOnlyDictionary<string, AIProviderConnectionOptionsEntry> ConnectionSources
     {
         get
@@ -42,6 +58,9 @@ public sealed class AIOptions
         }
     }
 
+    /// <summary>
+    /// Gets the template Sources.
+    /// </summary>
     public IReadOnlyDictionary<string, AITemplateSourceEntry> TemplateSources
     {
         get
@@ -57,6 +76,11 @@ public sealed class AIOptions
         _clients[name] = typeof(TClient);
     }
 
+    /// <summary>
+    /// Adds profile source.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddProfileSource(string clientName, Action<AIProfileProviderEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(clientName);
@@ -78,6 +102,11 @@ public sealed class AIOptions
         _profileSources[clientName] = entry;
     }
 
+    /// <summary>
+    /// Adds deployment provider.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddDeploymentProvider(string clientName, Action<AIDeploymentProviderEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(clientName);
@@ -99,6 +128,11 @@ public sealed class AIOptions
         _deployments[clientName] = entry;
     }
 
+    /// <summary>
+    /// Adds connection source.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddConnectionSource(string clientName, Action<AIProviderConnectionOptionsEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(clientName);
@@ -120,6 +154,11 @@ public sealed class AIOptions
         _connectionSources[clientName] = entry;
     }
 
+    /// <summary>
+    /// Adds template source.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddTemplateSource(string name, Action<AITemplateSourceEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);

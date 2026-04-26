@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Tools;
 
+/// <summary>
+/// Represents the save User Memory Tool.
+/// </summary>
 public sealed partial class SaveUserMemoryTool : AIFunction
 {
     public const string TheName = "save_user_memory";
@@ -40,18 +43,35 @@ public sealed partial class SaveUserMemoryTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Creates or updates a durable memory for the current authenticated user, such as a preference, project, recurring topic, interest, or other reusable background detail.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } =
         new Dictionary<string, object>()
         {
             ["Strict"] = false,
         };
 
+    /// <summary>
+    /// Invoke cores core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<SaveUserMemoryTool>>();
@@ -61,6 +81,7 @@ public sealed partial class SaveUserMemoryTool : AIFunction
             !arguments.TryGetFirstString("content", out var content))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required arguments.", Name);
+
             return "'name', 'description', and 'content' arguments are required.";
         }
 
@@ -69,6 +90,7 @@ public sealed partial class SaveUserMemoryTool : AIFunction
         if (string.IsNullOrEmpty(userId))
         {
             logger.LogWarning("AI tool '{ToolName}' requires an authenticated user.", Name);
+
             return "User memory is only available for authenticated users.";
         }
 

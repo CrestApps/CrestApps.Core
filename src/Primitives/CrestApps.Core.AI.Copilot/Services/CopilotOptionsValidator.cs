@@ -5,6 +5,11 @@ namespace CrestApps.Core.AI.Copilot.Services;
 
 internal sealed class CopilotOptionsValidator : IValidateOptions<CopilotOptions>
 {
+    /// <summary>
+    /// Validates the operation.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="options">The options.</param>
     public ValidateOptionsResult Validate(string name, CopilotOptions options)
     {
         if (options.AuthenticationType == CopilotAuthenticationType.GitHubOAuth)

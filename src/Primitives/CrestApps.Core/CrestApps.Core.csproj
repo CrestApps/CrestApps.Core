@@ -2,6 +2,7 @@
 	<PropertyGroup>
 		<RootNamespace>CrestApps.Core</RootNamespace>
 		<Title>CrestApps Core</Title>
+		<Nullable>enable</Nullable>
 		<Description>
 			$(CrestAppsDescription)
 

@@ -27,7 +27,10 @@ public sealed class McpConnectionController : Controller
     private readonly ICatalog<McpConnection> _catalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
-    public McpConnectionController(ICatalog<McpConnection> catalog, IDataProtectionProvider dataProtectionProvider, TimeProvider timeProvider)
+    public McpConnectionController(
+        ICatalog<McpConnection> catalog,
+        IDataProtectionProvider dataProtectionProvider,
+        TimeProvider timeProvider)
     {
         _catalog = catalog;
         _dataProtectionProvider = dataProtectionProvider;
@@ -36,7 +39,11 @@ public sealed class McpConnectionController : Controller
 
     public async Task<IActionResult> Index()
     {
-        return View((await _catalog.GetAllAsync()).OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).ToList());
+        var items = (await _catalog.GetAllAsync())
+            .OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return View(items);
     }
 
     public IActionResult Create()
@@ -59,14 +66,18 @@ public sealed class McpConnectionController : Controller
             ItemId = UniqueId.GenerateId(),
             CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime,
         };
+
         Apply(model, connection);
+
         await _catalog.CreateAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
     {
         var connection = await _catalog.FindByIdAsync(id);
+
         if (connection == null)
         {
             return NotFound();
@@ -80,19 +91,23 @@ public sealed class McpConnectionController : Controller
     public async Task<IActionResult> Edit(McpConnectionViewModel model)
     {
         var connection = await _catalog.FindByIdAsync(model.ItemId);
+
         if (connection == null)
         {
             return NotFound();
         }
 
         Validate(model, true);
+
         if (!ModelState.IsValid)
         {
             return View(model);
         }
 
         Apply(model, connection);
+
         await _catalog.UpdateAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -101,12 +116,14 @@ public sealed class McpConnectionController : Controller
     public async Task<IActionResult> Delete(string id)
     {
         var connection = await _catalog.FindByIdAsync(id);
+
         if (connection == null)
         {
             return NotFound();
         }
 
         await _catalog.DeleteAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -120,6 +137,7 @@ public sealed class McpConnectionController : Controller
         if (!TryResolveTransportKind(model.Source, out var transportKind))
         {
             ModelState.AddModelError(nameof(model.Source), "Connection type is not supported.");
+
             return;
         }
 
@@ -130,6 +148,8 @@ public sealed class McpConnectionController : Controller
                 break;
             case McpTransportKind.StdIo:
                 ValidateStdIoTransport(model);
+                break;
+            default:
                 break;
         }
     }
@@ -148,6 +168,7 @@ public sealed class McpConnectionController : Controller
         if (!Enum.IsDefined(model.AuthenticationType))
         {
             ModelState.AddModelError(nameof(model.AuthenticationType), "Authentication type is not supported.");
+
             return;
         }
 
@@ -229,16 +250,19 @@ public sealed class McpConnectionController : Controller
         if (string.Equals(source, McpConstants.TransportTypes.Sse, StringComparison.Ordinal))
         {
             transportKind = McpTransportKind.Sse;
+
             return true;
         }
 
         if (string.Equals(source, McpConstants.TransportTypes.StdIo, StringComparison.Ordinal))
         {
             transportKind = McpTransportKind.StdIo;
+
             return true;
         }
 
         transportKind = default;
+
         return false;
     }
 
@@ -458,4 +482,3 @@ public sealed class McpConnectionController : Controller
         return model;
     }
 }
-

@@ -18,11 +18,20 @@ internal sealed class AgentToolRegistryProvider : IToolRegistryProvider
 {
     private readonly IAIProfileManager _profileManager;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AgentToolRegistryProvider"/> class.
+    /// </summary>
+    /// <param name="profileManager">The profile manager.</param>
     public AgentToolRegistryProvider(IAIProfileManager profileManager)
     {
         _profileManager = profileManager;
     }
 
+    /// <summary>
+    /// Gets tools.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyList<ToolRegistryEntry>> GetToolsAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default)

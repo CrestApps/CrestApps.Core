@@ -35,17 +35,34 @@ public sealed class GenerateImageTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Generates an image from a text description using an AI image generation model and returns it as markdown.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object>()
     {
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invoke cores core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)
@@ -131,6 +148,7 @@ public sealed class GenerateImageTool : AIFunction
             if (builder.Length == 0)
             {
                 logger.LogWarning("AI tool '{ToolName}' generated no usable image URIs.", Name);
+
                 return "No images were generated.";
             }
 
@@ -144,6 +162,7 @@ public sealed class GenerateImageTool : AIFunction
         catch (NotSupportedException ex)
         {
             logger.LogWarning(ex, "Image generation is not supported by the configured provider.");
+
             return "Image generation is not supported by the configured AI provider.";
         }
         catch (Exception ex)

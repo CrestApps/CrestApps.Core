@@ -5,10 +5,18 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for AI Deployment Connection Entry Factory.
+/// </summary>
 public static class AIDeploymentConnectionEntryFactory
 {
     private const string ConnectionProtectorName = "AIProviderConnection";
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
     public static AIProviderConnectionEntry Create(AIDeployment deployment, IDataProtectionProvider dataProtectionProvider)
     {
         var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -24,6 +32,7 @@ public static class AIDeploymentConnectionEntryFactory
         }
 
         UnprotectApiKeys(values, dataProtectionProvider);
+
         AIProviderConnectionDeploymentNameNormalizer.Normalize(values);
 
         return new AIProviderConnectionEntry(values);

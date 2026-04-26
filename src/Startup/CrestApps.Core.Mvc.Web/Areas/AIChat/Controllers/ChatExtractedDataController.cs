@@ -16,7 +16,10 @@ public sealed class ChatExtractedDataController : Controller
     private readonly IAIProfileManager _profileManager;
     private readonly SampleAIChatSessionExtractedDataService _extractedDataService;
     private readonly TimeProvider _timeProvider;
-    public ChatExtractedDataController(IAIProfileManager profileManager, SampleAIChatSessionExtractedDataService extractedDataService, TimeProvider timeProvider)
+    public ChatExtractedDataController(
+        IAIProfileManager profileManager,
+        SampleAIChatSessionExtractedDataService extractedDataService,
+        TimeProvider timeProvider)
     {
         _profileManager = profileManager;
         _extractedDataService = extractedDataService;
@@ -47,6 +50,7 @@ public sealed class ChatExtractedDataController : Controller
 
         var records = await _extractedDataService.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
         ApplyReport(model, records);
+
         return View("Index", model);
     }
 
@@ -76,6 +80,7 @@ public sealed class ChatExtractedDataController : Controller
         var profiles = await _profileManager.GetAsync(AIProfileType.Chat);
         model.Profiles = [new SelectListItem("Select a profile", string.Empty, string.IsNullOrEmpty(model.ProfileId)), .. profiles.OrderBy(profile => profile.DisplayText ?? profile.Name, StringComparer.OrdinalIgnoreCase).Select(profile => new SelectListItem(profile.DisplayText ?? profile.Name, profile.ItemId, profile.ItemId == model.ProfileId)),];
         model.ShowReport = showReport;
+
         return model;
     }
 

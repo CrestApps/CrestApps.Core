@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.OpenAI;
 
+/// <summary>
+/// Provides functionality for open AI Constants.
+/// </summary>
 public static class OpenAIConstants
 {
     public const string ClientName = "OpenAI";
@@ -11,6 +14,8 @@ public static class OpenAIConstants
 /// </summary>
 public readonly struct OpenAIClientMarker : IAIClientMarker
 {
-    /// <inheritdoc />
+    /// <summary>
+    /// Gets the client Name.
+    /// </summary>
     public static string ClientName => OpenAIConstants.ClientName;
 }

@@ -21,8 +21,16 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IOptions<ChatDocumentsOptions> _extractorOptions;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAIDocumentProcessingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIDocumentProcessingService"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="textNormalizer">The text normalizer.</param>
+    /// <param name="extractorOptions">The extractor options.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultAIDocumentProcessingService(
         IServiceProvider serviceProvider,
         IAITextNormalizer textNormalizer,
@@ -37,6 +45,13 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         _logger = logger;
     }
 
+    /// <summary>
+    /// Processs file.
+    /// </summary>
+    /// <param name="file">The file.</param>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="referenceType">The reference type.</param>
+    /// <param name="embeddingGenerator">The embedding generator.</param>
     public async Task<DocumentProcessingResult> ProcessFileAsync(
         IFormFile file,
         string referenceId,

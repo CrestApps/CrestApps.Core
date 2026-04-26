@@ -4,8 +4,8 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
-using CrestApps.Core.Templates.Services;
 using CrestApps.Core.Support.Json;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -35,17 +35,34 @@ public sealed class GenerateChartTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
-    public override string Description => "REQUIRED for any chart or data visualization request. This is the ONLY way to render a visual chart in the UI. Do NOT generate chart JSON inline — it will not be rendered. Always call this tool instead. Returns a special [chart:JSON] marker that MUST be included exactly as-is in your response.";
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
+    public override string Description => "REQUIRED for any chart or data visualization request. This is the ONLY way to render a visual chart in the UI. Do NOT generate chart JSON inline ? it will not be rendered. Always call this tool instead. Returns a special [chart:JSON] marker that MUST be included exactly as-is in your response.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object>()
     {
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invoke cores core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)

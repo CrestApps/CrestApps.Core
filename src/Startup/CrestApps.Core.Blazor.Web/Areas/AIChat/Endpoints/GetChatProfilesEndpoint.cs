@@ -18,13 +18,13 @@ internal static class GetChatProfilesEndpoint
         var profiles = await profileManager.GetAsync(AIProfileType.Chat);
 
         return TypedResults.Ok(profiles
-            .Where(profile => profile.GetSettings<AIProfileSettings>().IsListable)
-            .Select(profile => new
-            {
-                id = profile.ItemId,
-                name = profile.Name,
-                displayText = profile.DisplayText,
-                welcomeMessage = profile.WelcomeMessage,
-            }));
+                    .Where(profile => profile.GetSettings<AIProfileSettings>().IsListable)
+                    .Select(profile => new
+                    {
+                        id = profile.ItemId,
+                        name = profile.Name,
+                        displayText = profile.DisplayText,
+                        welcomeMessage = profile.WelcomeMessage,
+                    }));
     }
 }

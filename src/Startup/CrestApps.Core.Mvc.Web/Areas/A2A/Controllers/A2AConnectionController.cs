@@ -16,7 +16,9 @@ public sealed class A2AConnectionController : Controller
 {
     private readonly ICatalog<A2AConnection> _catalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    public A2AConnectionController(ICatalog<A2AConnection> catalog, IDataProtectionProvider dataProtectionProvider)
+    public A2AConnectionController(
+        ICatalog<A2AConnection> catalog,
+        IDataProtectionProvider dataProtectionProvider)
     {
         _catalog = catalog;
         _dataProtectionProvider = dataProtectionProvider;
@@ -25,6 +27,7 @@ public sealed class A2AConnectionController : Controller
     public async Task<IActionResult> Index()
     {
         var connections = await _catalog.GetAllAsync();
+
         return View(connections.OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).ToList());
     }
 
@@ -50,6 +53,7 @@ public sealed class A2AConnectionController : Controller
         };
         ApplyToConnection(model, connection);
         await _catalog.CreateAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -82,6 +86,7 @@ public sealed class A2AConnectionController : Controller
 
         ApplyToConnection(model, connection);
         await _catalog.UpdateAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -96,6 +101,7 @@ public sealed class A2AConnectionController : Controller
         }
 
         await _catalog.DeleteAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -271,4 +277,3 @@ public sealed class A2AConnectionController : Controller
         return existingProtectedValue;
     }
 }
-

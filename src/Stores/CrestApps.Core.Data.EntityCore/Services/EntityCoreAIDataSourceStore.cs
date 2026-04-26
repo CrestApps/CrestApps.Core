@@ -6,7 +6,14 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIDataSourceStore : DocumentCatalog<AIDataSource>, IAIDataSourceStore
 {
-    public EntityCoreAIDataSourceStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<AIDataSource>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EntityCoreAIDataSourceStore"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
+    public EntityCoreAIDataSourceStore(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<AIDataSource>> logger = null)
         : base(dbContext, logger)
     {
     }

@@ -11,7 +11,7 @@ namespace CrestApps.Core;
 /// <remarks>
 /// Register this class with the DI options pattern to customize serialization behavior:
 /// <code>
-/// services.Configure&lt;ExtensibleEntityJsonOptions&gt;(options =&gt;
+/// services.Configure<ExtensibleEntityJsonOptions>(options =>;
 /// {
 ///     options.SerializerOptions.Converters.Add(new MyCustomConverter());
 /// });

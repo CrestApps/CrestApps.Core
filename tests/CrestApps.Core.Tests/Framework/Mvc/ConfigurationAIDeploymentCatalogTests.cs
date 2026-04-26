@@ -267,12 +267,14 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         public ValueTask CreateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             deployments.Add(entry);
+
             return ValueTask.CompletedTask;
         }
 
         public ValueTask<bool> DeleteAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             deployments.Remove(entry);
+
             return ValueTask.FromResult(true);
         }
 

@@ -14,7 +14,18 @@ internal sealed class McpToolProxyFunction : AIFunction
     private readonly JsonElement _jsonSchema;
     private readonly string _connectionId;
 
-    public McpToolProxyFunction(string name, string description, JsonElement jsonSchema, string connectionId)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpToolProxyFunction"/> class.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="description">The description.</param>
+    /// <param name="jsonSchema">The json schema.</param>
+    /// <param name="connectionId">The connection id.</param>
+    public McpToolProxyFunction(
+        string name,
+        string description,
+        JsonElement jsonSchema,
+        string connectionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(connectionId);
@@ -34,6 +45,11 @@ internal sealed class McpToolProxyFunction : AIFunction
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invokes core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
@@ -52,6 +68,7 @@ internal sealed class McpToolProxyFunction : AIFunction
         if (connection is null)
         {
             logger.LogWarning("AI tool '{ToolName}' failed: MCP connection '{ConnectionId}' not found.", Name, _connectionId);
+
             return JsonSerializer.Serialize(new { error = $"MCP connection '{_connectionId}' not found." });
         }
 
@@ -61,6 +78,7 @@ internal sealed class McpToolProxyFunction : AIFunction
         if (client is null)
         {
             logger.LogWarning("AI tool '{ToolName}' failed: could not connect to MCP server '{ConnectionId}'.", Name, _connectionId);
+
             return JsonSerializer.Serialize(new { error = $"Failed to connect to MCP server '{_connectionId}'." });
         }
 
@@ -92,6 +110,7 @@ internal sealed class McpToolProxyFunction : AIFunction
         catch (Exception ex)
         {
             logger.LogError(ex, "Error invoking MCP tool '{ToolName}' on server '{ConnectionId}'.", _name, _connectionId);
+
             return JsonSerializer.Serialize(new { error = $"Error invoking MCP tool '{_name}'." });
         }
     }

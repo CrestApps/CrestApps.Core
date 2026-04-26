@@ -10,11 +10,15 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Copilot;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Adds the Copilot orchestrator and related services.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAICopilotOrchestrator(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -34,11 +38,16 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds copilot orchestrator.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAISuiteBuilder AddCopilotOrchestrator(this CrestAppsAISuiteBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAICopilotOrchestrator();
+
         return builder;
     }
 }

@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AIMemory;
 
 public static class AIMemoryEntryIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates ai memory entry index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateAIMemoryEntryIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

@@ -45,12 +45,14 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
     protected override Task<ChatMode> GetChatModeAsync(IServiceProvider services)
     {
         var settings = _siteSettings.Get<ChatInteractionSettings>();
+
         return Task.FromResult(settings.ChatMode);
     }
 
     protected override Task<bool> IsTextToSpeechPlaybackEnabledAsync(IServiceProvider services)
     {
         var settings = _siteSettings.Get<ChatInteractionSettings>();
+
         return Task.FromResult(settings.EnableTextToSpeechPlayback);
     }
 

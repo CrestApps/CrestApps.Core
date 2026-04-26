@@ -259,5 +259,3 @@ Your implementation must return agent profiles with their `Properties` intact (i
 | `IOrchestrationContextBuilderHandler` | `AgentOrchestrationContextBuilderHandler` | Enriches system message with agent descriptions |
 
 Both are registered as **scoped** services via `TryAddEnumerable`, ensuring they participate alongside other tool providers and context handlers.
-
-

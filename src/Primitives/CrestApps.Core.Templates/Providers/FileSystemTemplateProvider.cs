@@ -21,6 +21,12 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
     private readonly IEnumerable<ITemplateParser> _parsers;
     private readonly ILogger<FileSystemTemplateProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FileSystemTemplateProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
+    /// <param name="parsers">The parsers.</param>
+    /// <param name="logger">The logger.</param>
     public FileSystemTemplateProvider(
         IOptions<TemplateOptions> options,
         IEnumerable<ITemplateParser> parsers,
@@ -31,6 +37,9 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets templates.
+    /// </summary>
     public Task<IReadOnlyList<Template>> GetTemplatesAsync()
     {
         var templates = new List<Template>();

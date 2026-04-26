@@ -559,4 +559,3 @@ public sealed class InteractionDocumentSettings
 | `SearchDocumentsTool` | — | System tool | Semantic vector search |
 | `ReadDocumentTool` | — | System tool | Full document read |
 | `ReadTabularDataTool` | — | System tool | Tabular data queries |
-

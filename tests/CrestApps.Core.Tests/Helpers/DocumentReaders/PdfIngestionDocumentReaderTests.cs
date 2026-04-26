@@ -91,6 +91,7 @@ public sealed class PdfIngestionDocumentReaderTests
         var font = builder.AddStandard14Font(UglyToad.PdfPig.Fonts.Standard14Fonts.Standard14Font.Helvetica);
         page.AddText(text, 12, new UglyToad.PdfPig.Core.PdfPoint(72, 720), font);
         var bytes = builder.Build();
+
         return new MemoryStream(bytes);
     }
 
@@ -105,6 +106,7 @@ public sealed class PdfIngestionDocumentReaderTests
         }
 
         var bytes = builder.Build();
+
         return new MemoryStream(bytes);
     }
 
@@ -113,6 +115,7 @@ public sealed class PdfIngestionDocumentReaderTests
         var builder = new PdfDocumentBuilder();
         builder.AddPage(595, 842); // Add empty page.
         var bytes = builder.Build();
+
         return new MemoryStream(bytes);
     }
 

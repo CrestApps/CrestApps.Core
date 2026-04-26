@@ -9,15 +9,21 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.Elasticsearch.Services;
 
 /// <summary>
-/// Elasticsearch implementation of <see cref = "ISearchIndexManager"/>
+/// Elasticsearch implementation of <see cref="ISearchIndexManager"/>
 /// for creating, deleting, and checking search indexes.
 /// </summary>
 internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
 {
     private readonly ElasticsearchClient _elasticClient;
     private readonly ElasticsearchConnectionOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<ElasticsearchSearchIndexManager> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ElasticsearchSearchIndexManager"/> class.
+    /// </summary>
+    /// <param name="elasticClient">The elastic client.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
     public ElasticsearchSearchIndexManager(
         ElasticsearchClient elasticClient,
         IOptions<ElasticsearchConnectionOptions> options,
@@ -28,6 +34,10 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         _logger = logger;
     }
 
+    /// <summary>
+    /// Composes index full name.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
     public string ComposeIndexFullName(IIndexProfileInfo profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -40,6 +50,11 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         return string.IsNullOrWhiteSpace(_options.IndexPrefix) ? normalizedIndexName : string.Concat(_options.IndexPrefix.Trim(), normalizedIndexName);
     }
 
+    /// <summary>
+    /// Existss the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> ExistsAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -48,6 +63,7 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         try
         {
             var response = await _elasticClient.Indices.ExistsAsync(indexFullName, cancellationToken);
+
             return response.Exists;
         }
         catch (Exception ex)
@@ -57,6 +73,12 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         }
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="fields">The fields.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task CreateAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -96,6 +118,11 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         }
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);

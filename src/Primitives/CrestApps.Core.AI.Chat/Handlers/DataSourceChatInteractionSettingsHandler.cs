@@ -6,17 +6,33 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
 
+/// <summary>
+/// Represents the data Source Chat Interaction Settings Handler.
+/// </summary>
 public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataSourceChatInteractionSettingsHandler> _logger;
 
-    public DataSourceChatInteractionSettingsHandler(IServiceProvider serviceProvider, ILogger<DataSourceChatInteractionSettingsHandler> logger)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataSourceChatInteractionSettingsHandler"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
+    public DataSourceChatInteractionSettingsHandler(
+        IServiceProvider serviceProvider,
+        ILogger<DataSourceChatInteractionSettingsHandler> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
+    /// <summary>
+    /// Updatings the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var dataSourceId = GetString(settings, "dataSourceId");
@@ -32,6 +48,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
                 metadata.IsInScope = isInScope;
                 metadata.Filter = null;
             });
+
             return;
         }
 
@@ -39,6 +56,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         if (dataSourceCatalog == null)
         {
             _logger.LogDebug("Skipping chat interaction data source settings because no AI data source catalog is registered.");
+
             return;
         }
 
@@ -54,6 +72,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
                 metadata.IsInScope = isInScope;
                 metadata.Filter = null;
             });
+
             return;
         }
 
@@ -61,6 +80,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         {
             metadata.DataSourceId = dataSource.ItemId;
         });
+
         interaction.Alter<AIDataSourceRagMetadata>(metadata =>
         {
             metadata.Strictness = GetInt(settings, "strictness");
@@ -70,6 +90,12 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         });
     }
 
+    /// <summary>
+    /// Updateds the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;

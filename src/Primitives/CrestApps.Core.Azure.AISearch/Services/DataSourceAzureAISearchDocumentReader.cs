@@ -19,11 +19,23 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
 
     private readonly SearchIndexClient _searchIndexClient;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataSourceAzureAISearchDocumentReader"/> class.
+    /// </summary>
+    /// <param name="searchIndexClient">The search index client.</param>
     public DataSourceAzureAISearchDocumentReader(SearchIndexClient searchIndexClient)
     {
         _searchIndexClient = searchIndexClient;
     }
 
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="keyFieldName">The key field name.</param>
+    /// <param name="titleFieldName">The title field name.</param>
+    /// <param name="contentFieldName">The content field name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<KeyValuePair<string, SourceDocument>> ReadAsync(
         IIndexProfileInfo indexProfile,
         string keyFieldName,
@@ -84,6 +96,15 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
         }
     }
 
+    /// <summary>
+    /// Reads by ids.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="keyFieldName">The key field name.</param>
+    /// <param name="titleFieldName">The title field name.</param>
+    /// <param name="contentFieldName">The content field name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<KeyValuePair<string, SourceDocument>> ReadByIdsAsync(
         IIndexProfileInfo indexProfile,
         IEnumerable<string> documentIds,

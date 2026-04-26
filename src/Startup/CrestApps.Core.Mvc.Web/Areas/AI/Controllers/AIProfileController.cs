@@ -50,7 +50,25 @@ public sealed class AIProfileController : Controller
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIDataSourceStore _dataSourceStore;
-    public AIProfileController(IAIProfileManager profileManager, ICatalog<AIDeployment> deploymentCatalog, IAIProfileTemplateManager templateManager, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDocumentStore documentStore, AIProfileDocumentService profileDocumentService, AIProfileTemplateDocumentService templateDocumentService, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptions<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions, IAIDataSourceStore dataSourceStore)
+    public AIProfileController(
+        IAIProfileManager profileManager,
+        ICatalog<AIDeployment> deploymentCatalog,
+        IAIProfileTemplateManager templateManager,
+        ICatalog<A2AConnection> a2aConnectionCatalog,
+        ICatalog<McpConnection> mcpConnectionCatalog,
+        IAIDocumentStore documentStore,
+        AIProfileDocumentService profileDocumentService,
+        AIProfileTemplateDocumentService templateDocumentService,
+        IOptions<InteractionDocumentOptions> interactionDocumentOptions,
+        ISearchIndexProfileStore indexProfileStore,
+        ITemplateService aiTemplateService,
+        IOptions<OrchestratorOptions> orchestratorOptions,
+        IOptionsSnapshot<ClaudeOptions> anthropicOptions,
+        ClaudeClientService anthropicClientService,
+        IOptions<CopilotOptions> copilotOptions,
+        GitHubOAuthService oauthService,
+        IOptions<AIToolDefinitionOptions> toolOptions,
+        IAIDataSourceStore dataSourceStore)
     {
         _profileManager = profileManager;
         _deploymentCatalog = deploymentCatalog;
@@ -75,6 +93,7 @@ public sealed class AIProfileController : Controller
     public async Task<IActionResult> Index()
     {
         var profiles = await _profileManager.GetAllAsync();
+
         return View(profiles);
     }
 
@@ -105,6 +124,7 @@ public sealed class AIProfileController : Controller
         }
 
         await PopulateDropdownsAsync(model);
+
         return View(model);
     }
 
@@ -125,6 +145,7 @@ public sealed class AIProfileController : Controller
             }
 
             await PopulateDropdownsAsync(model);
+
             return View(model);
         }
 
@@ -152,6 +173,7 @@ public sealed class AIProfileController : Controller
         }
 
         await _profileManager.CreateAsync(profile);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -167,6 +189,7 @@ public sealed class AIProfileController : Controller
         await PopulateAttachedDocumentsAsync(model, model.ItemId, AIReferenceTypes.Document.Profile);
         await NormalizeDeploymentSelectorsAsync(model);
         await PopulateDropdownsAsync(model);
+
         return View(model);
     }
 
@@ -183,6 +206,7 @@ public sealed class AIProfileController : Controller
         {
             await PopulateAttachedDocumentsAsync(model, model.ItemId, AIReferenceTypes.Document.Profile);
             await PopulateDropdownsAsync(model);
+
             return View(model);
         }
 
@@ -206,6 +230,7 @@ public sealed class AIProfileController : Controller
         }
 
         await _profileManager.UpdateAsync(existing);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -221,6 +246,7 @@ public sealed class AIProfileController : Controller
 
         await _profileDocumentService.RemoveAllDocumentsAsync(profile);
         await _profileManager.DeleteAsync(profile);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -296,9 +322,9 @@ public sealed class AIProfileController : Controller
         var allIds = (await _a2aConnectionCatalog.GetAllAsync()).Select(connection => connection.ItemId).ToHashSet(StringComparer.Ordinal);
 
         return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
     }
 
     private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
@@ -306,9 +332,9 @@ public sealed class AIProfileController : Controller
         var allIds = (await _mcpConnectionCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
 
         return (selectedIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
     }
 
     private async Task PopulateAttachedDocumentsAsync(AIProfileViewModel model, string referenceId, string referenceType)
@@ -480,6 +506,7 @@ public sealed class AIProfileController : Controller
         }
 
         var deployment = await _deploymentCatalog.FindByIdAsync(selector);
+
         return deployment?.Name ?? selector;
     }
 
@@ -493,6 +520,7 @@ public sealed class AIProfileController : Controller
         if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
+
             return;
         }
 
@@ -507,7 +535,7 @@ public sealed class AIProfileController : Controller
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
         return model.CostMultiplier > 0
-            ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
-            : name;
+                    ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
+                    : name;
     }
 }

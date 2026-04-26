@@ -16,8 +16,17 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
     private readonly GeneralAIOptions _generalAIOptions;
     private readonly IOptions<ChatInteractionMemoryOptions> _chatInteractionMemoryOptions;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIMemoryPreemptiveRagHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemoryPreemptiveRagHandler"/> class.
+    /// </summary>
+    /// <param name="memorySearchService">The memory search service.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="generalAIOptions">The general ai options.</param>
+    /// <param name="chatInteractionMemoryOptions">The chat interaction memory options.</param>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="logger">The logger.</param>
     public AIMemoryPreemptiveRagHandler(
         IAIMemorySearchService memorySearchService,
         ITemplateService templateService,
@@ -34,6 +43,10 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
         _logger = logger;
     }
 
+    /// <summary>
+    /// Determines whether handle.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async ValueTask<bool> CanHandleAsync(OrchestrationContextBuiltContext context)
     {
         var userId = AIMemoryOrchestrationContextHelper.GetAuthenticatedUserId(_httpContextAccessor);
@@ -68,6 +81,10 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
         return isEnabled;
     }
 
+    /// <summary>
+    /// Handles the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task HandleAsync(PreemptiveRagContext context)
     {
         var userId = AIMemoryOrchestrationContextHelper.GetAuthenticatedUserId(_httpContextAccessor);

@@ -13,12 +13,15 @@ public sealed class McpMetadataCacheOptions
     /// </summary>
     public int CacheExpirationMinutes { get; set; } = 30;
 
+    /// <summary>
+    /// Gets cache duration.
+    /// </summary>
     public TimeSpan GetCacheDuration()
     {
         var minutes = CacheExpirationMinutes;
 
         return minutes > 0
-        ? TimeSpan.FromMinutes(minutes)
-        : _defaultCacheDuration;
+                ? TimeSpan.FromMinutes(minutes)
+                : _defaultCacheDuration;
     }
 }

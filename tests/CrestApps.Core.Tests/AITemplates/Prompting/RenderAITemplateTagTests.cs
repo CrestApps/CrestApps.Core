@@ -1,8 +1,8 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
@@ -63,11 +63,14 @@ public sealed class RenderAITemplateTagTests
         var engine = CreateEngine(new Template { Id = "agents", Content = "{% for agent in agents %}- {{ agent.Name }}\n{% endfor %}", });
         var tools = new[]
         {
-            new TestTool("Tool1", "A tool", "Local"),
-            new TestTool("ResearchAgent", "Research", "Agent"),
-            new TestTool("Tool2", "Another", "System"),
-            new TestTool("PlannerAgent", "Planning", "Agent"),
-        };
+            new TestTool(
+                "Tool1",
+                "A tool",
+                "Local"),
+                new TestTool("ResearchAgent", "Research", "Agent"),
+                new TestTool("Tool2", "Another", "System"),
+                new TestTool("PlannerAgent", "Planning", "Agent"),
+                };
         var result = await engine.RenderAsync("""{% assign agents = tools | where: "Source", "Agent" %}{% render_ai_template "agents" %}""", new Dictionary<string, object> { ["tools"] = tools, });
         Assert.Contains("ResearchAgent", result);
         Assert.Contains("PlannerAgent", result);
@@ -96,6 +99,7 @@ public sealed class RenderAITemplateTagTests
         var services = new ServiceCollection();
         services.AddSingleton<ITemplateService>(new InMemoryTemplateService(subTemplates));
         var sp = services.BuildServiceProvider();
+
         return new FluidTemplateEngine(sp, NullLogger<FluidTemplateEngine>.Instance);
     }
 
@@ -130,7 +134,10 @@ public sealed class RenderAITemplateTagTests
 
     public sealed class TestTool
     {
-        public TestTool(string name, string description, string source)
+        public TestTool(
+            string name,
+            string description,
+            string source)
         {
             Name = name;
             Description = description;

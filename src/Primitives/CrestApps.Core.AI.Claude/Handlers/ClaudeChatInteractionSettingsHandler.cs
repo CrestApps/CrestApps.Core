@@ -7,12 +7,19 @@ namespace CrestApps.Core.AI.Claude.Handlers;
 
 internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
+    /// <summary>
+    /// Updatings the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var orchestratorName = GetString(settings, "orchestratorName") ?? interaction.OrchestratorName;
         if (!string.Equals(orchestratorName, Services.ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
         {
             interaction.Remove<ClaudeSessionMetadata>();
+
             return Task.CompletedTask;
         }
 
@@ -25,6 +32,12 @@ internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSet
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Updateds the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;

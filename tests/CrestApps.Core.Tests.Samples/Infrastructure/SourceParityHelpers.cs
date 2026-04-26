@@ -26,9 +26,9 @@ public static class SourceParityHelpers
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
     /// <summary>
-    /// Returns the source with <c>&lt;script&gt;</c> and <c>&lt;style&gt;</c>
+    /// Returns the source with <c><script></c> and <c><style></c>
     /// blocks stripped. These blocks frequently contain HTML-like template
-    /// literals (e.g. <c>`&lt;h6&gt;${g.Category}&lt;/h6&gt;`</c>) that would
+    /// literals (e.g. <c>`<h6>${g.Category}</h6>`</c>) that would
     /// otherwise be matched by the structural extractors and produce false
     /// drift.
     /// </summary>
@@ -36,6 +36,7 @@ public static class SourceParityHelpers
     {
         var s = s_scriptRegex.Replace(source, " ");
         s = s_styleRegex.Replace(s, " ");
+
         return s;
     }
 
@@ -105,8 +106,8 @@ public static class SourceParityHelpers
         // Decode the few HTML entities we actually use in templates.
         s = s.Replace("&nbsp;", " ", StringComparison.Ordinal)
              .Replace("&amp;", "&", StringComparison.Ordinal)
-             .Replace("&lt;", "<", StringComparison.Ordinal)
-             .Replace("&gt;", ">", StringComparison.Ordinal)
+             .Replace("<", "<", StringComparison.Ordinal)
+             .Replace(">", ">", StringComparison.Ordinal)
              .Replace("&quot;", "\"", StringComparison.Ordinal);
 
         // Collapse whitespace.

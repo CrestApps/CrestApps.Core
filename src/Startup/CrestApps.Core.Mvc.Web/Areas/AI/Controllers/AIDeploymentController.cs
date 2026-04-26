@@ -51,14 +51,15 @@ public sealed class AIDeploymentController : Controller
         var deployments = await _deploymentCatalog.GetAllAsync();
 
         return View(deployments
-            .Select(deployment =>
-            {
-                var model = AIDeploymentViewModel.FromDeployment(deployment);
-                model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
-                return model;
-            })
-            .OrderBy(static deployment => deployment.TechnicalName, StringComparer.OrdinalIgnoreCase)
-            .ToList());
+                    .Select(deployment =>
+                    {
+                        var model = AIDeploymentViewModel.FromDeployment(deployment);
+                        model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
+
+                        return model;
+                    })
+                    .OrderBy(static deployment => deployment.TechnicalName, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
     }
 
     public async Task<IActionResult> Create()
@@ -129,6 +130,7 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -145,6 +147,7 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(model.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -182,6 +185,7 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(existing.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -213,6 +217,7 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 

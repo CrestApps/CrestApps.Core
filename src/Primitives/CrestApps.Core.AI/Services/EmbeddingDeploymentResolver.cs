@@ -5,8 +5,17 @@ using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Provides functionality for embedding Deployment Resolver.
+/// </summary>
 public static class EmbeddingDeploymentResolver
 {
+    /// <summary>
+    /// Find embedding deployments embedding deployment.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="metadata">The metadata.</param>
+    /// <param name="deploymentIdOrName">The deployment id or name.</param>
     public static async Task<AIDeployment> FindEmbeddingDeploymentAsync(
         IAIDeploymentManager deploymentManager,
         DataSourceIndexProfileMetadata metadata,
@@ -48,12 +57,19 @@ public static class EmbeddingDeploymentResolver
         var deployments = await deploymentManager.GetAllAsync(metadata.EmbeddingProviderName);
 
         return deployments.FirstOrDefault(deployment =>
-            deployment.SupportsType(AIDeploymentType.Embedding) &&
-            (string.Equals(deployment.Name, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(deployment.ModelName, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase)));
+                    deployment.SupportsType(AIDeploymentType.Embedding) &&
+                    (string.Equals(deployment.Name, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(deployment.ModelName, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase)));
 #pragma warning restore CS0618 // Type or member is obsolete
     }
 
+    /// <summary>
+    /// Creates embedding generator.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="metadata">The metadata.</param>
+    /// <param name="deploymentIdOrName">The deployment id or name.</param>
     public static async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
@@ -98,6 +114,7 @@ public static class EmbeddingDeploymentResolver
         }
 
 #pragma warning disable CS0618 // Type or member is obsolete
+
         return string.Equals(deployment.ClientName, metadata.EmbeddingProviderName, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(deployment.ConnectionName, metadata.EmbeddingConnectionName, StringComparison.OrdinalIgnoreCase) &&
             (string.Equals(deployment.Name, metadata.EmbeddingDeploymentName, StringComparison.OrdinalIgnoreCase) ||

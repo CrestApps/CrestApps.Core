@@ -6,7 +6,7 @@ namespace CrestApps.Core.AI.Models;
 /// <summary>
 /// Metadata for templates with a "Profile" source.
 /// Stored in the template's <see cref="ExtensibleEntity.Properties"/> via
-/// <c>Put&lt;ProfileTemplateMetadata&gt;</c> / <c>As&lt;ProfileTemplateMetadata&gt;</c>.
+/// <c>Put<ProfileTemplateMetadata></c> / <c>As<ProfileTemplateMetadata></c>.
 /// </summary>
 public sealed class ProfileTemplateMetadata
 {
@@ -32,6 +32,9 @@ public sealed class ProfileTemplateMetadata
     /// </summary>
     public string UtilityDeploymentName { get; set; }
 
+    /// <summary>
+    /// Gets or sets the legacy chat deployment identifier that maps to <see cref="ChatDeploymentName"/>.
+    /// </summary>
     [JsonIgnore]
     [Obsolete("Use ChatDeploymentName instead. Retained for backward compatibility.")]
     public string ChatDeploymentId
@@ -40,6 +43,9 @@ public sealed class ProfileTemplateMetadata
         set => ChatDeploymentName = value;
     }
 
+    /// <summary>
+    /// Gets or sets the legacy utility deployment identifier that maps to <see cref="UtilityDeploymentName"/>.
+    /// </summary>
     [JsonIgnore]
     [Obsolete("Use UtilityDeploymentName instead. Retained for backward compatibility.")]
     public string UtilityDeploymentId

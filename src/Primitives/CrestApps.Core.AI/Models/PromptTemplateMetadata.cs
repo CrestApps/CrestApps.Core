@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Represents the prompt Template Metadata.
+/// </summary>
 public sealed class PromptTemplateMetadata
 {
     /// <summary>
@@ -7,6 +10,10 @@ public sealed class PromptTemplateMetadata
     /// </summary>
     public List<PromptTemplateSelectionEntry> Templates { get; set; } = [];
 
+    /// <summary>
+    /// Sets selections.
+    /// </summary>
+    /// <param name="selections">The selections.</param>
     public void SetSelections(IEnumerable<PromptTemplateSelectionEntry> selections)
     {
         Templates = selections?

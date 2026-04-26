@@ -48,7 +48,7 @@ public static partial class SpeechTextSanitizer
         // Remove numbered list markers (1. item, 2. item).
         text = OrderedListMarkerPattern().Replace(text, string.Empty);
 
-        // Remove emoji surrogate pairs (supplementary plane: 😀🎉🚀 etc.).
+        // Remove emoji surrogate pairs from the supplementary plane.
         text = EmojiSurrogatePairPattern().Replace(text, string.Empty);
 
         // Remove common BMP emoji/symbol characters.

@@ -2,6 +2,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Extensions;
 
+/// <summary>
+/// Provides extension methods for handler.
+/// </summary>
 public static class HandlerExtensions
 {
     /// <summary>
@@ -23,7 +26,7 @@ public static class HandlerExtensions
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "An error occurred while processing the handler '{HandlerType}'.", handler.GetType().Name);
+                logger.LogError(ex, "An error occurred while processing the handler '{HandlerType}'.", handler?.GetType().Name ?? typeof(THandler).Name);
             }
         }
     }

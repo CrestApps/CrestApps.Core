@@ -22,11 +22,20 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
 {
     private readonly AIToolDefinitionOptions _toolOptions;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SystemToolRegistryProvider"/> class.
+    /// </summary>
+    /// <param name="toolOptions">The tool options.</param>
     public SystemToolRegistryProvider(IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _toolOptions = toolOptions.Value;
     }
 
+    /// <summary>
+    /// Gets tools.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<IReadOnlyList<ToolRegistryEntry>> GetToolsAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default)

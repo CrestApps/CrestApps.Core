@@ -2,8 +2,16 @@ using System.Text.Json;
 
 namespace CrestApps.Core.Infrastructure;
 
+/// <summary>
+/// Provides extension methods for dictionary.
+/// </summary>
 public static class DictionaryExtensions
 {
+    /// <summary>
+    /// Gets api key.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="throwException">The throw exception.</param>
     public static string GetApiKey(this IDictionary<string, object> entry, bool throwException = true)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -11,6 +19,11 @@ public static class DictionaryExtensions
         return entry.GetStringValue("ApiKey", throwException);
     }
 
+    /// <summary>
+    /// Gets endpoint.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="throwException">The throw exception.</param>
     public static Uri GetEndpoint(this IDictionary<string, object> entry, bool throwException = true)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -29,6 +42,12 @@ public static class DictionaryExtensions
         return uri;
     }
 
+    /// <summary>
+    /// Gets string value.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="throwException">The throw exception.</param>
     public static string GetStringValue(this IDictionary<string, object> entry, string key, bool throwException = false)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -66,6 +85,12 @@ public static class DictionaryExtensions
         throw new InvalidOperationException($"The '{key}' does not exist in the dictionary.");
     }
 
+    /// <summary>
+    /// Gets boolean or false value.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="throwException">The throw exception.</param>
     public static bool GetBooleanOrFalseValue(this IDictionary<string, object> entry, string key, bool throwException = false)
     {
         ArgumentNullException.ThrowIfNull(entry);

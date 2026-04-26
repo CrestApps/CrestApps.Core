@@ -24,4 +24,3 @@ jobs:
             dirtyLabel: "merge conflict"
             # The default 120 is too long. The mergeable state is usually calculated by GitHub within seconds.
             retryAfter: 5
-

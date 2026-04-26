@@ -412,5 +412,3 @@ Test tools in isolation from the AI model. Focus on:
 3. **External service failure** → graceful error message
 4. **Cancellation** → respects `CancellationToken`
 :::
-
-

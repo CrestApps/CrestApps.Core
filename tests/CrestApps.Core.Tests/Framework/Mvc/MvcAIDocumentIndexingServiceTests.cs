@@ -226,10 +226,10 @@ public sealed class MvcAIDocumentIndexingServiceTests
         services.AddKeyedSingleton<ISearchDocumentManager>(AISearchConstants.ProviderName, documentManager);
 
         return new SampleAIDocumentIndexingService(
-            Options.Create(new InteractionDocumentOptions { IndexProfileName = "chat-documents" }),
-            indexProfileStore,
-            services.BuildServiceProvider(),
-            NullLogger<SampleAIDocumentIndexingService>.Instance);
+                    Options.Create(new InteractionDocumentOptions { IndexProfileName = "chat-documents" }),
+                    indexProfileStore,
+                    services.BuildServiceProvider(),
+                    NullLogger<SampleAIDocumentIndexingService>.Instance);
     }
 
     private static SearchIndexProfile CreateIndexProfile(string type = IndexProfileTypes.AIDocuments)

@@ -417,5 +417,3 @@ When a handler fails, the framework follows these rules:
 :::warning
 Always implement timeout and error handling in custom handlers. A handler that hangs indefinitely will block the user's chat session. Use `CancellationToken` and set reasonable timeouts.
 :::
-
-

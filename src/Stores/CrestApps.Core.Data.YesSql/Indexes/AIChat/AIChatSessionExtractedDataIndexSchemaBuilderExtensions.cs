@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
 
 public static class AIChatSessionExtractedDataIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates ai chat session extracted data index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateAIChatSessionExtractedDataIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

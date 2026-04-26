@@ -2,7 +2,7 @@ namespace CrestApps.Core.AI.Copilot.Models;
 
 /// <summary>
 /// Options for GitHub Copilot authentication and provider configuration.
-/// Configured via <c>IOptions&lt;CopilotOptions&gt;</c>.
+/// Configured via <c>IOptions<CopilotOptions></c>.
 /// </summary>
 public sealed class CopilotOptions
 {

@@ -351,7 +351,7 @@ public sealed class SseClientTransportProviderTests
         var options = optionsField?.GetValue(transport) as HttpClientTransportOptions;
 
         return options?.AdditionalHeaders as Dictionary<string, string>
-        ?? new Dictionary<string, string>();
+                ?? new Dictionary<string, string>();
     }
 
     /// <summary>
@@ -372,5 +372,3 @@ public sealed class SseClientTransportProviderTests
         public byte[] Unprotect(byte[] protectedData) => protectedData;
     }
 }
-
-

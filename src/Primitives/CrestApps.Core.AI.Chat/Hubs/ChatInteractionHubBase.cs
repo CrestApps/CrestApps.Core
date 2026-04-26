@@ -17,7 +17,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
-
 namespace CrestApps.Core.AI.Chat.Hubs;
 
 /// <summary>
@@ -37,7 +36,16 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     private readonly IServiceProvider _services;
     private readonly TimeProvider _timeProvider;
 
-    protected ChatInteractionHubBase(IServiceProvider services, TimeProvider timeProvider, ILogger logger)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ChatInteractionHubBase"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
+    protected ChatInteractionHubBase(
+        IServiceProvider services,
+        TimeProvider timeProvider,
+        ILogger logger)
     {
         _services = services;
         _timeProvider = timeProvider;
@@ -46,23 +54,23 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
     protected ILogger Logger { get; }
 
-    // ───────────────────────── Scoping hook ─────────────────────────
-
     /// <summary>
     /// Executes an action within a service scope. Override in OrchardCore to use
     /// <c>ShellScope.UsingChildScopeAsync</c> so that each hub invocation gets
     /// its own <c>ISession</c> / <c>IDocumentStore</c> lifecycle.
     /// </summary>
+    // ------------------------- Scoping hook -------------------------
+
     protected virtual Task ExecuteInScopeAsync(Func<IServiceProvider, Task> action)
     {
         return action(_services);
     }
 
-    // ───────────────────────── Identity hooks ─────────────────────────
-
     /// <summary>
     /// Gets the chat context type for this hub.
     /// </summary>
+    // ------------------------- Identity hooks -------------------------
+
     protected virtual ChatContextType GetChatContextType()
     {
         return ChatContextType.ChatInteraction;
@@ -86,24 +94,24 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         return UniqueId.GenerateId();
     }
 
-    // ───────────────────────── Authorization hooks ─────────────────────────
-
     /// <summary>
     /// Checks whether the current caller is authorized to use the given interaction.
     /// Override to perform framework-specific authorization checks.
     /// The default implementation always returns <c>true</c>.
     /// </summary>
+    // ------------------------- Authorization hooks -------------------------
+
     protected virtual Task<bool> AuthorizeAsync(IServiceProvider services, ChatInteraction interaction)
     {
         return Task.FromResult(true);
     }
 
-    // ───────────────────────── Commit hook ─────────────────────────
-
     /// <summary>
     /// Commits all staged writes to the underlying data store. The default implementation
     /// resolves <see cref="IStoreCommitter"/> and calls <see cref="IStoreCommitter.CommitAsync"/>.
     /// </summary>
+    // ------------------------- Commit hook -------------------------
+
     protected virtual async Task CommitChangesAsync(IServiceProvider services)
     {
         var committer = services.GetService<IStoreCommitter>();
@@ -118,15 +126,16 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         }
     }
 
-    // ───────────────────────── Deployment resolution ─────────────────────────
-
     /// <summary>
     /// Resolves the deployment settings for speech services. Override in
     /// OrchardCore to read from ISiteService instead of IOptionsMonitor.
     /// </summary>
+    // ------------------------- Deployment resolution -------------------------
+
     protected virtual Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)
     {
         var options = services.GetService<IOptionsMonitor<DefaultAIDeploymentSettings>>();
+
         return Task.FromResult(options?.CurrentValue ?? new DefaultAIDeploymentSettings());
     }
 
@@ -134,6 +143,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Returns the <see cref="ChatMode"/> for the current chat interaction context.
     /// Override to read from site-level or module-specific settings.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     protected virtual Task<ChatMode> GetChatModeAsync(IServiceProvider services)
     {
         return Task.FromResult(ChatMode.TextInput);
@@ -143,28 +153,42 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Returns whether text-to-speech playback is enabled for the current context.
     /// Override to read from site-level or module-specific settings.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     protected virtual Task<bool> IsTextToSpeechPlaybackEnabledAsync(IServiceProvider services)
     {
         return Task.FromResult(false);
     }
 
-    // ───────────────────────── Error message hooks ─────────────────────────
+    /// <summary>
+    /// Gets required field message.
+    /// </summary>
+    // ------------------------- Error message hooks -------------------------
 
     protected virtual string GetRequiredFieldMessage(string fieldName)
     {
         return $"{fieldName} is required.";
     }
 
+    /// <summary>
+    /// Gets interaction not found message.
+    /// </summary>
     protected virtual string GetInteractionNotFoundMessage()
     {
         return "Interaction not found.";
     }
 
+    /// <summary>
+    /// Gets not authorized message.
+    /// </summary>
     protected virtual string GetNotAuthorizedMessage()
     {
         return "You are not authorized to access chat interactions.";
     }
 
+    /// <summary>
+    /// Gets friendly error message.
+    /// </summary>
+    /// <param name="ex">The ex.</param>
     protected virtual string GetFriendlyErrorMessage(Exception ex)
     {
         if (AIHubErrorMessageHelper.IsInvalidChatModelSettingsFailure(ex))
@@ -175,41 +199,66 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         return "An error occurred while processing your message.";
     }
 
+    /// <summary>
+    /// Gets invalid chat model settings message.
+    /// </summary>
     protected virtual string GetInvalidChatModelSettingsMessage()
     {
         return "The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.";
     }
 
+    /// <summary>
+    /// Gets conversation not enabled message.
+    /// </summary>
     protected virtual string GetConversationNotEnabledMessage()
     {
         return "Conversation mode is not enabled for chat interactions.";
     }
 
+    /// <summary>
+    /// Gets no stt deployment message.
+    /// </summary>
     protected virtual string GetNoSttDeploymentMessage()
     {
         return "No speech-to-text deployment is configured or available.";
     }
 
+    /// <summary>
+    /// Gets no tts deployment message.
+    /// </summary>
     protected virtual string GetNoTtsDeploymentMessage()
     {
         return "No text-to-speech deployment is configured or available.";
     }
 
+    /// <summary>
+    /// Gets tts not enabled message.
+    /// </summary>
     protected virtual string GetTtsNotEnabledMessage()
     {
         return "Text-to-speech is not enabled for chat interactions.";
     }
 
+    /// <summary>
+    /// Gets conversation error message.
+    /// </summary>
     protected virtual string GetConversationErrorMessage()
     {
         return "An error occurred during the conversation. Please try again.";
     }
 
+    /// <summary>
+    /// Gets notification action error message.
+    /// </summary>
     protected virtual string GetNotificationActionErrorMessage()
     {
         return "An error occurred while processing your action. Please try again.";
     }
 
+    /// <summary>
+    /// Gets transcription error message.
+    /// </summary>
+    /// <param name="ex">The ex.</param>
     protected virtual string GetTranscriptionErrorMessage(Exception ex = null)
     {
         return IsSpeechAuthenticationFailure(ex)
@@ -217,6 +266,10 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             : "An error occurred while transcribing the audio. Please try again.";
     }
 
+    /// <summary>
+    /// Gets speech synthesis error message.
+    /// </summary>
+    /// <param name="ex">The ex.</param>
     protected virtual string GetSpeechSynthesisErrorMessage(Exception ex = null)
     {
         return IsSpeechAuthenticationFailure(ex)
@@ -224,22 +277,26 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             : "An error occurred while synthesizing speech. Please try again.";
     }
 
+    /// <summary>
+    /// Gets settings validation message.
+    /// </summary>
+    /// <param name="propertyName">The property name.</param>
     protected virtual string GetSettingsValidationMessage(string propertyName)
     {
         return "One or more settings are invalid.";
     }
 
-    // ───────────────────────── Post-completion hooks ─────────────────────────
-
     /// <summary>
     /// Collects references (citations) during streaming. Called after each chunk
     /// and once after the stream ends. Override to integrate citation collection.
     /// </summary>
+    // ------------------------- Post-completion hooks -------------------------
+
     protected virtual void CollectStreamingReferences(
-        IServiceProvider services,
-        ChatResponseHandlerContext handlerContext,
-        Dictionary<string, AICompletionReference> references,
-        HashSet<string> contentItemIds)
+    IServiceProvider services,
+    ChatResponseHandlerContext handlerContext,
+    Dictionary<string, AICompletionReference> references,
+    HashSet<string> contentItemIds)
     {
     }
 
@@ -247,6 +304,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Called after an assistant prompt is created and before it is saved.
     /// Override to add content metadata or perform analytics.
     /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="prompt">The prompt.</param>
+    /// <param name="contentItemIds">The content item ids.</param>
     protected virtual Task OnAssistantPromptCreatedAsync(
         IServiceProvider services,
         ChatInteractionPrompt prompt,
@@ -259,6 +319,8 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Creates the interaction payload sent to the client when loading an interaction.
     /// Override to include additional properties (e.g., Appearance).
     /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="prompts">The prompts.</param>
     protected virtual object CreateInteractionPayload(
         ChatInteraction interaction,
         IReadOnlyCollection<ChatInteractionPrompt> prompts)
@@ -285,6 +347,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Applies core settings from a JSON payload to a <see cref="ChatInteraction"/>.
     /// Override to apply additional module-specific settings.
     /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
     protected virtual Task ApplyCoreSettingsAsync(
         IServiceProvider services,
         ChatInteraction interaction,
@@ -315,18 +380,19 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Validates the settings payload before applying it. Return <c>null</c> if valid,
     /// or the invalid property name to trigger a validation error message.
     /// </summary>
+    /// <param name="settings">The settings.</param>
     protected virtual string ValidateSettings(JsonElement settings)
     {
         return null;
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  PUBLIC HUB METHODS — all virtual for framework-specific overrides
-    // ═══════════════════════════════════════════════════════════════════
-
     /// <summary>
     /// Stops the current conversation by cancelling the conversation CTS.
     /// </summary>
+    // -------------------------------------------------------------------
+    //  PUBLIC HUB METHODS - all virtual for framework-specific overrides
+    // -------------------------------------------------------------------
+
     public virtual Task StopConversation()
     {
         if (Context.Items.TryGetValue(_conversationCtsKey, out var value) && value is CancellationTokenSource cts)
@@ -340,10 +406,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// <summary>
     /// Streams a chat response for the given prompt.
     /// </summary>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="prompt">The prompt.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public virtual ChannelReader<CompletionPartialMessage> SendMessage(string itemId, string prompt, CancellationToken cancellationToken)
     {
         var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
         _ = ExecuteInScopeAsync(services => HandlePromptAsync(channel.Writer, services, itemId, prompt, cancellationToken));
+
         return channel.Reader;
     }
 
@@ -351,11 +421,13 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Loads an existing interaction and sends its messages to the caller.
     /// Also joins the caller to the interaction's SignalR group for deferred responses.
     /// </summary>
+    /// <param name="itemId">The item id.</param>
     public virtual async Task LoadInteraction(string itemId)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -368,12 +440,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction is null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -386,11 +460,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// <summary>
     /// Saves interaction settings from a JSON payload.
     /// </summary>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="settings">The settings.</param>
     public virtual async Task SaveSettings(string itemId, JsonElement settings)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -403,12 +480,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction == null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -416,6 +495,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (invalidSetting != null)
             {
                 await Clients.Caller.ReceiveError(GetSettingsValidationMessage(invalidSetting));
+
                 return;
             }
 
@@ -452,11 +532,13 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// <summary>
     /// Clears the chat history (prompts) while keeping documents, parameters, and tools intact.
     /// </summary>
+    /// <param name="itemId">The item id.</param>
     public virtual async Task ClearHistory(string itemId)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -469,12 +551,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction == null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -488,6 +572,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Handles a user-initiated action on a chat notification system message.
     /// Dispatches to registered <see cref="IChatNotificationActionHandler"/> implementations.
     /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="notificationType">The notification type.</param>
+    /// <param name="actionName">The action name.</param>
     public virtual async Task HandleNotificationAction(string sessionId, string notificationType, string actionName)
     {
         if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(actionName))
@@ -503,6 +590,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (handler is null)
                 {
                     Logger.LogWarning("No notification action handler found for action '{ActionName}'.", actionName);
+
                     return;
                 }
 
@@ -537,11 +625,16 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Starts a real-time conversation with speech-to-text transcription and
     /// text-to-speech synthesis.
     /// </summary>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="audioChunks">The audio chunks.</param>
+    /// <param name="audioFormat">The audio format.</param>
+    /// <param name="language">The language.</param>
     public virtual async Task StartConversation(string itemId, IAsyncEnumerable<string> audioChunks, string audioFormat = null, string language = null)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -558,12 +651,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (interaction is null)
                 {
                     await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeAsync(services, interaction))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -571,6 +666,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (chatMode != ChatMode.Conversation)
                 {
                     await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+
                     return;
                 }
 
@@ -580,6 +676,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
+
                     return;
                 }
 
@@ -587,6 +684,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
+
                     return;
                 }
 
@@ -617,6 +715,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Conversation was cancelled.");
+
                 return;
             }
 
@@ -635,11 +734,16 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// <summary>
     /// Streams audio chunks for speech-to-text transcription.
     /// </summary>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="audioChunks">The audio chunks.</param>
+    /// <param name="audioFormat">The audio format.</param>
+    /// <param name="language">The language.</param>
     public virtual async Task SendAudioStream(string itemId, IAsyncEnumerable<string> audioChunks, string audioFormat = null, string language = null)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -656,12 +760,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (interaction is null)
                 {
                     await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeAsync(services, interaction))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -669,6 +775,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
+
                     return;
                 }
 
@@ -682,6 +789,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Audio transcription was cancelled.");
+
                 return;
             }
 
@@ -700,17 +808,22 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// <summary>
     /// Synthesizes the given text as speech and streams audio chunks to the caller.
     /// </summary>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="text">The text.</param>
+    /// <param name="voiceName">The voice name.</param>
     public virtual async Task SynthesizeSpeech(string itemId, string text, string voiceName = null)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
         if (string.IsNullOrWhiteSpace(text))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(text)));
+
             return;
         }
 
@@ -727,12 +840,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (interaction is null)
                 {
                     await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeAsync(services, interaction))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -741,6 +856,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (chatMode != ChatMode.Conversation && !isTtsPlaybackEnabled)
                 {
                     await Clients.Caller.ReceiveError(GetTtsNotEnabledMessage());
+
                     return;
                 }
 
@@ -749,6 +865,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
+
                     return;
                 }
 
@@ -765,6 +882,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Speech synthesis was cancelled.");
+
                 return;
             }
 
@@ -780,13 +898,13 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  PROTECTED IMPLEMENTATION — chat prompt processing pipeline
-    // ═══════════════════════════════════════════════════════════════════
-
     /// <summary>
     /// Gets the SignalR group name for a chat interaction.
     /// </summary>
+    // -------------------------------------------------------------------
+    //  PROTECTED IMPLEMENTATION - chat prompt processing pipeline
+    // -------------------------------------------------------------------
+
     public static string GetInteractionGroupName(string itemId)
     {
         return $"chat-interaction-{itemId}";
@@ -796,6 +914,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// Top-level handler for <see cref="SendMessage"/>. Validates input, resolves
     /// the interaction, and processes the streaming response.
     /// </summary>
+    /// <param name="writer">The JSON writer.</param>
+    /// <param name="services">The service collection.</param>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="prompt">The prompt.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected virtual async Task HandlePromptAsync(
         ChannelWriter<CompletionPartialMessage> writer,
         IServiceProvider services,
@@ -810,6 +933,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (string.IsNullOrWhiteSpace(itemId))
             {
                 await Clients.Caller.ReceiveError(GetRequiredFieldMessage("Interaction ID"));
+
                 return;
             }
 
@@ -818,18 +942,21 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction == null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(prompt))
             {
                 await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(prompt)));
+
                 return;
             }
 
@@ -896,6 +1023,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 await CommitChangesAsync(services);
+
                 return;
             }
 
@@ -963,6 +1091,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException || (ex is TaskCanceledException && cancellationToken.IsCancellationRequested))
             {
                 Logger.LogDebug("Chat interaction processing was cancelled.");
+
                 return;
             }
 
@@ -988,9 +1117,12 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  PROTECTED TTS / STT HELPERS — shared by conversation methods
-    // ═══════════════════════════════════════════════════════════════════
+    /// <summary>
+    /// Streams speech.
+    /// </summary>
+    // -------------------------------------------------------------------
+    //  PROTECTED TTS / STT HELPERS - shared by conversation methods
+    // -------------------------------------------------------------------
 
     protected async Task StreamSpeechAsync(
         ITextToSpeechClient textToSpeechClient,
@@ -1009,6 +1141,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(speechText))
         {
             await Clients.Caller.ReceiveAudioComplete(identifier);
+
             return;
         }
 
@@ -1029,6 +1162,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         await Clients.Caller.ReceiveAudioComplete(identifier);
     }
 
+    /// <summary>
+    /// Streams sentences as speech.
+    /// </summary>
+    /// <param name="textToSpeechClient">The text to speech client.</param>
+    /// <param name="getIdentifier">The get identifier.</param>
+    /// <param name="sentenceReader">The sentence reader.</param>
+    /// <param name="voiceName">The voice name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected async Task StreamSentencesAsSpeechAsync(
         ITextToSpeechClient textToSpeechClient,
         Func<string> getIdentifier,
@@ -1358,7 +1499,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
                 catch
                 {
-                    // Best-effort — the client may have disconnected.
+                    // Best-effort - the client may have disconnected.
                 }
             }
         }
@@ -1381,7 +1522,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         return prompt?.References;
     }
 
-    // ───────────────── STT transcription (input mode) ─────────────────
+    // ----------------- STT transcription (input mode) -----------------
 
     private async Task StreamTranscriptionAsync(
         ISpeechToTextClient speechToTextClient,
@@ -1487,9 +1628,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // -------------------------------------------------------------------
     //  HELPERS
-    // ═══════════════════════════════════════════════════════════════════
+    // -------------------------------------------------------------------
 
     private static bool IsSpeechAuthenticationFailure(Exception ex)
     {
@@ -1506,6 +1647,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
     protected static class JsonHelper
     {
+        /// <summary>
+        /// Gets string.
+        /// </summary>
+        /// <param name="el">The el.</param>
+        /// <param name="name">The name.</param>
         public static string GetString(JsonElement el, string name)
         {
             if (el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String)
@@ -1516,6 +1662,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return null;
         }
 
+        /// <summary>
+        /// Gets float.
+        /// </summary>
+        /// <param name="el">The el.</param>
+        /// <param name="name">The name.</param>
         public static float? GetFloat(JsonElement el, string name)
         {
             if (el.TryGetProperty(name, out var prop))
@@ -1534,6 +1685,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return null;
         }
 
+        /// <summary>
+        /// Gets int.
+        /// </summary>
+        /// <param name="el">The el.</param>
+        /// <param name="name">The name.</param>
         public static int? GetInt(JsonElement el, string name)
         {
             if (el.TryGetProperty(name, out var prop))
@@ -1552,6 +1708,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return null;
         }
 
+        /// <summary>
+        /// Gets bool.
+        /// </summary>
+        /// <param name="el">The el.</param>
+        /// <param name="name">The name.</param>
         public static bool? GetBool(JsonElement el, string name)
         {
             if (el.TryGetProperty(name, out var prop))
@@ -1575,6 +1736,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return null;
         }
 
+        /// <summary>
+        /// Gets string array.
+        /// </summary>
+        /// <param name="el">The el.</param>
+        /// <param name="name">The name.</param>
         public static List<string> GetStringArray(JsonElement el, string name)
         {
             if (el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.Array)

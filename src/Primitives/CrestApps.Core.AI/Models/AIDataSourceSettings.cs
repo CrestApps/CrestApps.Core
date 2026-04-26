@@ -26,6 +26,10 @@ public sealed class AIDataSourceSettings
     /// </summary>
     public int DefaultTopNDocuments { get; set; } = 5;
 
+    /// <summary>
+    /// Gets top n documents.
+    /// </summary>
+    /// <param name="topN">The top n.</param>
     public int GetTopNDocuments(int? topN)
     {
         if (topN >= MinTopNDocuments && topN <= MaxTopNDocuments)
@@ -41,6 +45,10 @@ public sealed class AIDataSourceSettings
         return 5;
     }
 
+    /// <summary>
+    /// Gets strictness.
+    /// </summary>
+    /// <param name="strictness">The strictness.</param>
     public int GetStrictness(int? strictness)
     {
         if (strictness >= MinStrictness && strictness <= MaxStrictness)

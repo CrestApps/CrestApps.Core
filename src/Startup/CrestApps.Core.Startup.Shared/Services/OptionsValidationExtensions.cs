@@ -10,11 +10,13 @@ public static class OptionsValidationExtensions
         try
         {
             value = optionsAccessor.Value;
+
             return true;
         }
         catch (OptionsValidationException)
         {
             value = null;
+
             return false;
         }
     }
@@ -27,11 +29,13 @@ public static class OptionsValidationExtensions
         try
         {
             value = optionsAccessor.Value;
+
             return true;
         }
         catch (OptionsValidationException)
         {
             value = null;
+
             return false;
         }
     }

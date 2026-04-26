@@ -12,8 +12,13 @@ namespace CrestApps.Core.AI.Chat.Handlers;
 public sealed class PostSessionProcessingChatSessionHandler : AIChatSessionHandlerBase
 {
     private readonly AIChatSessionPostCloseProcessor _postCloseProcessor;
-    private readonly ILogger _logger;
+    private readonly ILogger<PostSessionProcessingChatSessionHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PostSessionProcessingChatSessionHandler"/> class.
+    /// </summary>
+    /// <param name="postCloseProcessor">The post close processor.</param>
+    /// <param name="logger">The logger.</param>
     public PostSessionProcessingChatSessionHandler(
         AIChatSessionPostCloseProcessor postCloseProcessor,
         ILogger<PostSessionProcessingChatSessionHandler> logger)
@@ -22,6 +27,11 @@ public sealed class PostSessionProcessingChatSessionHandler : AIChatSessionHandl
         _logger = logger;
     }
 
+    /// <summary>
+    /// Messages completed.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task MessageCompletedAsync(ChatMessageCompletedContext context, CancellationToken cancellationToken = default)
     {
         if (context.ChatSession.Status != ChatSessionStatus.Closed)

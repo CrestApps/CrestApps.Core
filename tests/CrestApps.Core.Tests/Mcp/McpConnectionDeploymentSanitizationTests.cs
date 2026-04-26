@@ -274,5 +274,3 @@ public sealed class McpConnectionDeploymentSanitizationTests
         return connection;
     }
 }
-
-

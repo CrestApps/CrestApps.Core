@@ -9,10 +9,16 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Represents the AI Chat Document Endpoint Base.
+/// </summary>
 public abstract class AIChatDocumentEndpointBase
 {
     private const long DefaultMaxFileSizeBytes = 100 * 1024 * 1024; // 100 MB
 
+    /// <summary>
+    /// Processs file.
+    /// </summary>
     protected static async Task<(bool Success, string Error, AIChatUploadedDocument UploadedDocument)> ProcessFileAsync(
         IFormFile file,
         string referenceId,
@@ -56,6 +62,7 @@ public abstract class AIChatDocumentEndpointBase
             if (result == null)
             {
                 logger.LogError("Document processing returned no result for file {FileName}", file.FileName);
+
                 return (false, S["Failed to process file."].Value, null);
             }
 
@@ -67,6 +74,7 @@ public abstract class AIChatDocumentEndpointBase
             if (result.Document == null || result.DocumentInfo == null)
             {
                 logger.LogError("Document processing returned an incomplete result for file {FileName}", file.FileName);
+
                 return (false, S["Failed to process file."].Value, null);
             }
 
@@ -97,10 +105,15 @@ public abstract class AIChatDocumentEndpointBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to process file {FileName}", file.FileName);
+
             return (false, S["Failed to process file."].Value, null);
         }
     }
 
+    /// <summary>
+    /// Gets files.
+    /// </summary>
+    /// <param name="form">The form.</param>
     protected static IReadOnlyList<IFormFile> GetFiles(IFormCollection form)
     {
         var files = form.Files.GetFiles("files");
@@ -114,17 +127,31 @@ public abstract class AIChatDocumentEndpointBase
         return singleFile == null ? [] : [singleFile];
     }
 
+    /// <summary>
+    /// Determines whether session document upload enabled.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
     protected static bool IsSessionDocumentUploadEnabled(AIProfile profile)
     {
         return profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata) && sessionDocMetadata.AllowSessionDocuments;
     }
 
+    /// <summary>
+    /// Resolves session deployment.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
     protected static async Task<AIDeployment> ResolveSessionDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
     {
         return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: profile.ChatDeploymentName)
             ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Utility, deploymentName: profile.UtilityDeploymentName);
     }
 
+    /// <summary>
+    /// Determines whether duplicate document.
+    /// </summary>
+    /// <param name="documents">The documents.</param>
+    /// <param name="file">The file.</param>
     protected static bool IsDuplicateDocument(ICollection<ChatDocumentInfo> documents, IFormFile file)
     {
         if (documents == null || file == null)
@@ -138,6 +165,12 @@ public abstract class AIChatDocumentEndpointBase
             document.FileSize == file.Length);
     }
 
+    /// <summary>
+    /// Invokes removed handlers.
+    /// </summary>
+    /// <param name="eventHandlers">The event handlers.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected static async Task InvokeRemovedHandlersAsync(IEnumerable<IAIChatDocumentEventHandler> eventHandlers, AIChatDocumentRemoveContext context, CancellationToken cancellationToken)
     {
         foreach (var handler in eventHandlers)

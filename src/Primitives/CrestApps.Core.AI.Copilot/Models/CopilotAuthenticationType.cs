@@ -17,7 +17,7 @@ public enum CopilotAuthenticationType
     GitHubOAuth = 1,
 
     /// <summary>
-    /// Bring Your Own Key — uses a provider API key configured by the tenant owner.
+    /// Bring Your Own Key - uses a provider API key configured by the tenant owner.
     /// No GitHub Copilot subscription required.
     /// </summary>
     ApiKey = 2,

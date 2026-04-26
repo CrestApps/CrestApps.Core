@@ -41,6 +41,7 @@ public interface ITabularBatchProcessor
     /// <param name="batches">The batches to process.</param>
     /// <param name="userPrompt">The user's original prompt/instruction.</param>
     /// <param name="context">The processing context containing configuration.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The aggregated results from all batches, ordered by batch index.</returns>
     Task<IList<TabularBatchResult>> ProcessBatchesAsync(
         IList<TabularBatch> batches,

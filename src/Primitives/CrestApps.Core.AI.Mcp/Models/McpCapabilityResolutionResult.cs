@@ -22,6 +22,10 @@ public sealed class McpCapabilityResolutionResult
     /// </summary>
     public IReadOnlySet<string> RelevantConnectionIds { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpCapabilityResolutionResult"/> class.
+    /// </summary>
+    /// <param name="candidates">The candidates.</param>
     public McpCapabilityResolutionResult(IReadOnlyList<McpCapabilityCandidate> candidates)
     {
         Candidates = candidates ?? [];

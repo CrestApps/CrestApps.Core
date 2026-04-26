@@ -8,11 +8,19 @@ internal sealed class ChatInteractionCompletionContextBuilderHandler : IAIComple
 {
     private readonly ITemplateService _aiTemplateService;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ChatInteractionCompletionContextBuilderHandler"/> class.
+    /// </summary>
+    /// <param name="aiTemplateService">The ai template service.</param>
     public ChatInteractionCompletionContextBuilderHandler(ITemplateService aiTemplateService)
     {
         _aiTemplateService = aiTemplateService;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuildingAsync(AICompletionContextBuildingContext context)
     {
         if (context.Resource is not ChatInteraction interaction)
@@ -48,6 +56,10 @@ internal sealed class ChatInteractionCompletionContextBuilderHandler : IAIComple
         }
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuiltAsync(AICompletionContextBuiltContext context)
     {
         return Task.CompletedTask;

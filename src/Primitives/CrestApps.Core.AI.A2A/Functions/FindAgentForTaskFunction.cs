@@ -54,6 +54,11 @@ internal sealed class FindAgentForTaskFunction : AIFunction
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invokes core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
@@ -148,7 +153,10 @@ internal sealed class FindAgentForTaskFunction : AIFunction
         }
 
         var results = scoredAgents.Where(s => s.Score > 0).OrderByDescending(s => s.Score).Take(maxResults).Select(s => s.Agent).ToList();
-        return results.Count > 0 ? JsonSerializer.Serialize(results) : "No agents were found matching the given task description.";
+
+        return results.Count > 0
+            ? JsonSerializer.Serialize(results)
+            : "No agents were found matching the given task description.";
     }
 
     private static double ScoreRelevance(HashSet<string> queryTokens, HashSet<string> targetTokens)
@@ -159,6 +167,7 @@ internal sealed class FindAgentForTaskFunction : AIFunction
         }
 
         var matchCount = 0;
+
         foreach (var token in queryTokens)
         {
             if (targetTokens.Contains(token))
@@ -174,6 +183,7 @@ internal sealed class FindAgentForTaskFunction : AIFunction
 
         var forwardScore = (double)matchCount / queryTokens.Count;
         var reverseScore = (double)matchCount / targetTokens.Count;
+
         return Math.Max(forwardScore, reverseScore);
     }
 }

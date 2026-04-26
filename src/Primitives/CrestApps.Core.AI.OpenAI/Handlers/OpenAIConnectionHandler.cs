@@ -11,11 +11,19 @@ internal sealed class OpenAIConnectionHandler : AIProviderConnectionHandlerBase
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenAIConnectionHandler"/> class.
+    /// </summary>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
     public OpenAIConnectionHandler(IDataProtectionProvider dataProtectionProvider)
     {
         _dataProtectionProvider = dataProtectionProvider;
     }
 
+    /// <summary>
+    /// Initializings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Initializing(InitializingAIProviderConnectionContext context)
     {
         if (!string.Equals(context.Connection.ClientName, OpenAIConstants.ClientName, StringComparison.Ordinal))

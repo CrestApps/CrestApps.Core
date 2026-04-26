@@ -330,7 +330,6 @@ The `collectionName` parameter is optional and defaults to `null` (root collecti
 When registering manually, ensure the catalog, its `IndexProvider`, and the corresponding `ISchemaBuilder` migration all use the **same** collection name. Mismatched collection names will cause data to be stored in one collection but queried from another, resulting in silent data loss.
 :::
 
-
 ## Catalog Entry Handlers
 
 React to lifecycle events on catalog entries:
@@ -1093,4 +1092,3 @@ builder.Services.AddScoped<INamedCatalog<AIProfile>, CustomNamedSourceCatalog<AI
 builder.Services.AddScoped<ISourceCatalog<AIProfile>, CustomNamedSourceCatalog<AIProfile>>();
 builder.Services.AddScoped<INamedSourceCatalog<AIProfile>, CustomNamedSourceCatalog<AIProfile>>();
 ```
-

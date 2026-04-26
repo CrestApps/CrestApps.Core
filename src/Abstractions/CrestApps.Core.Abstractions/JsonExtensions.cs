@@ -31,6 +31,7 @@ public static class JsonExtensions
     /// <summary>
     /// Deep-clones an <see cref="IDictionary{String, Object}"/> used for extensible properties.
     /// </summary>
+    /// <param name="properties">The properties.</param>
     public static IDictionary<string, object> Clone(this IDictionary<string, object> properties)
     {
         if (properties is null || properties.Count == 0)
@@ -46,6 +47,7 @@ public static class JsonExtensions
     /// <summary>
     /// Deep-clones a <see cref="JsonObject"/>.
     /// </summary>
+    /// <param name="jsonObject">The json object.</param>
     public static JsonObject Clone(this JsonObject jsonObject)
     {
         if (jsonObject is null)

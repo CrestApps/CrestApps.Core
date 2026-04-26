@@ -227,6 +227,7 @@ public class SourceParityTests
         // Mirror of ParityPairs() — kept in sync via KnownDrift_OnlyReferencesExistingPages.
         // We can't enumerate TheoryData rows via the public surface in xunit.v3, so the
         // check uses an explicit list; if you add a row to ParityPairs, add it here too.
+
         return new[]
         {
             "AIConnections/Index", "AIConnections/Create", "AIConnections/Edit",

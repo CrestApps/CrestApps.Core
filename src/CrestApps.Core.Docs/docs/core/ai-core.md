@@ -448,5 +448,3 @@ public class MyService(IAICompletionService completionService)
     }
 }
 ```
-
-

@@ -4,6 +4,10 @@ namespace CrestApps.Core.AI.Services;
 
 internal static class AIProviderConnectionDeploymentNameNormalizer
 {
+    /// <summary>
+    /// Normalizes the operation.
+    /// </summary>
+    /// <param name="values">The values.</param>
     public static void Normalize(IDictionary<string, object> values)
     {
         ArgumentNullException.ThrowIfNull(values);
@@ -15,6 +19,11 @@ internal static class AIProviderConnectionDeploymentNameNormalizer
         Normalize(values, values, "SpeechToTextDeploymentName", "SpeechToTextDeploymentName", "DefaultSpeechToTextDeploymentName");
     }
 
+    /// <summary>
+    /// Copys normalized.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="destination">The destination.</param>
     public static void CopyNormalized(IDictionary<string, object> source, IDictionary<string, object> destination)
     {
         ArgumentNullException.ThrowIfNull(source);

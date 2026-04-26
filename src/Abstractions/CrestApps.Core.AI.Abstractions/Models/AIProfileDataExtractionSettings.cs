@@ -1,6 +1,6 @@
 namespace CrestApps.Core.AI.Models;
 
-public class AIProfileDataExtractionSettings
+public sealed class AIProfileDataExtractionSettings
 {
     /// <summary>
     /// Gets or sets whether data extraction is enabled for this profile.

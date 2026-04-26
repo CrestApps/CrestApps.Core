@@ -13,13 +13,24 @@ namespace CrestApps.Core.AI.Services;
 public sealed class ExternalChatRelayConnectionManager : IExternalChatRelayManager, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, IExternalChatRelay> _relays = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ILogger _logger;
+    private readonly ILogger<ExternalChatRelayConnectionManager> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExternalChatRelayConnectionManager"/> class.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
     public ExternalChatRelayConnectionManager(ILogger<ExternalChatRelayConnectionManager> logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets or create.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="factory">The factory.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IExternalChatRelay> GetOrCreateAsync(
         string sessionId,
         ExternalChatRelayContext context,
@@ -63,6 +74,10 @@ public sealed class ExternalChatRelayConnectionManager : IExternalChatRelayManag
         return relay;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
     public IExternalChatRelay Get(string sessionId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
@@ -72,6 +87,11 @@ public sealed class ExternalChatRelayConnectionManager : IExternalChatRelayManag
         return relay;
     }
 
+    /// <summary>
+    /// Closes the operation.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task CloseAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
@@ -100,6 +120,9 @@ public sealed class ExternalChatRelayConnectionManager : IExternalChatRelayManag
         }
     }
 
+    /// <summary>
+    /// Disposes the operation.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         foreach (var kvp in _relays)

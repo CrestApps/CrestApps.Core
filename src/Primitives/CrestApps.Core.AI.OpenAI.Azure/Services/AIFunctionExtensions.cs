@@ -13,6 +13,10 @@ internal static class AIFunctionExtensions
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    /// <summary>
+    /// To chat tools chat tool.
+    /// </summary>
+    /// <param name="function">The function.</param>
     public static ChatTool ToChatTool(this AIFunction function)
     {
         var parameters = BinaryData.FromObjectAsJson(function.JsonSchema, _jsonSerializerOptions);

@@ -107,7 +107,7 @@ public sealed class SettingsViewModel
     [BindNever]
     public string CopilotCallbackUrl { get; set; }
 
-    // Dropdown items — never bound from form data.
+    // Dropdown items - never bound from form data.
     [BindNever]
     public IEnumerable<SelectListItem> ChatDeployments { get; set; } = [];
 

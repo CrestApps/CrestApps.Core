@@ -9,6 +9,10 @@ namespace CrestApps.Core.AI.Mcp;
 /// </summary>
 public abstract class McpResourceTypeHandlerBase : IMcpResourceTypeHandler
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpResourceTypeHandlerBase"/> class.
+    /// </summary>
+    /// <param name="type">The type.</param>
     protected McpResourceTypeHandlerBase(string type)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
@@ -16,10 +20,17 @@ public abstract class McpResourceTypeHandlerBase : IMcpResourceTypeHandler
         Type = type;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Gets the type.
+    /// </summary>
     public string Type { get; }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="resource">The resource.</param>
+    /// <param name="variables">The variables.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<ReadResourceResult> ReadAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(resource);

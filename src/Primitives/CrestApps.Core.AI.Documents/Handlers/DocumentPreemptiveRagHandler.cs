@@ -29,8 +29,18 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     private readonly ITemplateService _templateService;
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DocumentPreemptiveRagHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentPreemptiveRagHandler"/> class.
+    /// </summary>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="indexProfileStore">The index profile store.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="textNormalizer">The text normalizer.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public DocumentPreemptiveRagHandler(
         IAIClientFactory aiClientFactory,
         IAIDeploymentManager deploymentManager,
@@ -49,6 +59,10 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         _logger = logger;
     }
 
+    /// <summary>
+    /// Determines whether handle.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public ValueTask<bool> CanHandleAsync(OrchestrationContextBuiltContext context)
     {
         if (context.OrchestrationContext.Documents is { Count: > 0 })
@@ -69,6 +83,10 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         return ValueTask.FromResult(false);
     }
 
+    /// <summary>
+    /// Handles the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task HandleAsync(PreemptiveRagContext context)
     {
         var snapshotSettings = _serviceProvider.GetService<IOptionsSnapshot<InteractionDocumentOptions>>()?.Value;
@@ -353,6 +371,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         if (context.Resource is ChatInteraction interaction)
         {
             searchScopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
+
             return searchScopes;
         }
 
@@ -578,6 +597,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         }
 
         orchestrationContext.Properties["DocumentReferences"] = citationMap;
+
         return builder.ToString();
     }
 }

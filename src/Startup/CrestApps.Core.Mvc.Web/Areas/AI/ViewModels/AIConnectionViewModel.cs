@@ -42,18 +42,6 @@ public sealed class AIConnectionViewModel
         return model;
     }
 
-    public static AIConnectionViewModel FromConfiguration(string itemId, string name, string displayText, string source)
-    {
-        return new()
-        {
-            ItemId = itemId,
-            Name = name,
-            DisplayText = displayText,
-            Source = AIProviderNameNormalizer.Normalize(source),
-            IsReadOnly = true,
-        };
-    }
-
     public void ApplyTo(AIProviderConnection connection)
     {
         connection.Name = Name;

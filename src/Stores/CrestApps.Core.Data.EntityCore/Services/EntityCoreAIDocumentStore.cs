@@ -7,11 +7,23 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIDocumentStore : DocumentCatalog<AIDocument>, IAIDocumentStore
 {
-    public EntityCoreAIDocumentStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<AIDocument>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EntityCoreAIDocumentStore"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
+    public EntityCoreAIDocumentStore(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<AIDocument>> logger = null)
         : base(dbContext, logger)
     {
     }
 
+    /// <summary>
+    /// Gets documents.
+    /// </summary>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="referenceType">The reference type.</param>
     public async Task<IReadOnlyCollection<AIDocument>> GetDocumentsAsync(string referenceId, string referenceType)
     {
         ArgumentException.ThrowIfNullOrEmpty(referenceId);
@@ -22,7 +34,7 @@ public sealed class EntityCoreAIDocumentStore : DocumentCatalog<AIDocument>, IAI
             .ToListAsync();
 
         return records
-            .Select(CatalogRecordFactory.Materialize<AIDocument>)
-            .ToArray();
+                    .Select(CatalogRecordFactory.Materialize<AIDocument>)
+                    .ToArray();
     }
 }

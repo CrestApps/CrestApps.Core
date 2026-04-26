@@ -27,6 +27,7 @@ public sealed class AIConnectionController : Controller
         {
             var model = AIConnectionViewModel.FromConnection(connection);
             model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId);
+
             return model;
         }).ToList();
 
@@ -40,6 +41,7 @@ public sealed class AIConnectionController : Controller
             Providers = _providers,
             AuthenticationTypes = _authTypes,
         };
+
         return View(model);
     }
 
@@ -63,6 +65,7 @@ public sealed class AIConnectionController : Controller
         {
             model.Providers = _providers;
             model.AuthenticationTypes = _authTypes;
+
             return View(model);
         }
 
@@ -75,6 +78,7 @@ public sealed class AIConnectionController : Controller
         connection.CreatedUtc = DateTime.UtcNow;
         model.ApplyTo(connection);
         await _catalog.CreateAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -83,6 +87,7 @@ public sealed class AIConnectionController : Controller
         if (AIConfigurationRecordIds.IsConfigurationConnectionId(id))
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -95,12 +100,14 @@ public sealed class AIConnectionController : Controller
         if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
         var model = AIConnectionViewModel.FromConnection(connection);
         model.Providers = _providers;
         model.AuthenticationTypes = _authTypes;
+
         return View(model);
     }
 
@@ -111,6 +118,7 @@ public sealed class AIConnectionController : Controller
         if (AIConfigurationRecordIds.IsConfigurationConnectionId(model.ItemId))
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -125,6 +133,7 @@ public sealed class AIConnectionController : Controller
         {
             model.Providers = _providers;
             model.AuthenticationTypes = _authTypes;
+
             return View(model);
         }
 
@@ -137,11 +146,13 @@ public sealed class AIConnectionController : Controller
         if (AIConfigurationRecordIds.IsConfigurationConnectionId(existing.ItemId))
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
         model.ApplyTo(existing);
         await _catalog.UpdateAsync(existing);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -152,6 +163,7 @@ public sealed class AIConnectionController : Controller
         if (AIConfigurationRecordIds.IsConfigurationConnectionId(id))
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be deleted from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -164,10 +176,12 @@ public sealed class AIConnectionController : Controller
         if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be deleted from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
         await _catalog.DeleteAsync(connection);
+
         return RedirectToAction(nameof(Index));
     }
 

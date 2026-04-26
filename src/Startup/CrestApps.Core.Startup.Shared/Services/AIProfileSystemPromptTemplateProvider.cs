@@ -25,10 +25,10 @@ public sealed class AIProfileSystemPromptTemplateProvider : ITemplateProvider
         var templates = await _templateManager.GetAllAsync();
 
         return (templates ?? [])
-            .Where(IsSystemPromptTemplate)
-            .Select(MapTemplate)
-            .Where(template => !string.IsNullOrWhiteSpace(template.Content))
-            .ToList();
+                    .Where(IsSystemPromptTemplate)
+                    .Select(MapTemplate)
+                    .Where(template => !string.IsNullOrWhiteSpace(template.Content))
+                    .ToList();
     }
 
     private static bool IsSystemPromptTemplate(AIProfileTemplate template)

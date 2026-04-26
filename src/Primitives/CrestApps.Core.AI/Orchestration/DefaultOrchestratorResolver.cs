@@ -13,8 +13,14 @@ internal sealed class DefaultOrchestratorResolver : IOrchestratorResolver
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly OrchestratorOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultOrchestratorResolver> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultOrchestratorResolver"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultOrchestratorResolver(
         IServiceProvider serviceProvider,
         IOptions<OrchestratorOptions> options,
@@ -25,6 +31,10 @@ internal sealed class DefaultOrchestratorResolver : IOrchestratorResolver
         _logger = logger;
     }
 
+    /// <summary>
+    /// Resolves the operation.
+    /// </summary>
+    /// <param name="orchestratorName">The orchestrator name.</param>
     public IOrchestrator Resolve(string orchestratorName = null)
     {
         var name = string.IsNullOrWhiteSpace(orchestratorName)
@@ -60,6 +70,7 @@ internal sealed class DefaultOrchestratorResolver : IOrchestratorResolver
         }
 
         // Last resort: resolve ProgressiveToolOrchestrator directly.
+
         return _serviceProvider.GetRequiredService<DefaultOrchestrator>();
     }
 }

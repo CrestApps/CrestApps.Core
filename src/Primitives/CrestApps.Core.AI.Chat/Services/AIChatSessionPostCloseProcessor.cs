@@ -15,8 +15,16 @@ public sealed class AIChatSessionPostCloseProcessor
     private readonly IEnumerable<IAIChatSessionAnalyticsRecorder> _analyticsRecorders;
     private readonly IEnumerable<IAIChatSessionConversionGoalRecorder> _conversionGoalRecorders;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIChatSessionPostCloseProcessor> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIChatSessionPostCloseProcessor"/> class.
+    /// </summary>
+    /// <param name="postSessionProcessingService">The post session processing service.</param>
+    /// <param name="analyticsRecorders">The analytics recorders.</param>
+    /// <param name="conversionGoalRecorders">The conversion goal recorders.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public AIChatSessionPostCloseProcessor(
         PostSessionProcessingService postSessionProcessingService,
         IEnumerable<IAIChatSessionAnalyticsRecorder> analyticsRecorders,
@@ -31,6 +39,11 @@ public sealed class AIChatSessionPostCloseProcessor
         _logger = logger;
     }
 
+    /// <summary>
+    /// Needss processing.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="chatSession">The chat session.</param>
     public static bool NeedsProcessing(AIProfile profile, AIChatSession chatSession)
     {
         var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
@@ -54,6 +67,13 @@ public sealed class AIChatSessionPostCloseProcessor
         return needsPostSessionTasks;
     }
 
+    /// <summary>
+    /// Processs the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="chatSession">The chat session.</param>
+    /// <param name="prompts">The prompts.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AIChatSessionPostCloseProcessingResult> ProcessAsync(
         AIProfile profile,
         AIChatSession chatSession,
@@ -84,6 +104,7 @@ public sealed class AIChatSessionPostCloseProcessor
         if (!needsPostSessionTasks && !needsAnalytics && !needsConversionGoals)
         {
             result.IsCompleted = true;
+
             return result;
         }
 

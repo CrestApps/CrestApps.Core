@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI.Models;
 /// When enabled, the system runs AI-powered analysis on the complete conversation
 /// transcript after a session is closed.
 /// </summary>
-public class AIProfilePostSessionSettings
+public sealed class AIProfilePostSessionSettings
 {
     /// <summary>
     /// Gets or sets whether post-session processing is enabled for this profile.

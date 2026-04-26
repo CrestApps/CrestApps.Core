@@ -4,8 +4,15 @@ using CrestApps.Core.AI.Mcp.Models;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the default MCP Metadata Prompt Generator.
+/// </summary>
 public sealed class DefaultMcpMetadataPromptGenerator : IMcpMetadataPromptGenerator
 {
+    /// <summary>
+    /// Generates the operation.
+    /// </summary>
+    /// <param name="capabilities">The capabilities.</param>
     public string Generate(IReadOnlyList<McpServerCapabilities> capabilities)
     {
         if (capabilities is null || capabilities.Count == 0)
@@ -32,7 +39,7 @@ public sealed class DefaultMcpMetadataPromptGenerator : IMcpMetadataPromptGenera
         builder.AppendLine("IMPORTANT invocation rules:");
         builder.AppendLine("- Always specify the correct 'clientId', 'type', and 'id' parameters.");
         builder.AppendLine("- For tools: set type='tool', id=<tool name>, and inputs=<object matching the tool's Parameters schema>.");
-        builder.AppendLine("  The 'inputs' object must include all required properties as defined in the tool's Parameters schema. It must be a valid JSON object, with no wrappers (such as code fences) or additional formatting—only pure JSON.");
+        builder.AppendLine("  The 'inputs' object must include all required properties as defined in the tool's Parameters schema. It must be a valid JSON object, with no wrappers (such as code fences) or additional formatting?only pure JSON.");
         builder.AppendLine("  Example: if a tool has Parameters with required property 'featureIds' (array of strings), call mcp_invoke with inputs={\"featureIds\":[\"value1\",\"value2\"]}.");
         builder.AppendLine("- For prompts: set type='prompt' and id=<prompt name>.");
         builder.AppendLine("- For resources: set type='resource' and id=<the full resource URI>. Do NOT use the resource name as id.");

@@ -3,8 +3,15 @@ using CrestApps.Core.Azure.Models;
 
 namespace CrestApps.Core.Azure;
 
+/// <summary>
+/// Provides extension methods for dictionary.
+/// </summary>
 public static class DictionaryExtensions
 {
+    /// <summary>
+    /// Gets azure authentication type.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
     public static AzureAuthenticationType GetAzureAuthenticationType(this IDictionary<string, object> entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -20,6 +27,10 @@ public static class DictionaryExtensions
         return authenticationType;
     }
 
+    /// <summary>
+    /// Gets identity id.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
     public static string GetIdentityId(this IDictionary<string, object> entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -27,6 +38,12 @@ public static class DictionaryExtensions
         return entry.GetStringValue("IdentityId", false);
     }
 
+    /// <summary>
+    /// Gets string value.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="throwException">The throw exception.</param>
     public static string GetStringValue(this IDictionary<string, object> entry, string key, bool throwException = false)
     {
         ArgumentNullException.ThrowIfNull(entry);

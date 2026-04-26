@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Indexing;
 
+/// <summary>
+/// Represents the AI Memory Search Index Profile Handler.
+/// </summary>
 public sealed class AIMemorySearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
     private const string _memoryIdFieldName = "memoryId";
@@ -17,6 +20,12 @@ public sealed class AIMemorySearchIndexProfileHandler : EmbeddingSearchIndexProf
     private const string _updatedUtcFieldName = "updatedUtc";
     private const string _embeddingFieldName = "embedding";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemorySearchIndexProfileHandler"/> class.
+    /// </summary>
+    /// <param name="deploymentCatalog">The deployment catalog.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="logger">The logger.</param>
     public AIMemorySearchIndexProfileHandler(
         ICatalog<AIDeployment> deploymentCatalog,
         IAIClientFactory aiClientFactory,
@@ -25,6 +34,10 @@ public sealed class AIMemorySearchIndexProfileHandler : EmbeddingSearchIndexProf
     {
     }
 
+    /// <summary>
+    /// Builds fields.
+    /// </summary>
+    /// <param name="vectorDimensions">The vector dimensions.</param>
     protected override IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions)
     {
         return [new SearchIndexField

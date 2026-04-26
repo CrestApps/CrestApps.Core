@@ -12,13 +12,26 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class DefaultAIProviderConnectionStore : MultiSourceNamedSourceCatalog<AIProviderConnection>, IAIProviderConnectionStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIProviderConnectionStore"/> class.
+    /// </summary>
+    /// <param name="sources">The sources.</param>
     public DefaultAIProviderConnectionStore(IEnumerable<INamedSourceCatalogSource<AIProviderConnection>> sources)
         : base(sources)
     {
     }
 
+    /// <summary>
+    /// Gets item id.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
     protected override string GetItemId(AIProviderConnection entry) => entry.ItemId;
 
+    /// <summary>
+    /// Applies filters.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="entries">The entries.</param>
     protected override IEnumerable<AIProviderConnection> ApplyFilters(QueryContext context, IEnumerable<AIProviderConnection> entries)
     {
         if (context is null)
@@ -44,5 +57,9 @@ public sealed class DefaultAIProviderConnectionStore : MultiSourceNamedSourceCat
         return entries;
     }
 
+    /// <summary>
+    /// Gets sort key.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
     protected override string GetSortKey(AIProviderConnection entry) => entry.DisplayText ?? entry.Name;
 }

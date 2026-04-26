@@ -403,6 +403,7 @@ public sealed class SettingsController : Controller
         if (!settings.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.AnthropicDefaultModel);
+
             return;
         }
 
@@ -415,29 +416,29 @@ public sealed class SettingsController : Controller
         var groups = new Dictionary<string, SelectListGroup>(StringComparer.OrdinalIgnoreCase);
 
         return deployments
-            .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(d =>
-            {
-                SelectListGroup group = null;
-                var groupKey = d.ConnectionName;
+                    .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(d =>
+                    {
+                        SelectListGroup group = null;
+                        var groupKey = d.ConnectionName;
 
-                if (!string.IsNullOrEmpty(groupKey) && !groups.TryGetValue(groupKey, out group))
-                {
-                    group = new SelectListGroup { Name = groupKey };
+                        if (!string.IsNullOrEmpty(groupKey) && !groups.TryGetValue(groupKey, out group))
+                        {
+                            group = new SelectListGroup { Name = groupKey };
 
-                    groups[groupKey] = group;
-                }
+                            groups[groupKey] = group;
+                        }
 
-                var label = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
-                    ? d.Name
-                    : $"{d.Name} ({d.ModelName})";
+                        var label = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
+                            ? d.Name
+                            : $"{d.Name} ({d.ModelName})";
 
-                return new SelectListItem(label, d.Name)
-                {
-                    Group = group,
-                };
-            });
+                        return new SelectListItem(label, d.Name)
+                        {
+                            Group = group,
+                        };
+                    });
     }
 
     private async Task NormalizeDeploymentSelectorsAsync(SettingsViewModel model)

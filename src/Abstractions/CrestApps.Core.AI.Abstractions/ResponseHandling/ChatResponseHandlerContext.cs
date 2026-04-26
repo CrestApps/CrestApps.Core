@@ -75,5 +75,6 @@ public sealed class ChatResponseHandlerContext
     /// <summary>
     /// Gets or sets an extensible property bag for passing additional data to handlers.
     /// </summary>
+    /// <param name="OrdinalIgnoreCase">The ordinal ignore case.</param>
     public Dictionary<string, object> Properties { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 }

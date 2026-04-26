@@ -163,11 +163,11 @@ public sealed class CopilotAuthController : Controller
             var safeUsername = System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(username ?? string.Empty);
 
             return Content(
-                "<!DOCTYPE html><html><body><script>" +
-                $"window.opener.postMessage({{ type: 'github-auth-complete', success: {(success ? "true" : "false")}, username: '{safeUsername}' }}, window.location.origin);" +
-                "window.close();" +
-                "</script></body></html>",
-                "text/html");
+                            "<!DOCTYPE html><html><body><script>" +
+                            $"window.opener.postMessage({{ type: 'github-auth-complete', success: {(success ? "true" : "false")}, username: '{safeUsername}' }}, window.location.origin);" +
+                            "window.close();" +
+                            "</script></body></html>",
+                            "text/html");
         }
 
         if (Url.IsLocalUrl(state))

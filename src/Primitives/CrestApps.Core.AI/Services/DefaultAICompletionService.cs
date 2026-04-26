@@ -9,13 +9,23 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
-public class DefaultAICompletionService : IAICompletionService
+/// <summary>
+/// Represents the default AI Completion Service.
+/// </summary>
+public sealed class DefaultAICompletionService : IAICompletionService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IEnumerable<IAICompletionHandler> _completionHandlers;
     private readonly AIOptions _aiOptions;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAICompletionService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAICompletionService"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="completionHandlers">The completion handlers.</param>
+    /// <param name="aiOptions">The ai options.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultAICompletionService(
         IServiceProvider serviceProvider,
         IEnumerable<IAICompletionHandler> completionHandlers,
@@ -28,6 +38,13 @@ public class DefaultAICompletionService : IAICompletionService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Completes the operation.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="messages">The messages.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<ChatResponse> CompleteAsync(AIDeployment deployment, IEnumerable<ChatMessage> messages, AICompletionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -46,6 +63,13 @@ public class DefaultAICompletionService : IAICompletionService
         return response;
     }
 
+    /// <summary>
+    /// Completes streaming.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="messages">The messages.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingAsync(AIDeployment deployment, IEnumerable<ChatMessage> messages, AICompletionContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -82,7 +106,7 @@ public class DefaultAICompletionService : IAICompletionService
     private IAICompletionClient ResolveClient(AIDeployment deployment)
     {
         var clientName = deployment.ClientName
-        ?? throw new AIDeploymentConfigurationException($"The deployment '{deployment.Name}' does not have a client name assigned.");
+            ?? throw new AIDeploymentConfigurationException($"The deployment '{deployment.Name}' does not have a client name assigned.");
 
         if (!_aiOptions.Clients.TryGetValue(clientName, out var clientType))
         {
@@ -90,6 +114,6 @@ public class DefaultAICompletionService : IAICompletionService
         }
 
         return _serviceProvider.GetService(clientType) as IAICompletionClient
-        ?? throw new InvalidOperationException($"No completion client registered for '{clientName}'.");
+            ?? throw new InvalidOperationException($"No completion client registered for '{clientName}'.");
     }
 }

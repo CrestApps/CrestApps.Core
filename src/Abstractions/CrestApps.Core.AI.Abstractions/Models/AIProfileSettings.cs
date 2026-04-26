@@ -1,6 +1,9 @@
 namespace CrestApps.Core.AI.Models;
 
-public class AIProfileSettings
+/// <summary>
+/// General settings stored on <see cref="AIProfile.Settings"/> to control UI and editing behavior for a profile.
+/// </summary>
+public sealed class AIProfileSettings
 {
     /// <summary>
     /// Gets or sets a value indicating whether the system message is locked to prevent the user from changing it.

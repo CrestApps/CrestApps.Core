@@ -100,6 +100,7 @@ public sealed class ExtractedDataOrchestrationHandlerTests
             var missingFields = ((IEnumerable<object>)arguments["missingFields"]).ToList();
             var collected = string.Join(", ", collectedFields.Select(field => $"{GetStringProperty(field, "Name")}={string.Join("|", GetValues(field))}"));
             var missing = string.Join(", ", missingFields.Select(field => GetStringProperty(field, "Name")));
+
             return Task.FromResult($"[Collected Session Data]{Environment.NewLine}{collected}{Environment.NewLine}missing={missing}");
         }
 

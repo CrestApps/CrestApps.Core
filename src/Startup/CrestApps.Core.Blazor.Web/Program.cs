@@ -21,8 +21,8 @@ using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Blazor.Web;
-using CrestApps.Core.Blazor.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.BackgroundServices;
+using CrestApps.Core.Blazor.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Hubs;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
 using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Hubs;
@@ -38,7 +38,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
 
 // =============================================================================
-// CrestApps AI Framework — Blazor Example Application
+// CrestApps AI Framework - Blazor Example Application
 // =============================================================================
 // This sample keeps the Blazor host setup small, moves shared sample-host
 // plumbing behind extensions, and leaves the CrestApps feature registrations
@@ -203,6 +203,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
             await next();
+
             return;
         }
 
@@ -213,22 +214,26 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
             if (!string.IsNullOrEmpty(settings.ApiKey) && string.Equals(providedKey, settings.ApiKey, StringComparison.Ordinal))
             {
                 await next();
+
                 return;
             }
 
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
             return;
         }
 
         if (context.User.Identity?.IsAuthenticated != true)
         {
             await context.ChallengeAsync();
+
             return;
         }
 
         if (settings.RequireAccessPermission && !context.User.IsInRole("Administrator"))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
             return;
         }
 

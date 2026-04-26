@@ -447,4 +447,3 @@ builder.Services.AddSingleton<ITemplateProvider, DatabaseAITemplateProvider>();
 :::info
 All registered `ITemplateProvider` instances are queried by `ITemplateService`. Templates from multiple providers are merged into a single collection. If two providers return templates with the same `Id`, the first discovered template wins and later duplicates are ignored.
 :::
-

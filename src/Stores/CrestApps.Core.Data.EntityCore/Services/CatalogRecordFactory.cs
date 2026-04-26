@@ -7,16 +7,26 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 internal static class CatalogRecordFactory
 {
+    /// <summary>
+    /// Gets entity type.
+    /// </summary>
     public static string GetEntityType<T>()
     {
         return GetEntityType(typeof(T));
     }
 
+    /// <summary>
+    /// Gets entity type.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public static string GetEntityType(Type type)
     {
         return type.FullName ?? type.Name;
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
     public static CatalogRecord Create<T>(T model)
         where T : CatalogItem
     {
@@ -65,6 +75,9 @@ internal static class CatalogRecordFactory
         return record;
     }
 
+    /// <summary>
+    /// Updates the operation.
+    /// </summary>
     public static void Update<T>(CatalogRecord record, T model)
         where T : CatalogItem
     {
@@ -86,10 +99,14 @@ internal static class CatalogRecordFactory
         record.Payload = updated.Payload;
     }
 
+    /// <summary>
+    /// Materializes the operation.
+    /// </summary>
     public static T Materialize<T>(CatalogRecord record)
         where T : CatalogItem
     {
         ArgumentNullException.ThrowIfNull(record);
+
         return EntityCoreStoreSerializer.Deserialize<T>(record.Payload);
     }
 }

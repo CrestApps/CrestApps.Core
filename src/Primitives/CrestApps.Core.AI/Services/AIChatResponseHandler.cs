@@ -17,10 +17,16 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
     /// </summary>
     public const string HandlerName = ChatResponseHandlerNames.AI;
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public string Name => HandlerName;
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Handles the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<ChatResponseHandlerResult> HandleAsync(
         ChatResponseHandlerContext context,
         CancellationToken cancellationToken = default)

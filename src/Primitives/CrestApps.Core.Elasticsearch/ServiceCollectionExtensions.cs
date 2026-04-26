@@ -11,8 +11,16 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Elasticsearch;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core elasticsearch services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">The configuration.</param>
     public static IServiceCollection AddCoreElasticsearchServices(this IServiceCollection services, IConfigurationSection configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -23,6 +31,10 @@ public static class ServiceCollectionExtensions
         return services.AddCoreElasticsearchServices();
     }
 
+    /// <summary>
+    /// Adds core elasticsearch services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreElasticsearchServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -49,6 +61,12 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds elasticsearch.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsIndexingBuilder AddElasticsearch(this CrestAppsIndexingBuilder builder, IConfigurationSection configuration, Action<CrestAppsElasticsearchBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -64,6 +82,11 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds elasticsearch.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsIndexingBuilder AddElasticsearch(this CrestAppsIndexingBuilder builder, Action<CrestAppsElasticsearchBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);

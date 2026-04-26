@@ -8,11 +8,23 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 public class NamedDocumentCatalog<T> : DocumentCatalog<T>, INamedCatalog<T>
     where T : CatalogItem, INameAwareModel
 {
-    public NamedDocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NamedDocumentCatalog"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
+    public NamedDocumentCatalog(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<T>> logger = null)
         : base(dbContext, logger)
     {
     }
 
+    /// <summary>
+    /// Finds by name.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -23,6 +35,10 @@ public class NamedDocumentCatalog<T> : DocumentCatalog<T>, INamedCatalog<T>
         return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
+    /// <summary>
+    /// Savings the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
     protected override async ValueTask SavingAsync(T record)
     {
         var exists = await GetReadQuery()

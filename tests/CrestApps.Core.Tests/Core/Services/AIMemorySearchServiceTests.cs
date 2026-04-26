@@ -117,12 +117,12 @@ public sealed class AIMemorySearchServiceTests
         var serviceProvider = services.BuildServiceProvider();
 
         return new AIMemorySearchService(
-            serviceProvider,
-            serviceProvider.GetRequiredService<ISearchIndexProfileStore>(),
-            serviceProvider.GetRequiredService<IAIDeploymentManager>(),
-            serviceProvider.GetRequiredService<IAIClientFactory>(),
-            Options.Create(options),
-            NullLogger<AIMemorySearchService>.Instance);
+                    serviceProvider,
+                    serviceProvider.GetRequiredService<ISearchIndexProfileStore>(),
+                    serviceProvider.GetRequiredService<IAIDeploymentManager>(),
+                    serviceProvider.GetRequiredService<IAIClientFactory>(),
+                    Options.Create(options),
+                    NullLogger<AIMemorySearchService>.Instance);
     }
 
     private sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>

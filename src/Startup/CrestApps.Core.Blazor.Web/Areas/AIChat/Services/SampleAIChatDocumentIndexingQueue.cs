@@ -10,12 +10,14 @@ public sealed class SampleAIChatDocumentIndexingQueue : ISampleAIChatDocumentInd
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(chunks);
+
         return _channel.Writer.WriteAsync(SampleAIChatDocumentIndexingWorkItem.ForIndex(document, chunks.ToArray()), cancellationToken);
     }
 
     public ValueTask QueueDeleteChunksAsync(IReadOnlyCollection<string> chunkIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(chunkIds);
+
         return _channel.Writer.WriteAsync(SampleAIChatDocumentIndexingWorkItem.ForDeleteChunks(chunkIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray()), cancellationToken);
     }
 

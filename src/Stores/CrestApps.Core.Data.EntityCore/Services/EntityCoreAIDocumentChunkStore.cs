@@ -7,11 +7,22 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIDocumentChunkStore : DocumentCatalog<AIDocumentChunk>, IAIDocumentChunkStore
 {
-    public EntityCoreAIDocumentChunkStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<AIDocumentChunk>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EntityCoreAIDocumentChunkStore"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
+    public EntityCoreAIDocumentChunkStore(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<AIDocumentChunk>> logger = null)
         : base(dbContext, logger)
     {
     }
 
+    /// <summary>
+    /// Gets chunks by ai document id.
+    /// </summary>
+    /// <param name="documentId">The document id.</param>
     public async Task<IReadOnlyCollection<AIDocumentChunk>> GetChunksByAIDocumentIdAsync(string documentId)
     {
         ArgumentException.ThrowIfNullOrEmpty(documentId);
@@ -21,10 +32,15 @@ public sealed class EntityCoreAIDocumentChunkStore : DocumentCatalog<AIDocumentC
             .ToListAsync();
 
         return records
-            .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
-            .ToArray();
+                    .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
+                    .ToArray();
     }
 
+    /// <summary>
+    /// Gets chunks by reference.
+    /// </summary>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="referenceType">The reference type.</param>
     public async Task<IReadOnlyCollection<AIDocumentChunk>> GetChunksByReferenceAsync(string referenceId, string referenceType)
     {
         ArgumentException.ThrowIfNullOrEmpty(referenceId);
@@ -35,10 +51,14 @@ public sealed class EntityCoreAIDocumentChunkStore : DocumentCatalog<AIDocumentC
             .ToListAsync();
 
         return records
-            .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
-            .ToArray();
+                    .Select(CatalogRecordFactory.Materialize<AIDocumentChunk>)
+                    .ToArray();
     }
 
+    /// <summary>
+    /// Deletes by document id.
+    /// </summary>
+    /// <param name="documentId">The document id.</param>
     public async Task DeleteByDocumentIdAsync(string documentId)
     {
         ArgumentException.ThrowIfNullOrEmpty(documentId);

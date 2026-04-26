@@ -69,21 +69,37 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 - After the last null-check/argument-validation line in a method, add a blank line before the next statement
 - If a method has only one null-check/argument-validation line, still add a blank line after that final guard line
 - Add a blank line before a `return` statement unless the `return` is the first statement inside a `{ ... }` block
+- Never use more than one consecutive blank line
 - Add a blank line before and after `if` blocks, `switch` statements, and loops unless the block is immediately preceded by `{`
 - Do not add a blank line between an `if`/`else`/`switch`/loop condition and its opening `{`
+- Do not add a blank line immediately after `#pragma warning disable` or immediately before `#pragma warning restore`
+- Do not add a blank line immediately after `#pragma warning restore` when the next line is `{`
+- Add a blank line before a `#pragma warning disable` block when it starts a new member after a closing `}`
+- Add a blank line between a `#pragma warning restore` and the next `#pragma warning disable` when they guard separate members
+- Format conditional operators across multiple lines with the condition on its own line and the `?` and `:` tokens on their own indented lines
 - Use `var` consistently with repository style
 - Do not use `global using` files; add explicit `using` directives at the top of each file instead.
 - Prefer top-of-file `using` directives over fully qualified type names in code.
 - Only use expression-bodied members when the entire member fits on a single short line; use a full block body for anything longer or split across lines
 - Avoid `DateTime.UtcNow`; prefer injected `TimeProvider`.
 - Keep public docs and comments honest to the current code.
-- Always document new interfaces, their methods and arguments along with documenting every property on domain models using `<summary>` block.
+- Always document every method, including constructor overloads, with accurate XML `<summary>` and `<param>` blocks for every argument.
+- Only add XML `<param>` tags for parameters that actually exist on the documented member, and keep them in the exact same order as the signature.
+- Always document publicly accessible properties with accurate XML `<summary>` blocks.
+- Always insert a blank line before XML `<summary>` documentation blocks unless they are immediately preceded by `{`.
+- Never insert a blank line between an XML documentation block and the member it documents.
+- If XML documentation already exists, improve the existing block in place instead of stacking a second `<summary>` block above it.
+- Always document new interfaces and all of their members and arguments.
+- When a constructor has more than one parameter, span its parameter list across multiple lines.
+- Put constructor initializer clauses like `: base(...)` on their own indented line
+- Seal publicly accessible classes by default and only leave them unsealed when inheritance is intentionally required.
 - Always treat warnings are errors in the solutions and ensure every warning is addressed.
 - Always learn from my prompts, preference and styles and update the `copilot-instructions.md` file with any new preferences that I share in the future.
 - Prefer SOLID and DRY refactors that consolidate duplicated provider, transport, or store logic into shared abstractions before adding new one-off implementations.
 - Favor additive shared infrastructure first, then migrate consumers in behavior-safe steps when a full replacement is too risky for a single change.
 - When working in framework code meant for external adoption, optimize for consistency and long-term maintainability across providers and hosts, not just local fixes.
 - For optional provider integrations in sample hosts, do not eagerly read validated options in UI setup paths when an unconfigured provider should simply appear unavailable rather than crash the page.
+- Always keep exactly one trailing newline at the end of each file, no more and no less.
 
 ## Runtime notes
 

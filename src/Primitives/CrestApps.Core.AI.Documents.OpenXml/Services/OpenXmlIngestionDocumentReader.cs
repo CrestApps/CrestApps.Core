@@ -17,6 +17,13 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     };
 
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="mediaType">The media type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task<IngestionDocument> ReadAsync(
         Stream source,
         string identifier,

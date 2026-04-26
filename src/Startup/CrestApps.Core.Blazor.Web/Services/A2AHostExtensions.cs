@@ -49,6 +49,7 @@ internal static class A2AHostExtensions
     public static CrestAppsAISuiteBuilder AddA2AHost(this CrestAppsAISuiteBuilder builder)
     {
         builder.Services.AddA2AHost();
+
         return builder;
     }
 
@@ -84,8 +85,8 @@ internal static class A2AHostExtensions
             var targetProfile = ResolveAgentProfile(profiles, agentName);
 
             return targetProfile is not null
-                ? BuildAgentCard(targetProfile, agentUrl)
-                : BuildSkillModeCard(agentUrl, profiles);
+                            ? BuildAgentCard(targetProfile, agentUrl)
+                            : BuildSkillModeCard(agentUrl, profiles);
         };
 
         taskManager.OnTaskCreated = (agentTask, cancellationToken) =>

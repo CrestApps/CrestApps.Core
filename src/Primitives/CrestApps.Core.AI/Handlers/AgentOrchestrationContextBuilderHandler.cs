@@ -10,20 +10,37 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
 {
     private readonly IAIProfileManager _profileManager;
     private readonly ITemplateService _templateService;
-    private readonly ILogger _logger;
+    private readonly ILogger<AgentOrchestrationContextBuilderHandler> _logger;
 
-    public AgentOrchestrationContextBuilderHandler(IAIProfileManager profileManager, ITemplateService templateService, ILogger<AgentOrchestrationContextBuilderHandler> logger)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AgentOrchestrationContextBuilderHandler"/> class.
+    /// </summary>
+    /// <param name="profileManager">The profile manager.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="logger">The logger.</param>
+    public AgentOrchestrationContextBuilderHandler(
+        IAIProfileManager profileManager,
+        ITemplateService templateService,
+        ILogger<AgentOrchestrationContextBuilderHandler> logger)
     {
         _profileManager = profileManager;
         _templateService = templateService;
         _logger = logger;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuildingAsync(OrchestrationContextBuildingContext context)
     {
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuiltAsync(OrchestrationContextBuiltContext context)
     {
         var completionContext = context.OrchestrationContext.CompletionContext;

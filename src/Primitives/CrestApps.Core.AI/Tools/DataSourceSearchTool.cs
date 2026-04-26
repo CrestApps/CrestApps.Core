@@ -39,18 +39,35 @@ public sealed class DataSourceSearchTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Searches configured data sources using semantic vector search and returns the most relevant text chunks with citations. Use this tool to answer questions based on the configured data source.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } =
         new Dictionary<string, object>
         {
             ["Strict"] = false,
         };
 
+    /// <summary>
+    /// Invoke cores core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<DataSourceSearchTool>>();
@@ -58,6 +75,7 @@ public sealed class DataSourceSearchTool : AIFunction
         if (!arguments.TryGetFirstString("query", out var query))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'query'.", Name);
+
             return "Unable to find a 'query' argument in the arguments parameter.";
         }
 
@@ -70,6 +88,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (executionContext == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no active AI execution context.", Name);
+
                 return "Data source search requires an active AI execution context.";
             }
 
@@ -88,6 +107,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (dataSource == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: data source '{DataSourceId}' was not found.", Name, dataSourceId);
+
                 return $"Data source '{dataSourceId}' was not found.";
             }
 
@@ -104,6 +124,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (masterIndexProfile == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: knowledge base index '{IndexProfileName}' was not found.", Name, dataSource.AIKnowledgeBaseIndexProfileName);
+
                 return $"Knowledge base index '{dataSource.AIKnowledgeBaseIndexProfileName}' was not found.";
             }
 
@@ -129,6 +150,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (embeddingGenerator == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
+
                 return "Embedding configuration is missing for the knowledge base index.";
             }
 
@@ -258,6 +280,7 @@ public sealed class DataSourceSearchTool : AIFunction
         catch (Exception ex)
         {
             logger.LogError(ex, "Error during data source search.");
+
             return "An error occurred while searching the data source.";
         }
     }

@@ -15,10 +15,22 @@ public sealed class AIDataSourceOptions
 
     public const int MaxTopNDocuments = 20;
 
+    /// <summary>
+    /// Gets or sets the default Strictness.
+    /// </summary>
     public int DefaultStrictness { get; set; } = 3;
 
+    /// <summary>
+    /// Gets or sets the default Top N Documents.
+    /// </summary>
     public int DefaultTopNDocuments { get; set; } = 5;
 
+    /// <summary>
+    /// Adds field mapping.
+    /// </summary>
+    /// <param name="providerName">The provider name.</param>
+    /// <param name="indexProfileType">The index profile type.</param>
+    /// <param name="configure">The action used to configure.</param>
     public void AddFieldMapping(string providerName, string indexProfileType, Action<DataSourceFieldMapping> configure)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
@@ -39,6 +51,11 @@ public sealed class AIDataSourceOptions
         configure(mapping);
     }
 
+    /// <summary>
+    /// Gets field mapping.
+    /// </summary>
+    /// <param name="providerName">The provider name.</param>
+    /// <param name="indexProfileType">The index profile type.</param>
     public DataSourceFieldMapping GetFieldMapping(string providerName, string indexProfileType)
     {
         if (string.IsNullOrWhiteSpace(providerName) || string.IsNullOrWhiteSpace(indexProfileType))
@@ -49,6 +66,10 @@ public sealed class AIDataSourceOptions
         return _fieldMappings.TryGetValue(providerName, out var providerMappings) && providerMappings.TryGetValue(indexProfileType, out var mapping) ? mapping : null;
     }
 
+    /// <summary>
+    /// Gets top n documents.
+    /// </summary>
+    /// <param name="topN">The top n.</param>
     public int GetTopNDocuments(int? topN)
     {
         if (topN >= MinTopNDocuments && topN <= MaxTopNDocuments)
@@ -64,6 +85,10 @@ public sealed class AIDataSourceOptions
         return 5;
     }
 
+    /// <summary>
+    /// Gets strictness.
+    /// </summary>
+    /// <param name="strictness">The strictness.</param>
     public int GetStrictness(int? strictness)
     {
         if (strictness >= MinStrictness && strictness <= MaxStrictness)

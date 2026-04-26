@@ -18,7 +18,6 @@ If you want the least-effort path, use this sequence:
 
 Chat Interactions are the easiest playground-style UI for validating that your connection, deployment, prompts, and profile wiring are all correct before you build a custom experience.
 
-
 ## Prerequisites
 
 - .NET 10 SDK

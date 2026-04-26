@@ -95,7 +95,8 @@ public sealed class McpResourceTypeHandlerBaseTests
     {
         public IReadOnlyDictionary<string, string> LastVariables { get; private set; }
 
-        public TestHandler(string type) : base(type)
+        public TestHandler(string type)
+            : base(type)
         {
         }
 

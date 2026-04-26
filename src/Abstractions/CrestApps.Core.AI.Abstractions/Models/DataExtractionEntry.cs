@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Models;
 
+/// <summary>
+/// Defines a single AI data-extraction field configuration, specifying what information to extract from a chat session.
+/// </summary>
 public sealed class DataExtractionEntry
 {
     /// <summary>

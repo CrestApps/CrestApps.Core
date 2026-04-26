@@ -2682,4 +2682,3 @@ document.addEventListener('click', function (e) {
         })
         .catch(function (err) { console.error('Failed to download image:', err); });
 });
-

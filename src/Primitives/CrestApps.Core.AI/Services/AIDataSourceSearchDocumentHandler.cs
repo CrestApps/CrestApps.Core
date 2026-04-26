@@ -10,8 +10,14 @@ internal sealed class AIDataSourceSearchDocumentHandler : ISearchDocumentHandler
 {
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIDataSourceSearchDocumentHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDataSourceSearchDocumentHandler"/> class.
+    /// </summary>
+    /// <param name="indexingQueue">The indexing queue.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public AIDataSourceSearchDocumentHandler(
         IAIDataSourceIndexingQueue indexingQueue,
         IServiceProvider serviceProvider,
@@ -22,6 +28,12 @@ internal sealed class AIDataSourceSearchDocumentHandler : ISearchDocumentHandler
         _logger = logger;
     }
 
+    /// <summary>
+    /// Documentss added or updated.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DocumentsAddedOrUpdatedAsync(IIndexProfileInfo profile, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
     {
         if (_logger.IsEnabled(LogLevel.Trace))
@@ -32,6 +44,12 @@ internal sealed class AIDataSourceSearchDocumentHandler : ISearchDocumentHandler
         await QueueSourceDocumentsAsync(profile, documentIds, isDelete: false, cancellationToken);
     }
 
+    /// <summary>
+    /// Documentss deleted.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DocumentsDeletedAsync(IIndexProfileInfo profile, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
     {
         if (_logger.IsEnabled(LogLevel.Trace))

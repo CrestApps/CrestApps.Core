@@ -4,7 +4,11 @@ using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Models;
 
-public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, ICloneable<AIDeployment>
+/// <summary>
+/// Represents a configured AI deployment that maps a technical name and capability type
+/// to a specific AI model via a registered client and optional provider connection.
+/// </summary>
+public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, ICloneable<AIDeployment>
 {
     private string _modelName;
 
@@ -19,6 +23,9 @@ public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareMod
         set => Source = value;
     }
 
+    /// <summary>
+    /// Gets or sets the legacy provider name that maps to <see cref="ClientName"/>.
+    /// </summary>
     [Obsolete("Use ClientName instead. Retained for backward compatibility.")]
     [JsonIgnore]
     public string ProviderName { get => Source; set => Source = value; }
@@ -34,7 +41,7 @@ public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareMod
 
     /// <summary>
     /// Gets or sets the provider-facing model or deployment name.
-    /// Falls back to <see cref = "Name"/> for backward compatibility with legacy records.
+    /// Falls back to <see cref="Name"/> for backward compatibility with legacy records.
     /// </summary>
     public string ModelName
     {
@@ -44,6 +51,9 @@ public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareMod
         set => _modelName = value?.Trim();
     }
 
+    /// <summary>
+    /// Gets or sets the name of the provider connection this deployment is associated with.
+    /// </summary>
     public string ConnectionName { get; set; }
 
     /// <summary>
@@ -53,13 +63,18 @@ public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareMod
     public AIDeploymentType Type { get; set; }
 
     /// <summary>
-    /// Gets or sets whether this deployment is the default for its selected capability types
-    /// within its connection.
+    /// Gets or sets the UTC timestamp when this deployment was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
 
+    /// <summary>
+    /// Gets or sets the identifier of the user who created this deployment.
+    /// </summary>
     public string Author { get; set; }
 
+    /// <summary>
+    /// Gets or sets the owner identifier associated with this deployment.
+    /// </summary>
     public string OwnerId { get; set; }
 
     /// <summary>
@@ -68,11 +83,18 @@ public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareMod
     /// </summary>
     public bool IsReadOnly { get; set; }
 
+    /// <summary>
+    /// Determines whether type.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public bool SupportsType(AIDeploymentType type)
     {
         return Type.Supports(type);
     }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public AIDeployment Clone()
     {
         return new AIDeployment

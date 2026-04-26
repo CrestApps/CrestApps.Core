@@ -9,15 +9,21 @@ using Microsoft.Extensions.Logging;
 namespace CrestApps.Core.Elasticsearch.Services;
 
 /// <summary>
-/// Elasticsearch implementation of <see cref = "ISearchDocumentManager"/>
+/// Elasticsearch implementation of <see cref="ISearchDocumentManager"/>
 /// for adding, updating, and deleting documents in search indexes.
 /// </summary>
 internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManager
 {
     private readonly ElasticsearchClient _elasticClient;
     private readonly IEnumerable<ISearchDocumentHandler> _handlers;
-    private readonly ILogger _logger;
+    private readonly ILogger<ElasticsearchSearchDocumentManager> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ElasticsearchSearchDocumentManager"/> class.
+    /// </summary>
+    /// <param name="elasticClient">The elastic client.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     public ElasticsearchSearchDocumentManager(
         ElasticsearchClient elasticClient,
         IEnumerable<ISearchDocumentHandler> handlers,
@@ -28,6 +34,12 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
         _logger = logger;
     }
 
+    /// <summary>
+    /// Adds or update.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="documents">The documents.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> AddOrUpdateAsync(IIndexProfileInfo profile, IReadOnlyCollection<IndexDocument> documents, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -59,6 +71,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             if (!response.IsValidResponse)
             {
                 _logger.LogWarning("Elasticsearch bulk index failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
                 return false;
             }
 
@@ -69,10 +82,17 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error indexing documents in Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
             return false;
         }
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAsync(IIndexProfileInfo profile, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -109,6 +129,11 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
         }
     }
 
+    /// <summary>
+    /// Deletes all.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAllAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);

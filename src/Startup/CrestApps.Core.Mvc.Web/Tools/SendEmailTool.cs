@@ -63,6 +63,7 @@ public sealed class SendEmailTool : AIFunction
     private static bool TryGetRequiredString(AIFunctionArguments arguments, string key, out string value)
     {
         value = TryGetOptionalString(arguments, key);
+
         return !string.IsNullOrWhiteSpace(value);
     }
 }

@@ -46,6 +46,7 @@ public sealed class DataSourceOrchestrationHandlerTests
     {
         var toolOptions = new AIToolDefinitionOptions();
         toolOptions.SetTool(SystemToolNames.SearchDataSources, new AIToolDefinitionEntry(typeof(object)) { Name = SystemToolNames.SearchDataSources, Description = "Searches configured data sources.", Purpose = AIToolPurposes.DataSourceSearch, });
+
         return new DataSourceOrchestrationHandler(Options.Create(toolOptions), new FakeTemplateService(), NullLogger<DataSourceOrchestrationHandler>.Instance);
     }
 
@@ -66,6 +67,7 @@ public sealed class DataSourceOrchestrationHandlerTests
             if (id == AITemplateIds.DataSourceAvailability)
             {
                 var searchToolName = arguments != null && arguments.TryGetValue("searchToolName", out var searchToolNameObject) ? searchToolNameObject?.ToString() : null;
+
                 return Task.FromResult(string.IsNullOrWhiteSpace(searchToolName) ? "[Configured Data Source]" : $"[Configured Data Source]{Environment.NewLine}{searchToolName}");
             }
 

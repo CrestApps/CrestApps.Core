@@ -8,11 +8,15 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.AzureAIInference;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the Azure AI Inference (GitHub Models) client provider.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIAzureAIInference(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -34,11 +38,16 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds azure ai inference.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAISuiteBuilder AddAzureAIInference(this CrestAppsAISuiteBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIAzureAIInference();
+
         return builder;
     }
 }

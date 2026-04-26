@@ -3,8 +3,16 @@ using OpenAI.Chat;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Handlers;
 
+/// <summary>
+/// Represents the azure Patch Open AI Data Source Handler.
+/// </summary>
 public sealed class AzurePatchOpenAIDataSourceHandler : IOpenAIChatOptionsConfiguration
 {
+    /// <summary>
+    /// Configures the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="chatCompletionOptions">The chat completion options.</param>
     public void Configure(CompletionServiceConfigureContext context, ChatCompletionOptions chatCompletionOptions)
     {
 #pragma warning disable SCME0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -24,6 +32,10 @@ public sealed class AzurePatchOpenAIDataSourceHandler : IOpenAIChatOptionsConfig
 #pragma warning restore SCME0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     }
 
+    /// <summary>
+    /// Initializes configuration.
+    /// </summary>
+    /// <param name="configureContext">The configure context.</param>
     public Task InitializeConfigurationAsync(CompletionServiceConfigureContext configureContext)
     {
         return Task.CompletedTask;

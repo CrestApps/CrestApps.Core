@@ -11,10 +11,18 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class DefaultAIDeploymentStore : MultiSourceNamedSourceCatalog<AIDeployment>, IAIDeploymentStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIDeploymentStore"/> class.
+    /// </summary>
+    /// <param name="sources">The sources.</param>
     public DefaultAIDeploymentStore(IEnumerable<INamedSourceCatalogSource<AIDeployment>> sources)
         : base(sources)
     {
     }
 
+    /// <summary>
+    /// Gets item id.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
     protected override string GetItemId(AIDeployment entry) => entry.ItemId;
 }

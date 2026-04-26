@@ -45,18 +45,35 @@ public sealed class SearchDocumentsTool : AIFunction
     }
     """);
 
+    /// <summary>
+    /// Gets the name.
+    /// </summary>
     public override string Name => TheName;
 
+    /// <summary>
+    /// Gets the description.
+    /// </summary>
     public override string Description => "Searches available document knowledge using semantic vector search and returns the most relevant matching context. If no relevant content is found, report that the documents do not contain the answer.";
 
+    /// <summary>
+    /// Gets the json Schema.
+    /// </summary>
     public override JsonElement JsonSchema => _jsonSchema;
 
+    /// <summary>
+    /// Gets the additional Properties.
+    /// </summary>
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } =
         new Dictionary<string, object>
         {
             ["Strict"] = false,
         };
 
+    /// <summary>
+    /// Invoke cores core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<SearchDocumentsTool>>();
@@ -247,6 +264,7 @@ public sealed class SearchDocumentsTool : AIFunction
         if (resource is ChatInteraction interaction)
         {
             searchScopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
+
             return searchScopes;
         }
 
@@ -386,6 +404,7 @@ public sealed class SearchDocumentsTool : AIFunction
         }
 
         builder.Append(AddDocumentReferences(invocationContext, seenDocuments));
+
         return builder.ToString();
     }
 
@@ -449,6 +468,7 @@ public sealed class SearchDocumentsTool : AIFunction
         }
 
         builder.Append(AddDocumentReferences(invocationContext, seenDocuments));
+
         return builder.ToString();
     }
 

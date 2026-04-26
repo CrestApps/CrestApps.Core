@@ -18,13 +18,27 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
     protected readonly ISession Session;
     protected readonly ILogger Logger;
 
-    public DocumentCatalog(ISession session, string collectionName = null, ILogger<DocumentCatalog<T, TIndex>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentCatalog"/> class.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="collectionName">The collection name.</param>
+    /// <param name="logger">The logger.</param>
+    public DocumentCatalog(
+        ISession session,
+        string collectionName = null,
+        ILogger<DocumentCatalog<T, TIndex>> logger = null)
     {
         Session = session;
         Logger = logger;
         CollectionName = collectionName;
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -36,6 +50,11 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
         return true;
     }
 
+    /// <summary>
+    /// Finds by id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -45,6 +64,11 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
         return item;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="ids">The ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
@@ -54,6 +78,9 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
         return items.ToArray();
     }
 
+    /// <summary>
+    /// Pages the operation.
+    /// </summary>
     public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
@@ -106,12 +133,19 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
         };
     }
 
+    /// <summary>
+    /// Pagings the operation.
+    /// </summary>
     protected virtual ValueTask PagingAsync<TQuery>(IQuery<T> query, TQuery context)
         where TQuery : QueryContext
     {
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var items = (await Session.Query<T, TIndex>(collection: CollectionName).Take(MaxGetAllResults + 1).ListAsync(cancellationToken)).ToList();
@@ -128,6 +162,11 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
         return items.ToArray();
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask CreateAsync(T record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -142,6 +181,11 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
         await Session.SaveAsync(record, CollectionName);
     }
 
+    /// <summary>
+    /// Updates the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask UpdateAsync(T record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -156,11 +200,19 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
         await Session.SaveAsync(record, CollectionName);
     }
 
+    /// <summary>
+    /// Deletings the operation.
+    /// </summary>
+    /// <param name="model">The model.</param>
     protected virtual ValueTask DeletingAsync(T model)
     {
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Savings the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
     protected virtual ValueTask SavingAsync(T record)
     {
         return ValueTask.CompletedTask;

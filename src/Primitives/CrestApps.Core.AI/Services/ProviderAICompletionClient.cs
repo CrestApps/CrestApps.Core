@@ -20,6 +20,17 @@ namespace CrestApps.Core.AI.Services;
 public sealed class ProviderAICompletionClient<TProvider> : NamedAICompletionClient
     where TProvider : IAIClientMarker
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ProviderAICompletionClient"/> class.
+    /// </summary>
+    /// <param name="aIClientFactory">The a i client factory.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="distributedCache">The distributed cache.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="defaultOptions">The default options.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
     public ProviderAICompletionClient(
         IAIClientFactory aIClientFactory,
         ILoggerFactory loggerFactory,

@@ -2,9 +2,18 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CrestApps.Core.Models;
 
-public class ValidationResultDetails
+/// <summary>
+/// Holds the outcome of a catalog entry validation pass, including the overall
+/// success flag and any collected <see cref="ValidationResult"/> errors.
+/// </summary>
+public sealed class ValidationResultDetails
 {
     private List<ValidationResult> _errors;
+
+    /// <summary>
+    /// Gets the list of validation errors collected during the current validation pass.
+    /// The collection is empty when validation succeeds.
+    /// </summary>
     public IReadOnlyList<ValidationResult> Errors
     {
         get
@@ -18,6 +27,10 @@ public class ValidationResultDetails
     /// </summary>
     public bool Succeeded { get; set; } = true;
 
+    /// <summary>
+    /// Adds the operation.
+    /// </summary>
+    /// <param name="error">The error.</param>
     public void Fail(ValidationResult error)
     {
         Succeeded = false;

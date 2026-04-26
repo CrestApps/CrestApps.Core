@@ -15,6 +15,7 @@ public sealed class DocumentOrchestrationHandlerTests
     private static DocumentOrchestrationHandler CreateHandler(AIToolDefinitionOptions toolOptions = null)
     {
         toolOptions ??= new AIToolDefinitionOptions();
+
         return new DocumentOrchestrationHandler(Options.Create(toolOptions), new FakeAITemplateService(), NullLogger<DocumentOrchestrationHandler>.Instance);
     }
 
@@ -22,6 +23,7 @@ public sealed class DocumentOrchestrationHandlerTests
     {
         var options = new AIToolDefinitionOptions();
         options.SetTool("read_document", new AIToolDefinitionEntry(typeof(object)) { Name = "read_document", Description = "Reads document content", Purpose = AIToolPurposes.DocumentProcessing, });
+
         return options;
     }
 

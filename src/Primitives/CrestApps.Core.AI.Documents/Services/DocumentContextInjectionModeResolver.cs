@@ -11,6 +11,11 @@ internal enum DocumentContextInjectionMode
 
 internal static partial class DocumentContextInjectionModeResolver
 {
+    /// <summary>
+    /// Resolves the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="userDocumentCount">The user document count.</param>
     public static DocumentContextInjectionMode Resolve(OrchestrationContext context, int userDocumentCount)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -50,6 +55,10 @@ internal static partial class DocumentContextInjectionModeResolver
         return DocumentContextInjectionMode.Search;
     }
 
+    /// <summary>
+    /// Resolves user supplied documents.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public static IReadOnlyList<ChatDocumentInfo> ResolveUserSuppliedDocuments(PreemptiveRagContext context)
     {
         ArgumentNullException.ThrowIfNull(context);

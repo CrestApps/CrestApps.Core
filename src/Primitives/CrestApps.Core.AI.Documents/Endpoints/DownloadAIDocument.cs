@@ -10,6 +10,9 @@ using Microsoft.AspNetCore.Routing;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
+/// <summary>
+/// Provides functionality for download AI Document.
+/// </summary>
 public static class DownloadAIDocument
 {
     public const string DefaultRouteName = "DownloadAIDocument";
@@ -17,6 +20,8 @@ public static class DownloadAIDocument
     /// <summary>
     /// Adds the shared AI document download endpoint used by citation links.
     /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="routeName">The route name.</param>
     public static IEndpointRouteBuilder AddDownloadAIDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = DefaultRouteName)
     {
         var endpoint = builder.MapGet("ai/documents/{documentId}/download", HandleAsync);
@@ -128,6 +133,7 @@ public static class DownloadAIDocument
                     return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
                 }
             default:
+
                 return Results.NotFound();
         }
     }

@@ -11,10 +11,16 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIDataSourceAlignmentBackgroundService> _logger;
 
     private DateOnly? _lastRunDateUtc;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDataSourceAlignmentBackgroundService"/> class.
+    /// </summary>
+    /// <param name="scopeFactory">The scope factory.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public AIDataSourceAlignmentBackgroundService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
@@ -25,6 +31,10 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Executes the operation.
+    /// </summary>
+    /// <param name="stoppingToken">The cancellation token.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(_alignmentCheckInterval);
@@ -77,8 +87,8 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
         runDateUtc = DateOnly.FromDateTime(utcNow.UtcDateTime);
 
         return utcNow.Hour == 2 &&
-            utcNow.Minute < 30 &&
-            _lastRunDateUtc != runDateUtc;
+                    utcNow.Minute < 30 &&
+                    _lastRunDateUtc != runDateUtc;
     }
 
     private async Task AlignDataSourcesAsync(IServiceProvider services, CancellationToken cancellationToken)
@@ -99,6 +109,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
         if (dataSourceList.Count == 0)
         {
             _logger.LogTrace("Skipped AI data-source alignment because no AI data sources were configured.");
+
             return;
         }
 

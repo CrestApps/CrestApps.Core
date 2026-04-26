@@ -4,10 +4,19 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Data.EntityCore;
 
+/// <summary>
+/// Entity Framework Core database context for CrestApps.Core, managing the
+/// <see cref="CatalogRecord"/> and <see cref="AIChatSessionRecord"/> tables.
+/// </summary>
 public sealed class CrestAppsEntityDbContext : DbContext
 {
     private readonly EntityCoreDataStoreOptions _options;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsEntityDbContext"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
+    /// <param name="storeOptions">The store options.</param>
     public CrestAppsEntityDbContext(
         DbContextOptions<CrestAppsEntityDbContext> options,
         IOptions<EntityCoreDataStoreOptions> storeOptions)
@@ -16,10 +25,20 @@ public sealed class CrestAppsEntityDbContext : DbContext
         _options = storeOptions.Value;
     }
 
+    /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="CatalogRecord"/> rows.
+    /// </summary>
     public DbSet<CatalogRecord> CatalogRecords => Set<CatalogRecord>();
 
+    /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AIChatSessionRecord"/> rows.
+    /// </summary>
     public DbSet<AIChatSessionRecord> AIChatSessionRecords => Set<AIChatSessionRecord>();
 
+    /// <summary>
+    /// Ons model creating.
+    /// </summary>
+    /// <param name="modelBuilder">The model builder.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var tablePrefix = _options.TablePrefix ?? string.Empty;

@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.A2A.Functions;
 
 /// <summary>
 /// An AI system function that uses keyword and semantic search to find the most relevant
-/// AI tools for a given task. Delegates to <see cref = "IToolRegistry.SearchAsync"/> for
+/// AI tools for a given task. Delegates to <see cref="IToolRegistry.SearchAsync"/> for
 /// consistent scoring with the orchestrator's tool scoping logic.
 /// </summary>
 internal sealed class FindToolsForTaskFunction : AIFunction
@@ -52,6 +52,11 @@ internal sealed class FindToolsForTaskFunction : AIFunction
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invokes core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
@@ -107,6 +112,7 @@ internal sealed class FindToolsForTaskFunction : AIFunction
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to search for tools.");
+
             return "An error occurred while searching for tools.";
         }
     }

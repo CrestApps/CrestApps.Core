@@ -8,11 +8,15 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Ollama;
 
+/// <summary>
+/// Provides extension methods for service Collection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the Ollama AI client provider.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIOllama(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -34,11 +38,16 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds ollama.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAISuiteBuilder AddOllama(this CrestAppsAISuiteBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIOllama();
+
         return builder;
     }
 }

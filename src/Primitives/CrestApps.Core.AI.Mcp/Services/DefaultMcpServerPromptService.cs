@@ -6,12 +6,21 @@ using ModelContextProtocol.Server;
 
 namespace CrestApps.Core.AI.Mcp.Services;
 
+/// <summary>
+/// Represents the default MCP Server Prompt Service.
+/// </summary>
 public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
 {
     private readonly INamedCatalog<McpPrompt> _catalog;
     private readonly IEnumerable<IMcpPromptProvider> _promptProviders;
     private readonly IEnumerable<McpServerPrompt> _sdkPrompts;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultMcpServerPromptService"/> class.
+    /// </summary>
+    /// <param name="catalog">The catalog.</param>
+    /// <param name="promptProviders">The prompt providers.</param>
+    /// <param name="sdkPrompts">The sdk prompts.</param>
     public DefaultMcpServerPromptService(
         INamedCatalog<McpPrompt> catalog,
         IEnumerable<IMcpPromptProvider> promptProviders = null,
@@ -22,6 +31,9 @@ public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
         _sdkPrompts = sdkPrompts ?? [];
     }
 
+    /// <summary>
+    /// Lists the operation.
+    /// </summary>
     public async Task<IList<Prompt>> ListAsync()
     {
         var prompts = (await _catalog.GetAllAsync())
@@ -53,6 +65,11 @@ public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
         return prompts;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

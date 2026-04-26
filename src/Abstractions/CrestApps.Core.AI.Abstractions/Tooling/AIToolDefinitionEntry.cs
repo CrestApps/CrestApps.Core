@@ -1,7 +1,14 @@
 namespace CrestApps.Core.AI.Tooling;
 
+/// <summary>
+/// Describes a registered AI tool definition, including its CLR type, display metadata, and runtime attributes.
+/// </summary>
 public sealed class AIToolDefinitionEntry
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIToolDefinitionEntry"/> class.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public AIToolDefinitionEntry(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -9,14 +16,29 @@ public sealed class AIToolDefinitionEntry
         ToolType = type;
     }
 
+    /// <summary>
+    /// Gets the CLR type of the AI tool.
+    /// </summary>
     public Type ToolType { get; }
 
+    /// <summary>
+    /// Gets or sets the display title for this tool.
+    /// </summary>
     public string Title { get; set; }
 
+    /// <summary>
+    /// Gets or sets a description of the tool's capabilities.
+    /// </summary>
     public string Description { get; set; }
 
+    /// <summary>
+    /// Gets or sets the category for grouping this tool in the UI.
+    /// </summary>
     public string Category { get; set; }
 
+    /// <summary>
+    /// Gets the registered technical name of this tool.
+    /// </summary>
     public string Name { get; internal set; }
 
     /// <summary>
@@ -34,6 +56,10 @@ public sealed class AIToolDefinitionEntry
     /// </summary>
     public string Purpose { get; set; }
 
+    /// <summary>
+    /// Determines whether purpose.
+    /// </summary>
+    /// <param name="purpose">The purpose.</param>
     public bool HasPurpose(string purpose)
     {
         ArgumentException.ThrowIfNullOrEmpty(purpose);

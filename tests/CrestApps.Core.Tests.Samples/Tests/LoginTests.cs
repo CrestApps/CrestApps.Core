@@ -7,7 +7,10 @@ namespace CrestApps.Core.Tests.Samples.Tests;
 [Collection("Playwright")]
 public class LoginTests : BothAppsTestBase
 {
-    public LoginTests(PlaywrightFixture fixture) : base(fixture) { }
+    public LoginTests(PlaywrightFixture fixture)
+        : base(fixture)
+    {
+    }
 
     [Theory]
     [InlineData(AppInstance.Mvc)]

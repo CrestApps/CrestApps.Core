@@ -102,6 +102,4 @@ builder.Services.Configure<A2AHostOptions>(options =>
 | [A2A Client](./client) | Discover and invoke remote A2A agents — connection management, tool registry, authentication, built-in discovery tools |
 | [A2A Host](./host) | Expose your AI agents to remote clients — host configuration, authentication modes, agent card generation |
 
-
 The framework-level A2A support documented here is protocol infrastructure. For the full admin UI experience:
-

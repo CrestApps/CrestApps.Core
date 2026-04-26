@@ -1,5 +1,9 @@
 namespace CrestApps.Core;
 
+/// <summary>
+/// Shared constants that identify the CrestApps framework, including authorship,
+/// version, and the project website.
+/// </summary>
 public static class CrestAppsConstants
 {
     public const string Author = "The CrestApps Team";

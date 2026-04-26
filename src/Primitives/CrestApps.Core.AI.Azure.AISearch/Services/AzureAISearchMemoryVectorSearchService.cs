@@ -13,8 +13,13 @@ namespace CrestApps.Core.AI.Azure.AISearch.Services;
 internal sealed class AzureAISearchMemoryVectorSearchService : IMemoryVectorSearchService
 {
     private readonly SearchIndexClient _searchIndexClient;
-    private readonly ILogger _logger;
+    private readonly ILogger<AzureAISearchMemoryVectorSearchService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureAISearchMemoryVectorSearchService"/> class.
+    /// </summary>
+    /// <param name="searchIndexClient">The search index client.</param>
+    /// <param name="logger">The logger.</param>
     public AzureAISearchMemoryVectorSearchService(
         SearchIndexClient searchIndexClient,
         ILogger<AzureAISearchMemoryVectorSearchService> logger)
@@ -23,6 +28,14 @@ internal sealed class AzureAISearchMemoryVectorSearchService : IMemoryVectorSear
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="userId">The user id.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<AIMemorySearchResult>> SearchAsync(
         SearchIndexProfile indexProfile,
         float[] embedding,
@@ -99,11 +112,13 @@ internal sealed class AzureAISearchMemoryVectorSearchService : IMemoryVectorSear
         catch (RequestFailedException ex)
         {
             _logger.LogError(ex, "Azure AI Search request failed for AI memory index '{IndexName}'.", indexProfile.IndexFullName);
+
             return [];
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error searching AI memory index '{IndexName}'.", indexProfile.IndexFullName);
+
             return [];
         }
     }

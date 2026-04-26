@@ -14,8 +14,15 @@ public sealed class DataExtractionChatSessionHandler : AIChatSessionHandlerBase
     private readonly DataExtractionService _dataExtractionService;
     private readonly IEnumerable<IAIChatSessionExtractedDataRecorder> _extractedDataRecorders;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataExtractionChatSessionHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataExtractionChatSessionHandler"/> class.
+    /// </summary>
+    /// <param name="dataExtractionService">The data extraction service.</param>
+    /// <param name="extractedDataRecorders">The extracted data recorders.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public DataExtractionChatSessionHandler(
         DataExtractionService dataExtractionService,
         IEnumerable<IAIChatSessionExtractedDataRecorder> extractedDataRecorders,
@@ -28,6 +35,11 @@ public sealed class DataExtractionChatSessionHandler : AIChatSessionHandlerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Messages completed.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task MessageCompletedAsync(ChatMessageCompletedContext context, CancellationToken cancellationToken = default)
     {
         var changeSet = await _dataExtractionService.ProcessAsync(context.Profile, context.ChatSession, context.Prompts, cancellationToken);

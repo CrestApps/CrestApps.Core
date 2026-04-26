@@ -10,11 +10,25 @@ public class SourceDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, ISou
     where T : CatalogItem, ISourceAwareModel
     where TIndex : CatalogItemIndex, ISourceAwareIndex
 {
-    public SourceDocumentCatalog(ISession session, string collectionName = null, ILogger<DocumentCatalog<T, TIndex>> logger = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SourceDocumentCatalog"/> class.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="collectionName">The collection name.</param>
+    /// <param name="logger">The logger.</param>
+    public SourceDocumentCatalog(
+        ISession session,
+        string collectionName = null,
+        ILogger<DocumentCatalog<T, TIndex>> logger = null)
         : base(session, collectionName, logger)
     {
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAsync(string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);

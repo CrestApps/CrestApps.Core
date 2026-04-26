@@ -1,5 +1,8 @@
 namespace CrestApps.Core.AI.Ollama;
 
+/// <summary>
+/// Provides functionality for ollama Constants.
+/// </summary>
 public static class OllamaConstants
 {
     public const string ClientName = "Ollama";
@@ -11,6 +14,8 @@ public static class OllamaConstants
 /// </summary>
 public readonly struct OllamaClientMarker : IAIClientMarker
 {
-    /// <inheritdoc />
+    /// <summary>
+    /// Gets the client Name.
+    /// </summary>
     public static string ClientName => OllamaConstants.ClientName;
 }

@@ -11,20 +11,18 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
-
+#pragma warning disable MEAI001
 /// <summary>
-/// An <see cref = "ISpeechToTextClient"/> implementation that uses the Azure Speech SDK
+/// An <see cref="ISpeechToTextClient"/> implementation that uses the Azure Speech SDK
 /// for speech-to-text recognition. Supports continuous recognition for real-time streaming.
 /// </summary>
 /// <remarks>
 /// When the endpoint matches the standard Azure Cognitive Services pattern
 /// (<c>{region}.api.cognitive.microsoft.com</c>), the region is extracted and
-/// <see cref = "SpeechConfig.FromSubscription"/> / <see cref = "SpeechConfig.FromAuthorizationToken"/>
+/// <see cref="SpeechConfig.FromSubscription"/> / <see cref="SpeechConfig.FromAuthorizationToken"/>
 /// are used so that the SDK constructs the correct WebSocket URLs internally.
-/// For custom-domain endpoints, <see cref = "SpeechConfig.FromEndpoint"/> is used as a fallback.
+/// For custom-domain endpoints, <see cref="SpeechConfig.FromEndpoint"/> is used as a fallback.
 /// </remarks>
-
-#pragma warning disable MEAI001
 public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
 #pragma warning restore MEAI001
 {
@@ -37,18 +35,27 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     private readonly string _identityId;
     private readonly string _region;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AzureSpeechServiceSpeechToTextClient> _logger;
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
     private string _cachedToken;
     private DateTimeOffset _tokenExpires;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureSpeechServiceSpeechToTextClient"/> class.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="authType">The auth type.</param>
+    /// <param name="apiKey">The api key.</param>
+    /// <param name="identityId">The identity id.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public AzureSpeechServiceSpeechToTextClient(
         Uri endpoint,
         AzureAuthenticationType authType,
         string apiKey,
         string identityId,
         TimeProvider timeProvider,
-        ILogger logger)
+        ILogger<AzureSpeechServiceSpeechToTextClient> logger)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         _endpoint = endpoint;
@@ -61,6 +68,12 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     }
 
 #pragma warning disable MEAI001
+    /// <summary>
+    /// Gets text.
+    /// </summary>
+    /// <param name="audioSpeechStream">The audio speech stream.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<SpeechToTextResponse> GetTextAsync(Stream audioSpeechStream, SpeechToTextOptions options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audioSpeechStream);
@@ -135,6 +148,12 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         return null;
     }
 
+    /// <summary>
+    /// Gets streaming text.
+    /// </summary>
+    /// <param name="audioSpeechStream">The audio speech stream.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<SpeechToTextResponseUpdate> GetStreamingTextAsync(Stream audioSpeechStream, SpeechToTextOptions options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audioSpeechStream);
@@ -280,7 +299,6 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
             _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms GetStreamingTextAsync COMPLETE.", traceId, sw.ElapsedMilliseconds);
         }
     }
-
 #pragma warning restore MEAI001
     private async Task PushAudioToStreamAsync(string traceId, Stopwatch sw, Stream audioSpeechStream, PushAudioInputStream pushStream, CancellationToken cancellationToken)
     {
@@ -329,6 +347,11 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         }
     }
 
+    /// <summary>
+    /// Gets service.
+    /// </summary>
+    /// <param name="serviceType">The service type.</param>
+    /// <param name="serviceKey">The service key.</param>
     public object GetService(Type serviceType, object serviceKey = null)
     {
 #pragma warning disable MEAI001
@@ -336,11 +359,14 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         {
             return new SpeechToTextClientMetadata("AzureSpeech", _endpoint);
         }
-
 #pragma warning restore MEAI001
+
         return null;
     }
 
+    /// <summary>
+    /// Disposes the operation.
+    /// </summary>
     public void Dispose()
     {
         _tokenLock.Dispose();
@@ -420,6 +446,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     {
         var config = SpeechConfig.FromEndpoint(_endpoint);
         config.AuthorizationToken = token;
+
         return config;
     }
 
@@ -482,14 +509,13 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         return null;
     }
 
+#pragma warning disable MEAI001
     /// <summary>
-    /// Reads an optional <c>audioFormat</c> value from <see cref = "SpeechToTextOptions.AdditionalProperties"/>
-    /// and maps it to an <see cref = "AudioStreamContainerFormat"/>. Falls back to
-    /// <see cref = "AudioStreamContainerFormat.ANY"/> when the value is missing or unrecognized,
+    /// Reads an optional <c>audioFormat</c> value from <see cref="SpeechToTextOptions.AdditionalProperties"/>
+    /// and maps it to an <see cref="AudioStreamContainerFormat"/>. Falls back to
+    /// <see cref="AudioStreamContainerFormat.ANY"/> when the value is missing or unrecognized,
     /// which lets the SDK auto-detect the container format.
     /// </summary>
-
-#pragma warning disable MEAI001
     private AudioStreamContainerFormat ResolveContainerFormat(SpeechToTextOptions options)
 #pragma warning restore MEAI001
     {
@@ -508,10 +534,10 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     }
 
     /// <summary>
-    /// Maps a MIME-type or short name to an <see cref = "AudioStreamContainerFormat"/> value.
-    /// Returns <see cref = "AudioStreamContainerFormat.ANY"/> for unrecognized values.
+    /// Maps a MIME-type or short name to an <see cref="AudioStreamContainerFormat"/> value.
+    /// Returns <see cref="AudioStreamContainerFormat.ANY"/> for unrecognized values.
     /// Browsers typically produce OGG/Opus or WebM/Opus from MediaRecorder; both map to
-    /// <see cref = "AudioStreamContainerFormat.OGG_OPUS"/> because the Opus codec payload
+    /// <see cref="AudioStreamContainerFormat.OGG_OPUS"/> because the Opus codec payload
     /// is identical and the Azure Speech SDK natively supports OGG/Opus decoding.
     /// </summary>
     private static AudioStreamContainerFormat MapToContainerFormat(string format)
@@ -545,7 +571,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     }
 
     /// <summary>
-    /// Creates a <see cref = "SpeechRecognizer"/> and wraps the constructor to provide a clear error
+    /// Creates a <see cref="SpeechRecognizer"/> and wraps the constructor to provide a clear error
     /// message when GStreamer is missing (required for compressed audio formats on all platforms).
     /// </summary>
     private static SpeechRecognizer CreateRecognizer(SpeechConfig speechConfig, AudioConfig audioConfig)

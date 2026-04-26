@@ -5,8 +5,17 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Represents the AI Deployment Manager Base.
+/// </summary>
 public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDeployment>, IAIDeploymentManager
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDeploymentManagerBase"/> class.
+    /// </summary>
+    /// <param name="deploymentStore">The deployment store.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     public AIDeploymentManagerBase(
         IAIDeploymentStore deploymentStore,
         IEnumerable<ICatalogEntryHandler<AIDeployment>> handlers,
@@ -15,6 +24,11 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     {
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName, CancellationToken cancellationToken = default)
     {
         var deployments = (await Catalog.GetAllAsync(cancellationToken))
@@ -28,6 +42,11 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return deployments;
     }
 
+    /// <summary>
+    /// Gets by type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default)
     {
         var deployments = (await Catalog.GetAllAsync(cancellationToken))
@@ -41,6 +60,12 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return deployments;
     }
 
+    /// <summary>
+    /// Gets default.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
     {
         var deployments = await GetAllAsync(clientName, cancellationToken);
@@ -50,11 +75,24 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return candidates.FirstOrDefault();
     }
 
+    /// <summary>
+    /// Resolves or default.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
     {
         return ResolveByTypeAsync(type, deploymentName, clientName, cancellationToken);
     }
 
+    /// <summary>
+    /// Gets all by type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default)
     {
         var allDeployments = await GetAllAsync(cancellationToken);
@@ -101,20 +139,20 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         var deployments = await GetAllAsync(cancellationToken);
 
         return deployments.FirstOrDefault(deployment =>
-        {
-            if (!deployment.SupportsType(type))
-            {
-                return false;
-            }
+                {
+                    if (!deployment.SupportsType(type))
+                    {
+                        return false;
+                    }
 
-            if (!string.IsNullOrEmpty(clientName) &&
-                !string.Equals(deployment.ClientName, clientName, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
+                    if (!string.IsNullOrEmpty(clientName) &&
+                        !string.Equals(deployment.ClientName, clientName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
 
-            return true;
-        });
+                    return true;
+                });
     }
 
     private async ValueTask<AIDeployment> FindBySelectorAsync(string selector, CancellationToken cancellationToken)
@@ -145,5 +183,8 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         };
     }
 
+    /// <summary>
+    /// Gets default ai deployment settings.
+    /// </summary>
     protected abstract ValueTask<DefaultAIDeploymentSettings> GetDefaultAIDeploymentSettingsAsync();
 }

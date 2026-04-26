@@ -14,9 +14,20 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
     private readonly IMemoryCache _memoryCache;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultA2AAgentCardCacheService> _logger;
 
-    public DefaultA2AAgentCardCacheService(IMemoryCache memoryCache, IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor, ILogger<DefaultA2AAgentCardCacheService> logger)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultA2AAgentCardCacheService"/> class.
+    /// </summary>
+    /// <param name="memoryCache">The memory cache.</param>
+    /// <param name="httpClientFactory">The http client factory.</param>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="logger">The logger.</param>
+    public DefaultA2AAgentCardCacheService(
+        IMemoryCache memoryCache,
+        IHttpClientFactory httpClientFactory,
+        IHttpContextAccessor httpContextAccessor,
+        ILogger<DefaultA2AAgentCardCacheService> logger)
     {
         _memoryCache = memoryCache;
         _httpClientFactory = httpClientFactory;
@@ -24,6 +35,12 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets agent card.
+    /// </summary>
+    /// <param name="connectionId">The connection id.</param>
+    /// <param name="connection">The connection.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AgentCard> GetAgentCardAsync(string connectionId, A2AConnection connection, CancellationToken cancellationToken = default)
     {
         var cacheKey = GetCacheKey(connectionId);
@@ -59,10 +76,15 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to fetch agent card from A2A host '{Endpoint}' for connection '{ConnectionId}'.", connection.Endpoint, connectionId);
+
             return null;
         }
     }
 
+    /// <summary>
+    /// Invalidates the operation.
+    /// </summary>
+    /// <param name="connectionId">The connection id.</param>
     public void Invalidate(string connectionId)
     {
         _memoryCache.Remove(GetCacheKey(connectionId));

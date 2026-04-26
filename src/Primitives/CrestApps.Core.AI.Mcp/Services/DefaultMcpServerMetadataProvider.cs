@@ -16,8 +16,17 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
     private readonly IMcpCapabilityEmbeddingCacheProvider _embeddingCache;
     private readonly TimeProvider _timeProvider;
     private readonly McpMetadataCacheOptions _cacheOptions;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultMcpServerMetadataProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultMcpServerMetadataProvider"/> class.
+    /// </summary>
+    /// <param name="mcpService">The mcp service.</param>
+    /// <param name="cache">The cache.</param>
+    /// <param name="embeddingCache">The embedding cache.</param>
+    /// <param name="cacheOptions">The cache options.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultMcpServerMetadataProvider(
         McpService mcpService,
         IDistributedCache cache,
@@ -34,6 +43,10 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets capabilities.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
     public async Task<McpServerCapabilities> GetCapabilitiesAsync(McpConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -56,6 +69,10 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
         return capabilities;
     }
 
+    /// <summary>
+    /// Invalidates the operation.
+    /// </summary>
+    /// <param name="connectionId">The connection id.</param>
     public async Task InvalidateAsync(string connectionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(connectionId);
@@ -80,6 +97,7 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to read MCP server metadata cache entry '{CacheKey}'.", cacheKey);
+
             return null;
         }
     }
@@ -118,6 +136,7 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
             if (client is null)
             {
                 capabilities.IsHealthy = false;
+
                 return capabilities;
             }
 

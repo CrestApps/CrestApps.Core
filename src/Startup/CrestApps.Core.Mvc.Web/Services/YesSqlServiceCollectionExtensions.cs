@@ -18,10 +18,10 @@ using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
-using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
+using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
+using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
@@ -135,7 +135,7 @@ internal static class YesSqlServiceCollectionExtensions
 
     /// <summary>
     /// Creates YesSql index tables if they do not already exist.
-    /// Call once at startup after <see cref = "WebApplication.Build"/>.
+    /// Call once at startup after <see cref="WebApplication.Build"/>.
     /// </summary>
     public static async Task InitializeYesSqlSchemaAsync(this IServiceProvider services)
     {
@@ -269,6 +269,7 @@ internal static class YesSqlServiceCollectionExtensions
         command.Parameters.Add(patternParameter);
 
         var result = await command.ExecuteScalarAsync();
+
         return result as string ?? expectedName;
     }
 

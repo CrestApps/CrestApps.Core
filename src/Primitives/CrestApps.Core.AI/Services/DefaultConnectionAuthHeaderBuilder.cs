@@ -9,8 +9,14 @@ internal sealed class DefaultConnectionAuthHeaderBuilder : IConnectionAuthHeader
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IOAuth2TokenService _oauth2TokenService;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultConnectionAuthHeaderBuilder> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultConnectionAuthHeaderBuilder"/> class.
+    /// </summary>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="oauth2TokenService">The oauth 2 token service.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultConnectionAuthHeaderBuilder(
         IDataProtectionProvider dataProtectionProvider,
         IOAuth2TokenService oauth2TokenService,
@@ -21,6 +27,12 @@ internal sealed class DefaultConnectionAuthHeaderBuilder : IConnectionAuthHeader
         _logger = logger;
     }
 
+    /// <summary>
+    /// Builds headers.
+    /// </summary>
+    /// <param name="metadata">The metadata.</param>
+    /// <param name="dataProtectionPurpose">The data protection purpose.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<Dictionary<string, string>> BuildHeadersAsync(
         IConnectionAuthMetadata metadata,
         string dataProtectionPurpose,
