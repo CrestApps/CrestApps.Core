@@ -14,7 +14,7 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
     private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<SftpResourceTypeHandler> _logger;
 
     public SftpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,

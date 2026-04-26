@@ -37,7 +37,10 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     private readonly IServiceProvider _services;
     private readonly TimeProvider _timeProvider;
 
-    protected ChatInteractionHubBase(IServiceProvider services, TimeProvider timeProvider, ILogger logger)
+    protected ChatInteractionHubBase(
+        IServiceProvider services,
+        TimeProvider timeProvider,
+        ILogger logger)
     {
         _services = services;
         _timeProvider = timeProvider;

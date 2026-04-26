@@ -151,7 +151,9 @@ public sealed class InMemoryMcpCapabilityEmbeddingCacheTests
         private readonly float[] _fixedVector;
         private readonly Action _onGenerate;
 
-        public FakeEmbeddingGenerator(float[] fixedVector, Action onGenerate = null)
+        public FakeEmbeddingGenerator(
+            float[] fixedVector,
+            Action onGenerate = null)
         {
             _fixedVector = fixedVector;
             _onGenerate = onGenerate;

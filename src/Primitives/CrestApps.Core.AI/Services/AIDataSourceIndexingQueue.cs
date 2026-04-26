@@ -6,7 +6,7 @@ namespace CrestApps.Core.AI.Services;
 
 internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 {
-    private readonly ILogger _logger;
+    private readonly ILogger<AIDataSourceIndexingQueue> _logger;
     private readonly Channel<AIDataSourceIndexingWorkItem> _channel = Channel.CreateUnbounded<AIDataSourceIndexingWorkItem>(new UnboundedChannelOptions
     {
         SingleReader = true,

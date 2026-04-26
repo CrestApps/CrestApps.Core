@@ -29,7 +29,9 @@ public sealed class ExportingMcpResourceContext
     /// </summary>
     public readonly JsonObject ExportData;
 
-    public ExportingMcpResourceContext(McpResource resource, JsonObject exportData)
+    public ExportingMcpResourceContext(
+        McpResource resource,
+        JsonObject exportData)
     {
         ArgumentNullException.ThrowIfNull(resource);
 

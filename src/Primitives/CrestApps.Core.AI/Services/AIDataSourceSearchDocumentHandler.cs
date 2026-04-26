@@ -10,7 +10,7 @@ internal sealed class AIDataSourceSearchDocumentHandler : ISearchDocumentHandler
 {
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIDataSourceSearchDocumentHandler> _logger;
 
     public AIDataSourceSearchDocumentHandler(
         IAIDataSourceIndexingQueue indexingQueue,

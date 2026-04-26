@@ -18,7 +18,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
     private readonly IConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
     private readonly AIProviderConnectionCatalogOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<ConfigurationAIProviderConnectionSource> _logger;
 
     public ConfigurationAIProviderConnectionSource(
         IConfiguration configuration,

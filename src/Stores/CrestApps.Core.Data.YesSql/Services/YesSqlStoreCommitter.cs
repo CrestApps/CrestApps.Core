@@ -13,7 +13,9 @@ public sealed class YesSqlStoreCommitter : IStoreCommitter
     private readonly ISession _session;
     private readonly ILogger<YesSqlStoreCommitter> _logger;
 
-    public YesSqlStoreCommitter(ISession session, ILogger<YesSqlStoreCommitter> logger)
+    public YesSqlStoreCommitter(
+        ISession session,
+        ILogger<YesSqlStoreCommitter> logger)
     {
         _session = session;
         _logger = logger;

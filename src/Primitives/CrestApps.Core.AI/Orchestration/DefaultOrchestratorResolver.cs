@@ -13,7 +13,7 @@ internal sealed class DefaultOrchestratorResolver : IOrchestratorResolver
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly OrchestratorOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultOrchestratorResolver> _logger;
 
     public DefaultOrchestratorResolver(
         IServiceProvider serviceProvider,

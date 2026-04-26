@@ -1,6 +1,6 @@
 namespace CrestApps.Core.AI.Models;
 
-public class ToolEntry
+public sealed class ToolEntry
 {
     public string ItemId { get; set; }
 

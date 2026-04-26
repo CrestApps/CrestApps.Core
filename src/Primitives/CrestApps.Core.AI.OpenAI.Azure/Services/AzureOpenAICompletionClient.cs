@@ -29,7 +29,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     private readonly IAIProviderConnectionStore _connectionStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly AzureClientOptions _azureClientOptions;
-    private readonly ILogger _logger;
+    private readonly ILogger<AzureOpenAICompletionClient> _logger;
 
     public AzureOpenAICompletionClient(
         IServiceProvider serviceProvider,

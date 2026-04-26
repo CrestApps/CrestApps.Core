@@ -15,7 +15,7 @@ public sealed class AIChatSessionPostCloseProcessor
     private readonly IEnumerable<IAIChatSessionAnalyticsRecorder> _analyticsRecorders;
     private readonly IEnumerable<IAIChatSessionConversionGoalRecorder> _conversionGoalRecorders;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIChatSessionPostCloseProcessor> _logger;
 
     public AIChatSessionPostCloseProcessor(
         PostSessionProcessingService postSessionProcessingService,

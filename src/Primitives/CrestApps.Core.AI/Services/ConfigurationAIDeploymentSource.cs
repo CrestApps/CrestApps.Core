@@ -20,7 +20,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
     private readonly AIDeploymentCatalogOptions _catalogOptions;
-    private readonly ILogger _logger;
+    private readonly ILogger<ConfigurationAIDeploymentSource> _logger;
 
     public ConfigurationAIDeploymentSource(
         IConfiguration configuration,

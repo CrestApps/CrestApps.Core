@@ -19,7 +19,7 @@ public sealed class AIMemoryIndexingService
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIMemoryIndexingService> _logger;
 
     public AIMemoryIndexingService(
         IAIMemoryStore memoryStore,

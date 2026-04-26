@@ -32,11 +32,11 @@ public abstract class MultiSourceNamedSourceCatalog<T> : MultiSourceNamedCatalog
 
         return entries.FirstOrDefault(entry =>
             string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase));
+            string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase))!;
     }
 
     /// <inheritdoc/>
-    protected override IEnumerable<T> ApplyFilters(QueryContext context, IEnumerable<T> entries)
+    protected override IEnumerable<T> ApplyFilters(QueryContext? context, IEnumerable<T> entries)
     {
         if (context is not null && !string.IsNullOrEmpty(context.Source))
         {

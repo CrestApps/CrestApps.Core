@@ -247,7 +247,9 @@ public sealed class EntityCoreStoreTests
     {
         private readonly string _databasePath;
 
-        private EntityCoreTestHarness(string databasePath, ServiceProvider services)
+        private EntityCoreTestHarness(
+            string databasePath,
+            ServiceProvider services)
         {
             _databasePath = databasePath;
             Services = services;

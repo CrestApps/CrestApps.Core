@@ -1,4 +1,3 @@
-#nullable enable
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;

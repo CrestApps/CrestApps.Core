@@ -10,8 +10,7 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
 {
     internal readonly IStringLocalizer S;
 
-    public AIProfileHandler(
-        IStringLocalizer<AIProfileHandler> stringLocalizer)
+    public AIProfileHandler(IStringLocalizer<AIProfileHandler> stringLocalizer)
     {
         S = stringLocalizer;
     }

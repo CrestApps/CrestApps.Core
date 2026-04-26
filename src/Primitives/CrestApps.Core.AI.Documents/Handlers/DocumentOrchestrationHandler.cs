@@ -25,7 +25,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
 {
     private readonly AIToolDefinitionOptions _toolDefinitions;
     private readonly ITemplateService _templateService;
-    private readonly ILogger _logger;
+    private readonly ILogger<DocumentOrchestrationHandler> _logger;
 
     public DocumentOrchestrationHandler(
         IOptions<AIToolDefinitionOptions> toolDefinitions,

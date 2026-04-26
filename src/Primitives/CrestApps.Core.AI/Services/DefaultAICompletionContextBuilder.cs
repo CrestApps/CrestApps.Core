@@ -11,7 +11,7 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuilder
 {
     private readonly IEnumerable<IAICompletionContextBuilderHandler> _handlers;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAICompletionContextBuilder> _logger;
 
     public DefaultAICompletionContextBuilder(
         IEnumerable<IAICompletionContextBuilderHandler> handlers,

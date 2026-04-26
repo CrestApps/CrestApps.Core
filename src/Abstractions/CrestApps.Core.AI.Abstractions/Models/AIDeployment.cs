@@ -4,7 +4,7 @@ using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Models;
 
-public class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, ICloneable<AIDeployment>
+public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, ICloneable<AIDeployment>
 {
     private string _modelName;
 

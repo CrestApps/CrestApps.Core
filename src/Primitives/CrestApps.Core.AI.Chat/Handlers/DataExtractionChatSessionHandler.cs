@@ -14,7 +14,7 @@ public sealed class DataExtractionChatSessionHandler : AIChatSessionHandlerBase
     private readonly DataExtractionService _dataExtractionService;
     private readonly IEnumerable<IAIChatSessionExtractedDataRecorder> _extractedDataRecorders;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataExtractionChatSessionHandler> _logger;
 
     public DataExtractionChatSessionHandler(
         DataExtractionService dataExtractionService,

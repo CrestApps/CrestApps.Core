@@ -33,18 +33,16 @@
 </div>
 
 @code {
-    #nullable enable
+    [SupplyParameterFromQuery]
+    private string returnUrl { get; set; }
 
     [SupplyParameterFromQuery]
-    private string? returnUrl { get; set; }
+    private string error { get; set; }
 
-    [SupplyParameterFromQuery]
-    private string? error { get; set; }
-
-    private string? _username;
-    private string? _password;
-    private string? _returnUrl;
-    private string? _error;
+    private string _username;
+    private string _password;
+    private string _returnUrl;
+    private string _error;
 
     protected override void OnInitialized()
     {

@@ -16,7 +16,9 @@ public sealed class HubRouteManager
     private readonly string _hubPrefix;
     private readonly Func<string> _siteBaseUrlResolver;
 
-    public HubRouteManager(string pathPrefix = "", Func<string> siteBaseUrlResolver = null)
+    public HubRouteManager(
+        string pathPrefix = "",
+        Func<string> siteBaseUrlResolver = null)
     {
         _hubPrefix = string.IsNullOrEmpty(pathPrefix) ? string.Empty : '/' + pathPrefix.TrimStart('/');
         _siteBaseUrlResolver = siteBaseUrlResolver;

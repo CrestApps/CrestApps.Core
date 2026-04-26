@@ -24,7 +24,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAIDataSourceIndexingService> _logger;
 
     public DefaultAIDataSourceIndexingService(
         ICatalog<AIDataSource> dataSourceCatalog,

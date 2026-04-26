@@ -21,7 +21,11 @@ public sealed class McpResourceController : Controller
     private readonly McpOptions _mcpOptions;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
-    public McpResourceController(ISourceCatalog<McpResource> catalog, IOptions<McpOptions> mcpOptions, IDataProtectionProvider dataProtectionProvider, TimeProvider timeProvider)
+    public McpResourceController(
+        ISourceCatalog<McpResource> catalog,
+        IOptions<McpOptions> mcpOptions,
+        IDataProtectionProvider dataProtectionProvider,
+        TimeProvider timeProvider)
     {
         _catalog = catalog;
         _mcpOptions = mcpOptions.Value;

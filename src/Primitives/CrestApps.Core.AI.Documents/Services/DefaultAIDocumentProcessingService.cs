@@ -21,7 +21,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IOptions<ChatDocumentsOptions> _extractorOptions;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAIDocumentProcessingService> _logger;
 
     public DefaultAIDocumentProcessingService(
         IServiceProvider serviceProvider,

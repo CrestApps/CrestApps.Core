@@ -10,7 +10,10 @@ public class NamedDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, IName
     where T : CatalogItem, INameAwareModel
     where TIndex : CatalogItemIndex, INameAwareIndex
 {
-    public NamedDocumentCatalog(ISession session, string collectionName = null, ILogger<DocumentCatalog<T, TIndex>> logger = null)
+    public NamedDocumentCatalog(
+        ISession session,
+        string collectionName = null,
+        ILogger<DocumentCatalog<T, TIndex>> logger = null)
         : base(session, collectionName, logger)
     {
     }

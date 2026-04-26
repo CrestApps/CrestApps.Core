@@ -6,5 +6,6 @@ namespace CrestApps.Core.AI.Chat;
 public static class ChatNotificationActionNames
 {
     public const string CancelTransfer = "cancel-transfer";
+
     public const string EndSession = "end-session";
 }

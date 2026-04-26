@@ -12,7 +12,7 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
 {
     private readonly IEnumerable<IOrchestrationContextBuilderHandler> _handlers;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultOrchestrationContextBuilder> _logger;
 
     public DefaultOrchestrationContextBuilder(
         IEnumerable<IOrchestrationContextBuilderHandler> handlers,

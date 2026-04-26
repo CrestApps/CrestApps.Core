@@ -14,7 +14,7 @@ public sealed class DataExtractionService
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ITemplateService _aiTemplateService;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataExtractionService> _logger;
 
     public DataExtractionService(
         IAIClientFactory clientFactory,

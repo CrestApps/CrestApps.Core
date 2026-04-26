@@ -23,7 +23,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
     private readonly ITemplateService _aiTemplateService;
 
     private readonly RowLevelTabularBatchOptions _settings;
-    private readonly ILogger _logger;
+    private readonly ILogger<TabularBatchProcessor> _logger;
 
     public TabularBatchProcessor(
         IAICompletionService completionService,

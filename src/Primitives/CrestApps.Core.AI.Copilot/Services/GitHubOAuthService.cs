@@ -22,7 +22,7 @@ public sealed class GitHubOAuthService
     private readonly IOptions<CopilotOptions> _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<GitHubOAuthService> _logger;
 
     public GitHubOAuthService(
         ICopilotCredentialStore credentialStore,

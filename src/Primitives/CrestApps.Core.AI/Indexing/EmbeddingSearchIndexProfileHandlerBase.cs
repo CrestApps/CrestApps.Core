@@ -14,13 +14,13 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
     private readonly string _type;
     private readonly ICatalog<AIDeployment> _deploymentCatalog;
     private readonly IAIClientFactory _aiClientFactory;
-    private readonly ILogger _logger;
+    private readonly ILogger<EmbeddingSearchIndexProfileHandlerBase> _logger;
 
     protected EmbeddingSearchIndexProfileHandlerBase(
         string type,
         ICatalog<AIDeployment> deploymentCatalog,
         IAIClientFactory aiClientFactory,
-        ILogger logger)
+        ILogger<EmbeddingSearchIndexProfileHandlerBase> logger)
     {
         _type = type;
         _deploymentCatalog = deploymentCatalog;

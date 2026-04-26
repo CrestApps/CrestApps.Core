@@ -8,7 +8,9 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 public class SourceDocumentCatalog<T> : DocumentCatalog<T>, ISourceCatalog<T>
     where T : CatalogItem, ISourceAwareModel
 {
-    public SourceDocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
+    public SourceDocumentCatalog(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<T>> logger = null)
         : base(dbContext, logger)
     {
     }

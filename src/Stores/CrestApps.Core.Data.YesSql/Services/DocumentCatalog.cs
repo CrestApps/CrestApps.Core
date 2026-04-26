@@ -18,7 +18,10 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
     protected readonly ISession Session;
     protected readonly ILogger Logger;
 
-    public DocumentCatalog(ISession session, string collectionName = null, ILogger<DocumentCatalog<T, TIndex>> logger = null)
+    public DocumentCatalog(
+        ISession session,
+        string collectionName = null,
+        ILogger<DocumentCatalog<T, TIndex>> logger = null)
     {
         Session = session;
         Logger = logger;

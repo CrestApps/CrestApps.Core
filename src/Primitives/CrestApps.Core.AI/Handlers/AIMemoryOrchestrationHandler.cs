@@ -17,9 +17,14 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IOptions<ChatInteractionMemoryOptions> _chatInteractionMemoryOptions;
     private readonly AIToolDefinitionOptions _toolDefinitions;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIMemoryOrchestrationHandler> _logger;
 
-    public AIMemoryOrchestrationHandler(ITemplateService templateService, IHttpContextAccessor httpContextAccessor, IOptions<ChatInteractionMemoryOptions> chatInteractionMemoryOptions, IOptions<AIToolDefinitionOptions> toolDefinitions, ILogger<AIMemoryOrchestrationHandler> logger)
+    public AIMemoryOrchestrationHandler(
+        ITemplateService templateService,
+        IHttpContextAccessor httpContextAccessor,
+        IOptions<ChatInteractionMemoryOptions> chatInteractionMemoryOptions,
+        IOptions<AIToolDefinitionOptions> toolDefinitions,
+        ILogger<AIMemoryOrchestrationHandler> logger)
     {
         _templateService = templateService;
         _httpContextAccessor = httpContextAccessor;

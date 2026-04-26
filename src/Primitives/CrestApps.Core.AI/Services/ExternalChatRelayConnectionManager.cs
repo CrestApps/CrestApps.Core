@@ -13,7 +13,7 @@ namespace CrestApps.Core.AI.Services;
 public sealed class ExternalChatRelayConnectionManager : IExternalChatRelayManager, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, IExternalChatRelay> _relays = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ILogger _logger;
+    private readonly ILogger<ExternalChatRelayConnectionManager> _logger;
 
     public ExternalChatRelayConnectionManager(ILogger<ExternalChatRelayConnectionManager> logger)
     {

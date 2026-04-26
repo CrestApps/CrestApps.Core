@@ -11,9 +11,12 @@ internal sealed class DataSourceOrchestrationHandler : IOrchestrationContextBuil
 {
     private readonly AIToolDefinitionOptions _toolDefinitions;
     private readonly ITemplateService _templateService;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataSourceOrchestrationHandler> _logger;
 
-    public DataSourceOrchestrationHandler(IOptions<AIToolDefinitionOptions> toolDefinitions, ITemplateService templateService, ILogger<DataSourceOrchestrationHandler> logger)
+    public DataSourceOrchestrationHandler(
+        IOptions<AIToolDefinitionOptions> toolDefinitions,
+        ITemplateService templateService,
+        ILogger<DataSourceOrchestrationHandler> logger)
     {
         _toolDefinitions = toolDefinitions.Value;
         _templateService = templateService;

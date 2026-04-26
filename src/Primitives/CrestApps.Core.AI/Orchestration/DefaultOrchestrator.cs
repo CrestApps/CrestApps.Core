@@ -37,7 +37,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private readonly IToolRegistry _toolRegistry;
     private readonly ITextTokenizer _tokenizer;
     private readonly DefaultOrchestratorOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultOrchestrator> _logger;
 
     public DefaultOrchestrator(
         IAICompletionService completionService,

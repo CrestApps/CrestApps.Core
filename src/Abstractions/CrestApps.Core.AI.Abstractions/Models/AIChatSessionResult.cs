@@ -1,6 +1,6 @@
 namespace CrestApps.Core.AI.Models;
 
-public class AIChatSessionResult
+public sealed class AIChatSessionResult
 {
     public int Count { get; set; }
 

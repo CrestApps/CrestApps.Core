@@ -15,7 +15,7 @@ internal sealed class A2AToolRegistryProvider : IToolRegistryProvider
 {
     private readonly ICatalog<A2AConnection> _connectionStore;
     private readonly IA2AAgentCardCacheService _agentCardCache;
-    private readonly ILogger _logger;
+    private readonly ILogger<A2AToolRegistryProvider> _logger;
 
     public A2AToolRegistryProvider(
         ICatalog<A2AConnection> connectionStore,

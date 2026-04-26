@@ -6,7 +6,9 @@ public sealed class BrowserFileFormFileCollection : IDisposable
 {
     private readonly List<Stream> _streams = [];
 
-    private BrowserFileFormFileCollection(List<IFormFile> files, List<Stream> streams)
+    private BrowserFileFormFileCollection(
+        List<IFormFile> files,
+        List<Stream> streams)
     {
         Files = files;
         _streams = streams;

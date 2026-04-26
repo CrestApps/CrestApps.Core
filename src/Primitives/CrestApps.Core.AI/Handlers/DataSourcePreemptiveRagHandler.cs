@@ -25,7 +25,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAITextNormalizer _textNormalizer;
     private readonly AIDataSourceOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataSourcePreemptiveRagHandler> _logger;
 
     public DataSourcePreemptiveRagHandler(
         IServiceProvider serviceProvider,

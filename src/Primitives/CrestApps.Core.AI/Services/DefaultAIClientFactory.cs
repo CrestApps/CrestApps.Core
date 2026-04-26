@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Services;
@@ -15,14 +16,12 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
 
     public DefaultAIClientFactory(
         IEnumerable<IAIClientProvider> clientProviders,
         IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
         IDataProtectionProvider dataProtectionProvider,
         IServiceProvider serviceProvider,
-        ILogger<DefaultAIClientFactory> logger,
         INamedSourceCatalog<AIProviderConnection> connectionCatalog)
     {
         _connectionCatalog = connectionCatalog;
@@ -30,7 +29,6 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         _connectionHandlers = connectionHandlers;
         _dataProtectionProvider = dataProtectionProvider;
         _serviceProvider = serviceProvider;
-        _logger = logger;
     }
 
     public async ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
@@ -49,7 +47,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
             deployment.ConnectionName,
             deployment.ModelName,
             _serviceProvider,
-            _logger);
+            _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
     }
 
     public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)

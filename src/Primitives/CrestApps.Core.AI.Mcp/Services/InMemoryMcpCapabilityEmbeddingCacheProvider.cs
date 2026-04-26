@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Mcp.Services;
 internal sealed class InMemoryMcpCapabilityEmbeddingCacheProvider : IMcpCapabilityEmbeddingCacheProvider
 {
     private readonly ConcurrentDictionary<string, McpCapabilityEmbeddingEntry[]> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ILogger _logger;
+    private readonly ILogger<InMemoryMcpCapabilityEmbeddingCacheProvider> _logger;
 
     public InMemoryMcpCapabilityEmbeddingCacheProvider(ILogger<InMemoryMcpCapabilityEmbeddingCacheProvider> logger)
     {

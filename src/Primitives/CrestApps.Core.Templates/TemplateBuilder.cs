@@ -263,7 +263,10 @@ public sealed class TemplateBuilder
             IsTemplateId = false;
         }
 
-        public Segment(string text, IDictionary<string, object> arguments, bool isTemplateId)
+        public Segment(
+            string text,
+            IDictionary<string, object> arguments,
+            bool isTemplateId)
         {
             Text = text;
             Arguments = arguments;

@@ -9,7 +9,7 @@ internal sealed class DefaultConnectionAuthHeaderBuilder : IConnectionAuthHeader
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IOAuth2TokenService _oauth2TokenService;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultConnectionAuthHeaderBuilder> _logger;
 
     public DefaultConnectionAuthHeaderBuilder(
         IDataProtectionProvider dataProtectionProvider,

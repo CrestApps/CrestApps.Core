@@ -19,7 +19,9 @@ public sealed class OrchestrationContextBuiltContext
     /// <param name="resource">The source resource used to build the context.</param>
     /// <param name="context">The finalized <see cref="Models.OrchestrationContext"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="resource"/> or <paramref name="context"/> is <see langword="null"/>.</exception>
-    public OrchestrationContextBuiltContext(object resource, OrchestrationContext context)
+    public OrchestrationContextBuiltContext(
+        object resource,
+        OrchestrationContext context)
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(context);
@@ -32,11 +34,6 @@ public sealed class OrchestrationContextBuiltContext
     /// Gets the source resource associated with the built orchestration context.
     /// </summary>
     public object Resource { get; }
-
-    /// <summary>
-    /// Gets the resource as the specified type.
-    /// </summary>
-    public T GetResource<T>() where T : class => Resource as T;
 
     /// <summary>
     /// Gets the finalized <see cref="Models.OrchestrationContext"/>.

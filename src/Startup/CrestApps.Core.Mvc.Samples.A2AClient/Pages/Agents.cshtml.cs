@@ -3,6 +3,7 @@ using A2A;
 using CrestApps.Core.Mvc.Samples.A2AClient.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Mvc.Samples.A2AClient.Pages;
 
@@ -11,7 +12,9 @@ public sealed class AgentsModel : PageModel
     private readonly A2AClientFactory _clientFactory;
     private readonly ILogger<AgentsModel> _logger;
 
-    public AgentsModel(A2AClientFactory clientFactory, ILogger<AgentsModel> logger)
+    public AgentsModel(
+        A2AClientFactory clientFactory,
+        ILogger<AgentsModel> logger)
     {
         _clientFactory = clientFactory;
         _logger = logger;
@@ -69,7 +72,7 @@ public sealed class AgentsModel : PageModel
 
             if (stream)
             {
-                return new StreamingA2AResult(client, sendParams, _logger);
+                return new StreamingA2AResult(client, sendParams, HttpContext.RequestServices.GetRequiredService<ILogger<StreamingA2AResult>>());
             }
 
             var response = await client.SendMessageAsync(sendParams, cancellationToken);
@@ -183,9 +186,12 @@ public sealed class AgentsModel : PageModel
     {
         private readonly A2A.A2AClient _client;
         private readonly MessageSendParams _sendParams;
-        private readonly ILogger _logger;
+        private readonly ILogger<StreamingA2AResult> _logger;
 
-        public StreamingA2AResult(A2A.A2AClient client, MessageSendParams sendParams, ILogger logger)
+        public StreamingA2AResult(
+            A2A.A2AClient client,
+            MessageSendParams sendParams,
+            ILogger<StreamingA2AResult> logger)
         {
             _client = client;
             _sendParams = sendParams;

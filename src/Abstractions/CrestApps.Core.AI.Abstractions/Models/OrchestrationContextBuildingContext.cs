@@ -19,7 +19,9 @@ public sealed class OrchestrationContextBuildingContext
     /// <param name="resource">The source resource driving the build.</param>
     /// <param name="context">The mutable <see cref="OrchestrationContext"/> being built.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="resource"/> or <paramref name="context"/> is <see langword="null"/>.</exception>
-    public OrchestrationContextBuildingContext(object resource, OrchestrationContext context)
+    public OrchestrationContextBuildingContext(
+        object resource,
+        OrchestrationContext context)
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(context);

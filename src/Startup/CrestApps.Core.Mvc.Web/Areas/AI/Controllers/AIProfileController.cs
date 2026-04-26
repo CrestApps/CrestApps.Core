@@ -50,7 +50,25 @@ public sealed class AIProfileController : Controller
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIDataSourceStore _dataSourceStore;
-    public AIProfileController(IAIProfileManager profileManager, ICatalog<AIDeployment> deploymentCatalog, IAIProfileTemplateManager templateManager, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDocumentStore documentStore, AIProfileDocumentService profileDocumentService, AIProfileTemplateDocumentService templateDocumentService, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptions<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions, IAIDataSourceStore dataSourceStore)
+    public AIProfileController(
+        IAIProfileManager profileManager,
+        ICatalog<AIDeployment> deploymentCatalog,
+        IAIProfileTemplateManager templateManager,
+        ICatalog<A2AConnection> a2aConnectionCatalog,
+        ICatalog<McpConnection> mcpConnectionCatalog,
+        IAIDocumentStore documentStore,
+        AIProfileDocumentService profileDocumentService,
+        AIProfileTemplateDocumentService templateDocumentService,
+        IOptions<InteractionDocumentOptions> interactionDocumentOptions,
+        ISearchIndexProfileStore indexProfileStore,
+        ITemplateService aiTemplateService,
+        IOptions<OrchestratorOptions> orchestratorOptions,
+        IOptionsSnapshot<ClaudeOptions> anthropicOptions,
+        ClaudeClientService anthropicClientService,
+        IOptions<CopilotOptions> copilotOptions,
+        GitHubOAuthService oauthService,
+        IOptions<AIToolDefinitionOptions> toolOptions,
+        IAIDataSourceStore dataSourceStore)
     {
         _profileManager = profileManager;
         _deploymentCatalog = deploymentCatalog;

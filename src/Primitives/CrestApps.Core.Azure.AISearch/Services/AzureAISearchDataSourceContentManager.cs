@@ -17,7 +17,7 @@ namespace CrestApps.Core.Azure.AISearch.Services;
 internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContentManager
 {
     private readonly SearchIndexClient _searchIndexClient;
-    private readonly ILogger _logger;
+    private readonly ILogger<AzureAISearchDataSourceContentManager> _logger;
 
     internal static string BuildODataFilter(string dataSourceId, string filter)
     {

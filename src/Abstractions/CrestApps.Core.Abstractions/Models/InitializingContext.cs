@@ -6,7 +6,9 @@ public sealed class InitializingContext<T> : HandlerContextBase<T>
 {
     public JsonNode Data { get; }
 
-    public InitializingContext(T model, JsonNode data)
+    public InitializingContext(
+        T model,
+        JsonNode data)
     : base(model)
     {
         Data = data ?? new JsonObject();

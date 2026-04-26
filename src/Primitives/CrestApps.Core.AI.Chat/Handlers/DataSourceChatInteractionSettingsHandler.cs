@@ -9,9 +9,11 @@ namespace CrestApps.Core.AI.Chat.Handlers;
 public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DataSourceChatInteractionSettingsHandler> _logger;
 
-    public DataSourceChatInteractionSettingsHandler(IServiceProvider serviceProvider, ILogger<DataSourceChatInteractionSettingsHandler> logger)
+    public DataSourceChatInteractionSettingsHandler(
+        IServiceProvider serviceProvider,
+        ILogger<DataSourceChatInteractionSettingsHandler> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;

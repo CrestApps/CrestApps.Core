@@ -1,4 +1,3 @@
-#nullable enable
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -15,7 +14,9 @@ public sealed class StoreCommitterEndpointFilter : IEndpointFilter
     private readonly IStoreCommitter _committer;
     private readonly ILogger<StoreCommitterEndpointFilter> _logger;
 
-    public StoreCommitterEndpointFilter(IStoreCommitter committer, ILogger<StoreCommitterEndpointFilter> logger)
+    public StoreCommitterEndpointFilter(
+        IStoreCommitter committer,
+        ILogger<StoreCommitterEndpointFilter> logger)
     {
         _committer = committer;
         _logger = logger;

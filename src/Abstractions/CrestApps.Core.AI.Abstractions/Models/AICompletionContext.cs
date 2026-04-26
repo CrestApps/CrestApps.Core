@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace CrestApps.Core.AI.Models;
 
-public class AICompletionContext
+public sealed class AICompletionContext
 {
     public bool DisableTools { get; set; }
 

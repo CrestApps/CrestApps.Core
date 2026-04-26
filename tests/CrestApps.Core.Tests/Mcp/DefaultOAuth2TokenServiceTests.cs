@@ -364,7 +364,10 @@ public sealed class DefaultOAuth2TokenServiceTests
 
     private sealed class TokenResponse
     {
-        public TokenResponse(string accessToken, string tokenType, int expiresIn)
+        public TokenResponse(
+            string accessToken,
+            string tokenType,
+            int expiresIn)
         {
             AccessToken = accessToken;
             TokenType = tokenType;

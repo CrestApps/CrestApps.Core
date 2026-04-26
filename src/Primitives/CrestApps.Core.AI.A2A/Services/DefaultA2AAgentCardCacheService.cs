@@ -14,9 +14,13 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
     private readonly IMemoryCache _memoryCache;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultA2AAgentCardCacheService> _logger;
 
-    public DefaultA2AAgentCardCacheService(IMemoryCache memoryCache, IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor, ILogger<DefaultA2AAgentCardCacheService> logger)
+    public DefaultA2AAgentCardCacheService(
+        IMemoryCache memoryCache,
+        IHttpClientFactory httpClientFactory,
+        IHttpContextAccessor httpContextAccessor,
+        ILogger<DefaultA2AAgentCardCacheService> logger)
     {
         _memoryCache = memoryCache;
         _httpClientFactory = httpClientFactory;

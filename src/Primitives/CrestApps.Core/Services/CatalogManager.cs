@@ -67,10 +67,10 @@ public class CatalogManager<T> : ICatalogManager<T>
             return entry;
         }
 
-        return null;
+        return null!;
     }
 
-    public virtual async ValueTask<T> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
+    public virtual async ValueTask<T> NewAsync(JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         var id = UniqueId.GenerateId();
 
@@ -121,7 +121,7 @@ public class CatalogManager<T> : ICatalogManager<T>
         await Handlers.InvokeAsync((handler, ctx) => handler.CreatedAsync(ctx, cancellationToken), createdContext, Logger);
     }
 
-    public async ValueTask UpdateAsync(T entry, JsonNode data = null, CancellationToken cancellationToken = default)
+    public async ValueTask UpdateAsync(T entry, JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
 

@@ -37,6 +37,6 @@ public class NamedCatalogManager<T> : CatalogManager<T>, INamedCatalogManager<T>
             await LoadAsync(entry, cancellationToken);
         }
 
-        return entry;
+        return entry!;
     }
 }

@@ -41,12 +41,10 @@
 </html>
 
 @code {
-    #nullable enable
-
     [CascadingParameter]
-    private HttpContext? HttpContext { get; set; }
+    private HttpContext HttpContext { get; set; }
 
-    private string? PageTitle => HttpContext?.Items["PageTitle"] as string;
+    private string PageTitle => HttpContext?.Items["PageTitle"] as string;
 
     // Disable prerendering so EditForm submissions never fall back to a static SSR POST,
     // which would require a FormName on every form. Interactive Server handles submission

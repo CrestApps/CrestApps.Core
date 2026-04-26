@@ -16,7 +16,7 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
 {
     private readonly ElasticsearchClient _elasticClient;
     private readonly ElasticsearchConnectionOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<ElasticsearchSearchIndexManager> _logger;
 
     public ElasticsearchSearchIndexManager(
         ElasticsearchClient elasticClient,

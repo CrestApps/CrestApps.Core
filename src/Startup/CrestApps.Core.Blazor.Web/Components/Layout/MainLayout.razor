@@ -82,12 +82,10 @@
 </AuthorizeView>
 
 @code {
-    #nullable enable
-
-    private string? Title { get; set; }
-    private string? ErrorMessage { get; set; }
-    private string? SuccessMessage { get; set; }
+    private string Title { get; set; }
+    private string ErrorMessage { get; set; }
+    private string SuccessMessage { get; set; }
 
     [CascadingParameter]
-    private Task<AuthenticationState>? AuthState { get; set; }
+    private Task<AuthenticationState> AuthState { get; set; }
 }

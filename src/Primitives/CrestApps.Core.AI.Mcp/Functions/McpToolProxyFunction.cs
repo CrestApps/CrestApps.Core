@@ -14,7 +14,11 @@ internal sealed class McpToolProxyFunction : AIFunction
     private readonly JsonElement _jsonSchema;
     private readonly string _connectionId;
 
-    public McpToolProxyFunction(string name, string description, JsonElement jsonSchema, string connectionId)
+    public McpToolProxyFunction(
+        string name,
+        string description,
+        JsonElement jsonSchema,
+        string connectionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(connectionId);

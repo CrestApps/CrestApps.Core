@@ -19,7 +19,9 @@ public sealed class AICompletionContextBuiltContext
     /// <param name="resource">The source resource used to build the context.</param>
     /// <param name="context">The finalized <see cref="AICompletionContext"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="resource"/> or <paramref name="context"/> is <see langword="null"/>.</exception>
-    public AICompletionContextBuiltContext(object resource, AICompletionContext context)
+    public AICompletionContextBuiltContext(
+        object resource,
+        AICompletionContext context)
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(context);

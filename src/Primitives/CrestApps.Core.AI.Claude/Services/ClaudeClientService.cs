@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Claude.Services;
 public sealed class ClaudeClientService
 {
     private readonly IOptionsSnapshot<ClaudeOptions> _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<ClaudeClientService> _logger;
 
     public ClaudeClientService(
         IOptionsSnapshot<ClaudeOptions> options,

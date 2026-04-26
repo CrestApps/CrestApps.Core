@@ -20,7 +20,9 @@ internal sealed class AgentProxyTool : AIFunction
     private readonly string _agentProfileName;
     private readonly string _description;
 
-    public AgentProxyTool(string agentProfileName, string description)
+    public AgentProxyTool(
+        string agentProfileName,
+        string description)
     {
         _agentProfileName = agentProfileName;
         _description = description;

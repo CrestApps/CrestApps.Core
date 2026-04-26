@@ -7,7 +7,9 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIDocumentChunkStore : DocumentCatalog<AIDocumentChunk>, IAIDocumentChunkStore
 {
-    public EntityCoreAIDocumentChunkStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<AIDocumentChunk>> logger = null)
+    public EntityCoreAIDocumentChunkStore(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<AIDocumentChunk>> logger = null)
         : base(dbContext, logger)
     {
     }

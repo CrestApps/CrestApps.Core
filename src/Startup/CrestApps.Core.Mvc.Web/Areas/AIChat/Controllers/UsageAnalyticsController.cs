@@ -13,7 +13,9 @@ public sealed class UsageAnalyticsController : Controller
 {
     private readonly SampleAICompletionUsageService _usageService;
     private readonly GeneralAIOptions _generalAIOptions;
-    public UsageAnalyticsController(SampleAICompletionUsageService usageService, IOptions<GeneralAIOptions> generalAIOptions)
+    public UsageAnalyticsController(
+        SampleAICompletionUsageService usageService,
+        IOptions<GeneralAIOptions> generalAIOptions)
     {
         _usageService = usageService;
         _generalAIOptions = generalAIOptions.Value;

@@ -11,7 +11,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIDataSourceAlignmentBackgroundService> _logger;
 
     private DateOnly? _lastRunDateUtc;
 

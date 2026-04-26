@@ -7,7 +7,9 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreChatInteractionPromptStore : DocumentCatalog<ChatInteractionPrompt>, IChatInteractionPromptStore
 {
-    public EntityCoreChatInteractionPromptStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<ChatInteractionPrompt>> logger = null)
+    public EntityCoreChatInteractionPromptStore(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<ChatInteractionPrompt>> logger = null)
         : base(dbContext, logger)
     {
     }

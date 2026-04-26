@@ -47,7 +47,23 @@ public sealed class AITemplateController : Controller
     private readonly CopilotOptions _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-    public AITemplateController(ICatalog<AIProfileTemplate> catalog, ICatalog<AIDeployment> deploymentCatalog, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDataSourceStore dataSourceStore, IAIProfileManager profileManager, IAIProfileTemplateManager templateManager, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptions<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions)
+    public AITemplateController(
+        ICatalog<AIProfileTemplate> catalog,
+        ICatalog<AIDeployment> deploymentCatalog,
+        ICatalog<A2AConnection> a2aConnectionCatalog,
+        ICatalog<McpConnection> mcpConnectionCatalog,
+        IAIDataSourceStore dataSourceStore,
+        IAIProfileManager profileManager,
+        IAIProfileTemplateManager templateManager,
+        IOptions<InteractionDocumentOptions> interactionDocumentOptions,
+        ISearchIndexProfileStore indexProfileStore,
+        ITemplateService aiTemplateService,
+        IOptions<OrchestratorOptions> orchestratorOptions,
+        IOptionsSnapshot<ClaudeOptions> anthropicOptions,
+        ClaudeClientService anthropicClientService,
+        IOptions<CopilotOptions> copilotOptions,
+        GitHubOAuthService oauthService,
+        IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;

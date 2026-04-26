@@ -9,7 +9,7 @@ namespace CrestApps.Core.AI.Handlers;
 internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBase<AIDataSource>
 {
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIDataSourceCatalogIndexingHandler> _logger;
 
     public AIDataSourceCatalogIndexingHandler(
         IAIDataSourceIndexingQueue indexingQueue,

@@ -27,7 +27,10 @@ public sealed class McpConnectionController : Controller
     private readonly ICatalog<McpConnection> _catalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
-    public McpConnectionController(ICatalog<McpConnection> catalog, IDataProtectionProvider dataProtectionProvider, TimeProvider timeProvider)
+    public McpConnectionController(
+        ICatalog<McpConnection> catalog,
+        IDataProtectionProvider dataProtectionProvider,
+        TimeProvider timeProvider)
     {
         _catalog = catalog;
         _dataProtectionProvider = dataProtectionProvider;

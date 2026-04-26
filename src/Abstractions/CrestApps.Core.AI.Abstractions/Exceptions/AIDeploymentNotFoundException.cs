@@ -7,7 +7,9 @@ public sealed class AIDeploymentNotFoundException : AIDeploymentConfigurationExc
     {
     }
 
-    public AIDeploymentNotFoundException(string message, Exception innerException)
+    public AIDeploymentNotFoundException(
+        string message,
+        Exception innerException)
         : base(message, innerException)
     {
     }

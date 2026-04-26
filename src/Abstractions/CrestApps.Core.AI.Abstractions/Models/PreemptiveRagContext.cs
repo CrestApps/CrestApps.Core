@@ -8,7 +8,10 @@ namespace CrestApps.Core.AI.Models;
 /// </summary>
 public sealed class PreemptiveRagContext
 {
-    public PreemptiveRagContext(OrchestrationContext orchestrationContext, object resource, IList<string> queries)
+    public PreemptiveRagContext(
+        OrchestrationContext orchestrationContext,
+        object resource,
+        IList<string> queries)
     {
         ArgumentNullException.ThrowIfNull(orchestrationContext);
         ArgumentNullException.ThrowIfNull(resource);

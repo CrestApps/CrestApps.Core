@@ -12,9 +12,11 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultChatResponseHandlerResolver : IChatResponseHandlerResolver
 {
     private readonly IEnumerable<IChatResponseHandler> _handlers;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultChatResponseHandlerResolver> _logger;
 
-    public DefaultChatResponseHandlerResolver(IEnumerable<IChatResponseHandler> handlers, ILogger<DefaultChatResponseHandlerResolver> logger)
+    public DefaultChatResponseHandlerResolver(
+        IEnumerable<IChatResponseHandler> handlers,
+        ILogger<DefaultChatResponseHandlerResolver> logger)
     {
         _handlers = handlers;
         _logger = logger;

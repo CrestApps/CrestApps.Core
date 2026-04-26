@@ -15,7 +15,9 @@ public sealed class StoreCommitterActionFilter : IAsyncActionFilter, IOrderedFil
     private readonly IStoreCommitter _committer;
     private readonly ILogger<StoreCommitterActionFilter> _logger;
 
-    public StoreCommitterActionFilter(IStoreCommitter committer, ILogger<StoreCommitterActionFilter> logger)
+    public StoreCommitterActionFilter(
+        IStoreCommitter committer,
+        ILogger<StoreCommitterActionFilter> logger)
     {
         _committer = committer;
         _logger = logger;

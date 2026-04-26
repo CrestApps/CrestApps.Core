@@ -7,7 +7,7 @@ namespace CrestApps.Core.AI.Mcp;
 public sealed class McpService
 {
     private readonly IEnumerable<IMcpClientTransportProvider> _providers;
-    private readonly ILogger _logger;
+    private readonly ILogger<McpService> _logger;
 
     public McpService(
         IEnumerable<IMcpClientTransportProvider> providers,

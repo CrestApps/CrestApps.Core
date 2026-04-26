@@ -18,7 +18,10 @@ public sealed class SampleServerSelectionService
     /// <param name="configuration">The application configuration.</param>
     /// <param name="sectionName">The root configuration section containing the server definitions.</param>
     /// <param name="cookieName">The cookie name used to persist the current selection.</param>
-    public SampleServerSelectionService(IConfiguration configuration, string sectionName, string cookieName)
+    public SampleServerSelectionService(
+        IConfiguration configuration,
+        string sectionName,
+        string cookieName)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionName);

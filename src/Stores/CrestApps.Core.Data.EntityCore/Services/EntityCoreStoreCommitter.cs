@@ -12,7 +12,9 @@ public sealed class EntityCoreStoreCommitter : IStoreCommitter
     private readonly CrestAppsEntityDbContext _dbContext;
     private readonly ILogger<EntityCoreStoreCommitter> _logger;
 
-    public EntityCoreStoreCommitter(CrestAppsEntityDbContext dbContext, ILogger<EntityCoreStoreCommitter> logger)
+    public EntityCoreStoreCommitter(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<EntityCoreStoreCommitter> logger)
     {
         _dbContext = dbContext;
         _logger = logger;

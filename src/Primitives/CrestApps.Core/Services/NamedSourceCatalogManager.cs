@@ -12,7 +12,7 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
         INamedSourceCatalog<T> catalog,
         IEnumerable<ICatalogEntryHandler<T>> handlers,
         ILogger<NamedSourceCatalogManager<T>> logger)
-    : base(catalog, handlers, logger)
+        : base(catalog, handlers, logger)
     {
         NamedSourceCatalog = catalog;
     }
@@ -28,7 +28,7 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
             await LoadAsync(entry, cancellationToken);
         }
 
-        return entry;
+        return entry!;
     }
 
     public async ValueTask<T> GetAsync(string name, string source, CancellationToken cancellationToken = default)
@@ -43,6 +43,6 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
             await LoadAsync(entry, cancellationToken);
         }
 
-        return entry;
+        return entry!;
     }
 }

@@ -16,7 +16,7 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
     private readonly GeneralAIOptions _generalAIOptions;
     private readonly IOptions<ChatInteractionMemoryOptions> _chatInteractionMemoryOptions;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIMemoryPreemptiveRagHandler> _logger;
 
     public AIMemoryPreemptiveRagHandler(
         IAIMemorySearchService memorySearchService,

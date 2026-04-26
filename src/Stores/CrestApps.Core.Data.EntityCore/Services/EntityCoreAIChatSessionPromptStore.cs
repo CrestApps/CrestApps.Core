@@ -7,7 +7,9 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIChatSessionPromptStore : DocumentCatalog<AIChatSessionPrompt>, IAIChatSessionPromptStore
 {
-    public EntityCoreAIChatSessionPromptStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<AIChatSessionPrompt>> logger = null)
+    public EntityCoreAIChatSessionPromptStore(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<AIChatSessionPrompt>> logger = null)
         : base(dbContext, logger)
     {
     }

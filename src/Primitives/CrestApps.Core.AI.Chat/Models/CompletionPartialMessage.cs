@@ -2,7 +2,7 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Chat.Models;
 
-public class CompletionPartialMessage
+public sealed class CompletionPartialMessage
 {
     public string MessageId { get; set; }
 

@@ -22,7 +22,7 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<FunctionInvocationAICompletionServiceHandler> _logger;
 
     public FunctionInvocationAICompletionServiceHandler(
         IAIToolAccessEvaluator toolAccessEvaluator,

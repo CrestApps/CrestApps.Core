@@ -13,7 +13,7 @@ internal sealed class DefaultToolRegistry : IToolRegistry
 {
     private readonly IEnumerable<IToolRegistryProvider> _providers;
     private readonly ITextTokenizer _tokenizer;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultToolRegistry> _logger;
 
     public DefaultToolRegistry(
         IEnumerable<IToolRegistryProvider> providers,

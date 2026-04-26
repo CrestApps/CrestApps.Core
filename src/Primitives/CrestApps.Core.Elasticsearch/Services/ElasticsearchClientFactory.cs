@@ -10,7 +10,7 @@ namespace CrestApps.Core.Elasticsearch.Services;
 /// </summary>
 public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
 {
-    private readonly ILogger _logger;
+    private readonly ILogger<ElasticsearchClientFactory> _logger;
     private readonly ElasticsearchConnectionOptions _options;
     private readonly object _syncLock = new();
 

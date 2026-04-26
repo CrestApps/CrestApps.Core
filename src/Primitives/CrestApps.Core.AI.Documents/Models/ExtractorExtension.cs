@@ -5,7 +5,9 @@ public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquata
     public string Extension { get; }
     public bool Embeddable { get; }
 
-    public ExtractorExtension(string extension, bool embeddable = true)
+    public ExtractorExtension(
+        string extension,
+        bool embeddable = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);
         // Normalize once

@@ -6,7 +6,7 @@ namespace CrestApps.Core.Services;
 /// DB-backed catalogs as sources for the multi-source store.
 /// </summary>
 /// <typeparam name="T">The type of catalog entry.</typeparam>
-public class WritableCatalogBindingSource<T> : IWritableNamedSourceCatalogSource<T>
+public sealed class WritableCatalogBindingSource<T> : IWritableNamedSourceCatalogSource<T>
     where T : INameAwareModel, ISourceAwareModel
 {
     private readonly INamedSourceCatalog<T> _inner;

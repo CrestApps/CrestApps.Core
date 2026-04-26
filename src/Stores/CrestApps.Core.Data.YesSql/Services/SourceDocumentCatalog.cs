@@ -10,7 +10,10 @@ public class SourceDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, ISou
     where T : CatalogItem, ISourceAwareModel
     where TIndex : CatalogItemIndex, ISourceAwareIndex
 {
-    public SourceDocumentCatalog(ISession session, string collectionName = null, ILogger<DocumentCatalog<T, TIndex>> logger = null)
+    public SourceDocumentCatalog(
+        ISession session,
+        string collectionName = null,
+        ILogger<DocumentCatalog<T, TIndex>> logger = null)
         : base(session, collectionName, logger)
     {
     }

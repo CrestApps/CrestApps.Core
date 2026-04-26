@@ -17,7 +17,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
     private readonly string _connectionName;
     private readonly string _deploymentName;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<AICompletionUsageTrackingChatClient> _logger;
 
     public AICompletionUsageTrackingChatClient(
         IChatClient innerClient,
@@ -25,7 +25,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
         string connectionName,
         string deploymentName,
         IServiceProvider serviceProvider,
-        ILogger logger)
+        ILogger<AICompletionUsageTrackingChatClient> logger)
         : base(innerClient)
     {
         _clientName = clientName;

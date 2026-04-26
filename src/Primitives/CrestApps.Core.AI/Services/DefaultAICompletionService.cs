@@ -9,12 +9,12 @@ using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
-public class DefaultAICompletionService : IAICompletionService
+public sealed class DefaultAICompletionService : IAICompletionService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IEnumerable<IAICompletionHandler> _completionHandlers;
     private readonly AIOptions _aiOptions;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAICompletionService> _logger;
 
     public DefaultAICompletionService(
         IServiceProvider serviceProvider,

@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CrestApps.Core.Models;
 
-public class ValidationResultDetails
+public sealed class ValidationResultDetails
 {
     private List<ValidationResult> _errors;
     public IReadOnlyList<ValidationResult> Errors

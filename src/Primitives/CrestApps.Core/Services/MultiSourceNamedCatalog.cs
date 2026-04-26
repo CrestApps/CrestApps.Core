@@ -12,7 +12,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     where T : INameAwareModel
 {
     private readonly IEnumerable<INamedCatalogSource<T>> _sources;
-    private readonly IWritableNamedCatalogSource<T> _writableSource;
+    private readonly IWritableNamedCatalogSource<T>? _writableSource;
 
     protected MultiSourceNamedCatalog(IEnumerable<INamedCatalogSource<T>> sources)
     {
@@ -32,14 +32,14 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
 
-        return entries.FirstOrDefault(entry => string.Equals(GetItemId(entry), id, StringComparison.OrdinalIgnoreCase));
+        return entries.FirstOrDefault(entry => string.Equals(GetItemId(entry), id, StringComparison.OrdinalIgnoreCase))!;
     }
 
     public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
 
-        return entries.FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
+        return entries.FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase))!;
     }
 
     public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
@@ -68,21 +68,21 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     {
         EnsureWritableSource();
 
-        return _writableSource.DeleteAsync(entry, cancellationToken);
+        return _writableSource!.DeleteAsync(entry, cancellationToken);
     }
 
     public ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource.CreateAsync(entry, cancellationToken);
+        return _writableSource!.CreateAsync(entry, cancellationToken);
     }
 
     public ValueTask UpdateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource.UpdateAsync(entry, cancellationToken);
+        return _writableSource!.UpdateAsync(entry, cancellationToken);
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// Applies query-context filters to the entries.
     /// Override in derived classes to customize filtering and sorting behavior.
     /// </summary>
-    protected virtual IEnumerable<T> ApplyFilters(QueryContext context, IEnumerable<T> entries)
+    protected virtual IEnumerable<T> ApplyFilters(QueryContext? context, IEnumerable<T> entries)
     {
         if (context is null)
         {

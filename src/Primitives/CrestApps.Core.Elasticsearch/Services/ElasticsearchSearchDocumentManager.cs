@@ -16,7 +16,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
 {
     private readonly ElasticsearchClient _elasticClient;
     private readonly IEnumerable<ISearchDocumentHandler> _handlers;
-    private readonly ILogger _logger;
+    private readonly ILogger<ElasticsearchSearchDocumentManager> _logger;
 
     public ElasticsearchSearchDocumentManager(
         ElasticsearchClient elasticClient,

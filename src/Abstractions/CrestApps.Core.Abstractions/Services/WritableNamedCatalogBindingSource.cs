@@ -6,7 +6,7 @@ namespace CrestApps.Core.Services;
 /// as sources for the multi-source store when the model has no source property.
 /// </summary>
 /// <typeparam name="T">The type of catalog entry.</typeparam>
-public class WritableNamedCatalogBindingSource<T> : IWritableNamedCatalogSource<T>
+public sealed class WritableNamedCatalogBindingSource<T> : IWritableNamedCatalogSource<T>
     where T : INameAwareModel
 {
     private readonly INamedCatalog<T> _inner;

@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Builders;
 
-public class CrestAppsCoreBuilder
+public sealed class CrestAppsCoreBuilder
 {
     public CrestAppsCoreBuilder(IServiceCollection services)
     {

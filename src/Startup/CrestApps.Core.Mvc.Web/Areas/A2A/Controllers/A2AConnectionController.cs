@@ -16,7 +16,9 @@ public sealed class A2AConnectionController : Controller
 {
     private readonly ICatalog<A2AConnection> _catalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    public A2AConnectionController(ICatalog<A2AConnection> catalog, IDataProtectionProvider dataProtectionProvider)
+    public A2AConnectionController(
+        ICatalog<A2AConnection> catalog,
+        IDataProtectionProvider dataProtectionProvider)
     {
         _catalog = catalog;
         _dataProtectionProvider = dataProtectionProvider;

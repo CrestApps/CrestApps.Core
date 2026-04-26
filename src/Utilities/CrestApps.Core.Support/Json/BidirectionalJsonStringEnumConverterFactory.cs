@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace CrestApps.Core.Support.Json;
 
-public class BidirectionalJsonStringEnumConverterFactory : JsonConverterFactory
+public sealed class BidirectionalJsonStringEnumConverterFactory : JsonConverterFactory
 {
     private readonly JsonStringEnumConverter _converter;
 
@@ -12,7 +12,9 @@ public class BidirectionalJsonStringEnumConverterFactory : JsonConverterFactory
     {
     }
 
-    public BidirectionalJsonStringEnumConverterFactory(JsonNamingPolicy namingPolicy, bool allowIntegerValues)
+    public BidirectionalJsonStringEnumConverterFactory(
+        JsonNamingPolicy namingPolicy,
+        bool allowIntegerValues)
     {
         _converter = new JsonStringEnumConverter(namingPolicy, allowIntegerValues);
     }

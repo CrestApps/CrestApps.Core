@@ -13,7 +13,9 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     protected readonly CrestAppsEntityDbContext DbContext;
     protected readonly ILogger Logger;
 
-    public DocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
+    public DocumentCatalog(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<T>> logger = null)
     {
         DbContext = dbContext;
         Logger = logger;

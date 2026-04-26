@@ -1,6 +1,6 @@
 namespace CrestApps.Core.Models;
 
-public class PageResult<T>
+public sealed class PageResult<T>
 {
     public int Count { get; set; }
 

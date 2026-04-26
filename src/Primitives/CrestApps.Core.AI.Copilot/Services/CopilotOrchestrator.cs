@@ -44,7 +44,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
     private readonly ICopilotCredentialStore _credentialStore;
     private readonly IOptions<CopilotOptions> _options;
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<CopilotOrchestrator> _logger;
 
     public CopilotOrchestrator(
         IToolRegistry toolRegistry,

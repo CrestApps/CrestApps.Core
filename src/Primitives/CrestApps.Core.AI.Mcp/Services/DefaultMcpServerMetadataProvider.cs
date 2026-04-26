@@ -16,7 +16,7 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
     private readonly IMcpCapabilityEmbeddingCacheProvider _embeddingCache;
     private readonly TimeProvider _timeProvider;
     private readonly McpMetadataCacheOptions _cacheOptions;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultMcpServerMetadataProvider> _logger;
 
     public DefaultMcpServerMetadataProvider(
         McpService mcpService,

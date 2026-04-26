@@ -1,6 +1,6 @@
 namespace CrestApps.Core.AI.Models;
 
-public class InitializingAIProviderConnectionContext
+public sealed class InitializingAIProviderConnectionContext
 {
     public Dictionary<string, object> Values { get; } = [];
 

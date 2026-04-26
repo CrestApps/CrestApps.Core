@@ -14,7 +14,7 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         ISourceCatalog<T> sourceCatalog,
         IEnumerable<ICatalogEntryHandler<T>> handlers,
         ILogger<SourceCatalogManager<T>> logger)
-    : base(sourceCatalog, handlers, logger)
+        : base(sourceCatalog, handlers, logger)
     {
         SourceCatalog = sourceCatalog;
     }
@@ -47,7 +47,7 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         return entries;
     }
 
-    public async ValueTask<T> NewAsync(string source, JsonNode data = null, CancellationToken cancellationToken = default)
+    public async ValueTask<T> NewAsync(string source, JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
 
@@ -75,7 +75,7 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         return entry;
     }
 
-    public override ValueTask<T> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
+    public override ValueTask<T> NewAsync(JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         var source = data?["Source"]?.GetValue<string>();
 

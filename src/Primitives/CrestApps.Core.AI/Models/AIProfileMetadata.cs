@@ -1,6 +1,6 @@
 namespace CrestApps.Core.AI.Models;
 
-public class AIProfileMetadata
+public sealed class AIProfileMetadata
 {
     public string SystemMessage { get; set; }
 

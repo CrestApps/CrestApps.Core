@@ -8,7 +8,9 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 public class NamedDocumentCatalog<T> : DocumentCatalog<T>, INamedCatalog<T>
     where T : CatalogItem, INameAwareModel
 {
-    public NamedDocumentCatalog(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<T>> logger = null)
+    public NamedDocumentCatalog(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<T>> logger = null)
         : base(dbContext, logger)
     {
     }

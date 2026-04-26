@@ -20,7 +20,11 @@ internal sealed class A2AAgentProxyTool : AIFunction
     private readonly string _endpoint;
     private readonly string _connectionId;
 
-    public A2AAgentProxyTool(string agentName, string description, string endpoint, string connectionId)
+    public A2AAgentProxyTool(
+        string agentName,
+        string description,
+        string endpoint,
+        string connectionId)
     {
         _agentName = agentName;
         _description = description;

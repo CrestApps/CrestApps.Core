@@ -15,7 +15,10 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     private readonly CrestAppsEntityDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
 
-    public EntityCoreAIChatSessionManager(IHttpContextAccessor httpContextAccessor, CrestAppsEntityDbContext dbContext, TimeProvider timeProvider)
+    public EntityCoreAIChatSessionManager(
+        IHttpContextAccessor httpContextAccessor,
+        CrestAppsEntityDbContext dbContext,
+        TimeProvider timeProvider)
     {
         _httpContextAccessor = httpContextAccessor;
         _dbContext = dbContext;

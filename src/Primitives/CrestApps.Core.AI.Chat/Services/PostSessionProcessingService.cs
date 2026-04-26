@@ -27,7 +27,7 @@ public sealed class PostSessionProcessingService
     private readonly DefaultAIOptions _defaultOptions;
 
     private readonly ILoggerFactory _loggerFactory;
-    private readonly ILogger _logger;
+    private readonly ILogger<PostSessionProcessingService> _logger;
 
     public PostSessionProcessingService(
         IAIClientFactory clientFactory,

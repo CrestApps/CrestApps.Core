@@ -30,7 +30,7 @@ public sealed class PreemptiveSearchQueryProvider
     private readonly IAIClientFactory _aiClientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ITemplateService _aiTemplateService;
-    private readonly ILogger _logger;
+    private readonly ILogger<PreemptiveSearchQueryProvider> _logger;
 
     public PreemptiveSearchQueryProvider(
         IAIClientFactory aiClientFactory,

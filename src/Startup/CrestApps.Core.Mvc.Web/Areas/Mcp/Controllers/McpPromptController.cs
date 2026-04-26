@@ -18,7 +18,9 @@ public sealed class McpPromptController : Controller
     };
     private readonly INamedCatalog<McpPrompt> _catalog;
     private readonly TimeProvider _timeProvider;
-    public McpPromptController(INamedCatalog<McpPrompt> catalog, TimeProvider timeProvider)
+    public McpPromptController(
+        INamedCatalog<McpPrompt> catalog,
+        TimeProvider timeProvider)
     {
         _catalog = catalog;
         _timeProvider = timeProvider;

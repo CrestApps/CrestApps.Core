@@ -16,7 +16,9 @@ public sealed class EmbeddedResourceAIProfileTemplateProvider : IAIProfileTempla
     private readonly Assembly _assembly;
     private readonly IEnumerable<ITemplateParser> _parsers;
 
-    public EmbeddedResourceAIProfileTemplateProvider(Assembly assembly, IEnumerable<ITemplateParser> parsers)
+    public EmbeddedResourceAIProfileTemplateProvider(
+        Assembly assembly,
+        IEnumerable<ITemplateParser> parsers)
     {
         _assembly = assembly;
         _parsers = parsers;

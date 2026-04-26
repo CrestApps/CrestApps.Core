@@ -17,7 +17,7 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
 {
     private readonly SearchIndexClient _searchIndexClient;
     private readonly AzureAISearchConnectionOptions _options;
-    private readonly ILogger _logger;
+    private readonly ILogger<AzureAISearchIndexManager> _logger;
 
     public AzureAISearchIndexManager(
         SearchIndexClient searchIndexClient,

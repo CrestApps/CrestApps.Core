@@ -8,7 +8,7 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
 {
     private readonly AIDataSourceIndexingQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger _logger;
+    private readonly ILogger<AIDataSourceIndexingBackgroundService> _logger;
 
     public AIDataSourceIndexingBackgroundService(
         AIDataSourceIndexingQueue queue,

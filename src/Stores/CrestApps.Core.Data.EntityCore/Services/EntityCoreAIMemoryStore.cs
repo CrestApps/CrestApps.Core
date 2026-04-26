@@ -7,7 +7,9 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IAIMemoryStore
 {
-    public EntityCoreAIMemoryStore(CrestAppsEntityDbContext dbContext, ILogger<DocumentCatalog<AIMemoryEntry>> logger = null)
+    public EntityCoreAIMemoryStore(
+        CrestAppsEntityDbContext dbContext,
+        ILogger<DocumentCatalog<AIMemoryEntry>> logger = null)
         : base(dbContext, logger)
     {
     }

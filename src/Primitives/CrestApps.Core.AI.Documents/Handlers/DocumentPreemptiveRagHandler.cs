@@ -29,7 +29,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     private readonly ITemplateService _templateService;
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DocumentPreemptiveRagHandler> _logger;
 
     public DocumentPreemptiveRagHandler(
         IAIClientFactory aiClientFactory,
