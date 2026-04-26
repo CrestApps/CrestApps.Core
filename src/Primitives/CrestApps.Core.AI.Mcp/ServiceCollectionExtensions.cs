@@ -17,6 +17,10 @@ namespace CrestApps.Core.AI.Mcp;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core ai mcp services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIMcpServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -43,6 +47,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai sse mcp client transport.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAISseMcpClientTransport(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -64,6 +72,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai std io mcp client transport.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIStdIoMcpClientTransport(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -89,6 +101,7 @@ public static class ServiceCollectionExtensions
     /// <see cref="McpService"/> that manages connections to remote MCP servers.
     /// </summary>
     /// <param name="services">The service collection.</param>
+    /// <param name="includeStdIoTransport">The include std io transport.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddCoreAIMcpClient(this IServiceCollection services, bool includeStdIoTransport = true)
     {
@@ -108,6 +121,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds mcp services.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAISuiteBuilder AddMcpServices(this CrestAppsAISuiteBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -116,6 +133,11 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds mcp client.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsAISuiteBuilder AddMcpClient(this CrestAppsAISuiteBuilder builder, Action<CrestAppsMcpClientBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -146,6 +168,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds mcp server.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsAISuiteBuilder AddMcpServer(this CrestAppsAISuiteBuilder builder, Action<CrestAppsMcpServerBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -164,9 +191,6 @@ public static class ServiceCollectionExtensions
     /// Registers an MCP resource type with its handler.
     /// </summary>
     /// <typeparam name="THandler">The type of handler for this resource type.</typeparam>
-    /// <param name="services">The service collection.</param>
-    /// <param name="type">The unique type identifier for this resource type.</param>
-    /// <param name="configure">Optional configuration action for the resource type entry.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddCoreAIMcpResourceType<THandler>(
         this IServiceCollection services,

@@ -8,6 +8,10 @@ namespace CrestApps.Core.AI.Models;
 /// </summary>
 public sealed class ReceivedMessageContext
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReceivedMessageContext"/> class.
+    /// </summary>
+    /// <param name="completion">The completion.</param>
     public ReceivedMessageContext(ChatResponse completion)
     {
         ArgumentNullException.ThrowIfNull(completion);

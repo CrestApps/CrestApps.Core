@@ -7,6 +7,10 @@ namespace CrestApps.Core.Azure.AISearch.Builders;
 /// </summary>
 public sealed class CrestAppsAzureAISearchBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsAzureAISearchBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsAzureAISearchBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

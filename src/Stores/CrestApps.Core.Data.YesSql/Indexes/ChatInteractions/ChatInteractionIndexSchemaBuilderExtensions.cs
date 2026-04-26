@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 
 public static class ChatInteractionIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates chat interaction index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateChatInteractionIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

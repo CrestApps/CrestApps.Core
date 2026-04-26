@@ -5,6 +5,11 @@ namespace CrestApps.Core.AI.Documents;
 /// </summary>
 public static class DocumentFileStoragePath
 {
+    /// <summary>
+    /// Statics the operation.
+    /// </summary>
+    /// <param name="StoredFileName">The stored file name.</param>
+    /// <param name="StoragePath">The storage path.</param>
     public static (string StoredFileName, string StoragePath) Create(string referenceType, string referenceId, string fileName)
     {
         ArgumentException.ThrowIfNullOrEmpty(referenceType);

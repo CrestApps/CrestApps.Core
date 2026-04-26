@@ -24,6 +24,16 @@ public sealed class AIMemoryIndexingService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AIMemoryIndexingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemoryIndexingService"/> class.
+    /// </summary>
+    /// <param name="memoryStore">The memory store.</param>
+    /// <param name="memoryOptions">The memory options.</param>
+    /// <param name="indexProfileStore">The index profile store.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public AIMemoryIndexingService(
         IAIMemoryStore memoryStore,
         IOptions<AIMemoryOptions> memoryOptions,
@@ -42,6 +52,11 @@ public sealed class AIMemoryIndexingService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Indexs the operation.
+    /// </summary>
+    /// <param name="memory">The memory.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task IndexAsync(AIMemoryEntry memory, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(memory);
@@ -109,6 +124,11 @@ public sealed class AIMemoryIndexingService
         }
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="memoryIds">The memory ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAsync(IEnumerable<string> memoryIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(memoryIds);
@@ -141,6 +161,10 @@ public sealed class AIMemoryIndexingService
         await documentManager.DeleteAsync(indexProfile, ids, cancellationToken);
     }
 
+    /// <summary>
+    /// Syncs the operation.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncAsync(CancellationToken cancellationToken = default)
     {
         var indexProfile = await GetConfiguredIndexProfileAsync(cancellationToken);

@@ -12,6 +12,11 @@ internal sealed class ElasticsearchMemoryVectorSearchService : IMemoryVectorSear
     private readonly ElasticsearchClient _elasticClient;
     private readonly ILogger<ElasticsearchMemoryVectorSearchService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ElasticsearchMemoryVectorSearchService"/> class.
+    /// </summary>
+    /// <param name="elasticClient">The elastic client.</param>
+    /// <param name="logger">The logger.</param>
     public ElasticsearchMemoryVectorSearchService(
         ElasticsearchClient elasticClient,
         ILogger<ElasticsearchMemoryVectorSearchService> logger)
@@ -20,6 +25,14 @@ internal sealed class ElasticsearchMemoryVectorSearchService : IMemoryVectorSear
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="userId">The user id.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<AIMemorySearchResult>> SearchAsync(
         SearchIndexProfile indexProfile,
         float[] embedding,

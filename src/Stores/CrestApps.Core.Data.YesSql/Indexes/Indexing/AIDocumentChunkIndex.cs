@@ -38,11 +38,19 @@ public sealed class AIDocumentChunkIndex : CatalogItemIndex
 /// </summary>
 public sealed class AIDocumentChunkIndexProvider : IndexProvider<AIDocumentChunk>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDocumentChunkIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIDocumentChunkIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AIDocsCollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIDocumentChunk> context)
     {
         context.For<AIDocumentChunkIndex>()

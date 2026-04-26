@@ -24,6 +24,13 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<FunctionInvocationAICompletionServiceHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FunctionInvocationAICompletionServiceHandler"/> class.
+    /// </summary>
+    /// <param name="toolAccessEvaluator">The tool access evaluator.</param>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public FunctionInvocationAICompletionServiceHandler(
         IAIToolAccessEvaluator toolAccessEvaluator,
         IHttpContextAccessor httpContextAccessor,
@@ -36,6 +43,11 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
         _logger = logger;
     }
 
+    /// <summary>
+    /// Configures the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task ConfigureAsync(CompletionServiceConfigureContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -79,7 +91,7 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
                     _logger.LogDebug(
-                        "Skipping tool '{ToolName}' from {Source} ({Id}) — name already registered.",
+                        "Skipping tool '{ToolName}' from {Source} ({Id}) ? name already registered.",
                         entry.Name, entry.Source, entry.Id);
                 }
 

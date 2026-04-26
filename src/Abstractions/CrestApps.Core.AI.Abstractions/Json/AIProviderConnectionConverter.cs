@@ -10,6 +10,12 @@ namespace CrestApps.Core.AI.Json;
 /// </summary>
 public sealed class AIProviderConnectionConverter : JsonConverter<AIProviderConnectionEntry>
 {
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="reader">The JSON reader.</param>
+    /// <param name="typeToConvert">The type to convert.</param>
+    /// <param name="options">The options.</param>
     public override AIProviderConnectionEntry Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         // Deserialize into a dictionary first.
@@ -23,6 +29,12 @@ public sealed class AIProviderConnectionConverter : JsonConverter<AIProviderConn
         return new AIProviderConnectionEntry(dictionary);
     }
 
+    /// <summary>
+    /// Writes the operation.
+    /// </summary>
+    /// <param name="writer">The JSON writer.</param>
+    /// <param name="value">The value.</param>
+    /// <param name="options">The options.</param>
     public override void Write(Utf8JsonWriter writer, AIProviderConnectionEntry value, JsonSerializerOptions options)
     {
         // Serialize as dictionary.

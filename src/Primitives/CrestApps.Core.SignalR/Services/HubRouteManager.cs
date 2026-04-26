@@ -16,6 +16,11 @@ public sealed class HubRouteManager
     private readonly string _hubPrefix;
     private readonly Func<string> _siteBaseUrlResolver;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HubRouteManager"/> class.
+    /// </summary>
+    /// <param name="pathPrefix">The path prefix.</param>
+    /// <param name="siteBaseUrlResolver">The delegate used to site base url resolver.</param>
     public HubRouteManager(
         string pathPrefix = "",
         Func<string> siteBaseUrlResolver = null)
@@ -24,6 +29,9 @@ public sealed class HubRouteManager
         _siteBaseUrlResolver = siteBaseUrlResolver;
     }
 
+    /// <summary>
+    /// Maps hub.
+    /// </summary>
     public static void MapHub<T>(IEndpointRouteBuilder builder)
         where T : Hub
     {
@@ -32,6 +40,10 @@ public sealed class HubRouteManager
         builder.MapHub<T>(DefaultPath + typeof(T).Name);
     }
 
+    /// <summary>
+    /// Gets path by route.
+    /// </summary>
+    /// <param name="pattern">The pattern.</param>
     public string GetPathByRoute(string pattern)
     {
         ArgumentException.ThrowIfNullOrEmpty(pattern);
@@ -39,12 +51,20 @@ public sealed class HubRouteManager
         return _hubPrefix + '/' + pattern.TrimStart('/');
     }
 
+    /// <summary>
+    /// Gets path by hub.
+    /// </summary>
     public string GetPathByHub<T>()
         where T : Hub
     {
         return _hubPrefix + DefaultPath + typeof(T).Name;
     }
 
+    /// <summary>
+    /// Gets uri by route.
+    /// </summary>
+    /// <param name="httpContext">The http context.</param>
+    /// <param name="pattern">The pattern.</param>
     public string GetUriByRoute(HttpContext httpContext, string pattern)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
@@ -53,6 +73,9 @@ public sealed class HubRouteManager
         return BuildAbsoluteUri(httpContext, $"{_hubPrefix}/{pattern.TrimStart('/')}");
     }
 
+    /// <summary>
+    /// Gets uri by hub.
+    /// </summary>
     public string GetUriByHub<T>(HttpContext httpContext)
         where T : Hub
     {

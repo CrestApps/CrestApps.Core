@@ -9,15 +9,22 @@ public interface ICopilotCredentialStore
     /// <summary>
     /// Gets the protected credential for the specified user.
     /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     Task<CopilotProtectedCredential> GetProtectedCredentialAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Saves a protected credential for the specified user.
     /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="credential">The credential.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     Task SaveProtectedCredentialAsync(string userId, CopilotProtectedCredential credential, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clears the credential for the specified user.
     /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     Task ClearCredentialAsync(string userId, CancellationToken cancellationToken = default);
 }

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.Azure.AISearch.Services;
 
 /// <summary>
-/// Azure AI Search implementation of <see cref = "ISearchIndexManager"/>
+/// Azure AI Search implementation of <see cref="ISearchIndexManager"/>
 /// for creating, deleting, and checking search indexes.
 /// </summary>
 internal sealed class AzureAISearchIndexManager : ISearchIndexManager
@@ -19,6 +19,12 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
     private readonly AzureAISearchConnectionOptions _options;
     private readonly ILogger<AzureAISearchIndexManager> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureAISearchIndexManager"/> class.
+    /// </summary>
+    /// <param name="searchIndexClient">The search index client.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
     public AzureAISearchIndexManager(
         SearchIndexClient searchIndexClient,
         IOptions<AzureAISearchConnectionOptions> options,
@@ -29,6 +35,10 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         _logger = logger;
     }
 
+    /// <summary>
+    /// Composes index full name.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
     public string ComposeIndexFullName(IIndexProfileInfo profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -41,6 +51,11 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         return string.IsNullOrWhiteSpace(_options.IndexPrefix) ? normalizedIndexName : string.Concat(_options.IndexPrefix.Trim(), normalizedIndexName);
     }
 
+    /// <summary>
+    /// Existss the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> ExistsAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -71,6 +86,12 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         }
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="fields">The fields.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task CreateAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -134,6 +155,11 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         }
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);

@@ -15,6 +15,11 @@ public sealed class StoreCommitterActionFilter : IAsyncActionFilter, IOrderedFil
     private readonly IStoreCommitter _committer;
     private readonly ILogger<StoreCommitterActionFilter> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StoreCommitterActionFilter"/> class.
+    /// </summary>
+    /// <param name="committer">The committer.</param>
+    /// <param name="logger">The logger.</param>
     public StoreCommitterActionFilter(
         IStoreCommitter committer,
         ILogger<StoreCommitterActionFilter> logger)
@@ -28,6 +33,11 @@ public sealed class StoreCommitterActionFilter : IAsyncActionFilter, IOrderedFil
     /// </summary>
     public int Order => int.MaxValue - 100;
 
+    /// <summary>
+    /// Ons action execution.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="next">The next.</param>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var executedContext = await next();

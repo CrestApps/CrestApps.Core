@@ -28,6 +28,18 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
     protected readonly ILogger Logger;
     protected readonly ILoggerFactory LoggerFactory;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NamedAICompletionClient"/> class.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="aIClientFactory">The a i client factory.</param>
+    /// <param name="distributedCache">The distributed cache.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="defaultOptions">The default options.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
     protected NamedAICompletionClient(
         string clientName,
         IAIClientFactory aIClientFactory,
@@ -57,37 +69,74 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
     /// </summary>
     public string ClientName { get; }
 
+    /// <summary>
+    /// Configures chat options.
+    /// </summary>
+    /// <param name="configureContext">The configure context.</param>
     protected virtual ValueTask ConfigureChatOptionsAsync(CompletionServiceConfigureContext configureContext)
     {
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Configures function invocation.
+    /// </summary>
+    /// <param name="client">The client.</param>
     protected virtual void ConfigureFunctionInvocation(FunctionInvokingChatClient client)
     {
         client.MaximumIterationsPerRequest = _defaultOptions.MaximumIterationsPerRequest;
     }
 
+    /// <summary>
+    /// Supports function invocation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="modelName">The model name.</param>
     protected virtual bool SupportFunctionInvocation(AICompletionContext context, string modelName)
     {
         return !context.DisableTools;
     }
 
+    /// <summary>
+    /// Configures logger.
+    /// </summary>
+    /// <param name="client">The client.</param>
     protected virtual void ConfigureLogger(LoggingChatClient client)
     {
     }
 
+    /// <summary>
+    /// Configures open telemetry.
+    /// </summary>
+    /// <param name="client">The client.</param>
     protected virtual void ConfigureOpenTelemetry(OpenTelemetryChatClient client)
     {
     }
 
+    /// <summary>
+    /// Processs chat response update.
+    /// </summary>
+    /// <param name="update">The update.</param>
+    /// <param name="prompts">The prompts.</param>
     protected virtual void ProcessChatResponseUpdate(ChatResponseUpdate update, IEnumerable<ChatMessage> prompts)
     {
     }
 
+    /// <summary>
+    /// Processs chat response.
+    /// </summary>
+    /// <param name="response">The response.</param>
+    /// <param name="prompts">The prompts.</param>
     protected virtual void ProcessChatResponse(ChatResponse response, IEnumerable<ChatMessage> prompts)
     {
     }
 
+    /// <summary>
+    /// Completes the operation.
+    /// </summary>
+    /// <param name="messages">The messages.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<ChatResponse> CompleteAsync(IEnumerable<ChatMessage> messages, AICompletionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messages);
@@ -135,6 +184,12 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         return null;
     }
 
+    /// <summary>
+    /// Completes streaming.
+    /// </summary>
+    /// <param name="messages">The messages.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingAsync(IEnumerable<ChatMessage> messages, AICompletionContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messages);

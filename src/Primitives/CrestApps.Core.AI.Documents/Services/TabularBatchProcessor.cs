@@ -25,6 +25,14 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
     private readonly RowLevelTabularBatchOptions _settings;
     private readonly ILogger<TabularBatchProcessor> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TabularBatchProcessor"/> class.
+    /// </summary>
+    /// <param name="completionService">The completion service.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="logger">The logger.</param>
     public TabularBatchProcessor(
         IAICompletionService completionService,
         IAIDeploymentManager deploymentManager,
@@ -39,7 +47,12 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         _logger = logger;
     }
-    /// <inheritdoc />
+
+    /// <summary>
+    /// Splits into batches.
+    /// </summary>
+    /// <param name="content">The content.</param>
+    /// <param name="fileName">The file name.</param>
     public IList<TabularBatch> SplitIntoBatches(string content, string fileName)
     {
         var batches = new List<TabularBatch>();
@@ -114,7 +127,14 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         return batches;
     }
-    /// <inheritdoc />
+
+    /// <summary>
+    /// Processs batches.
+    /// </summary>
+    /// <param name="batches">The batches.</param>
+    /// <param name="userPrompt">The user prompt.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IList<TabularBatchResult>> ProcessBatchesAsync(
         IList<TabularBatch> batches,
         string userPrompt,
@@ -194,7 +214,12 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         return results.ToList();
     }
-    /// <inheritdoc />
+
+    /// <summary>
+    /// Merges results.
+    /// </summary>
+    /// <param name="results">The results.</param>
+    /// <param name="includeHeader">The include header.</param>
     public string MergeResults(IList<TabularBatchResult> results, bool includeHeader = true)
     {
         if (results is null || results.Count == 0)

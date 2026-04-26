@@ -6,11 +6,20 @@ namespace CrestApps.Core.AI.Services;
 
 internal static class AIProviderConnectionEntryFactory
 {
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
     public static AIProviderConnectionEntry Create(AIProviderConnection connection)
     {
         return Create(connection, []);
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="handlers">The handlers.</param>
     public static AIProviderConnectionEntry Create(AIProviderConnection connection, IEnumerable<IAIProviderConnectionHandler> handlers)
     {
         ArgumentNullException.ThrowIfNull(connection);

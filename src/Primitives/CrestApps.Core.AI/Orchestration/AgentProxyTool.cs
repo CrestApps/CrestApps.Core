@@ -20,6 +20,11 @@ internal sealed class AgentProxyTool : AIFunction
     private readonly string _agentProfileName;
     private readonly string _description;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AgentProxyTool"/> class.
+    /// </summary>
+    /// <param name="agentProfileName">The agent profile name.</param>
+    /// <param name="description">The description.</param>
     public AgentProxyTool(
         string agentProfileName,
         string description)
@@ -50,6 +55,11 @@ internal sealed class AgentProxyTool : AIFunction
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invokes core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)

@@ -6,6 +6,10 @@ namespace CrestApps.Core.Models;
 /// </summary>
 public sealed class InitializedContext<T> : HandlerContextBase<T>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InitializedContext"/> class.
+    /// </summary>
+    /// <param name="model">The model.</param>
     public InitializedContext(T model)
     : base(model)
     {

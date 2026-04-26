@@ -12,6 +12,10 @@ namespace CrestApps.Core.AI.Indexing;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core indexing services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreIndexingServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -26,6 +30,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core indexing services.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsIndexingBuilder AddCoreIndexingServices(this CrestAppsIndexingBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -35,6 +43,10 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds core ai data source index profile handler.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDataSourceIndexProfileHandler(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -44,6 +56,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai memory index profile handler.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIMemoryIndexProfileHandler(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -53,6 +69,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds core ai default index profile handler.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDefaultIndexProfileHandler(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

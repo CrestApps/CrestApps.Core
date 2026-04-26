@@ -36,6 +36,12 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         WriteIndented = false,
     };
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TabularBatchResultCache"/> class.
+    /// </summary>
+    /// <param name="cache">The cache.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="logger">The logger.</param>
     public TabularBatchResultCache(
         IDistributedCache cache,
         IOptions<RowLevelTabularBatchOptions> settings,
@@ -46,7 +52,12 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         _logger = logger;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Generates cache key.
+    /// </summary>
+    /// <param name="interactionId">The interaction id.</param>
+    /// <param name="documentContentHash">The document content hash.</param>
+    /// <param name="prompt">The prompt.</param>
     public string GenerateCacheKey(string interactionId, string documentContentHash, string prompt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(interactionId);
@@ -62,7 +73,10 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         return cacheKey;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Computes document content hash.
+    /// </summary>
+    /// <param name="documents">The documents.</param>
     public string ComputeDocumentContentHash(IEnumerable<(string FileName, string Content)> documents)
     {
         if (documents is null)
@@ -84,7 +98,10 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         return Convert.ToHexString(hashBytes);
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Tries to get.
+    /// </summary>
+    /// <param name="cacheKey">The cache key.</param>
     public async Task<TabularBatchCacheEntry> TryGetAsync(string cacheKey)
     {
         if (string.IsNullOrWhiteSpace(cacheKey))
@@ -126,7 +143,12 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Sets the operation.
+    /// </summary>
+    /// <param name="cacheKey">The cache key.</param>
+    /// <param name="entry">The entry.</param>
+    /// <param name="expiration">The expiration.</param>
     public async Task SetAsync(string cacheKey, TabularBatchCacheEntry entry, TimeSpan? expiration = null)
     {
         if (string.IsNullOrWhiteSpace(cacheKey) || entry is null)
@@ -160,7 +182,10 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Removes the operation.
+    /// </summary>
+    /// <param name="cacheKey">The cache key.</param>
     public async Task RemoveAsync(string cacheKey)
     {
         if (string.IsNullOrWhiteSpace(cacheKey))
@@ -184,7 +209,10 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Invalidates for interaction.
+    /// </summary>
+    /// <param name="interactionId">The interaction id.</param>
     public void InvalidateForInteraction(string interactionId)
     {
         if (string.IsNullOrWhiteSpace(interactionId))

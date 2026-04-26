@@ -10,6 +10,11 @@ namespace CrestApps.Core.AI.Indexing;
 /// </summary>
 public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
 {
+    /// <summary>
+    /// Find by ids by id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<SearchIndexProfile> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -17,11 +22,20 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         return ValueTask.FromResult<SearchIndexProfile>(default);
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return ValueTask.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="ids">The ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<IReadOnlyCollection<SearchIndexProfile>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
@@ -29,6 +43,9 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         return ValueTask.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
     }
 
+    /// <summary>
+    /// Pages the operation.
+    /// </summary>
     public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
@@ -41,6 +58,11 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         });
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<bool> DeleteAsync(SearchIndexProfile entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -48,6 +70,11 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         return ValueTask.FromResult(false);
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask CreateAsync(SearchIndexProfile entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -55,6 +82,11 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Updates the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask UpdateAsync(SearchIndexProfile entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -62,6 +94,11 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Finds by name.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<SearchIndexProfile> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -69,6 +106,10 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
         return ValueTask.FromResult<SearchIndexProfile>(default);
     }
 
+    /// <summary>
+    /// Gets by type.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);

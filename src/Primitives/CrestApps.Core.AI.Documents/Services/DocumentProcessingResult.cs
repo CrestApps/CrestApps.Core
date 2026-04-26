@@ -32,6 +32,12 @@ public sealed class DocumentProcessingResult
     /// </summary>
     public string Error { get; private set; }
 
+    /// <summary>
+    /// Succeededs the operation.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <param name="documentInfo">The document info.</param>
+    /// <param name="chunks">The chunks.</param>
     public static DocumentProcessingResult Succeeded(AIDocument document, ChatDocumentInfo documentInfo, IReadOnlyList<AIDocumentChunk> chunks)
     {
         return new DocumentProcessingResult
@@ -43,6 +49,10 @@ public sealed class DocumentProcessingResult
         };
     }
 
+    /// <summary>
+    /// Faileds the operation.
+    /// </summary>
+    /// <param name="error">The error.</param>
     public static DocumentProcessingResult Failed(string error)
     {
         return new DocumentProcessingResult

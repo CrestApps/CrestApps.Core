@@ -15,8 +15,8 @@ public interface IAICompletionServiceHandler
     /// </summary>
     /// <param name="context">
     /// The <see cref="CompletionServiceConfigureContext"/> that provides access to request-specific options and settings.
-    /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// </param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     Task ConfigureAsync(CompletionServiceConfigureContext context, CancellationToken cancellationToken = default);
 }

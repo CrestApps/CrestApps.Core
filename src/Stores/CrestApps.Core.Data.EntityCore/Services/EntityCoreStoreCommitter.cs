@@ -12,6 +12,11 @@ public sealed class EntityCoreStoreCommitter : IStoreCommitter
     private readonly CrestAppsEntityDbContext _dbContext;
     private readonly ILogger<EntityCoreStoreCommitter> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EntityCoreStoreCommitter"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
     public EntityCoreStoreCommitter(
         CrestAppsEntityDbContext dbContext,
         ILogger<EntityCoreStoreCommitter> logger)
@@ -20,6 +25,10 @@ public sealed class EntityCoreStoreCommitter : IStoreCommitter
         _logger = logger;
     }
 
+    /// <summary>
+    /// Commits the operation.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask CommitAsync(CancellationToken cancellationToken = default)
     {
         if (!_dbContext.ChangeTracker.HasChanges())

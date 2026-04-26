@@ -6,7 +6,7 @@ namespace CrestApps.Core.AI.Models;
 /// <summary>
 /// Metadata for templates with a "Profile" source.
 /// Stored in the template's <see cref="ExtensibleEntity.Properties"/> via
-/// <c>Put&lt;ProfileTemplateMetadata&gt;</c> / <c>As&lt;ProfileTemplateMetadata&gt;</c>.
+/// <c>Put<ProfileTemplateMetadata></c> / <c>As<ProfileTemplateMetadata></c>.
 /// </summary>
 public sealed class ProfileTemplateMetadata
 {

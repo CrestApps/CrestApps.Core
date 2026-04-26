@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AI;
 
 public static class AIProfileIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates ai profile index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateAIProfileIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

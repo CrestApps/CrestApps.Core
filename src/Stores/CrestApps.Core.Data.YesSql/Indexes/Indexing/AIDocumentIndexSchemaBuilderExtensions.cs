@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.Indexing;
 
 public static class AIDocumentIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates ai document index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateAIDocumentIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
@@ -26,6 +31,11 @@ public static class AIDocumentIndexSchemaBuilderExtensions
         }, collection: options?.AIDocsCollectionName);
     }
 
+    /// <summary>
+    /// Adds ai document index extension column.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static Task AddAIDocumentIndexExtensionColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

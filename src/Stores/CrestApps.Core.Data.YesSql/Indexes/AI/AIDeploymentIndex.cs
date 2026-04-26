@@ -27,11 +27,19 @@ public sealed class AIDeploymentIndex : CatalogItemIndex, INameAwareIndex, ISour
 /// </summary>
 public sealed class AIDeploymentIndexProvider : IndexProvider<AIDeployment>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDeploymentIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIDeploymentIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIDeployment> context)
     {
         context.For<AIDeploymentIndex>()

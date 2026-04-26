@@ -38,7 +38,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
 
 // =============================================================================
-// CrestApps AI Framework — Blazor Example Application
+// CrestApps AI Framework - Blazor Example Application
 // =============================================================================
 // This sample keeps the Blazor host setup small, moves shared sample-host
 // plumbing behind extensions, and leaves the CrestApps feature registrations

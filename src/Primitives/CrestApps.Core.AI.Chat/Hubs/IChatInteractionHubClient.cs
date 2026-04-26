@@ -37,26 +37,41 @@ public interface IChatInteractionHubClient
     /// <summary>
     /// Receives the transcript.
     /// </summary>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="text">The text.</param>
+    /// <param name="isFinal">Indicates whether final.</param>
     Task ReceiveTranscript(string identifier, string text, bool isFinal);
 
     /// <summary>
     /// Receives the audio Chunk.
     /// </summary>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="base64Audio">The base 64 audio.</param>
+    /// <param name="contentType">The content type.</param>
     Task ReceiveAudioChunk(string identifier, string base64Audio, string contentType);
 
     /// <summary>
     /// Receives the audio Complete.
     /// </summary>
+    /// <param name="identifier">The identifier.</param>
     Task ReceiveAudioComplete(string identifier);
 
     /// <summary>
     /// Receives the conversation User Message.
     /// </summary>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="text">The text.</param>
     Task ReceiveConversationUserMessage(string identifier, string text);
 
     /// <summary>
     /// Receives the conversation Assistant Token.
     /// </summary>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="messageId">The message id.</param>
+    /// <param name="token">The token.</param>
+    /// <param name="responseId">The response id.</param>
+    /// <param name="references">The references.</param>
+    /// <param name="appearance">The appearance.</param>
     Task ReceiveConversationAssistantToken(
         string identifier,
         string messageId,
@@ -68,6 +83,9 @@ public interface IChatInteractionHubClient
     /// <summary>
     /// Receives the conversation Assistant Complete.
     /// </summary>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="messageId">The message id.</param>
+    /// <param name="references">The references.</param>
     Task ReceiveConversationAssistantComplete(
         string identifier,
         string messageId,
@@ -76,15 +94,18 @@ public interface IChatInteractionHubClient
     /// <summary>
     /// Receives the notification.
     /// </summary>
+    /// <param name="notification">The notification.</param>
     Task ReceiveNotification(ChatNotification notification);
 
     /// <summary>
     /// Updates the notification.
     /// </summary>
+    /// <param name="notification">The notification.</param>
     Task UpdateNotification(ChatNotification notification);
 
     /// <summary>
     /// Removes the notification.
     /// </summary>
+    /// <param name="notificationType">The notification type.</param>
     Task RemoveNotification(string notificationType);
 }

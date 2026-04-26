@@ -14,6 +14,13 @@ internal sealed class McpToolProxyFunction : AIFunction
     private readonly JsonElement _jsonSchema;
     private readonly string _connectionId;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpToolProxyFunction"/> class.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="description">The description.</param>
+    /// <param name="jsonSchema">The json schema.</param>
+    /// <param name="connectionId">The connection id.</param>
     public McpToolProxyFunction(
         string name,
         string description,
@@ -38,6 +45,11 @@ internal sealed class McpToolProxyFunction : AIFunction
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invokes core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);

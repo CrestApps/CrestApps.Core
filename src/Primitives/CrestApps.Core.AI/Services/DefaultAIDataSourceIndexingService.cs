@@ -29,6 +29,17 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultAIDataSourceIndexingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIDataSourceIndexingService"/> class.
+    /// </summary>
+    /// <param name="dataSourceCatalog">The data source catalog.</param>
+    /// <param name="indexProfileManager">The index profile manager.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="textNormalizer">The text normalizer.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultAIDataSourceIndexingService(
         ICatalog<AIDataSource> dataSourceCatalog,
         ISearchIndexProfileManager indexProfileManager,
@@ -49,6 +60,10 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         _logger = logger;
     }
 
+    /// <summary>
+    /// Syncs all.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncAllAsync(CancellationToken cancellationToken = default)
     {
         var dataSources = await _dataSourceCatalog.GetAllAsync(cancellationToken);
@@ -70,6 +85,11 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         }
     }
 
+    /// <summary>
+    /// Syncs data source.
+    /// </summary>
+    /// <param name="dataSource">The data source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncDataSourceAsync(AIDataSource dataSource, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
@@ -86,11 +106,22 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: false, cancellationToken);
     }
 
+    /// <summary>
+    /// Syncs source documents.
+    /// </summary>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         await SyncSourceDocumentsAsync(null, documentIds, cancellationToken);
     }
 
+    /// <summary>
+    /// Syncs source documents.
+    /// </summary>
+    /// <param name="sourceIndexProfileName">The source index profile name.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SyncSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         var ids = NormalizeDocumentIds(documentIds);
@@ -114,11 +145,22 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         }
     }
 
+    /// <summary>
+    /// Removes source documents.
+    /// </summary>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task RemoveSourceDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         await RemoveSourceDocumentsAsync(null, documentIds, cancellationToken);
     }
 
+    /// <summary>
+    /// Removes source documents.
+    /// </summary>
+    /// <param name="sourceIndexProfileName">The source index profile name.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task RemoveSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         var ids = NormalizeDocumentIds(documentIds);
@@ -141,6 +183,11 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         }
     }
 
+    /// <summary>
+    /// Deletes data source documents.
+    /// </summary>
+    /// <param name="dataSource">The data source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteDataSourceDocumentsAsync(AIDataSource dataSource, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dataSource);

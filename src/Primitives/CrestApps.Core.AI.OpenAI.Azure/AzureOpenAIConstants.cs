@@ -19,6 +19,5 @@ public readonly struct AzureOpenAIClientMarker : IAIClientMarker
     /// <summary>
     /// Gets the client Name.
     /// </summary>
-    /// <inheritdoc />
     public static string ClientName => AzureOpenAIConstants.ClientName;
 }

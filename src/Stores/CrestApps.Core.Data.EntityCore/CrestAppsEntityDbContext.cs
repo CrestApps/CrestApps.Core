@@ -12,6 +12,11 @@ public sealed class CrestAppsEntityDbContext : DbContext
 {
     private readonly EntityCoreDataStoreOptions _options;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsEntityDbContext"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
+    /// <param name="storeOptions">The store options.</param>
     public CrestAppsEntityDbContext(
         DbContextOptions<CrestAppsEntityDbContext> options,
         IOptions<EntityCoreDataStoreOptions> storeOptions)
@@ -30,6 +35,10 @@ public sealed class CrestAppsEntityDbContext : DbContext
     /// </summary>
     public DbSet<AIChatSessionRecord> AIChatSessionRecords => Set<AIChatSessionRecord>();
 
+    /// <summary>
+    /// Ons model creating.
+    /// </summary>
+    /// <param name="modelBuilder">The model builder.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var tablePrefix = _options.TablePrefix ?? string.Empty;

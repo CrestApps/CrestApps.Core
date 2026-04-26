@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.Mcp;
 
 public static class McpPromptIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates mcp prompt index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateMcpPromptIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

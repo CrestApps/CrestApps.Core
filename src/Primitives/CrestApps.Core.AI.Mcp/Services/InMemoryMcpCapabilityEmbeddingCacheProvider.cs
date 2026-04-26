@@ -10,11 +10,21 @@ internal sealed class InMemoryMcpCapabilityEmbeddingCacheProvider : IMcpCapabili
     private readonly ConcurrentDictionary<string, McpCapabilityEmbeddingEntry[]> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger<InMemoryMcpCapabilityEmbeddingCacheProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InMemoryMcpCapabilityEmbeddingCacheProvider"/> class.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
     public InMemoryMcpCapabilityEmbeddingCacheProvider(ILogger<InMemoryMcpCapabilityEmbeddingCacheProvider> logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets or create embeddings.
+    /// </summary>
+    /// <param name="capabilities">The capabilities.</param>
+    /// <param name="embeddingGenerator">The embedding generator.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyList<McpCapabilityEmbeddingEntry>> GetOrCreateEmbeddingsAsync(
         IReadOnlyList<McpServerCapabilities> capabilities,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
@@ -96,6 +106,10 @@ internal sealed class InMemoryMcpCapabilityEmbeddingCacheProvider : IMcpCapabili
         return allEntries;
     }
 
+    /// <summary>
+    /// Invalidates the operation.
+    /// </summary>
+    /// <param name="connectionId">The connection id.</param>
     public void Invalidate(string connectionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(connectionId);

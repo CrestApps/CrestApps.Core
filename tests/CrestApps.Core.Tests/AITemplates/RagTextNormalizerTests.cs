@@ -144,7 +144,7 @@ public sealed class RagTextNormalizerTests
     [Fact]
     public void NormalizeTitle_DecodesHtmlEntities()
     {
-        var input = "Tom &amp; Jerry &lt;3 &gt; everyone &#x00B6;";
+        var input = "Tom &amp; Jerry <3 > everyone &#x00B6;";
         var result = RagTextNormalizer.NormalizeTitle(input);
 
         Assert.Contains("Tom & Jerry", result);

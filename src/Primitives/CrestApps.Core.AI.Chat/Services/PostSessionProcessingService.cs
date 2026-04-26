@@ -29,6 +29,17 @@ public sealed class PostSessionProcessingService
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<PostSessionProcessingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PostSessionProcessingService"/> class.
+    /// </summary>
+    /// <param name="clientFactory">The client factory.</param>
+    /// <param name="toolsService">The tools service.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="defaultOptions">The default options.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
     public PostSessionProcessingService(
         IAIClientFactory clientFactory,
         IAIToolsService toolsService,
@@ -55,6 +66,9 @@ public sealed class PostSessionProcessingService
     /// regardless of how the session was closed (natural farewell, inactivity, etc.).
     /// Returns <see langword="true"/> if the AI determines the user's query was addressed.
     /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="prompts">The prompts.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> EvaluateResolutionAsync(
         AIProfile profile,
         IReadOnlyList<AIChatSessionPrompt> prompts,
@@ -100,6 +114,10 @@ public sealed class PostSessionProcessingService
     /// Evaluates the conversation against configured conversion goals using AI.
     /// Returns a list of goal results with scores, or null if evaluation fails.
     /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="prompts">The prompts.</param>
+    /// <param name="goals">The goals.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<List<ConversionGoalResult>> EvaluateConversionGoalsAsync(
         AIProfile profile,
         IReadOnlyList<AIChatSessionPrompt> prompts,
@@ -189,6 +207,10 @@ public sealed class PostSessionProcessingService
     /// are excluded from processing. Returns the results keyed by task name, or null if processing
     /// is not enabled or all tasks have already succeeded.
     /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="session">The session.</param>
+    /// <param name="prompts">The prompts.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<Dictionary<string, PostSessionResult>> ProcessAsync(
         AIProfile profile,
         AIChatSession session,
@@ -301,7 +323,7 @@ public sealed class PostSessionProcessingService
 
         // When tools are configured (e.g., sendEmail), use non-generic GetResponseAsync
         // to allow tool execution. The generic version uses structured output which
-        // conflicts with tool calls — the model may fail to call tools when forced
+        // conflicts with tool calls - the model may fail to call tools when forced
         // to produce structured JSON output.
         if (tools is not null && tools.Count > 0)
         {
@@ -401,7 +423,7 @@ public sealed class PostSessionProcessingService
         // Extract the final assistant message text, ignoring intermediate tool
         // call and tool result messages. After FunctionInvokingChatClient resolves
         // all tool calls, the model produces a final assistant message with the JSON
-        // task results — that is the only message we care about.
+        // task results - that is the only message we care about.
         var responseText = response.Messages?
             .LastOrDefault(m => m.Role == ChatRole.Assistant && !string.IsNullOrEmpty(m.Text))
         ?.Text?.Trim();

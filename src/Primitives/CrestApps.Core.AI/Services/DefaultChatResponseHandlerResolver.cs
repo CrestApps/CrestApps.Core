@@ -5,15 +5,20 @@ using Microsoft.Extensions.Logging;
 namespace CrestApps.Core.AI.Services;
 
 /// <summary>
-/// Resolves <see cref = "IChatResponseHandler"/> instances by name from the DI container.
+/// Resolves <see cref="IChatResponseHandler"/> instances by name from the DI container.
 /// When the requested name is <see langword="null"/> or empty, returns the default AI handler.
-/// When <see cref = "ChatMode.Conversation"/> is active, always returns the AI handler.
+/// When <see cref="ChatMode.Conversation"/> is active, always returns the AI handler.
 /// </summary>
 public sealed class DefaultChatResponseHandlerResolver : IChatResponseHandlerResolver
 {
     private readonly IEnumerable<IChatResponseHandler> _handlers;
     private readonly ILogger<DefaultChatResponseHandlerResolver> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultChatResponseHandlerResolver"/> class.
+    /// </summary>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultChatResponseHandlerResolver(
         IEnumerable<IChatResponseHandler> handlers,
         ILogger<DefaultChatResponseHandlerResolver> logger)
@@ -22,6 +27,11 @@ public sealed class DefaultChatResponseHandlerResolver : IChatResponseHandlerRes
         _logger = logger;
     }
 
+    /// <summary>
+    /// Resolves the operation.
+    /// </summary>
+    /// <param name="handlerName">The handler name.</param>
+    /// <param name="chatMode">The chat mode.</param>
     public IChatResponseHandler Resolve(string handlerName = null, ChatMode chatMode = ChatMode.TextInput)
     {
         // Conversation mode requires the AI orchestration pipeline for
@@ -55,6 +65,9 @@ public sealed class DefaultChatResponseHandlerResolver : IChatResponseHandlerRes
         return ResolveAIHandler();
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
     public IEnumerable<IChatResponseHandler> GetAll()
     {
         return _handlers;

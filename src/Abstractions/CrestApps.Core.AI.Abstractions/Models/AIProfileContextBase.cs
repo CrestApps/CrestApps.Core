@@ -10,6 +10,10 @@ public abstract class AIProfileContextBase
     /// </summary>
     public AIProfile Profile { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProfileContextBase"/> class.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
     public AIProfileContextBase(AIProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);

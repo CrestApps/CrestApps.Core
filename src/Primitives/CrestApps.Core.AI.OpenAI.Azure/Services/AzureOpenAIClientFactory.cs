@@ -21,6 +21,12 @@ internal static class AzureOpenAIClientFactory
     /// </summary>
     public static void ClearCache() => _clientCache.Clear();
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="options">The options.</param>
     public static AzureOpenAIClient Create(
         AIProviderConnectionEntry connection,
         ILoggerFactory loggerFactory,

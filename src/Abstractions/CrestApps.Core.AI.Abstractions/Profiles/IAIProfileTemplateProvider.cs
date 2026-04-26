@@ -10,5 +10,6 @@ public interface IAIProfileTemplateProvider
     /// <summary>
     /// Gets all profile templates from this provider.
     /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     Task<IReadOnlyList<AIProfileTemplate>> GetTemplatesAsync(CancellationToken cancellationToken = default);
 }

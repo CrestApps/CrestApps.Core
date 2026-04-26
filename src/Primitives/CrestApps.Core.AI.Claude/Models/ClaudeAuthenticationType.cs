@@ -9,6 +9,7 @@ public enum ClaudeAuthenticationType
     /// The not Configured value.
     /// </summary>
     NotConfigured = 0,
+
     /// <summary>
     /// The api Key value.
     /// </summary>

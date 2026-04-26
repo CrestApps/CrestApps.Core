@@ -17,15 +17,27 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
 {
     private static readonly ConcurrentDictionary<string, OpenAIClient> _clientCache = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenAIClientProvider"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
     public OpenAIClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)
     {
     }
 
+    /// <summary>
+    /// Gets provider name.
+    /// </summary>
     protected override string GetProviderName()
     {
         return OpenAIConstants.ClientName;
     }
 
+    /// <summary>
+    /// Gets chat client.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
         var client = GetOpenAIClient(connection);
@@ -33,15 +45,24 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         return client.GetChatClient(deploymentName).AsIChatClient();
     }
 
+    /// <summary>
+    /// Gets embedding generator.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override IEmbeddingGenerator<string, Embedding<float>> GetEmbeddingGenerator(AIProviderConnectionEntry connection, string deploymentName)
     {
         var client = GetOpenAIClient(connection);
 
         return client.GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
     }
+    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
+    /// <summary>
+    /// Gets image generator.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override IImageGenerator GetImageGenerator(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
@@ -51,9 +72,13 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         return client.GetImageClient(deploymentName).AsIImageGenerator();
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     }
+    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
+    /// <summary>
+    /// Gets speech to text client.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
     protected override ISpeechToTextClient GetSpeechToTextClient(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {

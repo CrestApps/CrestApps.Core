@@ -65,4 +65,3 @@ public sealed class McpConnectionViewModel
 
     public string EnvironmentVariables { get; set; } = "{}";
 }
-

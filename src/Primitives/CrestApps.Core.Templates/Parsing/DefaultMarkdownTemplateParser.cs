@@ -24,12 +24,16 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
     private const string FrontMatterDelimiter = "---";
     private const string JsonFenceOpen = "```json";
     private const string FenceClose = "```";
+
     /// <summary>
     /// Gets the supported Extensions.
     /// </summary>
-    /// <inheritdoc />
     public IReadOnlyList<string> SupportedExtensions { get; } = [".md"];
 
+    /// <summary>
+    /// Parses the operation.
+    /// </summary>
+    /// <param name="rawContent">The raw content.</param>
     public TemplateParseResult Parse(string rawContent)
     {
         var result = new TemplateParseResult();
@@ -145,7 +149,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
 
                     if (compacted.Length < jsonContent.Length)
                     {
-                        // Replace the entire fenced block: ```json\n{pretty}\n``` → ```json\n{compact}\n```
+                        // Replace the entire fenced block: ```json\n{pretty}\n``` -> ```json\n{compact}\n```
                         var blockStart = fenceStart;
                         var blockEnd = fenceEnd + FenceClose.Length;
                         var replacement = JsonFenceOpen + "\n" + compacted + "\n" + FenceClose;
@@ -339,6 +343,10 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
         private ReadOnlySpan<char> _current;
         private bool _started;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LineEnumerator"/> class.
+        /// </summary>
+        /// <param name="span">The span.</param>
         public LineEnumerator(ReadOnlySpan<char> span)
         {
             _remaining = span;
@@ -346,10 +354,16 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
             _started = false;
         }
 
+        /// <summary>
+        /// Gets enumerator.
+        /// </summary>
         public readonly LineEnumerator GetEnumerator() => this;
 
         public readonly ReadOnlySpan<char> Current => _current;
 
+        /// <summary>
+        /// Moves next.
+        /// </summary>
         public bool MoveNext()
         {
             if (!_started)

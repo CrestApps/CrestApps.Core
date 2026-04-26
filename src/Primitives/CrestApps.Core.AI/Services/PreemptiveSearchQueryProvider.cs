@@ -32,6 +32,13 @@ public sealed class PreemptiveSearchQueryProvider
     private readonly ITemplateService _aiTemplateService;
     private readonly ILogger<PreemptiveSearchQueryProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PreemptiveSearchQueryProvider"/> class.
+    /// </summary>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="logger">The logger.</param>
     public PreemptiveSearchQueryProvider(
         IAIClientFactory aiClientFactory,
         IAIDeploymentManager deploymentManager,
@@ -49,6 +56,7 @@ public sealed class PreemptiveSearchQueryProvider
     /// message using a utility LLM call and cached in
     /// <see cref="OrchestrationContext.Properties"/> so subsequent calls return the cached result.
     /// </summary>
+    /// <param name="context">The context.</param>
     public async Task<IList<string>> GetQueriesAsync(OrchestrationContext context)
     {
         // Return cached queries if already extracted for this context.

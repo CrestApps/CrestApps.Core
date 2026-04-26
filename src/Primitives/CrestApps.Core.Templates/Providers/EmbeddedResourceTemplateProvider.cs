@@ -18,6 +18,13 @@ public sealed class EmbeddedResourceTemplateProvider : ITemplateProvider
     private readonly string _source;
     private readonly string _featureId;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EmbeddedResourceTemplateProvider"/> class.
+    /// </summary>
+    /// <param name="assembly">The assembly.</param>
+    /// <param name="parsers">The parsers.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="featureId">The feature id.</param>
     public EmbeddedResourceTemplateProvider(
         Assembly assembly,
         IEnumerable<ITemplateParser> parsers,
@@ -30,6 +37,9 @@ public sealed class EmbeddedResourceTemplateProvider : ITemplateProvider
         _featureId = featureId;
     }
 
+    /// <summary>
+    /// Gets templates.
+    /// </summary>
     public Task<IReadOnlyList<Template>> GetTemplatesAsync()
     {
         var templates = new List<Template>();

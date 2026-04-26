@@ -9,14 +9,17 @@ public enum McpCapabilityType
     /// The tool value.
     /// </summary>
     Tool,
+
     /// <summary>
     /// The prompt value.
     /// </summary>
     Prompt,
+
     /// <summary>
     /// The resource value.
     /// </summary>
     Resource,
+
     /// <summary>
     /// The resource Template value.
     /// </summary>

@@ -22,6 +22,13 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultOAuth2TokenService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultOAuth2TokenService"/> class.
+    /// </summary>
+    /// <param name="httpClientFactory">The http client factory.</param>
+    /// <param name="cache">The cache.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultOAuth2TokenService(
         IHttpClientFactory httpClientFactory,
         IMemoryCache cache,
@@ -34,6 +41,14 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Acquires token.
+    /// </summary>
+    /// <param name="tokenEndpoint">The token endpoint.</param>
+    /// <param name="clientId">The client id.</param>
+    /// <param name="clientSecret">The client secret.</param>
+    /// <param name="scopes">The scopes.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<string> AcquireTokenAsync(string tokenEndpoint, string clientId, string clientSecret, string scopes = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpoint);
@@ -62,6 +77,15 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
 
+    /// <summary>
+    /// Acquires token with private key jwt.
+    /// </summary>
+    /// <param name="tokenEndpoint">The token endpoint.</param>
+    /// <param name="clientId">The client id.</param>
+    /// <param name="privateKeyPem">The private key pem.</param>
+    /// <param name="keyId">The key id.</param>
+    /// <param name="scopes">The scopes.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<string> AcquireTokenWithPrivateKeyJwtAsync(string tokenEndpoint, string clientId, string privateKeyPem, string keyId = null, string scopes = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpoint);
@@ -92,6 +116,15 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
 
+    /// <summary>
+    /// Acquires token with mtls.
+    /// </summary>
+    /// <param name="tokenEndpoint">The token endpoint.</param>
+    /// <param name="clientId">The client id.</param>
+    /// <param name="clientCertificateBytes">The client certificate bytes.</param>
+    /// <param name="certificatePassword">The certificate password.</param>
+    /// <param name="scopes">The scopes.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<string> AcquireTokenWithMtlsAsync(string tokenEndpoint, string clientId, byte[] clientCertificateBytes, string certificatePassword = null, string scopes = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpoint);

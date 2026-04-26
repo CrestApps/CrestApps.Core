@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds the default document processing system tools and supporting services.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDocumentProcessing(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -110,6 +111,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds document reference-link services so cited AI documents resolve to downloadable links.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDocumentReferenceDownloads(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -119,6 +121,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds document processing.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsAISuiteBuilder AddDocumentProcessing(this CrestAppsAISuiteBuilder builder, Action<CrestAppsDocumentProcessingBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -136,6 +143,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds document reference-link services so cited AI documents resolve to downloadable links.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsDocumentProcessingBuilder AddReferenceDownloads(this CrestAppsDocumentProcessingBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -145,6 +153,10 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds core ai document index profile handler.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDocumentIndexProfileHandler(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

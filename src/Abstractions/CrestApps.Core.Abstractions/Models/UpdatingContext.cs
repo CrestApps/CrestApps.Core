@@ -14,10 +14,15 @@ public sealed class UpdatingContext<T> : HandlerContextBase<T>
     /// </summary>
     public JsonNode Data { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UpdatingContext"/> class.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <param name="data">The data.</param>
     public UpdatingContext(
         T model,
         JsonNode data)
-    : base(model)
+        : base(model)
     {
         Data = data ?? new JsonObject();
     }

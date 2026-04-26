@@ -14,6 +14,8 @@ public static class AIProfileExtensions
     /// Retrieves settings of type <typeparamref name="T"/> from the profile.
     /// If the settings do not exist, a new instance of <typeparamref name="T"/> is returned.
     /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     public static T GetSettings<T>(this AIProfile profile, JsonSerializerOptions jsonSerializerOptions = null)
         where T : new()
     {
@@ -61,6 +63,9 @@ public static class AIProfileExtensions
     /// <summary>
     /// Alters existing settings or adds new settings of type <typeparamref name="T"/> if one does not exists.
     /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="setting">The setting.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     public static AIProfile AlterSettings<T>(this AIProfile profile, Action<T> setting, JsonSerializerOptions jsonSerializerOptions = null)
         where T : class, new()
     {

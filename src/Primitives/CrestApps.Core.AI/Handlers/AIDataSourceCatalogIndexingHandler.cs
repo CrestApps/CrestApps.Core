@@ -11,6 +11,11 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly ILogger<AIDataSourceCatalogIndexingHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDataSourceCatalogIndexingHandler"/> class.
+    /// </summary>
+    /// <param name="indexingQueue">The indexing queue.</param>
+    /// <param name="logger">The logger.</param>
     public AIDataSourceCatalogIndexingHandler(
         IAIDataSourceIndexingQueue indexingQueue,
         ILogger<AIDataSourceCatalogIndexingHandler> logger)
@@ -19,6 +24,11 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
         _logger = logger;
     }
 
+    /// <summary>
+    /// Createds the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task CreatedAsync(CreatedContext<AIDataSource> context, CancellationToken cancellationToken = default)
     {
         try
@@ -36,6 +46,11 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
         }
     }
 
+    /// <summary>
+    /// Updateds the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task UpdatedAsync(UpdatedContext<AIDataSource> context, CancellationToken cancellationToken = default)
     {
         try
@@ -53,6 +68,11 @@ internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBa
         }
     }
 
+    /// <summary>
+    /// Deleteds the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task DeletedAsync(DeletedContext<AIDataSource> context, CancellationToken cancellationToken = default)
     {
         try

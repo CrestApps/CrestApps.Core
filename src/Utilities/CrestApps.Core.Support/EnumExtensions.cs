@@ -4,6 +4,10 @@ namespace CrestApps.Core.Support;
 
 public static class EnumExtensions
 {
+    /// <summary>
+    /// Gets description.
+    /// </summary>
+    /// <param name="value">The value.</param>
     public static string GetDescription(this Enum value)
     {
         var type = value.GetType();
@@ -26,6 +30,10 @@ public static class EnumExtensions
         return Str.AddSpacesToWords(name);
     }
 
+    /// <summary>
+    /// Gets category.
+    /// </summary>
+    /// <param name="value">The value.</param>
     public static string GetCategory(this Enum value)
     {
         var type = value.GetType();
@@ -48,6 +56,11 @@ public static class EnumExtensions
         return null;
     }
 
+    /// <summary>
+    /// Determines whether equal to.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="compareTo">The compare to.</param>
     public static bool IsEqualTo(this Enum value, string compareTo)
     {
         if (Enum.TryParse(value.GetType(), compareTo, ignoreCase: true, out var result))

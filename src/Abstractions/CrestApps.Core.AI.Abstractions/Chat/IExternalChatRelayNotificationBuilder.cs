@@ -14,13 +14,13 @@ namespace CrestApps.Core.AI.Chat;
 /// The <c>DefaultExternalChatRelayEventHandler</c> resolves the builder by event type key,
 /// creates the <see cref="ChatNotification"/> with <see cref="ChatNotification.Type"/> set from
 /// <see cref="NotificationType"/>, and then calls <see cref="Build"/> to populate remaining properties.
-/// Builders should not modify <see cref="ChatNotification.Type"/> — this allows the handler to control
+/// Builders should not modify <see cref="ChatNotification.Type"/> - this allows the handler to control
 /// the type and enables multiple builders to contribute without overriding each other.
 /// </para>
 /// <para>
 /// To handle a custom event type, register a keyed builder:
 /// <code>
-/// services.AddKeyedScoped&lt;IExternalChatRelayNotificationBuilder, MyCustomBuilder&gt;("my-custom-event");
+/// services.AddKeyedScoped<IExternalChatRelayNotificationBuilder, MyCustomBuilder>(my-custom-event");
 /// </code>
 /// </para>
 /// </remarks>
@@ -40,7 +40,7 @@ public interface IExternalChatRelayNotificationBuilder
     /// <summary>
     /// Populates the notification and result for the given relay event.
     /// The <see cref="ChatNotification.Type"/> is already set by the handler via
-    /// <see cref="NotificationType"/> — do not override it in this method.
+    /// <see cref="NotificationType"/> - do not override it in this method.
     /// </summary>
     /// <param name="relayEvent">The event received from the external system.</param>
     /// <param name="notification">The notification object to populate with content, icon, etc.</param>

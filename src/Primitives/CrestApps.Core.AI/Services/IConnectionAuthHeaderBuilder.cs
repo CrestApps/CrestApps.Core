@@ -4,7 +4,7 @@ namespace CrestApps.Core.AI.Services;
 
 /// <summary>
 /// Builds HTTP authentication headers from connection metadata.
-/// Protocol-agnostic — works for MCP SSE, A2A, or any future protocol.
+/// Protocol-agnostic - works for MCP SSE, A2A, or any future protocol.
 /// </summary>
 public interface IConnectionAuthHeaderBuilder
 {

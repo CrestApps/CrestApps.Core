@@ -26,17 +26,10 @@ public interface IChatResponseHandler
     string Name { get; }
 
     /// <summary>
-    /// Processes a chat prompt and returns a result indicating whether the response
-    /// is available immediately (streaming) or will be delivered later (deferred).
+    /// Handles the operation.
     /// </summary>
-    /// <param name="context">The context describing the prompt, session, and connection details.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>
-    /// A <see cref="ChatResponseHandlerResult"/> that is either streaming (contains an
-    /// <see cref="IAsyncEnumerable{T}"/> of updates) or deferred (the hub will not wait
-    /// for a response).
-    /// </returns>
-
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     Task<ChatResponseHandlerResult> HandleAsync(
         ChatResponseHandlerContext context,
         CancellationToken cancellationToken = default);

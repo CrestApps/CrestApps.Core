@@ -19,6 +19,7 @@ public sealed class TemplateBuilder
     /// Sets the separator used between segments when building the final string.
     /// Defaults to a double newline.
     /// </summary>
+    /// <param name="separator">The separator.</param>
     public TemplateBuilder WithSeparator(string separator)
     {
         _separator = separator ?? string.Empty;
@@ -29,6 +30,7 @@ public sealed class TemplateBuilder
     /// <summary>
     /// Appends a raw string segment.
     /// </summary>
+    /// <param name="text">The text.</param>
     public TemplateBuilder Append(string text)
     {
         if (!string.IsNullOrEmpty(text))
@@ -42,6 +44,7 @@ public sealed class TemplateBuilder
     /// <summary>
     /// Appends the body of an <see cref="Template"/>.
     /// </summary>
+    /// <param name="template">The template.</param>
     public TemplateBuilder Append(Template template)
     {
         if (template is not null && !string.IsNullOrEmpty(template.Content))
@@ -56,6 +59,8 @@ public sealed class TemplateBuilder
     /// Appends a template by ID. The template will be resolved and rendered
     /// when <see cref="BuildAsync"/> is called.
     /// </summary>
+    /// <param name="templateId">The template id.</param>
+    /// <param name="arguments">The arguments.</param>
     public TemplateBuilder AppendTemplate(string templateId, IDictionary<string, object> arguments = null)
     {
         if (!string.IsNullOrEmpty(templateId))
@@ -71,6 +76,7 @@ public sealed class TemplateBuilder
     /// through the provided <paramref name="templateService"/> and joining
     /// all segments with the configured separator.
     /// </summary>
+    /// <param name="templateService">The template service.</param>
     public async Task<string> BuildAsync(ITemplateService templateService)
     {
         ArgumentNullException.ThrowIfNull(templateService);
@@ -256,6 +262,10 @@ public sealed class TemplateBuilder
 
     private readonly struct Segment
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Segment"/> class.
+        /// </summary>
+        /// <param name="text">The text.</param>
         public Segment(string text)
         {
             Text = text;
@@ -263,6 +273,12 @@ public sealed class TemplateBuilder
             IsTemplateId = false;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Segment"/> class.
+        /// </summary>
+        /// <param name="text">The text.</param>
+        /// <param name="arguments">The arguments.</param>
+        /// <param name="isTemplateId">The is template id.</param>
         public Segment(
             string text,
             IDictionary<string, object> arguments,

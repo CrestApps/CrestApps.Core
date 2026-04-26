@@ -6,6 +6,7 @@ public static class StringExtensions
     /// Sanitizes a string value for safe inclusion in log messages by removing
     /// carriage return and newline characters that could be used for log injection.
     /// </summary>
+    /// <param name="value">The value.</param>
     public static string SanitizeForLog(this string value)
     {
         return value?.Replace("\r", "").Replace("\n", "") ?? string.Empty;
@@ -14,6 +15,7 @@ public static class StringExtensions
     /// <summary>
     /// Extracts a title from the first line of the given content, truncating to 200 characters.
     /// </summary>
+    /// <param name="content">The content.</param>
     public static string ExtractTitleFromContent(this string content)
     {
         var firstLine = content.AsSpan();

@@ -8,6 +8,12 @@ namespace CrestApps.Core.AI.OpenAI.Azure;
 /// </summary>
 public sealed class AzureOpenAIChatOptionsContext
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureOpenAIChatOptionsContext"/> class.
+    /// </summary>
+    /// <param name="chatCompletionOptions">The chat completion options.</param>
+    /// <param name="completionContext">The completion context.</param>
+    /// <param name="prompts">The prompts.</param>
     public AzureOpenAIChatOptionsContext(
         ChatCompletionOptions chatCompletionOptions,
         AICompletionContext completionContext,

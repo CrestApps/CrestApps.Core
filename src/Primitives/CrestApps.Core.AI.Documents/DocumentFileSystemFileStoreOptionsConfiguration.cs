@@ -10,11 +10,19 @@ public sealed class DocumentFileSystemFileStoreOptionsConfiguration : IConfigure
 {
     private readonly IHostEnvironment _env;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentFileSystemFileStoreOptionsConfiguration"/> class.
+    /// </summary>
+    /// <param name="env">The env.</param>
     public DocumentFileSystemFileStoreOptionsConfiguration(IHostEnvironment env)
     {
         _env = env;
     }
 
+    /// <summary>
+    /// Configures the operation.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public void Configure(DocumentFileSystemFileStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

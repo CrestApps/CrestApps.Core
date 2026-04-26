@@ -135,8 +135,8 @@ public sealed class CalculatorTool : AIFunction
         {
             "add" => "+",
             "subtract" => "-",
-            "multiply" => "×",
-            "divide" => "÷",
+            "multiply" => "?",
+            "divide" => "?",
             _ => "?",
         };
     }

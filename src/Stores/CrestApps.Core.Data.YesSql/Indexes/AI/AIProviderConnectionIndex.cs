@@ -27,11 +27,19 @@ public sealed class AIProviderConnectionIndex : CatalogItemIndex, INameAwareInde
 /// </summary>
 public sealed class AIProviderConnectionIndexProvider : IndexProvider<AIProviderConnection>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProviderConnectionIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIProviderConnectionIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIProviderConnection> context)
     {
         context.For<AIProviderConnectionIndex>()

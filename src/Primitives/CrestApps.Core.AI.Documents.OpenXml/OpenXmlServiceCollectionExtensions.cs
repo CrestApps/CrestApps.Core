@@ -10,6 +10,10 @@ namespace CrestApps.Core.AI.Documents.OpenXml;
 /// </summary>
 public static class OpenXmlServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core ai open xml document processing.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIOpenXmlDocumentProcessing(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -22,6 +26,10 @@ public static class OpenXmlServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds open xml.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsDocumentProcessingBuilder AddOpenXml(this CrestAppsDocumentProcessingBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.Indexing;
 
 public static class AIDocumentChunkIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates ai document chunk index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateAIDocumentChunkIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

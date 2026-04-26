@@ -19,6 +19,14 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
     private readonly AIToolDefinitionOptions _toolDefinitions;
     private readonly ILogger<AIMemoryOrchestrationHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemoryOrchestrationHandler"/> class.
+    /// </summary>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="chatInteractionMemoryOptions">The chat interaction memory options.</param>
+    /// <param name="toolDefinitions">The tool definitions.</param>
+    /// <param name="logger">The logger.</param>
     public AIMemoryOrchestrationHandler(
         ITemplateService templateService,
         IHttpContextAccessor httpContextAccessor,
@@ -33,11 +41,19 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
         _logger = logger;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuildingAsync(OrchestrationContextBuildingContext context)
     {
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuiltAsync(OrchestrationContextBuiltContext context)
     {
         if (context.OrchestrationContext.CompletionContext is null)

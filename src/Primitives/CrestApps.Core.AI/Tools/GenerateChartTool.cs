@@ -43,7 +43,7 @@ public sealed class GenerateChartTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "REQUIRED for any chart or data visualization request. This is the ONLY way to render a visual chart in the UI. Do NOT generate chart JSON inline — it will not be rendered. Always call this tool instead. Returns a special [chart:JSON] marker that MUST be included exactly as-is in your response.";
+    public override string Description => "REQUIRED for any chart or data visualization request. This is the ONLY way to render a visual chart in the UI. Do NOT generate chart JSON inline ? it will not be rendered. Always call this tool instead. Returns a special [chart:JSON] marker that MUST be included exactly as-is in your response.";
 
     /// <summary>
     /// Gets the json Schema.
@@ -58,6 +58,11 @@ public sealed class GenerateChartTool : AIFunction
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invoke cores core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)

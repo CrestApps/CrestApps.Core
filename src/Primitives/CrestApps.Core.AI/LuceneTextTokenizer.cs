@@ -15,10 +15,10 @@ namespace CrestApps.Core.AI;
 /// and natural language matching.
 /// </summary>
 /// <remarks>
-/// <para>Pipeline: WhitespaceTokenizer → WordDelimiterFilter (camelCase splitting) →
-/// LowerCaseFilter → StopFilter (English) → PorterStemFilter.</para>
+/// <para>Pipeline: WhitespaceTokenizer -> WordDelimiterFilter (camelCase splitting) ->
+/// LowerCaseFilter -> StopFilter (English) -> PorterStemFilter.</para>
 /// <para>A regex pre-processing step handles consecutive uppercase sequences
-/// (e.g., "JSONSchema" → "JSON Schema") to work around a known Lucene 4.x
+/// (e.g., "JSONSchema" -> "JSON Schema") to work around a known Lucene 4.x
 /// WordDelimiterFilter limitation.</para>
 /// <para>Thread-safe: uses a shared <see cref="Analyzer"/> instance with per-thread
 /// TokenStream pooling.</para>
@@ -28,8 +28,8 @@ public sealed partial class LuceneTextTokenizer : ITextTokenizer
     private const LuceneVersion _luceneVersion = LuceneVersion.LUCENE_48;
 
     // Inserts a space between consecutive uppercase sequences and the start of a new word.
-    // Handles a known limitation of Lucene 4.x WordDelimiterFilter where UPPER→letter
-    // transitions don't trigger splits (e.g., "JSONSchema" → "JSON Schema").
+    // Handles a known limitation of Lucene 4.x WordDelimiterFilter where UPPER->letter
+    // transitions don't trigger splits (e.g., "JSONSchema" -> "JSON Schema").
     [GeneratedRegex(@"(?<=[A-Z])(?=[A-Z][a-z])")]
     private static partial Regex ConsecutiveUppercasePattern();
 
@@ -37,7 +37,10 @@ public sealed partial class LuceneTextTokenizer : ITextTokenizer
     // (the default reuse strategy uses per-thread TokenStream pooling via CloseableThreadLocal).
     private static readonly CapabilityAnalyzer _sharedAnalyzer = new();
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Tokenizes the operation.
+    /// </summary>
+    /// <param name="text">The text.</param>
     public HashSet<string> Tokenize(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -46,7 +49,7 @@ public sealed partial class LuceneTextTokenizer : ITextTokenizer
         }
 
         // Pre-process: split consecutive uppercase sequences before a new word
-        // (e.g., "JSONSchema" → "JSON Schema", "MCPServer" → "MCP Server").
+        // (e.g., "JSONSchema" -> "JSON Schema", "MCPServer" -> "MCP Server").
         text = ConsecutiveUppercasePattern().Replace(text, " ");
 
         var tokens = new HashSet<string>(StringComparer.Ordinal);
@@ -74,18 +77,23 @@ public sealed partial class LuceneTextTokenizer : ITextTokenizer
     /// <summary>
     /// Custom Lucene.NET analyzer for text matching. Applies:
     /// <list type="number">
-    ///   <item>WhitespaceTokenizer — splits on whitespace, preserving case information
+    ///   <item>WhitespaceTokenizer -> splits on whitespace, preserving case information
     ///         for downstream filters.</item>
-    ///   <item>WordDelimiterFilter — splits camelCase/PascalCase identifiers
-    ///         (e.g., "getRecipeSchema" → "get", "Recipe", "Schema").</item>
-    ///   <item>LowerCaseFilter — normalizes to lowercase.</item>
-    ///   <item>StopFilter — removes common English stop words.</item>
-    ///   <item>PorterStemFilter — applies Porter stemming for morphological normalization
-    ///         (e.g., "recipes" → "recip", "enabling" → "enabl").</item>
+    ///   <item>WordDelimiterFilter -> splits camelCase/PascalCase identifiers
+    ///         (e.g., "getRecipeSchema" -> "get", "Recipe", "Schema").</item>
+    ///   <item>LowerCaseFilter -> normalizes to lowercase.</item>
+    ///   <item>StopFilter -> removes common English stop words.</item>
+    ///   <item>PorterStemFilter -> applies Porter stemming for morphological normalization
+    ///         (e.g., "recipes" -> "recip", "enabling" -> "enabl").</item>
     /// </list>
     /// </summary>
     private sealed class CapabilityAnalyzer : Analyzer
     {
+        /// <summary>
+        /// Creates components.
+        /// </summary>
+        /// <param name="fieldName">The field name.</param>
+        /// <param name="reader">The JSON reader.</param>
         protected override TokenStreamComponents CreateComponents(string fieldName, TextReader reader)
         {
             var tokenizer = new WhitespaceTokenizer(_luceneVersion, reader);

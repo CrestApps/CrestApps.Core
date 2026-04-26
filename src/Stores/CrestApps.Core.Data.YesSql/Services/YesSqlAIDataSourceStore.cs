@@ -8,6 +8,11 @@ namespace CrestApps.Core.Data.YesSql.Services;
 
 public sealed class YesSqlAIDataSourceStore : DocumentCatalog<AIDataSource, AIDataSourceIndex>, IAIDataSourceStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="YesSqlAIDataSourceStore"/> class.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="options">The options.</param>
     public YesSqlAIDataSourceStore(
         ISession session,
         IOptions<YesSqlStoreOptions> options)

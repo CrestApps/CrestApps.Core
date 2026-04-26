@@ -151,6 +151,9 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
     /// </summary>
     public JsonObject Settings { get; init; } = [];
 
+    /// <summary>
+    /// Gets legacy connection name.
+    /// </summary>
     public string GetLegacyConnectionName()
     {
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -190,6 +193,9 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
         };
     }
 
+    /// <summary>
+    /// Tos string.
+    /// </summary>
     public override string ToString()
     {
         if (string.IsNullOrEmpty(DisplayText))

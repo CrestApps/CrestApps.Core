@@ -6,18 +6,26 @@ using CrestApps.Core.Templates.Services;
 namespace CrestApps.Core.AI.Handlers;
 
 /// <summary>
-/// Populates the <see cref = "AICompletionContext"/> from <see cref = "AIProfile"/> settings
+/// Populates the <see cref="AICompletionContext"/> from <see cref="AIProfile"/> settings
 /// including connection, deployment, metadata parameters, and tool names.
 /// </summary>
 internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionContextBuilderHandler
 {
     private readonly ITemplateService _aiTemplateService;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProfileCompletionContextBuilderHandler"/> class.
+    /// </summary>
+    /// <param name="aiTemplateService">The ai template service.</param>
     public AIProfileCompletionContextBuilderHandler(ITemplateService aiTemplateService)
     {
         _aiTemplateService = aiTemplateService;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuildingAsync(AICompletionContextBuildingContext context)
     {
         if (context.Resource is not AIProfile profile)
@@ -60,6 +68,10 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
         }
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuiltAsync(AICompletionContextBuiltContext context)
     {
         return Task.CompletedTask;

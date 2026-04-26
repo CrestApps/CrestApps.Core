@@ -21,6 +21,10 @@ public static class SentenceBoundaryDetector
     private const int SoftBoundaryMinLength = 120;
     private const int ForceFlushLength = 200;
 
+    /// <summary>
+    /// Ends with sentence boundarys with sentence boundary.
+    /// </summary>
+    /// <param name="text">The text.</param>
     public static bool EndsWithSentenceBoundary(string text)
     {
         if (text is null || text.Length == 0)
@@ -31,6 +35,10 @@ public static class SentenceBoundaryDetector
         return EndsWithSentenceBoundary(text.AsSpan());
     }
 
+    /// <summary>
+    /// Endss with sentence boundary.
+    /// </summary>
+    /// <param name="span">The span.</param>
     public static bool EndsWithSentenceBoundary(ReadOnlySpan<char> span)
     {
         // Trim trailing spaces, tabs, and carriage returns but preserve
@@ -87,7 +95,7 @@ public static class SentenceBoundaryDetector
             return false;
         }
 
-        return span[i] is '.' or '!' or '?' or '…' or '\n';
+        return span[i] is '.' or '!' or '?' or '?' or '\n';
     }
 
     private static bool EndsWithSoftBoundary(ReadOnlySpan<char> span)

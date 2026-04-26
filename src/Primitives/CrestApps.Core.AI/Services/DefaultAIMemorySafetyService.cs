@@ -8,6 +8,13 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed partial class DefaultAIMemorySafetyService : IAIMemorySafetyService
 {
+    /// <summary>
+    /// Tries to validate.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="description">The description.</param>
+    /// <param name="content">The content.</param>
+    /// <param name="errorMessage">The error message.</param>
     public bool TryValidate(string name, string description, string content, out string errorMessage)
     {
         errorMessage = null;

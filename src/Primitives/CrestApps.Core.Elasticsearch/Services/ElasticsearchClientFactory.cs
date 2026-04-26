@@ -16,6 +16,11 @@ public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
 
     private ElasticsearchClient _client;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ElasticsearchClientFactory"/> class.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="options">The options.</param>
     public ElasticsearchClientFactory(
         ILogger<ElasticsearchClientFactory> logger,
         IOptions<ElasticsearchConnectionOptions> options)
@@ -24,6 +29,9 @@ public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
         _options = options.Value;
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
     public ElasticsearchClient Create()
     {
         if (_client != null)
@@ -39,6 +47,10 @@ public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
         return _client;
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="configuration">The configuration.</param>
     public ElasticsearchClient Create(ElasticsearchConnectionOptions configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);

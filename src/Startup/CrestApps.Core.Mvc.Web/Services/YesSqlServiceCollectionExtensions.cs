@@ -135,7 +135,7 @@ internal static class YesSqlServiceCollectionExtensions
 
     /// <summary>
     /// Creates YesSql index tables if they do not already exist.
-    /// Call once at startup after <see cref = "WebApplication.Build"/>.
+    /// Call once at startup after <see cref="WebApplication.Build"/>.
     /// </summary>
     public static async Task InitializeYesSqlSchemaAsync(this IServiceProvider services)
     {

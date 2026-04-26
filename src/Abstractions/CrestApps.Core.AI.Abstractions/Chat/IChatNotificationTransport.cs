@@ -15,7 +15,7 @@ namespace CrestApps.Core.AI.Chat;
 /// and register it as a keyed service:
 /// </para>
 /// <code>
-/// services.AddKeyedScoped&lt;IChatNotificationTransport, MyChatNotificationTransport&gt;(ChatContextType.AIChatSession);
+/// services.AddKeyedScoped<IChatNotificationTransport, MyChatNotificationTransport>(ChatContextType.AIChatSession);
 /// </code>
 /// </remarks>
 public interface IChatNotificationTransport

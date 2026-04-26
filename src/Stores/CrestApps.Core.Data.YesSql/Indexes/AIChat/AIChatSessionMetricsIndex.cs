@@ -62,7 +62,7 @@ public sealed class AIChatSessionMetricsIndex : MapIndex
     public bool IsResolved { get; set; }
 
     /// <summary>
-    /// Gets or sets the hour of day (0–23) when the session started, derived from <see cref="SessionStartedUtc"/>.
+    /// Gets or sets the hour of day (0-23) when the session started, derived from <see cref="SessionStartedUtc"/>.
     /// </summary>
     public int HourOfDay { get; set; }
 
@@ -131,11 +131,19 @@ public sealed class AIChatSessionMetricsIndex : MapIndex
 /// </summary>
 public sealed class AIChatSessionMetricsIndexProvider : IndexProvider<AIChatSessionEvent>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIChatSessionMetricsIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIChatSessionMetricsIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIChatSessionEvent> context)
     {
         context.For<AIChatSessionMetricsIndex>()

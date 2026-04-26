@@ -15,6 +15,12 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
 
     private DateOnly? _lastRunDateUtc;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDataSourceAlignmentBackgroundService"/> class.
+    /// </summary>
+    /// <param name="scopeFactory">The scope factory.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public AIDataSourceAlignmentBackgroundService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
@@ -25,6 +31,10 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Executes the operation.
+    /// </summary>
+    /// <param name="stoppingToken">The cancellation token.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(_alignmentCheckInterval);

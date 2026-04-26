@@ -44,6 +44,12 @@ public sealed class CompletionServiceConfigureContext
     /// </summary>
     public Dictionary<string, object> AdditionalProperties { get; set; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CompletionServiceConfigureContext"/> class.
+    /// </summary>
+    /// <param name="chatOptions">The chat options.</param>
+    /// <param name="completionContext">The completion context.</param>
+    /// <param name="isFunctionInvocationSupported">Indicates whether function invocation supported.</param>
     public CompletionServiceConfigureContext(
         ChatOptions chatOptions,
         AICompletionContext completionContext,

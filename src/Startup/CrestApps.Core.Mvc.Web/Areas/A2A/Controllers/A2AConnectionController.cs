@@ -273,4 +273,3 @@ public sealed class A2AConnectionController : Controller
         return existingProtectedValue;
     }
 }
-

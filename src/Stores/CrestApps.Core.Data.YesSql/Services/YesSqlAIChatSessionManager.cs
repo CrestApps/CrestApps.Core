@@ -20,6 +20,14 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     private readonly TimeProvider _timeProvider;
     private readonly string _collection;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="YesSqlAIChatSessionManager"/> class.
+    /// </summary>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="session">The session.</param>
+    /// <param name="promptStore">The prompt store.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="options">The options.</param>
     public YesSqlAIChatSessionManager(
         IHttpContextAccessor httpContextAccessor,
         ISession session,
@@ -34,6 +42,11 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         _collection = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Finds by id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AIChatSession> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -41,11 +54,23 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Finds the operation.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<AIChatSession> FindAsync(string id, CancellationToken cancellationToken = default)
     {
         return FindByIdAsync(id, cancellationToken);
     }
 
+    /// <summary>
+    /// Pages the operation.
+    /// </summary>
+    /// <param name="page">The page.</param>
+    /// <param name="pageSize">The page size.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null, CancellationToken cancellationToken = default)
     {
         var query = _session.Query<AIChatSession, AIChatSessionIndex>(collection: _collection);
@@ -80,6 +105,12 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         };
     }
 
+    /// <summary>
+    /// News the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AIChatSession> NewAsync(AIProfile profile, NewAIChatSessionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -129,6 +160,11 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         return session;
     }
 
+    /// <summary>
+    /// Saves the operation.
+    /// </summary>
+    /// <param name="chatSession">The chat session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SaveAsync(AIChatSession chatSession, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(chatSession);
@@ -137,6 +173,11 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         await _session.SaveAsync(chatSession, _collection);
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
@@ -154,6 +195,11 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         return true;
     }
 
+    /// <summary>
+    /// Deletes all.
+    /// </summary>
+    /// <param name="profileId">The profile id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<int> DeleteAllAsync(string profileId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(profileId);

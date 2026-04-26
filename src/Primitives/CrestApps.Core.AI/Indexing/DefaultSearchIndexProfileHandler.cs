@@ -9,6 +9,12 @@ namespace CrestApps.Core.AI.Indexing;
 /// </summary>
 public sealed class DefaultSearchIndexProfileHandler : IndexProfileHandlerBase
 {
+    /// <summary>
+    /// Validates the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="result">The result.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override ValueTask ValidateAsync(
         SearchIndexProfile indexProfile,
         ValidationResultDetails result,

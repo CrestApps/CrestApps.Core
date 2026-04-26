@@ -27,11 +27,19 @@ public sealed class McpResourceIndex : CatalogItemIndex, ISourceAwareIndex
 /// </summary>
 public sealed class McpResourceIndexProvider : IndexProvider<McpResource>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpResourceIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public McpResourceIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<McpResource> context)
     {
         context.For<McpResourceIndex>()

@@ -4,6 +4,12 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
 
 public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates ai chat session metrics schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="storeOptions">The store options.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateAIChatSessionMetricsSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
@@ -14,6 +20,12 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
         await schemaBuilder.CreateAIChatSessionMetricsNamedIndexesAsync(storeOptions, options);
     }
 
+    /// <summary>
+    /// Creates ai chat session metrics index table.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="storeOptions">The store options.</param>
+    /// <param name="options">The options.</param>
     public static Task CreateAIChatSessionMetricsIndexTableAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
@@ -47,6 +59,12 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
             collection: options.CollectionName);
     }
 
+    /// <summary>
+    /// Creates ai chat session metrics named indexes.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="storeOptions">The store options.</param>
+    /// <param name="options">The options.</param>
     public static Task CreateAIChatSessionMetricsNamedIndexesAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
@@ -74,6 +92,11 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
                 collection: options.CollectionName));
     }
 
+    /// <summary>
+    /// Adds ai chat session metrics completion count column.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="storeOptions">The store options.</param>
     public static Task AddAIChatSessionMetricsCompletionCountColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

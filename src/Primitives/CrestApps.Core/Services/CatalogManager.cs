@@ -15,6 +15,12 @@ public class CatalogManager<T> : ICatalogManager<T>
     protected readonly ILogger Logger;
     protected readonly IEnumerable<ICatalogEntryHandler<T>> Handlers;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CatalogManager"/> class.
+    /// </summary>
+    /// <param name="catalog">The catalog.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     public CatalogManager(
         ICatalog<T> catalog,
         IEnumerable<ICatalogEntryHandler<T>> handlers,
@@ -25,6 +31,12 @@ public class CatalogManager<T> : ICatalogManager<T>
         Logger = logger;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CatalogManager"/> class.
+    /// </summary>
+    /// <param name="store">The store.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     protected CatalogManager(
         ICatalog<T> store,
         IEnumerable<ICatalogEntryHandler<T>> handlers,
@@ -35,6 +47,11 @@ public class CatalogManager<T> : ICatalogManager<T>
         Logger = logger;
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -57,6 +74,11 @@ public class CatalogManager<T> : ICatalogManager<T>
         return removed;
     }
 
+    /// <summary>
+    /// Finds by id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -73,6 +95,11 @@ public class CatalogManager<T> : ICatalogManager<T>
         return null!;
     }
 
+    /// <summary>
+    /// News the operation.
+    /// </summary>
+    /// <param name="data">The data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public virtual async ValueTask<T> NewAsync(JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         var id = UniqueId.GenerateId();
@@ -96,6 +123,9 @@ public class CatalogManager<T> : ICatalogManager<T>
         return entry;
     }
 
+    /// <summary>
+    /// Pages the operation.
+    /// </summary>
     public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
@@ -111,6 +141,11 @@ public class CatalogManager<T> : ICatalogManager<T>
         return result;
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -124,6 +159,12 @@ public class CatalogManager<T> : ICatalogManager<T>
         await Handlers.InvokeAsync((handler, ctx) => handler.CreatedAsync(ctx, cancellationToken), createdContext, Logger);
     }
 
+    /// <summary>
+    /// Updates the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="data">The data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask UpdateAsync(T entry, JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -137,6 +178,11 @@ public class CatalogManager<T> : ICatalogManager<T>
         await Handlers.InvokeAsync((handler, ctx) => handler.UpdatedAsync(ctx, cancellationToken), updatedContext, Logger);
     }
 
+    /// <summary>
+    /// Validates the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<ValidationResultDetails> ValidateAsync(T entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -150,6 +196,10 @@ public class CatalogManager<T> : ICatalogManager<T>
         return validatingContext.Result;
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IEnumerable<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var models = await Catalog.GetAllAsync(cancellationToken);
@@ -162,11 +212,20 @@ public class CatalogManager<T> : ICatalogManager<T>
         return models;
     }
 
+    /// <summary>
+    /// Deleteds the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
     protected virtual ValueTask DeletedAsync(T entry)
     {
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Loads the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected virtual async Task LoadAsync(T entry, CancellationToken cancellationToken = default)
     {
         var loadedContext = new LoadedContext<T>(entry);

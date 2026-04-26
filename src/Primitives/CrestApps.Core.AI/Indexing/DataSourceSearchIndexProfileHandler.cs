@@ -13,6 +13,12 @@ namespace CrestApps.Core.AI.Indexing;
 /// </summary>
 public sealed class DataSourceSearchIndexProfileHandler : EmbeddingSearchIndexProfileHandlerBase
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataSourceSearchIndexProfileHandler"/> class.
+    /// </summary>
+    /// <param name="deploymentCatalog">The deployment catalog.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="logger">The logger.</param>
     public DataSourceSearchIndexProfileHandler(
         ICatalog<AIDeployment> deploymentCatalog,
         IAIClientFactory aiClientFactory,
@@ -21,6 +27,10 @@ public sealed class DataSourceSearchIndexProfileHandler : EmbeddingSearchIndexPr
     {
     }
 
+    /// <summary>
+    /// Builds fields.
+    /// </summary>
+    /// <param name="vectorDimensions">The vector dimensions.</param>
     protected override IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions)
     {
         return [new SearchIndexField

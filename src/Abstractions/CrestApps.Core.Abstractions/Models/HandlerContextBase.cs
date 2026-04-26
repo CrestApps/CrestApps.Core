@@ -12,6 +12,10 @@ public abstract class HandlerContextBase<T>
     /// </summary>
     public T Model { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HandlerContextBase"/> class.
+    /// </summary>
+    /// <param name="model">The model.</param>
     public HandlerContextBase(T model)
     {
         ArgumentNullException.ThrowIfNull(model);

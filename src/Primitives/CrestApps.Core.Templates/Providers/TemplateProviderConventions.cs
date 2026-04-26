@@ -8,6 +8,14 @@ internal static class TemplateProviderConventions
     public const string SystemPromptKind = "SystemPrompt";
     private const string PromptsPathSegment = "Prompts.";
 
+    /// <summary>
+    /// Creates template.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="parseResult">The parse result.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="featureId">The feature id.</param>
+    /// <param name="defaultKind">The default kind.</param>
     public static Template CreateTemplate(
         string id,
         TemplateParseResult parseResult,
@@ -34,6 +42,11 @@ internal static class TemplateProviderConventions
         return template;
     }
 
+    /// <summary>
+    /// Resolves embedded template id.
+    /// </summary>
+    /// <param name="relativeResourcePath">The relative resource path.</param>
+    /// <param name="defaultKind">The default kind.</param>
     public static string ResolveEmbeddedTemplateId(string relativeResourcePath, out string defaultKind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativeResourcePath);

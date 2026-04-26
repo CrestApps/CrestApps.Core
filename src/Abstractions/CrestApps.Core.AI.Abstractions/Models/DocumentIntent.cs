@@ -11,7 +11,7 @@ public sealed class DocumentIntent
     public required string Name { get; set; }
 
     /// <summary>
-    /// Gets or sets the confidence score for this intent (0.0–1.0).
+    /// Gets or sets the confidence score for this intent (0.0-1.0).
     /// </summary>
     public float Confidence { get; set; }
 

@@ -9,6 +9,7 @@ public enum DocumentRetrievalMode
     /// The chunk value.
     /// </summary>
     Chunk = 0,
+
     /// <summary>
     /// The hierarchical value.
     /// </summary>

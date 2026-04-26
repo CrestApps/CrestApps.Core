@@ -27,6 +27,16 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
     private readonly AIDataSourceOptions _options;
     private readonly ILogger<DataSourcePreemptiveRagHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataSourcePreemptiveRagHandler"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="textNormalizer">The text normalizer.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
     public DataSourcePreemptiveRagHandler(
         IServiceProvider serviceProvider,
         IAIClientFactory aiClientFactory,
@@ -45,6 +55,10 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         _logger = logger;
     }
 
+    /// <summary>
+    /// Determines whether handle.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public ValueTask<bool> CanHandleAsync(OrchestrationContextBuiltContext context)
     {
         if (context.OrchestrationContext.CompletionContext == null ||
@@ -58,6 +72,10 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             _serviceProvider.GetService<ISearchIndexProfileStore>() != null);
     }
 
+    /// <summary>
+    /// Handles the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task HandleAsync(PreemptiveRagContext context)
     {
         var ragMetadata = GetRagMetadata(context.Resource);

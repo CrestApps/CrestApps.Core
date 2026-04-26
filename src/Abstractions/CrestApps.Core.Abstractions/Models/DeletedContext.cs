@@ -6,6 +6,10 @@ namespace CrestApps.Core.Models;
 /// </summary>
 public sealed class DeletedContext<T> : HandlerContextBase<T>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DeletedContext"/> class.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
     public DeletedContext(T entry)
     : base(entry)
     {

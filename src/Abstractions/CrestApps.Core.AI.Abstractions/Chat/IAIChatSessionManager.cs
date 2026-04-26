@@ -22,7 +22,7 @@ public interface IAIChatSessionManager
     /// <summary>
     /// Asynchronously retrieves an existing AI chat session by its session ID after applying ownership check.
     /// </summary>
-    /// <param name="sessionId">The unique identifier of the chat session. Must not be null or empty.</param>
+    /// <param name="id">The unique identifier of the chat session. Must not be null or empty.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// A task representing the asynchronous operation. The task result is the <see cref="AIChatSession"/> if found,

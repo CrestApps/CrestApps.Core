@@ -22,11 +22,19 @@ public sealed class McpPromptIndex : CatalogItemIndex, INameAwareIndex
 /// </summary>
 public sealed class McpPromptIndexProvider : IndexProvider<McpPrompt>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpPromptIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public McpPromptIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<McpPrompt> context)
     {
         context.For<McpPromptIndex>()

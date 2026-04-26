@@ -7,6 +7,10 @@ namespace CrestApps.Core.AI;
 /// </summary>
 public sealed class AIProfileProviderEntry
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProfileProviderEntry"/> class.
+    /// </summary>
+    /// <param name="providerName">The provider name.</param>
     public AIProfileProviderEntry(string providerName)
     {
         ProviderName = providerName;

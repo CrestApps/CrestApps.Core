@@ -10,6 +10,12 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public static class EmbeddingDeploymentResolver
 {
+    /// <summary>
+    /// Find embedding deployments embedding deployment.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="metadata">The metadata.</param>
+    /// <param name="deploymentIdOrName">The deployment id or name.</param>
     public static async Task<AIDeployment> FindEmbeddingDeploymentAsync(
         IAIDeploymentManager deploymentManager,
         DataSourceIndexProfileMetadata metadata,
@@ -57,6 +63,13 @@ public static class EmbeddingDeploymentResolver
 #pragma warning restore CS0618 // Type or member is obsolete
     }
 
+    /// <summary>
+    /// Creates embedding generator.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="metadata">The metadata.</param>
+    /// <param name="deploymentIdOrName">The deployment id or name.</param>
     public static async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,

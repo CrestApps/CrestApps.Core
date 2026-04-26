@@ -9,6 +9,13 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
 {
     private const string PdfMediaType = "application/pdf";
 
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="mediaType">The media type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task<IngestionDocument> ReadAsync(
         Stream source,
         string identifier,

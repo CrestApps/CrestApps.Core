@@ -11,12 +11,21 @@ public sealed class FileSystemFileStore : IDocumentFileStore
 
     private readonly string _basePath;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FileSystemFileStore"/> class.
+    /// </summary>
+    /// <param name="basePath">The base path.</param>
     public FileSystemFileStore(string basePath)
     {
         _basePath = Path.GetFullPath(basePath);
         Directory.CreateDirectory(_basePath);
     }
 
+    /// <summary>
+    /// Saves file.
+    /// </summary>
+    /// <param name="fileName">The file name.</param>
+    /// <param name="content">The content.</param>
     public async Task<string> SaveFileAsync(string fileName, Stream content)
     {
         ArgumentNullException.ThrowIfNull(fileName);
@@ -32,6 +41,10 @@ public sealed class FileSystemFileStore : IDocumentFileStore
         return filePath;
     }
 
+    /// <summary>
+    /// Gets file.
+    /// </summary>
+    /// <param name="fileName">The file name.</param>
     public Task<Stream> GetFileAsync(string fileName)
     {
         ArgumentNullException.ThrowIfNull(fileName);
@@ -46,6 +59,10 @@ public sealed class FileSystemFileStore : IDocumentFileStore
         return Task.FromResult<Stream>(new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read));
     }
 
+    /// <summary>
+    /// Deletes file.
+    /// </summary>
+    /// <param name="fileName">The file name.</param>
     public Task<bool> DeleteFileAsync(string fileName)
     {
         ArgumentNullException.ThrowIfNull(fileName);

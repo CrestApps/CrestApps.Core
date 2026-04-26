@@ -5,6 +5,11 @@ namespace CrestApps.Core.AI.Claude.Services;
 
 internal sealed class ClaudeOptionsValidator : IValidateOptions<ClaudeOptions>
 {
+    /// <summary>
+    /// Validates the operation.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="options">The options.</param>
     public ValidateOptionsResult Validate(string name, ClaudeOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.ApiKey))

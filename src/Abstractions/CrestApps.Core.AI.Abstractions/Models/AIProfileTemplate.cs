@@ -73,6 +73,9 @@ public sealed class AIProfileTemplate : SourceCatalogEntry, INameAwareModel, IDi
         };
     }
 
+    /// <summary>
+    /// Tos string.
+    /// </summary>
     public override string ToString()
     {
         if (string.IsNullOrEmpty(DisplayText))

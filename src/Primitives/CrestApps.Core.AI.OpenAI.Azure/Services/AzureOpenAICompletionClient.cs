@@ -34,6 +34,19 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     private readonly AzureClientOptions _azureClientOptions;
     private readonly ILogger<AzureOpenAICompletionClient> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureOpenAICompletionClient"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="completionServiceHandlers">The completion service handlers.</param>
+    /// <param name="connectionHandlers">The connection handlers.</param>
+    /// <param name="defaultOptions">The default options.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="connectionStore">The connection store.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="azureClientOptions">The azure client options.</param>
     public AzureOpenAICompletionClient(
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
@@ -69,6 +82,12 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         }
     }
 
+    /// <summary>
+    /// Completes the operation.
+    /// </summary>
+    /// <param name="messages">The messages.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<Microsoft.Extensions.AI.ChatResponse> CompleteAsync(IEnumerable<Microsoft.Extensions.AI.ChatMessage> messages, AICompletionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messages);
@@ -142,7 +161,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             // Notify the user when the maximum iteration limit was reached while the model still wanted to make tool calls.
             if (iterations >= _defaultOptions.MaximumIterationsPerRequest && data.Value.FinishReason == ChatFinishReason.ToolCalls)
             {
-                choices.Add(new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, "\n\n⚠️ The operation reached the maximum number of tool-call iterations and may be incomplete. " + "Please try again or break the task into smaller steps."));
+                choices.Add(new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, "\n\n?? The operation reached the maximum number of tool-call iterations and may be incomplete. " + "Please try again or break the task into smaller steps."));
             }
 
             var result = new Microsoft.Extensions.AI.ChatResponse(choices)
@@ -170,6 +189,12 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         return null;
     }
 
+    /// <summary>
+    /// Completes streaming.
+    /// </summary>
+    /// <param name="messages">The messages.</param>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<Microsoft.Extensions.AI.ChatResponseUpdate> CompleteStreamingAsync(IEnumerable<Microsoft.Extensions.AI.ChatMessage> messages, AICompletionContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messages);

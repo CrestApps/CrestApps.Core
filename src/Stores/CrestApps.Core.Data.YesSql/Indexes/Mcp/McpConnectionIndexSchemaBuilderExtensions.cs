@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.Mcp;
 
 public static class McpConnectionIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates mcp connection index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateMcpConnectionIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

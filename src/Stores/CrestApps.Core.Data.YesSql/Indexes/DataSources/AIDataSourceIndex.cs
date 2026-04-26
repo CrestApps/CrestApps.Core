@@ -27,11 +27,19 @@ public sealed class AIDataSourceIndex : CatalogItemIndex
 /// </summary>
 public sealed class AIDataSourceIndexProvider : IndexProvider<AIDataSource>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDataSourceIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIDataSourceIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AIDocsCollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIDataSource> context)
     {
         context.For<AIDataSourceIndex>()

@@ -8,6 +8,11 @@ namespace CrestApps.Core.Data.YesSql.Services;
 
 public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemoryEntryIndex>, IAIMemoryStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="YesSqlAIMemoryStore"/> class.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="options">The options.</param>
     public YesSqlAIMemoryStore(
         ISession session,
         IOptions<YesSqlStoreOptions> options)
@@ -15,6 +20,10 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
     {
     }
 
+    /// <summary>
+    /// Counts by user.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
     public async Task<int> CountByUserAsync(string userId)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
@@ -23,6 +32,11 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
             .CountAsync();
     }
 
+    /// <summary>
+    /// Finds by user and name.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="name">The name.</param>
     public async Task<AIMemoryEntry> FindByUserAndNameAsync(string userId, string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
@@ -32,6 +46,11 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
             x.UserId == userId && x.Name == name, collection: CollectionName).FirstOrDefaultAsync();
     }
 
+    /// <summary>
+    /// Gets by user.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="limit">The limit.</param>
     public async Task<IReadOnlyCollection<AIMemoryEntry>> GetByUserAsync(string userId, int limit = 100)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);

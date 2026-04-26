@@ -13,6 +13,7 @@ public sealed class AIOptions
     private readonly Dictionary<string, AIDeploymentProviderEntry> _deployments = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AIProviderConnectionOptionsEntry> _connectionSources = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AITemplateSourceEntry> _templateSources = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Gets the clients.
     /// </summary>
@@ -75,6 +76,11 @@ public sealed class AIOptions
         _clients[name] = typeof(TClient);
     }
 
+    /// <summary>
+    /// Adds profile source.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddProfileSource(string clientName, Action<AIProfileProviderEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(clientName);
@@ -96,6 +102,11 @@ public sealed class AIOptions
         _profileSources[clientName] = entry;
     }
 
+    /// <summary>
+    /// Adds deployment provider.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddDeploymentProvider(string clientName, Action<AIDeploymentProviderEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(clientName);
@@ -117,6 +128,11 @@ public sealed class AIOptions
         _deployments[clientName] = entry;
     }
 
+    /// <summary>
+    /// Adds connection source.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddConnectionSource(string clientName, Action<AIProviderConnectionOptionsEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(clientName);
@@ -138,6 +154,11 @@ public sealed class AIOptions
         _connectionSources[clientName] = entry;
     }
 
+    /// <summary>
+    /// Adds template source.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="configure">The configure.</param>
     public void AddTemplateSource(string name, Action<AITemplateSourceEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);

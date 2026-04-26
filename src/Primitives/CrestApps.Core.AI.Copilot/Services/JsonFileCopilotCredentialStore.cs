@@ -16,12 +16,21 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
 
     private readonly string _credentialsPath;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="JsonFileCopilotCredentialStore"/> class.
+    /// </summary>
+    /// <param name="env">The env.</param>
     public JsonFileCopilotCredentialStore(IHostEnvironment env)
     {
         _credentialsPath = Path.Combine(env.ContentRootPath, "App_Data", "CopilotCredentials");
         Directory.CreateDirectory(_credentialsPath);
     }
 
+    /// <summary>
+    /// Gets protected credential.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<CopilotProtectedCredential> GetProtectedCredentialAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
@@ -39,6 +48,12 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
         return JsonSerializer.Deserialize<CopilotProtectedCredential>(json, _jsonOptions);
     }
 
+    /// <summary>
+    /// Saves protected credential.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="credential">The credential.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task SaveProtectedCredentialAsync(string userId, CopilotProtectedCredential credential, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
@@ -51,6 +66,11 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
         await File.WriteAllTextAsync(filePath, json, cancellationToken);
     }
 
+    /// <summary>
+    /// Clears credential.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task ClearCredentialAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);

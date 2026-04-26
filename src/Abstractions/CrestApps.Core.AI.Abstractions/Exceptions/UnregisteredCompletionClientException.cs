@@ -5,6 +5,10 @@ namespace CrestApps.Core.AI.Exceptions;
 /// </summary>
 public sealed class UnregisteredCompletionClientException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UnregisteredCompletionClientException"/> class.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
     public UnregisteredCompletionClientException(string clientName)
         : base($"No registered completion client was found to match '{clientName}'.")
     {

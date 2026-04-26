@@ -8,6 +8,13 @@ namespace CrestApps.Core.AI.Documents.Services;
 /// </summary>
 public sealed class PlainTextIngestionDocumentReader : IngestionDocumentReader
 {
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="mediaType">The media type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task<IngestionDocument> ReadAsync(
         Stream source,
         string identifier,

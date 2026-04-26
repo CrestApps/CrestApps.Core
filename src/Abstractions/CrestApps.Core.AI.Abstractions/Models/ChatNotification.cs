@@ -27,7 +27,7 @@ public sealed class ChatNotification
     /// <summary>
     /// Gets the notification type, which serves as both the unique identifier and the CSS
     /// styling class for the notification. Only one notification of a given type can be
-    /// active at a time — sending a new notification with the same type replaces the
+    /// active at a time - sending a new notification with the same type replaces the
     /// existing one. Built-in types are defined in <see cref="ChatNotificationTypes"/>.
     /// </summary>
     public string Type { get; private set; }

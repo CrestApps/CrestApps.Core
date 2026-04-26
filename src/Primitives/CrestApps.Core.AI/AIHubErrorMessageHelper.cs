@@ -59,6 +59,10 @@ internal static class AIHubErrorMessageHelper
         return S["Our service is currently unavailable. Please try again later."];
     }
 
+    /// <summary>
+    /// Determines whether invalid chat model settings failure.
+    /// </summary>
+    /// <param name="ex">The ex.</param>
     public static bool IsInvalidChatModelSettingsFailure(Exception ex)
     {
         foreach (var current in EnumerateExceptions(ex))

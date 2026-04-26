@@ -8,6 +8,7 @@ namespace CrestApps.Core.AI.Mcp.Models;
 public sealed class McpClientAIOptions
 {
     private readonly Dictionary<string, McpClientTransportEntry> _transportTypes = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Gets the transport Types.
     /// </summary>
@@ -19,6 +20,11 @@ public sealed class McpClientAIOptions
         }
     }
 
+    /// <summary>
+    /// Adds transport type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="configure">The configure.</param>
     public void AddTransportType(string type, Action<McpClientTransportEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
@@ -46,6 +52,10 @@ public sealed class McpClientAIOptions
 /// </summary>
 public sealed class McpClientTransportEntry
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpClientTransportEntry"/> class.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public McpClientTransportEntry(string type)
     {
         Type = type;
@@ -55,10 +65,12 @@ public sealed class McpClientTransportEntry
     /// Gets or sets the type.
     /// </summary>
     public string Type { get; private set; }
+
     /// <summary>
     /// Gets or sets the display Name.
     /// </summary>
     public LocalizedString DisplayName { get; set; }
+
     /// <summary>
     /// Gets or sets the description.
     /// </summary>

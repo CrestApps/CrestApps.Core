@@ -16,6 +16,11 @@ public class DefaultTemplateService : ITemplateService
 
     private IReadOnlyList<Template> _cachedTemplates;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultTemplateService"/> class.
+    /// </summary>
+    /// <param name="providers">The providers.</param>
+    /// <param name="renderer">The renderer.</param>
     public DefaultTemplateService(
         IEnumerable<ITemplateProvider> providers,
         ITemplateEngine renderer)
@@ -24,6 +29,9 @@ public class DefaultTemplateService : ITemplateService
         _renderer = renderer;
     }
 
+    /// <summary>
+    /// Lists the operation.
+    /// </summary>
     public virtual async Task<IReadOnlyList<Template>> ListAsync()
     {
         if (_cachedTemplates is not null)
@@ -56,6 +64,10 @@ public class DefaultTemplateService : ITemplateService
         return allTemplates;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="id">The id.</param>
     public virtual async Task<Template> GetAsync(string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -66,6 +78,11 @@ public class DefaultTemplateService : ITemplateService
             string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Renders the operation.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="arguments">The arguments.</param>
     public virtual async Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -76,6 +93,12 @@ public class DefaultTemplateService : ITemplateService
         return await _renderer.RenderAsync(template.Content, arguments);
     }
 
+    /// <summary>
+    /// Merges the operation.
+    /// </summary>
+    /// <param name="ids">The ids.</param>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="separator">The separator.</param>
     public virtual async Task<string> MergeAsync(
         IEnumerable<string> ids,
         IDictionary<string, object> arguments = null,

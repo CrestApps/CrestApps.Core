@@ -117,11 +117,19 @@ public sealed class AICompletionUsageIndex : MapIndex
 /// </summary>
 public sealed class AICompletionUsageIndexProvider : IndexProvider<AICompletionUsageRecord>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AICompletionUsageIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AICompletionUsageIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AICompletionUsageRecord> context)
     {
         context.For<AICompletionUsageIndex>()

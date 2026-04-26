@@ -31,6 +31,11 @@ namespace CrestApps.Core.Data.YesSql;
 
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core yes sql data store.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">The delegate used to configure.</param>
     public static IServiceCollection AddCoreYesSqlDataStore(this IServiceCollection services, Func<Configuration, IConfiguration> configure)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -54,6 +59,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds yes sql data store.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsCoreBuilder AddYesSqlDataStore(this CrestAppsCoreBuilder builder, Func<Configuration, IConfiguration> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -70,6 +80,7 @@ public static class ServiceCollectionExtensions
     /// multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>,
     /// and the chat session stores (<see cref="IAIChatSessionManager"/> and <see cref="IAIChatSessionPromptStore"/>).
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAISuiteBuilder AddYesSqlStores(this CrestAppsAISuiteBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -85,6 +96,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the A2A client feature on the A2A client builder.
     /// This includes a catalog for <see cref="A2AConnection"/>.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsA2AClientBuilder AddYesSqlStores(this CrestAppsA2AClientBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -98,6 +110,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the MCP client feature on the MCP client builder.
     /// This includes a catalog for <see cref="McpConnection"/>.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsMcpClientBuilder AddYesSqlStores(this CrestAppsMcpClientBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -111,6 +124,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the MCP server feature on the MCP server builder.
     /// This includes catalogs for <see cref="McpPrompt"/> and <see cref="McpResource"/>.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsMcpServerBuilder AddYesSqlStores(this CrestAppsMcpServerBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -124,6 +138,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the chat interactions feature on the chat interactions builder.
     /// This includes a catalog for <see cref="ChatInteraction"/> and <see cref="IChatInteractionPromptStore"/>.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsChatInteractionsBuilder AddYesSqlStores(this CrestAppsChatInteractionsBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -138,6 +153,7 @@ public static class ServiceCollectionExtensions
     /// This includes <see cref="IAIDocumentStore"/>, <see cref="IAIDocumentChunkStore"/>,
     /// and <see cref="IAIDataSourceStore"/>.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsDocumentProcessingBuilder AddYesSqlStores(this CrestAppsDocumentProcessingBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -152,6 +168,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the AI memory feature on the AI memory builder.
     /// This includes <see cref="IAIMemoryStore"/>.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAIMemoryBuilder AddYesSqlStores(this CrestAppsAIMemoryBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -165,6 +182,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the indexing services feature on the indexing builder.
     /// This includes <see cref="ISearchIndexProfileStore"/> and the <see cref="SearchIndexProfileIndexProvider"/>.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsIndexingBuilder AddYesSqlStores(this CrestAppsIndexingBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -179,6 +197,7 @@ public static class ServiceCollectionExtensions
     /// This includes a catalog for <see cref="AIProfile"/>
     /// and multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIServicesStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -198,6 +217,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the AI profile template feature.
     /// This includes a catalog for <see cref="AIProfileTemplate"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIProfileTemplateStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -213,6 +233,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the indexing services feature.
     /// This includes <see cref="ISearchIndexProfileStore"/> and the <see cref="SearchIndexProfileIndexProvider"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreIndexingStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -228,6 +249,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the A2A client feature.
     /// This includes a catalog for <see cref="A2AConnection"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIA2AClientStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -243,6 +265,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the MCP client feature.
     /// This includes a catalog for <see cref="McpConnection"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIMcpClientStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -258,6 +281,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the MCP server feature.
     /// This includes catalogs for <see cref="McpPrompt"/> and <see cref="McpResource"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIMcpServerStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -279,6 +303,7 @@ public static class ServiceCollectionExtensions
     /// Implementations that need finer-grained control (e.g., Orchard Core) can call
     /// the individual extension methods instead.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatSessionStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -296,6 +321,7 @@ public static class ServiceCollectionExtensions
     /// <see cref="IAIChatSessionManager"/> and <see cref="IAIChatSessionPromptStore"/>,
     /// along with the <see cref="AIChatSessionIndexProvider"/> and <see cref="AIChatSessionPromptIndexProvider"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatSessionBaseStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -312,6 +338,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers the YesSql <see cref="AIChatSessionMetricsIndexProvider"/> for the chat session analytics feature.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatSessionMetricsStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -324,6 +351,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers the YesSql <see cref="AICompletionUsageIndexProvider"/> for the AI completion usage tracking feature.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAICompletionUsageStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -336,6 +364,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers the YesSql <see cref="AIChatSessionExtractedDataIndexProvider"/> for the chat session extracted data feature.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatSessionExtractedDataStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -349,6 +378,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the document processing feature.
     /// This includes <see cref="IAIDocumentStore"/> and <see cref="IAIDocumentChunkStore"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDocumentProcessingStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -366,6 +396,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the data source RAG feature.
     /// This includes <see cref="IAIDataSourceStore"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIDataSourceStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -382,6 +413,7 @@ public static class ServiceCollectionExtensions
     /// Registers YesSql-backed stores for the AI memory feature.
     /// This includes <see cref="IAIMemoryStore"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIMemoryStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -398,6 +430,7 @@ public static class ServiceCollectionExtensions
     /// This includes a catalog for <see cref="ChatInteraction"/>
     /// and <see cref="IChatInteractionPromptStore"/>.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatInteractionStoresYesSql(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -411,6 +444,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds yes sql document catalogs.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddYesSqlDocumentCatalogs(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -575,6 +612,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds yes sql named document catalog.
+    /// </summary>
     public static IServiceCollection AddYesSqlNamedDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex
@@ -593,6 +633,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds yes sql document catalog.
+    /// </summary>
     public static IServiceCollection AddYesSqlDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
         where TModel : CatalogItem
         where TIndex : CatalogItemIndex
@@ -610,6 +653,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds yes sql source document catalog.
+    /// </summary>
     public static IServiceCollection AddYesSqlSourceDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
         where TModel : CatalogItem, ISourceAwareModel
         where TIndex : CatalogItemIndex, ISourceAwareIndex
@@ -630,6 +676,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds yes sql named source document catalog.
+    /// </summary>
     public static IServiceCollection AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex, TService>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where TIndex : CatalogItemIndex, INameAwareIndex, ISourceAwareIndex
@@ -733,7 +782,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    // ── Private catalog helpers with collection selector ──────────────────────
+    // -- Private catalog helpers with collection selector ----------------------
 
     private static IServiceCollection AddYesSqlDocumentCatalog<TModel, TIndex>(IServiceCollection services, Func<YesSqlStoreOptions, string> collectionSelector)
         where TModel : CatalogItem

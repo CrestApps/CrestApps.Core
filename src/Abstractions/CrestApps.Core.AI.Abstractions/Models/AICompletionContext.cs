@@ -19,22 +19,22 @@ public sealed class AICompletionContext
     public string SystemMessage { get; set; }
 
     /// <summary>
-    /// Gets or sets the sampling temperature controlling output randomness (0.0–2.0).
+    /// Gets or sets the sampling temperature controlling output randomness (0.0-2.0).
     /// </summary>
     public float? Temperature { get; set; }
 
     /// <summary>
-    /// Gets or sets the nucleus-sampling probability mass (0.0–1.0).
+    /// Gets or sets the nucleus-sampling probability mass (0.0-1.0).
     /// </summary>
     public float? TopP { get; set; }
 
     /// <summary>
-    /// Gets or sets the frequency penalty that reduces repetition of already-seen tokens (0.0–2.0).
+    /// Gets or sets the frequency penalty that reduces repetition of already-seen tokens (0.0-2.0).
     /// </summary>
     public float? FrequencyPenalty { get; set; }
 
     /// <summary>
-    /// Gets or sets the presence penalty that encourages the model to discuss new topics (0.0–2.0).
+    /// Gets or sets the presence penalty that encourages the model to discuss new topics (0.0-2.0).
     /// </summary>
     public float? PresencePenalty { get; set; }
 

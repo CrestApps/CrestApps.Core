@@ -5,6 +5,10 @@ namespace CrestApps.Core.AI.Tooling;
 /// </summary>
 public sealed class AIToolDefinitionEntry
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIToolDefinitionEntry"/> class.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public AIToolDefinitionEntry(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -52,6 +56,10 @@ public sealed class AIToolDefinitionEntry
     /// </summary>
     public string Purpose { get; set; }
 
+    /// <summary>
+    /// Determines whether purpose.
+    /// </summary>
+    /// <param name="purpose">The purpose.</param>
     public bool HasPurpose(string purpose)
     {
         ArgumentException.ThrowIfNullOrEmpty(purpose);

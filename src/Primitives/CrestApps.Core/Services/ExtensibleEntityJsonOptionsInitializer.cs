@@ -12,12 +12,20 @@ internal sealed class ExtensibleEntityJsonOptionsInitializer : IHostedService
 {
     private readonly IOptions<ExtensibleEntityJsonOptions> _options;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExtensibleEntityJsonOptionsInitializer"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public ExtensibleEntityJsonOptionsInitializer(IOptions<ExtensibleEntityJsonOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
     }
 
+    /// <summary>
+    /// Starts the operation.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task StartAsync(CancellationToken cancellationToken)
     {
         // Thread-safety note: this static property assignment is performed once during
@@ -32,6 +40,10 @@ internal sealed class ExtensibleEntityJsonOptionsInitializer : IHostedService
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Stops the operation.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task StopAsync(CancellationToken cancellationToken)
         => Task.CompletedTask;
 }

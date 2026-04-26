@@ -67,6 +67,9 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneab
     /// </summary>
     public string ContentFieldName { get; set; }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public AIDataSource Clone()
     {
         return new AIDataSource

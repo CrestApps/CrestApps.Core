@@ -40,6 +40,15 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
     private string _cachedToken;
     private DateTimeOffset _tokenExpires;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureSpeechServiceTextToSpeechClient"/> class.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="authType">The auth type.</param>
+    /// <param name="apiKey">The api key.</param>
+    /// <param name="identityId">The identity id.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public AzureSpeechServiceTextToSpeechClient(
         Uri endpoint,
         AzureAuthenticationType authType,
@@ -59,6 +68,12 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets audio.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<TextToSpeechResponse> GetAudioAsync(
         string text,
         TextToSpeechOptions options = null,
@@ -106,6 +121,12 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         return null;
     }
 
+    /// <summary>
+    /// Gets streaming audio.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<TextToSpeechResponseUpdate> GetStreamingAudioAsync(
         string text,
         TextToSpeechOptions options = null,
@@ -183,7 +204,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
             }
         };
 
-        // Start synthesis — this returns once synthesis begins, not when it finishes.
+        // Start synthesis - this returns once synthesis begins, not when it finishes.
         var speakTask = synthesizer.StartSpeakingTextAsync(text);
 
         await foreach (var update in channel.Reader.ReadAllAsync(cancellationToken))
@@ -243,7 +264,11 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         return [];
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Gets service.
+    /// </summary>
+    /// <param name="serviceType">The service type.</param>
+    /// <param name="serviceKey">The service key.</param>
     public object GetService(Type serviceType, object serviceKey = null)
     {
         ArgumentNullException.ThrowIfNull(serviceType);
@@ -251,6 +276,9 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         return serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
     }
 
+    /// <summary>
+    /// Disposes the operation.
+    /// </summary>
     public void Dispose()
     {
         // No owned resources to dispose; SpeechConfig/synthesizers are disposed per-call.

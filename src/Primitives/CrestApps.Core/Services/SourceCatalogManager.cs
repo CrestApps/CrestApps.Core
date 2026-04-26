@@ -13,6 +13,12 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
 {
     protected readonly ISourceCatalog<T> SourceCatalog;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SourceCatalogManager"/> class.
+    /// </summary>
+    /// <param name="sourceCatalog">The source catalog.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     public SourceCatalogManager(
         ISourceCatalog<T> sourceCatalog,
         IEnumerable<ICatalogEntryHandler<T>> handlers,
@@ -22,6 +28,11 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         SourceCatalog = sourceCatalog;
     }
 
+    /// <summary>
+    /// Finds by source.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IEnumerable<T>> FindBySourceAsync(string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
@@ -36,6 +47,11 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         return entries;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IEnumerable<T>> GetAsync(string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
@@ -50,6 +66,12 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         return entries;
     }
 
+    /// <summary>
+    /// News the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="data">The data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> NewAsync(string source, JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
@@ -78,6 +100,11 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
         return entry;
     }
 
+    /// <summary>
+    /// News the operation.
+    /// </summary>
+    /// <param name="data">The data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override ValueTask<T> NewAsync(JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         var source = data?["Source"]?.GetValue<string>();

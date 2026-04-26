@@ -22,6 +22,14 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     private readonly AIDeploymentCatalogOptions _catalogOptions;
     private readonly ILogger<ConfigurationAIDeploymentSource> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConfigurationAIDeploymentSource"/> class.
+    /// </summary>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="aiOptions">The ai options.</param>
+    /// <param name="catalogOptions">The catalog options.</param>
+    /// <param name="logger">The logger.</param>
     public ConfigurationAIDeploymentSource(
         IConfiguration configuration,
         TimeProvider timeProvider,
@@ -41,6 +49,11 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     /// </summary>
     public int Order => 100;
 
+    /// <summary>
+    /// Gets entries.
+    /// </summary>
+    /// <param name="knownEntries">The known entries.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<IReadOnlyCollection<AIDeployment>> GetEntriesAsync(IReadOnlyCollection<AIDeployment> knownEntries, CancellationToken cancellationToken = default)
     {
         var deployments = new Dictionary<string, AIDeployment>(StringComparer.OrdinalIgnoreCase);

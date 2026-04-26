@@ -21,8 +21,8 @@ public interface INamedCatalogSource<T>
     /// <param name="knownEntries">
     /// Entries already collected from higher-priority sources, allowing this source
     /// to skip entries whose names conflict with existing ones.
-    /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// </param>
     /// <returns>A read-only collection of entries from this source.</returns>
     ValueTask<IReadOnlyCollection<T>> GetEntriesAsync(IReadOnlyCollection<T> knownEntries, CancellationToken cancellationToken = default);
 }

@@ -14,6 +14,12 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DefaultOrchestrationContextBuilder> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultOrchestrationContextBuilder"/> class.
+    /// </summary>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultOrchestrationContextBuilder(
         IEnumerable<IOrchestrationContextBuilderHandler> handlers,
         IServiceProvider serviceProvider,
@@ -24,6 +30,11 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
         _logger = logger;
     }
 
+    /// <summary>
+    /// Builds the operation.
+    /// </summary>
+    /// <param name="resource">The resource.</param>
+    /// <param name="configure">The configure.</param>
     public async ValueTask<OrchestrationContext> BuildAsync(object resource, Action<OrchestrationContext> configure = null)
     {
         ArgumentNullException.ThrowIfNull(resource);

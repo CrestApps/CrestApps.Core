@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.DataSources;
 
 public static class AIDataSourceIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates ai data source index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateAIDataSourceIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

@@ -7,6 +7,10 @@ public static class AIProviderNameNormalizer
 {
     private const string _azureOpenAIClientName = "Azure";
 
+    /// <summary>
+    /// Normalizes the operation.
+    /// </summary>
+    /// <param name="providerName">The provider name.</param>
     public static string Normalize(string providerName)
     {
         if (string.IsNullOrWhiteSpace(providerName))

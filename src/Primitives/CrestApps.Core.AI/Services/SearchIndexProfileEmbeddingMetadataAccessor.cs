@@ -11,6 +11,10 @@ public static class SearchIndexProfileEmbeddingMetadataAccessor
     private const string ChatInteractionMetadataKey = "ChatInteractionIndexProfileMetadata";
     private const string AIMemoryMetadataKey = "AIMemoryIndexProfileMetadata";
 
+    /// <summary>
+    /// Gets metadata.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
     public static DataSourceIndexProfileMetadata GetMetadata(SearchIndexProfile indexProfile)
     {
         ArgumentNullException.ThrowIfNull(indexProfile);

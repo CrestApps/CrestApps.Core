@@ -9,6 +9,11 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public static class AIProfileTemplateParser
 {
+    /// <summary>
+    /// Parses the operation.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="parseResult">The parse result.</param>
     public static AIProfileTemplate Parse(string id, TemplateParseResult parseResult)
     {
         var metadata = parseResult.Metadata;
@@ -159,6 +164,11 @@ public static class AIProfileTemplateParser
         return template;
     }
 
+    /// <summary>
+    /// Gets parser for extension.
+    /// </summary>
+    /// <param name="parsers">The parsers.</param>
+    /// <param name="extension">The extension.</param>
     public static ITemplateParser GetParserForExtension(IEnumerable<ITemplateParser> parsers, string extension)
     {
         if (string.IsNullOrEmpty(extension))

@@ -20,6 +20,13 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
     private readonly AIProviderConnectionCatalogOptions _options;
     private readonly ILogger<ConfigurationAIProviderConnectionSource> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConfigurationAIProviderConnectionSource"/> class.
+    /// </summary>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
     public ConfigurationAIProviderConnectionSource(
         IConfiguration configuration,
         TimeProvider timeProvider,
@@ -37,6 +44,11 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
     /// </summary>
     public int Order => 100;
 
+    /// <summary>
+    /// Gets entries.
+    /// </summary>
+    /// <param name="knownEntries">The known entries.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<IReadOnlyCollection<AIProviderConnection>> GetEntriesAsync(IReadOnlyCollection<AIProviderConnection> knownEntries, CancellationToken cancellationToken = default)
     {
         var connections = new Dictionary<string, AIProviderConnection>(StringComparer.OrdinalIgnoreCase);

@@ -27,6 +27,10 @@ public sealed class ValidationResultDetails
     /// </summary>
     public bool Succeeded { get; set; } = true;
 
+    /// <summary>
+    /// Adds the operation.
+    /// </summary>
+    /// <param name="error">The error.</param>
     public void Fail(ValidationResult error)
     {
         Succeeded = false;

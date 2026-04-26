@@ -22,11 +22,19 @@ public sealed class A2AConnectionIndex : CatalogItemIndex
 /// </summary>
 public sealed class A2AConnectionIndexProvider : IndexProvider<A2AConnection>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="A2AConnectionIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public A2AConnectionIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<A2AConnection> context)
     {
         context.For<A2AConnectionIndex>()

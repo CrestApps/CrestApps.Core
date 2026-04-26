@@ -67,6 +67,11 @@ public sealed partial class SaveUserMemoryTool : AIFunction
             ["Strict"] = false,
         };
 
+    /// <summary>
+    /// Invoke cores core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<SaveUserMemoryTool>>();

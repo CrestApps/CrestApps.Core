@@ -20,10 +20,13 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
     /// <summary>
     /// Gets the name.
     /// </summary>
-    /// <inheritdoc />
     public string Name => HandlerName;
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Handles the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<ChatResponseHandlerResult> HandleAsync(
         ChatResponseHandlerContext context,
         CancellationToken cancellationToken = default)

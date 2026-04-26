@@ -11,6 +11,10 @@ namespace CrestApps.Core.Elasticsearch.Services;
 /// </summary>
 internal sealed partial class ElasticsearchODataFilterTranslator : IODataFilterTranslator
 {
+    /// <summary>
+    /// Translates the operation.
+    /// </summary>
+    /// <param name="odataFilter">The odata filter.</param>
     public string Translate(string odataFilter)
     {
         if (string.IsNullOrWhiteSpace(odataFilter))

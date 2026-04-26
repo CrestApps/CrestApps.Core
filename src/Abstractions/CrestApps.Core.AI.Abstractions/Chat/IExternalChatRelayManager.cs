@@ -25,8 +25,8 @@ public interface IExternalChatRelayManager
     /// <param name="factory">
     /// A factory function that creates a new <see cref="IExternalChatRelay"/> instance
     /// when no existing relay is found for the session.
-    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// </param>
     /// <returns>The active relay instance for the session.</returns>
     Task<IExternalChatRelay> GetOrCreateAsync(
         string sessionId,

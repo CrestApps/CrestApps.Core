@@ -16,6 +16,13 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<DefaultA2AAgentCardCacheService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultA2AAgentCardCacheService"/> class.
+    /// </summary>
+    /// <param name="memoryCache">The memory cache.</param>
+    /// <param name="httpClientFactory">The http client factory.</param>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultA2AAgentCardCacheService(
         IMemoryCache memoryCache,
         IHttpClientFactory httpClientFactory,
@@ -28,6 +35,12 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets agent card.
+    /// </summary>
+    /// <param name="connectionId">The connection id.</param>
+    /// <param name="connection">The connection.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AgentCard> GetAgentCardAsync(string connectionId, A2AConnection connection, CancellationToken cancellationToken = default)
     {
         var cacheKey = GetCacheKey(connectionId);
@@ -67,6 +80,10 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         }
     }
 
+    /// <summary>
+    /// Invalidates the operation.
+    /// </summary>
+    /// <param name="connectionId">The connection id.</param>
     public void Invalidate(string connectionId)
     {
         _memoryCache.Remove(GetCacheKey(connectionId));

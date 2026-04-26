@@ -19,6 +19,14 @@ public sealed class DataExtractionService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DataExtractionService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataExtractionService"/> class.
+    /// </summary>
+    /// <param name="clientFactory">The client factory.</param>
+    /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
     public DataExtractionService(
         IAIClientFactory clientFactory,
         ITemplateService aiTemplateService,
@@ -38,6 +46,10 @@ public sealed class DataExtractionService
     /// determines which fields to extract, calls the AI model, and applies results
     /// to the session. Returns the change set (may be empty).
     /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="session">The session.</param>
+    /// <param name="prompts">The prompts.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<ExtractionChangeSet> ProcessAsync(
         AIProfile profile,
         AIChatSession session,

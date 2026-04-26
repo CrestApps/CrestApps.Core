@@ -41,7 +41,7 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
 
     /// <summary>
     /// Gets or sets the provider-facing model or deployment name.
-    /// Falls back to <see cref = "Name"/> for backward compatibility with legacy records.
+    /// Falls back to <see cref="Name"/> for backward compatibility with legacy records.
     /// </summary>
     public string ModelName
     {
@@ -83,11 +83,18 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     /// </summary>
     public bool IsReadOnly { get; set; }
 
+    /// <summary>
+    /// Determines whether type.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public bool SupportsType(AIDeploymentType type)
     {
         return Type.Supports(type);
     }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public AIDeployment Clone()
     {
         return new AIDeployment

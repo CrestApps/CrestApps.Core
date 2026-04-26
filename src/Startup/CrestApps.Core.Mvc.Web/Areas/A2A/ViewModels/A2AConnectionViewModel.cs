@@ -97,4 +97,3 @@ public sealed class A2AConnectionViewModel
         return vm;
     }
 }
-

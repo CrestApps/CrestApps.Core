@@ -18,11 +18,18 @@ public sealed class AzureAISearchClientFactory : IAzureAISearchClientFactory
 
     private SearchIndexClient _searchIndexClient;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureAISearchClientFactory"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AzureAISearchClientFactory(IOptions<AzureAISearchConnectionOptions> options)
     {
         _options = options.Value;
     }
 
+    /// <summary>
+    /// Creates search index client.
+    /// </summary>
     public SearchIndexClient CreateSearchIndexClient()
     {
         if (_searchIndexClient != null)
@@ -38,6 +45,10 @@ public sealed class AzureAISearchClientFactory : IAzureAISearchClientFactory
         return _searchIndexClient;
     }
 
+    /// <summary>
+    /// Creates search client.
+    /// </summary>
+    /// <param name="indexFullName">The index full name.</param>
     public SearchClient CreateSearchClient(string indexFullName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(indexFullName);

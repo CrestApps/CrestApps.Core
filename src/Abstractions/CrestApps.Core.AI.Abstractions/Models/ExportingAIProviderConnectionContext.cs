@@ -18,6 +18,11 @@ public sealed class ExportingAIProviderConnectionContext
     /// </summary>
     public JsonObject ExportData { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExportingAIProviderConnectionContext"/> class.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="exportData">The export data.</param>
     public ExportingAIProviderConnectionContext(
         AIProviderConnection connection,
         JsonObject exportData)

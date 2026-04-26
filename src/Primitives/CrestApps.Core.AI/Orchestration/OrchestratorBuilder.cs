@@ -18,6 +18,7 @@ public sealed class OrchestratorBuilder<TOrchestrator>
     /// Sets the localized display title for this orchestrator.
     /// If not set, the orchestrator name is used in the UI.
     /// </summary>
+    /// <param name="title">The title.</param>
     public OrchestratorBuilder<TOrchestrator> WithTitle(string title)
     {
         _entry.Title = title;

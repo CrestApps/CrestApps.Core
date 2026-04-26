@@ -19,6 +19,15 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AICompletionUsageTrackingChatClient> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AICompletionUsageTrackingChatClient"/> class.
+    /// </summary>
+    /// <param name="innerClient">The inner client.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="connectionName">The connection name.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public AICompletionUsageTrackingChatClient(
         IChatClient innerClient,
         string clientName,
@@ -35,6 +44,12 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets response.
+    /// </summary>
+    /// <param name="messages">The messages.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions options = null,
@@ -49,6 +64,12 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
         return response;
     }
 
+    /// <summary>
+    /// Gets streaming response.
+    /// </summary>
+    /// <param name="messages">The messages.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions options = null,

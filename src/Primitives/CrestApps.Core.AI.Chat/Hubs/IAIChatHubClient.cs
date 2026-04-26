@@ -27,15 +27,12 @@ public interface IAIChatHubClient
     /// <param name="userRating">The user's rating value, or <see langword="null"/> if the rating was cleared.</param>
     Task MessageRated(string messageId, bool? userRating);
 
-    // Conversation mode (speech-to-text / text-to-speech).
-
     /// <summary>
     /// Sends a speech-to-text transcript fragment to the client.
     /// </summary>
-    /// <param name="identifier">The conversation turn identifier.</param>
-    /// <param name="text">The transcribed text.</param>
-    /// <param name="isFinal">Whether this is the final transcript for the utterance.</param>
-    Task ReceiveTranscript(string identifier, string text, bool isFinal);
+    // Conversation mode (speech-to-text / text-to-speech).
+
+        Task ReceiveTranscript(string identifier, string text, bool isFinal);
 
     /// <summary>
     /// Sends a chunk of synthesized audio data to the client for playback.
@@ -65,6 +62,7 @@ public interface IAIChatHubClient
     /// <param name="messageId">The assistant message identifier.</param>
     /// <param name="token">The response token text.</param>
     /// <param name="responseId">The response identifier for grouping tokens.</param>
+    /// <param name="references">The references.</param>
     Task ReceiveConversationAssistantToken(
         string identifier,
         string messageId,
@@ -77,27 +75,30 @@ public interface IAIChatHubClient
     /// </summary>
     /// <param name="identifier">The conversation turn identifier.</param>
     /// <param name="messageId">The assistant message identifier.</param>
+    /// <param name="references">The references.</param>
     Task ReceiveConversationAssistantComplete(
         string identifier,
         string messageId,
         Dictionary<string, AICompletionReference> references = null);
 
-    // Notification system messages.
-
     /// <summary>
     /// Sends a notification system message to the client. If a notification with the same
     /// type already exists, it is replaced.
     /// </summary>
-    Task ReceiveNotification(ChatNotification notification);
+    // Notification system messages.
+
+        Task ReceiveNotification(ChatNotification notification);
 
     /// <summary>
     /// Updates an existing notification on the client. Only replaces the notification
     /// if one with a matching type exists.
     /// </summary>
+    /// <param name="notification">The notification.</param>
     Task UpdateNotification(ChatNotification notification);
 
     /// <summary>
     /// Removes a notification from the client by its type.
     /// </summary>
+    /// <param name="notificationType">The notification type.</param>
     Task RemoveNotification(string notificationType);
 }

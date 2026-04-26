@@ -8,6 +8,10 @@ namespace CrestApps.Core.Builders;
 /// </summary>
 public sealed class CrestAppsCoreBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsCoreBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsCoreBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -26,6 +30,10 @@ public sealed class CrestAppsCoreBuilder
 /// </summary>
 public sealed class CrestAppsAISuiteBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsAISuiteBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsAISuiteBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -44,6 +52,10 @@ public sealed class CrestAppsAISuiteBuilder
 /// </summary>
 public sealed class CrestAppsIndexingBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsIndexingBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsIndexingBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -62,6 +74,10 @@ public sealed class CrestAppsIndexingBuilder
 /// </summary>
 public sealed class CrestAppsChatInteractionsBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsChatInteractionsBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsChatInteractionsBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -80,6 +96,10 @@ public sealed class CrestAppsChatInteractionsBuilder
 /// </summary>
 public sealed class CrestAppsDocumentProcessingBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsDocumentProcessingBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsDocumentProcessingBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -98,6 +118,10 @@ public sealed class CrestAppsDocumentProcessingBuilder
 /// </summary>
 public sealed class CrestAppsA2AClientBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsA2AClientBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsA2AClientBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -116,6 +140,10 @@ public sealed class CrestAppsA2AClientBuilder
 /// </summary>
 public sealed class CrestAppsMcpClientBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsMcpClientBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsMcpClientBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -134,6 +162,10 @@ public sealed class CrestAppsMcpClientBuilder
 /// </summary>
 public sealed class CrestAppsMcpServerBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsMcpServerBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsMcpServerBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -152,6 +184,10 @@ public sealed class CrestAppsMcpServerBuilder
 /// </summary>
 public sealed class CrestAppsAIMemoryBuilder
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CrestAppsAIMemoryBuilder"/> class.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public CrestAppsAIMemoryBuilder(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

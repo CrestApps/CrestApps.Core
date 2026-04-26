@@ -14,6 +14,11 @@ namespace CrestApps.Core.AI.Chat.Services;
 /// </summary>
 public sealed class CancelTransferNotificationActionHandler : IChatNotificationActionHandler
 {
+    /// <summary>
+    /// Handles the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task HandleAsync(ChatNotificationActionContext context, CancellationToken cancellationToken)
     {
         var logger = context.Services.GetRequiredService<ILogger<CancelTransferNotificationActionHandler>>();

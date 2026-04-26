@@ -12,6 +12,11 @@ public static class AIDeploymentConnectionEntryFactory
 {
     private const string ConnectionProtectorName = "AIProviderConnection";
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
     public static AIProviderConnectionEntry Create(AIDeployment deployment, IDataProtectionProvider dataProtectionProvider)
     {
         var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);

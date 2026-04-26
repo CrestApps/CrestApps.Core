@@ -20,6 +20,8 @@ public static class DownloadAIDocument
     /// <summary>
     /// Adds the shared AI document download endpoint used by citation links.
     /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="routeName">The route name.</param>
     public static IEndpointRouteBuilder AddDownloadAIDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = DefaultRouteName)
     {
         var endpoint = builder.MapGet("ai/documents/{documentId}/download", HandleAsync);

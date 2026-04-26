@@ -7,6 +7,11 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreChatInteractionPromptStore : DocumentCatalog<ChatInteractionPrompt>, IChatInteractionPromptStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EntityCoreChatInteractionPromptStore"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
     public EntityCoreChatInteractionPromptStore(
         CrestAppsEntityDbContext dbContext,
         ILogger<DocumentCatalog<ChatInteractionPrompt>> logger = null)
@@ -14,6 +19,10 @@ public sealed class EntityCoreChatInteractionPromptStore : DocumentCatalog<ChatI
     {
     }
 
+    /// <summary>
+    /// Gets prompts.
+    /// </summary>
+    /// <param name="chatInteractionId">The chat interaction id.</param>
     public async Task<IReadOnlyCollection<ChatInteractionPrompt>> GetPromptsAsync(string chatInteractionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(chatInteractionId);
@@ -28,6 +37,10 @@ public sealed class EntityCoreChatInteractionPromptStore : DocumentCatalog<ChatI
             .ToArray();
     }
 
+    /// <summary>
+    /// Deletes all prompts.
+    /// </summary>
+    /// <param name="chatInteractionId">The chat interaction id.</param>
     public async Task<int> DeleteAllPromptsAsync(string chatInteractionId)
     {
         ArgumentException.ThrowIfNullOrEmpty(chatInteractionId);

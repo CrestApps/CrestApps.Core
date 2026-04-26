@@ -61,6 +61,7 @@ public static class UniqueId
     /// <summary>
     /// Validates whether the given string is a valid 26-character base32 identifier.
     /// </summary>
+    /// <param name="id">The id.</param>
     public static bool IsValid(string id)
     {
         if (id is null || id.Length != _idLength)

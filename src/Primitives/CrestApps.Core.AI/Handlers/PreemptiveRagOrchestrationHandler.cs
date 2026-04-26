@@ -10,8 +10,8 @@ namespace CrestApps.Core.AI.Handlers;
 
 /// <summary>
 /// Orchestration handler that coordinates preemptive RAG across all registered
-/// <see cref = "IPreemptiveRagHandler"/> implementations. Extracts focused search queries
-/// once using <see cref = "PreemptiveSearchQueryProvider"/> and dispatches them to each handler.
+/// <see cref="IPreemptiveRagHandler"/> implementations. Extracts focused search queries
+/// once using <see cref="PreemptiveSearchQueryProvider"/> and dispatches them to each handler.
 /// After all handlers have run, evaluates the IsInScope constraint and injects a scoping
 /// directive if no references were produced.
 /// </summary>
@@ -23,6 +23,14 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
     private readonly DefaultOrchestratorSettings _settings;
     private readonly ILogger<PreemptiveRagOrchestrationHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PreemptiveRagOrchestrationHandler"/> class.
+    /// </summary>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="queryProvider">The query provider.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="logger">The logger.</param>
     public PreemptiveRagOrchestrationHandler(
         IEnumerable<IPreemptiveRagHandler> handlers,
         PreemptiveSearchQueryProvider queryProvider,
@@ -37,11 +45,19 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         _logger = logger;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuildingAsync(OrchestrationContextBuildingContext context)
     {
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="buildContext">The build context.</param>
     public async Task BuiltAsync(OrchestrationContextBuiltContext buildContext)
     {
         if (string.IsNullOrEmpty(buildContext.OrchestrationContext.UserMessage))

@@ -55,6 +55,9 @@ public sealed class DefaultAIOptions
     /// </summary>
     public bool EnableDistributedCaching { get; set; } = true;
 
+    /// <summary>
+    /// Normalizes the operation.
+    /// </summary>
     public DefaultAIOptions Normalize()
     {
         if (AbsoluteMaximumIterationsPerRequest <= 0)
@@ -72,6 +75,10 @@ public sealed class DefaultAIOptions
         return this;
     }
 
+    /// <summary>
+    /// Applies site overrides.
+    /// </summary>
+    /// <param name="settings">The settings.</param>
     public DefaultAIOptions ApplySiteOverrides(GeneralAIOptions settings)
     {
         var options = new DefaultAIOptions

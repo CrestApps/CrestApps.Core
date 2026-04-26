@@ -39,7 +39,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Extensions.Options;
 
 // =============================================================================
-// CrestApps AI Framework — MVC Example Application
+// CrestApps AI Framework - MVC Example Application
 // =============================================================================
 // This sample keeps the normal ASP.NET Core MVC setup small, moves reusable
 // sample-host plumbing behind extensions, and leaves the CrestApps feature

@@ -11,7 +11,10 @@ public sealed class ODataFilterValidator : IODataValidator
         " and ", " or ", " not ",
     ];
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Determines whether valid filter.
+    /// </summary>
+    /// <param name="filter">The filter.</param>
     public bool IsValidFilter(string filter)
     {
         if (string.IsNullOrWhiteSpace(filter))

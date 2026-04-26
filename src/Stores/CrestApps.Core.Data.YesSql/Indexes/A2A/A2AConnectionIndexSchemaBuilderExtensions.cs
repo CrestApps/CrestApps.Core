@@ -4,6 +4,11 @@ namespace CrestApps.Core.Data.YesSql.Indexes.A2A;
 
 public static class A2AConnectionIndexSchemaBuilderExtensions
 {
+    /// <summary>
+    /// Creates 2 a connection index schema.
+    /// </summary>
+    /// <param name="schemaBuilder">The schema builder.</param>
+    /// <param name="options">The options.</param>
     public static async Task CreateA2AConnectionIndexSchemaAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);

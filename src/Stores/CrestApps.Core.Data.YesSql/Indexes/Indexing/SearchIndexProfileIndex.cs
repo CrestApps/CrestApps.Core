@@ -43,11 +43,19 @@ public sealed class SearchIndexProfileIndex : CatalogItemIndex
 /// </summary>
 public sealed class SearchIndexProfileIndexProvider : IndexProvider<SearchIndexProfile>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SearchIndexProfileIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public SearchIndexProfileIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.DefaultCollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<SearchIndexProfile> context)
     {
         context.For<SearchIndexProfileIndex>()

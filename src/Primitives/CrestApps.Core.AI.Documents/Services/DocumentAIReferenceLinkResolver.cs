@@ -13,6 +13,11 @@ public sealed class DocumentAIReferenceLinkResolver : IAIReferenceLinkResolver
     private readonly LinkGenerator _linkGenerator;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentAIReferenceLinkResolver"/> class.
+    /// </summary>
+    /// <param name="linkGenerator">The link generator.</param>
+    /// <param name="httpContextAccessor">The http context accessor.</param>
     public DocumentAIReferenceLinkResolver(
         LinkGenerator linkGenerator,
         IHttpContextAccessor httpContextAccessor)
@@ -21,6 +26,11 @@ public sealed class DocumentAIReferenceLinkResolver : IAIReferenceLinkResolver
         _httpContextAccessor = httpContextAccessor;
     }
 
+    /// <summary>
+    /// Resolves link.
+    /// </summary>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="metadata">The metadata.</param>
     public string ResolveLink(string referenceId, IDictionary<string, object> metadata)
     {
         if (string.IsNullOrWhiteSpace(referenceId))

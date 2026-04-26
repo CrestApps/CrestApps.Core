@@ -33,6 +33,9 @@ public sealed class A2AConnection : CatalogItem, IDisplayTextAwareModel, IClonea
     /// </summary>
     public string OwnerId { get; set; }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public A2AConnection Clone()
     {
         return new A2AConnection()

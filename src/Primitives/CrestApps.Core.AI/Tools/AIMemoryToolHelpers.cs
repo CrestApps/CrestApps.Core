@@ -8,6 +8,10 @@ namespace CrestApps.Core.AI.Tools;
 
 internal static class AIMemoryToolHelpers
 {
+    /// <summary>
+    /// Gets current user id.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static string GetCurrentUserId(IServiceProvider services = null)
     {
         var invocationContext = AIInvocationScope.Current;

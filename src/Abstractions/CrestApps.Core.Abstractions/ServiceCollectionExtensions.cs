@@ -11,6 +11,9 @@ namespace CrestApps.Core;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds document catalog.
+    /// </summary>
     public static IServiceCollection AddDocumentCatalog<TModel, T>(this IServiceCollection services)
          where TModel : CatalogItem
          where T : class, ICatalog<TModel>
@@ -25,6 +28,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds named document catalog.
+    /// </summary>
     public static IServiceCollection AddNamedDocumentCatalog<TModel, T>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel
         where T : class, INamedCatalog<TModel>
@@ -41,6 +47,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds source document catalog.
+    /// </summary>
     public static IServiceCollection AddSourceDocumentCatalog<TModel, T>(this IServiceCollection services)
         where TModel : CatalogItem, ISourceAwareModel
         where T : class, ISourceCatalog<TModel>
@@ -57,6 +66,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds named source document catalog.
+    /// </summary>
     public static IServiceCollection AddNamedSourceDocumentCatalog<TModel, T>(this IServiceCollection services)
         where TModel : CatalogItem, INameAwareModel, ISourceAwareModel
         where T : class, INamedSourceCatalog<TModel>

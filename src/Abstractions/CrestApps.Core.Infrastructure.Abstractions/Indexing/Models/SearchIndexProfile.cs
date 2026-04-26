@@ -61,6 +61,9 @@ public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAw
 
     string IIndexProfileInfo.IndexProfileId => ItemId;
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public SearchIndexProfile Clone()
     {
         return new SearchIndexProfile

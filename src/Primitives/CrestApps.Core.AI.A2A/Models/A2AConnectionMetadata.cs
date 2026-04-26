@@ -13,6 +13,7 @@ public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
     public ClientAuthenticationType AuthenticationType { get; set; }
 
     // API Key authentication.
+
     /// <summary>
     /// Gets or sets the api Key Header Name.
     /// </summary>
@@ -29,6 +30,7 @@ public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
     public string ApiKey { get; set; }
 
     // Basic authentication.
+
     /// <summary>
     /// Gets or sets the basic Username.
     /// </summary>
@@ -40,6 +42,7 @@ public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
     public string BasicPassword { get; set; }
 
     // OAuth 2.0 Client Credentials.
+
     /// <summary>
     /// Gets or sets the O Auth 2 Token Endpoint.
     /// </summary>
@@ -61,6 +64,7 @@ public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
     public string OAuth2Scopes { get; set; }
 
     // OAuth 2.0 Private Key JWT.
+
     /// <summary>
     /// Gets or sets the O Auth 2 Private Key.
     /// </summary>
@@ -72,6 +76,7 @@ public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
     public string OAuth2KeyId { get; set; }
 
     // OAuth 2.0 Mutual TLS (mTLS).
+
     /// <summary>
     /// Gets or sets the O Auth 2 Client Certificate.
     /// </summary>
@@ -83,10 +88,10 @@ public sealed class A2AConnectionMetadata : IConnectionAuthMetadata
     public string OAuth2ClientCertificatePassword { get; set; }
 
     // Custom headers (advanced).
+
     /// <summary>
     /// Gets or sets the additional Headers.
     /// </summary>
     public Dictionary<string, string> AdditionalHeaders { get; set; }
 
 }
-

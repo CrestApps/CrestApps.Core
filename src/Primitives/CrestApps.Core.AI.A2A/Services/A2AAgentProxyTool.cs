@@ -20,6 +20,13 @@ internal sealed class A2AAgentProxyTool : AIFunction
     private readonly string _endpoint;
     private readonly string _connectionId;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="A2AAgentProxyTool"/> class.
+    /// </summary>
+    /// <param name="agentName">The agent name.</param>
+    /// <param name="description">The description.</param>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="connectionId">The connection id.</param>
     public A2AAgentProxyTool(
         string agentName,
         string description,
@@ -59,6 +66,11 @@ internal sealed class A2AAgentProxyTool : AIFunction
         ["Strict"] = false,
     };
 
+    /// <summary>
+    /// Invokes core.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async ValueTask<object> InvokeCoreAsync(
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)

@@ -27,11 +27,19 @@ public sealed class AIProfileIndex : CatalogItemIndex, INameAwareIndex, ISourceA
 /// </summary>
 public sealed class AIProfileIndexProvider : IndexProvider<AIProfile>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProfileIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIProfileIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIProfile> context)
     {
         context.For<AIProfileIndex>()

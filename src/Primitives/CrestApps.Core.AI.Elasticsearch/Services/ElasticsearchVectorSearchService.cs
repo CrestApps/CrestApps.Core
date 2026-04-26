@@ -16,6 +16,11 @@ internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
     private readonly ElasticsearchClient _elasticClient;
     private readonly ILogger<ElasticsearchVectorSearchService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ElasticsearchVectorSearchService"/> class.
+    /// </summary>
+    /// <param name="elasticClient">The elastic client.</param>
+    /// <param name="logger">The logger.</param>
     public ElasticsearchVectorSearchService(
         ElasticsearchClient elasticClient,
         ILogger<ElasticsearchVectorSearchService> logger)
@@ -24,6 +29,15 @@ internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="referenceType">The reference type.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<DocumentChunkSearchResult>> SearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,

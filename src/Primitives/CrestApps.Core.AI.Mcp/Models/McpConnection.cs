@@ -28,6 +28,9 @@ public sealed class McpConnection : SourceCatalogEntry, IDisplayTextAwareModel, 
     /// </summary>
     public string OwnerId { get; set; }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public McpConnection Clone()
     {
         return new McpConnection()

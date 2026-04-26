@@ -20,6 +20,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IServiceProvider _serviceProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIClientFactory"/> class.
+    /// </summary>
+    /// <param name="clientProviders">The client providers.</param>
+    /// <param name="connectionHandlers">The connection handlers.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="connectionCatalog">The connection catalog.</param>
     public DefaultAIClientFactory(
         IEnumerable<IAIClientProvider> clientProviders,
         IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
@@ -34,6 +42,10 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         _serviceProvider = serviceProvider;
     }
 
+    /// <summary>
+    /// Creates chat client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -53,6 +65,10 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
             _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
     }
 
+    /// <summary>
+    /// Creates embedding generator.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -63,8 +79,12 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
     }
+    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    /// <summary>
+    /// Creates image generator.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
@@ -76,8 +96,12 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
     }
+    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    /// <summary>
+    /// Creates speech to text client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
@@ -89,8 +113,12 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
     }
+    #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    /// <summary>
+    /// Creates text to speech client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
     public async ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {

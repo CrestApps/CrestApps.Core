@@ -7,6 +7,11 @@ namespace CrestApps.Core.AI.Documents;
 /// </summary>
 public sealed class AIChatSessionDocumentAuthorizationContext
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIChatSessionDocumentAuthorizationContext"/> class.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="session">The session.</param>
     public AIChatSessionDocumentAuthorizationContext(
         AIProfile profile,
         AIChatSession session)

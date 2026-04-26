@@ -14,6 +14,10 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     private readonly IEnumerable<INamedCatalogSource<T>> _sources;
     private readonly IWritableNamedCatalogSource<T>? _writableSource;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MultiSourceNamedCatalog"/> class.
+    /// </summary>
+    /// <param name="sources">The sources.</param>
     protected MultiSourceNamedCatalog(IEnumerable<INamedCatalogSource<T>> sources)
     {
         _sources = sources.OrderBy(static source => source.Order);
@@ -23,11 +27,20 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// Gets all.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await GetMergedEntriesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Finds by id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
@@ -35,6 +48,11 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         return entries.FirstOrDefault(entry => string.Equals(GetItemId(entry), id, StringComparison.OrdinalIgnoreCase))!;
     }
 
+    /// <summary>
+    /// Finds by name.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
@@ -42,6 +60,11 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         return entries.FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase))!;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="ids">The ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         var idSet = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -50,6 +73,9 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         return entries.Where(entry => idSet.Contains(GetItemId(entry))).ToArray();
     }
 
+    /// <summary>
+    /// Pages the operation.
+    /// </summary>
     public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
@@ -64,6 +90,11 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         };
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
@@ -71,6 +102,11 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         return _writableSource!.DeleteAsync(entry, cancellationToken);
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
@@ -78,6 +114,11 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         return _writableSource!.CreateAsync(entry, cancellationToken);
     }
 
+    /// <summary>
+    /// Updates the operation.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask UpdateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
@@ -89,12 +130,15 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// Gets the unique identifier for an entry.
     /// Override in derived classes when the identifier is stored in a different property.
     /// </summary>
+    /// <param name="entry">The entry.</param>
     protected abstract string GetItemId(T entry);
 
     /// <summary>
     /// Applies query-context filters to the entries.
     /// Override in derived classes to customize filtering and sorting behavior.
     /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="entries">The entries.</param>
     protected virtual IEnumerable<T> ApplyFilters(QueryContext? context, IEnumerable<T> entries)
     {
         if (context is null)
@@ -119,11 +163,13 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// Returns the sort key for an entry. Defaults to <see cref="INameAwareModel.Name"/>.
     /// Override in derived classes to customize sort order.
     /// </summary>
+    /// <param name="entry">The entry.</param>
     protected virtual string GetSortKey(T entry) => entry.Name;
 
     /// <summary>
     /// Collects entries from all sources, deduplicating by name (lower-order sources win).
     /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected async ValueTask<IReadOnlyCollection<T>> GetMergedEntriesAsync(CancellationToken cancellationToken = default)
     {
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

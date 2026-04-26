@@ -20,6 +20,12 @@ public sealed class PromptsFileSystemTemplateProvider : ITemplateProvider
     private readonly IEnumerable<ITemplateParser> _parsers;
     private readonly ILogger<PromptsFileSystemTemplateProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PromptsFileSystemTemplateProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
+    /// <param name="parsers">The parsers.</param>
+    /// <param name="logger">The logger.</param>
     public PromptsFileSystemTemplateProvider(
         IOptions<TemplateOptions> options,
         IEnumerable<ITemplateParser> parsers,
@@ -30,6 +36,9 @@ public sealed class PromptsFileSystemTemplateProvider : ITemplateProvider
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets templates.
+    /// </summary>
     public Task<IReadOnlyList<Template>> GetTemplatesAsync()
     {
         var templates = new List<Template>();

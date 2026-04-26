@@ -17,11 +17,23 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
 
     private readonly ElasticsearchClient _elasticClient;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataSourceElasticsearchDocumentReader"/> class.
+    /// </summary>
+    /// <param name="elasticClient">The elastic client.</param>
     public DataSourceElasticsearchDocumentReader(ElasticsearchClient elasticClient)
     {
         _elasticClient = elasticClient;
     }
 
+    /// <summary>
+    /// Reads the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="keyFieldName">The key field name.</param>
+    /// <param name="titleFieldName">The title field name.</param>
+    /// <param name="contentFieldName">The content field name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<KeyValuePair<string, SourceDocument>> ReadAsync(
         IIndexProfileInfo indexProfile,
         string keyFieldName,
@@ -91,6 +103,15 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
         }
     }
 
+    /// <summary>
+    /// Reads by ids.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="keyFieldName">The key field name.</param>
+    /// <param name="titleFieldName">The title field name.</param>
+    /// <param name="contentFieldName">The content field name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async IAsyncEnumerable<KeyValuePair<string, SourceDocument>> ReadByIdsAsync(
         IIndexProfileInfo indexProfile,
         IEnumerable<string> documentIds,

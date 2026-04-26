@@ -13,6 +13,10 @@ public sealed class ValidatingContext<T> : HandlerContextBase<T>
     /// </summary>
     public ValidationResultDetails Result { get; } = new();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ValidatingContext"/> class.
+    /// </summary>
+    /// <param name="model">The model.</param>
     public ValidatingContext(T model)
     : base(model)
     {

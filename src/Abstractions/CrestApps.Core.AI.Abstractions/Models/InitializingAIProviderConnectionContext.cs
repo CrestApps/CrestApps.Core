@@ -16,6 +16,10 @@ public sealed class InitializingAIProviderConnectionContext
     /// </summary>
     public AIProviderConnection Connection { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InitializingAIProviderConnectionContext"/> class.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
     public InitializingAIProviderConnectionContext(AIProviderConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);

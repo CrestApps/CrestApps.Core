@@ -7,6 +7,13 @@ namespace CrestApps.Core.AI.Deployments;
 /// </summary>
 public static class AIDeploymentManagerExtensions
 {
+    /// <summary>
+    /// Resolves utility or default.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="utilityDeploymentName">The utility deployment name.</param>
+    /// <param name="chatDeploymentName">The chat deployment name.</param>
+    /// <param name="clientName">The client name.</param>
     public static async ValueTask<AIDeployment> ResolveUtilityOrDefaultAsync(
         this IAIDeploymentManager deploymentManager,
         string utilityDeploymentName = null,
@@ -25,6 +32,13 @@ public static class AIDeploymentManagerExtensions
             clientName);
     }
 
+    /// <summary>
+    /// Resolves the operation.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="clientName">The client name.</param>
     public static async ValueTask<AIDeployment> ResolveAsync(
         this IAIDeploymentManager deploymentManager,
         AIDeploymentType type,
@@ -39,6 +53,13 @@ public static class AIDeploymentManagerExtensions
             ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for type '{type}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
     }
 
+    /// <summary>
+    /// Resolves utility.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="utilityDeploymentName">The utility deployment name.</param>
+    /// <param name="chatDeploymentName">The chat deployment name.</param>
+    /// <param name="clientName">The client name.</param>
     public static async ValueTask<AIDeployment> ResolveUtilityAsync(
         this IAIDeploymentManager deploymentManager,
         string utilityDeploymentName = null,

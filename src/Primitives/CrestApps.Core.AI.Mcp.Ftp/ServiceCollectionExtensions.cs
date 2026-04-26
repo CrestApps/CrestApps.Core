@@ -11,6 +11,11 @@ namespace CrestApps.Core.AI.Mcp.Ftp;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core ai ftp mcp resources.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">The action used to configure.</param>
     public static IServiceCollection AddCoreAIFtpMcpResources(this IServiceCollection services, Action<McpResourceTypeEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -27,6 +32,11 @@ public static class ServiceCollectionExtensions
         });
     }
 
+    /// <summary>
+    /// Adds ftp resources.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsMcpServerBuilder AddFtpResources(this CrestAppsMcpServerBuilder builder, Action<McpResourceTypeEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);

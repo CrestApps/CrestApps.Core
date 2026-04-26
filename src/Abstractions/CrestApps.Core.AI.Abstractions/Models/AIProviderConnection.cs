@@ -65,6 +65,9 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
     /// </summary>
     public bool IsReadOnly { get; set; }
 
+    /// <summary>
+    /// Clones the operation.
+    /// </summary>
     public AIProviderConnection Clone()
     {
         return new AIProviderConnection

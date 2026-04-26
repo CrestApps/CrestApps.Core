@@ -14,6 +14,11 @@ public sealed class FluidTemplateEngine : ITemplateEngine
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<FluidTemplateEngine> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FluidTemplateEngine"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public FluidTemplateEngine(
         IServiceProvider serviceProvider,
         ILogger<FluidTemplateEngine> logger)
@@ -22,6 +27,11 @@ public sealed class FluidTemplateEngine : ITemplateEngine
         _logger = logger;
     }
 
+    /// <summary>
+    /// Renders the operation.
+    /// </summary>
+    /// <param name="template">The template.</param>
+    /// <param name="arguments">The arguments.</param>
     public async Task<string> RenderAsync(string template, IDictionary<string, object> arguments = null)
     {
         if (string.IsNullOrWhiteSpace(template))
@@ -58,6 +68,11 @@ public sealed class FluidTemplateEngine : ITemplateEngine
         return NormalizeWhitespace(result);
     }
 
+    /// <summary>
+    /// Tries to validate.
+    /// </summary>
+    /// <param name="template">The template.</param>
+    /// <param name="errors">The errors.</param>
     public bool TryValidate(string template, out IList<string> errors)
     {
         errors = [];

@@ -6,15 +6,15 @@ namespace CrestApps.Core.AI.Orchestration;
 /// <summary>
 /// Per-invocation context for AI operations, providing isolation between concurrent
 /// SignalR hub method calls. Each hub invocation creates its own instance via
-/// <see cref = "AIInvocationScope.Begin"/>, and AI tools retrieve it via
-/// <see cref = "AIInvocationScope.Current"/>.
+/// <see cref="AIInvocationScope.Begin"/>, and AI tools retrieve it via
+/// <see cref="AIInvocationScope.Current"/>.
 ///
 /// <para>
 /// <b>Why this exists:</b> In SignalR, <c>HttpContext</c> is shared across all hub
 /// method invocations on the same WebSocket connection. If a user sends multiple
 /// messages concurrently, writing to <c>HttpContext.Items</c> causes data leaks
-/// between invocations. This class uses <see cref = "System.Threading.AsyncLocal{T}"/>
-/// (via <see cref = "AIInvocationScope"/>) to provide truly invocation-scoped storage
+/// between invocations. This class uses <see cref="System.Threading.AsyncLocal{T}"/>
+/// (via <see cref="AIInvocationScope"/>) to provide truly invocation-scoped storage
 /// that flows correctly through async/await chains without any cross-invocation
 /// contamination.
 /// </para>
@@ -32,7 +32,7 @@ public sealed class AIInvocationContext
     private int _referenceIndex;
 
     /// <summary>
-    /// Gets or sets the <see cref = "AIToolExecutionContext"/> for the current invocation,
+    /// Gets or sets the <see cref="AIToolExecutionContext"/> for the current invocation,
     /// providing provider, connection, and resource information.
     /// </summary>
     public AIToolExecutionContext ToolExecutionContext { get; set; }
@@ -63,12 +63,14 @@ public sealed class AIInvocationContext
     /// (e.g., from <c>DataSourceSearchTool</c> and <c>SearchDocumentsTool</c>).
     /// Keyed by the citation marker (e.g., "[doc:1]") with the reference metadata as value.
     /// </summary>
+    /// <param name="OrdinalIgnoreCase">The ordinal ignore case.</param>
     public Dictionary<string, AICompletionReference> ToolReferences { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets a general-purpose property bag for extensibility.
     /// Handlers and tools can store arbitrary per-invocation data here.
     /// </summary>
+    /// <param name="OrdinalIgnoreCase">The ordinal ignore case.</param>
     public Dictionary<string, object> Items { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>

@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Chat;
 /// <see cref="IExternalChatRelayNotificationHandler"/> to send/remove notifications.
 /// To handle custom event types, register a keyed builder:
 /// <code>
-/// services.AddKeyedScoped&lt;IExternalChatRelayNotificationBuilder, MyBuilder&gt;("my-event-type");
+/// services.AddKeyedScoped<IExternalChatRelayNotificationBuilder, MyBuilder>("my-event-type");
 /// </code>
 /// </remarks>
 public interface IExternalChatRelayEventHandler

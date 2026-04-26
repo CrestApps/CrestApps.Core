@@ -13,6 +13,9 @@ public sealed class McpMetadataCacheOptions
     /// </summary>
     public int CacheExpirationMinutes { get; set; } = 30;
 
+    /// <summary>
+    /// Gets cache duration.
+    /// </summary>
     public TimeSpan GetCacheDuration()
     {
         var minutes = CacheExpirationMinutes;

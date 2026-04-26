@@ -17,6 +17,11 @@ namespace CrestApps.Core.Azure.AISearch;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core azure ai search services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">The configuration.</param>
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services, IConfigurationSection configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -27,6 +32,10 @@ public static class ServiceCollectionExtensions
         return services.AddCoreAzureAISearchServices();
     }
 
+    /// <summary>
+    /// Adds core azure ai search services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAzureAISearchServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -53,6 +62,12 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds azure ai search.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsIndexingBuilder AddAzureAISearch(this CrestAppsIndexingBuilder builder, IConfigurationSection configuration, Action<CrestAppsAzureAISearchBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -68,6 +83,11 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds azure ai search.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsIndexingBuilder AddAzureAISearch(this CrestAppsIndexingBuilder builder, Action<CrestAppsAzureAISearchBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);

@@ -13,6 +13,12 @@ public static class IncludeTemplateFilter
 {
     public const string FilterName = "include_prompt";
 
+    /// <summary>
+    /// Include prompts prompt.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="context">The context.</param>
     public static ValueTask<FluidValue> IncludePromptAsync(
         FluidValue input,
         FilterArguments arguments,

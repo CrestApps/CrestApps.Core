@@ -12,6 +12,13 @@ public sealed class IndexProfileSourceOptions
     /// </summary>
     public List<IndexProfileSourceDescriptor> Sources { get; } = [];
 
+    /// <summary>
+    /// Adds or update.
+    /// </summary>
+    /// <param name="providerName">The provider name.</param>
+    /// <param name="providerDisplayName">The provider display name.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="configure">The action used to configure.</param>
     public void AddOrUpdate(
         string providerName,
         string providerDisplayName,

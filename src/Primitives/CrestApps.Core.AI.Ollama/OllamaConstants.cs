@@ -17,6 +17,5 @@ public readonly struct OllamaClientMarker : IAIClientMarker
     /// <summary>
     /// Gets the client Name.
     /// </summary>
-    /// <inheritdoc />
     public static string ClientName => OllamaConstants.ClientName;
 }

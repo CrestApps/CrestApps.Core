@@ -32,11 +32,19 @@ public sealed class ChatInteractionIndex : CatalogItemIndex
 /// </summary>
 public sealed class ChatInteractionIndexProvider : IndexProvider<ChatInteraction>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ChatInteractionIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public ChatInteractionIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<ChatInteraction> context)
     {
         context.For<ChatInteractionIndex>()

@@ -23,6 +23,15 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
     private readonly AIMemoryOptions _memoryOptions;
     private readonly ILogger<AIMemorySearchService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemorySearchService"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="indexProfileStore">The index profile store.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="memoryOptions">The memory options.</param>
+    /// <param name="logger">The logger.</param>
     public AIMemorySearchService(
         IServiceProvider serviceProvider,
         ISearchIndexProfileStore indexProfileStore,
@@ -39,6 +48,13 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="queries">The queries.</param>
+    /// <param name="requestedTopN">The requested top n.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<AIMemorySearchResult>> SearchAsync(
         string userId,
         IEnumerable<string> queries,

@@ -461,4 +461,3 @@ public sealed class McpConnectionController : Controller
         return model;
     }
 }
-

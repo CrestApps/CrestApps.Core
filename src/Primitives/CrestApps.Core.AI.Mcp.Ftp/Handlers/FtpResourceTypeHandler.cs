@@ -19,6 +19,11 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger<FtpResourceTypeHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FtpResourceTypeHandler"/> class.
+    /// </summary>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="logger">The logger.</param>
     public FtpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,
         ILogger<FtpResourceTypeHandler> logger)
@@ -28,6 +33,12 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets result.
+    /// </summary>
+    /// <param name="resource">The resource.</param>
+    /// <param name="variables">The variables.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     protected override async Task<ReadResourceResult> GetResultAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken)
     {
         if (!resource.TryGet<FtpConnectionMetadata>(out var metadata))

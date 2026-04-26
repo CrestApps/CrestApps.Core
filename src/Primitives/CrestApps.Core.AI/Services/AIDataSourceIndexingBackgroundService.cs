@@ -10,6 +10,12 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AIDataSourceIndexingBackgroundService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDataSourceIndexingBackgroundService"/> class.
+    /// </summary>
+    /// <param name="queue">The queue.</param>
+    /// <param name="scopeFactory">The scope factory.</param>
+    /// <param name="logger">The logger.</param>
     public AIDataSourceIndexingBackgroundService(
         AIDataSourceIndexingQueue queue,
         IServiceScopeFactory scopeFactory,
@@ -20,6 +26,10 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Executes the operation.
+    /// </summary>
+    /// <param name="stoppingToken">The cancellation token.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await foreach (var workItem in _queue.ReadAllAsync(stoppingToken))

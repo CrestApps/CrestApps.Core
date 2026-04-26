@@ -77,5 +77,6 @@ public sealed class OrchestrationContext
     /// Gets the extensible property bag for additional context contributed by
     /// <see cref="IOrchestrationContextBuilderHandler"/> implementations.
     /// </summary>
+    /// <param name="OrdinalIgnoreCase">The ordinal ignore case.</param>
     public Dictionary<string, object> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);
 }

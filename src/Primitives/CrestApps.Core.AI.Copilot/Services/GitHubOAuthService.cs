@@ -24,6 +24,15 @@ public sealed class GitHubOAuthService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<GitHubOAuthService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GitHubOAuthService"/> class.
+    /// </summary>
+    /// <param name="credentialStore">The credential store.</param>
+    /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="options">The options.</param>
+    /// <param name="httpClientFactory">The http client factory.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public GitHubOAuthService(
         ICopilotCredentialStore credentialStore,
         IDataProtectionProvider dataProtectionProvider,
@@ -40,6 +49,11 @@ public sealed class GitHubOAuthService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets authorization url.
+    /// </summary>
+    /// <param name="callbackUrl">The callback url.</param>
+    /// <param name="returnUrl">The return url.</param>
     public string GetAuthorizationUrl(string callbackUrl, string returnUrl)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(callbackUrl);
@@ -64,6 +78,12 @@ public sealed class GitHubOAuthService
         return $"https://github.com/login/oauth/authorize?{queryParams}";
     }
 
+    /// <summary>
+    /// Exchanges code for token.
+    /// </summary>
+    /// <param name="code">The code.</param>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<GitHubOAuthCredential> ExchangeCodeForTokenAsync(
         string code,
         string userId,
@@ -144,6 +164,11 @@ public sealed class GitHubOAuthService
         };
     }
 
+    /// <summary>
+    /// Gets credential.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<GitHubOAuthCredential> GetCredentialAsync(
         string userId,
         CancellationToken cancellationToken = default)
@@ -170,6 +195,8 @@ public sealed class GitHubOAuthService
     /// Gets the raw protected (encrypted) credentials for the specified user.
     /// These can be stored on an AIProfile entity for reuse across sessions.
     /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<CopilotProtectedCredential> GetProtectedCredentialsAsync(
         string userId,
         CancellationToken cancellationToken = default)
@@ -186,6 +213,11 @@ public sealed class GitHubOAuthService
         return null;
     }
 
+    /// <summary>
+    /// Gets valid access token.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<string> GetValidAccessTokenAsync(
         string userId,
         CancellationToken cancellationToken = default)
@@ -241,6 +273,11 @@ public sealed class GitHubOAuthService
         }
     }
 
+    /// <summary>
+    /// Disconnects the operation.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DisconnectAsync(
         string userId,
         CancellationToken cancellationToken = default)
@@ -250,6 +287,11 @@ public sealed class GitHubOAuthService
         await _credentialStore.ClearCredentialAsync(userId, cancellationToken);
     }
 
+    /// <summary>
+    /// Determines whether authenticated.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> IsAuthenticatedAsync(
         string userId,
         CancellationToken cancellationToken = default)
@@ -273,6 +315,11 @@ public sealed class GitHubOAuthService
         return true;
     }
 
+    /// <summary>
+    /// Lists models.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IReadOnlyCollection<CopilotModelInfo>> ListModelsAsync(
         string userId,
         CancellationToken cancellationToken = default)

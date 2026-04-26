@@ -7,6 +7,11 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 
 public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IAIMemoryStore
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EntityCoreAIMemoryStore"/> class.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="logger">The logger.</param>
     public EntityCoreAIMemoryStore(
         CrestAppsEntityDbContext dbContext,
         ILogger<DocumentCatalog<AIMemoryEntry>> logger = null)
@@ -14,6 +19,10 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
     {
     }
 
+    /// <summary>
+    /// Counts by user.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
     public Task<int> CountByUserAsync(string userId)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
@@ -23,6 +32,11 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
             .CountAsync();
     }
 
+    /// <summary>
+    /// Finds by user and name.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="name">The name.</param>
     public async Task<AIMemoryEntry> FindByUserAndNameAsync(string userId, string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
@@ -34,6 +48,11 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
         return record is null ? null : CatalogRecordFactory.Materialize<AIMemoryEntry>(record);
     }
 
+    /// <summary>
+    /// Gets by user.
+    /// </summary>
+    /// <param name="userId">The user id.</param>
+    /// <param name="limit">The limit.</param>
     public async Task<IReadOnlyCollection<AIMemoryEntry>> GetByUserAsync(string userId, int limit = 100)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);

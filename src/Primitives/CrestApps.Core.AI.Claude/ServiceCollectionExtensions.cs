@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds the Anthropic orchestrator and related services.
     /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIClaudeOrchestrator(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -33,6 +34,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds claude orchestrator.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAISuiteBuilder AddClaudeOrchestrator(this CrestAppsAISuiteBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

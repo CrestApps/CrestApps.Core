@@ -11,6 +11,12 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
 {
     protected readonly INamedSourceCatalog<T> NamedSourceCatalog;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NamedSourceCatalogManager"/> class.
+    /// </summary>
+    /// <param name="catalog">The catalog.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     public NamedSourceCatalogManager(
         INamedSourceCatalog<T> catalog,
         IEnumerable<ICatalogEntryHandler<T>> handlers,
@@ -20,6 +26,11 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
         NamedSourceCatalog = catalog;
     }
 
+    /// <summary>
+    /// Finds by name.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -34,6 +45,12 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
         return entry!;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> GetAsync(string name, string source, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);

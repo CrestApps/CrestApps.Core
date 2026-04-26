@@ -14,6 +14,11 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DataSourceChatInteractionSettingsHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataSourceChatInteractionSettingsHandler"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public DataSourceChatInteractionSettingsHandler(
         IServiceProvider serviceProvider,
         ILogger<DataSourceChatInteractionSettingsHandler> logger)
@@ -22,6 +27,12 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         _logger = logger;
     }
 
+    /// <summary>
+    /// Updatings the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var dataSourceId = GetString(settings, "dataSourceId");
@@ -75,6 +86,12 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         });
     }
 
+    /// <summary>
+    /// Updateds the operation.
+    /// </summary>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;

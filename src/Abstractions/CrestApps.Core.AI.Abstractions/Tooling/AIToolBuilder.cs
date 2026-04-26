@@ -21,6 +21,7 @@ public sealed class AIToolBuilder<TTool>
     /// <summary>
     /// Sets the display title for this tool.
     /// </summary>
+    /// <param name="title">The title.</param>
     public AIToolBuilder<TTool> WithTitle(string title)
     {
         _entry.Title = title;
@@ -31,6 +32,7 @@ public sealed class AIToolBuilder<TTool>
     /// <summary>
     /// Sets the description for this tool.
     /// </summary>
+    /// <param name="description">The description.</param>
     public AIToolBuilder<TTool> WithDescription(string description)
     {
         _entry.Description = description;
@@ -41,6 +43,7 @@ public sealed class AIToolBuilder<TTool>
     /// <summary>
     /// Sets the category for grouping this tool in the UI.
     /// </summary>
+    /// <param name="category">The category.</param>
     public AIToolBuilder<TTool> WithCategory(string category)
     {
         _entry.Category = category;
@@ -52,6 +55,7 @@ public sealed class AIToolBuilder<TTool>
     /// Sets the purpose tag for this tool. Use well-known constants from <see cref="AIToolPurposes"/>
     /// or define custom purpose strings for domain-specific tool grouping.
     /// </summary>
+    /// <param name="purpose">The purpose.</param>
     public AIToolBuilder<TTool> WithPurpose(string purpose)
     {
         _entry.Purpose = purpose;

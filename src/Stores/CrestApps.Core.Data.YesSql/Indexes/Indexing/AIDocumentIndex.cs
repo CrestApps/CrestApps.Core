@@ -39,11 +39,19 @@ public sealed class AIDocumentIndex : CatalogItemIndex
 /// </summary>
 public sealed class AIDocumentIndexProvider : IndexProvider<AIDocument>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDocumentIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIDocumentIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AIDocsCollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIDocument> context)
     {
         context.For<AIDocumentIndex>()

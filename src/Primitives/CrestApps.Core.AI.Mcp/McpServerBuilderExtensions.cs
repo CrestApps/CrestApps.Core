@@ -21,6 +21,7 @@ public static class McpServerBuilderExtensions
     /// <see cref="IMcpServerPromptService"/>, and <see cref="IMcpServerResourceService"/>
     /// into the MCP protocol so both Orchard Core and standalone MVC hosts share the same handler logic.
     /// </summary>
+    /// <param name="builder">The builder.</param>
     public static IMcpServerBuilder WithCrestAppsHandlers(this IMcpServerBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

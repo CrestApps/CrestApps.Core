@@ -20,9 +20,9 @@ public interface IOrchestrationContextBuilder
     /// <param name="resource">
     /// The resource object (e.g., <see cref="AIProfile"/> or <c>ChatInteraction</c>) used to
     /// seed and configure the orchestration context. Must not be <see langword="null"/>.
-    /// </param>
     /// <param name="configure">
     /// An optional delegate to override or fine-tune the context after handlers have run
+    /// </param>
     /// <c>BuildingAsync</c> but before <c>BuiltAsync</c>.
     /// </param>
     /// <returns>A task that completes with the fully built <see cref="OrchestrationContext"/>.</returns>

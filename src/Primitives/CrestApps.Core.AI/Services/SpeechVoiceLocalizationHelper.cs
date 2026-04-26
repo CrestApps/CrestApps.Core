@@ -7,6 +7,12 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public static class SpeechVoiceLocalizationHelper
 {
+    /// <summary>
+    /// Creates allowed cultures.
+    /// </summary>
+    /// <param name="supportedCultures">The supported cultures.</param>
+    /// <param name="currentCulture">The current culture.</param>
+    /// <param name="currentUICulture">The current ui culture.</param>
     public static HashSet<string> CreateAllowedCultures(
         IEnumerable<string> supportedCultures,
         CultureInfo currentCulture = null,
@@ -25,6 +31,11 @@ public static class SpeechVoiceLocalizationHelper
         return allowedCultures;
     }
 
+    /// <summary>
+    /// Determines whether language allowed.
+    /// </summary>
+    /// <param name="language">The language.</param>
+    /// <param name="allowedCultures">The allowed cultures.</param>
     public static bool IsLanguageAllowed(string language, ISet<string> allowedCultures)
     {
         if (string.IsNullOrWhiteSpace(language) || allowedCultures is null || allowedCultures.Count == 0)
@@ -44,6 +55,10 @@ public static class SpeechVoiceLocalizationHelper
         return false;
     }
 
+    /// <summary>
+    /// Gets culture display name.
+    /// </summary>
+    /// <param name="language">The language.</param>
     public static string GetCultureDisplayName(string language)
     {
         if (string.IsNullOrEmpty(language))

@@ -17,6 +17,12 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<SearchIndexProfileProvisioningService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SearchIndexProfileProvisioningService"/> class.
+    /// </summary>
+    /// <param name="indexProfileManager">The index profile manager.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
     public SearchIndexProfileProvisioningService(
         ISearchIndexProfileManager indexProfileManager,
         IServiceProvider serviceProvider,
@@ -27,6 +33,11 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
         _logger = logger;
     }
 
+    /// <summary>
+    /// Creates the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<ValidationResultDetails> CreateAsync(SearchIndexProfile profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);

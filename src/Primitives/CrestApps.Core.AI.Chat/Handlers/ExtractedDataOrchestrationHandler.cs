@@ -14,6 +14,11 @@ public sealed class ExtractedDataOrchestrationHandler : IOrchestrationContextBui
     private readonly ITemplateService _templateService;
     private readonly ILogger<ExtractedDataOrchestrationHandler> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExtractedDataOrchestrationHandler"/> class.
+    /// </summary>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="logger">The logger.</param>
     public ExtractedDataOrchestrationHandler(
         ITemplateService templateService,
         ILogger<ExtractedDataOrchestrationHandler> logger)
@@ -22,11 +27,19 @@ public sealed class ExtractedDataOrchestrationHandler : IOrchestrationContextBui
         _logger = logger;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuildingAsync(OrchestrationContextBuildingContext context)
     {
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuiltAsync(OrchestrationContextBuiltContext context)
     {
         if (context.Resource is not AIProfile profile || context.OrchestrationContext.CompletionContext is null || !profile.TryGetSettings<AIProfileDataExtractionSettings>(out var settings) || !settings.EnableDataExtraction || settings.DataExtractionEntries.Count == 0 || !context.OrchestrationContext.CompletionContext.AdditionalProperties.TryGetValue("Session", out var sessionObject) || sessionObject is not AIChatSession session || session.ExtractedData.Count == 0)

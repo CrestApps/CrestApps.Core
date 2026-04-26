@@ -12,6 +12,11 @@ public static class SpeechLanguageHelper
         .Where(name => !string.IsNullOrWhiteSpace(name))
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Normalize or defaults or default.
+    /// </summary>
+    /// <param name="language">The language.</param>
+    /// <param name="fallbackLanguage">The fallback language.</param>
     public static string NormalizeOrDefault(string language, string fallbackLanguage = "en-US")
     {
         if (string.IsNullOrWhiteSpace(language))

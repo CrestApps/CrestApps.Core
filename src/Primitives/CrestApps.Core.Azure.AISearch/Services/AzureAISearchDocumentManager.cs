@@ -11,7 +11,7 @@ using AzureSearchDocument = Azure.Search.Documents.Models.SearchDocument;
 namespace CrestApps.Core.Azure.AISearch.Services;
 
 /// <summary>
-/// Azure AI Search implementation of <see cref = "ISearchDocumentManager"/>
+/// Azure AI Search implementation of <see cref="ISearchDocumentManager"/>
 /// for adding, updating, and deleting documents in search indexes.
 /// </summary>
 internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
@@ -20,6 +20,12 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
     private readonly IEnumerable<ISearchDocumentHandler> _handlers;
     private readonly ILogger<AzureAISearchDocumentManager> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureAISearchDocumentManager"/> class.
+    /// </summary>
+    /// <param name="searchIndexClient">The search index client.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
     public AzureAISearchDocumentManager(
         SearchIndexClient searchIndexClient,
         IEnumerable<ISearchDocumentHandler> handlers,
@@ -30,6 +36,12 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         _logger = logger;
     }
 
+    /// <summary>
+    /// Adds or update.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="documents">The documents.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> AddOrUpdateAsync(IIndexProfileInfo profile, IReadOnlyCollection<IndexDocument> documents, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -73,6 +85,12 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         }
     }
 
+    /// <summary>
+    /// Deletes the operation.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAsync(IIndexProfileInfo profile, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -103,6 +121,11 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         }
     }
 
+    /// <summary>
+    /// Deletes all.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAllAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);

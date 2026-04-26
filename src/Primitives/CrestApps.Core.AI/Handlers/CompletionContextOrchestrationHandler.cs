@@ -5,19 +5,27 @@ using CrestApps.Core.AI.Orchestration;
 namespace CrestApps.Core.AI.Handlers;
 
 /// <summary>
-/// Core orchestration context handler that builds the <see cref = "AICompletionContext"/>
-/// from the resource using the existing <see cref = "IAICompletionContextBuilder"/> pipeline,
-/// and resolves the <see cref = "OrchestrationContext.SourceName"/>.
+/// Core orchestration context handler that builds the <see cref="AICompletionContext"/>
+/// from the resource using the existing <see cref="IAICompletionContextBuilder"/> pipeline,
+/// and resolves the <see cref="OrchestrationContext.SourceName"/>.
 /// </summary>
 internal sealed class CompletionContextOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
     private readonly IAICompletionContextBuilder _completionContextBuilder;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CompletionContextOrchestrationHandler"/> class.
+    /// </summary>
+    /// <param name="completionContextBuilder">The completion context builder.</param>
     public CompletionContextOrchestrationHandler(IAICompletionContextBuilder completionContextBuilder)
     {
         _completionContextBuilder = completionContextBuilder;
     }
 
+    /// <summary>
+    /// Buildings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public async Task BuildingAsync(OrchestrationContextBuildingContext context)
     {
         // Build the AICompletionContext using the existing handler pipeline.
@@ -34,6 +42,10 @@ internal sealed class CompletionContextOrchestrationHandler : IOrchestrationCont
         }
     }
 
+    /// <summary>
+    /// Builts the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public Task BuiltAsync(OrchestrationContextBuiltContext context)
     {
         return Task.CompletedTask;

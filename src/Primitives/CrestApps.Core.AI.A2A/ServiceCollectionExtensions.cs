@@ -15,6 +15,10 @@ namespace CrestApps.Core.AI.A2A;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core 2 a client.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIA2AClient(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -36,6 +40,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds 2 a client.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The configure.</param>
     public static CrestAppsAISuiteBuilder AddA2AClient(this CrestAppsAISuiteBuilder builder, Action<CrestAppsA2AClientBuilder> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);

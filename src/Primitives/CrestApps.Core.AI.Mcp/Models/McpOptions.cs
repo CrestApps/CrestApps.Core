@@ -8,6 +8,7 @@ namespace CrestApps.Core.AI.Mcp.Models;
 public sealed class McpOptions
 {
     private readonly Dictionary<string, McpResourceTypeEntry> _resourceTypes = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Gets the resource Types.
     /// </summary>
@@ -19,6 +20,11 @@ public sealed class McpOptions
         }
     }
 
+    /// <summary>
+    /// Adds resource type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="configure">The configure.</param>
     public void AddResourceType(string type, Action<McpResourceTypeEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
@@ -46,6 +52,10 @@ public sealed class McpOptions
 /// </summary>
 public sealed class McpResourceTypeEntry
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpResourceTypeEntry"/> class.
+    /// </summary>
+    /// <param name="type">The type.</param>
     public McpResourceTypeEntry(string type)
     {
         Type = type;
@@ -55,10 +65,12 @@ public sealed class McpResourceTypeEntry
     /// Gets or sets the type.
     /// </summary>
     public string Type { get; private set; }
+
     /// <summary>
     /// Gets or sets the display Name.
     /// </summary>
     public LocalizedString DisplayName { get; set; }
+
     /// <summary>
     /// Gets or sets the description.
     /// </summary>

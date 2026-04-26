@@ -14,6 +14,11 @@ public sealed class InitializingContext<T> : HandlerContextBase<T>
     /// </summary>
     public JsonNode Data { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InitializingContext"/> class.
+    /// </summary>
+    /// <param name="model">The model.</param>
+    /// <param name="data">The data.</param>
     public InitializingContext(
         T model,
         JsonNode data)

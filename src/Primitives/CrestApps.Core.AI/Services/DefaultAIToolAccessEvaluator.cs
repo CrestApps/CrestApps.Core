@@ -9,6 +9,11 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 internal sealed class DefaultAIToolAccessEvaluator : IAIToolAccessEvaluator
 {
+    /// <summary>
+    /// Determines whether authorized.
+    /// </summary>
+    /// <param name="user">The user.</param>
+    /// <param name="toolName">The tool name.</param>
     public Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName)
     {
         return Task.FromResult(true);

@@ -8,11 +8,19 @@ namespace CrestApps.Core.AI.Mcp.Services;
 /// </summary>
 public sealed class StdioClientTransportProvider : IMcpClientTransportProvider
 {
+    /// <summary>
+    /// Determines whether handle.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
     public bool CanHandle(McpConnection connection)
     {
         return connection.Source == McpConstants.TransportTypes.StdIo;
     }
 
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
     public Task<IClientTransport> GetAsync(McpConnection connection)
     {
         if (!connection.TryGet<StdioMcpConnectionMetadata>(out var metadata))

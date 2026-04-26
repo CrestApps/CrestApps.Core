@@ -12,6 +12,11 @@ public sealed class McpService
     private readonly IEnumerable<IMcpClientTransportProvider> _providers;
     private readonly ILogger<McpService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="McpService"/> class.
+    /// </summary>
+    /// <param name="providers">The providers.</param>
+    /// <param name="logger">The logger.</param>
     public McpService(
         IEnumerable<IMcpClientTransportProvider> providers,
         ILogger<McpService> logger)
@@ -20,6 +25,10 @@ public sealed class McpService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets or create client.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
     public async Task<McpClient> GetOrCreateClientAsync(McpConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);

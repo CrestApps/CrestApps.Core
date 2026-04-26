@@ -10,6 +10,12 @@ public class NamedDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, IName
     where T : CatalogItem, INameAwareModel
     where TIndex : CatalogItemIndex, INameAwareIndex
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NamedDocumentCatalog"/> class.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="collectionName">The collection name.</param>
+    /// <param name="logger">The logger.</param>
     public NamedDocumentCatalog(
         ISession session,
         string collectionName = null,
@@ -18,6 +24,11 @@ public class NamedDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, IName
     {
     }
 
+    /// <summary>
+    /// Finds by name.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<T> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -27,6 +38,10 @@ public class NamedDocumentCatalog<T, TIndex> : DocumentCatalog<T, TIndex>, IName
         return item;
     }
 
+    /// <summary>
+    /// Savings the operation.
+    /// </summary>
+    /// <param name="record">The record.</param>
     protected override async ValueTask SavingAsync(T record)
     {
         var item = await Session.QueryIndex<TIndex>(x => x.Name == record.Name && x.ItemId != record.ItemId, collection: CollectionName).FirstOrDefaultAsync();

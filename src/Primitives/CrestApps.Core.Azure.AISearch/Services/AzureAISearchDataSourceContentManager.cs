@@ -34,6 +34,11 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
         return odataFilter;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureAISearchDataSourceContentManager"/> class.
+    /// </summary>
+    /// <param name="searchIndexClient">The search index client.</param>
+    /// <param name="logger">The logger.</param>
     public AzureAISearchDataSourceContentManager(
         SearchIndexClient searchIndexClient,
         ILogger<AzureAISearchDataSourceContentManager> logger)
@@ -42,6 +47,15 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
         _logger = logger;
     }
 
+    /// <summary>
+    /// Searchs the operation.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="filter">The filter.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,
@@ -170,6 +184,12 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
         }
     }
 
+    /// <summary>
+    /// Deletes by data source id.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<long> DeleteByDataSourceIdAsync(
         IIndexProfileInfo indexProfile,
         string dataSourceId,

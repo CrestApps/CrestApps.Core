@@ -17,6 +17,10 @@ namespace CrestApps.Core.AI.Azure.AISearch;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds core azure ai search ai document source.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAzureAISearchAIDocumentSource(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -30,6 +34,10 @@ public static class ServiceCollectionExtensions
         }).AddCoreAIDocumentIndexProfileHandler();
     }
 
+    /// <summary>
+    /// Adds core azure ai search ai data source.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAzureAISearchAIDataSource(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -41,6 +49,10 @@ public static class ServiceCollectionExtensions
         }).AddCoreAIDataSourceRag().AddCoreAIDataSourceIndexProfileHandler();
     }
 
+    /// <summary>
+    /// Adds core azure ai search ai memory source.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAzureAISearchAIMemorySource(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -54,6 +66,12 @@ public static class ServiceCollectionExtensions
         }).AddCoreAIMemoryIndexProfileHandler();
     }
 
+    /// <summary>
+    /// Adds core azure ai search source.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="configure">The configure.</param>
     public static IServiceCollection AddCoreAzureAISearchSource(this IServiceCollection services, string type, Action<IndexProfileSourceDescriptor> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -64,6 +82,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds ai documents.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAzureAISearchBuilder AddAIDocuments(this CrestAppsAzureAISearchBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -73,6 +95,10 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds ai data sources.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAzureAISearchBuilder AddAIDataSources(this CrestAppsAzureAISearchBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -82,6 +108,10 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds ai memory.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
     public static CrestAppsAzureAISearchBuilder AddAIMemory(this CrestAppsAzureAISearchBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

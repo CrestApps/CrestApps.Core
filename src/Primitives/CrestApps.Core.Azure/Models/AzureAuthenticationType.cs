@@ -9,10 +9,12 @@ public enum AzureAuthenticationType
     /// The default value.
     /// </summary>
     Default,
+
     /// <summary>
     /// The api Key value.
     /// </summary>
     ApiKey,
+
     /// <summary>
     /// The managed I Dentity value.
     /// </summary>

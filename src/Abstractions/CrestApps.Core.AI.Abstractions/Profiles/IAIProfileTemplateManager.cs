@@ -13,5 +13,6 @@ public interface IAIProfileTemplateManager : INamedSourceCatalogManager<AIProfil
     /// Gets all listable profile templates from all sources
     /// (database and file-based providers).
     /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     ValueTask<IEnumerable<AIProfileTemplate>> GetListableAsync(CancellationToken cancellationToken = default);
 }

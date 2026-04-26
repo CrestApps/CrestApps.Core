@@ -13,6 +13,11 @@ public sealed partial class DefaultAITextNormalizer : IAITextNormalizer
     private const int ChunkOverlapLength = 200;
     private const int MinBoundarySearchLength = 2000;
 
+    /// <summary>
+    /// Normalize contents content.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public Task<string> NormalizeContentAsync(string text, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -30,6 +35,11 @@ public sealed partial class DefaultAITextNormalizer : IAITextNormalizer
         return Task.FromResult(text.Trim());
     }
 
+    /// <summary>
+    /// Normalizes and chunk.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<List<string>> NormalizeAndChunkAsync(string text, CancellationToken cancellationToken = default)
     {
         var normalized = await NormalizeContentAsync(text, cancellationToken);
@@ -42,6 +52,10 @@ public sealed partial class DefaultAITextNormalizer : IAITextNormalizer
         return ChunkText(normalized, cancellationToken);
     }
 
+    /// <summary>
+    /// Normalizes title.
+    /// </summary>
+    /// <param name="title">The title.</param>
     public string NormalizeTitle(string title)
     {
         if (string.IsNullOrWhiteSpace(title))

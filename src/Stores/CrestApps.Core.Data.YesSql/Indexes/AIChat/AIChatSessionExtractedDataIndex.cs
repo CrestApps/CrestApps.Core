@@ -58,11 +58,19 @@ public sealed class AIChatSessionExtractedDataIndex : MapIndex
 /// </summary>
 public sealed class AIChatSessionExtractedDataIndexProvider : IndexProvider<AIChatSessionExtractedDataRecord>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIChatSessionExtractedDataIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIChatSessionExtractedDataIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AICollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIChatSessionExtractedDataRecord> context)
     {
         context.For<AIChatSessionExtractedDataIndex>()

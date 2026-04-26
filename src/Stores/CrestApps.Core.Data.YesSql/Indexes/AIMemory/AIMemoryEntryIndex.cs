@@ -27,11 +27,19 @@ public sealed class AIMemoryEntryIndex : CatalogItemIndex
 /// </summary>
 public sealed class AIMemoryEntryIndexProvider : IndexProvider<AIMemoryEntry>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIMemoryEntryIndexProvider"/> class.
+    /// </summary>
+    /// <param name="options">The options.</param>
     public AIMemoryEntryIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
         CollectionName = options.Value.AIMemoryCollectionName;
     }
 
+    /// <summary>
+    /// Describes the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
     public override void Describe(DescribeContext<AIMemoryEntry> context)
     {
         context.For<AIMemoryEntryIndex>()

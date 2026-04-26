@@ -21,6 +21,17 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
     private readonly McpCapabilityResolverOptions _resolverOptions;
     private readonly ILogger<DefaultMcpCapabilityResolver> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultMcpCapabilityResolver"/> class.
+    /// </summary>
+    /// <param name="store">The store.</param>
+    /// <param name="metadataProvider">The metadata provider.</param>
+    /// <param name="embeddingCache">The embedding cache.</param>
+    /// <param name="aiClientFactory">The ai client factory.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="tokenizer">The tokenizer.</param>
+    /// <param name="resolverOptions">The resolver options.</param>
+    /// <param name="logger">The logger.</param>
     public DefaultMcpCapabilityResolver(
         ISourceCatalog<McpConnection> store,
         IMcpServerMetadataCacheProvider metadataProvider,
@@ -41,6 +52,13 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         _logger = logger;
     }
 
+    /// <summary>
+    /// Resolves the operation.
+    /// </summary>
+    /// <param name="prompt">The prompt.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="mcpConnectionIds">The mcp connection ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<McpCapabilityResolutionResult> ResolveAsync(
         string prompt,
         string clientName,
