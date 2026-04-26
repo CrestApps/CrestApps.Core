@@ -74,6 +74,7 @@ public sealed class ODataFilterValidator : IODataValidator
                 if (balance < 0)
                 {
                     // Closing parenthesis before opening.
+
                     return false;
                 }
             }

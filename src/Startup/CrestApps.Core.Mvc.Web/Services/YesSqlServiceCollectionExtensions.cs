@@ -130,7 +130,7 @@ internal static class YesSqlServiceCollectionExtensions
             })
         );
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -269,6 +269,7 @@ internal static class YesSqlServiceCollectionExtensions
         command.Parameters.Add(patternParameter);
 
         var result = await command.ExecuteScalarAsync();
+
         return result as string ?? expectedName;
     }
 
@@ -306,7 +307,7 @@ internal static class YesSqlServiceCollectionExtensions
         tableNameParameter.Value = tableName;
         command.Parameters.Add(tableNameParameter);
 
-        return await command.ExecuteScalarAsync() is not null;
+return await command.ExecuteScalarAsync() is not null;
     }
 
     private static async Task TryCreateTableAsync(Func<Task> createTable)

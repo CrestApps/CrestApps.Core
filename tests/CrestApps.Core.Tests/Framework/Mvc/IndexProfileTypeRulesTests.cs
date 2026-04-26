@@ -269,6 +269,7 @@ public sealed class IndexProfileTypeRulesTests
         };
         controller.Url = Mock.Of<IUrlHelper>();
         controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
+
         return controller;
     }
 
@@ -294,7 +295,7 @@ public sealed class IndexProfileTypeRulesTests
         {
             CreatedIndexName = profile.IndexFullName;
 
-            return Task.CompletedTask;
+return Task.CompletedTask;
         }
 
         public Task DeleteAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
@@ -305,6 +306,7 @@ public sealed class IndexProfileTypeRulesTests
             }
 
             DeletedIndexName = profile.IndexFullName;
+
             return Task.CompletedTask;
         }
     }
@@ -330,6 +332,7 @@ public sealed class IndexProfileTypeRulesTests
         public ValueTask<bool> DeleteAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             DeleteCalled = true;
+
             return ValueTask.FromResult(true);
         }
 
@@ -373,14 +376,14 @@ public sealed class IndexProfileTypeRulesTests
         {
             ResetCalled = true;
 
-            return Task.CompletedTask;
+return Task.CompletedTask;
         }
 
         public Task SynchronizeAsync(SearchIndexProfile profile, CancellationToken cancellationToken = default)
         {
             SynchronizeCalled = true;
 
-            return Task.CompletedTask;
+return Task.CompletedTask;
         }
 
         public ValueTask UpdateAsync(SearchIndexProfile model, JsonNode data = null, CancellationToken cancellationToken = default)

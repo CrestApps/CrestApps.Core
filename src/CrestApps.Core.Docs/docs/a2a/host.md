@@ -28,7 +28,6 @@ You have AI agents (profiles) running in your application and you want other app
 - **Authorizes** access with optional permission checks
 - **Controls** whether agents appear as individual agent cards or as skills of a single combined card
 
-
 ## Host Configuration
 
 ### `A2AHostOptions`
@@ -310,8 +309,6 @@ app.MapPost("/a2a", async (
 4. **Restrict agent exposure** — only expose agent profiles that are intended for remote consumption
 5. **Monitor agent invocations** — log and audit incoming A2A requests
 6. **Use HTTPS** — the A2A protocol sends messages over HTTP; always use TLS in production
-
-
 
 - Full endpoint implementation (Agent Card + message endpoints)
 - Admin UI for configuring `A2AHostOptions`

@@ -27,7 +27,7 @@ public sealed class PromptsModel : PageModel
     {
         await LoadPromptsAsync(cancellationToken);
 
-        return Page();
+return Page();
     }
 
     public async Task<IActionResult> OnPostGetPromptAsync(string promptName, CancellationToken cancellationToken)

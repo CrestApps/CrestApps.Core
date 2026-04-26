@@ -197,7 +197,7 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
                 ? table.ChildElements[index]
                 : null;
 
-            return item?.InnerText ?? value;
+return item?.InnerText ?? value;
         }
 
         if (cell.DataType?.Value == CellValues.Boolean)

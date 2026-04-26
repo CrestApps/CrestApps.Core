@@ -53,7 +53,7 @@ public abstract class AIChatDocumentEndpointBase
         {
             logger.LogError("No IDocumentFileStore is registered for uploaded AI documents.");
 
-            return (false, S["Failed to process file."].Value, null);
+return (false, S["Failed to process file."].Value, null);
         }
 
         try
@@ -62,6 +62,7 @@ public abstract class AIChatDocumentEndpointBase
             if (result == null)
             {
                 logger.LogError("Document processing returned no result for file {FileName}", file.FileName);
+
                 return (false, S["Failed to process file."].Value, null);
             }
 
@@ -73,6 +74,7 @@ public abstract class AIChatDocumentEndpointBase
             if (result.Document == null || result.DocumentInfo == null)
             {
                 logger.LogError("Document processing returned an incomplete result for file {FileName}", file.FileName);
+
                 return (false, S["Failed to process file."].Value, null);
             }
 
@@ -103,6 +105,7 @@ public abstract class AIChatDocumentEndpointBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to process file {FileName}", file.FileName);
+
             return (false, S["Failed to process file."].Value, null);
         }
     }
@@ -121,7 +124,7 @@ public abstract class AIChatDocumentEndpointBase
 
         var singleFile = form.Files.GetFile("file");
 
-        return singleFile == null ? [] : [singleFile];
+return singleFile == null ? [] : [singleFile];
     }
 
     /// <summary>

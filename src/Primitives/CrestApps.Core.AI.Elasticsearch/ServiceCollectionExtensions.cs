@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedScoped<IVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchVectorSearchService(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetRequiredService<ILogger<ElasticsearchVectorSearchService>>()));
 
-        return services.AddCoreElasticsearchSource(IndexProfileTypes.AIDocuments, descriptor =>
+return services.AddCoreElasticsearchSource(IndexProfileTypes.AIDocuments, descriptor =>
         {
             descriptor.DisplayName = "AI Documents";
             descriptor.Description = "Create an Elasticsearch index for uploaded and embedded AI document chunks.";
@@ -43,7 +43,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return services.AddCoreElasticsearchSource(IndexProfileTypes.DataSource, descriptor =>
+return services.AddCoreElasticsearchSource(IndexProfileTypes.DataSource, descriptor =>
         {
             descriptor.DisplayName = "Data Source";
             descriptor.Description = "Create an Elasticsearch index for AI knowledge base data source documents.";
@@ -62,7 +62,7 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedScoped<IMemoryVectorSearchService>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchMemoryVectorSearchService(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetRequiredService<ILogger<ElasticsearchMemoryVectorSearchService>>()));
 
-        return services.AddCoreElasticsearchSource(IndexProfileTypes.AIMemory, descriptor =>
+return services.AddCoreElasticsearchSource(IndexProfileTypes.AIMemory, descriptor =>
         {
             descriptor.DisplayName = "AI Memory";
             descriptor.Description = "Create an Elasticsearch index for user and system memory records.";
@@ -85,7 +85,7 @@ public static class ServiceCollectionExtensions
             .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", type, configure)
         );
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -98,7 +98,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreElasticsearchAIDocumentSource();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -111,7 +111,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreElasticsearchAIDataSource();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -124,6 +124,6 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreElasticsearchAIMemorySource();
 
-        return builder;
+return builder;
     }
 }

@@ -23,7 +23,7 @@ public static class OpenXmlServiceCollectionExtensions
             new ExtractorExtension(".xlsx", false),
             ".pptx");
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -35,6 +35,7 @@ public static class OpenXmlServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIOpenXmlDocumentProcessing();
+
         return builder;
     }
 }

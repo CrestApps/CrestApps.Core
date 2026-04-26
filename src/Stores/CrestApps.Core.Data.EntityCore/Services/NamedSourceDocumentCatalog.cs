@@ -28,7 +28,7 @@ public class NamedSourceDocumentCatalog<T> : SourceDocumentCatalog<T>, INamedSou
         var record = await GetReadQuery()
             .FirstOrDefaultAsync(x => x.Name == name, cancellationToken);
 
-        return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
+return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ public class NamedSourceDocumentCatalog<T> : SourceDocumentCatalog<T>, INamedSou
         var record = await GetReadQuery()
             .FirstOrDefaultAsync(x => x.Name == name && x.Source == source, cancellationToken);
 
-        return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
+return record is null ? null : CatalogRecordFactory.Materialize<T>(record);
     }
 
     /// <summary>

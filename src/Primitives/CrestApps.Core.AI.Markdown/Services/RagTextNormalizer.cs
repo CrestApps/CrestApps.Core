@@ -39,13 +39,13 @@ public static partial class RagTextNormalizer
             var document = await ParseDocumentAsync(strippedText, cancellationToken);
             var normalized = JoinDocumentText(document);
 
-            return NormalizeContentWhitespace(normalized).Trim();
+return NormalizeContentWhitespace(normalized).Trim();
         }
         catch (NotSupportedException ex) when (IsUnsupportedMarkdownInline(ex))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            return FallbackNormalizeContent(strippedText);
+return FallbackNormalizeContent(strippedText);
         }
     }
 
@@ -81,7 +81,7 @@ public static partial class RagTextNormalizer
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            return FallbackChunkText(FallbackNormalizeContent(strippedText), cancellationToken);
+return FallbackChunkText(FallbackNormalizeContent(strippedText), cancellationToken);
         }
     }
 
@@ -98,6 +98,7 @@ public static partial class RagTextNormalizer
 
         title = StripHtml(title);
         title = AllWhitespaceRegex().Replace(title, " ");
+
         return title.Trim();
     }
 
@@ -108,6 +109,7 @@ public static partial class RagTextNormalizer
         text = HtmlTagRegex().Replace(text, string.Empty);
         text = WebUtility.HtmlDecode(text);
         text = text.Replace("\u00B6", string.Empty);
+
         return text;
     }
 
@@ -120,6 +122,7 @@ public static partial class RagTextNormalizer
     private static async Task<IngestionDocument> ParseDocumentAsync(string text, CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+
         return await _reader.ReadAsync(stream, "inmemory", "text/markdown", cancellationToken);
     }
 
@@ -133,7 +136,7 @@ public static partial class RagTextNormalizer
         text = HorizontalSpacesRegex().Replace(text, " ");
         text = MultipleNewlinesRegex().Replace(text, "\n\n");
 
-        return text;
+return text;
     }
 
     private static string FallbackNormalizeContent(string text)

@@ -68,7 +68,7 @@ public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtr
 
         var records = await query.ListAsync(cancellationToken);
 
-        return records.OrderByDescending(x => x.SessionStartedUtc).ToList();
+return records.OrderByDescending(x => x.SessionStartedUtc).ToList();
     }
 
     private async Task<AIChatSessionExtractedDataRecord> FindBySessionIdAsync(string sessionId)

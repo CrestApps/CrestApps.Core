@@ -97,6 +97,7 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to read MCP server metadata cache entry '{CacheKey}'.", cacheKey);
+
             return null;
         }
     }
@@ -135,6 +136,7 @@ internal sealed class DefaultMcpServerMetadataProvider : IMcpServerMetadataCache
             if (client is null)
             {
                 capabilities.IsHealthy = false;
+
                 return capabilities;
             }
 

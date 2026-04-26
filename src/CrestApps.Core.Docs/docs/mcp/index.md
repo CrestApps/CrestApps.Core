@@ -76,5 +76,3 @@ builder.Services
 ```
 
 📖 **[Resource Types →](./resource-types.md)** — Implementation guide with built-in handlers and custom handler examples.
-
-

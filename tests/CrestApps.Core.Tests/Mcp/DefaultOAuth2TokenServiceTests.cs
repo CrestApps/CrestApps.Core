@@ -305,18 +305,18 @@ public sealed class DefaultOAuth2TokenServiceTests
         var timeProvider = TimeProvider.System;
         var logger = NullLogger<DefaultOAuth2TokenService>.Instance;
 
-        return new DefaultOAuth2TokenService(factory, cache, timeProvider, logger);
+return new DefaultOAuth2TokenService(factory, cache, timeProvider, logger);
     }
 
     private static MockHttpMessageHandler CreateHandler(TokenResponse tokenResponse, Action<HttpRequestMessage> onRequest = null)
     {
         var json = JsonSerializer.Serialize(tokenResponse);
 
-        return new MockHttpMessageHandler((request, _) =>
+return new MockHttpMessageHandler((request, _) =>
         {
             onRequest?.Invoke(request);
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
             });
@@ -332,7 +332,7 @@ public sealed class DefaultOAuth2TokenServiceTests
         var bytes = content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
         var body = System.Text.Encoding.UTF8.GetString(bytes);
 
-        return body.Split('&')
+return body.Split('&')
             .Select(p => p.Split('='))
             .ToDictionary(
                 p => Uri.UnescapeDataString(p[0]),
@@ -342,6 +342,7 @@ public sealed class DefaultOAuth2TokenServiceTests
     private static string GenerateTestRsaPrivateKeyPem()
     {
         using var rsa = System.Security.Cryptography.RSA.Create(2048);
+
         return rsa.ExportRSAPrivateKeyPem();
     }
 
@@ -359,7 +360,7 @@ public sealed class DefaultOAuth2TokenServiceTests
 
         var bytes = Convert.FromBase64String(padded);
 
-        return System.Text.Encoding.UTF8.GetString(bytes);
+return System.Text.Encoding.UTF8.GetString(bytes);
     }
 
     private sealed class TokenResponse

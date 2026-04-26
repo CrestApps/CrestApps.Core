@@ -19,7 +19,7 @@ public static class UniqueId
     {
         var guid = Guid.NewGuid().ToByteArray();
 
-        return string.Create(26, guid, (buffer, guid) =>
+return string.Create(26, guid, (buffer, guid) =>
         {
             var hs = BitConverter.ToInt64(guid, 0);
             var ls = BitConverter.ToInt64(guid, 8);

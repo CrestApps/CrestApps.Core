@@ -51,7 +51,7 @@ public sealed class AIChatController : Controller
         ViewData["Session"] = session;
         ViewData["Prompts"] = prompts;
 
-        return View(profile);
+return View(profile);
     }
 
     [HttpPost]
@@ -71,7 +71,7 @@ public sealed class AIChatController : Controller
 
         await _sessionManager.SaveAsync(session);
 
-        return RedirectToAction(nameof(Chat), new { sessionId = session.SessionId });
+return RedirectToAction(nameof(Chat), new { sessionId = session.SessionId });
     }
 
     [HttpPost]
@@ -110,7 +110,7 @@ public sealed class AIChatController : Controller
 
         ViewData["Profile"] = profile;
 
-        return View(sessions);
+return View(sessions);
     }
 
     [HttpPost]

@@ -104,7 +104,7 @@ public sealed class SaveUserMemoryToolTests
             .AddSingleton<ILogger<SaveUserMemoryTool>>(_ => NullLogger<SaveUserMemoryTool>.Instance)
             .BuildServiceProvider();
 
-        return new AIFunctionArguments(values)
+return new AIFunctionArguments(values)
         {
             Services = services,
         };

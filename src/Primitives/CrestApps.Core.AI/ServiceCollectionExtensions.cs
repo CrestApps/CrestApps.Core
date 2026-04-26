@@ -65,7 +65,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public static class ServiceCollectionExtensions
             o.SetTool(name, entry);
         });
 
-        return new AIToolBuilder<TTool>(entry);
+return new AIToolBuilder<TTool>(entry);
     }
 
     /// <summary>
@@ -121,7 +121,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<TTool>();
         services.AddKeyedSingleton<AITool>(name, (sp, key) => sp.GetRequiredService<TTool>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -184,7 +184,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -218,7 +218,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(clientName);
 
-        return services
+return services
             .Configure<AIOptions>(o =>
             {
                 o.AddProfileSource(clientName, configure);
@@ -243,7 +243,7 @@ public static class ServiceCollectionExtensions
                 o.AddDeploymentProvider(clientName, configure);
             });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -263,7 +263,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<TClient>();
         services.AddScoped<IAICompletionClient>(sp => sp.GetService<TClient>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -282,7 +282,7 @@ public static class ServiceCollectionExtensions
             o.AddConnectionSource(clientName, configure);
         });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -301,7 +301,7 @@ public static class ServiceCollectionExtensions
             o.AddTemplateSource(sourceName, configure);
         });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -325,7 +325,7 @@ public static class ServiceCollectionExtensions
         services.AddCoreAITool<DataSourceSearchTool>(DataSourceSearchTool.TheName)
             .WithPurpose(AIToolPurposes.DataSourceSearch);
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -368,7 +368,7 @@ public static class ServiceCollectionExtensions
             .WithDescription("Remove a previously saved long-term memory for the current authenticated user when the user asks to forget it or when the memory should no longer be retained.")
             .WithPurpose(AIToolPurposes.Memory);
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -421,7 +421,7 @@ public static class ServiceCollectionExtensions
             var snapshot = sp.GetRequiredService<IOptionsSnapshot<DefaultAIOptions>>();
             var settings = sp.GetRequiredService<IOptions<GeneralAIOptions>>();
 
-            return snapshot.Value.ApplySiteOverrides(settings.Value);
+return snapshot.Value.ApplySiteOverrides(settings.Value);
         });
 
         // Register the Framework-level deployment manager.
@@ -478,7 +478,7 @@ public static class ServiceCollectionExtensions
             .WithCategory("Utilities")
             .Selectable();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -502,6 +502,6 @@ public static class ServiceCollectionExtensions
             options.Orchestrators[name] = entry;
         });
 
-        return new OrchestratorBuilder<TOrchestrator>(entry);
+return new OrchestratorBuilder<TOrchestrator>(entry);
     }
 }

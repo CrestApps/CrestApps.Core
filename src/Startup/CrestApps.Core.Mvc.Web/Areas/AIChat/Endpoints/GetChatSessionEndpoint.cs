@@ -10,7 +10,7 @@ internal static class GetChatSessionEndpoint
         _ = builder.MapGet("api/chat/session", HandleAsync)
             .RequireAuthorization();
 
-        return builder;
+return builder;
     }
 
     private static async Task<IResult> HandleAsync(
@@ -32,7 +32,7 @@ internal static class GetChatSessionEndpoint
 
         var prompts = await promptStore.GetPromptsAsync(session.SessionId);
 
-        return TypedResults.Ok(new
+return TypedResults.Ok(new
         {
             sessionId = session.SessionId,
             profile = new

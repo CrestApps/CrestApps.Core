@@ -19,7 +19,8 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
     /// Initializes a new instance of the <see cref="AzureAIInferenceClientProvider"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
-    public AzureAIInferenceClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)
+    public AzureAIInferenceClientProvider(IServiceProvider serviceProvider)
+        : base(serviceProvider)
     {
     }
 
@@ -47,6 +48,7 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
             AzureAuthenticationType.Default => new ChatCompletionsClient(endpoint, new DefaultAzureCredential()),
             _ => throw new NotSupportedException("The provided authentication type is not supported."),
         };
+
         return client.AsIChatClient(deploymentName);
     }
 
@@ -66,10 +68,11 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
             AzureAuthenticationType.Default => new EmbeddingsClient(endpoint, new DefaultAzureCredential()),
             _ => throw new NotSupportedException("The provided authentication type is not supported."),
         };
+
         return client.AsIEmbeddingGenerator();
     }
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Gets image generator.
     /// </summary>
@@ -80,8 +83,8 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
     {
         throw new NotSupportedException("Azure AI Inference does not support image generation.");
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Gets speech to text client.
     /// </summary>
@@ -89,7 +92,6 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
     /// <param name="deploymentName">The deployment name.</param>
     protected override ISpeechToTextClient GetSpeechToTextClient(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     {
         throw new NotSupportedException("Azure AI Inference does not currently support speech-to-text functionality.");
     }

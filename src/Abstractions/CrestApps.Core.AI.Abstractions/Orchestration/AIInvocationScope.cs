@@ -55,6 +55,7 @@ public static class AIInvocationScope
     public static Scope Begin(AIInvocationContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+
         return new Scope(context);
     }
 

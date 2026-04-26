@@ -173,14 +173,14 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
             _logger.LogError(ex, "Azure AI Search request failed for index '{IndexName}': {Message}",
                 indexProfile.IndexFullName, ex.Message);
 
-            return [];
+return [];
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error performing data source vector search in Azure AI Search index '{IndexName}'",
                 indexProfile.IndexFullName);
 
-            return [];
+return [];
         }
     }
 
@@ -261,14 +261,14 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
             _logger.LogError(ex, "Azure AI Search delete by data source ID failed for index '{IndexName}': {Message}",
                 indexProfile.IndexFullName, ex.Message);
 
-            return 0;
+return 0;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting documents by data source ID '{DataSourceId}' from Azure AI Search index '{IndexName}'.",
                 dataSourceId, indexProfile.IndexFullName);
 
-            return 0;
+return 0;
         }
     }
 

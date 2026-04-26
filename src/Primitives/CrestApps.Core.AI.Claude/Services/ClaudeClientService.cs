@@ -99,6 +99,7 @@ public sealed class ClaudeClientService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error listing Claude models.");
+
             return [];
         }
     }

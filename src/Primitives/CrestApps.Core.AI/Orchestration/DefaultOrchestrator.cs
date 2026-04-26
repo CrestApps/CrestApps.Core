@@ -247,7 +247,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         {
             _logger.LogWarning(ex, "Planning phase failed. Falling back to full tool injection.");
 
-            return null;
+return null;
         }
     }
 
@@ -294,6 +294,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         if (string.IsNullOrWhiteSpace(scoringText))
         {
             // No scoring text available; return capped tools by original order.
+
             return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>(
                 scopedCandidates
                 .Take(Math.Max(budget, _options.MaxToolCount))
@@ -442,7 +443,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         sb.Append(context.UserMessage);
 
-        return sb.ToString();
+return sb.ToString();
     }
 
     /// <summary>

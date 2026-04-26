@@ -45,6 +45,6 @@ public sealed class AIChatSessionCloseBackgroundServiceTests
 
         Assert.NotNull(method);
 
-        return (ChatSessionStatus)method.Invoke(null, new object[] { prompts });
+return (ChatSessionStatus)method.Invoke(null, new object[] { prompts });
     }
 }

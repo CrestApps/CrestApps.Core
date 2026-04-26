@@ -10,7 +10,8 @@ public sealed class EntityCoreSearchIndexProfileStore : NamedDocumentCatalog<Sea
     /// Initializes a new instance of the <see cref="EntityCoreSearchIndexProfileStore"/> class.
     /// </summary>
     /// <param name="dbContext">The db context.</param>
-    public EntityCoreSearchIndexProfileStore(CrestAppsEntityDbContext dbContext) : base(dbContext)
+    public EntityCoreSearchIndexProfileStore(CrestAppsEntityDbContext dbContext)
+        : base(dbContext)
     {
     }
 
@@ -23,6 +24,6 @@ public sealed class EntityCoreSearchIndexProfileStore : NamedDocumentCatalog<Sea
         ArgumentException.ThrowIfNullOrEmpty(type);
         var records = await GetReadQuery().Where(x => x.Type == type).ToListAsync();
 
-        return records.Select(CatalogRecordFactory.Materialize<SearchIndexProfile>).ToArray();
+return records.Select(CatalogRecordFactory.Materialize<SearchIndexProfile>).ToArray();
     }
 }

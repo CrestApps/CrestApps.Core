@@ -18,7 +18,8 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
     /// Initializes a new instance of the <see cref="OllamaAIClientProvider"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
-    public OllamaAIClientProvider(IServiceProvider serviceProvider) : base(serviceProvider)
+    public OllamaAIClientProvider(IServiceProvider serviceProvider)
+        : base(serviceProvider)
     {
     }
 
@@ -49,8 +50,8 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
     {
         return GetOllamaClient(connection, deploymentName);
     }
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Gets image generator.
     /// </summary>
@@ -61,8 +62,8 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
     {
         throw new NotSupportedException("Ollama does not support image generation.");
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Gets speech to text client.
     /// </summary>
@@ -70,7 +71,6 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
     /// <param name="deploymentName">The deployment name.</param>
     protected override ISpeechToTextClient GetSpeechToTextClient(AIProviderConnectionEntry connection, string deploymentName)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
     {
         throw new NotSupportedException("Ollama does not currently support speech-to-text functionality.");
     }
@@ -93,6 +93,6 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
         var endpoint = connection.GetEndpoint();
         var cacheKey = $"{endpoint.AbsoluteUri}|{deploymentName}";
 
-        return _clientCache.GetOrAdd(cacheKey, _ => new OllamaApiClient(endpoint, deploymentName));
+return _clientCache.GetOrAdd(cacheKey, _ => new OllamaApiClient(endpoint, deploymentName));
     }
 }

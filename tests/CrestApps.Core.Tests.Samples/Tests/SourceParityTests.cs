@@ -33,7 +33,7 @@ public class SourceParityTests
 
         Assert.NotNull(dir);
 
-        return dir!.FullName;
+return dir!.FullName;
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public class SourceParityTests
         var full = Path.Combine(s_repoRoot, repoRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Assert.True(File.Exists(full), $"Expected file does not exist: {full}");
 
-        return File.ReadAllText(full);
+return File.ReadAllText(full);
     }
 
     /// <summary>
@@ -227,6 +227,7 @@ public class SourceParityTests
         // Mirror of ParityPairs() — kept in sync via KnownDrift_OnlyReferencesExistingPages.
         // We can't enumerate TheoryData rows via the public surface in xunit.v3, so the
         // check uses an explicit list; if you add a row to ParityPairs, add it here too.
+
         return new[]
         {
             "AIConnections/Index", "AIConnections/Create", "AIConnections/Edit",

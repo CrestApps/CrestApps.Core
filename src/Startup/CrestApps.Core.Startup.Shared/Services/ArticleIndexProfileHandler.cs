@@ -70,6 +70,6 @@ internal sealed class ArticleIndexProfileHandler : IndexProfileHandlerBase
             IsFilterable = true,
         }, ];
 
-        return ValueTask.FromResult(fields);
+return ValueTask.FromResult(fields);
     }
 }

@@ -33,6 +33,6 @@ public sealed class YesSqlAIDocumentStore : DocumentCatalog<AIDocument, AIDocume
         var docs = await Session.Query<AIDocument, AIDocumentIndex>(x =>
             x.ReferenceId == referenceId && x.ReferenceType == referenceType, collection: CollectionName).ListAsync();
 
-        return docs.ToArray();
+return docs.ToArray();
     }
 }

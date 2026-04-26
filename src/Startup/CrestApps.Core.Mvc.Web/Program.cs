@@ -222,6 +222,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
             await next();
+
             return;
         }
 
@@ -232,22 +233,26 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
             if (!string.IsNullOrEmpty(settings.ApiKey) && string.Equals(providedKey, settings.ApiKey, StringComparison.Ordinal))
             {
                 await next();
+
                 return;
             }
 
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
             return;
         }
 
         if (context.User.Identity?.IsAuthenticated != true)
         {
             await context.ChallengeAsync();
+
             return;
         }
 
         if (settings.RequireAccessPermission && !context.User.IsInRole("Administrator"))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
             return;
         }
 

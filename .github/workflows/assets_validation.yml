@@ -47,20 +47,20 @@ jobs:
             Write-Output ''
             Write-Output '---------------------------------------'
             Write-Output ''
-        
+
             $changeLines = $changes -split '`n'
             $changedFiles = @()
             $hasNonCrlfChange = $false
-        
+
             foreach ($line in $changeLines)
             {
                 if ($line -match '^\s?(M|A|\?\?)\s+(.*)$')
                 {
                     $changeType = $matches[1]
                     $file = $matches[2]
-        
+
                     Write-Output "Diff for: $file"
-        
+
                     if ($changeType -eq 'M')
                     {
                         # File is modified; use git diff to get the diff of the modified file.
@@ -88,26 +88,26 @@ jobs:
                         Get-Content -Path $file
                         $hasNonCrlfChange = $true
                     }
-        
+
                     $changedFiles += $file
-        
+
                     Write-Output ''
                     Write-Output '---------------------------------------'
                     Write-Output ''
                 }
             }
-        
+
             if (-not $hasNonCrlfChange)
             {
                 Write-Output 'No non-CRLF changes found. Repository is clean.'
                 exit 0
             }
-        
+
             # Convert the array of changed files to a single string with each file on a new line so actions/upload-artifact
             # can consume it.
             $changedFilesString = $changedFiles -join "`n"
             "CHANGED_FILES<<ENDOFSTRING`n$($changedFilesString)`nENDOFSTRING" >> $Env:GITHUB_ENV
-        
+
             exit -1
         }
         else
@@ -121,4 +121,3 @@ jobs:
         name: changed-files
         path: ${{ env.CHANGED_FILES }}
         retention-days: 30
-

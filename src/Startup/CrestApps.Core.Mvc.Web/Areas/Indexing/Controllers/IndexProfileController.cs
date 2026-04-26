@@ -46,7 +46,7 @@ public sealed class IndexProfileController : Controller
     {
         var profiles = await _indexProfileManager.GetAllAsync();
 
-        return View(profiles);
+return View(profiles);
     }
 
     public async Task<IActionResult> Create()
@@ -54,7 +54,7 @@ public sealed class IndexProfileController : Controller
         var model = new IndexProfileViewModel();
         await PopulateDropdownsAsync(model);
 
-        return View(model);
+return View(model);
     }
 
     [HttpPost]
@@ -74,7 +74,7 @@ public sealed class IndexProfileController : Controller
         {
             await PopulateDropdownsAsync(model);
 
-            return View(model);
+return View(model);
         }
 
         var profile = new SearchIndexProfile();
@@ -85,7 +85,7 @@ public sealed class IndexProfileController : Controller
         {
             await PopulateDropdownsAsync(model);
 
-            return View(model);
+return View(model);
         }
 
         return RedirectToAction(nameof(Index));
@@ -103,7 +103,7 @@ public sealed class IndexProfileController : Controller
         var model = IndexProfileViewModel.FromProfile(profile);
         await PopulateDropdownsAsync(model);
 
-        return View(model);
+return View(model);
     }
 
     [HttpPost]
@@ -123,7 +123,7 @@ public sealed class IndexProfileController : Controller
         {
             await PopulateDropdownsAsync(model);
 
-            return View(model);
+return View(model);
         }
 
         profile.DisplayText = model.DisplayText;
@@ -131,7 +131,7 @@ public sealed class IndexProfileController : Controller
         await _indexProfileManager.UpdateAsync(profile);
         await _indexProfileManager.SynchronizeAsync(profile, HttpContext.RequestAborted);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -151,7 +151,7 @@ public sealed class IndexProfileController : Controller
         {
             TempData["ErrorMessage"] = $"The search provider '{profile.ProviderName}' is not configured for remote index provisioning.";
 
-            return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
         }
 
         try
@@ -169,7 +169,7 @@ public sealed class IndexProfileController : Controller
             {
                 TempData["ErrorMessage"] = $"The index type '{profile.Type}' does not support rebuild.";
 
-                return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
             }
 
             await indexManager.CreateAsync(profile, fields, HttpContext.RequestAborted);
@@ -249,7 +249,7 @@ public sealed class IndexProfileController : Controller
 
             await _indexProfileManager.DeleteAsync(profile);
 
-            return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
         }
 
         profile.IndexFullName ??= indexManager.ComposeIndexFullName(profile);
@@ -284,13 +284,13 @@ public sealed class IndexProfileController : Controller
                     profile.ProviderName.SanitizeForLog());
                 TempData["ErrorMessage"] = $"Unable to delete the remote index '{profile.IndexFullName}'. The index profile was not removed.";
 
-                return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
             }
         }
 
         await _indexProfileManager.DeleteAsync(profile);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     private ISearchIndexManager ResolveIndexManager(SearchIndexProfile profile)
@@ -307,7 +307,7 @@ public sealed class IndexProfileController : Controller
                 profile.ItemId.SanitizeForLog(),
                 profile.ProviderName.SanitizeForLog());
 
-            return null;
+return null;
         }
     }
 

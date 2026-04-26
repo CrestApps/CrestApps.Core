@@ -54,7 +54,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
                 "Search provider '{ProviderName}' could not be resolved for remote index provisioning.",
                 profile.ProviderName.SanitizeForLog());
 
-            return Fail("The selected search provider is not configured for remote index provisioning.", nameof(SearchIndexProfile.ProviderName));
+return Fail("The selected search provider is not configured for remote index provisioning.", nameof(SearchIndexProfile.ProviderName));
         }
 
         if (indexManager == null)
@@ -100,7 +100,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
                 profile.IndexFullName.SanitizeForLog(),
                 profile.ProviderName.SanitizeForLog());
 
-            return Fail($"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.", nameof(SearchIndexProfile.IndexName));
+return Fail($"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.", nameof(SearchIndexProfile.IndexName));
         }
 
         try
@@ -115,7 +115,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
                 profile.IndexFullName.SanitizeForLog(),
                 profile.ProviderName.SanitizeForLog());
 
-            return Fail($"Unable to create the remote index '{profile.IndexFullName}'.", nameof(SearchIndexProfile.IndexName));
+return Fail($"Unable to create the remote index '{profile.IndexFullName}'.", nameof(SearchIndexProfile.IndexName));
         }
 
         try
@@ -131,7 +131,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
 
         await _indexProfileManager.SynchronizeAsync(profile, cancellationToken);
 
-        return new ValidationResultDetails();
+return new ValidationResultDetails();
     }
 
     private static ValidationResultDetails Fail(string message, params string[] memberNames)
@@ -139,6 +139,6 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
         var result = new ValidationResultDetails();
         result.Fail(new ValidationResult(message, memberNames));
 
-        return result;
+return result;
     }
 }

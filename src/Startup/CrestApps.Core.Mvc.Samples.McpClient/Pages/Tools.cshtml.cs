@@ -29,7 +29,7 @@ public sealed class ToolsModel : PageModel
     {
         await LoadToolsAsync(cancellationToken);
 
-        return Page();
+return Page();
     }
 
     public async Task<IActionResult> OnPostCallToolAsync(string toolName, string arguments, CancellationToken cancellationToken)

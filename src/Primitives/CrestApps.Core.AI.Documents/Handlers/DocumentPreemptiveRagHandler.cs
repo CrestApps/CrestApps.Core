@@ -371,6 +371,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         if (context.Resource is ChatInteraction interaction)
         {
             searchScopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
+
             return searchScopes;
         }
 
@@ -596,6 +597,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         }
 
         orchestrationContext.Properties["DocumentReferences"] = citationMap;
+
         return builder.ToString();
     }
 }

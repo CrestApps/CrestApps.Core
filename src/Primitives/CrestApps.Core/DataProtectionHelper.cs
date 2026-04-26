@@ -10,7 +10,6 @@ namespace CrestApps.Core;
 public static class DataProtectionHelper
 {
 #pragma warning disable CA2254 // The message template is intentionally caller-supplied.
-
     /// <summary>
     /// Attempts to unprotect the given value using the specified <see cref="IDataProtector"/>.
     /// Returns the raw value when unprotection fails (e.g., when the value was stored unprotected).
@@ -37,7 +36,7 @@ public static class DataProtectionHelper
         {
             logger.LogWarning(ex, errorMessage, args);
 
-            return value;
+return value;
         }
     }
 #pragma warning restore CA2254

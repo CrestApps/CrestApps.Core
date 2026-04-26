@@ -71,7 +71,7 @@ public sealed partial class LuceneTextTokenizer : ITextTokenizer
 
         tokenStream.End();
 
-        return tokens;
+return tokens;
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public sealed partial class LuceneTextTokenizer : ITextTokenizer
             filter = new StopFilter(_luceneVersion, filter, EnglishAnalyzer.DefaultStopSet);
             filter = new PorterStemFilter(filter);
 
-            return new TokenStreamComponents(tokenizer, filter);
+return new TokenStreamComponents(tokenizer, filter);
         }
     }
 }

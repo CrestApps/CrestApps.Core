@@ -21,6 +21,6 @@ internal static class AIFunctionExtensions
     {
         var parameters = BinaryData.FromObjectAsJson(function.JsonSchema, _jsonSerializerOptions);
 
-        return ChatTool.CreateFunctionTool(function.Name, function.Description, parameters);
+return ChatTool.CreateFunctionTool(function.Name, function.Description, parameters);
     }
 }

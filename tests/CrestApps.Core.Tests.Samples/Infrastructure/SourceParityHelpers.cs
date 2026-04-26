@@ -36,6 +36,7 @@ public static class SourceParityHelpers
     {
         var s = s_scriptRegex.Replace(source, " ");
         s = s_styleRegex.Replace(s, " ");
+
         return s;
     }
 
@@ -112,7 +113,7 @@ public static class SourceParityHelpers
         // Collapse whitespace.
         s = Regex.Replace(s, @"\s+", " ").Trim();
 
-        return s;
+return s;
     }
 
     /// <summary>
@@ -147,7 +148,7 @@ public static class SourceParityHelpers
         ids.AddRange(s_tabPaneRegex.Matches(stripped).Select(m => m.Groups["id"].Value));
         ids.AddRange(s_tabPaneIdHrefRegex.Matches(stripped).Select(m => m.Groups["id"].Value));
 
-        return ids.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+return ids.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     /// <summary>

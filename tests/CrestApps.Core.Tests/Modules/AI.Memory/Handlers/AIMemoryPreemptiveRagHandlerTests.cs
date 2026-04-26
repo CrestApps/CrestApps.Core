@@ -10,7 +10,6 @@ using Microsoft.Extensions.Options;
 using Moq;
 
 #pragma warning disable MEAI001
-
 namespace CrestApps.Core.Tests.Modules.AI.Memory.Handlers;
 
 public sealed class AIMemoryPreemptiveRagHandlerTests
@@ -99,7 +98,7 @@ public sealed class AIMemoryPreemptiveRagHandlerTests
             },
         };
 
-        return new AIMemoryPreemptiveRagHandler(
+return new AIMemoryPreemptiveRagHandler(
             memorySearchService.Object,
             new FakeAITemplateService(),
             Options.Create(new GeneralAIOptions

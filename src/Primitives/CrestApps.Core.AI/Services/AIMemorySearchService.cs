@@ -64,6 +64,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogDebug("Skipping AI memory search because the user ID is missing.");
+
             return [];
         }
 
@@ -76,12 +77,14 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         if (normalizedQueries is not { Length: > 0 })
         {
             _logger.LogDebug("Skipping AI memory search because no non-empty queries were provided.");
+
             return [];
         }
 
         if (string.IsNullOrWhiteSpace(_memoryOptions.IndexProfileName))
         {
             _logger.LogDebug("Skipping AI memory search because no AI Memory index profile is configured.");
+
             return [];
         }
 
@@ -96,6 +99,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                     _memoryOptions.IndexProfileName,
                     IndexProfileTypes.AIMemory);
             }
+
             return [];
         }
 
@@ -109,6 +113,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                     "Skipping AI memory search because provider '{ProviderName}' does not have a registered memory vector-search service.",
                     indexProfile.ProviderName);
             }
+
             return [];
         }
 
@@ -129,6 +134,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                     "AI memory search produced no embeddings for configured index profile '{IndexProfileName}'.",
                     indexProfile.Name);
             }
+
             return [];
         }
 
@@ -188,6 +194,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         if (string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentId))
         {
             _logger.LogWarning("AI memory index profile '{IndexProfileName}' is missing an embedding deployment.", indexProfile.Name);
+
             return null;
         }
 
@@ -202,6 +209,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
                 "AI memory index profile '{IndexProfileName}' could not resolve embedding deployment '{EmbeddingDeploymentId}'.",
                 indexProfile.Name,
                 indexProfile.EmbeddingDeploymentId);
+
             return null;
         }
 

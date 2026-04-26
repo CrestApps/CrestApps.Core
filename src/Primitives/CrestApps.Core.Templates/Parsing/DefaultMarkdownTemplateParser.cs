@@ -42,7 +42,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
         {
             result.Body = string.Empty;
 
-            return result;
+return result;
         }
 
         var content = rawContent.AsSpan();
@@ -54,7 +54,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
         {
             result.Body = CompactJsonBlocks(rawContent.Trim());
 
-            return result;
+return result;
         }
 
         // Find the opening delimiter.
@@ -64,7 +64,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
         {
             result.Body = CompactJsonBlocks(rawContent.Trim());
 
-            return result;
+return result;
         }
 
         // Find the closing delimiter.
@@ -75,7 +75,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
         {
             result.Body = CompactJsonBlocks(rawContent.Trim());
 
-            return result;
+return result;
         }
 
         // Extract front matter block.
@@ -383,7 +383,7 @@ public sealed class DefaultMarkdownTemplateParser : ITemplateParser
                 _current = _remaining;
                 _remaining = default;
 
-                return true;
+return true;
             }
 
             _current = _remaining[..newLineIndex];

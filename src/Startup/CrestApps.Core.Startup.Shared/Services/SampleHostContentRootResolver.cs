@@ -29,7 +29,7 @@ public static class SampleHostContentRootResolver
 
         var directory = TryFindProjectDirectory(baseDirectory, projectFileName);
 
-        return directory ?? fallbackContentRoot;
+return directory ?? fallbackContentRoot;
     }
 
     private static string TryFindProjectDirectory(string startPath, string projectFileName)

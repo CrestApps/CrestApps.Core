@@ -54,6 +54,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
         if (string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentId))
         {
             result.Fail(new ValidationResult("Embedding deployment is required for this index type.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
+
             return;
         }
 
@@ -61,12 +62,14 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
         if (deployment == null)
         {
             result.Fail(new ValidationResult("The selected embedding deployment could not be found.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
+
             return;
         }
 
         if (!deployment.SupportsType(AIDeploymentType.Embedding))
         {
             result.Fail(new ValidationResult("The selected deployment does not support embeddings.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
+
             return;
         }
 
@@ -89,6 +92,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
         }
 
         var vectorDimensions = await GetEmbeddingDimensionsAsync(indexProfile, cancellationToken);
+
         return BuildFields(vectorDimensions);
     }
 

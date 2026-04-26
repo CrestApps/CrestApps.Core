@@ -26,7 +26,7 @@ public sealed class AIToolBuilder<TTool>
     {
         _entry.Title = title;
 
-        return this;
+return this;
     }
 
     /// <summary>
@@ -37,7 +37,7 @@ public sealed class AIToolBuilder<TTool>
     {
         _entry.Description = description;
 
-        return this;
+return this;
     }
 
     /// <summary>
@@ -48,7 +48,7 @@ public sealed class AIToolBuilder<TTool>
     {
         _entry.Category = category;
 
-        return this;
+return this;
     }
 
     /// <summary>
@@ -60,7 +60,7 @@ public sealed class AIToolBuilder<TTool>
     {
         _entry.Purpose = purpose;
 
-        return this;
+return this;
     }
 
     /// <summary>
@@ -71,6 +71,6 @@ public sealed class AIToolBuilder<TTool>
     {
         _entry.IsSystemTool = false;
 
-        return this;
+return this;
     }
 }

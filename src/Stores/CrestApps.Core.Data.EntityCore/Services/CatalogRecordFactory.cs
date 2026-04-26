@@ -106,6 +106,7 @@ internal static class CatalogRecordFactory
         where T : CatalogItem
     {
         ArgumentNullException.ThrowIfNull(record);
+
         return EntityCoreStoreSerializer.Deserialize<T>(record.Payload);
     }
 }

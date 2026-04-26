@@ -320,12 +320,14 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (knowledgeBaseProfile == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index profile '{IndexProfileName}' was not found.", dataSource.ItemId, dataSource.AIKnowledgeBaseIndexProfileName);
+
             return null;
         }
 
         if (!string.Equals(knowledgeBaseProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index profile '{IndexProfileName}' is not a data-source profile.", dataSource.ItemId, knowledgeBaseProfile.Name);
+
             return null;
         }
 
@@ -335,6 +337,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (indexManager == null || documentManager == null || contentManager == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because provider '{ProviderName}' is not fully configured for data-source indexing.", dataSource.ItemId, knowledgeBaseProfile.ProviderName);
+
             return null;
         }
 
@@ -352,6 +355,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (sourceProfile == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because source index profile '{IndexProfileName}' was not found.", dataSource.ItemId, dataSource.SourceIndexProfileName);
+
             return null;
         }
 
@@ -359,6 +363,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (documentReader == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because provider '{ProviderName}' cannot read source documents.", dataSource.ItemId, sourceProfile.ProviderName);
+
             return null;
         }
 
@@ -367,6 +372,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         if (embeddingGenerator == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);
+
             return null;
         }
 

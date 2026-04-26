@@ -102,6 +102,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         if (string.IsNullOrEmpty(deployment.ModelName))
         {
             _logger.LogWarning("Unable to chat. Unable to find a deployment name '{DeploymentName}' or the default deployment", context.ChatDeploymentName);
+
             return null;
         }
 
@@ -179,6 +180,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             };
             stopwatch.Stop();
             await RecordUsageAsync(context, connectionName, deployment.ModelName, result.ModelId, result.ResponseId, result.Usage, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
+
             return result;
         }
         catch (Exception ex)
@@ -423,6 +425,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         if (deployment == null)
         {
             _logger.LogWarning("Unable to chat. Unable to find a deployment named '{DeploymentName}' or a default Azure deployment.", deploymentName);
+
             return (null, null);
         }
 
@@ -431,6 +434,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         if (connection == null)
         {
             _logger.LogWarning("Unable to chat. Unable to find a valid connection for Azure deployment '{DeploymentName}'.", deployment.Name);
+
             return (deployment, null);
         }
 

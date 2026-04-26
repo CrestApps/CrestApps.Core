@@ -6,7 +6,6 @@ using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
-
 namespace CrestApps.Core.Tests.Core.Orchestration;
 
 /// <summary>

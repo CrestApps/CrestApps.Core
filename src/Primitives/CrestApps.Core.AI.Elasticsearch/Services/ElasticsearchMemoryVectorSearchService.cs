@@ -63,6 +63,7 @@ internal sealed class ElasticsearchMemoryVectorSearchService : IMemoryVectorSear
             if (!response.IsValidResponse)
             {
                 _logger.LogWarning("Elasticsearch AI memory search failed: {Error}", response.DebugInformation);
+
                 return [];
             }
 
@@ -108,6 +109,7 @@ internal sealed class ElasticsearchMemoryVectorSearchService : IMemoryVectorSear
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error performing AI memory search in Elasticsearch index '{IndexName}'.", indexProfile.IndexFullName);
+
             return [];
         }
     }

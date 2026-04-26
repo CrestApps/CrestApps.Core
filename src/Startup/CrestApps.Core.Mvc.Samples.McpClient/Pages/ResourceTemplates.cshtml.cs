@@ -29,7 +29,7 @@ public sealed partial class ResourceTemplatesModel : PageModel
     {
         await LoadTemplatesAsync(cancellationToken);
 
-        return Page();
+return Page();
     }
 
     public async Task<IActionResult> OnPostReadResourceAsync(string resourceUri, CancellationToken cancellationToken)

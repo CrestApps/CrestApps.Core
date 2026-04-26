@@ -34,7 +34,7 @@ public static class SpeechLanguageHelper
         {
             var culture = CultureInfo.GetCultureInfo(language);
 
-            return culture.IsNeutralCulture
+return culture.IsNeutralCulture
                 ? CultureInfo.CreateSpecificCulture(culture.Name).Name
                 : culture.Name;
         }

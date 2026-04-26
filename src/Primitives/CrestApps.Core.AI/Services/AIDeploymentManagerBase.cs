@@ -72,7 +72,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
 
         var candidates = deployments.Where(d => d.SupportsType(type));
 
-        return candidates.FirstOrDefault();
+return candidates.FirstOrDefault();
     }
 
     /// <summary>
@@ -138,7 +138,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     {
         var deployments = await GetAllAsync(cancellationToken);
 
-        return deployments.FirstOrDefault(deployment =>
+return deployments.FirstOrDefault(deployment =>
         {
             if (!deployment.SupportsType(type))
             {
@@ -171,7 +171,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     {
         var settings = await GetDefaultAIDeploymentSettingsAsync();
 
-        return type switch
+return type switch
         {
             AIDeploymentType.Chat => settings.DefaultChatDeploymentName,
             AIDeploymentType.Utility => settings.DefaultUtilityDeploymentName,

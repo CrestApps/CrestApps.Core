@@ -48,7 +48,7 @@ public static class TypeExtensions
 
         var tc = TypeDescriptor.GetConverter(type);
 
-        return tc.ConvertFromString(value);
+return tc.ConvertFromString(value);
     }
 
     private static readonly HashSet<Type> _integralNumericTypes =
@@ -104,7 +104,7 @@ public static class TypeExtensions
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(predicate);
 
-        return type.BaseTypes()
+return type.BaseTypes()
             .Any(predicate);
     }
 
@@ -118,7 +118,7 @@ public static class TypeExtensions
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(generic);
 
-        return type.BaseTypes()
+return type.BaseTypes()
             .FirstOrDefault(generic.IsAssignableFrom);
     }
 
@@ -133,7 +133,7 @@ public static class TypeExtensions
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(generic);
 
-        return type.IsGenericType && type.GetGenericTypeDefinition() == generic;
+return type.IsGenericType && type.GetGenericTypeDefinition() == generic;
     }
 
     /// <summary>
@@ -151,7 +151,7 @@ public static class TypeExtensions
 
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
-        return _integralNumericTypes.Contains(t) || _fractionalNumericTypes.Contains(t);
+return _integralNumericTypes.Contains(t) || _fractionalNumericTypes.Contains(t);
     }
 
     /// <summary>
@@ -169,7 +169,7 @@ public static class TypeExtensions
 
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
-        return _integralNumericTypes.Contains(t);
+return _integralNumericTypes.Contains(t);
     }
 
     /// <summary>
@@ -187,7 +187,7 @@ public static class TypeExtensions
 
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
-        return _fractionalNumericTypes.Contains(t);
+return _fractionalNumericTypes.Contains(t);
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public static class TypeExtensions
 
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
-        return t == typeof(DateTime);
+return t == typeof(DateTime);
     }
 
     /// <summary>
@@ -213,7 +213,7 @@ public static class TypeExtensions
 
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
-        return t.IsEnum;
+return t.IsEnum;
     }
 
     /// <summary>
@@ -226,7 +226,7 @@ public static class TypeExtensions
 
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
-        return t == typeof(bool);
+return t == typeof(bool);
     }
 
     /// <summary>
@@ -239,7 +239,7 @@ public static class TypeExtensions
 
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
-        return t == typeof(string);
+return t == typeof(string);
     }
 
     /// <summary>
@@ -250,7 +250,7 @@ public static class TypeExtensions
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        return type.IsNumeric()
+return type.IsNumeric()
             || type.IsBoolean()
                 || type.IsDateTime()
                     || type.IsString()
@@ -269,7 +269,7 @@ public static class TypeExtensions
 
         bool matchesInterface(Type t) => t.IsGenericType && t.GetGenericTypeDefinition() == interfaceType;
 
-        return matchesInterface(queryType) ? queryType : queryType.GetInterfaces().FirstOrDefault(matchesInterface);
+return matchesInterface(queryType) ? queryType : queryType.GetInterfaces().FirstOrDefault(matchesInterface);
     }
 
     /// <summary>
@@ -289,7 +289,7 @@ public static class TypeExtensions
 
         var openType = closedType.GetGenericTypeDefinition();
 
-        return (matchingOpenType == openType) ? closedType.GetGenericArguments() : null;
+return (matchingOpenType == openType) ? closedType.GetGenericArguments() : null;
     }
 
     /// <summary>
@@ -301,7 +301,7 @@ public static class TypeExtensions
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        return (value == null && TypeAllowsNullValue(type)) || type.IsInstanceOfType(value);
+return (value == null && TypeAllowsNullValue(type)) || type.IsInstanceOfType(value);
     }
 
     /// <summary>
@@ -312,7 +312,7 @@ public static class TypeExtensions
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        return Nullable.GetUnderlyingType(type) != null;
+return Nullable.GetUnderlyingType(type) != null;
     }
 
     /// <summary>
@@ -323,7 +323,7 @@ public static class TypeExtensions
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        return !type.IsValueType || IsNullableValueType(type);
+return !type.IsValueType || IsNullableValueType(type);
     }
 
     /// <summary>

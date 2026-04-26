@@ -23,7 +23,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
-
 namespace CrestApps.Core.AI.Chat.Hubs;
 
 /// <summary>
@@ -360,6 +359,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         }
 
         var titleResponse = await completionService.CompleteAsync(chatDeployment, [new(ChatRole.User, userPrompt),], context);
+
         return titleResponse.Messages.Count > 0 ? Truncate(titleResponse.Messages.First().Text, 255) : null;
     }
 
@@ -402,6 +402,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     protected virtual Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)
     {
         var options = services.GetService<IOptionsMonitor<DefaultAIDeploymentSettings>>();
+
         return Task.FromResult(options?.CurrentValue ?? new DefaultAIDeploymentSettings());
     }
 
@@ -418,6 +419,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     {
         var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
         _ = ExecuteInScopeAsync(services => HandleSendMessageAsync(channel.Writer, services, profileId, prompt, sessionId, sessionProfileId, cancellationToken));
+
         return channel.Reader;
     }
 
@@ -431,6 +433,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (string.IsNullOrWhiteSpace(sessionId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(sessionId)));
+
             return;
         }
 
@@ -443,6 +446,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (chatSession == null)
             {
                 await Clients.Caller.ReceiveError(GetSessionNotFoundMessage());
+
                 return;
             }
 
@@ -450,12 +454,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (profile is null)
             {
                 await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeProfileAsync(services, profile))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -475,6 +481,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (string.IsNullOrWhiteSpace(profileId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(profileId)));
+
             return;
         }
 
@@ -487,18 +494,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (profile is null)
             {
                 await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeProfileAsync(services, profile))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
             if (profile.Type != AIProfileType.Chat)
             {
                 await Clients.Caller.ReceiveError(GetOnlyChatProfilesMessage());
+
                 return;
             }
 
@@ -596,6 +606,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (handler is null)
                 {
                     Logger.LogWarning("No notification action handler found for action '{ActionName}'.", actionName);
+
                     return;
                 }
 
@@ -653,6 +664,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (string.IsNullOrWhiteSpace(profileId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(profileId)));
+
             return;
         }
 
@@ -668,18 +680,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (profile is null)
                 {
                     await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeProfileAsync(services, profile))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
                 if (!profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) || chatModeSettings.ChatMode != ChatMode.Conversation)
                 {
                     await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+
                     return;
                 }
 
@@ -687,12 +702,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (string.IsNullOrEmpty(deploymentSettings.DefaultSpeechToTextDeploymentName))
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
+
                     return;
                 }
 
                 if (string.IsNullOrEmpty(deploymentSettings.DefaultTextToSpeechDeploymentName))
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
+
                     return;
                 }
 
@@ -700,6 +717,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (sttDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetSttDeploymentNotFoundMessage());
+
                     return;
                 }
 
@@ -707,6 +725,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (ttsDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetTtsDeploymentNotFoundMessage());
+
                     return;
                 }
 
@@ -731,6 +750,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Conversation was cancelled.");
+
                 return;
             }
 
@@ -760,6 +780,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (string.IsNullOrWhiteSpace(profileId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(profileId)));
+
             return;
         }
 
@@ -775,12 +796,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (profile is null)
                 {
                     await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeProfileAsync(services, profile))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -788,6 +811,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (string.IsNullOrEmpty(deploymentSettings.DefaultSpeechToTextDeploymentName))
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
+
                     return;
                 }
 
@@ -795,6 +819,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (deployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetSttDeploymentNotFoundMessage());
+
                     return;
                 }
 
@@ -810,6 +835,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Audio transcription was cancelled.");
+
                 return;
             }
 
@@ -837,12 +863,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (string.IsNullOrWhiteSpace(profileId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(profileId)));
+
             return;
         }
 
         if (string.IsNullOrWhiteSpace(text))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(text)));
+
             return;
         }
 
@@ -858,12 +886,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (profile is null)
                 {
                     await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeProfileAsync(services, profile))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -873,6 +903,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (string.IsNullOrEmpty(deploymentSettings.DefaultTextToSpeechDeploymentName))
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
+
                     return;
                 }
 
@@ -880,6 +911,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (deployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetTtsDeploymentNotFoundMessage());
+
                     return;
                 }
 
@@ -893,6 +925,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Speech synthesis was cancelled.");
+
                 return;
             }
 
@@ -927,6 +960,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (string.IsNullOrWhiteSpace(profileId))
             {
                 await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(profileId)));
+
                 return;
             }
 
@@ -935,12 +969,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (profile is null)
             {
                 await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeProfileAsync(services, profile))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -949,10 +985,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (string.IsNullOrWhiteSpace(prompt))
                 {
                     await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(prompt)));
+
                     return;
                 }
 
                 await ProcessUtilityAsync(writer, services, profile, prompt.Trim(), cancellationToken);
+
                 return;
             }
 
@@ -963,6 +1001,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             if (ex is OperationCanceledException || (ex is TaskCanceledException && cancellationToken.IsCancellationRequested))
             {
                 Logger.LogDebug("Chat prompt processing was cancelled.");
+
                 return;
             }
 
@@ -1061,6 +1100,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
             await SaveChatSessionAsync(sessionManager, chatSession);
+
             return;
         }
 
@@ -1303,8 +1343,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             await committer.CommitAsync();
         }
     }
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Synthesizes the given text as speech and streams audio chunks to the caller.
     /// </summary>
@@ -1325,6 +1365,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (string.IsNullOrWhiteSpace(speechText))
         {
             await Clients.Caller.ReceiveAudioComplete(identifier);
+
             return;
         }
 
@@ -1392,10 +1433,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             await Clients.Caller.ReceiveAudioComplete(identifier);
         }
     }
-
 #pragma warning restore MEAI001
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Runs the full conversation loop: transcribes speech input, sends it through
     /// the AI pipeline, and streams the synthesized speech response.
@@ -1655,12 +1695,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var prompts = await promptStore.GetPromptsAsync(sessionId);
         var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
 
-        return prompt?.References;
+return prompt?.References;
     }
-
 #pragma warning restore MEAI001
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Streams real-time speech-to-text transcription of audio input to the caller.
     /// </summary>

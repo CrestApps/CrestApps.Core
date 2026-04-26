@@ -30,7 +30,7 @@ public class NamedSourceDocumentCatalog<T, TIndex> : SourceDocumentCatalog<T, TI
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        return await Session.Query<T, TIndex>(x => x.Name == name, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
+return await Session.Query<T, TIndex>(x => x.Name == name, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>
@@ -44,7 +44,7 @@ public class NamedSourceDocumentCatalog<T, TIndex> : SourceDocumentCatalog<T, TI
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        return await Session.Query<T, TIndex>(x => x.Name == name && x.Source == source, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
+return await Session.Query<T, TIndex>(x => x.Name == name && x.Source == source, collection: CollectionName).FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>

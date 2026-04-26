@@ -43,7 +43,7 @@ public sealed class McpConnectionController : Controller
             .OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return View(items);
+return View(items);
     }
 
     public IActionResult Create()
@@ -71,7 +71,7 @@ public sealed class McpConnectionController : Controller
 
         await _catalog.CreateAsync(connection);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
@@ -108,7 +108,7 @@ public sealed class McpConnectionController : Controller
 
         await _catalog.UpdateAsync(connection);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -116,13 +116,15 @@ public sealed class McpConnectionController : Controller
     public async Task<IActionResult> Delete(string id)
     {
         var connection = await _catalog.FindByIdAsync(id);
+
         if (connection == null)
         {
             return NotFound();
         }
 
         await _catalog.DeleteAsync(connection);
-        return RedirectToAction(nameof(Index));
+
+return RedirectToAction(nameof(Index));
     }
 
     private void Validate(McpConnectionViewModel model, bool isEditing)
@@ -135,7 +137,8 @@ public sealed class McpConnectionController : Controller
         if (!TryResolveTransportKind(model.Source, out var transportKind))
         {
             ModelState.AddModelError(nameof(model.Source), "Connection type is not supported.");
-            return;
+
+return;
         }
 
         switch (transportKind)
@@ -145,6 +148,8 @@ public sealed class McpConnectionController : Controller
                 break;
             case McpTransportKind.StdIo:
                 ValidateStdIoTransport(model);
+                break;
+            default:
                 break;
         }
     }
@@ -163,6 +168,7 @@ public sealed class McpConnectionController : Controller
         if (!Enum.IsDefined(model.AuthenticationType))
         {
             ModelState.AddModelError(nameof(model.AuthenticationType), "Authentication type is not supported.");
+
             return;
         }
 
@@ -244,16 +250,19 @@ public sealed class McpConnectionController : Controller
         if (string.Equals(source, McpConstants.TransportTypes.Sse, StringComparison.Ordinal))
         {
             transportKind = McpTransportKind.Sse;
+
             return true;
         }
 
         if (string.Equals(source, McpConstants.TransportTypes.StdIo, StringComparison.Ordinal))
         {
             transportKind = McpTransportKind.StdIo;
+
             return true;
         }
 
         transportKind = default;
+
         return false;
     }
 

@@ -101,7 +101,7 @@ public sealed class AIDataSourceSearchDocumentHandlerTests
 
         Assert.True(await enumerator.MoveNextAsync());
 
-        return enumerator.Current;
+return enumerator.Current;
     }
 
     private static async Task<bool> HasWorkItemAsync(AIDataSourceIndexingQueue queue)
@@ -112,7 +112,7 @@ public sealed class AIDataSourceSearchDocumentHandlerTests
         {
             await using var enumerator = queue.ReadAllAsync(cts.Token).GetAsyncEnumerator(cts.Token);
 
-            return await enumerator.MoveNextAsync();
+return await enumerator.MoveNextAsync();
         }
         catch (OperationCanceledException)
         {

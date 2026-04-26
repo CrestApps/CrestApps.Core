@@ -174,7 +174,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
             ProcessChatResponse(response, prompts);
 
-            return response;
+return response;
         }
         catch (Exception ex)
         {
@@ -289,7 +289,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         chatOptions.AddUsageTracking(context, clientName: ClientName);
 
-        return chatOptions;
+return chatOptions;
     }
 
     private async ValueTask<IChatClient> BuildClientAsync(AIDeployment deployment, AICompletionContext context, ChatOptions chatOptions)

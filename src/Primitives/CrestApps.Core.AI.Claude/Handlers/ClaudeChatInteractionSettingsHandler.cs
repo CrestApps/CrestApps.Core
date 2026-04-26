@@ -19,6 +19,7 @@ internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSet
         if (!string.Equals(orchestratorName, Services.ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
         {
             interaction.Remove<ClaudeSessionMetadata>();
+
             return Task.CompletedTask;
         }
 
@@ -28,7 +29,7 @@ internal sealed class ClaudeChatInteractionSettingsHandler : IChatInteractionSet
             metadata.EffortLevel = GetEnum<ClaudeEffortLevel>(settings, "anthropicEffortLevel");
         });
 
-        return Task.CompletedTask;
+return Task.CompletedTask;
     }
 
     /// <summary>

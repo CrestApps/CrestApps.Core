@@ -42,7 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<CrestAppsEntityDbContext>(configure);
         services.TryAddScoped<IStoreCommitter, EntityCoreStoreCommitter>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(tablePrefix);
         ArgumentException.ThrowIfNullOrEmpty(connectionString);
 
-        return services.AddCoreEntityCoreDataStore(options => options.UseSqlite(connectionString), store => store.TablePrefix = tablePrefix);
+return services.AddCoreEntityCoreDataStore(options => options.UseSqlite(connectionString), store => store.TablePrefix = tablePrefix);
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public static class ServiceCollectionExtensions
         services.AddCoreAIChatInteractionStoresEntityCore();
         services.AddCoreIndexingStoresEntityCore();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -100,7 +100,7 @@ public static class ServiceCollectionExtensions
         services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
         services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public static class ServiceCollectionExtensions
 
         services.AddNamedSourceDocumentCatalog<AIProfileTemplate, NamedSourceDocumentCatalog<AIProfileTemplate>>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -128,7 +128,7 @@ public static class ServiceCollectionExtensions
 
         services.AddDocumentCatalog<A2AConnection, DocumentCatalog<A2AConnection>>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -142,7 +142,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSourceDocumentCatalog<McpConnection, SourceDocumentCatalog<McpConnection>>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -157,7 +157,7 @@ public static class ServiceCollectionExtensions
         services.AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>();
         services.AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -173,7 +173,7 @@ public static class ServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>());
         services.AddScoped<ICatalog<AIChatSessionPrompt>>(sp => sp.GetRequiredService<IAIChatSessionPromptStore>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -190,7 +190,7 @@ public static class ServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<IAIDocumentChunkStore, EntityCoreAIDocumentChunkStore>());
         services.AddScoped<ICatalog<AIDocumentChunk>>(sp => sp.GetRequiredService<IAIDocumentChunkStore>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -205,7 +205,7 @@ public static class ServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<ISearchIndexProfileStore, EntityCoreSearchIndexProfileStore>());
         services.AddScoped<ICatalog<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileStore>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -220,7 +220,7 @@ public static class ServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<IAIDataSourceStore, EntityCoreAIDataSourceStore>());
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public static class ServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<IAIMemoryStore, EntityCoreAIMemoryStore>());
         services.AddScoped<ICatalog<AIMemoryEntry>>(sp => sp.GetRequiredService<IAIMemoryStore>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -252,7 +252,7 @@ public static class ServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<IChatInteractionPromptStore, EntityCoreChatInteractionPromptStore>());
         services.AddScoped<ICatalog<ChatInteractionPrompt>>(sp => sp.GetRequiredService<IChatInteractionPromptStore>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -269,7 +269,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalogSource<TModel>>(sp =>
             new WritableCatalogBindingSource<TModel>(sp.GetRequiredService<NamedSourceDocumentCatalog<TModel>>()));
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -286,7 +286,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedCatalogSource<TModel>>(sp =>
             new WritableNamedCatalogBindingSource<TModel>(sp.GetRequiredService<NamedDocumentCatalog<TModel>>()));
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -302,7 +302,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreEntityCoreDataStore(configure, configureStore);
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -319,7 +319,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreEntityCoreSqliteDataStore(connectionString, tablePrefix);
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -337,7 +337,7 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIProfileTemplateStoresEntityCore();
         builder.Services.AddCoreAIChatSessionStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -351,7 +351,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIA2AClientStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -365,7 +365,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIMcpClientStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -379,7 +379,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIMcpServerStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -393,7 +393,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIChatInteractionStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -409,7 +409,7 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIDocumentProcessingStoresEntityCore();
         builder.Services.AddCoreAIDataSourceStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -423,7 +423,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIMemoryStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -437,7 +437,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreIndexingStoresEntityCore();
 
-        return builder;
+return builder;
     }
 
     /// <summary>

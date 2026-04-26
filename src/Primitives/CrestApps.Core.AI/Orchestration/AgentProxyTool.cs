@@ -84,7 +84,7 @@ internal sealed class AgentProxyTool : AIFunction
             {
                 logger.LogWarning("Agent profile '{AgentName}' not found.", _agentProfileName);
 
-                return $"Agent '{_agentProfileName}' is not available.";
+return $"Agent '{_agentProfileName}' is not available.";
             }
 
             var completionService = arguments.Services.GetRequiredService<IAICompletionService>();
@@ -112,7 +112,7 @@ internal sealed class AgentProxyTool : AIFunction
 
             var result = response?.Messages?.FirstOrDefault(m => m.Role == ChatRole.Assistant)?.Text;
 
-            return result ?? "The agent did not produce a response.";
+return result ?? "The agent did not produce a response.";
         }
         catch (OperationCanceledException)
         {
@@ -122,7 +122,7 @@ internal sealed class AgentProxyTool : AIFunction
         {
             logger.LogError(ex, "Failed to execute agent '{AgentName}'.", _agentProfileName);
 
-            return $"An error occurred while executing agent '{_agentProfileName}'.";
+return $"An error occurred while executing agent '{_agentProfileName}'.";
         }
     }
 }

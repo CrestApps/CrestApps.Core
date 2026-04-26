@@ -38,7 +38,7 @@ public sealed class FileSystemFileStore : IDocumentFileStore
         using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
         await content.CopyToAsync(fileStream);
 
-        return filePath;
+return filePath;
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public sealed class FileSystemFileStore : IDocumentFileStore
         {
             File.Delete(filePath);
 
-            return Task.FromResult(true);
+return Task.FromResult(true);
         }
 
         return Task.FromResult(false);

@@ -12,7 +12,6 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 #pragma warning disable MEAI001
-
 /// <summary>
 /// An <see cref="ISpeechToTextClient"/> implementation that uses the Azure Speech SDK
 /// for speech-to-text recognition. Supports continuous recognition for real-time streaming.
@@ -67,8 +66,8 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         _timeProvider = timeProvider;
         _logger = logger;
     }
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Gets text.
     /// </summary>
@@ -300,7 +299,6 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
             _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms GetStreamingTextAsync COMPLETE.", traceId, sw.ElapsedMilliseconds);
         }
     }
-
 #pragma warning restore MEAI001
     private async Task PushAudioToStreamAsync(string traceId, Stopwatch sw, Stream audioSpeechStream, PushAudioInputStream pushStream, CancellationToken cancellationToken)
     {
@@ -361,8 +359,8 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         {
             return new SpeechToTextClientMetadata("AzureSpeech", _endpoint);
         }
-
 #pragma warning restore MEAI001
+
         return null;
     }
 
@@ -448,6 +446,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     {
         var config = SpeechConfig.FromEndpoint(_endpoint);
         config.AuthorizationToken = token;
+
         return config;
     }
 
@@ -509,8 +508,8 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
 
         return null;
     }
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Reads an optional <c>audioFormat</c> value from <see cref="SpeechToTextOptions.AdditionalProperties"/>
     /// and maps it to an <see cref="AudioStreamContainerFormat"/>. Falls back to

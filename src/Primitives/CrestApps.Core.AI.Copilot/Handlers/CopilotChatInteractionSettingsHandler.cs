@@ -24,6 +24,7 @@ internal sealed class CopilotChatInteractionSettingsHandler : IChatInteractionSe
         if (!string.Equals(orchestratorName, CopilotOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
         {
             interaction.Remove<CopilotSessionMetadata>();
+
             return Task.CompletedTask;
         }
 
@@ -35,6 +36,7 @@ internal sealed class CopilotChatInteractionSettingsHandler : IChatInteractionSe
             metadata.IsAllowAll = isAllowAll;
             metadata.ReasoningEffort = GetEnum<CopilotReasoningEffort>(settings, "copilotReasoningEffort");
         });
+
         return Task.CompletedTask;
     }
 

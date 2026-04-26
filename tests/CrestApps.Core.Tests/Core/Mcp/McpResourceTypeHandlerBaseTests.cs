@@ -95,7 +95,8 @@ public sealed class McpResourceTypeHandlerBaseTests
     {
         public IReadOnlyDictionary<string, string> LastVariables { get; private set; }
 
-        public TestHandler(string type) : base(type)
+        public TestHandler(string type)
+            : base(type)
         {
         }
 
@@ -103,7 +104,7 @@ public sealed class McpResourceTypeHandlerBaseTests
         {
             LastVariables = variables;
 
-            return Task.FromResult(new ReadResourceResult
+return Task.FromResult(new ReadResourceResult
             {
                 Contents = [new TextResourceContents { Uri = resource.Resource.Uri, Text = "ok" }],
             });

@@ -23,7 +23,6 @@ In a standard ASP.NET Core application, SignalR hub paths are hardcoded at start
 app.MapHub<ChatHub>("/chatHub");
 ```
 
-
 1. Discover the current tenant's URL prefix
 2. Build the correct hub path with that prefix
 3. Expose the full URL to client-side JavaScript for connection
@@ -180,8 +179,6 @@ Server 1 ──┐                ┌── Server 2
          └─────────────────────┘
 ```
 
-
-
 Configure the Redis connection in your environment:
 
 ```json title="appsettings.json"
@@ -269,5 +266,3 @@ With a prefix of `/tenant-a`:
 | `GetPathByRoute(pattern)` | Get the route path with prefix applied |
 | `GetUriByHub<T>(httpContext)` | Full URI including scheme and host |
 | `GetUriByRoute(httpContext, pattern)` | Full URI for a custom route pattern |
-
-

@@ -56,7 +56,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetChatClientAsync(conn, model));
 
-        return new AICompletionUsageTrackingChatClient(
+return new AICompletionUsageTrackingChatClient(
             client,
             deployment.ClientName,
             deployment.ConnectionName,
@@ -76,11 +76,11 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
+return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Creates image generator.
     /// </summary>
@@ -93,11 +93,11 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
+return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Creates speech to text client.
     /// </summary>
@@ -110,11 +110,11 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
+return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Creates text to speech client.
     /// </summary>
@@ -127,7 +127,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
+return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
     }
 
@@ -167,6 +167,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         }
 
         // Contained-connection deployment: build an AIProviderConnectionEntry from the deployment's Properties.
+
         return AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
     }
 }

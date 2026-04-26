@@ -403,8 +403,6 @@ Each `McpResourceTypeEntry` provides:
 | `Description` | Localized description |
 | `SupportedVariables` | Array of `McpResourceVariable` describing URI template variables |
 
-
-
 - Configuring server authentication (OpenID, API key, or none)
 - Managing prompts and resources through the admin dashboard
 - Registering and configuring resource types

@@ -97,7 +97,7 @@ public class SourceCatalogManager<T> : CatalogManager<T>, ISourceCatalogManager<
 
         entry.Source = source;
 
-        return entry;
+return entry;
     }
 
     /// <summary>

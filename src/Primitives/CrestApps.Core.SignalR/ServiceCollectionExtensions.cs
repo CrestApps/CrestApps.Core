@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(pathPrefix);
 
         services.AddSingleton(new HubRouteManager(pathPrefix));
+
         return services.AddSignalR()
             .AddJsonProtocol(options =>
             {

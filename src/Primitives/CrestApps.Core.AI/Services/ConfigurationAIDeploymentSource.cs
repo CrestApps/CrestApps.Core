@@ -227,24 +227,28 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         if (string.IsNullOrWhiteSpace(entry.ClientName))
         {
             _logger.LogWarning("An AI deployment entry is missing a ClientName. Skipping.");
+
             return null;
         }
 
         if (!_aiOptions.Deployments.ContainsKey(entry.ClientName))
         {
             _logger.LogWarning("Unknown deployment provider '{ProviderName}' in AI deployment configuration. Skipping.", entry.ClientName);
+
             return null;
         }
 
         if (string.IsNullOrWhiteSpace(entry.Name))
         {
             _logger.LogWarning("A deployment entry for provider '{ProviderName}' is missing a Name. Skipping.", entry.ClientName);
+
             return null;
         }
 
         if (!entry.Type.IsValidSelection())
         {
             _logger.LogWarning("Deployment entry '{Name}' for provider '{ProviderName}' has an invalid Type. Skipping.", entry.Name, entry.ClientName);
+
             return null;
         }
 
@@ -280,6 +284,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                 "Skipping AI deployment '{DeploymentName}' from {SourceDescription} because another deployment with the same name is already defined.",
                 deployment.Name,
                 sourceDescription);
+
             return;
         }
 
@@ -367,6 +372,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                 if (string.IsNullOrWhiteSpace(typeName) || !Enum.TryParse<AIDeploymentType>(typeName, ignoreCase: true, out var parsedType) || parsedType == AIDeploymentType.None)
                 {
                     type = AIDeploymentType.None;
+
                     return false;
                 }
 
@@ -377,6 +383,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         }
 
         var singleTypeName = typeNode.GetStringValue();
+
         return !string.IsNullOrWhiteSpace(singleTypeName) && Enum.TryParse(singleTypeName, ignoreCase: true, out type) && type.IsValidSelection();
     }
 

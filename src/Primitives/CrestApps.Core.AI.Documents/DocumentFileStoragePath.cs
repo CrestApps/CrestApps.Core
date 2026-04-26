@@ -22,6 +22,6 @@ public static class DocumentFileStoragePath
             .Replace(Path.DirectorySeparatorChar, '/')
             .Replace(Path.AltDirectorySeparatorChar, '/');
 
-        return (storedFileName, storagePath);
+return (storedFileName, storagePath);
     }
 }

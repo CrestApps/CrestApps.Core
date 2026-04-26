@@ -59,6 +59,6 @@ internal static class AIProviderConnectionEntryFactory
             ? connection.Name
             : connection.DisplayText;
 
-        return new AIProviderConnectionEntry(values);
+return new AIProviderConnectionEntry(values);
     }
 }

@@ -19,7 +19,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return ValueTask.FromResult<SearchIndexProfile>(default);
+return ValueTask.FromResult<SearchIndexProfile>(default);
     }
 
     /// <summary>
@@ -40,7 +40,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentNullException.ThrowIfNull(ids);
 
-        return ValueTask.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
+return ValueTask.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return ValueTask.FromResult(new PageResult<SearchIndexProfile>
+return ValueTask.FromResult(new PageResult<SearchIndexProfile>
         {
             Count = 0,
             Entries = [],
@@ -67,7 +67,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        return ValueTask.FromResult(false);
+return ValueTask.FromResult(false);
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        return ValueTask.CompletedTask;
+return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        return ValueTask.CompletedTask;
+return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -103,7 +103,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        return ValueTask.FromResult<SearchIndexProfile>(default);
+return ValueTask.FromResult<SearchIndexProfile>(default);
     }
 
     /// <summary>
@@ -114,6 +114,6 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
 
-        return Task.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
+return Task.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
     }
 }

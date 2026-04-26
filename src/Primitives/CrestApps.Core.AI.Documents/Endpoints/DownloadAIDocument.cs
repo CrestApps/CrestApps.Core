@@ -107,7 +107,7 @@ public static class DownloadAIDocument
                         interaction,
                         [AIChatDocumentOperations.ManageDocuments]);
 
-                    return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
+return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
                 }
             case AIReferenceTypes.Document.ChatSession:
                 {
@@ -130,9 +130,10 @@ public static class DownloadAIDocument
                         new AIChatSessionDocumentAuthorizationContext(profile, session),
                         [AIChatDocumentOperations.ManageDocuments]);
 
-                    return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
+return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
                 }
             default:
+
                 return Results.NotFound();
         }
     }

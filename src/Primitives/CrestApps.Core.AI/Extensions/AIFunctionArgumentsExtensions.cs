@@ -19,7 +19,7 @@ public static class AIFunctionArgumentsExtensions
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(key);
 
-        return arguments.TryGetValue(key, out value) && value is not null;
+return arguments.TryGetValue(key, out value) && value is not null;
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ public static class AIFunctionArgumentsExtensions
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(key);
 
-        return arguments.TryGetFirstString(key, false, out value);
+return arguments.TryGetFirstString(key, false, out value);
     }
 
     /// <summary>
@@ -69,6 +69,7 @@ public static class AIFunctionArgumentsExtensions
             if (!allowEmptyString && string.IsNullOrEmpty(value))
             {
                 value = null;
+
                 return false;
             }
 
@@ -77,7 +78,7 @@ public static class AIFunctionArgumentsExtensions
 
         value = null;
 
-        return false;
+return false;
     }
 
     /// <summary>
@@ -99,12 +100,14 @@ public static class AIFunctionArgumentsExtensions
             if (unsafeValue is T alreadyTyped)
             {
                 value = alreadyTyped;
+
                 return true;
             }
 
             if (unsafeValue is JsonElement je)
             {
                 value = JsonSerializer.Deserialize<T>(je.GetRawText(), JSOptions.CaseInsensitive);
+
                 return true;
             }
 
@@ -112,6 +115,7 @@ public static class AIFunctionArgumentsExtensions
             var targetType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
             var safeValue = Convert.ChangeType(unsafeValue, targetType);
             value = (T)safeValue;
+
             return true;
         }
         catch (Exception)

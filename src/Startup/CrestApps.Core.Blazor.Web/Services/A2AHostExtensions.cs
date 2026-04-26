@@ -43,12 +43,13 @@ internal static class A2AHostExtensions
 
         services.AddSingleton<ITaskManager>(CreateTaskManager);
 
-        return services;
+return services;
     }
 
     public static CrestAppsAISuiteBuilder AddA2AHost(this CrestAppsAISuiteBuilder builder)
     {
         builder.Services.AddA2AHost();
+
         return builder;
     }
 
@@ -60,7 +61,7 @@ internal static class A2AHostExtensions
         endpoints.MapA2A(taskManager, "a2a")
             .RequireAuthorization(A2AHostPolicyName);
 
-        return endpoints;
+return endpoints;
     }
 
     private static ITaskManager CreateTaskManager(IServiceProvider serviceProvider)
@@ -83,7 +84,7 @@ internal static class A2AHostExtensions
             var agentName = httpContextAccessor.HttpContext?.Request.Query["agent"].FirstOrDefault();
             var targetProfile = ResolveAgentProfile(profiles, agentName);
 
-            return targetProfile is not null
+return targetProfile is not null
                 ? BuildAgentCard(targetProfile, agentUrl)
                 : BuildSkillModeCard(agentUrl, profiles);
         };
@@ -94,7 +95,7 @@ internal static class A2AHostExtensions
         taskManager.OnTaskUpdated = (agentTask, cancellationToken) =>
             ProcessAgentTaskAsync(taskManager, httpContextAccessor, agentTask, cancellationToken);
 
-        return taskManager;
+return taskManager;
     }
 
     private static async Task HandleWellKnownEndpointAsync(HttpContext context)
@@ -148,7 +149,7 @@ internal static class A2AHostExtensions
                 final: true,
                 cancellationToken: cancellationToken);
 
-            return;
+return;
         }
 
         var logger = services.GetRequiredService<ILogger<TaskManager>>();
@@ -165,7 +166,7 @@ internal static class A2AHostExtensions
                 final: true,
                 cancellationToken: cancellationToken);
 
-            return;
+return;
         }
 
         var targetProfile = await ResolveTargetProfileAsync(
@@ -180,7 +181,7 @@ internal static class A2AHostExtensions
                 final: true,
                 cancellationToken: cancellationToken);
 
-            return;
+return;
         }
 
         try

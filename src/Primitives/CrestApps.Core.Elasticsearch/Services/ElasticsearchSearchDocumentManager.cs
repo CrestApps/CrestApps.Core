@@ -71,16 +71,18 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             if (!response.IsValidResponse)
             {
                 _logger.LogWarning("Elasticsearch bulk index failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
                 return false;
             }
 
             await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
 
-            return true;
+return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error indexing documents in Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
             return false;
         }
     }

@@ -28,7 +28,7 @@ public sealed class ResourcesModel : PageModel
     {
         await LoadResourcesAsync(cancellationToken);
 
-        return Page();
+return Page();
     }
 
     public async Task<IActionResult> OnPostReadResourceAsync(string resourceUri, CancellationToken cancellationToken)

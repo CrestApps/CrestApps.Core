@@ -75,7 +75,7 @@ public sealed class GitHubOAuthService
         queryParams["scope"] = scopes;
         queryParams["state"] = state;
 
-        return $"https://github.com/login/oauth/authorize?{queryParams}";
+return $"https://github.com/login/oauth/authorize?{queryParams}";
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public sealed class GitHubOAuthService
 
         await _credentialStore.SaveProtectedCredentialAsync(userId, credential, cancellationToken);
 
-        return new GitHubOAuthCredential
+return new GitHubOAuthCredential
         {
             UserId = userId,
             GitHubUsername = username,
@@ -237,13 +237,13 @@ public sealed class GitHubOAuthService
         {
             var accessToken = protector.Unprotect(credential.ProtectedAccessToken);
 
-            return accessToken;
+return accessToken;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to unprotect access token for user {UserId}", userId);
 
-            return null;
+return null;
         }
     }
 
@@ -269,7 +269,7 @@ public sealed class GitHubOAuthService
         {
             _logger.LogError(ex, "Failed to unprotect access token from profile metadata for user {Username}", metadata.GitHubUsername);
 
-            return null;
+return null;
         }
     }
 
@@ -347,7 +347,7 @@ public sealed class GitHubOAuthService
 
             var models = await client.ListModelsAsync(cancellationToken);
 
-            return models
+return models
                 .Where(m => !string.IsNullOrEmpty(m.Id))
                 .Select(m => new CopilotModelInfo
                 {
@@ -361,7 +361,7 @@ public sealed class GitHubOAuthService
         {
             _logger.LogWarning(ex, "Error listing Copilot models for user {UserId}", userId);
 
-            return [];
+return [];
         }
     }
 }

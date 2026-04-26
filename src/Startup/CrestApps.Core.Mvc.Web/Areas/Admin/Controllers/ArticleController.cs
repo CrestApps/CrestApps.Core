@@ -52,7 +52,7 @@ public sealed class ArticleController : Controller
             .ToList(),
         };
 
-        return View(model);
+return View(model);
     }
 
     public IActionResult Create()
@@ -80,7 +80,7 @@ public sealed class ArticleController : Controller
 
         TempData["SuccessMessage"] = "Article created successfully.";
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
@@ -99,7 +99,7 @@ public sealed class ArticleController : Controller
             Description = article.Description,
         };
 
-        return View(model);
+return View(model);
     }
 
     [HttpPost]
@@ -127,7 +127,7 @@ public sealed class ArticleController : Controller
 
         TempData["SuccessMessage"] = "Article updated successfully.";
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -143,7 +143,7 @@ public sealed class ArticleController : Controller
 
         TempData["SuccessMessage"] = "Article deleted successfully.";
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     private void Validate(ArticleViewModel model)

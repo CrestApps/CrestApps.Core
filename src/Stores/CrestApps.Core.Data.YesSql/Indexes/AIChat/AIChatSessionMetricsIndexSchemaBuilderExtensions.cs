@@ -33,7 +33,7 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
 
         options = NormalizeOptions(options, storeOptions);
 
-        return schemaBuilder.CreateMapIndexTableAsync<AIChatSessionMetricsIndex>(table => table
+return schemaBuilder.CreateMapIndexTableAsync<AIChatSessionMetricsIndex>(table => table
             .Column<string>(nameof(AIChatSessionMetricsIndex.SessionId), column => column.WithLength(options.SessionIdLength))
             .Column<string>(nameof(AIChatSessionMetricsIndex.ProfileId), column => column.WithLength(options.ProfileIdLength))
             .Column<string>(nameof(AIChatSessionMetricsIndex.VisitorId), column => column.WithLength(options.VisitorIdLength))
@@ -101,7 +101,7 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
 
-        return schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(table =>
+return schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(table =>
         {
             table.AddColumn<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0));
         }, collection: storeOptions?.AICollectionName);

@@ -70,6 +70,7 @@ internal sealed class DefaultOrchestratorResolver : IOrchestratorResolver
         }
 
         // Last resort: resolve ProgressiveToolOrchestrator directly.
+
         return _serviceProvider.GetRequiredService<DefaultOrchestrator>();
     }
 }

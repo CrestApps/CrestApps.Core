@@ -22,6 +22,7 @@ public static class AIConfigurationRecordIds
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionName);
         var input = $"{providerName}:{connectionName}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input.ToLowerInvariant()));
+
         return $"{_connectionPrefix}{Convert.ToHexStringLower(hash)[..22]}";
     }
 
@@ -37,6 +38,7 @@ public static class AIConfigurationRecordIds
         ArgumentException.ThrowIfNullOrWhiteSpace(deploymentName);
         var input = $"{providerName}:{connectionName ?? string.Empty}:{deploymentName}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input.ToLowerInvariant()));
+
         return $"{_deploymentPrefix}{Convert.ToHexStringLower(hash)[..22]}";
     }
 

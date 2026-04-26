@@ -41,6 +41,7 @@ public sealed class McpResourceController : Controller
     public IActionResult Create()
     {
         PopulateResourceTypes();
+
         return View(new McpResourceViewModel());
     }
 
@@ -52,6 +53,7 @@ public sealed class McpResourceController : Controller
         if (!ModelState.IsValid)
         {
             PopulateResourceTypes();
+
             return View(model);
         }
 
@@ -62,6 +64,7 @@ public sealed class McpResourceController : Controller
         };
         Apply(model, resource);
         await _catalog.CreateAsync(resource);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -74,6 +77,7 @@ public sealed class McpResourceController : Controller
         }
 
         PopulateResourceTypes();
+
         return View(ToViewModel(resource));
     }
 
@@ -91,11 +95,13 @@ public sealed class McpResourceController : Controller
         if (!ModelState.IsValid)
         {
             PopulateResourceTypes();
+
             return View(model);
         }
 
         Apply(model, resource);
         await _catalog.UpdateAsync(resource);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -110,6 +116,7 @@ public sealed class McpResourceController : Controller
         }
 
         await _catalog.DeleteAsync(resource);
+
         return RedirectToAction(nameof(Index));
     }
 

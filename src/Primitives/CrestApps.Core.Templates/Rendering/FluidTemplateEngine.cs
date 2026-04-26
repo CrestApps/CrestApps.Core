@@ -43,7 +43,7 @@ public sealed class FluidTemplateEngine : ITemplateEngine
         {
             _logger.LogWarning("Failed to parse Liquid template: {Error}", error);
 
-            return template;
+return template;
         }
 
         var options = new Fluid.TemplateOptions
@@ -65,7 +65,7 @@ public sealed class FluidTemplateEngine : ITemplateEngine
 
         var result = await fluidTemplate.RenderAsync(context);
 
-        return NormalizeWhitespace(result);
+return NormalizeWhitespace(result);
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public sealed class FluidTemplateEngine : ITemplateEngine
         {
             errors.Add(error);
 
-            return false;
+return false;
         }
 
         return true;
@@ -144,6 +144,6 @@ public sealed class FluidTemplateEngine : ITemplateEngine
             RenderTemplateTag.TagName,
             RenderTemplateTag.WriteToAsync);
 
-        return parser;
+return parser;
     }
 }

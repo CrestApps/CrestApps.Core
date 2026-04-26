@@ -19,7 +19,7 @@ public static class PdfServiceCollectionExtensions
 
         services.AddCoreAIIngestionDocumentReader<PdfIngestionDocumentReader>(".pdf");
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -31,6 +31,7 @@ public static class PdfServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIPdfDocumentProcessing();
+
         return builder;
     }
 }

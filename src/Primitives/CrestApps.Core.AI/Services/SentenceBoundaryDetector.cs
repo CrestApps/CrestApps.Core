@@ -102,7 +102,7 @@ public static class SentenceBoundaryDetector
     {
         var last = span[^1];
 
-        return last is ',' or ';' or ':' or '-';
+return last is ',' or ';' or ':' or '-';
     }
 
     private static bool IsTrailingWrapper(char c)
@@ -116,6 +116,7 @@ public static class SentenceBoundaryDetector
         var lastWord = lastSpace >= 0 ? span[(lastSpace + 1)..] : span;
 
         // fallback: convert lastWord to lowercase string to check abbreviation
+
         return _abbreviations.Contains(lastWord.ToString());
     }
 }

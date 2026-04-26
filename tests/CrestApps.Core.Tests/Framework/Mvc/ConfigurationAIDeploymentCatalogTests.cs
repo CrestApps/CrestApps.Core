@@ -252,7 +252,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             Options.Create(catalogOptions ?? new AIDeploymentCatalogOptions()),
             NullLogger<ConfigurationAIDeploymentSource>.Instance));
 
-        return new DefaultAIDeploymentStore(sources);
+return new DefaultAIDeploymentStore(sources);
     }
 
     private sealed class TestAIDeploymentSource(List<AIDeployment> deployments) : IWritableNamedSourceCatalogSource<AIDeployment>
@@ -267,12 +267,14 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         public ValueTask CreateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             deployments.Add(entry);
+
             return ValueTask.CompletedTask;
         }
 
         public ValueTask<bool> DeleteAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
             deployments.Remove(entry);
+
             return ValueTask.FromResult(true);
         }
 

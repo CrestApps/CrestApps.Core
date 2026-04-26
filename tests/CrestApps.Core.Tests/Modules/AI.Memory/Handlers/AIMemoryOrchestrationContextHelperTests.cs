@@ -34,7 +34,7 @@ public sealed class AIMemoryOrchestrationContextHelperTests
         httpContext.User = new ClaimsPrincipal(
             new ClaimsIdentity(claims, "Cookies"));
 
-        return new HttpContextAccessor
+return new HttpContextAccessor
         {
             HttpContext = httpContext,
         };

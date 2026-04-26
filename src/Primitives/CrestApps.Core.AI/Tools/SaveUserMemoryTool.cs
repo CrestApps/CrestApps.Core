@@ -81,6 +81,7 @@ public sealed partial class SaveUserMemoryTool : AIFunction
             !arguments.TryGetFirstString("content", out var content))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required arguments.", Name);
+
             return "'name', 'description', and 'content' arguments are required.";
         }
 
@@ -89,6 +90,7 @@ public sealed partial class SaveUserMemoryTool : AIFunction
         if (string.IsNullOrEmpty(userId))
         {
             logger.LogWarning("AI tool '{ToolName}' requires an authenticated user.", Name);
+
             return "User memory is only available for authenticated users.";
         }
 

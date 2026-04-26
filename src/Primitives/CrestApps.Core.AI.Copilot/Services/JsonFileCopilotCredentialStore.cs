@@ -45,7 +45,7 @@ public sealed class JsonFileCopilotCredentialStore : ICopilotCredentialStore
 
         var json = await File.ReadAllTextAsync(filePath, cancellationToken);
 
-        return JsonSerializer.Deserialize<CopilotProtectedCredential>(json, _jsonOptions);
+return JsonSerializer.Deserialize<CopilotProtectedCredential>(json, _jsonOptions);
     }
 
     /// <summary>

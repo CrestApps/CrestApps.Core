@@ -225,7 +225,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
         services.AddKeyedSingleton<ISearchIndexManager>(AISearchConstants.ProviderName, indexManager);
         services.AddKeyedSingleton<ISearchDocumentManager>(AISearchConstants.ProviderName, documentManager);
 
-        return new SampleAIDocumentIndexingService(
+return new SampleAIDocumentIndexingService(
             Options.Create(new InteractionDocumentOptions { IndexProfileName = "chat-documents" }),
             indexProfileStore,
             services.BuildServiceProvider(),

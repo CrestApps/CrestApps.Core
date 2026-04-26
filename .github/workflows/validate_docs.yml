@@ -38,4 +38,3 @@ jobs:
             exit 1
           fi
           echo "Documentation build successful. All links are valid."
-

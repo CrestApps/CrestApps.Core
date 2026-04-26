@@ -9,7 +9,7 @@ public class EnumHelper
     {
         _ = Enum.TryParse(value, out T status);
 
-        return status;
+return status;
     }
 
     /// <summary>
@@ -32,6 +32,6 @@ public class EnumHelper
     {
         var t = ValueOrNull<T>(value);
 
-        return t.HasValue && t.Equals(enumValue);
+return t.HasValue && t.Equals(enumValue);
     }
 }

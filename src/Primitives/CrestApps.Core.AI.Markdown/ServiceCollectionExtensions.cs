@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IAITextNormalizer, MarkdownAITextNormalizer>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIMarkdown();
+
         return builder;
     }
 }

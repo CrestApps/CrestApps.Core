@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions
             o.Description = new LocalizedString("OpenAI", "Use OpenAI models for AI completion.");
         });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIOpenAI();
+
         return builder;
     }
 }

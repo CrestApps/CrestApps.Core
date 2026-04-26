@@ -82,7 +82,7 @@ public sealed class SearchDocumentsTool : AIFunction
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'query'.", Name);
 
-            return "Unable to find a 'query' argument in the arguments parameter.";
+return "Unable to find a 'query' argument in the arguments parameter.";
         }
 
         try
@@ -96,7 +96,7 @@ public sealed class SearchDocumentsTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no active chat interaction session or AI profile.", Name);
 
-                return "Document search requires an active chat interaction session or AI profile.";
+return "Document search requires an active chat interaction session or AI profile.";
             }
 
             var showUserDocumentAwareness =
@@ -121,7 +121,7 @@ public sealed class SearchDocumentsTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no index profile is configured.", Name);
 
-                return "Document search is not configured. No index profile is set.";
+return "Document search is not configured. No index profile is set.";
             }
 
             var indexProfileStore = arguments.Services.GetRequiredService<ISearchIndexProfileStore>();
@@ -131,7 +131,7 @@ public sealed class SearchDocumentsTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: index profile '{IndexProfileName}' was not found.", Name, settings.IndexProfileName);
 
-                return $"Index profile '{settings.IndexProfileName}' was not found.";
+return $"Index profile '{settings.IndexProfileName}' was not found.";
             }
 
             var searchService = arguments.Services.GetKeyedService<IVectorSearchService>(indexProfile.ProviderName);
@@ -140,7 +140,7 @@ public sealed class SearchDocumentsTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no search service available for provider '{ProviderName}'.", Name, indexProfile.ProviderName);
 
-                return $"No search service is available for provider '{indexProfile.ProviderName}'.";
+return $"No search service is available for provider '{indexProfile.ProviderName}'.";
             }
 
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
@@ -151,7 +151,7 @@ public sealed class SearchDocumentsTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no embedding deployment configured.", Name);
 
-                return "No embedding deployment is configured for document search.";
+return "No embedding deployment is configured for document search.";
             }
 
             var embeddingGenerator = await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
@@ -160,7 +160,7 @@ public sealed class SearchDocumentsTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: could not create embedding generator.", Name);
 
-                return "Failed to create embedding generator for document search.";
+return "Failed to create embedding generator for document search.";
             }
 
             var embeddings = await embeddingGenerator.GenerateAsync([query], cancellationToken: cancellationToken);
@@ -169,7 +169,7 @@ public sealed class SearchDocumentsTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: could not generate embedding for query.", Name);
 
-                return "Failed to generate embedding for the search query.";
+return "Failed to generate embedding for the search query.";
             }
 
             var topN = arguments.GetFirstValueOrDefault("top_n", settings.TopN);
@@ -237,7 +237,7 @@ public sealed class SearchDocumentsTool : AIFunction
         {
             logger.LogError(ex, "Error during document search.");
 
-            return "An error occurred while searching documents.";
+return "An error occurred while searching documents.";
         }
     }
 
@@ -264,6 +264,7 @@ public sealed class SearchDocumentsTool : AIFunction
         if (resource is ChatInteraction interaction)
         {
             searchScopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
+
             return searchScopes;
         }
 
@@ -403,6 +404,7 @@ public sealed class SearchDocumentsTool : AIFunction
         }
 
         builder.Append(AddDocumentReferences(invocationContext, seenDocuments));
+
         return builder.ToString();
     }
 
@@ -466,6 +468,7 @@ public sealed class SearchDocumentsTool : AIFunction
         }
 
         builder.Append(AddDocumentReferences(invocationContext, seenDocuments));
+
         return builder.ToString();
     }
 

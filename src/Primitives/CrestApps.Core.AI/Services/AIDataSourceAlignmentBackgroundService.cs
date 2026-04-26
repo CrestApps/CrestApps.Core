@@ -86,7 +86,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
         var utcNow = _timeProvider.GetUtcNow();
         runDateUtc = DateOnly.FromDateTime(utcNow.UtcDateTime);
 
-        return utcNow.Hour == 2 &&
+return utcNow.Hour == 2 &&
             utcNow.Minute < 30 &&
             _lastRunDateUtc != runDateUtc;
     }
@@ -109,6 +109,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
         if (dataSourceList.Count == 0)
         {
             _logger.LogTrace("Skipped AI data-source alignment because no AI data sources were configured.");
+
             return;
         }
 

@@ -33,7 +33,8 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     public AzureOpenAIClientProvider(
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
-        IOptionsSnapshot<AzureClientOptions> azureClientSettings) : base(serviceProvider)
+        IOptionsSnapshot<AzureClientOptions> azureClientSettings)
+        : base(serviceProvider)
     {
         _loggerFactory = loggerFactory;
         _azureClientSettings = azureClientSettings.Value;
@@ -62,8 +63,8 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
             .GetEmbeddingClient(deploymentName)
             .AsIEmbeddingGenerator();
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Gets image generator.
     /// </summary>
@@ -87,7 +88,6 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
             .GetAudioClient(deploymentName)
             .AsISpeechToTextClient();
     }
-
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     private AzureOpenAIClient GetClient(AIProviderConnectionEntry connection)

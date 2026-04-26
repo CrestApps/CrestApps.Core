@@ -22,7 +22,7 @@ public static class AIDeploymentManagerExtensions
     {
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
-        return await deploymentManager.ResolveOrDefaultAsync(
+return await deploymentManager.ResolveOrDefaultAsync(
             AIDeploymentType.Utility,
             utilityDeploymentName,
             clientName)
@@ -49,7 +49,7 @@ public static class AIDeploymentManagerExtensions
 
         var deployment = await deploymentManager.ResolveOrDefaultAsync(type, deploymentName, clientName);
 
-        return deployment
+return deployment
             ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for type '{type}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
     }
 
@@ -70,7 +70,7 @@ public static class AIDeploymentManagerExtensions
 
         var deployment = await deploymentManager.ResolveUtilityOrDefaultAsync(utilityDeploymentName, chatDeploymentName, clientName);
 
-        return deployment
+return deployment
             ?? throw new InvalidOperationException($"Unable to resolve a utility AI deployment using utilityDeploymentName '{utilityDeploymentName ?? "(null)"}', chatDeploymentName '{chatDeploymentName ?? "(null)"}', and clientName '{clientName ?? "(null)"}'.");
     }
 }

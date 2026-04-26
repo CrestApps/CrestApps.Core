@@ -86,7 +86,7 @@ public sealed class AIChatSessionExtractedDataIndexProvider : IndexProvider<AICh
                         .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
                         .SelectMany(pair => pair.Value.Select(value => $"{pair.Key}:{value}")));
 
-                return new AIChatSessionExtractedDataIndex
+return new AIChatSessionExtractedDataIndex
                 {
                     SessionId = record.SessionId,
                     ProfileId = record.ProfileId,

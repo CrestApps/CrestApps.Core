@@ -164,6 +164,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "MCP capability resolution failed. Continuing without pre-resolved capabilities.");
+
             return McpCapabilityResolutionResult.Empty;
         }
     }
@@ -202,6 +203,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         if (promptEmbeddings is null || promptEmbeddings.Count == 0 || promptEmbeddings[0].Vector.Length == 0)
         {
             _logger.LogWarning("Failed to generate embedding for user prompt during capability resolution.");
+
             return null;
         }
 

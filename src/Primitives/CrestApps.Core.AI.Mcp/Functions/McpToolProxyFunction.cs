@@ -68,6 +68,7 @@ internal sealed class McpToolProxyFunction : AIFunction
         if (connection is null)
         {
             logger.LogWarning("AI tool '{ToolName}' failed: MCP connection '{ConnectionId}' not found.", Name, _connectionId);
+
             return JsonSerializer.Serialize(new { error = $"MCP connection '{_connectionId}' not found." });
         }
 
@@ -77,6 +78,7 @@ internal sealed class McpToolProxyFunction : AIFunction
         if (client is null)
         {
             logger.LogWarning("AI tool '{ToolName}' failed: could not connect to MCP server '{ConnectionId}'.", Name, _connectionId);
+
             return JsonSerializer.Serialize(new { error = $"Failed to connect to MCP server '{_connectionId}'." });
         }
 
@@ -108,6 +110,7 @@ internal sealed class McpToolProxyFunction : AIFunction
         catch (Exception ex)
         {
             logger.LogError(ex, "Error invoking MCP tool '{ToolName}' on server '{ConnectionId}'.", _name, _connectionId);
+
             return JsonSerializer.Serialize(new { error = $"Error invoking MCP tool '{_name}'." });
         }
     }

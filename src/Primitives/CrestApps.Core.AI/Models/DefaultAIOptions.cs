@@ -72,7 +72,7 @@ public sealed class DefaultAIOptions
 
         MaximumIterationsPerRequest = Math.Min(MaximumIterationsPerRequest, AbsoluteMaximumIterationsPerRequest);
 
-        return this;
+return this;
     }
 
     /// <summary>

@@ -50,6 +50,7 @@ public sealed class ChatExtractedDataController : Controller
 
         var records = await _extractedDataService.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
         ApplyReport(model, records);
+
         return View("Index", model);
     }
 
@@ -71,7 +72,7 @@ public sealed class ChatExtractedDataController : Controller
 
         var fileName = $"chat-extracted-data-{_timeProvider.GetUtcNow():yyyyMMdd-HHmmss}.csv";
 
-        return File(Encoding.UTF8.GetBytes(GenerateCsv(rows, columns)), "text/csv", fileName);
+return File(Encoding.UTF8.GetBytes(GenerateCsv(rows, columns)), "text/csv", fileName);
     }
 
     private async Task<ChatExtractedDataIndexViewModel> BuildViewModelAsync(ChatExtractedDataIndexViewModel model, bool showReport)
@@ -79,6 +80,7 @@ public sealed class ChatExtractedDataController : Controller
         var profiles = await _profileManager.GetAsync(AIProfileType.Chat);
         model.Profiles = [new SelectListItem("Select a profile", string.Empty, string.IsNullOrEmpty(model.ProfileId)), .. profiles.OrderBy(profile => profile.DisplayText ?? profile.Name, StringComparer.OrdinalIgnoreCase).Select(profile => new SelectListItem(profile.DisplayText ?? profile.Name, profile.ItemId, profile.ItemId == model.ProfileId)),];
         model.ShowReport = showReport;
+
         return model;
     }
 

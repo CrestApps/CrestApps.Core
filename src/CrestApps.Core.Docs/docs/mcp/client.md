@@ -296,7 +296,6 @@ Each `McpServerCapability` captures a tool's name, description, input schema, or
 
 ## Tool Discovery & Invocation
 
-
 ### McpToolRegistryProvider
 
 Implements `IToolRegistryProvider` to discover tools from configured MCP connections:
@@ -427,10 +426,7 @@ public sealed class GrpcClientTransportProvider : IMcpClientTransportProvider
 services.AddScoped<IMcpClientTransportProvider, GrpcClientTransportProvider>();
 ```
 
-
-
 - Connection CRUD with SSE and StdIO configuration
 - Authentication setup (API key, Basic, OAuth2 flows)
 - Assigning MCP connections to AI profiles
 - Viewing discovered capabilities from connected servers
-

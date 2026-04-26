@@ -152,12 +152,14 @@ internal sealed class AzureAISearchVectorSearchService : IVectorSearchService
         {
             _logger.LogError(ex, "Azure AI Search request failed for index '{IndexName}': {Message}",
                 indexProfile.IndexFullName, ex.Message);
+
             return [];
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error performing vector search in Azure AI Search index '{IndexName}'.",
                 indexProfile.IndexFullName);
+
             return [];
         }
     }

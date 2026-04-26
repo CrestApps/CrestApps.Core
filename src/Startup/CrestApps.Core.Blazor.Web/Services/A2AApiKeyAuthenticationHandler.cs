@@ -84,7 +84,7 @@ internal sealed class A2AApiKeyAuthenticationHandler : AuthenticationHandler<A2A
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, A2AApiKeyAuthenticationDefaults.AuthenticationScheme);
 
-        return Task.FromResult(AuthenticateResult.Success(ticket));
+return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 
     private static bool FixedTimeEquals(string a, string b)
@@ -92,7 +92,7 @@ internal sealed class A2AApiKeyAuthenticationHandler : AuthenticationHandler<A2A
         var aBytes = Encoding.UTF8.GetBytes(a);
         var bBytes = Encoding.UTF8.GetBytes(b);
 
-        return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
+return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
     }
 }
 

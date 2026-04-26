@@ -273,7 +273,7 @@ public sealed class EntityCoreStoreTests
             var provider = services.BuildServiceProvider();
             await provider.InitializeEntityCoreSchemaAsync();
 
-            return new EntityCoreTestHarness(databasePath, provider);
+return new EntityCoreTestHarness(databasePath, provider);
         }
 
         public async ValueTask DisposeAsync()

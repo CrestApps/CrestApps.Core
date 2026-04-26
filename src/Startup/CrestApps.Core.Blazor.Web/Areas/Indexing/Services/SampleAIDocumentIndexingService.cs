@@ -68,7 +68,7 @@ public sealed class SampleAIDocumentIndexingService
             {
                 _logger.LogWarning("Skipping AI document indexing because provider '{ProviderName}' is not configured for search indexing.", indexProfile.ProviderName);
 
-                return;
+return;
             }
 
             if (!await indexManager.ExistsAsync(indexProfile, cancellationToken))
@@ -128,7 +128,7 @@ public sealed class SampleAIDocumentIndexingService
             {
                 _logger.LogWarning("Skipping AI document index cleanup because provider '{ProviderName}' is not configured for search indexing.", indexProfile.ProviderName);
 
-                return;
+return;
             }
 
             await documentManager.DeleteAsync(indexProfile, [documentId], cancellationToken);
@@ -165,7 +165,7 @@ public sealed class SampleAIDocumentIndexingService
             {
                 _logger.LogWarning("Skipping AI document chunk cleanup because provider '{ProviderName}' is not configured for search indexing.", indexProfile.ProviderName);
 
-                return;
+return;
             }
 
             await documentManager.DeleteAsync(indexProfile, ids, cancellationToken);
@@ -184,7 +184,7 @@ public sealed class SampleAIDocumentIndexingService
         {
             _logger.LogDebug("AI document indexing is disabled because no default AI Documents index is configured.");
 
-            return null;
+return null;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -194,14 +194,14 @@ public sealed class SampleAIDocumentIndexingService
         {
             _logger.LogWarning("AI document indexing is configured to use '{IndexProfileName}', but that index profile was not found.", settings.IndexProfileName);
 
-            return null;
+return null;
         }
 
         if (!string.Equals(indexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("AI document indexing requires an '{ExpectedType}' index profile, but '{IndexProfileName}' is '{ActualType}'.", IndexProfileTypes.AIDocuments, settings.IndexProfileName, indexProfile.Type);
 
-            return null;
+return null;
         }
 
         return indexProfile;

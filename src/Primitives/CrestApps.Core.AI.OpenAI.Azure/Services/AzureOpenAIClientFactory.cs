@@ -40,7 +40,7 @@ internal static class AzureOpenAIClientFactory
         var identityId = connection.GetIdentityId();
         var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}";
 
-        return _clientCache.GetOrAdd(cacheKey, _ =>
+return _clientCache.GetOrAdd(cacheKey, _ =>
         {
             var clientOptions = new AzureOpenAIClientOptions
             {
@@ -53,7 +53,7 @@ internal static class AzureOpenAIClientFactory
                 },
             };
 
-            return authType switch
+return authType switch
             {
                 AzureAuthenticationType.ApiKey => new AzureOpenAIClient(endpoint, new ApiKeyCredential(connection.GetApiKey()), clientOptions),
                 AzureAuthenticationType.ManagedIdentity => new AzureOpenAIClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId)), clientOptions),

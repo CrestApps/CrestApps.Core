@@ -107,11 +107,12 @@ internal sealed class FindToolsForTaskFunction : AIFunction
                 source = r.Source.ToString(),
             });
 
-            return JsonSerializer.Serialize(tools);
+return JsonSerializer.Serialize(tools);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to search for tools.");
+
             return "An error occurred while searching for tools.";
         }
     }

@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAISseMcpClientTransport();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public static class ServiceCollectionExtensions
             });
         });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ public static class ServiceCollectionExtensions
             });
         });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -118,7 +118,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, McpToolRegistryProvider>());
         services.AddCoreAITool<McpInvokeFunction>(McpInvokeFunction.FunctionName);
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -130,6 +130,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIMcpServices();
+
         return builder;
     }
 
@@ -165,7 +166,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IMcpServerPromptService, DefaultMcpServerPromptService>();
         services.TryAddScoped<IMcpServerResourceService, DefaultMcpServerResourceService>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -215,6 +216,6 @@ public static class ServiceCollectionExtensions
         // Register as keyed service for direct lookup by type
         services.AddKeyedScoped<IMcpResourceTypeHandler>(type, (sp, key) => sp.GetRequiredService<THandler>());
 
-        return services;
+return services;
     }
 }

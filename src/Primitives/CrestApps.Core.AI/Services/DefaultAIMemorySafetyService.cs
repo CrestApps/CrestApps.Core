@@ -22,24 +22,28 @@ public sealed partial class DefaultAIMemorySafetyService : IAIMemorySafetyServic
         if (string.IsNullOrWhiteSpace(name))
         {
             errorMessage = "Memory name is required.";
+
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(description))
         {
             errorMessage = "Memory description is required.";
+
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(content))
         {
             errorMessage = "Memory content is required.";
+
             return false;
         }
 
         if (LooksSensitive(content) || LooksSensitive(name) || LooksSensitive(description))
         {
             errorMessage = "Sensitive information must not be stored in user memory.";
+
             return false;
         }
 

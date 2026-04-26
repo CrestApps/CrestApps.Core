@@ -30,7 +30,7 @@ public sealed class YesSqlAIChatSessionPromptStore : DocumentCatalog<AIChatSessi
 
         var prompts = await Session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.SessionId == sessionId, collection: CollectionName).ListAsync();
 
-        return prompts.OrderBy(p => p.CreatedUtc).ToArray();
+return prompts.OrderBy(p => p.CreatedUtc).ToArray();
     }
 
     /// <summary>
@@ -61,6 +61,6 @@ public sealed class YesSqlAIChatSessionPromptStore : DocumentCatalog<AIChatSessi
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
 
-        return await Session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.SessionId == sessionId, collection: CollectionName).CountAsync();
+return await Session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(x => x.SessionId == sessionId, collection: CollectionName).CountAsync();
     }
 }

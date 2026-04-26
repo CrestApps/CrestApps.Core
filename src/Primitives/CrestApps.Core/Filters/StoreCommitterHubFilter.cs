@@ -50,7 +50,7 @@ public sealed class StoreCommitterHubFilter : IHubFilter
 
         await committer.CommitAsync();
 
-        return result;
+return result;
     }
 
     /// <summary>

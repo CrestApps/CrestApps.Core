@@ -37,6 +37,6 @@ public sealed class CompositeAIReferenceLinkResolver
 
         var resolver = _serviceProvider.GetKeyedService<IAIReferenceLinkResolver>(referenceType);
 
-        return resolver?.ResolveLink(referenceId, metadata);
+return resolver?.ResolveLink(referenceId, metadata);
     }
 }

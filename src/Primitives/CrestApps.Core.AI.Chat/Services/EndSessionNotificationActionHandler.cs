@@ -31,7 +31,7 @@ public sealed class EndSessionNotificationActionHandler : IChatNotificationActio
             {
                 logger.LogWarning("End session failed: session '{SessionId}' not found.", context.SessionId);
 
-                return;
+return;
             }
 
             var timeProvider = context.Services.GetService<TimeProvider>() ?? TimeProvider.System;

@@ -63,6 +63,7 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         try
         {
             var response = await _elasticClient.Indices.ExistsAsync(indexFullName, cancellationToken);
+
             return response.Exists;
         }
         catch (Exception ex)

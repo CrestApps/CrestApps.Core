@@ -48,7 +48,7 @@ public sealed class HubRouteManager
     {
         ArgumentException.ThrowIfNullOrEmpty(pattern);
 
-        return _hubPrefix + '/' + pattern.TrimStart('/');
+return _hubPrefix + '/' + pattern.TrimStart('/');
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public sealed class HubRouteManager
         ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentException.ThrowIfNullOrEmpty(pattern);
 
-        return BuildAbsoluteUri(httpContext, $"{_hubPrefix}/{pattern.TrimStart('/')}");
+return BuildAbsoluteUri(httpContext, $"{_hubPrefix}/{pattern.TrimStart('/')}");
     }
 
     /// <summary>
@@ -81,7 +81,7 @@ public sealed class HubRouteManager
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        return BuildAbsoluteUri(httpContext, $"{_hubPrefix}{DefaultPath}{typeof(T).Name}");
+return BuildAbsoluteUri(httpContext, $"{_hubPrefix}{DefaultPath}{typeof(T).Name}");
     }
 
     private string BuildAbsoluteUri(HttpContext httpContext, string path)

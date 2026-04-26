@@ -71,6 +71,7 @@ public sealed class SearchUserMemoriesTool : AIFunction
         if (!arguments.TryGetFirstString("query", out var query))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'query'.", Name);
+
             return "Unable to find a 'query' argument in the arguments parameter.";
         }
 
@@ -79,6 +80,7 @@ public sealed class SearchUserMemoriesTool : AIFunction
         if (string.IsNullOrEmpty(userId))
         {
             logger.LogWarning("AI tool '{ToolName}' requires an authenticated user.", Name);
+
             return "User memory is only available for authenticated users.";
         }
 

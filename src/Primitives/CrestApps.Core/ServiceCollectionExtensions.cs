@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
 
         configure(new CrestAppsCoreBuilder(services));
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ public static class ServiceCollectionExtensions
 
         configure(new CrestAppsIndexingBuilder(builder.Services));
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -58,7 +58,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddScoped<IODataValidator, ODataFilterValidator>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped(typeof(ISourceCatalogManager<>), typeof(SourceCatalogManager<>));
         services.TryAddScoped(typeof(INamedSourceCatalogManager<>), typeof(NamedSourceCatalogManager<>));
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -91,6 +91,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddScoped<StoreCommitterActionFilter>();
         builder.Services.Configure<MvcOptions>(options => options.Filters.AddService<StoreCommitterActionFilter>());
+
         return builder;
     }
 
@@ -107,6 +108,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.TryAddSingleton<StoreCommitterHubFilter>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<HubOptions>, StoreCommitterHubFilterOptionsSetup>());
+
         return builder;
     }
 }

@@ -82,7 +82,7 @@ public sealed class SampleServerSelectionService
 
         server = _servers.FirstOrDefault(candidate => string.Equals(candidate.Name, serverName, StringComparison.OrdinalIgnoreCase))!;
 
-        return server is not null;
+return server is not null;
     }
 
     /// <summary>

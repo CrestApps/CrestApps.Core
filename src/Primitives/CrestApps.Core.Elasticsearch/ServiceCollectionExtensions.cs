@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
 
         services.Configure<ElasticsearchConnectionOptions>(configuration);
 
-        return services.AddCoreElasticsearchServices();
+return services.AddCoreElasticsearchServices();
     }
 
     /// <summary>
@@ -58,7 +58,7 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedScoped<ISearchDocumentManager>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchSearchDocumentManager(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetServices<ISearchDocumentHandler>(), sp.GetRequiredService<ILogger<ElasticsearchSearchDocumentManager>>()));
 
-        return services;
+return services;
     }
 
     /// <summary>

@@ -20,6 +20,7 @@ public sealed class PromptTemplateChatInteractionSettingsHandler : IChatInteract
         {
             metadata.SetSelections(GetSelections(settings));
         });
+
         return Task.CompletedTask;
     }
 

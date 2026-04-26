@@ -22,7 +22,7 @@ public class ChatInteractionStaticParityTests
 
         Assert.NotNull(dir);
 
-        return dir!.FullName;
+return dir!.FullName;
     }
 
     [Fact]

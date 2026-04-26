@@ -186,6 +186,7 @@ public sealed class DataExtractionServiceTests
         var clientFactory = new Mock<IAIClientFactory>();
         var templateService = new Mock<ITemplateService>();
         var deploymentManager = new Mock<IAIDeploymentManager>();
+
         return new DataExtractionService(clientFactory.Object, templateService.Object, TimeProvider.System, NullLogger<DataExtractionService>.Instance, deploymentManager.Object);
     }
 
@@ -193,6 +194,7 @@ public sealed class DataExtractionServiceTests
     {
         var profile = new AIProfile();
         profile.AlterSettings(configure);
+
         return profile;
     }
 

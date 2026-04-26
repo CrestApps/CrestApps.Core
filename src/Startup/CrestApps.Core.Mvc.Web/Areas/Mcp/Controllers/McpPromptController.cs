@@ -53,6 +53,7 @@ public sealed class McpPromptController : Controller
         };
         Apply(model, prompt, arguments);
         await _catalog.CreateAsync(prompt);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -87,6 +88,7 @@ public sealed class McpPromptController : Controller
 
         Apply(model, prompt, arguments);
         await _catalog.UpdateAsync(prompt);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -101,6 +103,7 @@ public sealed class McpPromptController : Controller
         }
 
         await _catalog.DeleteAsync(prompt);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -132,6 +135,7 @@ public sealed class McpPromptController : Controller
         catch (JsonException)
         {
             ModelState.AddModelError(nameof(model.Arguments), "Arguments must be valid JSON.");
+
             return [];
         }
     }

@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ICatalogManager<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileManager>());
         services.TryAddScoped<ISearchIndexProfileProvisioningService, SearchIndexProfileProvisioningService>();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -40,7 +40,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreIndexingServices();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, DataSourceSearchIndexProfileHandler>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, AIMemorySearchIndexProfileHandler>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -79,6 +79,6 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, DefaultSearchIndexProfileHandler>());
 
-        return services;
+return services;
     }
 }

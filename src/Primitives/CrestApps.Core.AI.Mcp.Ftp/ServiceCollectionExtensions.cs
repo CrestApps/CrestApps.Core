@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return services.AddCoreAIMcpResourceType<FtpResourceTypeHandler>(FtpResourceConstants.Type, entry =>
+return services.AddCoreAIMcpResourceType<FtpResourceTypeHandler>(FtpResourceConstants.Type, entry =>
         {
             entry.DisplayName = new LocalizedString("FTP", "FTP/FTPS");
             entry.Description = new LocalizedString("FTP Description", "Reads content from FTP/FTPS servers.");
@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIFtpMcpResources(configure);
+
         return builder;
     }
 }

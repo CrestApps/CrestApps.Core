@@ -16,7 +16,7 @@ public static class DictionaryExtensions
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        return entry.GetStringValue("ApiKey", throwException);
+return entry.GetStringValue("ApiKey", throwException);
     }
 
     /// <summary>

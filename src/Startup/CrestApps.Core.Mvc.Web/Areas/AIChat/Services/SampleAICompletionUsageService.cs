@@ -76,6 +76,6 @@ public sealed class SampleAICompletionUsageService : IAICompletionUsageObserver
 
         var records = await query.ListAsync(cancellationToken);
 
-        return records.OrderByDescending(x => x.CreatedUtc).ToList();
+return records.OrderByDescending(x => x.CreatedUtc).ToList();
     }
 }

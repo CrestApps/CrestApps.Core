@@ -87,6 +87,6 @@ public sealed class SampleServerSelectionServiceTests
             .AddInMemoryCollection(configurationValues)
             .Build();
 
-        return new SampleServerSelectionService(configuration, "A2A", "sample-cookie");
+return new SampleServerSelectionService(configuration, "A2A", "sample-cookie");
     }
 }

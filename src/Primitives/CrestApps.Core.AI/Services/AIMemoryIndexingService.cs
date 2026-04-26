@@ -74,6 +74,7 @@ public sealed class AIMemoryIndexingService
         if (indexManager is null || documentManager is null)
         {
             _logger.LogWarning("Skipping AI memory indexing because provider '{ProviderName}' is not configured for search indexing.", indexProfile.ProviderName);
+
             return;
         }
 
@@ -93,6 +94,7 @@ public sealed class AIMemoryIndexingService
         if (vector is not { Length: > 0 })
         {
             _logger.LogWarning("Skipping AI memory indexing for '{MemoryId}' because no embedding was generated.", memory.ItemId);
+
             return;
         }
 
@@ -155,6 +157,7 @@ public sealed class AIMemoryIndexingService
         if (documentManager is null)
         {
             _logger.LogWarning("Skipping AI memory index cleanup because provider '{ProviderName}' is not configured for search indexing.", indexProfile.ProviderName);
+
             return;
         }
 
@@ -196,12 +199,14 @@ public sealed class AIMemoryIndexingService
         if (indexProfile is null)
         {
             _logger.LogWarning("AI memory indexing is configured to use '{IndexProfileName}', but that index profile was not found.", _memoryOptions.IndexProfileName);
+
             return null;
         }
 
         if (!string.Equals(indexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("AI memory indexing requires an '{ExpectedType}' index profile, but '{IndexProfileName}' is '{ActualType}'.", IndexProfileTypes.AIMemory, _memoryOptions.IndexProfileName, indexProfile.Type);
+
             return null;
         }
 

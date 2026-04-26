@@ -68,7 +68,7 @@ public static class ServiceCollectionExtensions
         {
             var basePath = sp.GetRequiredService<IOptions<DocumentFileSystemFileStoreOptions>>().Value.BasePath;
 
-            return new FileSystemFileStore(basePath);
+return new FileSystemFileStore(basePath);
         });
 
         services.TryAddScoped<IAIDocumentProcessingService, DefaultAIDocumentProcessingService>();
@@ -105,7 +105,7 @@ public static class ServiceCollectionExtensions
             .WithDescription("Reads and parses tabular data (CSV, TSV, Excel) from a document.")
             .WithPurpose(AIToolPurposes.DocumentProcessing);
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -118,7 +118,7 @@ public static class ServiceCollectionExtensions
 
         services.AddKeyedScoped<IAIReferenceLinkResolver, DocumentAIReferenceLinkResolver>(AIReferenceTypes.DataSource.Document);
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -150,7 +150,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIDocumentReferenceDownloads();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -163,6 +163,6 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, AIDocumentSearchIndexProfileHandler>());
 
-        return services;
+return services;
     }
 }

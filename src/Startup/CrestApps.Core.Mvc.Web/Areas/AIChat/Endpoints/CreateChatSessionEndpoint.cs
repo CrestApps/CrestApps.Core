@@ -15,7 +15,7 @@ internal static class CreateChatSessionEndpoint
             .RequireAuthorization()
             .DisableAntiforgery();
 
-        return builder;
+return builder;
     }
 
     private static async Task<IResult> HandleAsync(
@@ -40,7 +40,7 @@ internal static class CreateChatSessionEndpoint
 
         await sessionManager.SaveAsync(session);
 
-        return TypedResults.Ok(new { sessionId = session.SessionId });
+return TypedResults.Ok(new { sessionId = session.SessionId });
     }
 
     private sealed class CreateChatSessionRequest

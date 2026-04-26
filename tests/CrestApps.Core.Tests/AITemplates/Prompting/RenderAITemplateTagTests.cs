@@ -99,6 +99,7 @@ public sealed class RenderAITemplateTagTests
         var services = new ServiceCollection();
         services.AddSingleton<ITemplateService>(new InMemoryTemplateService(subTemplates));
         var sp = services.BuildServiceProvider();
+
         return new FluidTemplateEngine(sp, NullLogger<FluidTemplateEngine>.Instance);
     }
 

@@ -32,7 +32,7 @@ internal sealed partial class ElasticsearchODataFilterTranslator : IODataFilterT
         var index = 0;
         var result = ParseExpression(tokens, ref index);
 
-        return result;
+return result;
     }
 
     private static List<string> Tokenize(string input)
@@ -84,7 +84,7 @@ internal sealed partial class ElasticsearchODataFilterTranslator : IODataFilterT
             index++;
             var operand = ParsePrimary(tokens, ref index);
 
-            return $"{{\"bool\":{{\"must_not\":[{operand}]}}}}";
+return $"{{\"bool\":{{\"must_not\":[{operand}]}}}}";
         }
 
         return ParsePrimary(tokens, ref index);
@@ -172,7 +172,7 @@ internal sealed partial class ElasticsearchODataFilterTranslator : IODataFilterT
         var prefixedField = PrefixField(fieldToken);
         var parsedValue = UnquoteValue(valueToken);
 
-        return op switch
+return op switch
         {
             "eq" => $"{{\"term\":{{\"{prefixedField}\":\"{EscapeJson(parsedValue)}\"}}}}",
             "ne" => $"{{\"bool\":{{\"must_not\":[{{\"term\":{{\"{prefixedField}\":\"{EscapeJson(parsedValue)}\"}}}}]}}}}",

@@ -9,7 +9,6 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
-
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
 /// <summary>
@@ -261,7 +260,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 
         _logger.LogWarning("Failed to retrieve voices. Reason: {Reason}", result.Reason);
 
-        return [];
+return [];
     }
 
     /// <summary>
@@ -273,7 +272,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
     {
         ArgumentNullException.ThrowIfNull(serviceType);
 
-        return serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
+return serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
     }
 
     /// <summary>
@@ -339,7 +338,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         // Default to MP3 output for browser compatibility.
         config.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3);
 
-        return config;
+return config;
     }
 
     private async Task<SpeechConfig> CreateRegionBasedConfigAsync(string region, CancellationToken cancellationToken)
@@ -375,7 +374,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         var config = SpeechConfig.FromEndpoint(_endpoint);
         config.AuthorizationToken = token;
 
-        return config;
+return config;
     }
 
     private async Task<string> GetAuthorizationTokenAsync(CancellationToken cancellationToken)

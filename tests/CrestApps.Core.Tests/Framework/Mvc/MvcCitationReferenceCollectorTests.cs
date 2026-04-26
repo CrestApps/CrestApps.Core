@@ -60,6 +60,7 @@ public sealed class MvcCitationReferenceCollectorTests
         services.AddKeyedSingleton<IAIReferenceLinkResolver, TestArticleResolver>(IndexProfileTypes.Articles);
         services.AddSingleton<CompositeAIReferenceLinkResolver>();
         var serviceProvider = services.BuildServiceProvider();
+
         return new SampleCitationReferenceCollector(serviceProvider.GetRequiredService<CompositeAIReferenceLinkResolver>());
     }
 

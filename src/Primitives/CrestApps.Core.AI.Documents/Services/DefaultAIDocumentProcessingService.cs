@@ -86,7 +86,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         {
             _logger.LogError(ex, "Document processing: failed to read file '{FileName}' with extension '{Extension}'.", file.FileName, extension);
 
-            return DocumentProcessingResult.Failed($"Failed to read the document '{file.FileName}'.");
+return DocumentProcessingResult.Failed($"Failed to read the document '{file.FileName}'.");
         }
 
         if (string.IsNullOrWhiteSpace(text))
@@ -180,7 +180,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
             ContentType = document.ContentType,
         };
 
-        return DocumentProcessingResult.Succeeded(document, documentInfo, chunks);
+return DocumentProcessingResult.Succeeded(document, documentInfo, chunks);
     }
 
     private static bool ShouldGenerateEmbeddings(

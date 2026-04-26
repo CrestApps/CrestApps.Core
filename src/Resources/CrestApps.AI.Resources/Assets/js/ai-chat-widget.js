@@ -108,7 +108,7 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
                 top: Math.round(isHidden && Number.isFinite(inlineTop) ? inlineTop : rect.top || inlineTop || computedTop || 0)
             };
         };
-        
+
         app.getAvailableWidgetPositionRange = function (width, height) {
             var viewportPadding = 8;
             return {
@@ -117,12 +117,12 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
                 maxTop: Math.max(viewportPadding, window.innerHeight - height - viewportPadding)
             };
         };
-        
+
         app.createStoredPosition = function (left, top, width, height) {
             var range = this.getAvailableWidgetPositionRange(width, height);
             var leftSpan = Math.max(0, range.maxLeft - range.padding);
             var topSpan = Math.max(0, range.maxTop - range.padding);
-            
+
             return {
                 left: Math.round(left),
                 top: Math.round(top),
@@ -130,30 +130,30 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
                 topRatio: topSpan === 0 ? 0 : (top - range.padding) / topSpan
             };
         };
-        
+
         app.resolveStoredPosition = function (storedPosition, width, height) {
             if (!storedPosition) {
                 return null;
             }
-            
+
             var range = this.getAvailableWidgetPositionRange(width, height);
             var left = Number(storedPosition.left);
             var top = Number(storedPosition.top);
             var leftRatio = Number(storedPosition.leftRatio);
             var topRatio = Number(storedPosition.topRatio);
-            
+
             if (Number.isFinite(leftRatio)) {
                 left = range.padding + Math.max(0, range.maxLeft - range.padding) * leftRatio;
             }
-            
+
             if (Number.isFinite(topRatio)) {
                 top = range.padding + Math.max(0, range.maxTop - range.padding) * topRatio;
             }
-            
+
             if (!Number.isFinite(left) || !Number.isFinite(top)) {
                 return null;
             }
-            
+
             return this.clampWidgetPosition(left, top, width, height);
         };
 
@@ -165,21 +165,21 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
                 top: Math.round(clampWidgetValue(top, range.padding, range.maxTop))
             };
         };
-        
+
         app.getStoredWidgetDocuments = function () {
             this.clearStoredWidgetDocuments();
             return [];
         };
-        
+
         app.saveStoredWidgetDocuments = function () {
             this.clearStoredWidgetDocuments();
         };
-        
+
         app.clearStoredWidgetDocuments = function () {
             if (!this.chatWidgetStateDocuments) {
                 return;
             }
-            
+
             localStorage.removeItem(this.chatWidgetStateDocuments);
         };
 
@@ -687,7 +687,7 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
             app.clearStoredWidgetDocuments();
         }
     }
-    
+
     function onDocumentsChanged(app, documents) {
         if (app && app.widgetIsInitialized) {
             app.saveStoredWidgetDocuments(documents);
@@ -813,13 +813,13 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
                     toggleLeft = Math.round(clampWidgetValue(toggleLeft, viewportPadding, maxLeft));
                     toggleTop = Math.round(clampWidgetValue(toggleTop, viewportPadding, maxTop));
                 }
-                
+
                 if (Number.isFinite(toggleLeft) && Number.isFinite(toggleTop)) {
                 toggleButton.style.left = toggleLeft + 'px';
                 toggleButton.style.top = toggleTop + 'px';
                 toggleButton.style.right = 'auto';
                 toggleButton.style.bottom = 'auto';
-                
+
                     var toggleGap = 8;
                 widgetContainer.style.left = (toggleLeft + toggleSize - panelWidth) + 'px';
                 widgetContainer.style.top = (toggleTop - panelHeight - toggleGap) + 'px';

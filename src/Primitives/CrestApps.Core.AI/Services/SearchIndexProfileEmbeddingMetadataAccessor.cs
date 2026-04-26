@@ -25,7 +25,7 @@ public static class SearchIndexProfileEmbeddingMetadataAccessor
         Merge(metadata, indexProfile.Get<DataSourceIndexProfileMetadata>(ChatInteractionMetadataKey));
         Merge(metadata, indexProfile.Get<DataSourceIndexProfileMetadata>(AIMemoryMetadataKey));
 
-        return metadata;
+return metadata;
     }
 
     private static void Merge(DataSourceIndexProfileMetadata target, DataSourceIndexProfileMetadata source)

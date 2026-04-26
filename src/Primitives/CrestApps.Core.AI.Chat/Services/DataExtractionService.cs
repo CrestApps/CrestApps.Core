@@ -162,6 +162,7 @@ public sealed class DataExtractionService
             if (chatClient == null)
             {
                 _logger.LogWarning("Unable to create a chat client for data extraction on profile '{ProfileId}'.", profile.ItemId);
+
                 return ([], false);
             }
 
@@ -189,6 +190,7 @@ public sealed class DataExtractionService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Data extraction failed for session '{SessionId}'.", session.SessionId);
+
             return ([], false);
         }
     }

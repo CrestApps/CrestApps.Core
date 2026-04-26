@@ -34,7 +34,7 @@ public sealed class CopilotAuthController : Controller
 
         var authUrl = _oauthService.GetAuthorizationUrl(callbackUrl, safeReturnUrl);
 
-        return Redirect(authUrl);
+return Redirect(authUrl);
     }
 
     [HttpGet]
@@ -45,7 +45,7 @@ public sealed class CopilotAuthController : Controller
             _logger.LogWarning("GitHub OAuth error: {Error}", error.SanitizeForLog());
             TempData["ErrorMessage"] = "GitHub authentication failed. Please try again.";
 
-            return HandleOAuthReturn(state, success: false, username: null);
+return HandleOAuthReturn(state, success: false, username: null);
         }
 
         if (string.IsNullOrEmpty(code))
@@ -53,7 +53,7 @@ public sealed class CopilotAuthController : Controller
             _logger.LogWarning("No authorization code received from GitHub.");
             TempData["ErrorMessage"] = "No authorization code received from GitHub.";
 
-            return HandleOAuthReturn(state, success: false, username: null);
+return HandleOAuthReturn(state, success: false, username: null);
         }
 
         var userId = GetUserId();
@@ -69,7 +69,7 @@ public sealed class CopilotAuthController : Controller
 
             TempData["SuccessMessage"] = $"Successfully connected to GitHub as {credential.GitHubUsername}.";
 
-            return HandleOAuthReturn(state, success: true, username: credential.GitHubUsername);
+return HandleOAuthReturn(state, success: true, username: credential.GitHubUsername);
         }
         catch (Exception ex)
         {
@@ -114,7 +114,7 @@ public sealed class CopilotAuthController : Controller
 
         var models = await _oauthService.ListModelsAsync(userId);
 
-        return Json(models.Select(m => new { m.Id, m.Name, m.CostMultiplier }));
+return Json(models.Select(m => new { m.Id, m.Name, m.CostMultiplier }));
     }
 
     [HttpPost]
@@ -153,7 +153,7 @@ public sealed class CopilotAuthController : Controller
 
         await _oauthService.DisconnectAsync(userId);
 
-        return Json(new { success = true });
+return Json(new { success = true });
     }
 
     private IActionResult HandleOAuthReturn(string state, bool success, string username)
@@ -162,7 +162,7 @@ public sealed class CopilotAuthController : Controller
         {
             var safeUsername = System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(username ?? string.Empty);
 
-            return Content(
+return Content(
                 "<!DOCTYPE html><html><body><script>" +
                 $"window.opener.postMessage({{ type: 'github-auth-complete', success: {(success ? "true" : "false")}, username: '{safeUsername}' }}, window.location.origin);" +
                 "window.close();" +

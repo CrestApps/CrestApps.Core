@@ -112,11 +112,13 @@ internal sealed class AzureAISearchMemoryVectorSearchService : IMemoryVectorSear
         catch (RequestFailedException ex)
         {
             _logger.LogError(ex, "Azure AI Search request failed for AI memory index '{IndexName}'.", indexProfile.IndexFullName);
+
             return [];
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error searching AI memory index '{IndexName}'.", indexProfile.IndexFullName);
+
             return [];
         }
     }

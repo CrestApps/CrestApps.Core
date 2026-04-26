@@ -50,11 +50,12 @@ public sealed class AIDeploymentController : Controller
     {
         var deployments = await _deploymentCatalog.GetAllAsync();
 
-        return View(deployments
+return View(deployments
             .Select(deployment =>
             {
                 var model = AIDeploymentViewModel.FromDeployment(deployment);
                 model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
+
                 return model;
             })
             .OrderBy(static deployment => deployment.TechnicalName, StringComparer.OrdinalIgnoreCase)
@@ -66,7 +67,7 @@ public sealed class AIDeploymentController : Controller
         var model = new AIDeploymentViewModel();
         await PopulateDropdownsAsync(model);
 
-        return View(model);
+return View(model);
     }
 
     [HttpPost]
@@ -94,7 +95,7 @@ public sealed class AIDeploymentController : Controller
         {
             await PopulateDropdownsAsync(model);
 
-            return View(model);
+return View(model);
         }
 
         // Clear connection for standalone providers.
@@ -114,7 +115,7 @@ public sealed class AIDeploymentController : Controller
 
         await _deploymentCatalog.CreateAsync(deployment);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(string id)
@@ -129,13 +130,14 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
         var model = AIDeploymentViewModel.FromDeployment(deployment);
         await PopulateDropdownsAsync(model);
 
-        return View(model);
+return View(model);
     }
 
     [HttpPost]
@@ -145,6 +147,7 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(model.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -169,7 +172,7 @@ public sealed class AIDeploymentController : Controller
         {
             await PopulateDropdownsAsync(model);
 
-            return View(model);
+return View(model);
         }
 
         var existing = await _deploymentCatalog.FindByIdAsync(model.ItemId);
@@ -182,6 +185,7 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(existing.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -196,7 +200,7 @@ public sealed class AIDeploymentController : Controller
 
         await _deploymentCatalog.UpdateAsync(existing);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -213,12 +217,13 @@ public sealed class AIDeploymentController : Controller
         if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
+
             return RedirectToAction(nameof(Index));
         }
 
         await _deploymentCatalog.DeleteAsync(deployment);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     private async Task PopulateDropdownsAsync(AIDeploymentViewModel model)
@@ -240,7 +245,7 @@ public sealed class AIDeploymentController : Controller
                     ? $"{connectionAlias} ({connection.ClientName})"
                     : connectionAlias;
 
-                return new SelectListItem(displayName, connection.Name);
+return new SelectListItem(displayName, connection.Name);
             })
             .ToList();
         model.Providers = _providers;

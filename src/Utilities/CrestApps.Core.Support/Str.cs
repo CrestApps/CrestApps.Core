@@ -43,7 +43,7 @@ public static partial class Str
         // replace spaces with hyphens
         str = ReplaceSpaceWithHyphens().Replace(str, "-");
 
-        return str;
+return str;
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ public static partial class Str
 
         var sentence = string.Join(new string(glue), valuable);
 
-        return sentence;
+return sentence;
     }
 
     /// <summary>
@@ -135,7 +135,7 @@ public static partial class Str
 
         body = body.Replace(template, newline);
 
-        return body;
+return body;
     }
 
     /// <summary>
@@ -160,6 +160,7 @@ public static partial class Str
     public static string Random(int length = 40)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwzyz";
+
         return new string(RandomNumberGenerator.GetItems<char>(chars.AsSpan(), length));
     }
 
@@ -195,7 +196,7 @@ public static partial class Str
         {
             var index = subject.Length - pattern.Length;
 
-            return subject.Substring(0, index);
+return subject.Substring(0, index);
         }
 
         return subject;
@@ -349,7 +350,7 @@ public static partial class Str
 
         var substring = str.Substring(index + lastString.Length, str.Length - (index + lastString.Length));
 
-        return substring;
+return substring;
     }
 
     /// <summary>
@@ -368,7 +369,7 @@ public static partial class Str
 
         var substring = str.Substring(index + lastString.Length, str.Length - (index + lastString.Length));
 
-        return substring;
+return substring;
     }
 
     /// <summary>
@@ -384,6 +385,7 @@ public static partial class Str
         {
             return text;
         }
+
         return string.Concat(text.AsSpan(0, pos), replace, text.AsSpan(pos + search.Length));
     }
 

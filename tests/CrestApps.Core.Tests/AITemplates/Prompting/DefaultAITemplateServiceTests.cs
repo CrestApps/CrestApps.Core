@@ -227,7 +227,7 @@ public sealed class DefaultAITemplateServiceTests
         sp,
         NullLogger<FluidTemplateEngine>.Instance);
 
-        return new DefaultTemplateService(providers, renderer);
+return new DefaultTemplateService(providers, renderer);
     }
 
     private sealed class InMemoryProvider : ITemplateProvider

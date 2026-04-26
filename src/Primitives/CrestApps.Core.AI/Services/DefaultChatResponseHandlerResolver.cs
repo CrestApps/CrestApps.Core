@@ -62,6 +62,7 @@ public sealed class DefaultChatResponseHandlerResolver : IChatResponseHandlerRes
         }
 
         _logger.LogWarning("Chat response handler '{HandlerName}' is not registered. Falling back to the default AI handler.", handlerName);
+
         return ResolveAIHandler();
     }
 

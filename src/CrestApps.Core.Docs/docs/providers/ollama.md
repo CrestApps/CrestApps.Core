@@ -178,4 +178,3 @@ Compared to cloud providers, Ollama has several differences to be aware of:
 :::warning
 Not all Ollama models support function calling. If your application relies on [Custom AI Tools](../core/tools.md), verify that your chosen model supports tool use before deploying. Models like `llama3.2` and `mistral` have good function calling support.
 :::
-

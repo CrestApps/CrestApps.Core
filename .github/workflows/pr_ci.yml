@@ -37,4 +37,3 @@ jobs:
     - name: Unit Tests
       run: |
         dotnet test -c Release --no-build ./tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj 
-

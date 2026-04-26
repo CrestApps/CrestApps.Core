@@ -8,7 +8,7 @@ public static class ClaudeSettingsExtensions
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        return settings.AuthenticationType switch
+return settings.AuthenticationType switch
         {
             ClaudeAuthenticationType.ApiKey => !string.IsNullOrWhiteSpace(settings.ProtectedApiKey),
             _ => false,
@@ -19,6 +19,6 @@ public static class ClaudeSettingsExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        return !string.IsNullOrWhiteSpace(options.ApiKey);
+return !string.IsNullOrWhiteSpace(options.ApiKey);
     }
 }

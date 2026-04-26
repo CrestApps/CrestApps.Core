@@ -107,7 +107,7 @@ public sealed class PostSessionProcessingService
             Temperature = 0f,
         }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession), null, cancellationToken);
 
-        return response.Result?.Resolved ?? false;
+return response.Result?.Resolved ?? false;
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ public sealed class PostSessionProcessingService
                 session.SessionId,
                 AITemplateIds.PostSessionAnalysisPrompt);
 
-            return null;
+return null;
         }
 
         var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysis);
@@ -686,7 +686,7 @@ public sealed class PostSessionProcessingService
             tasks.Count,
             responseText?.Length ?? 0);
 
-        return tasks.ToDictionary(
+return tasks.ToDictionary(
             task => task.Name,
             task => new PostSessionResult
             {
@@ -710,7 +710,7 @@ public sealed class PostSessionProcessingService
             .Replace("\r", "\\r", StringComparison.Ordinal)
             .Replace("\n", "\\n", StringComparison.Ordinal);
 
-        return normalized.Length > 2000 ? normalized[..2000] + "..." : normalized;
+return normalized.Length > 2000 ? normalized[..2000] + "..." : normalized;
     }
 
     private Dictionary<string, PostSessionResult> ApplyResults(

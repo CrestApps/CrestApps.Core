@@ -43,7 +43,7 @@ public static class AIProfileTemplateParser
                 SystemMessage = parseResult.Body,
             });
 
-            return template;
+return template;
         }
 
         var profileMetadata = new ProfileTemplateMetadata
@@ -161,7 +161,7 @@ public static class AIProfileTemplateParser
 
         template.Put(profileMetadata);
 
-        return template;
+return template;
     }
 
     /// <summary>

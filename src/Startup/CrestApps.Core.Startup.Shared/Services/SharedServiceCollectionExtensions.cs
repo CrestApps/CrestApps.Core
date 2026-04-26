@@ -16,7 +16,7 @@ public static class SharedServiceCollectionExtensions
         services.AddScoped<ArticleIndexingService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, ArticleIndexProfileHandler>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -26,6 +26,6 @@ public static class SharedServiceCollectionExtensions
     {
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ITemplateProvider, AIProfileSystemPromptTemplateProvider>());
 
-        return services;
+return services;
     }
 }

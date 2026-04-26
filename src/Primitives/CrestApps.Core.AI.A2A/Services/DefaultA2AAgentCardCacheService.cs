@@ -76,6 +76,7 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to fetch agent card from A2A host '{Endpoint}' for connection '{ConnectionId}'.", connection.Endpoint, connectionId);
+
             return null;
         }
     }

@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddKeyedScoped<IVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchVectorSearchService(sp.GetRequiredService<IAzureAISearchClientFactory>().CreateSearchIndexClient(), sp.GetRequiredService<ILogger<AzureAISearchVectorSearchService>>()));
 
-        return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
+return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
         {
             descriptor.DisplayName = "AI Documents";
             descriptor.Description = "Create an Azure AI Search index for uploaded and embedded AI document chunks.";
@@ -42,7 +42,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
+return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
         {
             descriptor.DisplayName = "Data Source";
             descriptor.Description = "Create an Azure AI Search index for AI knowledge base data source documents.";
@@ -59,7 +59,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddKeyedScoped<IMemoryVectorSearchService>(AISearchConstants.ProviderName, (sp, _) => new AzureAISearchMemoryVectorSearchService(sp.GetRequiredService<IAzureAISearchClientFactory>().CreateSearchIndexClient(), sp.GetRequiredService<ILogger<AzureAISearchMemoryVectorSearchService>>()));
 
-        return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
+return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
         {
             descriptor.DisplayName = "AI Memory";
             descriptor.Description = "Create an Azure AI Search index for user and system memory records.";
@@ -79,6 +79,7 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAIDefaultIndexProfileHandler();
         services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(AISearchConstants.ProviderName, "Azure AI Search", type, configure));
+
         return services;
     }
 
@@ -92,7 +93,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAzureAISearchAIDocumentSource();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -105,7 +106,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAzureAISearchAIDataSource();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -118,6 +119,6 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAzureAISearchAIMemorySource();
 
-        return builder;
+return builder;
     }
 }

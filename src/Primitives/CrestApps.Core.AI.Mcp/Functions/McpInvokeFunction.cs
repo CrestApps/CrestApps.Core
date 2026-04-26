@@ -77,6 +77,7 @@ internal sealed class McpInvokeFunction : AIFunction
         if (connection is null)
         {
             logger.LogWarning("AI tool '{ToolName}' failed: MCP connection '{ClientId}' not found.", Name, clientId);
+
             return JsonSerializer.Serialize(new { error = $"MCP connection '{clientId}' not found." });
         }
 
@@ -86,6 +87,7 @@ internal sealed class McpInvokeFunction : AIFunction
         if (client is null)
         {
             logger.LogWarning("AI tool '{ToolName}' failed: could not connect to MCP server '{ClientId}'.", Name, clientId);
+
             return JsonSerializer.Serialize(new { error = $"Failed to connect to MCP server '{clientId}'." });
         }
 
@@ -109,6 +111,7 @@ internal sealed class McpInvokeFunction : AIFunction
         catch (Exception ex)
         {
             logger.LogError(ex, "Error invoking MCP capability '{Type}/{Id}' on server '{ClientId}'.", type, id, clientId);
+
             return JsonSerializer.Serialize(new { error = "Error invoking MCP capability." });
         }
     }
@@ -130,6 +133,7 @@ internal sealed class McpInvokeFunction : AIFunction
         }
 
         var result = await client.CallToolAsync(toolName, args, cancellationToken: cancellationToken);
+
         return JsonSerializer.Serialize(result);
     }
 
@@ -147,6 +151,7 @@ internal sealed class McpInvokeFunction : AIFunction
         }
 
         var result = await client.GetPromptAsync(promptName, args, cancellationToken: cancellationToken);
+
         return JsonSerializer.Serialize(result);
     }
 
@@ -163,6 +168,7 @@ internal sealed class McpInvokeFunction : AIFunction
         }
 
         var result = await client.ReadResourceAsync(resourceUri, cancellationToken: cancellationToken);
+
         return JsonSerializer.Serialize(result);
     }
 
@@ -172,6 +178,7 @@ internal sealed class McpInvokeFunction : AIFunction
         {
             var resources = await client.ListResourcesAsync(cancellationToken: cancellationToken);
             var match = resources.FirstOrDefault(resource => string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase));
+
             return match?.Uri;
         }
         catch

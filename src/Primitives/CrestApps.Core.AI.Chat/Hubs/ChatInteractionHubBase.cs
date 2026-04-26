@@ -17,7 +17,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 #pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
-
 namespace CrestApps.Core.AI.Chat.Hubs;
 
 /// <summary>
@@ -136,6 +135,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     protected virtual Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)
     {
         var options = services.GetService<IOptionsMonitor<DefaultAIDeploymentSettings>>();
+
         return Task.FromResult(options?.CurrentValue ?? new DefaultAIDeploymentSettings());
     }
 
@@ -373,7 +373,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         interaction.McpConnectionIds = JsonHelper.GetStringArray(settings, "mcpConnectionIds");
         interaction.A2AConnectionIds = JsonHelper.GetStringArray(settings, "a2aConnectionIds");
 
-        return Task.CompletedTask;
+return Task.CompletedTask;
     }
 
     /// <summary>
@@ -413,6 +413,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     {
         var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
         _ = ExecuteInScopeAsync(services => HandlePromptAsync(channel.Writer, services, itemId, prompt, cancellationToken));
+
         return channel.Reader;
     }
 
@@ -426,6 +427,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -438,12 +440,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction is null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -463,6 +467,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -475,12 +480,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction == null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -488,6 +495,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (invalidSetting != null)
             {
                 await Clients.Caller.ReceiveError(GetSettingsValidationMessage(invalidSetting));
+
                 return;
             }
 
@@ -530,6 +538,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -542,12 +551,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction == null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
@@ -579,6 +590,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (handler is null)
                 {
                     Logger.LogWarning("No notification action handler found for action '{ActionName}'.", actionName);
+
                     return;
                 }
 
@@ -622,6 +634,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -638,12 +651,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (interaction is null)
                 {
                     await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeAsync(services, interaction))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -651,6 +666,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (chatMode != ChatMode.Conversation)
                 {
                     await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+
                     return;
                 }
 
@@ -660,6 +676,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
+
                     return;
                 }
 
@@ -667,6 +684,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
+
                     return;
                 }
 
@@ -697,6 +715,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Conversation was cancelled.");
+
                 return;
             }
 
@@ -724,6 +743,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
@@ -740,12 +760,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (interaction is null)
                 {
                     await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeAsync(services, interaction))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -753,6 +775,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
+
                     return;
                 }
 
@@ -766,6 +789,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Audio transcription was cancelled.");
+
                 return;
             }
 
@@ -792,12 +816,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(itemId))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
             return;
         }
 
         if (string.IsNullOrWhiteSpace(text))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(text)));
+
             return;
         }
 
@@ -814,12 +840,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (interaction is null)
                 {
                     await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                     return;
                 }
 
                 if (!await AuthorizeAsync(services, interaction))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                     return;
                 }
 
@@ -828,6 +856,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (chatMode != ChatMode.Conversation && !isTtsPlaybackEnabled)
                 {
                     await Clients.Caller.ReceiveError(GetTtsNotEnabledMessage());
+
                     return;
                 }
 
@@ -836,6 +865,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
+
                     return;
                 }
 
@@ -852,6 +882,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException)
             {
                 Logger.LogDebug("Speech synthesis was cancelled.");
+
                 return;
             }
 
@@ -902,6 +933,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (string.IsNullOrWhiteSpace(itemId))
             {
                 await Clients.Caller.ReceiveError(GetRequiredFieldMessage("Interaction ID"));
+
                 return;
             }
 
@@ -910,18 +942,21 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (interaction == null)
             {
                 await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
                 return;
             }
 
             if (!await AuthorizeAsync(services, interaction))
             {
                 await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(prompt))
             {
                 await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(prompt)));
+
                 return;
             }
 
@@ -988,6 +1023,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 await CommitChangesAsync(services);
+
                 return;
             }
 
@@ -1055,6 +1091,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             if (ex is OperationCanceledException || (ex is TaskCanceledException && cancellationToken.IsCancellationRequested))
             {
                 Logger.LogDebug("Chat interaction processing was cancelled.");
+
                 return;
             }
 
@@ -1104,6 +1141,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(speechText))
         {
             await Clients.Caller.ReceiveAudioComplete(identifier);
+
             return;
         }
 
@@ -1481,7 +1519,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         var prompts = await promptStore.GetPromptsAsync(itemId);
         var prompt = prompts.FirstOrDefault(entry => string.Equals(entry.ItemId, messageId, StringComparison.Ordinal));
 
-        return prompt?.References;
+return prompt?.References;
     }
 
     // ----------------- STT transcription (input mode) -----------------

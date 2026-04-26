@@ -49,7 +49,7 @@ public static class ServiceCollectionExtensions
             o.UseContainedConnection = true;
         });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -62,6 +62,6 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIAzureOpenAI();
 
-        return builder;
+return builder;
     }
 }

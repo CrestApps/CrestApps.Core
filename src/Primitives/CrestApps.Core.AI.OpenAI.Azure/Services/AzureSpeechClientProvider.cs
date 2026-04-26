@@ -58,8 +58,8 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
     {
         throw new NotSupportedException("Azure AI Speech deployments only support speech services.");
     }
-#pragma warning disable MEAI001
 
+#pragma warning disable MEAI001
     /// <summary>
     /// Gets image generator.
     /// </summary>
@@ -69,8 +69,8 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
     {
         throw new NotSupportedException("Azure AI Speech deployments only support speech services.");
     }
-#pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
+#pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
     /// <summary>
     /// Gets speech to text client.
     /// </summary>
@@ -81,11 +81,12 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         var (endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
         var logger = _loggerFactory.CreateLogger<AzureSpeechServiceSpeechToTextClient>();
         var client = new AzureSpeechServiceSpeechToTextClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
+
         return ValueTask.FromResult<ISpeechToTextClient>(client);
     }
 #pragma warning restore MEAI001
-#pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
+#pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
     /// <summary>
     /// Gets text to speech client.
     /// </summary>
@@ -96,6 +97,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         var (endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
         var logger = _loggerFactory.CreateLogger<AzureSpeechServiceTextToSpeechClient>();
         var client = new AzureSpeechServiceTextToSpeechClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
+
         return ValueTask.FromResult<ITextToSpeechClient>(client);
     }
 #pragma warning restore MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
@@ -110,6 +112,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         var (endpoint, authType, apiKey, identityId) = ExtractConnectionParams(connection);
         var logger = _loggerFactory.CreateLogger<AzureSpeechServiceTextToSpeechClient>();
         using var client = new AzureSpeechServiceTextToSpeechClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
+
         return await client.GetVoicesAsync();
     }
 
@@ -119,6 +122,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         var authType = connection.GetAzureAuthenticationType();
         var apiKey = authType == AzureAuthenticationType.ApiKey ? connection.GetApiKey() : null;
         var identityId = connection.GetIdentityId();
+
         return (endpoint, authType, apiKey, identityId);
     }
 }

@@ -23,7 +23,7 @@ public class AdminChatWidgetMountTests
 
         Assert.NotNull(dir);
 
-        return dir!.FullName;
+return dir!.FullName;
     }
 
     private static string ReadAll(string relative) => File.ReadAllText(Path.Combine(s_repoRoot, relative));

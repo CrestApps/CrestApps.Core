@@ -61,7 +61,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
 
         await RecordUsageAsync(response, options, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
 
-        return response;
+return response;
     }
 
     /// <summary>

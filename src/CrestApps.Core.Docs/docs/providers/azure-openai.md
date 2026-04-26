@@ -229,5 +229,3 @@ To use managed identity in production (Azure App Service, Azure Container Apps, 
 :::tip
 Managed identity eliminates the need to manage and rotate API keys. It is the recommended authentication method for all Azure-hosted production workloads.
 :::
-
-

@@ -165,5 +165,3 @@ OpenAI models support function calling (tool use), which is the foundation for t
 4. Sends tool results back to the model for the final response
 
 All GPT-4 and newer models support parallel function calling (multiple tools invoked in a single turn).
-
-

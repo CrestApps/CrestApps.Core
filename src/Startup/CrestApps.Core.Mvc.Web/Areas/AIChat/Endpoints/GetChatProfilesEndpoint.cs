@@ -10,14 +10,14 @@ internal static class GetChatProfilesEndpoint
         _ = builder.MapGet("api/chat/profiles", HandleAsync)
             .RequireAuthorization();
 
-        return builder;
+return builder;
     }
 
     private static async Task<IResult> HandleAsync(IAIProfileManager profileManager)
     {
         var profiles = await profileManager.GetAsync(AIProfileType.Chat);
 
-        return TypedResults.Ok(profiles
+return TypedResults.Ok(profiles
             .Where(profile => profile.GetSettings<AIProfileSettings>().IsListable)
             .Select(profile => new
             {

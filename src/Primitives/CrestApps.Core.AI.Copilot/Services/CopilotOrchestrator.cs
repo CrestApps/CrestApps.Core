@@ -480,6 +480,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         sb.AppendLine();
         sb.AppendLine("[Current Message]");
         sb.Append(context.UserMessage);
+
         return sb.ToString();
     }
 
@@ -501,6 +502,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         if (connectionStore is null)
         {
             _logger.LogDebug("CopilotOrchestrator: MCP connection store not available; skipping MCP configuration.");
+
             return;
         }
 
@@ -622,6 +624,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
         {
             arguments.Services ??= _services;
+
             return _inner.InvokeAsync(arguments, cancellationToken);
         }
     }

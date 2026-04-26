@@ -107,7 +107,7 @@ public sealed class AIDocumentController : Controller
 
         await _profileManager.UpdateAsync(profile);
 
-        return Ok(new
+return Ok(new
         {
             id = result.Document.ItemId,
             fileName = result.Document.FileName,
@@ -149,6 +149,6 @@ public sealed class AIDocumentController : Controller
 
         await _profileManager.UpdateAsync(profile);
 
-        return Ok(new { success = true });
+return Ok(new { success = true });
     }
 }

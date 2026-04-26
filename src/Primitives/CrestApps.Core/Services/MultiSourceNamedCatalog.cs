@@ -45,7 +45,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
 
-        return entries.FirstOrDefault(entry => string.Equals(GetItemId(entry), id, StringComparison.OrdinalIgnoreCase))!;
+return entries.FirstOrDefault(entry => string.Equals(GetItemId(entry), id, StringComparison.OrdinalIgnoreCase))!;
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
 
-        return entries.FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase))!;
+return entries.FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase))!;
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         var idSet = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var entries = await GetMergedEntriesAsync(cancellationToken);
 
-        return entries.Where(entry => idSet.Contains(GetItemId(entry))).ToArray();
+return entries.Where(entry => idSet.Contains(GetItemId(entry))).ToArray();
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         var filtered = ApplyFilters(context, entries).ToList();
         var skip = (page - 1) * pageSize;
 
-        return new PageResult<T>
+return new PageResult<T>
         {
             Count = filtered.Count,
             Entries = filtered.Skip(skip).Take(pageSize).ToArray(),
@@ -99,7 +99,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     {
         EnsureWritableSource();
 
-        return _writableSource!.DeleteAsync(entry, cancellationToken);
+return _writableSource!.DeleteAsync(entry, cancellationToken);
     }
 
     /// <summary>
@@ -111,7 +111,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     {
         EnsureWritableSource();
 
-        return _writableSource!.CreateAsync(entry, cancellationToken);
+return _writableSource!.CreateAsync(entry, cancellationToken);
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     {
         EnsureWritableSource();
 
-        return _writableSource!.UpdateAsync(entry, cancellationToken);
+return _writableSource!.UpdateAsync(entry, cancellationToken);
     }
 
     /// <summary>

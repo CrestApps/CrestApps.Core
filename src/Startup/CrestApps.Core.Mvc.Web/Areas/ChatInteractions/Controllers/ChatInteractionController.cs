@@ -126,7 +126,7 @@ public sealed class ChatInteractionController : Controller
     {
         var interactions = await _interactionManager.GetAllAsync();
 
-        return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
+return View(interactions.OrderByDescending(i => i.CreatedUtc).ToList());
     }
 
     public async Task<IActionResult> Create()
@@ -141,7 +141,7 @@ public sealed class ChatInteractionController : Controller
 
         await _interactionManager.CreateAsync(interaction);
 
-        return RedirectToAction(nameof(Chat), new { id = interaction.ItemId });
+return RedirectToAction(nameof(Chat), new { id = interaction.ItemId });
     }
 
     [HttpPost]
@@ -152,7 +152,7 @@ public sealed class ChatInteractionController : Controller
         {
             await PopulateDropdownsAsync(model);
 
-            return View(model);
+return View(model);
         }
 
         var interaction = await _interactionManager.NewAsync();
@@ -270,7 +270,7 @@ public sealed class ChatInteractionController : Controller
 
         await PopulateChatDropdownsAsync(model);
 
-        return View(model);
+return View(model);
     }
 
     [HttpPost]
@@ -289,7 +289,7 @@ public sealed class ChatInteractionController : Controller
 
         await _interactionManager.DeleteAsync(interaction);
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     private async Task PopulateDropdownsAsync(ChatInteractionViewModel model)
@@ -621,6 +621,7 @@ public sealed class ChatInteractionController : Controller
         }
 
         var dataSource = await _dataSourceCatalog.FindByIdAsync(dataSourceId);
+
         return dataSource?.ItemId;
     }
 
@@ -669,7 +670,7 @@ public sealed class ChatInteractionController : Controller
             .Select(connection => connection.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
-        return (selectedIds ?? [])
+return (selectedIds ?? [])
             .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
 
             .Distinct(StringComparer.Ordinal)
@@ -682,7 +683,7 @@ public sealed class ChatInteractionController : Controller
             .Select(c => c.ItemId)
             .ToHashSet(StringComparer.Ordinal);
 
-        return (selectedIds ?? [])
+return (selectedIds ?? [])
             .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
 
             .Distinct(StringComparer.Ordinal)
@@ -706,7 +707,7 @@ public sealed class ChatInteractionController : Controller
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return (selectedNames ?? [])
+return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && allNames.Contains(name))
 
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -793,6 +794,7 @@ public sealed class ChatInteractionController : Controller
         if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
+
             return;
         }
 
@@ -803,6 +805,7 @@ public sealed class ChatInteractionController : Controller
     private async Task<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>> CreateEmbeddingGeneratorAsync()
     {
         var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
+
         return deployment == null
             ? null
             : await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
@@ -847,6 +850,7 @@ public sealed class ChatInteractionController : Controller
         if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
+
             return;
         }
 
@@ -860,7 +864,7 @@ public sealed class ChatInteractionController : Controller
     {
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
-        return model.CostMultiplier > 0
+return model.CostMultiplier > 0
             ? $"{name} (x{model.CostMultiplier.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)})"
             : name;
     }

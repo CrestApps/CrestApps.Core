@@ -27,7 +27,7 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
 
-        return GetReadQuery()
+return GetReadQuery()
             .Where(x => x.UserId == userId)
             .CountAsync();
     }
@@ -45,7 +45,7 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
         var record = await GetReadQuery()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.Name == name);
 
-        return record is null ? null : CatalogRecordFactory.Materialize<AIMemoryEntry>(record);
+return record is null ? null : CatalogRecordFactory.Materialize<AIMemoryEntry>(record);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
             .Take(limit)
             .ToListAsync();
 
-        return records
+return records
             .Select(CatalogRecordFactory.Materialize<AIMemoryEntry>)
             .ToArray();
     }

@@ -33,6 +33,7 @@ public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquata
     private static string Normalize(string extension)
     {
         var ext = extension.StartsWith('.') ? extension : "." + extension;
+
         return ext.ToLowerInvariant();
     }
 

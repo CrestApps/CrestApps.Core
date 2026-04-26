@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, CopilotOrchestrationContextHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CopilotOptions>, CopilotOptionsValidator>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -47,6 +47,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAICopilotOrchestrator();
+
         return builder;
     }
 }

@@ -9,7 +9,6 @@ description: Long-term memory services for user-scoped facts, semantic retrieval
 
 `CrestApps.Core` includes reusable memory services for applications that want an AI assistant to remember durable user facts across sessions.
 
-
 ## What the framework provides
 
 `AddCoreAIMemory()` adds the shared runtime behavior for:
@@ -60,7 +59,6 @@ Register stores directly on the AI memory builder:
 ```
 
 Both register the `IAIMemoryStore` implementation. See [Data Storage](data-storage.md) for the full per-feature store reference.
-
 
 ## Core concepts
 

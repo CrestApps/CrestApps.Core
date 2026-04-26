@@ -28,7 +28,7 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
 
-        return await Session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x => x.UserId == userId, collection: CollectionName)
+return await Session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x => x.UserId == userId, collection: CollectionName)
             .CountAsync();
     }
 
@@ -42,7 +42,7 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
         ArgumentException.ThrowIfNullOrEmpty(userId);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        return await Session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x =>
+return await Session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x =>
             x.UserId == userId && x.Name == name, collection: CollectionName).FirstOrDefaultAsync();
     }
 
@@ -59,6 +59,6 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
             .Take(limit)
             .ListAsync();
 
-        return items.ToArray();
+return items.ToArray();
     }
 }

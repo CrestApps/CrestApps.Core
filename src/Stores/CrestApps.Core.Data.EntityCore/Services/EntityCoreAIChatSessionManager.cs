@@ -41,6 +41,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         var record = await _dbContext.AIChatSessionRecords.AsNoTracking().FirstOrDefaultAsync(x => x.SessionId == id, cancellationToken);
+
         return record is null ? null : Materialize(record);
     }
 
@@ -53,7 +54,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return FindByIdAsync(id, cancellationToken);
+return FindByIdAsync(id, cancellationToken);
     }
 
     /// <summary>
@@ -75,7 +76,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         var total = await query.CountAsync(cancellationToken);
         var records = await query.OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.LastActivityUtc).Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
 
-        return new AIChatSessionResult
+return new AIChatSessionResult
         {
             Count = total,
             Sessions = records.Select(s => new AIChatSessionEntry { SessionId = s.SessionId, ProfileId = s.ProfileId, Title = s.Title, UserId = s.UserId, ClientId = s.ClientId, Status = s.Status, CreatedUtc = s.CreatedUtc, LastActivityUtc = s.LastActivityUtc, }),
@@ -192,7 +193,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
         _dbContext.AIChatSessionRecords.Remove(record);
 
-        return true;
+return true;
     }
 
     /// <summary>
@@ -224,7 +225,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
         _dbContext.AIChatSessionRecords.RemoveRange(records);
 
-        return records.Count;
+return records.Count;
     }
 
     private static AIChatSession Materialize(AIChatSessionRecord record)

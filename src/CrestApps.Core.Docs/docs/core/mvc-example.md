@@ -9,7 +9,6 @@ description: Complete walkthrough of the CrestApps.Core.Mvc.Web example applicat
 
 > A complete walkthrough of the `CrestApps.Core.Mvc.Web` example project that demonstrates every framework feature in a standard ASP.NET Core MVC application.
 
-
 ## Application Structure
 
 ```text
@@ -75,8 +74,6 @@ Registers the standard host services first so the file starts with familiar ASP.
 ### Section 4 — Authentication & Authorization
 
 Cookie-based authentication with an `"Admin"` authorization policy requiring the Administrator role.
-
-
 
 ### Section 5 — CrestApps Foundation + AI Services
 
@@ -179,7 +176,6 @@ Both merged catalogs also expose configurable section lists through `AIProviderC
 
 The framework can still be configured to read additional provider-grouped connection sections when a host explicitly opts into them, but the MVC sample does not enable those paths by default. Connection settings only describe the AI connection itself; deployment names and types belong in `CrestApps:AI:Deployments` or in the UI deployment editor, and config deployments can optionally point back to a shared connection by setting `ConnectionName`.
 
-
 ```json
 {
   "CrestApps": {
@@ -253,9 +249,6 @@ Deleting an MVC index profile now also deletes the remote Elasticsearch or Azure
 If an administrator already deleted the remote index directly in Elasticsearch or Azure AI Search, the MVC app now still allows deleting the local index profile. The same local delete is also allowed when the stored profile no longer has a resolvable remote index name or the original provider registration is no longer available. The delete flow only blocks local removal when the remote index still exists and the provider fails to delete it.
 
 `Articles` remains the only MVC-specific source registration. The sample app adds that descriptor directly in `Program.cs` and pairs it with `ArticleIndexProfileHandler`, because the article catalog and indexing logic belong only to the MVC sample rather than the reusable provider packages.
-
-
-
 
 The MVC admin chat widget now stays bound to the configured admin-chat profile instead of exposing a profile picker, restores its open/closed state and active session across page navigation, and reuses the stored session automatically when the next admin page loads. **Settings → AI Settings** now includes an **Admin widget** card where administrators choose that profile; leaving it empty disables the widget entirely. The same card also lets administrators change the widget accent color, which now defaults to the admin theme secondary color (`#6c757d`) instead of a hard-coded green. The widget now boots a real chat session immediately, so profiles with an **Initial prompt** show that assistant message first; otherwise it falls back to the welcome message and then **What do you want to know?** when no welcome text is configured. The shared widget runtime also now lets users drag both the floating toggle button and the widget shell, resize the widget, restore the default size from the header, and persist that layout in browser storage unless a host opts out through the widget config.
 
@@ -335,11 +328,6 @@ Three hosted services for ongoing maintenance:
 | `DataSourceAlignmentBackgroundService` | Aligns indices after config changes |
 
 The AI chat close service now also keeps the MVC chat analytics and extracted-data reports aligned with closed sessions, while the data-source hosted services treat timer cancellation as a normal shutdown path and the alignment service safely handles an empty data-source store instead of dereferencing a null collection during a periodic run.
-
-
-
-
-
 
 ### Section 13 — Middleware Pipeline
 

@@ -195,5 +195,3 @@ The Azure AI Inference / GitHub Models endpoint provides access to a broad catal
 :::info
 Model availability varies between GitHub Models (free tier) and Azure AI Studio (production tier). Check the respective marketplaces for the current catalog.
 :::
-
-

@@ -60,7 +60,7 @@ public sealed class DefaultAICompletionService : IAICompletionService
 
         await InvokeHandlersAsync(handler => handler.ReceivedMessageAsync(updateContext));
 
-        return response;
+return response;
     }
 
     /// <summary>

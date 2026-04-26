@@ -75,6 +75,7 @@ public sealed class DataSourceSearchTool : AIFunction
         if (!arguments.TryGetFirstString("query", out var query))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'query'.", Name);
+
             return "Unable to find a 'query' argument in the arguments parameter.";
         }
 
@@ -87,6 +88,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (executionContext == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no active AI execution context.", Name);
+
                 return "Data source search requires an active AI execution context.";
             }
 
@@ -96,7 +98,7 @@ public sealed class DataSourceSearchTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no data source configured for this profile.", Name);
 
-                return "No data source is configured for this profile.";
+return "No data source is configured for this profile.";
             }
 
             var dataSourceStore = arguments.Services.GetRequiredService<ICatalog<AIDataSource>>();
@@ -105,6 +107,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (dataSource == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: data source '{DataSourceId}' was not found.", Name, dataSourceId);
+
                 return $"Data source '{dataSourceId}' was not found.";
             }
 
@@ -112,7 +115,7 @@ public sealed class DataSourceSearchTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no knowledge base index configured for data source '{DataSourceId}'.", Name, dataSourceId);
 
-                return "No knowledge base index is configured for this data source. Please configure a knowledge base index in the data source settings.";
+return "No knowledge base index is configured for this data source. Please configure a knowledge base index in the data source settings.";
             }
 
             var indexProfileStore = arguments.Services.GetRequiredService<ISearchIndexProfileStore>();
@@ -121,6 +124,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (masterIndexProfile == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: knowledge base index '{IndexProfileName}' was not found.", Name, dataSource.AIKnowledgeBaseIndexProfileName);
+
                 return $"Knowledge base index '{dataSource.AIKnowledgeBaseIndexProfileName}' was not found.";
             }
 
@@ -130,7 +134,7 @@ public sealed class DataSourceSearchTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: no vector search service for provider '{ProviderName}'.", Name, masterIndexProfile.ProviderName);
 
-                return $"No vector search service is available for provider '{masterIndexProfile.ProviderName}'.";
+return $"No vector search service is available for provider '{masterIndexProfile.ProviderName}'.";
             }
 
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
@@ -146,6 +150,7 @@ public sealed class DataSourceSearchTool : AIFunction
             if (embeddingGenerator == null)
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
+
                 return "Embedding configuration is missing for the knowledge base index.";
             }
 
@@ -155,7 +160,7 @@ public sealed class DataSourceSearchTool : AIFunction
             {
                 logger.LogWarning("AI tool '{ToolName}' failed: could not generate embedding for query.", Name);
 
-                return "Failed to generate embedding for the search query.";
+return "Failed to generate embedding for the search query.";
             }
 
             var ragMetadata = GetRagMetadata(executionContext);
@@ -275,6 +280,7 @@ public sealed class DataSourceSearchTool : AIFunction
         catch (Exception ex)
         {
             logger.LogError(ex, "Error during data source search.");
+
             return "An error occurred while searching the data source.";
         }
     }

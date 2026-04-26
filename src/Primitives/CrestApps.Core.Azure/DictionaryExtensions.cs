@@ -35,7 +35,7 @@ public static class DictionaryExtensions
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        return entry.GetStringValue("IdentityId", false);
+return entry.GetStringValue("IdentityId", false);
     }
 
     /// <summary>

@@ -92,6 +92,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         if (!_settings.EnablePreemptiveRag && !buildContext.OrchestrationContext.DisableTools)
         {
             await InjectToolSearchInstructionsAsync(buildContext, ragMetadata);
+
             return;
         }
 

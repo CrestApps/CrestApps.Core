@@ -100,6 +100,7 @@ public sealed class DefaultOrchestratorResolverTests
         services.AddScoped<DefaultOrchestrator>();
         RegisterDependencies(services);
         var sp = services.BuildServiceProvider().CreateScope().ServiceProvider;
+
         return new DefaultOrchestratorResolver(sp, Options.Create(options), NullLogger<DefaultOrchestratorResolver>.Instance);
     }
 

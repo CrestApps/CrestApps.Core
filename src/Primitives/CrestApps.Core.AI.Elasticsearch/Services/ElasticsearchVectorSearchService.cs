@@ -80,6 +80,7 @@ internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
             if (!response.IsValidResponse)
             {
                 _logger.LogWarning("Elasticsearch vector search failed: {Error}", response.DebugInformation);
+
                 return [];
             }
 
@@ -138,6 +139,7 @@ internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error performing vector search in Elasticsearch index '{IndexName}'.", indexProfile.IndexFullName);
+
             return [];
         }
     }

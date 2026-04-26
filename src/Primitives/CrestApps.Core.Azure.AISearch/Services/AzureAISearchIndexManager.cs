@@ -68,6 +68,7 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
         try
         {
             await _searchIndexClient.GetIndexAsync(indexFullName, cancellationToken);
+
             return true;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)

@@ -48,6 +48,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
                 metadata.IsInScope = isInScope;
                 metadata.Filter = null;
             });
+
             return;
         }
 
@@ -55,6 +56,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         if (dataSourceCatalog == null)
         {
             _logger.LogDebug("Skipping chat interaction data source settings because no AI data source catalog is registered.");
+
             return;
         }
 
@@ -70,6 +72,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
                 metadata.IsInScope = isInScope;
                 metadata.Filter = null;
             });
+
             return;
         }
 
@@ -77,6 +80,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         {
             metadata.DataSourceId = dataSource.ItemId;
         });
+
         interaction.Alter<AIDataSourceRagMetadata>(metadata =>
         {
             metadata.Strictness = GetInt(settings, "strictness");

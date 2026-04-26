@@ -33,7 +33,7 @@ public sealed class EntityCoreAIDocumentStore : DocumentCatalog<AIDocument>, IAI
             .Where(x => x.ReferenceId == referenceId && x.ReferenceType == referenceType)
             .ToListAsync();
 
-        return records
+return records
             .Select(CatalogRecordFactory.Materialize<AIDocument>)
             .ToArray();
     }

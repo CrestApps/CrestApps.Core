@@ -435,6 +435,7 @@ public sealed class PostSessionProcessingServiceTests
             Name = "TestProfile",
             DisplayText = "Test Profile",
         };
+
         return profile;
     }
 
@@ -516,6 +517,7 @@ public sealed class PostSessionProcessingServiceTests
         {
             MaximumIterationsPerRequest = 10,
         };
+
         return new PostSessionProcessingService(mockClientFactory.Object, toolsService ?? mockToolsService.Object, templateService ?? mockTemplateService.Object, defaultOptions, new Mock<IServiceProvider>().Object, TimeProvider.System, NullLoggerFactory.Instance, mockDeploymentManager.Object);
     }
 

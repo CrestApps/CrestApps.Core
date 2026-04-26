@@ -43,7 +43,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     {
         var client = GetOpenAIClient(connection);
 
-        return client.GetChatClient(deploymentName).AsIChatClient();
+return client.GetChatClient(deploymentName).AsIChatClient();
     }
 
     /// <summary>
@@ -55,10 +55,10 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     {
         var client = GetOpenAIClient(connection);
 
-        return client.GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
+return client.GetEmbeddingClient(deploymentName).AsIEmbeddingGenerator();
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Gets image generator.
     /// </summary>
@@ -73,8 +73,8 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         return client.GetImageClient(deploymentName).AsIImageGenerator();
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     }
-#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     /// <summary>
     /// Gets speech to text client.
     /// </summary>
@@ -96,7 +96,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         var endpoint = connection.GetEndpoint(false);
         var cacheKey = BuildCacheKey(endpoint, apiKey);
 
-        return _clientCache.GetOrAdd(cacheKey, _ =>
+return _clientCache.GetOrAdd(cacheKey, _ =>
         {
             if (endpoint is null)
             {
@@ -119,6 +119,6 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(apiKey ?? string.Empty));
         var keyHash = Convert.ToHexStringLower(keyBytes);
 
-        return $"{endpoint?.AbsoluteUri}|{keyHash}";
+return $"{endpoint?.AbsoluteUri}|{keyHash}";
     }
 }

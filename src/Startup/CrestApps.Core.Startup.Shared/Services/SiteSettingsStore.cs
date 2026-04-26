@@ -95,12 +95,12 @@ public sealed class SiteSettingsStore
             {
                 value = node.Deserialize<T>(_jsonOptions) ?? new T();
 
-                return true;
+return true;
             }
 
             value = new T();
 
-            return false;
+return false;
         }
     }
 

@@ -116,7 +116,7 @@ public sealed class AIMemorySearchServiceTests
 
         var serviceProvider = services.BuildServiceProvider();
 
-        return new AIMemorySearchService(
+return new AIMemorySearchService(
             serviceProvider,
             serviceProvider.GetRequiredService<ISearchIndexProfileStore>(),
             serviceProvider.GetRequiredService<IAIDeploymentManager>(),

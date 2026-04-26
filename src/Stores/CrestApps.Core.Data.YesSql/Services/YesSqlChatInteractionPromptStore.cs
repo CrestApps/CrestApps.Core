@@ -32,7 +32,7 @@ public sealed class YesSqlChatInteractionPromptStore : DocumentCatalog<ChatInter
             .Query<ChatInteractionPrompt, ChatInteractionPromptIndex>(x => x.ChatInteractionId == chatInteractionId, collection: CollectionName)
             .ListAsync();
 
-        return prompts.OrderBy(p => p.CreatedUtc).ToArray();
+return prompts.OrderBy(p => p.CreatedUtc).ToArray();
     }
 
     /// <summary>

@@ -25,7 +25,7 @@ public static class JsonExtensions
 
         var json = JsonSerializer.Serialize(value, options ?? _defaultOptions);
 
-        return JsonNode.Parse(json)?.AsObject() ?? [];
+return JsonNode.Parse(json)?.AsObject() ?? [];
     }
 
     /// <summary>
@@ -41,7 +41,7 @@ public static class JsonExtensions
 
         var json = JsonSerializer.Serialize(properties);
 
-        return JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
+return JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
     }
 
     /// <summary>

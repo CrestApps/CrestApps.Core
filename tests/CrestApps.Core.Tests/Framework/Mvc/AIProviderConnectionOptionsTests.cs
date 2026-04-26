@@ -486,7 +486,7 @@ public sealed class AIProviderConnectionConfigurationTests
             Options.Create(catalogOptions ?? new AIProviderConnectionCatalogOptions()),
             NullLogger<ConfigurationAIProviderConnectionSource>.Instance));
 
-        return new DefaultAIProviderConnectionStore(sources);
+return new DefaultAIProviderConnectionStore(sources);
     }
 
     private sealed class TestAIProviderConnectionSource(List<AIProviderConnection> connections) : IWritableNamedSourceCatalogSource<AIProviderConnection>
@@ -501,12 +501,14 @@ public sealed class AIProviderConnectionConfigurationTests
         public ValueTask CreateAsync(AIProviderConnection entry, CancellationToken cancellationToken = default)
         {
             connections.Add(entry);
+
             return ValueTask.CompletedTask;
         }
 
         public ValueTask<bool> DeleteAsync(AIProviderConnection entry, CancellationToken cancellationToken = default)
         {
             connections.Remove(entry);
+
             return ValueTask.FromResult(true);
         }
 

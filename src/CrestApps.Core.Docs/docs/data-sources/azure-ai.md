@@ -266,4 +266,3 @@ Navigate to your Azure AI Search resource → **Indexes** to see all created ind
 **Fix:**
 - This is typically handled automatically by the framework. If you see this error, ensure you are using the latest version of the data source services.
 - Manually verify the index schema in the Azure Portal under your search resource → **Indexes**.
-

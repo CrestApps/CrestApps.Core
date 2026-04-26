@@ -32,7 +32,7 @@ public sealed class EntityCoreChatInteractionPromptStore : DocumentCatalog<ChatI
             .OrderBy(x => x.CreatedUtc)
             .ToListAsync();
 
-        return records
+return records
             .Select(CatalogRecordFactory.Materialize<ChatInteractionPrompt>)
             .ToArray();
     }
@@ -56,6 +56,6 @@ public sealed class EntityCoreChatInteractionPromptStore : DocumentCatalog<ChatI
 
         DbContext.CatalogRecords.RemoveRange(records);
 
-        return records.Count;
+return records.Count;
     }
 }

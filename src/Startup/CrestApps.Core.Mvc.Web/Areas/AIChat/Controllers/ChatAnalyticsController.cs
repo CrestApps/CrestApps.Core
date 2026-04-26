@@ -42,7 +42,7 @@ public sealed class ChatAnalyticsController : Controller
         model = await BuildViewModelAsync(model, showReport: true);
         ApplyAnalytics(model, events);
 
-        return View("Index", model);
+return View("Index", model);
     }
 
     [HttpPost]
@@ -52,7 +52,7 @@ public sealed class ChatAnalyticsController : Controller
         var events = await _eventService.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
         var fileName = $"chat-analytics-{_timeProvider.GetUtcNow():yyyyMMdd-HHmmss}.csv";
 
-        return File(Encoding.UTF8.GetBytes(GenerateCsv(events)), "text/csv", fileName);
+return File(Encoding.UTF8.GetBytes(GenerateCsv(events)), "text/csv", fileName);
     }
 
     private async Task<ChatAnalyticsIndexViewModel> BuildViewModelAsync(ChatAnalyticsIndexViewModel model, bool showReport)
@@ -68,7 +68,7 @@ public sealed class ChatAnalyticsController : Controller
         ];
         model.ShowReport = showReport;
 
-        return model;
+return model;
     }
 
     private static void ApplyAnalytics(ChatAnalyticsIndexViewModel model, IReadOnlyList<AIChatSessionEvent> events)

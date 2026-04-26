@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return services.AddCoreAIMcpResourceType<SftpResourceTypeHandler>(SftpResourceConstants.Type, entry =>
+return services.AddCoreAIMcpResourceType<SftpResourceTypeHandler>(SftpResourceConstants.Type, entry =>
         {
             entry.DisplayName = new LocalizedString("SFTP", "SFTP");
             entry.Description = new LocalizedString("SFTP Description", "Reads content from SFTP servers.");
@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAISftpMcpResources(configure);
+
         return builder;
     }
 }

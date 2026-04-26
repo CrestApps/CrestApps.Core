@@ -157,6 +157,7 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
     public string GetLegacyConnectionName()
     {
 #pragma warning disable CS0618 // Type or member is obsolete
+
         return ConnectionName;
 #pragma warning restore CS0618 // Type or member is obsolete
     }

@@ -42,6 +42,6 @@ public sealed class SseClientTransportProvider : IMcpClientTransportProvider
 
         var headers = await _authHeaderBuilder.BuildHeadersAsync(metadata, McpConstants.DataProtectionPurpose);
 
-        return new HttpClientTransport(new HttpClientTransportOptions { Endpoint = metadata.Endpoint, AdditionalHeaders = headers, });
+return new HttpClientTransport(new HttpClientTransportOptions { Endpoint = metadata.Endpoint, AdditionalHeaders = headers, });
     }
 }

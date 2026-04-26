@@ -193,6 +193,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -246,6 +247,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -289,6 +291,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -332,6 +335,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -361,6 +365,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -388,6 +393,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -423,6 +429,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -440,6 +447,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -461,6 +469,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 
@@ -475,6 +484,7 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         }
 
         stream.Position = 0;
+
         return stream;
     }
 

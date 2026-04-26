@@ -128,7 +128,7 @@ public sealed class SettingsController : Controller
         await PopulateAdminWidgetProfilesAsync(model);
         await PopulateClaudeModelsAsync(model);
 
-        return View(model);
+return View(model);
     }
 
     [HttpPost]
@@ -215,7 +215,7 @@ public sealed class SettingsController : Controller
             await PopulateAdminWidgetProfilesAsync(model);
             await PopulateClaudeModelsAsync(model);
 
-            return View(nameof(Index), model);
+return View(nameof(Index), model);
         }
 
         // Save general AI settings.
@@ -348,7 +348,7 @@ public sealed class SettingsController : Controller
 
         TempData["SuccessMessage"] = "Settings saved successfully.";
 
-        return RedirectToAction(nameof(Index));
+return RedirectToAction(nameof(Index));
     }
 
     private async Task PopulateDeploymentDropdownsAsync(SettingsViewModel model)
@@ -403,6 +403,7 @@ public sealed class SettingsController : Controller
         if (!settings.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.AnthropicDefaultModel);
+
             return;
         }
 
@@ -414,7 +415,7 @@ public sealed class SettingsController : Controller
     {
         var groups = new Dictionary<string, SelectListGroup>(StringComparer.OrdinalIgnoreCase);
 
-        return deployments
+return deployments
             .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .Select(d =>
@@ -433,7 +434,7 @@ public sealed class SettingsController : Controller
                     ? d.Name
                     : $"{d.Name} ({d.ModelName})";
 
-                return new SelectListItem(label, d.Name)
+return new SelectListItem(label, d.Name)
                 {
                     Group = group,
                 };
@@ -459,7 +460,7 @@ public sealed class SettingsController : Controller
 
         var deployment = await _deploymentManager.FindByIdAsync(selector);
 
-        return deployment?.Name ?? selector;
+return deployment?.Name ?? selector;
     }
 
     [HttpGet]
@@ -489,7 +490,7 @@ public sealed class SettingsController : Controller
                 Gender = voice.Gender.ToString(),
             });
 
-        return Json(new { voices });
+return Json(new { voices });
     }
 
     private static string GetCultureDisplayName(string language)

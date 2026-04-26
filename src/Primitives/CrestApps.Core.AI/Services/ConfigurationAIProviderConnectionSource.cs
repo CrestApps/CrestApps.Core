@@ -190,6 +190,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
                 "Skipping AI connection '{ConnectionName}' from '{SourceDescription}' because another connection with the same name is already defined.",
                 connection.Name,
                 sourceDescription);
+
             return;
         }
 
@@ -217,12 +218,14 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
         if (string.IsNullOrWhiteSpace(connectionName))
         {
             _logger.LogWarning("An AI connection configuration entry is missing the required Name value and will be ignored.");
+
             return null;
         }
 
         if (string.IsNullOrWhiteSpace(clientName))
         {
             _logger.LogWarning("The AI connection '{ConnectionName}' is missing the required ClientName value and will be ignored.", connectionName);
+
             return null;
         }
 
@@ -233,7 +236,7 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
 
         AIProviderConnectionDeploymentNameNormalizer.CopyNormalized(values, properties);
 
-        return new AIProviderConnection
+return new AIProviderConnection
         {
             ItemId = AIConfigurationRecordIds.CreateConnectionId(clientName, connectionName),
             Name = connectionName,

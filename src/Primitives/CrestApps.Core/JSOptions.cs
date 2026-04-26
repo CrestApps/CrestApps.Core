@@ -27,7 +27,7 @@ public static class JSOptions
         var options = new JsonSerializerOptions();
         options.MakeReadOnly(populateMissingResolver: true);
 
-        return options;
+return options;
     }
 
     private static JsonSerializerOptions CreateCaseInsensitive()
@@ -38,7 +38,7 @@ public static class JSOptions
         };
         options.MakeReadOnly(populateMissingResolver: true);
 
-        return options;
+return options;
     }
 
     private static JsonSerializerOptions CreateIndented()
@@ -49,6 +49,6 @@ public static class JSOptions
         };
         options.MakeReadOnly(populateMissingResolver: true);
 
-        return options;
+return options;
     }
 }

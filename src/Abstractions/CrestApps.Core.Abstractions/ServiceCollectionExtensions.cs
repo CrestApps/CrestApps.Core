@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<T>();
         services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
         services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<T>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<T>());
         services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -86,6 +86,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
         services.AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<T>());
 
-        return services;
+return services;
     }
 }

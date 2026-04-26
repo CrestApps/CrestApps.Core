@@ -69,6 +69,7 @@ public sealed class RemoveUserMemoryTool : AIFunction
         if (!arguments.TryGetFirstString("name", out var name))
         {
             logger.LogWarning("AI tool '{ToolName}' missing required argument 'name'.", Name);
+
             return "The 'name' argument is required.";
         }
 
@@ -77,6 +78,7 @@ public sealed class RemoveUserMemoryTool : AIFunction
         if (string.IsNullOrEmpty(userId))
         {
             logger.LogWarning("AI tool '{ToolName}' requires an authenticated user.", Name);
+
             return "User memory is only available for authenticated users.";
         }
 
@@ -98,7 +100,7 @@ public sealed class RemoveUserMemoryTool : AIFunction
 
         await manager.DeleteAsync(existingMemory, cancellationToken);
 
-        return JsonSerializer.Serialize(new
+return JsonSerializer.Serialize(new
         {
             existingMemory.ItemId,
             existingMemory.Name,

@@ -57,7 +57,7 @@ public static partial class SpeechTextSanitizer
         // Collapse multiple whitespace into a single space.
         text = MultipleWhitespacePattern().Replace(text, " ");
 
-        return text.Trim();
+return text.Trim();
     }
 
     [GeneratedRegex(@"```[\s\S]*?```")]

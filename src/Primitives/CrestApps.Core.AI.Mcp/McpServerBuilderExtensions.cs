@@ -26,7 +26,7 @@ public static class McpServerBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder
+return builder
             .WithListToolsHandler((request, cancellationToken) =>
             {
                 var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
@@ -99,7 +99,7 @@ public static class McpServerBuilderExtensions
 
                     var result = await aiFunction.InvokeAsync(arguments, cancellationToken);
 
-                    return new CallToolResult
+return new CallToolResult
                     {
                         Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
                     };
@@ -119,7 +119,7 @@ public static class McpServerBuilderExtensions
             {
                 var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
 
-                return new ListPromptsResult
+return new ListPromptsResult
                 {
                     Prompts = await promptService.ListAsync(),
                 };
@@ -128,13 +128,13 @@ public static class McpServerBuilderExtensions
             {
                 var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
 
-                return await promptService.GetAsync(request, cancellationToken);
+return await promptService.GetAsync(request, cancellationToken);
             })
             .WithListResourcesHandler(async (request, cancellationToken) =>
             {
                 var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                return new ListResourcesResult
+return new ListResourcesResult
                 {
                     Resources = await resourceService.ListAsync(),
                 };
@@ -143,7 +143,7 @@ public static class McpServerBuilderExtensions
             {
                 var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                return new ListResourceTemplatesResult
+return new ListResourceTemplatesResult
                 {
                     ResourceTemplates = await resourceService.ListTemplatesAsync(),
                 };
@@ -152,7 +152,7 @@ public static class McpServerBuilderExtensions
             {
                 var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                return await resourceService.ReadAsync(request, cancellationToken);
+return await resourceService.ReadAsync(request, cancellationToken);
             });
     }
 }

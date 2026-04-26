@@ -44,7 +44,7 @@ public static class ExtensibleEntityExtensions
 
         var key = typeof(T).Name;
 
-        return entity.Properties.TryGetValue(key, out var value)
+return entity.Properties.TryGetValue(key, out var value)
             ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions) ?? new T()
             : new T();
     }
@@ -57,7 +57,7 @@ public static class ExtensibleEntityExtensions
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        return entity.Properties.TryGetValue(name, out var value)
+return entity.Properties.TryGetValue(name, out var value)
             ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions)
             : default;
     }
@@ -74,7 +74,7 @@ public static class ExtensibleEntityExtensions
 
         entity.Properties[typeof(T).Name] = value;
 
-        return entity;
+return entity;
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public static class ExtensibleEntityExtensions
 
         entity.Properties[name] = value;
 
-        return entity;
+return entity;
     }
 
     /// <summary>
@@ -108,12 +108,12 @@ public static class ExtensibleEntityExtensions
         {
             result = DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions);
 
-            return result is not null;
+return result is not null;
         }
 
         result = default;
 
-        return false;
+return false;
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public static class ExtensibleEntityExtensions
     {
         ArgumentNullException.ThrowIfNull(entity);
 
-        return entity.Properties.ContainsKey(typeof(T).Name);
+return entity.Properties.ContainsKey(typeof(T).Name);
     }
 
     /// <summary>
@@ -145,7 +145,7 @@ public static class ExtensibleEntityExtensions
 
         entity.Put(obj);
 
-        return entity;
+return entity;
     }
 
     /// <summary>
@@ -157,7 +157,7 @@ public static class ExtensibleEntityExtensions
 
         entity.Properties.Remove(typeof(T).Name);
 
-        return entity;
+return entity;
     }
 
     private static T DeserializeValue<T>(object value, JsonSerializerOptions jsonSerializerOptions = null)
@@ -189,6 +189,6 @@ public static class ExtensibleEntityExtensions
 
         var json = JsonSerializer.Serialize(value, jsonSerializerOptions ?? _jsonOptions);
 
-        return JsonSerializer.Deserialize<T>(json, jsonSerializerOptions ?? _jsonOptions);
+return JsonSerializer.Deserialize<T>(json, jsonSerializerOptions ?? _jsonOptions);
     }
 }

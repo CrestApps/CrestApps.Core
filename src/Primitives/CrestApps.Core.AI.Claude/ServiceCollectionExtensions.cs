@@ -31,7 +31,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ClaudeOrchestrationContextHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ClaudeOptions>, ClaudeOptionsValidator>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIClaudeOrchestrator();
+
         return builder;
     }
 }

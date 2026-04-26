@@ -35,7 +35,7 @@ public static class SharedWebApplicationBuilderExtensions
         builder.Configuration.AddJsonFile("App_Data/appsettings.json", optional: true, reloadOnChange: false);
         builder.Services.AddSharedSiteSettings(appDataPath);
 
-        return appDataPath;
+return appDataPath;
     }
 
     /// <summary>
@@ -55,6 +55,6 @@ public static class SharedWebApplicationBuilderExtensions
         services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
         services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
 
-        return services;
+return services;
     }
 }

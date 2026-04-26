@@ -49,14 +49,14 @@ public static class ServiceCollectionExtensions
 
             store.RegisterIndexes(sp.GetServices<IIndexProvider>());
 
-            return store;
+return store;
         });
 
         services.AddScoped(sp => sp.GetRequiredService<IStore>().CreateSession());
         services.AddScoped<IStoreCommitter, YesSqlStoreCommitter>();
         services.AddCatalogManagers();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreYesSqlDataStore(configure);
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIProfileTemplateStoresYesSql();
         builder.Services.AddCoreAIChatSessionStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -103,7 +103,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIA2AClientStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIMcpClientStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -131,7 +131,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIMcpServerStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -145,7 +145,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIChatInteractionStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -161,7 +161,7 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIDocumentProcessingStoresYesSql();
         builder.Services.AddCoreAIDataSourceStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -175,7 +175,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIMemoryStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -189,7 +189,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreIndexingStoresYesSql();
 
-        return builder;
+return builder;
     }
 
     /// <summary>
@@ -210,7 +210,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProviderConnectionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDeploymentIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -226,7 +226,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileTemplateIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -242,7 +242,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, SearchIndexProfileIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -258,7 +258,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, A2AConnectionIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -274,7 +274,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpConnectionIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -292,7 +292,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpPromptIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, McpResourceIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -313,7 +313,7 @@ public static class ServiceCollectionExtensions
         services.AddCoreAICompletionUsageStoresYesSql();
         services.AddCoreAIChatSessionExtractedDataStoresYesSql();
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -332,7 +332,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionPromptIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -345,7 +345,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionMetricsIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -358,7 +358,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AICompletionUsageIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -371,7 +371,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionExtractedDataIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -389,7 +389,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDocumentIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDocumentChunkIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -406,7 +406,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDataSourceIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -422,7 +422,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIMemoryEntryIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -441,7 +441,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ChatInteractionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ChatInteractionPromptIndexProvider>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -457,7 +457,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped(typeof(ISourceCatalog<>), typeof(SourceDocumentCatalog<,>));
         services.TryAddScoped(typeof(INamedSourceCatalog<>), typeof(NamedSourceDocumentCatalog<,>));
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -470,7 +470,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return AddYesSqlDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
+return AddYesSqlDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
     /// <summary>
@@ -488,10 +488,10 @@ public static class ServiceCollectionExtensions
         {
             var session = sp.GetRequiredService<ISession>();
 
-            return new DocumentCatalog<TModel, TIndex>(session, collection);
+return new DocumentCatalog<TModel, TIndex>(session, collection);
         });
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -504,7 +504,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return AddYesSqlNamedDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
+return AddYesSqlNamedDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
     /// <summary>
@@ -524,12 +524,12 @@ public static class ServiceCollectionExtensions
         {
             var session = sp.GetRequiredService<ISession>();
 
-            return new NamedDocumentCatalog<TModel, TIndex>(session, collection);
+return new NamedDocumentCatalog<TModel, TIndex>(session, collection);
         });
 
         services.AddScoped(sp => (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -542,7 +542,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return AddYesSqlSourceDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
+return AddYesSqlSourceDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
     /// <summary>
@@ -562,12 +562,12 @@ public static class ServiceCollectionExtensions
         {
             var session = sp.GetRequiredService<ISession>();
 
-            return new SourceDocumentCatalog<TModel, TIndex>(session, collection);
+return new SourceDocumentCatalog<TModel, TIndex>(session, collection);
         });
 
         services.AddScoped(sp => (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -580,7 +580,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
+return AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
     /// <summary>
@@ -602,14 +602,14 @@ public static class ServiceCollectionExtensions
         {
             var session = sp.GetRequiredService<ISession>();
 
-            return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collection);
+return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collection);
         });
 
         services.AddScoped(sp => (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
         services.AddScoped(sp => (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
         services.AddScoped(sp => (INamedSourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -630,7 +630,7 @@ public static class ServiceCollectionExtensions
         services
             .AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<TService>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -650,7 +650,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<TService>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -673,7 +673,7 @@ public static class ServiceCollectionExtensions
             .AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<TService>())
             .AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<TService>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -700,7 +700,7 @@ public static class ServiceCollectionExtensions
             .AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<TService>())
             .AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<TService>());
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -714,7 +714,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return AddYesSqlNamedSourceBindingSource<TModel, TIndex>(services, static o => o.DefaultCollectionName);
+return AddYesSqlNamedSourceBindingSource<TModel, TIndex>(services, static o => o.DefaultCollectionName);
     }
 
     /// <summary>
@@ -732,12 +732,12 @@ public static class ServiceCollectionExtensions
         {
             var session = sp.GetRequiredService<ISession>();
 
-            return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collection);
+return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collection);
         });
         services.AddScoped<INamedSourceCatalogSource<TModel>>(sp =>
             new WritableCatalogBindingSource<TModel>(sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>()));
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -755,7 +755,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedCatalogSource<TModel>>(sp =>
             new WritableNamedCatalogBindingSource<TModel>(sp.GetRequiredService<NamedDocumentCatalog<TModel, TIndex>>()));
 
-        return services;
+return services;
     }
 
     /// <summary>
@@ -773,13 +773,13 @@ public static class ServiceCollectionExtensions
         {
             var session = sp.GetRequiredService<ISession>();
 
-            return new NamedDocumentCatalog<TModel, TIndex>(session, collection);
+return new NamedDocumentCatalog<TModel, TIndex>(session, collection);
         });
 
         services.AddScoped<INamedCatalogSource<TModel>>(sp =>
             new WritableNamedCatalogBindingSource<TModel>(sp.GetRequiredService<NamedDocumentCatalog<TModel, TIndex>>()));
 
-        return services;
+return services;
     }
 
     // -- Private catalog helpers with collection selector ----------------------
@@ -794,10 +794,10 @@ public static class ServiceCollectionExtensions
             var session = sp.GetRequiredService<ISession>();
             var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
 
-            return new DocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
+return new DocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
         });
 
-        return services;
+return services;
     }
 
     private static IServiceCollection AddYesSqlNamedDocumentCatalog<TModel, TIndex>(IServiceCollection services, Func<YesSqlStoreOptions, string> collectionSelector)
@@ -812,12 +812,12 @@ public static class ServiceCollectionExtensions
             var session = sp.GetRequiredService<ISession>();
             var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
 
-            return new NamedDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
+return new NamedDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
         });
 
         services.AddScoped(sp => (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
-        return services;
+return services;
     }
 
     private static IServiceCollection AddYesSqlSourceDocumentCatalog<TModel, TIndex>(IServiceCollection services, Func<YesSqlStoreOptions, string> collectionSelector)
@@ -832,12 +832,12 @@ public static class ServiceCollectionExtensions
             var session = sp.GetRequiredService<ISession>();
             var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
 
-            return new SourceDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
+return new SourceDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
         });
 
         services.AddScoped(sp => (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
-        return services;
+return services;
     }
 
     private static IServiceCollection AddYesSqlNamedSourceDocumentCatalog<TModel, TIndex>(IServiceCollection services, Func<YesSqlStoreOptions, string> collectionSelector)
@@ -854,14 +854,14 @@ public static class ServiceCollectionExtensions
             var session = sp.GetRequiredService<ISession>();
             var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
 
-            return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
+return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
         });
 
         services.AddScoped(sp => (INamedCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
         services.AddScoped(sp => (ISourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
         services.AddScoped(sp => (INamedSourceCatalog<TModel>)sp.GetRequiredService<ICatalog<TModel>>());
 
-        return services;
+return services;
     }
 
     private static IServiceCollection AddYesSqlNamedSourceBindingSource<TModel, TIndex>(IServiceCollection services, Func<YesSqlStoreOptions, string> collectionSelector)
@@ -873,12 +873,12 @@ public static class ServiceCollectionExtensions
             var session = sp.GetRequiredService<ISession>();
             var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
 
-            return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
+return new NamedSourceDocumentCatalog<TModel, TIndex>(session, collectionSelector(options));
         });
 
         services.AddScoped<INamedSourceCatalogSource<TModel>>(sp =>
             new WritableCatalogBindingSource<TModel>(sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>()));
 
-        return services;
+return services;
     }
 }

@@ -195,7 +195,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
     {
         ArgumentNullException.ThrowIfNull(prompts);
 
-        return prompts.Any(prompt => prompt.Role == ChatRole.User)
+return prompts.Any(prompt => prompt.Role == ChatRole.User)
             ? ChatSessionStatus.Closed
             : ChatSessionStatus.Abandoned;
     }

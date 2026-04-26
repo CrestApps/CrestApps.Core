@@ -70,7 +70,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
 
         TrackKey(interactionId, cacheKey);
 
-        return cacheKey;
+return cacheKey;
     }
 
     /// <summary>
@@ -95,6 +95,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
 
         var bytes = Encoding.UTF8.GetBytes(builder.ToString());
         var hashBytes = SHA256.HashData(bytes);
+
         return Convert.ToHexString(hashBytes);
     }
 
@@ -139,7 +140,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         {
             _logger.LogWarning(ex, "Error retrieving cached batch results. Key: {CacheKey}", cacheKey);
 
-            return null;
+return null;
         }
     }
 
@@ -258,6 +259,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
     private TimeSpan GetCacheExpiration()
     {
         var minutes = _settings.CacheExpirationMinutes;
+
         return minutes > 0
         ? TimeSpan.FromMinutes(minutes)
         : DefaultCacheExpiration;
@@ -273,7 +275,7 @@ public sealed class TabularBatchResultCache : ITabularBatchResultCache
         var bytes = Encoding.UTF8.GetBytes(input);
         var hashBytes = SHA256.HashData(bytes);
 
-        return Convert.ToHexString(hashBytes)[..16]; // Truncate for shorter keys
+return Convert.ToHexString(hashBytes)[..16]; // Truncate for shorter keys
     }
 
     private static void TrackKey(string interactionId, string cacheKey)

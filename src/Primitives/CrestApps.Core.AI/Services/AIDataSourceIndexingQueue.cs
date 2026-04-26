@@ -35,7 +35,7 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 
         LogQueuedWorkItem(workItem, dataSource.ItemId, 0);
 
-        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+return _channel.Writer.WriteAsync(workItem, cancellationToken);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 
         LogQueuedWorkItem(workItem, dataSource.ItemId, 0);
 
-        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+return _channel.Writer.WriteAsync(workItem, cancellationToken);
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 
         LogQueuedWorkItem(workItem, sourceIndexProfileName, ids.Length);
 
-        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+return _channel.Writer.WriteAsync(workItem, cancellationToken);
     }
 
     private void LogQueuedWorkItem(AIDataSourceIndexingWorkItem workItem, string target, int documentCount)

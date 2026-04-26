@@ -65,6 +65,7 @@ public sealed class ListUserMemoriesTool : AIFunction
         if (string.IsNullOrEmpty(userId))
         {
             logger.LogWarning("AI tool '{ToolName}' requires an authenticated user.", Name);
+
             return "User memory is only available for authenticated users.";
         }
 

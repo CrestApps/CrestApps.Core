@@ -86,6 +86,7 @@ public sealed class AITemplateController : Controller
     public async Task<IActionResult> Index()
     {
         var templates = await _catalog.GetAllAsync();
+
         return View(templates);
     }
 
@@ -93,6 +94,7 @@ public sealed class AITemplateController : Controller
     {
         var model = new AITemplateViewModel();
         await PopulateDropdownsAsync(model);
+
         return View(model);
     }
 
@@ -113,6 +115,7 @@ public sealed class AITemplateController : Controller
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
+
             return View(model);
         }
 
@@ -126,6 +129,7 @@ public sealed class AITemplateController : Controller
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.ApplyTo(template);
         await _catalog.CreateAsync(template);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -140,6 +144,7 @@ public sealed class AITemplateController : Controller
         var model = AITemplateViewModel.FromTemplate(template);
         await NormalizeDeploymentSelectorsAsync(model);
         await PopulateDropdownsAsync(model);
+
         return View(model);
     }
 
@@ -155,6 +160,7 @@ public sealed class AITemplateController : Controller
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
+
             return View(model);
         }
 
@@ -169,6 +175,7 @@ public sealed class AITemplateController : Controller
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.ApplyTo(existing);
         await _catalog.UpdateAsync(existing);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -183,6 +190,7 @@ public sealed class AITemplateController : Controller
         }
 
         await _catalog.DeleteAsync(template);
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -237,7 +245,7 @@ public sealed class AITemplateController : Controller
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var validNames = allAgents.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return (selectedNames ?? [])
+return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validNames.Contains(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -246,12 +254,14 @@ public sealed class AITemplateController : Controller
     private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _a2aConnectionCatalog.GetAllAsync()).Select(connection => connection.ItemId).ToHashSet(StringComparer.Ordinal);
+
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
     private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _mcpConnectionCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
+
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
@@ -269,6 +279,7 @@ public sealed class AITemplateController : Controller
         }
 
         var deployment = await _deploymentCatalog.FindByIdAsync(selector);
+
         return deployment?.Name ?? selector;
     }
 
@@ -282,6 +293,7 @@ public sealed class AITemplateController : Controller
         if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
+
             return;
         }
 
@@ -321,7 +333,7 @@ public sealed class AITemplateController : Controller
     {
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
-        return model.CostMultiplier > 0
+return model.CostMultiplier > 0
             ? $"{name} (x{model.CostMultiplier.ToString("0.##", CultureInfo.InvariantCulture)})"
             : name;
     }

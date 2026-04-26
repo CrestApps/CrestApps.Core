@@ -169,7 +169,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                     batch.RowCount,
                     "Processing stopped due to previous batch failure.");
 
-                return;
+return;
             }
 
             await semaphore.WaitAsync(cancellationToken);
@@ -186,7 +186,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
                         batch.RowCount,
                         "Processing stopped due to previous batch failure.");
 
-                    return;
+return;
                 }
 
                 // Add delay between batch submissions to avoid rate limiting
@@ -212,7 +212,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         await Task.WhenAll(tasks);
 
-        return results.ToList();
+return results.ToList();
     }
 
     /// <summary>
@@ -376,7 +376,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
             "Error processing batch {BatchIndex} (rows {StartRow}-{EndRow}) from '{FileName}'.",
             batch.BatchIndex, batch.RowStartIndex, batch.RowEndIndex, batch.FileName);
 
-            return TabularBatchResult.CreateFailure(
+return TabularBatchResult.CreateFailure(
                 batch.BatchIndex,
                 batch.RowStartIndex,
                 batch.RowEndIndex,
@@ -409,7 +409,7 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
 
         builder.AppendLine(userPrompt);
 
-        return builder.ToString();
+return builder.ToString();
     }
 
     private async Task<string> GetBatchSystemMessageAsync(TabularBatch batch, string baseSystemMessage)

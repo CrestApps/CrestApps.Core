@@ -328,7 +328,7 @@ public sealed class SseClientTransportProviderTests
 
         connection.Put(metadata);
 
-        return connection;
+return connection;
     }
 
     private static SseClientTransportProvider CreateProvider(IOAuth2TokenService tokenService = null)
@@ -338,7 +338,7 @@ public sealed class SseClientTransportProviderTests
         var logger = NullLogger<DefaultConnectionAuthHeaderBuilder>.Instance;
         var authHeaderBuilder = new DefaultConnectionAuthHeaderBuilder(dataProtectionProvider, tokenService, logger);
 
-        return new SseClientTransportProvider(authHeaderBuilder);
+return new SseClientTransportProvider(authHeaderBuilder);
     }
 
     private static async Task<Dictionary<string, string>> GetHeadersAsync(SseClientTransportProvider provider, McpConnection connection)
@@ -350,7 +350,7 @@ public sealed class SseClientTransportProviderTests
             .GetField("_options", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         var options = optionsField?.GetValue(transport) as HttpClientTransportOptions;
 
-        return options?.AdditionalHeaders as Dictionary<string, string>
+return options?.AdditionalHeaders as Dictionary<string, string>
         ?? new Dictionary<string, string>();
     }
 
@@ -372,5 +372,3 @@ public sealed class SseClientTransportProviderTests
         public byte[] Unprotect(byte[] protectedData) => protectedData;
     }
 }
-
-

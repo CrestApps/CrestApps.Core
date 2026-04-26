@@ -71,16 +71,18 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
 
             await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
 
-            return true;
+return true;
         }
         catch (RequestFailedException ex)
         {
             _logger.LogError(ex, "Azure AI Search index documents failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
             return false;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error indexing documents in Azure AI Search index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
             return false;
         }
     }
