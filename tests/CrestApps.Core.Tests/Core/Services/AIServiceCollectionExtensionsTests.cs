@@ -42,7 +42,7 @@ public sealed class AIServiceCollectionExtensionsTests
     public void AddCoreAIServices_RegistersFrameworkAIProfileManager_WhenProfileCatalogIsAvailable()
     {
         var services = CreateBaseServices();
-        services.AddScoped(_ => Mock.Of<INamedCatalog<AIProfile>>());
+        services.AddScoped(_ => Mock.Of<IAIProfileStore>());
         services.AddCoreAIServices();
 
         using var serviceProvider = services.BuildServiceProvider();
