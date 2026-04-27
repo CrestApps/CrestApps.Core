@@ -1,4 +1,6 @@
-namespace Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
+
+namespace CrestApps.Core.Startup.Shared.Services;
 
 public static class OptionsValidationExtensions
 {

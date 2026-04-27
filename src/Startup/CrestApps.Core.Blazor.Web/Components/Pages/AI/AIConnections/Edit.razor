@@ -59,8 +59,12 @@ else if (_model != null)
                 </div>
 
                 <div class="mb-3">
-                    <label for="endpoint" class="form-label">Endpoint</label>
+                    <label for="endpoint" class="form-label">Endpoint <span class="text-danger">*</span></label>
                     <InputText id="endpoint" class="form-control" @bind-Value="_model.Endpoint" placeholder="e.g., https://api.openai.com/v1" />
+                    @if (!string.IsNullOrEmpty(_endpointError))
+                    {
+                        <div class="text-danger">@_endpointError</div>
+                    }
                     <div class="form-text">The API endpoint URL for the provider.</div>
                 </div>
 
@@ -83,6 +87,10 @@ else if (_model != null)
                     <div class="mb-3">
                         <label for="apiKey" class="form-label">API key</label>
                         <input id="apiKey" type="password" class="form-control" @bind="_model.ApiKey" placeholder="Enter API key (leave blank to keep existing)" autocomplete="new-password" />
+                        @if (!string.IsNullOrEmpty(_apiKeyError))
+                        {
+                            <div class="text-danger">@_apiKeyError</div>
+                        }
                         <div class="form-text">The API key or secret used for authentication. Leave blank to keep the existing key.</div>
                     </div>
                 }
@@ -106,6 +114,8 @@ else if (_model != null)
     private bool _notFound;
     private string _nameError;
     private string _sourceError;
+    private string _endpointError;
+    private string _apiKeyError;
 
     private static readonly List<KeyValuePair<string, string>> _providers =
     [
@@ -181,6 +191,8 @@ else if (_model != null)
     {
         _nameError = null;
         _sourceError = null;
+        _endpointError = null;
+        _apiKeyError = null;
 
         if (string.IsNullOrWhiteSpace(_model.Name))
         {
@@ -192,6 +204,11 @@ else if (_model != null)
             _sourceError = "Provider is required.";
         }
 
+        if (string.IsNullOrWhiteSpace(_model.Endpoint))
+        {
+            _endpointError = "Endpoint is required.";
+        }
+
         if (_nameError == null && !string.IsNullOrWhiteSpace(_model.Name))
         {
             var existing = await Store.FindByNameAsync(_model.Name);
@@ -199,11 +216,6 @@ else if (_model != null)
             {
                 _nameError = "Name must be unique across appsettings and UI connections.";
             }
-        }
-
-        if (_nameError != null || _sourceError != null)
-        {
-            return;
         }
 
         var connection = await Catalog.FindByIdAsync(_model.ItemId);
@@ -221,10 +233,32 @@ else if (_model != null)
             return;
         }
 
+        if (_model.UsesApiKeyAuthentication() && !HasApiKey(connection))
+        {
+            _apiKeyError = "API key is required when API key authentication is selected.";
+        }
+
+        if (_nameError != null || _sourceError != null || _endpointError != null || _apiKeyError != null)
+        {
+            return;
+        }
+
         _model.ApplyTo(connection);
         await Catalog.UpdateAsync(connection);
         await StoreCommitter.CommitAsync();
 
         Navigation.NavigateTo("/ai/connections");
+    }
+
+    private bool HasApiKey(AIProviderConnection connection)
+    {
+        if (!string.IsNullOrWhiteSpace(_model.ApiKey))
+        {
+            return true;
+        }
+
+        return connection.Properties != null &&
+            connection.Properties.TryGetValue("ApiKey", out var apiKey) &&
+            !string.IsNullOrWhiteSpace(apiKey?.ToString());
     }
 }

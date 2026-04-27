@@ -33,7 +33,7 @@ public sealed class AIDataSourceServiceCollectionExtensionsTests
             descriptor.Lifetime == ServiceLifetime.Scoped);
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(ICatalogEntryHandler<AIDataSource>) &&
-            descriptor.ImplementationType == typeof(AIDataSourceCatalogIndexingHandler) &&
+            descriptor.ImplementationType == typeof(AIDataSourceCatalogHandler) &&
             descriptor.Lifetime == ServiceLifetime.Scoped);
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(ISearchDocumentHandler) &&

@@ -18,7 +18,6 @@ using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
@@ -26,6 +25,7 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Services;
+using CrestApps.Core.Startup.Shared.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -84,7 +84,7 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>();
 
         services
-            .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryIndexingHandler>()
+            .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()
             .AddScoped<SampleAIDocumentIndexingService>()
             .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
@@ -92,7 +92,7 @@ internal static class YesSqlServiceCollectionExtensions
 
         services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
-            .AddScoped<ICatalogEntryHandler<Article>, ArticleIndexingHandler>()
+            .AddScoped<ICatalogEntryHandler<Article>, ArticleHandler>()
             .AddSharedArticleServices()
             .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)

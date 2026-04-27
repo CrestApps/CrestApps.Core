@@ -47,7 +47,7 @@
             </div>
 
             <div class="mb-3">
-                <label for="providerSelect" class="form-label">Provider</label>
+                <label for="providerSelect" class="form-label">Provider <span class="text-danger">*</span></label>
                 <select id="providerSelect" class="form-select" @bind="SelectedProvider">
                     <option value="">Select provider</option>
                     @foreach (var provider in _providers)
@@ -78,7 +78,7 @@
             @if (!_isStandalone)
             {
                 <div class="mb-3">
-                    <label for="connectionSelect" class="form-label">Connection</label>
+                        <label for="connectionSelect" class="form-label">Connection <span class="text-danger">*</span></label>
                     <select id="connectionSelect" class="form-select" @bind="_model.ConnectionName">
                         <option value="">No connection</option>
                         @foreach (var connection in _filteredConnections)
@@ -151,17 +151,12 @@
         new("Managed Identity", "ManagedIdentity"),
     ];
 
-    private static readonly HashSet<string> _standaloneProviders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "AzureSpeech",
-    };
-
     private static readonly List<KeyValuePair<string, string>> _types = Enum.GetValues<AIDeploymentType>()
         .Where(static type => type != AIDeploymentType.None)
         .Select(static t => new KeyValuePair<string, string>(t.ToString(), t.ToString()))
         .ToList();
 
-    private bool _isStandalone => _standaloneProviders.Contains(_model.ClientName ?? string.Empty);
+    private bool _isStandalone => _model.UsesStandaloneProvider();
 
     private string SelectedProvider
     {
@@ -265,6 +260,16 @@
             _validationErrors.Add("At least one deployment type is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(_model.ClientName))
+        {
+            _validationErrors.Add("Provider is required.");
+        }
+
+        if (!_model.UsesStandaloneProvider() && string.IsNullOrWhiteSpace(_model.ConnectionName))
+        {
+            _validationErrors.Add("Connection is required when the selected provider uses a shared connection.");
+        }
+
         if (!string.IsNullOrWhiteSpace(_model.TechnicalName))
         {
             var existing = await DeploymentStore.FindByNameAsync(_model.TechnicalName);
@@ -281,7 +286,7 @@
         }
 
         // Clear connection for standalone providers.
-        if (_standaloneProviders.Contains(_model.ClientName ?? string.Empty))
+        if (_model.UsesStandaloneProvider())
         {
             _model.ConnectionName = null;
         }

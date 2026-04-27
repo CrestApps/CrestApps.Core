@@ -1,7 +1,6 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 

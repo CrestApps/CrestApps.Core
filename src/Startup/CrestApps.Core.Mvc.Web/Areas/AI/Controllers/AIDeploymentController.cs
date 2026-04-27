@@ -34,12 +34,6 @@ public sealed class AIDeploymentController : Controller
         new("Managed Identity", "ManagedIdentity"),
     ];
 
-    // Providers that are standalone (do not require a connection).
-    private static readonly HashSet<string> _standaloneProviders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "AzureSpeech",
-    };
-
     public AIDeploymentController(
         IAIDeploymentStore deploymentStore,
         INamedSourceCatalog<AIDeployment> deploymentCatalog,
@@ -88,9 +82,19 @@ public sealed class AIDeploymentController : Controller
             ModelState.AddModelError(nameof(model.ModelName), "Model name is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(model.ClientName))
+        {
+            ModelState.AddModelError(nameof(model.ClientName), "Provider is required.");
+        }
+
         if (!model.GetDeploymentType().IsValidSelection())
         {
             ModelState.AddModelError(nameof(model.SelectedTypes), "At least one deployment type is required.");
+        }
+
+        if (!model.UsesStandaloneProvider() && string.IsNullOrWhiteSpace(model.ConnectionName))
+        {
+            ModelState.AddModelError(nameof(model.ConnectionName), "Connection is required when the selected provider uses a shared connection.");
         }
 
         await ValidateUniqueNameAsync(model.TechnicalName);
@@ -104,7 +108,7 @@ public sealed class AIDeploymentController : Controller
 
         // Clear connection for standalone providers.
 
-        if (_standaloneProviders.Contains(model.ClientName ?? string.Empty))
+        if (model.UsesStandaloneProvider())
         {
             model.ConnectionName = null;
         }
@@ -165,9 +169,19 @@ public sealed class AIDeploymentController : Controller
             ModelState.AddModelError(nameof(model.TechnicalName), "Technical name is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(model.ClientName))
+        {
+            ModelState.AddModelError(nameof(model.ClientName), "Provider is required.");
+        }
+
         if (!model.GetDeploymentType().IsValidSelection())
         {
             ModelState.AddModelError(nameof(model.SelectedTypes), "At least one deployment type is required.");
+        }
+
+        if (!model.UsesStandaloneProvider() && string.IsNullOrWhiteSpace(model.ConnectionName))
+        {
+            ModelState.AddModelError(nameof(model.ConnectionName), "Connection is required when the selected provider uses a shared connection.");
         }
 
         await ValidateUniqueNameAsync(model.TechnicalName, model.ItemId);
@@ -195,7 +209,7 @@ public sealed class AIDeploymentController : Controller
 
         // Clear connection for standalone providers.
 
-        if (_standaloneProviders.Contains(model.ClientName ?? string.Empty))
+        if (model.UsesStandaloneProvider())
         {
             model.ConnectionName = null;
         }

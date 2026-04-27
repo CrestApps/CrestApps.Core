@@ -11,6 +11,7 @@ using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Services;
+using CrestApps.Core.Startup.Shared.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -53,12 +54,12 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionEventPostCloseObserver>())
             .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionExtractedDataService>())
             .AddScoped<IAIChatSessionHandler, Areas.AIChat.Handlers.AnalyticsChatSessionHandler>()
-            .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, Areas.AI.Handlers.AIMemoryEntryIndexingHandler>()
+            .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, Areas.AI.Handlers.AIMemoryEntryHandler>()
             .AddScoped<Areas.Indexing.Services.SampleAIDocumentIndexingService>()
             .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, Areas.AIChat.Services.SampleAIChatDocumentEventHandler>()
-            .AddScoped<ICatalogEntryHandler<Article>, Areas.Admin.Handlers.ArticleIndexingHandler>()
+            .AddScoped<ICatalogEntryHandler<Article>, ArticleHandler>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());

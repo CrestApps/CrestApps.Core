@@ -64,6 +64,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfileTemplate>, AIProfileTemplateCatalogHandler>());
 
         return services;
     }
@@ -136,6 +137,7 @@ public static class ServiceCollectionExtensions
         // Ensure IHttpContextAccessor is available for services that need HTTP context.
 
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddSingleton(TimeProvider.System);
         services
             .AddCoreAITemplating()
             .AddCoreIndexingServices()
@@ -178,6 +180,8 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDeployment>, AIDeploymentCatalogHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());
 
         return services;
     }
@@ -311,7 +315,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<AIDataSourceIndexingQueue>();
         services.TryAddSingleton<IAIDataSourceIndexingQueue>(sp => sp.GetRequiredService<AIDataSourceIndexingQueue>());
         services.TryAddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceCatalogIndexingHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ISearchDocumentHandler, AIDataSourceSearchDocumentHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceIndexingBackgroundService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceAlignmentBackgroundService>());
