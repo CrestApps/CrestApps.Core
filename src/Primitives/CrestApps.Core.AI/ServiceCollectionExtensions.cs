@@ -64,6 +64,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfileTemplate>, AIProfileTemplateCatalogHandler>());
 
         return services;
     }
@@ -179,6 +180,8 @@ public static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDeployment>, AIDeploymentCatalogHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());
 
         return services;
     }

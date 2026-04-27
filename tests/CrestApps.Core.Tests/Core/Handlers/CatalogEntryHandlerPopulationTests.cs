@@ -1,5 +1,8 @@
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Connections;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Mcp;
@@ -11,10 +14,12 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
+using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.Handlers;
@@ -26,10 +31,19 @@ public sealed class CatalogEntryHandlerPopulationTests
     [Fact]
     public async Task AIProfileHandler_MapsKnownPropertiesAndDefaults()
     {
+        var deploymentStore = new Mock<IAIDeploymentStore>();
+        deploymentStore.Setup(store => store.FindByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIDeployment)null);
+        deploymentStore.Setup(store => store.FindByNameAsync("chat-deployment", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIDeployment { Name = "chat-deployment" });
+        deploymentStore.Setup(store => store.FindByNameAsync("utility-deployment", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIDeployment { Name = "utility-deployment" });
+
         var handler = new AIProfileHandler(
             CreateHttpContextAccessor(),
             new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
             Mock.Of<IAIProfileStore>(),
+            deploymentStore.Object,
             CreateStringLocalizer<AIProfileHandler>());
         var profile = new AIProfile();
         JsonObject data = new()
@@ -82,6 +96,7 @@ public sealed class CatalogEntryHandlerPopulationTests
             CreateHttpContextAccessor(),
             new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
             Mock.Of<IAIProfileStore>(),
+            Mock.Of<IAIDeploymentStore>(),
             CreateStringLocalizer<AIProfileHandler>());
         var profile = new AIProfile
         {
@@ -217,6 +232,147 @@ public sealed class CatalogEntryHandlerPopulationTests
     }
 
     [Fact]
+    public async Task AIDeploymentCatalogHandler_MapsKnownPropertiesAndDefaults()
+    {
+        var deploymentStore = new Mock<IAIDeploymentStore>();
+        deploymentStore.Setup(store => store.FindByNameAsync("chat-main", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIDeployment)null);
+
+        var connectionStore = new Mock<IAIProviderConnectionStore>();
+        connectionStore.Setup(store => store.GetAsync("OpenAI", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new AIProviderConnection
+                {
+                    Name = "shared-connection",
+                    ClientName = "OpenAI",
+                },
+            ]);
+
+        var handler = new AIDeploymentCatalogHandler(
+            CreateHttpContextAccessor(),
+            new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
+            deploymentStore.Object,
+            connectionStore.Object,
+            Options.Create(CreateAIOptions()),
+            CreateStringLocalizer<AIDeploymentCatalogHandler>());
+
+        var deployment = new AIDeployment();
+
+        JsonObject data = new()
+        {
+            [nameof(AIDeployment.Name)] = "chat-main",
+            ["ProviderName"] = "OpenAI",
+            [nameof(AIDeployment.ConnectionName)] = "shared-connection",
+            [nameof(AIDeployment.Type)] = new JsonArray("Chat", "Utility"),
+            [nameof(AIDeployment.Properties)] = new JsonObject
+            {
+                ["Region"] = "westus",
+            },
+        };
+
+        await handler.InitializingAsync(new InitializingContext<AIDeployment>(deployment, data), CancellationToken);
+        await handler.InitializedAsync(new InitializedContext<AIDeployment>(deployment), CancellationToken);
+        var validatingContext = new ValidatingContext<AIDeployment>(deployment);
+        await handler.ValidatingAsync(validatingContext, CancellationToken);
+
+        Assert.Equal("chat-main", deployment.Name);
+        Assert.Equal("chat-main", deployment.ModelName);
+        Assert.Equal("OpenAI", deployment.ClientName);
+        Assert.Equal("shared-connection", deployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.Chat | AIDeploymentType.Utility, deployment.Type);
+        Assert.Equal("westus", JsonExtensions.FromObject(deployment.Properties)["Region"]?.GetValue<string>());
+        Assert.Equal("user-1", deployment.OwnerId);
+        Assert.Equal("alice", deployment.Author);
+        Assert.True(deployment.CreatedUtc != default);
+        Assert.True(validatingContext.Result.Succeeded);
+    }
+
+    [Fact]
+    public async Task AIProviderConnectionCatalogHandler_MapsKnownPropertiesAndDefaults()
+    {
+        var store = new Mock<IAIProviderConnectionStore>();
+        store.Setup(connectionStore => connectionStore.FindByNameAsync("primary", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIProviderConnection)null);
+
+        var handler = new AIProviderConnectionCatalogHandler(
+            CreateHttpContextAccessor(),
+            new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
+            Options.Create(CreateAIOptions()),
+            store.Object,
+            CreateStringLocalizer<AIProviderConnectionCatalogHandler>());
+        var connection = new AIProviderConnection();
+        JsonObject data = new()
+        {
+            [nameof(AIProviderConnection.Name)] = "primary",
+            [nameof(AIProviderConnection.DisplayText)] = "Primary connection",
+            ["ProviderName"] = "OpenAI",
+            [nameof(AIProviderConnection.Properties)] = new JsonObject
+            {
+                ["Endpoint"] = "https://example.test",
+            },
+        };
+
+        await handler.InitializingAsync(new InitializingContext<AIProviderConnection>(connection, data), CancellationToken);
+        await handler.InitializedAsync(new InitializedContext<AIProviderConnection>(connection), CancellationToken);
+        var validatingContext = new ValidatingContext<AIProviderConnection>(connection);
+        await handler.ValidatingAsync(validatingContext, CancellationToken);
+
+        Assert.Equal("primary", connection.Name);
+        Assert.Equal("Primary connection", connection.DisplayText);
+        Assert.Equal("OpenAI", connection.Source);
+        Assert.Equal("https://example.test", JsonExtensions.FromObject(connection.Properties)["Endpoint"]?.GetValue<string>());
+        Assert.Equal("user-1", connection.OwnerId);
+        Assert.Equal("alice", connection.Author);
+        Assert.True(connection.CreatedUtc != default);
+        Assert.True(validatingContext.Result.Succeeded);
+    }
+
+    [Fact]
+    public async Task AIProfileTemplateCatalogHandler_MapsKnownPropertiesAndDefaults()
+    {
+        var catalog = new Mock<INamedSourceCatalog<AIProfileTemplate>>();
+        catalog.Setup(store => store.FindByNameAsync("default-template", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIProfileTemplate)null);
+
+        var handler = new AIProfileTemplateCatalogHandler(
+            CreateHttpContextAccessor(),
+            new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
+            catalog.Object,
+            CreateStringLocalizer<AIProfileTemplateCatalogHandler>());
+        var template = new AIProfileTemplate();
+        JsonObject data = new()
+        {
+            [nameof(AIProfileTemplate.Name)] = "default-template",
+            [nameof(AIProfileTemplate.Source)] = "builtin",
+            [nameof(AIProfileTemplate.Description)] = "Template description",
+            [nameof(AIProfileTemplate.Category)] = "General",
+            [nameof(AIProfileTemplate.IsListable)] = false,
+            [nameof(AIProfileTemplate.Properties)] = new JsonObject
+            {
+                ["Prompt"] = "Be helpful",
+            },
+        };
+
+        await handler.InitializingAsync(new InitializingContext<AIProfileTemplate>(template, data), CancellationToken);
+        await handler.InitializedAsync(new InitializedContext<AIProfileTemplate>(template), CancellationToken);
+        var validatingContext = new ValidatingContext<AIProfileTemplate>(template);
+        await handler.ValidatingAsync(validatingContext, CancellationToken);
+
+        Assert.Equal("default-template", template.Name);
+        Assert.Equal("builtin", template.Source);
+        Assert.Equal("default-template", template.DisplayText);
+        Assert.Equal("Template description", template.Description);
+        Assert.Equal("General", template.Category);
+        Assert.False(template.IsListable);
+        Assert.Equal("Be helpful", JsonExtensions.FromObject(template.Properties)["Prompt"]?.GetValue<string>());
+        Assert.Equal("user-1", template.OwnerId);
+        Assert.Equal("alice", template.Author);
+        Assert.True(template.CreatedUtc != default);
+        Assert.True(validatingContext.Result.Succeeded);
+    }
+
+    [Fact]
     public async Task DefaultSearchIndexProfileHandler_MapsKnownPropertiesAndDefaults()
     {
         var handler = new DefaultSearchIndexProfileHandler(
@@ -262,6 +418,7 @@ public sealed class CatalogEntryHandlerPopulationTests
             CreateHttpContextAccessor(),
             new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
             store.Object,
+            Mock.Of<IAIDeploymentStore>(),
             CreateStringLocalizer<AIProfileHandler>());
         var profile = new AIProfile { ItemId = "new", Name = "agent-profile", Description = "Does work", Type = AIProfileType.Agent };
         var validatingContext = new ValidatingContext<AIProfile>(profile);
@@ -270,6 +427,37 @@ public sealed class CatalogEntryHandlerPopulationTests
 
         Assert.False(validatingContext.Result.Succeeded);
         Assert.Contains(validatingContext.Result.Errors, error => error.MemberNames.Contains(nameof(AIProfile.Name)));
+    }
+
+    [Fact]
+    public async Task AIProfileHandler_FailsValidation_WhenDeploymentSelectionIsInvalid()
+    {
+        var deploymentStore = new Mock<IAIDeploymentStore>();
+        deploymentStore.Setup(store => store.FindByIdAsync("missing-deployment", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIDeployment)null);
+        deploymentStore.Setup(store => store.FindByNameAsync("missing-deployment", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIDeployment)null);
+
+        var handler = new AIProfileHandler(
+            CreateHttpContextAccessor(),
+            new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
+            Mock.Of<IAIProfileStore>(),
+            deploymentStore.Object,
+            CreateStringLocalizer<AIProfileHandler>());
+        var profile = new AIProfile
+        {
+            ItemId = "new",
+            Name = "agent-profile",
+            Description = "Does work",
+            Type = AIProfileType.Agent,
+            ChatDeploymentName = "missing-deployment",
+        };
+        var validatingContext = new ValidatingContext<AIProfile>(profile);
+
+        await handler.ValidatingAsync(validatingContext, CancellationToken);
+
+        Assert.False(validatingContext.Result.Succeeded);
+        Assert.Contains(validatingContext.Result.Errors, error => error.MemberNames.Contains(nameof(AIProfile.ChatDeploymentName)));
     }
 
     [Fact]
@@ -358,6 +546,15 @@ public sealed class CatalogEntryHandlerPopulationTests
 
     private static PassThroughStringLocalizer<T> CreateStringLocalizer<T>()
         => new PassThroughStringLocalizer<T>();
+
+    private static AIOptions CreateAIOptions()
+    {
+        var options = new AIOptions();
+        options.AddConnectionSource("OpenAI");
+        options.AddDeploymentProvider("OpenAI");
+
+        return options;
+    }
 
     private sealed class StubTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {

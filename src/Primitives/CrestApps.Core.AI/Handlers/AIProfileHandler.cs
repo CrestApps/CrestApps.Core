@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Handlers;
@@ -17,6 +18,8 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly IAIProfileStore _store;
+    private readonly IAIDeploymentStore _deploymentStore;
+
     internal readonly IStringLocalizer S;
 
     /// <summary>
@@ -29,11 +32,13 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
         IHttpContextAccessor httpContextAccessor,
         TimeProvider timeProvider,
         IAIProfileStore store,
+        IAIDeploymentStore deploymentStore,
         IStringLocalizer<AIProfileHandler> stringLocalizer)
     {
         _httpContextAccessor = httpContextAccessor;
         _timeProvider = timeProvider;
         _store = store;
+        _deploymentStore = deploymentStore;
         S = stringLocalizer;
     }
 
@@ -43,7 +48,7 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
     /// <param name="context">The context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public override Task InitializingAsync(InitializingContext<AIProfile> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data);
+        => PopulateAsync(context.Model, context.Data, cancellationToken);
 
     /// <summary>
     /// Updatings the operation.
@@ -51,7 +56,7 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
     /// <param name="context">The context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public override Task UpdatingAsync(UpdatingContext<AIProfile> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data);
+        => PopulateAsync(context.Model, context.Data, cancellationToken);
 
     /// <summary>
     /// Initializeds the operation.
@@ -102,7 +107,7 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
             }
         }
 
-        return ValidateUniqueNameAsync(context, cancellationToken);
+        return ValidateAsync(context, cancellationToken);
     }
 
     private void EnsureCreatedDefaults(AIProfile profile)
@@ -128,6 +133,13 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
         profile.Author ??= user.Identity?.Name;
     }
 
+    private async Task ValidateAsync(ValidatingContext<AIProfile> context, CancellationToken cancellationToken)
+    {
+        await ValidateUniqueNameAsync(context, cancellationToken);
+        await ValidateDeploymentAsync(context.Model.ChatDeploymentName, nameof(AIProfile.ChatDeploymentName), context, cancellationToken);
+        await ValidateDeploymentAsync(context.Model.UtilityDeploymentName, nameof(AIProfile.UtilityDeploymentName), context, cancellationToken);
+    }
+
     private async Task ValidateUniqueNameAsync(ValidatingContext<AIProfile> context, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(context.Model.Name))
@@ -143,11 +155,24 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
         }
     }
 
-    private static Task PopulateAsync(AIProfile profile, JsonNode data)
+    private async Task ValidateDeploymentAsync(string selector, string memberName, ValidatingContext<AIProfile> context, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(selector))
+        {
+            return;
+        }
+
+        if (await FindDeploymentAsync(selector, cancellationToken) is null)
+        {
+            context.Result.Fail(new ValidationResult(S["Invalid deployment selection provided."], [memberName]));
+        }
+    }
+
+    private async Task PopulateAsync(AIProfile profile, JsonNode data, CancellationToken cancellationToken)
     {
         if (data is not JsonObject json)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         MergeProperties(profile, json);
@@ -178,12 +203,16 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
 #pragma warning restore CS0618 // Type or member is obsolete
         }
 
+        profile.ChatDeploymentName = await ResolveLegacyDeploymentSelectionAsync(profile.ChatDeploymentName, cancellationToken);
+
         if (!json.TryUpdateTrimmedStringValue(nameof(AIProfile.UtilityDeploymentName), value => profile.UtilityDeploymentName = value))
         {
 #pragma warning disable CS0618 // Type or member is obsolete
             json.TryUpdateTrimmedStringValue(nameof(AIProfile.UtilityDeploymentId), value => profile.UtilityDeploymentName = value);
 #pragma warning restore CS0618 // Type or member is obsolete
         }
+
+        profile.UtilityDeploymentName = await ResolveLegacyDeploymentSelectionAsync(profile.UtilityDeploymentName, cancellationToken);
 
         if (json.TryGetEnumValue(nameof(AIProfile.Type), out AIProfileType type))
         {
@@ -313,7 +342,24 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
             profile.WithSettings(chatModeSettings);
         }
 
-        return Task.CompletedTask;
+    }
+
+    private async Task<string> ResolveLegacyDeploymentSelectionAsync(string selector, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(selector))
+        {
+            return selector;
+        }
+
+        var deployment = await _deploymentStore.FindByIdAsync(selector, cancellationToken);
+
+        return deployment?.Name ?? selector;
+    }
+
+    private async ValueTask<AIDeployment> FindDeploymentAsync(string selector, CancellationToken cancellationToken)
+    {
+        return await _deploymentStore.FindByIdAsync(selector, cancellationToken) ??
+            await _deploymentStore.FindByNameAsync(selector, cancellationToken);
     }
 
     private static void MergeProperties(AIProfile profile, JsonObject json)
