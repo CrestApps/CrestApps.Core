@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
@@ -13,8 +14,9 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class AIDeploymentController : Controller
 {
-    private readonly IAIDeploymentStore _deploymentCatalog;
-    private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
+    private readonly IAIDeploymentStore _deploymentStore;
+    private readonly INamedSourceCatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIProviderConnectionStore _connectionCatalog;
 
     private static readonly List<SelectListItem> _providers =
     [
@@ -39,16 +41,18 @@ public sealed class AIDeploymentController : Controller
     };
 
     public AIDeploymentController(
-        IAIDeploymentStore deploymentCatalog,
-        INamedSourceCatalog<AIProviderConnection> connectionCatalog)
+        IAIDeploymentStore deploymentStore,
+        INamedSourceCatalog<AIDeployment> deploymentCatalog,
+        IAIProviderConnectionStore connectionCatalog)
     {
+        _deploymentStore = deploymentStore;
         _deploymentCatalog = deploymentCatalog;
         _connectionCatalog = connectionCatalog;
     }
 
     public async Task<IActionResult> Index()
     {
-        var deployments = await _deploymentCatalog.GetAllAsync();
+        var deployments = await _deploymentStore.GetAllAsync();
 
         return View(deployments
                     .Select(deployment =>
@@ -263,7 +267,7 @@ public sealed class AIDeploymentController : Controller
             return;
         }
 
-        var existing = await _deploymentCatalog.FindByNameAsync(technicalName);
+        var existing = await _deploymentStore.FindByNameAsync(technicalName);
         if (existing != null && !string.Equals(existing.ItemId, currentItemId, StringComparison.OrdinalIgnoreCase))
         {
             ModelState.AddModelError(nameof(AIDeploymentViewModel.TechnicalName), "Technical name must be unique across appsettings and UI deployments.");

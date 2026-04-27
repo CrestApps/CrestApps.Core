@@ -58,7 +58,7 @@ An **AI connection** stores credentials and endpoint information for a specific 
 | `INamedSourceCatalogSource<AIProviderConnection>` | `ConfigurationAIProviderConnectionSource` | Scoped | Reads connections from `appsettings.json` (Order 100) |
 | `ITemplateService` | *(from AddCoreAITemplating)* | Scoped | Template rendering |
 
-It also chains `AddCoreAITemplating()` and `AddCoreServices()` automatically, and forwards `IAIDeploymentStore` to `INamedSourceCatalog<AIDeployment>`, `INamedCatalog<AIDeployment>`, `ISourceCatalog<AIDeployment>`, and `ICatalog<AIDeployment>` (and the same forwarding for `AIProviderConnection`). This means you can inject any of these catalog interfaces and they will resolve through the multi-source store.
+It also chains `AddCoreAITemplating()` and `AddCoreServices()` automatically. `IAIDeploymentStore` and `IAIProviderConnectionStore` are the merged runtime views across all registered binding sources. The generic catalog interfaces for those two models are intentionally left unbound by `AddCoreAIServices()` alone so the persistence packages can map `INamedSourceCatalog<T>`, `INamedCatalog<T>`, `ISourceCatalog<T>`, and `ICatalog<T>` to the concrete database-backed catalogs.
 
 Optional format-specific packages stay opt-in. For example, Markdown-aware normalization lives in `CrestApps.Core.AI.Markdown`, so hosts that want Markdig-backed RAG normalization should register `AddCoreAIMarkdown()` explicitly instead of expecting `AddCoreAIServices()` to pull it in automatically.
 

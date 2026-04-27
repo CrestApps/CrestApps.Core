@@ -40,7 +40,7 @@ public sealed class ChatInteractionController : Controller
     private readonly ICatalogManager<ChatInteraction> _interactionManager;
     private readonly ICatalog<ChatInteraction> _interactionCatalog;
     private readonly IChatInteractionPromptStore _promptStore;
-    private readonly ICatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIDeploymentStore _deploymentCatalog;
     private readonly ICatalog<A2AConnection> _a2aConnectionCatalog;
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly ICatalog<AIDataSource> _dataSourceCatalog;
@@ -69,7 +69,7 @@ public sealed class ChatInteractionController : Controller
         ICatalogManager<ChatInteraction> interactionManager,
         ICatalog<ChatInteraction> interactionCatalog,
         IChatInteractionPromptStore promptStore,
-        ICatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentStore deploymentCatalog,
         ICatalog<A2AConnection> a2aConnectionCatalog,
         ICatalog<McpConnection> mcpConnectionCatalog,
         ICatalog<AIDataSource> dataSourceCatalog,

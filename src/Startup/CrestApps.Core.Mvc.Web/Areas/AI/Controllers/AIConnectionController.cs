@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
@@ -12,17 +13,35 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class AIConnectionController : Controller
 {
+    private static readonly List<SelectListItem> _providers =
+[
+        new("OpenAI", "OpenAI"),
+        new("Azure OpenAI", "Azure"),
+        new("Azure AI Inference (GitHub Models)", "AzureAIInference"),
+        new("Ollama", "Ollama"),
+    ];
+
+    private static readonly List<SelectListItem> _authTypes =
+    [
+        new("API Key", "ApiKey"),
+        new("Default Azure Credential", "Default"),
+        new("Managed Identity", "ManagedIdentity"),
+    ];
+
+    private readonly IAIProviderConnectionStore _store;
     private readonly INamedSourceCatalog<AIProviderConnection> _catalog;
-    private static readonly List<SelectListItem> _providers = [new("OpenAI", "OpenAI"), new("Azure OpenAI", "Azure"), new("Azure AI Inference (GitHub Models)", "AzureAIInference"), new("Ollama", "Ollama"),];
-    private static readonly List<SelectListItem> _authTypes = [new("API Key", "ApiKey"), new("Default Azure Credential", "Default"), new("Managed Identity", "ManagedIdentity"),];
-    public AIConnectionController(INamedSourceCatalog<AIProviderConnection> catalog)
+
+    public AIConnectionController(
+        IAIProviderConnectionStore store,
+        INamedSourceCatalog<AIProviderConnection> catalog)
     {
+        _store = store;
         _catalog = catalog;
     }
 
     public async Task<IActionResult> Index()
     {
-        var connections = await _catalog.GetAllAsync();
+        var connections = await _store.GetAllAsync();
         var models = connections.Select(connection =>
         {
             var model = AIConnectionViewModel.FromConnection(connection);
@@ -192,7 +211,7 @@ public sealed class AIConnectionController : Controller
             return;
         }
 
-        var existing = await _catalog.FindByNameAsync(name);
+        var existing = await _store.FindByNameAsync(name);
         if (existing != null && !string.Equals(existing.ItemId, currentItemId, StringComparison.OrdinalIgnoreCase))
         {
             ModelState.AddModelError(nameof(AIConnectionViewModel.Name), "Name must be unique across appsettings and UI connections.");

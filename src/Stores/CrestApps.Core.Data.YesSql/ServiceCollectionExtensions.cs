@@ -879,6 +879,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalogSource<TModel>>(sp =>
             new WritableCatalogBindingSource<TModel>(sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>()));
 
+        services.RemoveAll<ICatalog<TModel>>();
+        services.RemoveAll<INamedCatalog<TModel>>();
+        services.RemoveAll<ISourceCatalog<TModel>>();
+        services.RemoveAll<INamedSourceCatalog<TModel>>();
+
+        services.AddScoped<ICatalog<TModel>>(sp => sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>());
+        services.AddScoped<INamedCatalog<TModel>>(sp => sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>());
+        services.AddScoped<ISourceCatalog<TModel>>(sp => sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>());
+        services.AddScoped<INamedSourceCatalog<TModel>>(sp => sp.GetRequiredService<NamedSourceDocumentCatalog<TModel, TIndex>>());
+
         return services;
     }
 }

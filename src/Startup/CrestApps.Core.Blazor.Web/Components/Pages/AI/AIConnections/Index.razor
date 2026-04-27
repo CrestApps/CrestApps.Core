@@ -1,9 +1,11 @@
 @page "/ai/connections"
 @attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Connections
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
+@inject IAIProviderConnectionStore Store
 @inject INamedSourceCatalog<AIProviderConnection> Catalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -130,7 +132,7 @@ else
 
     private async Task LoadConnectionsAsync()
     {
-        var connections = await Catalog.GetAllAsync();
+        var connections = await Store.GetAllAsync();
 
         _connections = connections
             .Select(connection =>

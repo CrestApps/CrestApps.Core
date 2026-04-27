@@ -1,12 +1,14 @@
 @page "/ai/deployments/create"
 @attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Connections
 @using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
-@inject IAIDeploymentStore DeploymentCatalog
-@inject INamedSourceCatalog<AIProviderConnection> ConnectionCatalog
+@inject IAIDeploymentStore DeploymentStore
+@inject INamedSourceCatalog<AIDeployment> DeploymentCatalog
+@inject IAIProviderConnectionStore ConnectionCatalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -265,7 +267,7 @@
 
         if (!string.IsNullOrWhiteSpace(_model.TechnicalName))
         {
-            var existing = await DeploymentCatalog.FindByNameAsync(_model.TechnicalName);
+            var existing = await DeploymentStore.FindByNameAsync(_model.TechnicalName);
 
             if (existing != null)
             {

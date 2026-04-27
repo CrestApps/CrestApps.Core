@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +13,7 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class DefaultAIClientFactory : IAIClientFactory
 {
-    private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
+    private readonly IAIProviderConnectionStore _connectionCatalog;
     private readonly IEnumerable<IAIClientProvider> _clientProviders;
     private readonly IEnumerable<IAIProviderConnectionHandler> _connectionHandlers;
 
@@ -33,7 +33,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
         IDataProtectionProvider dataProtectionProvider,
         IServiceProvider serviceProvider,
-        INamedSourceCatalog<AIProviderConnection> connectionCatalog)
+        IAIProviderConnectionStore connectionCatalog)
     {
         _connectionCatalog = connectionCatalog;
         _clientProviders = clientProviders;

@@ -5,7 +5,8 @@
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
-@inject IAIDeploymentStore Catalog
+@inject IAIDeploymentStore Store
+@inject INamedSourceCatalog<AIDeployment> Catalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -149,7 +150,7 @@ else
 
     private async Task LoadDeploymentsAsync()
     {
-        var deployments = await Catalog.GetAllAsync();
+        var deployments = await Store.GetAllAsync();
 
         _deployments = deployments
             .Select(deployment =>

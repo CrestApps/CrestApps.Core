@@ -282,8 +282,9 @@ public sealed class AIProviderConnectionConfigurationTests
     [Fact]
     public async Task AIDeploymentController_Create_ShouldPopulateConnectionsFromMergedCatalog()
     {
-        var deploymentCatalog = new Mock<IAIDeploymentStore>();
-        var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
+        var deploymentStore = new Mock<IAIDeploymentStore>();
+        var deploymentCatalog = new Mock<INamedSourceCatalog<AIDeployment>>();
+        var connectionCatalog = new Mock<IAIProviderConnectionStore>();
         connectionCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
         [
             new AIProviderConnection
@@ -303,6 +304,7 @@ public sealed class AIProviderConnectionConfigurationTests
         ]);
 
         var controller = new AIDeploymentController(
+            deploymentStore.Object,
             deploymentCatalog.Object,
             connectionCatalog.Object);
 
@@ -318,8 +320,9 @@ public sealed class AIProviderConnectionConfigurationTests
     [Fact]
     public async Task AIConnectionController_Index_ShouldIncludeMergedConnectionsAndMarkConfiguredOnesReadOnly()
     {
+        var connectionStore = new Mock<IAIProviderConnectionStore>();
         var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
-        connectionCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
+        connectionStore.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
         [
             new AIProviderConnection
             {
@@ -337,7 +340,7 @@ public sealed class AIProviderConnectionConfigurationTests
             },
         ]);
 
-        var controller = new AIConnectionController(connectionCatalog.Object);
+        var controller = new AIConnectionController(connectionStore.Object, connectionCatalog.Object);
 
         var result = await controller.Index();
 
@@ -351,8 +354,9 @@ public sealed class AIProviderConnectionConfigurationTests
     [Fact]
     public async Task AIDeploymentController_Index_ShouldMarkConfiguredDeploymentsAsReadOnly()
     {
-        var deploymentCatalog = new Mock<IAIDeploymentStore>();
-        deploymentCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
+        var deploymentStore = new Mock<IAIDeploymentStore>();
+        var deploymentCatalog = new Mock<INamedSourceCatalog<AIDeployment>>();
+        deploymentStore.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync(
         [
             new AIDeployment
             {
@@ -364,8 +368,9 @@ public sealed class AIProviderConnectionConfigurationTests
             },
         ]);
 
-        var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
+        var connectionCatalog = new Mock<IAIProviderConnectionStore>();
         var controller = new AIDeploymentController(
+            deploymentStore.Object,
             deploymentCatalog.Object,
             connectionCatalog.Object);
 
