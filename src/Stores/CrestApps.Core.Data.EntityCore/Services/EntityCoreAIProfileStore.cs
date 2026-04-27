@@ -22,12 +22,13 @@ public sealed class EntityCoreAIProfileStore : NamedSourceDocumentCatalog<AIProf
     /// Gets AI profiles by profile type.
     /// </summary>
     /// <param name="type">The profile type.</param>
-    public async ValueTask<IReadOnlyCollection<AIProfile>> GetByTypeAsync(AIProfileType type)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async ValueTask<IReadOnlyCollection<AIProfile>> GetByTypeAsync(AIProfileType type, CancellationToken cancellationToken = default)
     {
         var profileType = type.ToString();
         var records = await GetReadQuery()
             .Where(x => x.Type == profileType)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return records.Select(CatalogRecordFactory.Materialize<AIProfile>).ToArray();
     }

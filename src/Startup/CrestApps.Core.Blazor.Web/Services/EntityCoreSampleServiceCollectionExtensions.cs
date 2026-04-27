@@ -42,7 +42,6 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<SampleCitationReferenceCollector>()
             .AddScoped<CompositeAIReferenceLinkResolver>()
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
-            .AddScoped<IAIProfileManager, Areas.AI.Services.SimpleAIProfileManager>()
             .AddScoped<Areas.AI.Services.AIProfileDocumentService>()
             .AddScoped<Areas.AI.Services.AIProfileTemplateDocumentService>()
             .AddScoped<Areas.AIChat.Services.SampleAIChatSessionEventService>()

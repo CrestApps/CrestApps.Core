@@ -18,5 +18,5 @@ public interface IAIProfileStore : INamedCatalog<AIProfile>
     /// A <see cref="ValueTask{TResult}"/> representing the asynchronous operation.
     /// The result is a read-only collection of <see cref="AIProfile"/> matching the specified type.
     /// </returns>
-    ValueTask<IReadOnlyCollection<AIProfile>> GetByTypeAsync(AIProfileType type);
+    ValueTask<IReadOnlyCollection<AIProfile>> GetByTypeAsync(AIProfileType type, CancellationToken cancellationToken = default);
 }

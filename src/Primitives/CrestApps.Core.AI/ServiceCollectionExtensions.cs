@@ -145,10 +145,6 @@ public static class ServiceCollectionExtensions
             .AddScoped<IAIClientFactory, DefaultAIClientFactory>()
             .AddScoped<ISpeechVoiceResolver, DefaultSpeechVoiceResolver>();
 
-        services.TryAddScoped<IAIProfileStore, NullAIProfileStore>();
-        services.TryAddScoped<ICatalog<AIProfile>>(sp => sp.GetRequiredService<IAIProfileStore>());
-        services.TryAddScoped<INamedCatalog<AIProfile>>(sp => sp.GetRequiredService<IAIProfileStore>());
-
         // Register the multi-source stores used for merged runtime lookups.
         services.TryAddScoped<IAIDeploymentStore, DefaultAIDeploymentStore>();
 
@@ -161,6 +157,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
         services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
         services.TryAddScoped<IConnectionAuthHeaderBuilder, DefaultConnectionAuthHeaderBuilder>();
+        services.TryAddScoped<IAIProfileManager, DefaultAIProfileManager>();
+        services.TryAddScoped<ICatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
+        services.TryAddScoped<INamedCatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
 
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(EmbeddedResourceAIProfileTemplateProvider)))
         {
