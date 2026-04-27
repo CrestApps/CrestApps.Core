@@ -7,6 +7,7 @@ using CrestApps.Core.Builders;
 using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Extensions;
 using Fluid;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -89,6 +90,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddSingleton(TimeProvider.System);
         services.AddCoreAIChatNotifications();
         services.AddCoreAIChatSessionProcessing();
 

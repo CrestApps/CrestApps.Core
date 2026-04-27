@@ -12,7 +12,7 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneab
     /// <summary>
     /// Gets or sets the legacy profile source value retained for backward compatibility.
     /// </summary>
-    [Obsolete("Do not use any more.")]
+    [Obsolete("Do not use any more. Instead use SourceIndexProfileName")]
     public string ProfileSource { get; set; }
 
     /// <summary>

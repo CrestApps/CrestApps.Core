@@ -7,6 +7,11 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 
 public sealed class AIDeploymentViewModel
 {
+    private static readonly HashSet<string> _standaloneProviders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "AzureSpeech",
+    };
+
     public string ItemId { get; set; }
 
     public string ModelName { get; set; }
@@ -114,5 +119,10 @@ public sealed class AIDeploymentViewModel
         }
 
         return deploymentType;
+    }
+
+    public bool UsesStandaloneProvider()
+    {
+        return _standaloneProviders.Contains(ClientName ?? string.Empty);
     }
 }

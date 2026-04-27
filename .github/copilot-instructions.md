@@ -99,6 +99,10 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 - Favor additive shared infrastructure first, then migrate consumers in behavior-safe steps when a full replacement is too risky for a single change.
 - When working in framework code meant for external adoption, optimize for consistency and long-term maintainability across providers and hosts, not just local fixes.
 - For optional provider integrations in sample hosts, do not eagerly read validated options in UI setup paths when an unconfigured provider should simply appear unavailable rather than crash the page.
+- For catalog entry models, always provide an authoritative `CatalogEntryHandlerBase<T>` implementation that includes a `PopulateAsync` mapping path for every known property reachable from `JsonNode`/`JsonObject`, uses the shared JSON helper extensions instead of ad-hoc parsing where practical, sets create-time defaults (timestamps and current user/owner values when the model supports them) in `InitializedAsync`/`CreatingAsync`, and validates required fields in `ValidatingAsync`.
+- For any `INameAwareModel` flow that has an authoritative catalog handler, validate duplicate names in the handler so users see a validation error early, but keep the store-level uniqueness enforcement as the final safeguard instead of moving that responsibility into managers.
+- When handler or service code needs to read typed values from `JsonNode`/`JsonObject`, add or reuse public helpers in `JsonNodeExtensions` rather than introducing new private `TryGetEnum`, `TryGetInt32`, `TryGetDateTime`, or similar parsing helpers in individual classes.
+- Keep UI-only provider/authentication validation rules in the MVC and Blazor web projects instead of the framework handlers; for AI deployment and AI connection forms, enforce provider/connection/endpoint/API key requirements in the web layer so the handler layer stays focused on shared model concerns.
 - Always keep exactly one trailing newline at the end of each file, no more and no less.
 
 ## Runtime notes

@@ -78,6 +78,16 @@ public sealed class AIConnectionController : Controller
             ModelState.AddModelError(nameof(model.Source), "Provider is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(model.Endpoint))
+        {
+            ModelState.AddModelError(nameof(model.Endpoint), "Endpoint is required.");
+        }
+
+        if (model.UsesApiKeyAuthentication() && !HasApiKey(model))
+        {
+            ModelState.AddModelError(nameof(model.ApiKey), "API key is required when API key authentication is selected.");
+        }
+
         await ValidateUniqueNameAsync(model.Name);
 
         if (!ModelState.IsValid)
@@ -141,21 +151,6 @@ public sealed class AIConnectionController : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        if (string.IsNullOrWhiteSpace(model.Name))
-        {
-            ModelState.AddModelError(nameof(model.Name), "Name is required.");
-        }
-
-        await ValidateUniqueNameAsync(model.Name, model.ItemId);
-
-        if (!ModelState.IsValid)
-        {
-            model.Providers = _providers;
-            model.AuthenticationTypes = _authTypes;
-
-            return View(model);
-        }
-
         var existing = await _catalog.FindByIdAsync(model.ItemId);
         if (existing == null)
         {
@@ -167,6 +162,36 @@ public sealed class AIConnectionController : Controller
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
 
             return RedirectToAction(nameof(Index));
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Name))
+        {
+            ModelState.AddModelError(nameof(model.Name), "Name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Source))
+        {
+            ModelState.AddModelError(nameof(model.Source), "Provider is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Endpoint))
+        {
+            ModelState.AddModelError(nameof(model.Endpoint), "Endpoint is required.");
+        }
+
+        if (model.UsesApiKeyAuthentication() && !HasApiKey(model, existing))
+        {
+            ModelState.AddModelError(nameof(model.ApiKey), "API key is required when API key authentication is selected.");
+        }
+
+        await ValidateUniqueNameAsync(model.Name, model.ItemId);
+
+        if (!ModelState.IsValid)
+        {
+            model.Providers = _providers;
+            model.AuthenticationTypes = _authTypes;
+
+            return View(model);
         }
 
         model.ApplyTo(existing);
@@ -216,5 +241,21 @@ public sealed class AIConnectionController : Controller
         {
             ModelState.AddModelError(nameof(AIConnectionViewModel.Name), "Name must be unique across appsettings and UI connections.");
         }
+    }
+
+    private static bool HasApiKey(AIConnectionViewModel model, AIProviderConnection existing = null)
+    {
+        if (!string.IsNullOrWhiteSpace(model.ApiKey))
+        {
+            return true;
+        }
+
+        if (existing?.Properties == null)
+        {
+            return false;
+        }
+
+        return existing.Properties.TryGetValue("ApiKey", out var apiKey) &&
+            !string.IsNullOrWhiteSpace(apiKey?.ToString());
     }
 }

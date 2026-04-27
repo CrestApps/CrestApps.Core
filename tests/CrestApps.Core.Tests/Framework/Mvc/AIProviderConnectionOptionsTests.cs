@@ -318,6 +318,36 @@ public sealed class AIProviderConnectionConfigurationTests
     }
 
     [Fact]
+    public async Task AIDeploymentController_Create_ShouldRequireProviderAndSharedConnection()
+    {
+        var deploymentStore = new Mock<IAIDeploymentStore>();
+        var deploymentCatalog = new Mock<INamedSourceCatalog<AIDeployment>>();
+        var connectionCatalog = new Mock<IAIProviderConnectionStore>();
+        connectionCatalog.Setup(catalog => catalog.GetAllAsync()).ReturnsAsync([]);
+
+        var controller = new AIDeploymentController(
+            deploymentStore.Object,
+            deploymentCatalog.Object,
+            connectionCatalog.Object);
+
+        var result = await controller.Create(new AIDeploymentViewModel
+        {
+            TechnicalName = "chat-main",
+            ModelName = "gpt-4o-mini",
+            SelectedTypes = [AIDeploymentType.Chat.ToString()],
+        });
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<AIDeploymentViewModel>(viewResult.Model);
+
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Contains(controller.ModelState[nameof(AIDeploymentViewModel.ClientName)].Errors, error => error.ErrorMessage == "Provider is required.");
+        Assert.Contains(controller.ModelState[nameof(AIDeploymentViewModel.ConnectionName)].Errors, error => error.ErrorMessage == "Connection is required when the selected provider uses a shared connection.");
+        Assert.NotNull(model.Providers);
+        Assert.NotNull(model.Connections);
+    }
+
+    [Fact]
     public async Task AIConnectionController_Index_ShouldIncludeMergedConnectionsAndMarkConfiguredOnesReadOnly()
     {
         var connectionStore = new Mock<IAIProviderConnectionStore>();
@@ -349,6 +379,70 @@ public sealed class AIProviderConnectionConfigurationTests
 
         Assert.Contains(model, connection => connection.Name == "config-primary" && connection.IsReadOnly);
         Assert.Contains(model, connection => connection.Name == "ui-secondary" && !connection.IsReadOnly);
+    }
+
+    [Fact]
+    public async Task AIConnectionController_Create_ShouldRequireEndpointAndApiKeyForApiKeyAuthentication()
+    {
+        var connectionStore = new Mock<IAIProviderConnectionStore>();
+        var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
+        var controller = new AIConnectionController(connectionStore.Object, connectionCatalog.Object);
+
+        var result = await controller.Create(new AIConnectionViewModel
+        {
+            Name = "openai-main",
+            Source = "Azure",
+            AuthenticationType = "ApiKey",
+        });
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<AIConnectionViewModel>(viewResult.Model);
+
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Contains(controller.ModelState[nameof(AIConnectionViewModel.Endpoint)].Errors, error => error.ErrorMessage == "Endpoint is required.");
+        Assert.Contains(controller.ModelState[nameof(AIConnectionViewModel.ApiKey)].Errors, error => error.ErrorMessage == "API key is required when API key authentication is selected.");
+        Assert.NotNull(model.Providers);
+        Assert.NotNull(model.AuthenticationTypes);
+    }
+
+    [Fact]
+    public async Task AIConnectionController_Edit_ShouldAllowExistingApiKeyToSatisfyApiKeyAuthentication()
+    {
+        var existing = new AIProviderConnection
+        {
+            ItemId = "ui-connection",
+            Name = "azure-main",
+            Source = "Azure",
+            Properties = new Dictionary<string, object>
+            {
+                ["Endpoint"] = "https://example.openai.azure.com/",
+                ["AuthenticationType"] = "ApiKey",
+                ["ApiKey"] = "stored-secret",
+            },
+        };
+
+        var connectionStore = new Mock<IAIProviderConnectionStore>();
+        connectionStore.Setup(store => store.FindByNameAsync(existing.Name)).ReturnsAsync(existing);
+
+        var connectionCatalog = new Mock<INamedSourceCatalog<AIProviderConnection>>();
+        connectionCatalog.Setup(catalog => catalog.FindByIdAsync(existing.ItemId)).ReturnsAsync(existing);
+
+        var controller = new AIConnectionController(connectionStore.Object, connectionCatalog.Object);
+
+        var result = await controller.Edit(new AIConnectionViewModel
+        {
+            ItemId = existing.ItemId,
+            Name = existing.Name,
+            Source = "Azure",
+            Endpoint = "https://example.openai.azure.com/",
+            AuthenticationType = "ApiKey",
+        });
+
+        var redirectResult = Assert.IsType<RedirectToActionResult>(result);
+
+        Assert.True(controller.ModelState.IsValid);
+        Assert.Equal(nameof(AIConnectionController.Index), redirectResult.ActionName);
+        connectionCatalog.Verify(catalog => catalog.UpdateAsync(existing), Times.Once);
     }
 
     [Fact]

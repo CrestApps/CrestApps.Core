@@ -136,6 +136,7 @@ public static class ServiceCollectionExtensions
         // Ensure IHttpContextAccessor is available for services that need HTTP context.
 
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddSingleton(TimeProvider.System);
         services
             .AddCoreAITemplating()
             .AddCoreIndexingServices()

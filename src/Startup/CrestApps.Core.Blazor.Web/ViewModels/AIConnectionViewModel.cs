@@ -5,6 +5,8 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 
 public sealed class AIConnectionViewModel
 {
+    private const string ApiKeyAuthenticationType = "ApiKey";
+
     public string ItemId { get; set; }
 
     public string Name { get; set; }
@@ -74,5 +76,10 @@ public sealed class AIConnectionViewModel
         {
             connection.Properties.Remove("AuthenticationType");
         }
+    }
+
+    public bool UsesApiKeyAuthentication()
+    {
+        return string.Equals(AuthenticationType, ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase);
     }
 }

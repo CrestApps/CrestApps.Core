@@ -13,6 +13,7 @@ public static class SharedServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddSharedArticleServices(this IServiceCollection services)
     {
+        services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ArticleIndexingService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IIndexProfileHandler, ArticleIndexProfileHandler>());
 

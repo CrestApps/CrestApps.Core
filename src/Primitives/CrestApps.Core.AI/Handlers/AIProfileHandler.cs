@@ -1,21 +1,39 @@
+using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
+using CrestApps.Core.Support;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.Handlers;
 
 internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
 {
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly TimeProvider _timeProvider;
+    private readonly IAIProfileStore _store;
     internal readonly IStringLocalizer S;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIProfileHandler"/> class.
     /// </summary>
+    /// <param name="httpContextAccessor">The HTTP context accessor.</param>
+    /// <param name="timeProvider">The time provider.</param>
     /// <param name="stringLocalizer">The string localizer.</param>
-    public AIProfileHandler(IStringLocalizer<AIProfileHandler> stringLocalizer)
+    public AIProfileHandler(
+        IHttpContextAccessor httpContextAccessor,
+        TimeProvider timeProvider,
+        IAIProfileStore store,
+        IStringLocalizer<AIProfileHandler> stringLocalizer)
     {
+        _httpContextAccessor = httpContextAccessor;
+        _timeProvider = timeProvider;
+        _store = store;
         S = stringLocalizer;
     }
 
@@ -35,24 +53,293 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
     public override Task UpdatingAsync(UpdatingContext<AIProfile> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 
+    /// <summary>
+    /// Initializeds the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public override Task InitializedAsync(InitializedContext<AIProfile> context, CancellationToken cancellationToken = default)
+    {
+        EnsureCreatedDefaults(context.Model);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Creatings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public override Task CreatingAsync(CreatingContext<AIProfile> context, CancellationToken cancellationToken = default)
+    {
+        EnsureCreatedDefaults(context.Model);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Validatings the operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public override Task ValidatingAsync(ValidatingContext<AIProfile> context, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(context.Model.Name))
+        {
+            context.Result.Fail(new ValidationResult(S["Name is required."], [nameof(AIProfile.Name)]));
+        }
+
+        if (context.Model.Type == AIProfileType.Agent && string.IsNullOrWhiteSpace(context.Model.Description))
+        {
+            context.Result.Fail(new ValidationResult(S["Description is required for agent profiles."], [nameof(AIProfile.Description)]));
+        }
+
+        return ValidateUniqueNameAsync(context, cancellationToken);
+    }
+
+    private void EnsureCreatedDefaults(AIProfile profile)
+    {
+        if (profile.CreatedUtc == default)
+        {
+            profile.CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        }
+
+        var user = _httpContextAccessor.HttpContext?.User;
+
+        if (user == null)
+        {
+            return;
+        }
+
+        profile.OwnerId ??= user.FindFirstValue(ClaimTypes.NameIdentifier);
+        profile.Author ??= user.Identity?.Name;
+    }
+
+    private async Task ValidateUniqueNameAsync(ValidatingContext<AIProfile> context, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(context.Model.Name))
+        {
+            return;
+        }
+
+        var existing = await _store.FindByNameAsync(context.Model.Name, cancellationToken);
+
+        if (existing is not null && !string.Equals(existing.ItemId, context.Model.ItemId, StringComparison.Ordinal))
+        {
+            context.Result.Fail(new ValidationResult(S["An AI profile with the same name already exists."], [nameof(AIProfile.Name)]));
+        }
+    }
+
     private static Task PopulateAsync(AIProfile profile, JsonNode data)
     {
-        var metadata = profile.GetOrCreate<AIProfileMetadata>();
+        if (data is not JsonObject json)
+        {
+            return Task.CompletedTask;
+        }
+
+        MergeProperties(profile, json);
+        MergeSettings(profile, json);
+
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.Name), value => profile.Name = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.DisplayText), value => profile.DisplayText = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.Source), value => profile.Source = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.Description), value => profile.Description = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.OrchestratorName), value => profile.OrchestratorName = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.WelcomeMessage), value => profile.WelcomeMessage = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.PromptSubject), value => profile.PromptSubject = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.PromptTemplate), value => profile.PromptTemplate = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.OwnerId), value => profile.OwnerId = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.Author), value => profile.Author = value);
+
+#pragma warning disable CS0618 // Type or member is obsolete
+        json.TryUpdateTrimmedStringValue(nameof(AIProfile.ConnectionName), value => profile.ConnectionName = value);
+#pragma warning restore CS0618 // Type or member is obsolete
+
+        if (!json.TryUpdateTrimmedStringValue(nameof(AIProfile.ChatDeploymentName), value => profile.ChatDeploymentName = value))
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            if (!json.TryUpdateTrimmedStringValue(nameof(AIProfile.ChatDeploymentId), value => profile.ChatDeploymentName = value))
+            {
+                json.TryUpdateTrimmedStringValue(nameof(AIProfile.DeploymentId), value => profile.ChatDeploymentName = value);
+            }
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+
+        if (!json.TryUpdateTrimmedStringValue(nameof(AIProfile.UtilityDeploymentName), value => profile.UtilityDeploymentName = value))
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            json.TryUpdateTrimmedStringValue(nameof(AIProfile.UtilityDeploymentId), value => profile.UtilityDeploymentName = value);
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+
+        if (json.TryGetEnumValue(nameof(AIProfile.Type), out AIProfileType type))
+        {
+            profile.Type = type;
+        }
+
+        if (json.TryGetNullableEnumValue(nameof(AIProfile.TitleType), out AISessionTitleType? titleType))
+        {
+            profile.TitleType = titleType;
+        }
+
+        if (json.TryGetDateTimeValue(nameof(AIProfile.CreatedUtc), out var createdUtc))
+        {
+            profile.CreatedUtc = createdUtc;
+        }
 
         var settings = profile.GetSettings<AIProfileSettings>();
+        var metadataUpdated = false;
+        var settingsUpdated = false;
+        var chatModeSettingsUpdated = false;
+        var metadata = profile.GetOrCreate<AIProfileMetadata>();
 
-        if (!settings.LockSystemMessage)
+        if (json.TryGetTrimmedStringValue(nameof(AIProfileMetadata.SystemMessage), out var systemMessage) && !settings.LockSystemMessage)
         {
-            var systemMessage = data[nameof(AIProfileMetadata.SystemMessage)]?.GetValue<string>()?.Trim();
+            metadata.SystemMessage = systemMessage;
+            metadataUpdated = true;
+        }
 
-            if (!string.IsNullOrEmpty(systemMessage))
-            {
-                metadata.SystemMessage = systemMessage;
+        if (json.TryGetTrimmedStringValue(nameof(AIProfileMetadata.InitialPrompt), out var initialPrompt))
+        {
+            metadata.InitialPrompt = initialPrompt;
+            metadataUpdated = true;
+        }
 
-                profile.Put(metadata);
-            }
+        if (json.TryGetNullableSingleValue(nameof(AIProfileMetadata.Temperature), out var temperature))
+        {
+            metadata.Temperature = temperature;
+            metadataUpdated = true;
+        }
+
+        if (json.TryGetNullableSingleValue(nameof(AIProfileMetadata.TopP), out var topP))
+        {
+            metadata.TopP = topP;
+            metadataUpdated = true;
+        }
+
+        if (json.TryGetNullableSingleValue(nameof(AIProfileMetadata.FrequencyPenalty), out var frequencyPenalty))
+        {
+            metadata.FrequencyPenalty = frequencyPenalty;
+            metadataUpdated = true;
+        }
+
+        if (json.TryGetNullableSingleValue(nameof(AIProfileMetadata.PresencePenalty), out var presencePenalty))
+        {
+            metadata.PresencePenalty = presencePenalty;
+            metadataUpdated = true;
+        }
+
+        if (json.TryGetNullableInt32Value(nameof(AIProfileMetadata.MaxTokens), out var maxTokens))
+        {
+            metadata.MaxTokens = maxTokens;
+            metadataUpdated = true;
+        }
+
+        if (json.TryGetNullableInt32Value(nameof(AIProfileMetadata.PastMessagesCount), out var pastMessagesCount))
+        {
+            metadata.PastMessagesCount = pastMessagesCount;
+            metadataUpdated = true;
+        }
+
+        if (json.TryGetBooleanValue(nameof(AIProfileMetadata.UseCaching), out var useCaching))
+        {
+            metadata.UseCaching = useCaching;
+            metadataUpdated = true;
+        }
+
+        if (metadataUpdated)
+        {
+            profile.Put(metadata);
+        }
+
+        if (json.TryGetBooleanValue(nameof(AIProfileSettings.LockSystemMessage), out var lockSystemMessage))
+        {
+            settings.LockSystemMessage = lockSystemMessage;
+            settingsUpdated = true;
+        }
+
+        if (json.TryGetBooleanValue(nameof(AIProfileSettings.IsListable), out var isListable))
+        {
+            settings.IsListable = isListable;
+            settingsUpdated = true;
+        }
+
+        if (json.TryGetBooleanValue(nameof(AIProfileSettings.IsRemovable), out var isRemovable))
+        {
+            settings.IsRemovable = isRemovable;
+            settingsUpdated = true;
+        }
+
+        if (settingsUpdated)
+        {
+            profile.WithSettings(settings);
+        }
+
+        var chatModeSettings = profile.GetSettings<ChatModeProfileSettings>();
+
+        if (json.TryGetEnumValue(nameof(ChatModeProfileSettings.ChatMode), out ChatMode chatMode))
+        {
+            chatModeSettings.ChatMode = chatMode;
+            chatModeSettingsUpdated = true;
+        }
+
+        if (json.TryGetTrimmedStringValue(nameof(ChatModeProfileSettings.VoiceName), out var voiceName))
+        {
+            chatModeSettings.VoiceName = voiceName;
+            chatModeSettingsUpdated = true;
+        }
+
+        if (json.TryGetBooleanValue(nameof(ChatModeProfileSettings.EnableTextToSpeechPlayback), out var enableTextToSpeechPlayback))
+        {
+            chatModeSettings.EnableTextToSpeechPlayback = enableTextToSpeechPlayback;
+            chatModeSettingsUpdated = true;
+        }
+
+        if (chatModeSettingsUpdated)
+        {
+            profile.WithSettings(chatModeSettings);
         }
 
         return Task.CompletedTask;
+    }
+
+    private static void MergeProperties(AIProfile profile, JsonObject json)
+    {
+        if (!json.TryGetPropertyValue(nameof(AIProfile.Properties), out var propertiesNode))
+        {
+            return;
+        }
+
+        profile.Properties.Clear();
+
+        if (propertiesNode is not JsonObject properties)
+        {
+            return;
+        }
+
+        foreach (var (key, value) in properties)
+        {
+            profile.Properties[key] = value.GetRawValue();
+        }
+    }
+
+    private static void MergeSettings(AIProfile profile, JsonObject json)
+    {
+        if (!json.TryGetPropertyValue(nameof(AIProfile.Settings), out var settingsNode))
+        {
+            return;
+        }
+
+        profile.Settings.Clear();
+
+        if (settingsNode is not JsonObject settings)
+        {
+            return;
+        }
+
+        foreach (var (key, value) in settings)
+        {
+            profile.Settings[key] = value?.DeepClone();
+        }
     }
 }

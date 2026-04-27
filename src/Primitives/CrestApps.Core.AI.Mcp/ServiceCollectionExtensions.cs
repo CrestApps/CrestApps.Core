@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Mcp.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
@@ -25,6 +26,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddSingleton(TimeProvider.System);
         services.AddMemoryCache();
         services.AddDistributedMemoryCache();
         services.AddHttpClient(McpConstants.HttpClientName)
