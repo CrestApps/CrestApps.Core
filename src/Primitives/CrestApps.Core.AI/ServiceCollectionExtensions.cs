@@ -145,6 +145,10 @@ public static class ServiceCollectionExtensions
             .AddScoped<IAIClientFactory, DefaultAIClientFactory>()
             .AddScoped<ISpeechVoiceResolver, DefaultSpeechVoiceResolver>();
 
+        services.TryAddScoped<IAIProfileStore, NullAIProfileStore>();
+        services.TryAddScoped<ICatalog<AIProfile>>(sp => sp.GetRequiredService<IAIProfileStore>());
+        services.TryAddScoped<INamedCatalog<AIProfile>>(sp => sp.GetRequiredService<IAIProfileStore>());
+
         // Register the multi-source stores used for merged runtime lookups.
         services.TryAddScoped<IAIDeploymentStore, DefaultAIDeploymentStore>();
 

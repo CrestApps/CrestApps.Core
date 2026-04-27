@@ -164,6 +164,7 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync(storeOptions));
         await MigrateLegacyArticleDocumentTypesAsync(store, connection, transaction, logger);
+        await EnsureAIProfileIndexTypeColumnAsync(store, connection, transaction, schemaBuilder, storeOptions, logger);
         await EnsureAIDocumentIndexExtensionColumnAsync(store, connection, transaction, schemaBuilder, storeOptions, logger);
         await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<ArticleIndex>(t => t
             .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
@@ -219,6 +220,21 @@ internal static class YesSqlServiceCollectionExtensions
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation("Added missing column '{ColumnName}' to YesSql index table '{TableName}'.", nameof(AIDocumentIndex.Extension), tableName);
+        }
+    }
+
+    private static async Task EnsureAIProfileIndexTypeColumnAsync(IStore store, DbConnection connection, DbTransaction transaction, SchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, ILogger logger)
+    {
+        var tableName = await FindIndexTableNameAsync(connection, transaction, store.Configuration.TablePrefix, nameof(AIProfileIndex));
+        if (await ColumnExistsAsync(connection, transaction, tableName, nameof(AIProfileIndex.Type)))
+        {
+            return;
+        }
+
+        await schemaBuilder.AddAIProfileIndexTypeColumnAsync(storeOptions);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Added missing column '{ColumnName}' to YesSql index table '{TableName}'.", nameof(AIProfileIndex.Type), tableName);
         }
     }
 

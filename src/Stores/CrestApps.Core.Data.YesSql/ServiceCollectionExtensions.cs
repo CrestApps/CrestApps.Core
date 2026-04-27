@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.YesSql.Indexes;
 using CrestApps.Core.Data.YesSql.Indexes.A2A;
@@ -220,7 +221,18 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        AddYesSqlNamedSourceDocumentCatalog<AIProfile, AIProfileIndex>(services, static o => o.AICollectionName);
+        services.RemoveAll<IAIProfileStore>();
+        services.RemoveAll<ICatalog<AIProfile>>();
+        services.RemoveAll<INamedCatalog<AIProfile>>();
+        services.RemoveAll<ISourceCatalog<AIProfile>>();
+        services.RemoveAll<INamedSourceCatalog<AIProfile>>();
+
+        services.AddScoped<YesSqlAIProfileStore>();
+        services.AddScoped<IAIProfileStore>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
+        services.AddScoped<ICatalog<AIProfile>>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
+        services.AddScoped<INamedCatalog<AIProfile>>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
+        services.AddScoped<ISourceCatalog<AIProfile>>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
+        services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
         AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(services, static o => o.AICollectionName);
 

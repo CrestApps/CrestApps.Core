@@ -16,7 +16,7 @@ public sealed class YesSqlAIDataSourceStore : DocumentCatalog<AIDataSource, AIDa
     public YesSqlAIDataSourceStore(
         ISession session,
         IOptions<YesSqlStoreOptions> options)
-        : base(session, options.Value.AIDocsCollectionName)
+        : base(session, options.Value.AICollectionName)
     {
     }
 }

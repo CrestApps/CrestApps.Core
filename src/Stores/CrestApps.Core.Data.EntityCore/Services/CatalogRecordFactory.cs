@@ -42,6 +42,10 @@ internal static class CatalogRecordFactory
         };
         switch (model)
         {
+            case AIProfile profile:
+                record.Type = profile.Type.ToString();
+                record.CreatedUtc = profile.CreatedUtc;
+                break;
             case AIChatSessionPrompt prompt:
                 record.SessionId = prompt.SessionId;
                 record.CreatedUtc = prompt.CreatedUtc;

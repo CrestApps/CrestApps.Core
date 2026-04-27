@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -96,7 +97,18 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddNamedSourceDocumentCatalog<AIProfile, NamedSourceDocumentCatalog<AIProfile>>();
+        services.RemoveAll<IAIProfileStore>();
+        services.RemoveAll<ICatalog<AIProfile>>();
+        services.RemoveAll<INamedCatalog<AIProfile>>();
+        services.RemoveAll<ISourceCatalog<AIProfile>>();
+        services.RemoveAll<INamedSourceCatalog<AIProfile>>();
+
+        services.AddScoped<EntityCoreAIProfileStore>();
+        services.AddScoped<IAIProfileStore>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
+        services.AddScoped<ICatalog<AIProfile>>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
+        services.AddScoped<INamedCatalog<AIProfile>>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
+        services.AddScoped<ISourceCatalog<AIProfile>>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
+        services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
         services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
         services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
 
