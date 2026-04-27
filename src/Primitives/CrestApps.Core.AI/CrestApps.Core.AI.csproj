@@ -39,4 +39,8 @@
     <ProjectReference Include="../CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
 
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Profiles\" />
+  </ItemGroup>
 </Project>

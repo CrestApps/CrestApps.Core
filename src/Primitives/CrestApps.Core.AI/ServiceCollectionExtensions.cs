@@ -157,6 +157,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
         services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
         services.TryAddScoped<IConnectionAuthHeaderBuilder, DefaultConnectionAuthHeaderBuilder>();
+        services.TryAddScoped<IAIProfileManager, DefaultAIProfileManager>();
+        services.TryAddScoped<ICatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
+        services.TryAddScoped<INamedCatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
 
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(EmbeddedResourceAIProfileTemplateProvider)))
         {

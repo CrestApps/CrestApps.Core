@@ -69,7 +69,6 @@ internal static class YesSqlServiceCollectionExtensions
         );
 
         services
-            .AddScoped<IAIProfileManager, SimpleAIProfileManager>()
             .AddScoped<AIProfileDocumentService>()
             .AddScoped<AIProfileTemplateDocumentService>();
 

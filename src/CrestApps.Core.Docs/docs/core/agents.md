@@ -225,19 +225,18 @@ The handler:
 
 This follows the industry-standard pattern used by orchestration frameworks where agent descriptions are included in the system prompt so the model can decide which capabilities to invoke.
 
-## Implementing `IAIProfileManager`
+## Using or replacing `IAIProfileManager`
 
-The host application must provide an implementation of `IAIProfileManager` for agents to work. The agent subsystem relies on two key operations:
+`AddCoreAIServices()` registers the shared `DefaultAIProfileManager` for hosts that also register an `AIProfile` catalog through YesSql, EntityCore, or another custom catalog implementation.
+
+Hosts can still replace `IAIProfileManager`, but the default manager already covers the core agent/runtime behavior. The agent subsystem relies on these operations:
 
 ```csharp
 public interface IAIProfileManager
 {
-    // Used by AgentToolRegistryProvider and AgentProxyTool to fetch agent profiles
-    Task<IReadOnlyList<AIProfile>> GetAsync(AIProfileType type);
-
-    // Used to persist agent profiles
-    Task CreateAsync(AIProfile profile);
-    Task UpdateAsync(AIProfile profile);
+    ValueTask<IEnumerable<AIProfile>> GetAsync(AIProfileType type, CancellationToken cancellationToken = default);
+    ValueTask CreateAsync(AIProfile profile, CancellationToken cancellationToken = default);
+    ValueTask UpdateAsync(AIProfile profile, JsonNode data = null, CancellationToken cancellationToken = default);
 }
 ```
 
@@ -247,7 +246,7 @@ The `GetAsync(AIProfileType.Agent)` call is the primary query used by:
 - **`AgentProxyTool`** — to resolve the target agent at invocation time
 - **`AgentOrchestrationContextBuilderHandler`** — to enrich the system message with agent descriptions
 
-Your implementation must return agent profiles with their `Properties` intact (including `AgentMetadata`) for availability filtering to work correctly.
+Any replacement implementation must return agent profiles with their `Properties` intact (including `AgentMetadata`) for availability filtering to work correctly.
 
 ## Services Registered
 

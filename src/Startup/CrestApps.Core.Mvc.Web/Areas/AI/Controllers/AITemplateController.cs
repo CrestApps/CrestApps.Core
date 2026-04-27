@@ -38,7 +38,6 @@ public sealed class AITemplateController : Controller
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IAIProfileManager _profileManager;
-    private readonly IAIProfileTemplateManager _templateManager;
     private readonly InteractionDocumentOptions _interactionDocumentOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
@@ -48,6 +47,7 @@ public sealed class AITemplateController : Controller
     private readonly CopilotOptions _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
+
     public AITemplateController(
         ICatalog<AIProfileTemplate> catalog,
         IAIDeploymentStore deploymentCatalog,
@@ -55,7 +55,6 @@ public sealed class AITemplateController : Controller
         ICatalog<McpConnection> mcpConnectionCatalog,
         IAIDataSourceStore dataSourceStore,
         IAIProfileManager profileManager,
-        IAIProfileTemplateManager templateManager,
         IOptions<InteractionDocumentOptions> interactionDocumentOptions,
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService aiTemplateService,
@@ -72,7 +71,6 @@ public sealed class AITemplateController : Controller
         _mcpConnectionCatalog = mcpConnectionCatalog;
         _dataSourceStore = dataSourceStore;
         _profileManager = profileManager;
-        _templateManager = templateManager;
         _interactionDocumentOptions = interactionDocumentOptions.Value;
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;

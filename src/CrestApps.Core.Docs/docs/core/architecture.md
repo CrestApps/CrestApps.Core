@@ -108,7 +108,7 @@ User → UI (MVC/Blazor/OC) → SignalR Hub → Orchestrator → AI Provider →
 | `IAICompletionService` | AI provider abstraction | OpenAI, Azure OpenAI, Ollama |
 | `IOrchestrator` | Controls AI request pipeline | `DefaultOrchestrator` |
 | `ICatalog<T>` | CRUD for named entities | `NamedSourceDocumentCatalog<T>` (YesSql) |
-| `IAIProfileManager` | Profile CRUD | Module-specific implementations |
+| `IAIProfileManager` | Profile CRUD | `DefaultAIProfileManager` |
 | `IAIChatSessionManager` | Session lifecycle | YesSql-based implementation |
 | `IAIChatSessionPromptStore` | Prompt persistence | YesSql-based implementation |
 | `ICatalogEntryHandler<T>` | Entity lifecycle hooks | Per-provider handlers |

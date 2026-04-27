@@ -2,6 +2,7 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Data.YesSql;
@@ -38,6 +39,22 @@ public sealed class AIServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddCoreAIServices_RegistersFrameworkAIProfileManager_WhenProfileCatalogIsAvailable()
+    {
+        var services = CreateBaseServices();
+        services.AddScoped(_ => Mock.Of<IAIProfileStore>());
+        services.AddCoreAIServices();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+        var scopedServices = scope.ServiceProvider;
+
+        Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<IAIProfileManager>());
+        Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<ICatalogManager<AIProfile>>());
+        Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<INamedCatalogManager<AIProfile>>());
+    }
+
+    [Fact]
     public void AddCoreAIServicesStoresEntityCore_RegistersDatabaseCatalogInterfaces()
     {
         var services = CreateBaseServices();
@@ -51,6 +68,12 @@ public sealed class AIServiceCollectionExtensionsTests
 
         Assert.IsType<DefaultAIProviderConnectionStore>(scopedServices.GetRequiredService<IAIProviderConnectionStore>());
         Assert.IsType<DefaultAIDeploymentStore>(scopedServices.GetRequiredService<IAIDeploymentStore>());
+        Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<IAIProfileManager>());
+        Assert.IsType<Data.EntityCore.Services.EntityCoreAIProfileStore>(scopedServices.GetRequiredService<IAIProfileStore>());
+        Assert.IsType<Data.EntityCore.Services.EntityCoreAIProfileStore>(scopedServices.GetRequiredService<INamedSourceCatalog<AIProfile>>());
+        Assert.IsType<Data.EntityCore.Services.EntityCoreAIProfileStore>(scopedServices.GetRequiredService<INamedCatalog<AIProfile>>());
+        Assert.IsType<Data.EntityCore.Services.EntityCoreAIProfileStore>(scopedServices.GetRequiredService<ISourceCatalog<AIProfile>>());
+        Assert.IsType<Data.EntityCore.Services.EntityCoreAIProfileStore>(scopedServices.GetRequiredService<ICatalog<AIProfile>>());
         Assert.IsType<Data.EntityCore.Services.NamedSourceDocumentCatalog<AIProviderConnection>>(scopedServices.GetRequiredService<INamedSourceCatalog<AIProviderConnection>>());
         Assert.IsType<Data.EntityCore.Services.NamedSourceDocumentCatalog<AIProviderConnection>>(scopedServices.GetRequiredService<INamedCatalog<AIProviderConnection>>());
         Assert.IsType<Data.EntityCore.Services.NamedSourceDocumentCatalog<AIProviderConnection>>(scopedServices.GetRequiredService<ISourceCatalog<AIProviderConnection>>());
@@ -76,6 +99,12 @@ public sealed class AIServiceCollectionExtensionsTests
 
         Assert.IsType<DefaultAIProviderConnectionStore>(scopedServices.GetRequiredService<IAIProviderConnectionStore>());
         Assert.IsType<DefaultAIDeploymentStore>(scopedServices.GetRequiredService<IAIDeploymentStore>());
+        Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<IAIProfileManager>());
+        Assert.IsType<Data.YesSql.Services.YesSqlAIProfileStore>(scopedServices.GetRequiredService<IAIProfileStore>());
+        Assert.IsType<Data.YesSql.Services.YesSqlAIProfileStore>(scopedServices.GetRequiredService<INamedSourceCatalog<AIProfile>>());
+        Assert.IsType<Data.YesSql.Services.YesSqlAIProfileStore>(scopedServices.GetRequiredService<INamedCatalog<AIProfile>>());
+        Assert.IsType<Data.YesSql.Services.YesSqlAIProfileStore>(scopedServices.GetRequiredService<ISourceCatalog<AIProfile>>());
+        Assert.IsType<Data.YesSql.Services.YesSqlAIProfileStore>(scopedServices.GetRequiredService<ICatalog<AIProfile>>());
         Assert.IsType<Data.YesSql.Services.NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(scopedServices.GetRequiredService<INamedSourceCatalog<AIProviderConnection>>());
         Assert.IsType<Data.YesSql.Services.NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(scopedServices.GetRequiredService<INamedCatalog<AIProviderConnection>>());
         Assert.IsType<Data.YesSql.Services.NamedSourceDocumentCatalog<AIProviderConnection, AIProviderConnectionIndex>>(scopedServices.GetRequiredService<ISourceCatalog<AIProviderConnection>>());
@@ -91,6 +120,7 @@ public sealed class AIServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         services.AddLogging();
+        services.AddLocalization();
         services.AddOptions();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
