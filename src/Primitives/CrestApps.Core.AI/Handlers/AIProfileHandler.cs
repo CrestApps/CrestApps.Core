@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
@@ -93,6 +94,14 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
             context.Result.Fail(new ValidationResult(S["Description is required for agent profiles."], [nameof(AIProfile.Description)]));
         }
 
+        if (context.Model.Type == AIProfileType.TemplatePrompt)
+        {
+            if (string.IsNullOrWhiteSpace(context.Model.PromptTemplate))
+            {
+                context.Result.Fail(new ValidationResult(S["Prompt template is required."], [nameof(AIProfile.PromptTemplate)]));
+            }
+        }
+
         return ValidateUniqueNameAsync(context, cancellationToken);
     }
 
@@ -101,6 +110,11 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
         if (profile.CreatedUtc == default)
         {
             profile.CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.DisplayText))
+        {
+            profile.DisplayText = profile.Name;
         }
 
         var user = _httpContextAccessor.HttpContext?.User;
@@ -304,41 +318,30 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
 
     private static void MergeProperties(AIProfile profile, JsonObject json)
     {
-        if (!json.TryGetPropertyValue(nameof(AIProfile.Properties), out var propertiesNode))
+        if (!json.TryGetObjectValue(nameof(AIProfile.Properties), out var properties) || properties == null)
         {
             return;
         }
 
-        profile.Properties.Clear();
+        var currentJson = JsonExtensions.FromObject(profile.Properties ?? new Dictionary<string, object>(), ExtensibleEntityExtensions.JsonSerializerOptions);
+        var existingPropertiesSnapshot = currentJson.Clone();
 
-        if (propertiesNode is not JsonObject properties)
-        {
-            return;
-        }
+        AIPropertiesMergeHelper.Merge(currentJson, properties);
+        AIPropertiesMergeHelper.MergeNamedEntries(currentJson, existingPropertiesSnapshot);
 
-        foreach (var (key, value) in properties)
-        {
-            profile.Properties[key] = value.GetRawValue();
-        }
+        profile.Properties = JsonSerializer.Deserialize<Dictionary<string, object>>(currentJson, ExtensibleEntityExtensions.JsonSerializerOptions) ?? [];
     }
 
     private static void MergeSettings(AIProfile profile, JsonObject json)
     {
-        if (!json.TryGetPropertyValue(nameof(AIProfile.Settings), out var settingsNode))
+        if (!json.TryGetObjectValue(nameof(AIProfile.Settings), out var settings) || settings == null)
         {
             return;
         }
 
-        profile.Settings.Clear();
+        var existingSettingsSnapshot = profile.Settings.Clone();
 
-        if (settingsNode is not JsonObject settings)
-        {
-            return;
-        }
-
-        foreach (var (key, value) in settings)
-        {
-            profile.Settings[key] = value?.DeepClone();
-        }
+        AIPropertiesMergeHelper.Merge(profile.Settings, settings);
+        AIPropertiesMergeHelper.MergeNamedEntries(profile.Settings, existingSettingsSnapshot);
     }
 }

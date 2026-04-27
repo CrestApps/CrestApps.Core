@@ -76,6 +76,110 @@ public sealed class CatalogEntryHandlerPopulationTests
     }
 
     [Fact]
+    public async Task AIProfileHandler_MergesIncomingPropertiesAndSettings()
+    {
+        var handler = new AIProfileHandler(
+            CreateHttpContextAccessor(),
+            new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
+            Mock.Of<IAIProfileStore>(),
+            CreateStringLocalizer<AIProfileHandler>());
+        var profile = new AIProfile
+        {
+            Properties = new Dictionary<string, object>
+            {
+                ["Simple"] = "existing",
+                ["Entries"] = new List<object>
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["Name"] = "first",
+                        ["Enabled"] = false,
+                        ["Retained"] = "keep",
+                    },
+                },
+            },
+            Settings = new JsonObject
+            {
+                ["CustomSettings"] = new JsonObject
+                {
+                    ["IsEnabled"] = false,
+                    ["Entries"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["Name"] = "alpha",
+                            ["Enabled"] = false,
+                            ["Retained"] = "keep",
+                        },
+                    },
+                },
+            },
+        };
+        JsonObject data = new()
+        {
+            [nameof(AIProfile.Properties)] = new JsonObject
+            {
+                ["Simple"] = "updated",
+                ["Added"] = "new-value",
+                ["Entries"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["Name"] = "first",
+                        ["Enabled"] = true,
+                    },
+                    new JsonObject
+                    {
+                        ["Name"] = "second",
+                        ["Enabled"] = true,
+                    },
+                },
+            },
+            [nameof(AIProfile.Settings)] = new JsonObject
+            {
+                ["CustomSettings"] = new JsonObject
+                {
+                    ["IsEnabled"] = true,
+                    ["Entries"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["Name"] = "alpha",
+                            ["Enabled"] = true,
+                        },
+                        new JsonObject
+                        {
+                            ["Name"] = "beta",
+                            ["Enabled"] = true,
+                        },
+                    },
+                },
+            },
+        };
+
+        await handler.InitializingAsync(new InitializingContext<AIProfile>(profile, data), CancellationToken);
+
+        var properties = JsonExtensions.FromObject(profile.Properties);
+        var propertyEntries = Assert.IsType<JsonArray>(properties["Entries"]);
+        var firstPropertyEntry = Assert.IsType<JsonObject>(propertyEntries[0]);
+        var customSettings = Assert.IsType<JsonObject>(profile.Settings["CustomSettings"]);
+        var settingsEntries = Assert.IsType<JsonArray>(customSettings["Entries"]);
+        var firstSettingsEntry = Assert.IsType<JsonObject>(settingsEntries[0]);
+
+        Assert.Equal("updated", properties["Simple"]?.GetValue<string>());
+        Assert.Equal("new-value", properties["Added"]?.GetValue<string>());
+        Assert.Equal("first", firstPropertyEntry["Name"]?.GetValue<string>());
+        Assert.True(firstPropertyEntry["Enabled"]?.GetValue<bool>());
+        Assert.Equal("keep", firstPropertyEntry["Retained"]?.GetValue<string>());
+        Assert.Equal("second", Assert.IsType<JsonObject>(propertyEntries[1])["Name"]?.GetValue<string>());
+        Assert.True(customSettings["IsEnabled"]?.GetValue<bool>());
+        Assert.Equal("alpha", firstSettingsEntry["Name"]?.GetValue<string>());
+        Assert.True(firstSettingsEntry["Enabled"]?.GetValue<bool>());
+        Assert.Equal("keep", firstSettingsEntry["Retained"]?.GetValue<string>());
+        Assert.Equal("beta", Assert.IsType<JsonObject>(settingsEntries[1])["Name"]?.GetValue<string>());
+    }
+
+    [Fact]
     public async Task AIDataSourceHandler_MapsKnownPropertiesAndValidatesRequiredValues()
     {
         var queue = new Mock<IAIDataSourceIndexingQueue>();
