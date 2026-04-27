@@ -257,7 +257,6 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
     )
     .AddYesSqlDataStore(configuration => configuration
         .UseSqLite("Data Source=app.db;Cache=Shared")
-        .SetTablePrefix("CA_")
     )
 );
 ```
@@ -686,8 +685,8 @@ Both accept `IEnumerable<INamedCatalogSource<T>>` (or the source-aware variant) 
 
 | Store | Implements | Binding sources |
 |-------|-----------|-----------------|
-| `DefaultAIDeploymentStore` | `IAIDeploymentStore` → `INamedSourceCatalog<AIDeployment>` | `ConfigurationAIDeploymentSource` (Order 100) |
-| `DefaultAIProviderConnectionStore` | `IAIProviderConnectionStore` → `INamedSourceCatalog<AIProviderConnection>` | `ConfigurationAIProviderConnectionSource` (Order 100) |
+| `DefaultAIDeploymentStore` | `IAIDeploymentStore` | `ConfigurationAIDeploymentSource` (Order 100) |
+| `DefaultAIProviderConnectionStore` | `IAIProviderConnectionStore` | `ConfigurationAIProviderConnectionSource` (Order 100) |
 
 The configuration sources read from `appsettings.json` using the sections configured in `AIDeploymentCatalogOptions` and `AIProviderConnectionCatalogOptions`:
 
@@ -698,7 +697,7 @@ The configuration sources read from `appsettings.json` using the sections config
 
 Hosts can override those lists to focus only on the standalone `Connections` array or to append additional provider-grouped sections for compatibility scenarios.
 
-When a persistence package (YesSql or EntityCore) is added, it registers an additional **writable** DB binding source at Order 0, so database entries take priority over `appsettings.json` entries and all write operations go to the database. `IAIDeploymentStore` and `IAIProviderConnectionStore` still remain the merged runtime view; resolve the shared generic catalog interfaces when you specifically want the database-backed store.
+When a persistence package (YesSql or EntityCore) is added, it registers an additional **writable** DB binding source at Order 0, so database entries take priority over `appsettings.json` entries and all write operations go to the database. `IAIDeploymentStore` and `IAIProviderConnectionStore` still remain the merged runtime view; resolve the shared generic catalog interfaces when you specifically want the database-backed store. The YesSql registration now also initializes each configured collection up front so distinct collection names such as `AI`, `AIDocs`, and `AIMemory` each get their own `<Collection>_Document` table alongside their collection-scoped indexes.
 
 ### Registering DB binding sources
 

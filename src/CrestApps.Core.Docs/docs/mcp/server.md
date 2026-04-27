@@ -34,7 +34,6 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
     )
     .AddYesSqlDataStore(configuration => configuration
         .UseSqLite("Data Source=app.db;Cache=Shared")
-        .SetTablePrefix("CA_")
     )
 );
 ```

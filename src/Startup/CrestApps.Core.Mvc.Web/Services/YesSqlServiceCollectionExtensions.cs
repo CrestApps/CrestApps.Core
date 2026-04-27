@@ -31,6 +31,7 @@ using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using YesSql;
 using YesSql.Provider.Sqlite;
 using YesSql.Sql;
@@ -63,19 +64,8 @@ internal static class YesSqlServiceCollectionExtensions
             Pooling = true,
         };
 
-        services.Configure<YesSqlStoreOptions>(options =>
-        {
-            // The MVC sample host keeps all documents in a single SQLite database
-            // with no collection separation. Override the defaults so that all stores
-            // and index providers use the root (null) collection.
-            options.AICollectionName = null;
-            options.AIMemoryCollectionName = null;
-            options.AIDocsCollectionName = null;
-        });
-
         Data.YesSql.ServiceCollectionExtensions.AddCoreYesSqlDataStore(services, configuration => configuration
             .UseSqLite(connectionStringBuilder.ToString())
-            .SetTablePrefix("CA_")
         );
 
         services
@@ -142,9 +132,12 @@ internal static class YesSqlServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         var store = services.GetRequiredService<IStore>();
+        var options = services.GetService<IOptions<AIChatSessionMetricsIndexSchemaOptions>>().Value;
+
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("CrestApps.Core.Mvc.Web.YesSql");
         var storeOptions = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<YesSqlStoreOptions>>().Value;
         RegisterIndexes(store);
+        await InitializeCollectionsAsync(store, storeOptions);
         await using var connection = store.Configuration.ConnectionFactory.CreateConnection();
         await connection.OpenAsync();
         await ConfigureSqliteConnectionAsync(connection);
@@ -159,7 +152,7 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIDeploymentIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileTemplateIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionIndexSchemaAsync(storeOptions));
-        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionMetricsSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionMetricsSchemaAsync(storeOptions, options));
         await TryCreateTableAsync(() => schemaBuilder.CreateAICompletionUsageIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionExtractedDataIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionPromptIndexSchemaAsync(storeOptions));
@@ -176,6 +169,31 @@ internal static class YesSqlServiceCollectionExtensions
             .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
             .Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));
         await transaction.CommitAsync();
+    }
+
+    private static async Task InitializeCollectionsAsync(IStore store, YesSqlStoreOptions storeOptions)
+    {
+        var collections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(storeOptions.AICollectionName))
+        {
+            collections.Add(storeOptions.AICollectionName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(storeOptions.AIDocsCollectionName))
+        {
+            collections.Add(storeOptions.AIDocsCollectionName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(storeOptions.AIMemoryCollectionName))
+        {
+            collections.Add(storeOptions.AIMemoryCollectionName);
+        }
+
+        foreach (var collection in collections)
+        {
+            await store.InitializeCollectionAsync(collection);
+        }
     }
 
     private static async Task ConfigureSqliteConnectionAsync(DbConnection connection)

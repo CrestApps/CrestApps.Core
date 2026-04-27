@@ -22,7 +22,7 @@ public sealed class YesSqlStoreOptions
     /// <summary>
     /// Collection name used for AI memory entries.
     /// </summary>
-    public string AIMemoryCollectionName { get; set; } = "AI";
+    public string AIMemoryCollectionName { get; set; } = "AIMemory";
 
     /// <summary>
     /// Collection name used for AI document processing data
