@@ -11,25 +11,25 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Handlers;
 
-internal sealed class AIDataSourceCatalogIndexingHandler : CatalogEntryHandlerBase<AIDataSource>
+internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDataSource>
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
-    private readonly ILogger<AIDataSourceCatalogIndexingHandler> _logger;
+    private readonly ILogger<AIDataSourceCatalogHandler> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AIDataSourceCatalogIndexingHandler"/> class.
+    /// Initializes a new instance of the <see cref="AIDataSourceCatalogHandler"/> class.
     /// </summary>
     /// <param name="httpContextAccessor">The HTTP context accessor.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="indexingQueue">The indexing queue.</param>
     /// <param name="logger">The logger.</param>
-    public AIDataSourceCatalogIndexingHandler(
+    public AIDataSourceCatalogHandler(
         IHttpContextAccessor httpContextAccessor,
         TimeProvider timeProvider,
         IAIDataSourceIndexingQueue indexingQueue,
-        ILogger<AIDataSourceCatalogIndexingHandler> logger)
+        ILogger<AIDataSourceCatalogHandler> logger)
     {
         _httpContextAccessor = httpContextAccessor;
         _timeProvider = timeProvider;

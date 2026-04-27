@@ -9,18 +9,18 @@ using CrestApps.Core.Support;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AI.Handlers;
 
-public sealed class AIMemoryEntryIndexingHandler : CatalogEntryHandlerBase<AIMemoryEntry>
+public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry>
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly AIMemoryIndexingService _indexingService;
-    private readonly ILogger<AIMemoryEntryIndexingHandler> _logger;
+    private readonly ILogger<AIMemoryEntryHandler> _logger;
 
-    public AIMemoryEntryIndexingHandler(
+    public AIMemoryEntryHandler(
         IHttpContextAccessor httpContextAccessor,
         TimeProvider timeProvider,
         AIMemoryIndexingService indexingService,
-        ILogger<AIMemoryEntryIndexingHandler> logger)
+        ILogger<AIMemoryEntryHandler> logger)
     {
         _httpContextAccessor = httpContextAccessor;
         _timeProvider = timeProvider;

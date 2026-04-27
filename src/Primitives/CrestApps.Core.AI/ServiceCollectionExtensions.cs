@@ -312,7 +312,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<AIDataSourceIndexingQueue>();
         services.TryAddSingleton<IAIDataSourceIndexingQueue>(sp => sp.GetRequiredService<AIDataSourceIndexingQueue>());
         services.TryAddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceCatalogIndexingHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ISearchDocumentHandler, AIDataSourceSearchDocumentHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceIndexingBackgroundService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceAlignmentBackgroundService>());

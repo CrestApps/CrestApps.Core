@@ -5,19 +5,20 @@ using CrestApps.Core.Models;
 using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Support;
+using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.Mvc.Web.Areas.Admin.Handlers;
+namespace CrestApps.Core.Startup.Shared.Handlers;
 
-public sealed class ArticleIndexingHandler : CatalogEntryHandlerBase<Article>
+public sealed class ArticleHandler : CatalogEntryHandlerBase<Article>
 {
     private readonly TimeProvider _timeProvider;
     private readonly ArticleIndexingService _indexingService;
-    private readonly ILogger<ArticleIndexingHandler> _logger;
+    private readonly ILogger<ArticleHandler> _logger;
 
-    public ArticleIndexingHandler(
+    public ArticleHandler(
         TimeProvider timeProvider,
         ArticleIndexingService indexingService,
-        ILogger<ArticleIndexingHandler> logger)
+        ILogger<ArticleHandler> logger)
     {
         _timeProvider = timeProvider;
         _indexingService = indexingService;

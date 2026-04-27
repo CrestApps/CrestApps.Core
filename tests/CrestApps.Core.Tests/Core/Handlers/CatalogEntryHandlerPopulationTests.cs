@@ -79,11 +79,11 @@ public sealed class CatalogEntryHandlerPopulationTests
     public async Task AIDataSourceHandler_MapsKnownPropertiesAndValidatesRequiredValues()
     {
         var queue = new Mock<IAIDataSourceIndexingQueue>();
-        var handler = new AIDataSourceCatalogIndexingHandler(
+        var handler = new AIDataSourceCatalogHandler(
             CreateHttpContextAccessor(),
             new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
             queue.Object,
-            NullLogger<AIDataSourceCatalogIndexingHandler>.Instance);
+            NullLogger<AIDataSourceCatalogHandler>.Instance);
         var dataSource = new AIDataSource();
         JsonObject data = new()
         {
