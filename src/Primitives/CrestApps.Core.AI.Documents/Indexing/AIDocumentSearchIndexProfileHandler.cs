@@ -1,10 +1,9 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Indexing;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Indexing;
@@ -21,7 +20,7 @@ public sealed class AIDocumentSearchIndexProfileHandler : EmbeddingSearchIndexPr
     /// <param name="aiClientFactory">The ai client factory.</param>
     /// <param name="logger">The logger.</param>
     public AIDocumentSearchIndexProfileHandler(
-        ICatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentStore deploymentCatalog,
         IAIClientFactory aiClientFactory,
         ILogger<AIDocumentSearchIndexProfileHandler> logger)
         : base(IndexProfileTypes.AIDocuments, deploymentCatalog, aiClientFactory, logger)

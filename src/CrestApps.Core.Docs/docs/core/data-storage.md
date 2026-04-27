@@ -412,7 +412,7 @@ In `CrestApps.Core.Data.YesSql`, the shared convention is to keep each index typ
 Each feature requires specific stores to be registered. The table below lists what each feature needs and the corresponding registration calls for YesSql and Entity Framework Core.
 
 :::tip
-`AddCoreAIServices()` registers the multi-source stores for `AIDeployment` and `AIProviderConnection` with appsettings-backed binding sources automatically. You only need to register the persistence-layer binding sources to enable database-backed storage.
+`AddCoreAIServices()` registers the multi-source stores for `AIDeployment` and `AIProviderConnection` with appsettings-backed binding sources automatically. The persistence-layer packages then map the shared generic catalog interfaces to the concrete database-backed catalogs for those models.
 :::
 
 ### Core AI (always required)
@@ -424,7 +424,7 @@ Registered automatically by `AddCoreAIServices()`:
 | `AIDeployment` | `IAIDeploymentStore` | Auto-registered (multi-source, config source at Order 100) |
 | `AIProviderConnection` | `IAIProviderConnectionStore` | Auto-registered (multi-source, config source at Order 100) |
 
-Add a DB binding source if you want database-backed deployments and connections:
+Add a persistence provider if you want the generic catalog interfaces for deployments and connections to resolve to the database-backed store:
 
 ```csharp
 // Entity Framework Core (included in AddEntityCoreStores())
@@ -435,6 +435,13 @@ services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
 services.AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>();
 services.AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>();
 ```
+
+After a persistence provider is registered:
+
+| Model | All sources | Database-backed catalog |
+|-------|-------------|------------------------|
+| `AIDeployment` | `IAIDeploymentStore` | `INamedSourceCatalog<AIDeployment>` / `ICatalog<AIDeployment>` |
+| `AIProviderConnection` | `IAIProviderConnectionStore` | `INamedSourceCatalog<AIProviderConnection>` / `ICatalog<AIProviderConnection>` |
 
 ### AI Profiles
 
@@ -691,7 +698,7 @@ The configuration sources read from `appsettings.json` using the sections config
 
 Hosts can override those lists to focus only on the standalone `Connections` array or to append additional provider-grouped sections for compatibility scenarios.
 
-When a persistence package (YesSql or EntityCore) is added, it registers an additional **writable** DB binding source at Order 0, so database entries take priority over `appsettings.json` entries and all write operations go to the database.
+When a persistence package (YesSql or EntityCore) is added, it registers an additional **writable** DB binding source at Order 0, so database entries take priority over `appsettings.json` entries and all write operations go to the database. `IAIDeploymentStore` and `IAIProviderConnectionStore` still remain the merged runtime view; resolve the shared generic catalog interfaces when you specifically want the database-backed store.
 
 ### Registering DB binding sources
 

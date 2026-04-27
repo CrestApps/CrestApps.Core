@@ -1,9 +1,9 @@
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.ViewModels;
-using CrestApps.Core.Services;
 using CrestApps.Core.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +18,7 @@ public sealed class IndexProfileController : Controller
 {
     private readonly ISearchIndexProfileManager _indexProfileManager;
     private readonly ISearchIndexProfileProvisioningService _provisioningService;
-    private readonly ICatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIDeploymentStore _deploymentCatalog;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<IndexProfileController> _logger;
     private readonly IReadOnlyList<IndexProfileSourceDescriptor> _sources;
@@ -26,7 +26,7 @@ public sealed class IndexProfileController : Controller
     public IndexProfileController(
         ISearchIndexProfileManager indexProfileManager,
         ISearchIndexProfileProvisioningService provisioningService,
-        ICatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentStore deploymentCatalog,
         IServiceProvider serviceProvider,
         IOptions<IndexProfileSourceOptions> sourceOptions,
         ILogger<IndexProfileController> logger)

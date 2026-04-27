@@ -1,9 +1,11 @@
 @page "/ai/connections/edit/{Id}"
 @attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Connections
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
+@inject IAIProviderConnectionStore Store
 @inject INamedSourceCatalog<AIProviderConnection> Catalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -192,7 +194,7 @@ else if (_model != null)
 
         if (_nameError == null && !string.IsNullOrWhiteSpace(_model.Name))
         {
-            var existing = await Catalog.FindByNameAsync(_model.Name);
+            var existing = await Store.FindByNameAsync(_model.Name);
             if (existing != null && !string.Equals(existing.ItemId, _model.ItemId, StringComparison.OrdinalIgnoreCase))
             {
                 _nameError = "Name must be unique across appsettings and UI connections.";

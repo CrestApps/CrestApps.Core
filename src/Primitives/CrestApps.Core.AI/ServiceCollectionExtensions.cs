@@ -145,18 +145,10 @@ public static class ServiceCollectionExtensions
             .AddScoped<IAIClientFactory, DefaultAIClientFactory>()
             .AddScoped<ISpeechVoiceResolver, DefaultSpeechVoiceResolver>();
 
-        // Register the multi-source stores and forward all catalog interfaces.
+        // Register the multi-source stores used for merged runtime lookups.
         services.TryAddScoped<IAIDeploymentStore, DefaultAIDeploymentStore>();
-        services.TryAddScoped<INamedSourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.TryAddScoped<INamedCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.TryAddScoped<ISourceCatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
-        services.TryAddScoped<ICatalog<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentStore>());
 
         services.TryAddScoped<IAIProviderConnectionStore, DefaultAIProviderConnectionStore>();
-        services.TryAddScoped<INamedSourceCatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
-        services.TryAddScoped<INamedCatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
-        services.TryAddScoped<ISourceCatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
-        services.TryAddScoped<ICatalog<AIProviderConnection>>(sp => sp.GetRequiredService<IAIProviderConnectionStore>());
 
         // Register the configuration-backed sources (Order=100, lower priority than DB).
         services.TryAddEnumerable(ServiceDescriptor.Scoped<INamedSourceCatalogSource<AIDeployment>, ConfigurationAIDeploymentSource>());

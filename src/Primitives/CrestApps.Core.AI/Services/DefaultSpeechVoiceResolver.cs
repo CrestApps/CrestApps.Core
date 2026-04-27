@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Speech;
-using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace CrestApps.Core.AI.Services;
@@ -13,7 +13,7 @@ public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
 {
     private readonly IEnumerable<IAIClientProvider> _clientProviders;
     private readonly IEnumerable<IAIProviderConnectionHandler> _connectionHandlers;
-    private readonly INamedSourceCatalog<AIProviderConnection> _connectionCatalog;
+    private readonly IAIProviderConnectionStore _connectionCatalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
 
     /// <summary>
@@ -27,7 +27,7 @@ public sealed class DefaultSpeechVoiceResolver : ISpeechVoiceResolver
         IEnumerable<IAIClientProvider> clientProviders,
         IEnumerable<IAIProviderConnectionHandler> connectionHandlers,
         IDataProtectionProvider dataProtectionProvider,
-        INamedSourceCatalog<AIProviderConnection> connectionCatalog)
+        IAIProviderConnectionStore connectionCatalog)
     {
         _clientProviders = clientProviders;
         _connectionHandlers = connectionHandlers;

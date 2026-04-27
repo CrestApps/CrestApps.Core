@@ -1,9 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -15,7 +15,7 @@ namespace CrestApps.Core.AI.Indexing;
 public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandlerBase
 {
     private readonly string _type;
-    private readonly ICatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIDeploymentStore _deploymentCatalog;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly ILogger<EmbeddingSearchIndexProfileHandlerBase> _logger;
 
@@ -28,7 +28,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
     /// <param name="logger">The logger.</param>
     protected EmbeddingSearchIndexProfileHandlerBase(
         string type,
-        ICatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentStore deploymentCatalog,
         IAIClientFactory aiClientFactory,
         ILogger<EmbeddingSearchIndexProfileHandlerBase> logger)
     {

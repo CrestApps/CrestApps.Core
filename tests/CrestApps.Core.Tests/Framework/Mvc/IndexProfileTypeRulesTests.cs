@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -6,7 +7,6 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Controllers;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
-using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -397,7 +397,7 @@ public sealed class IndexProfileTypeRulesTests
         }
     }
 
-    private sealed class TestDeploymentCatalog : ICatalog<AIDeployment>
+    private sealed class TestDeploymentCatalog : IAIDeploymentStore
     {
         public ValueTask CreateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
         {
@@ -422,6 +422,21 @@ public sealed class IndexProfileTypeRulesTests
         public ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
+        }
+
+        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(string source, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
+        }
+
+        public ValueTask<AIDeployment> GetAsync(string name, string source, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<AIDeployment>(null);
+        }
+
+        public ValueTask<AIDeployment> FindByNameAsync(string name, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<AIDeployment>(null);
         }
 
         public ValueTask<PageResult<AIDeployment>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)

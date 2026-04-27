@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
@@ -32,7 +33,7 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 public sealed class AITemplateController : Controller
 {
     private readonly ICatalog<AIProfileTemplate> _catalog;
-    private readonly ICatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIDeploymentStore _deploymentCatalog;
     private readonly ICatalog<A2AConnection> _a2aConnectionCatalog;
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly IAIDataSourceStore _dataSourceStore;
@@ -49,7 +50,7 @@ public sealed class AITemplateController : Controller
     private readonly AIToolDefinitionOptions _toolOptions;
     public AITemplateController(
         ICatalog<AIProfileTemplate> catalog,
-        ICatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentStore deploymentCatalog,
         ICatalog<A2AConnection> a2aConnectionCatalog,
         ICatalog<McpConnection> mcpConnectionCatalog,
         IAIDataSourceStore dataSourceStore,
