@@ -7,14 +7,9 @@ namespace CrestApps.Core.Data.YesSql.Indexes.AIChat;
 public sealed class AIChatSessionMetricsIndexSchemaOptions
 {
     /// <summary>
-    /// Gets the YesSql collection name to target when creating the schema.
+    /// Gets the maximum column length for the <c>SessionId</c> column. Defaults to <c>26</c>.
     /// </summary>
-    public string CollectionName { get; init; }
-
-    /// <summary>
-    /// Gets the maximum column length for the <c>SessionId</c> column. Defaults to <c>44</c>.
-    /// </summary>
-    public int SessionIdLength { get; init; } = 44;
+    public int SessionIdLength { get; init; } = 26;
 
     /// <summary>
     /// Gets the maximum column length for the <c>ProfileId</c> column. Defaults to <c>26</c>.

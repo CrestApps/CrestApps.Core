@@ -1,39 +1,35 @@
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.Data.YesSql.Indexes.AI;
 using CrestApps.Core.Models;
-using YesSql;
-using ISession = YesSql.ISession;
+using CrestApps.Core.Services;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AI.Services;
 
 public sealed class SimpleAIProfileManager : IAIProfileManager
 {
-    private readonly ISession _session;
+    private readonly INamedSourceCatalog<AIProfile> _catalog;
 
-    public SimpleAIProfileManager(ISession session)
+    public SimpleAIProfileManager(INamedSourceCatalog<AIProfile> catalog)
     {
-        _session = session;
+        _catalog = catalog;
     }
 
     public async ValueTask<AIProfile> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return await _session.Query<AIProfile, AIProfileIndex>(x => x.ItemId == id).FirstOrDefaultAsync(cancellationToken);
+        return await _catalog.FindByIdAsync(id, cancellationToken);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var items = await _session.Query<AIProfile, AIProfileIndex>().ListAsync(cancellationToken);
-
-        return items;
+        return await _catalog.GetAllAsync(cancellationToken);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> GetAsync(AIProfileType type, CancellationToken cancellationToken = default)
     {
-        var all = await _session.Query<AIProfile, AIProfileIndex>().ListAsync(cancellationToken);
+        var all = await _catalog.GetAllAsync(cancellationToken);
 
         return all.Where(p => p.Type == type);
     }
@@ -42,9 +38,7 @@ public sealed class SimpleAIProfileManager : IAIProfileManager
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        var items = await _session.Query<AIProfile, AIProfileIndex>(x => x.Source == source).ListAsync(cancellationToken);
-
-        return items;
+        return await _catalog.GetAsync(source, cancellationToken);
     }
 
     public async ValueTask<IEnumerable<AIProfile>> FindBySourceAsync(string source, CancellationToken cancellationToken = default)
@@ -56,9 +50,7 @@ public sealed class SimpleAIProfileManager : IAIProfileManager
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        var all = await _session.Query<AIProfile, AIProfileIndex>(x => x.Name == name).ListAsync(cancellationToken);
-
-        return all.FirstOrDefault();
+        return await _catalog.FindByNameAsync(name, cancellationToken);
     }
 
     public async ValueTask<AIProfile> GetAsync(string name, string source, CancellationToken cancellationToken = default)
@@ -66,9 +58,7 @@ public sealed class SimpleAIProfileManager : IAIProfileManager
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        var items = await _session.Query<AIProfile, AIProfileIndex>(x => x.Name == name && x.Source == source).ListAsync(cancellationToken);
-
-        return items.FirstOrDefault();
+        return await _catalog.GetAsync(name, source, cancellationToken);
     }
 
     public async ValueTask CreateAsync(AIProfile model, CancellationToken cancellationToken = default)
@@ -85,26 +75,21 @@ public sealed class SimpleAIProfileManager : IAIProfileManager
             model.CreatedUtc = DateTime.UtcNow;
         }
 
-        await _session.SaveAsync(model);
-        await _session.SaveChangesAsync(cancellationToken);
+        await _catalog.CreateAsync(model, cancellationToken);
     }
 
     public async ValueTask UpdateAsync(AIProfile model, JsonNode data = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(model);
 
-        await _session.SaveAsync(model);
-        await _session.SaveChangesAsync(cancellationToken);
+        await _catalog.UpdateAsync(model, cancellationToken);
     }
 
     public async ValueTask<bool> DeleteAsync(AIProfile model, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(model);
 
-        _session.Delete(model);
-        await _session.SaveChangesAsync(cancellationToken);
-
-        return true;
+        return await _catalog.DeleteAsync(model, cancellationToken);
     }
 
     public ValueTask<AIProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
@@ -145,21 +130,6 @@ public sealed class SimpleAIProfileManager : IAIProfileManager
     public async ValueTask<PageResult<AIProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
-        var query = _session.Query<AIProfile, AIProfileIndex>();
-
-        if (!string.IsNullOrEmpty(context?.Source))
-        {
-            query = query.Where(x => x.Source == context.Source);
-        }
-
-        var skip = (page - 1) * pageSize;
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken);
-
-        return new PageResult<AIProfile>
-        {
-            Count = total,
-            Entries = items.ToArray(),
-        };
+        return await _catalog.PageAsync(page, pageSize, context, cancellationToken);
     }
 }

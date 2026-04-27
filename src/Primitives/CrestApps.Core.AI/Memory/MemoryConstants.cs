@@ -5,7 +5,6 @@ namespace CrestApps.Core.AI.Memory;
 /// </summary>
 public static class MemoryConstants
 {
-    public const string CollectionName = "AIMemory";
     public const string IndexingTaskType = "AIMemory";
 
     /// <summary>
