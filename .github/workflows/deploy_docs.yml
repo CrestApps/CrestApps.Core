@@ -27,6 +27,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -51,6 +54,11 @@ jobs:
       - name: Build site
         run: npm run build
 
+      - name: Validate build output
+        run: |
+          test -f build/index.html
+          test -f build/CNAME
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -65,4 +73,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
