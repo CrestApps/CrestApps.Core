@@ -191,7 +191,7 @@ public sealed class AIChatSessionPostCloseProcessor
         IReadOnlyList<AIChatSessionPrompt> prompts,
         CancellationToken cancellationToken)
     {
-        var postSessionSettings = AIProfileExtensions.GetOrCreateSettings<AIProfilePostSessionSettings>(profile);
+        var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
         var taskNames = postSessionSettings.PostSessionTasks.Select(t => t.Name).ToList();
 
         try

@@ -87,7 +87,7 @@ public sealed class AIProfileExtensionsTests
 
         Assert.Equal("secondValue", settingsNode[nameof(TestSettings.Mode)]?.GetValue<string>());
 
-        var settings = AIProfileExtensions.GetOrCreateSettings<TestSettings>(profile, jsonSerializerOptions);
+        var settings = profile.GetOrCreateSettings<TestSettings>(jsonSerializerOptions);
 
         Assert.Equal(TestMode.SecondValue, settings.Mode);
     }
