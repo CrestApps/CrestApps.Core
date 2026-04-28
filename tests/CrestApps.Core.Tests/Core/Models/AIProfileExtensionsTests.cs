@@ -27,7 +27,7 @@ public sealed class AIProfileExtensionsTests
 
             Assert.Equal("secondValue", settingsNode[nameof(TestSettings.Mode)]?.GetValue<string>());
 
-            var settings = profile.GetSettings<TestSettings>();
+            var settings = profile.GetOrCreateSettings<TestSettings>();
 
             Assert.Equal(TestMode.SecondValue, settings.Mode);
         }
@@ -87,7 +87,22 @@ public sealed class AIProfileExtensionsTests
 
         Assert.Equal("secondValue", settingsNode[nameof(TestSettings.Mode)]?.GetValue<string>());
 
-        var settings = profile.GetSettings<TestSettings>(jsonSerializerOptions);
+        var settings = profile.GetOrCreateSettings<TestSettings>(jsonSerializerOptions);
+
+        Assert.Equal(TestMode.SecondValue, settings.Mode);
+    }
+
+    [Fact]
+    public void GetSettings_RemainsBackwardCompatible()
+    {
+        var profile = new AIProfile();
+
+        profile.WithSettings(new TestSettings
+        {
+            Mode = TestMode.SecondValue,
+        });
+
+        var settings = profile.GetSettings<TestSettings>();
 
         Assert.Equal(TestMode.SecondValue, settings.Mode);
     }

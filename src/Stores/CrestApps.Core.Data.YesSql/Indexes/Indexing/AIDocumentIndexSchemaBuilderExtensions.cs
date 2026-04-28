@@ -41,8 +41,8 @@ public static class AIDocumentIndexSchemaBuilderExtensions
         ArgumentNullException.ThrowIfNull(schemaBuilder);
 
         return schemaBuilder.AlterIndexTableAsync<AIDocumentIndex>(table =>
-                {
-                    table.AddColumn<string>(nameof(AIDocumentIndex.Extension), column => column.WithLength(20));
-                }, collection: options?.AIDocsCollectionName);
+        {
+            table.AddColumn<string>(nameof(AIDocumentIndex.Extension), column => column.WithLength(20));
+        }, collection: options?.AIDocsCollectionName);
     }
 }

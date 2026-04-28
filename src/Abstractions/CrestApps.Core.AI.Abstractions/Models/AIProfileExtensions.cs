@@ -18,6 +18,16 @@ public static class AIProfileExtensions
     /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     public static T GetSettings<T>(this AIProfile profile, JsonSerializerOptions jsonSerializerOptions = null)
         where T : new()
+        => profile.GetOrCreateSettings<T>(jsonSerializerOptions);
+
+    /// <summary>
+    /// Retrieves settings of type <typeparamref name="T"/> from the profile.
+    /// If the settings do not exist, a new instance of <typeparamref name="T"/> is returned.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
+    public static T GetOrCreateSettings<T>(this AIProfile profile, JsonSerializerOptions jsonSerializerOptions = null)
+        where T : new()
     {
         if (profile.Settings == null)
         {

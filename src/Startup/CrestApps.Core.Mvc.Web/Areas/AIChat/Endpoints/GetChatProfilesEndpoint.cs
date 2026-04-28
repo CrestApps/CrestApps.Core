@@ -18,7 +18,7 @@ internal static class GetChatProfilesEndpoint
         var profiles = await profileManager.GetAsync(AIProfileType.Chat);
 
         return TypedResults.Ok(profiles
-                    .Where(profile => profile.GetSettings<AIProfileSettings>().IsListable)
+                    .Where(profile => profile.GetOrCreateSettings<AIProfileSettings>().IsListable)
                     .Select(profile => new
                     {
                         id = profile.ItemId,

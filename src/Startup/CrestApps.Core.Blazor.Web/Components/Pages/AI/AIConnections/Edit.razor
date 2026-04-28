@@ -59,7 +59,7 @@ else if (_model != null)
                 </div>
 
                 <div class="mb-3">
-                    <label for="endpoint" class="form-label">Endpoint <span class="text-danger">*</span></label>
+                    <label for="endpoint" class="form-label">Endpoint</label>
                     <InputText id="endpoint" class="form-control" @bind-Value="_model.Endpoint" placeholder="e.g., https://api.openai.com/v1" />
                     @if (!string.IsNullOrEmpty(_endpointError))
                     {

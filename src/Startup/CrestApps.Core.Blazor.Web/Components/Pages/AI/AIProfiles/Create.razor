@@ -1524,7 +1524,7 @@
             profile.Put(new AgentMetadata { Availability = metadata.AgentAvailability.Value });
         }
 
-        var profileMetadata = profile.GetOrCreate<AIProfileMetadata>();
+        var profileMetadata = profile.GetOrCreateSettings<AIProfileMetadata>();
         if (!string.IsNullOrWhiteSpace(metadata.SystemMessage)) profileMetadata.SystemMessage = metadata.SystemMessage;
         if (metadata.Temperature.HasValue) profileMetadata.Temperature = metadata.Temperature;
         if (metadata.TopP.HasValue) profileMetadata.TopP = metadata.TopP;

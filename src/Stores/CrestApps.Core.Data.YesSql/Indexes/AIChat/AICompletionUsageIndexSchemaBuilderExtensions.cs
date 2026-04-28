@@ -47,7 +47,6 @@ public static class AICompletionUsageIndexSchemaBuilderExtensions
                 "DocumentId",
                 nameof(AICompletionUsageIndex.UserId),
                 nameof(AICompletionUsageIndex.CreatedUtc));
-
         }, collection: options?.AICollectionName);
     }
 }

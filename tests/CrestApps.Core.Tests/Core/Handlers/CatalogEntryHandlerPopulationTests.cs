@@ -80,9 +80,9 @@ public sealed class CatalogEntryHandlerPopulationTests
         Assert.Equal("System", profile.GetOrCreate<AIProfileMetadata>().SystemMessage);
         Assert.Equal("Initial", profile.GetOrCreate<AIProfileMetadata>().InitialPrompt);
         Assert.Equal(0.5f, profile.GetOrCreate<AIProfileMetadata>().Temperature);
-        Assert.True(profile.GetSettings<AIProfileSettings>().LockSystemMessage);
-        Assert.Equal(ChatMode.Conversation, profile.GetSettings<ChatModeProfileSettings>().ChatMode);
-        Assert.Equal("alloy", profile.GetSettings<ChatModeProfileSettings>().VoiceName);
+        Assert.True(profile.GetOrCreateSettings<AIProfileSettings>().LockSystemMessage);
+        Assert.Equal(ChatMode.Conversation, profile.GetOrCreateSettings<ChatModeProfileSettings>().ChatMode);
+        Assert.Equal("alloy", profile.GetOrCreateSettings<ChatModeProfileSettings>().VoiceName);
         Assert.Equal("user-1", profile.OwnerId);
         Assert.Equal("alice", profile.Author);
         Assert.True(profile.CreatedUtc != default);

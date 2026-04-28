@@ -149,7 +149,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
                 }, cancellationToken);
             }
 
-            var handlerSettings = profile.GetSettings<ResponseHandlerProfileSettings>();
+            var handlerSettings = profile.GetOrCreateSettings<ResponseHandlerProfileSettings>();
 
             if (!string.IsNullOrEmpty(handlerSettings.InitialResponseHandlerName))
             {

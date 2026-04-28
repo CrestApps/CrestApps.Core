@@ -132,7 +132,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
                 _dbContext.CatalogRecords.Add(CatalogRecordFactory.Create(prompt));
             }
 
-            var handlerSettings = profile.GetSettings<ResponseHandlerProfileSettings>();
+            var handlerSettings = profile.GetOrCreateSettings<ResponseHandlerProfileSettings>();
 
             if (!string.IsNullOrEmpty(handlerSettings.InitialResponseHandlerName))
             {

@@ -60,7 +60,7 @@ public sealed class DataExtractionService
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(prompts);
 
-        var settings = profile.GetSettings<AIProfileDataExtractionSettings>();
+        var settings = profile.GetOrCreateSettings<AIProfileDataExtractionSettings>();
         var promptCount = prompts.Count(p => p.Role == ChatRole.User);
 
         if (!ShouldExtract(settings, promptCount))
