@@ -162,8 +162,6 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIMemoryEntryIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync(storeOptions));
-        await MigrateLegacyArticleDocumentTypesAsync(store, connection, transaction, logger);
-        await EnsureAIDocumentIndexExtensionColumnAsync(store, connection, transaction, schemaBuilder, storeOptions, logger);
         await TryCreateTableAsync(() => schemaBuilder.CreateMapIndexTableAsync<ArticleIndex>(t => t
             .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
             .Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));
@@ -206,127 +204,6 @@ internal static class YesSqlServiceCollectionExtensions
         await command.ExecuteNonQueryAsync();
     }
 
-    private static async Task EnsureAIDocumentIndexExtensionColumnAsync(IStore store, DbConnection connection, DbTransaction transaction, SchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, ILogger logger)
-    {
-        var tableName = await FindIndexTableNameAsync(connection, transaction, store.Configuration.TablePrefix, nameof(AIDocumentIndex));
-        if (await ColumnExistsAsync(connection, transaction, tableName, nameof(AIDocumentIndex.Extension)))
-        {
-            return;
-        }
-
-        await schemaBuilder.AddAIDocumentIndexExtensionColumnAsync(storeOptions);
-        if (logger.IsEnabled(LogLevel.Information))
-        {
-            logger.LogInformation("Added missing column '{ColumnName}' to YesSql index table '{TableName}'.", nameof(AIDocumentIndex.Extension), tableName);
-        }
-    }
-
-    private static async Task MigrateLegacyArticleDocumentTypesAsync(IStore store, DbConnection connection, DbTransaction transaction, ILogger logger)
-    {
-        var tableName = $"{store.Configuration.TablePrefix}Document";
-        if (!await TableExistsAsync(connection, transaction, tableName))
-        {
-            return;
-        }
-
-        await using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = $"""
-            UPDATE [{tableName}]
-            SET [Type] = $currentType
-            WHERE [Type] = $legacyType
-            """;
-
-        var currentTypeParameter = command.CreateParameter();
-        currentTypeParameter.ParameterName = "$currentType";
-        currentTypeParameter.Value = CurrentArticleDocumentType;
-        command.Parameters.Add(currentTypeParameter);
-
-        var legacyTypeParameter = command.CreateParameter();
-        legacyTypeParameter.ParameterName = "$legacyType";
-        legacyTypeParameter.Value = LegacyArticleDocumentType;
-        command.Parameters.Add(legacyTypeParameter);
-
-        var updatedCount = await command.ExecuteNonQueryAsync();
-        if (updatedCount <= 0 || !logger.IsEnabled(LogLevel.Information))
-        {
-            return;
-        }
-
-        logger.LogInformation(
-            "Migrated {Count} persisted article documents from legacy type '{LegacyType}' to '{CurrentType}'.",
-            updatedCount,
-            LegacyArticleDocumentType,
-            CurrentArticleDocumentType);
-    }
-
-    private static async Task<string> FindIndexTableNameAsync(DbConnection connection, DbTransaction transaction, string tablePrefix, string indexTypeName)
-    {
-        var expectedName = $"{tablePrefix}{indexTypeName}";
-        var pattern = $"{tablePrefix}%{indexTypeName}%";
-
-        await using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = """
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'table' AND (name = $expectedName OR name LIKE $pattern)
-            ORDER BY CASE WHEN name = $expectedName THEN 0 ELSE 1 END, name
-            LIMIT 1
-            """;
-
-        var expectedNameParameter = command.CreateParameter();
-        expectedNameParameter.ParameterName = "$expectedName";
-        expectedNameParameter.Value = expectedName;
-        command.Parameters.Add(expectedNameParameter);
-
-        var patternParameter = command.CreateParameter();
-        patternParameter.ParameterName = "$pattern";
-        patternParameter.Value = pattern;
-        command.Parameters.Add(patternParameter);
-
-        var result = await command.ExecuteScalarAsync();
-
-        return result as string ?? expectedName;
-    }
-
-    private static async Task<bool> ColumnExistsAsync(DbConnection connection, DbTransaction transaction, string tableName, string columnName)
-    {
-        await using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = $"PRAGMA table_info('{tableName.Replace("'", "''")}');";
-
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static async Task<bool> TableExistsAsync(DbConnection connection, DbTransaction transaction, string tableName)
-    {
-        await using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = """
-            SELECT 1
-            FROM sqlite_master
-            WHERE type = 'table' AND name = $tableName
-            LIMIT 1
-            """;
-
-        var tableNameParameter = command.CreateParameter();
-        tableNameParameter.ParameterName = "$tableName";
-        tableNameParameter.Value = tableName;
-        command.Parameters.Add(tableNameParameter);
-
-        return await command.ExecuteScalarAsync() is not null;
-    }
-
     private static async Task TryCreateTableAsync(Func<Task> createTable)
     {
         try
@@ -344,5 +221,4 @@ internal static class YesSqlServiceCollectionExtensions
         // automatically via DI in the per-feature AddCoreAI*StoresYesSql() methods.
         store.RegisterIndexes<ArticleIndexProvider>();
     }
-
 }

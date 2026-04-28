@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using Microsoft.Extensions.Options;
 using YesSql;
@@ -15,19 +16,22 @@ public sealed class SampleAICompletionUsageService : IAICompletionUsageObserver
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly SampleAIChatSessionEventService _chatSessionEventService;
     private readonly GeneralAIOptions _generalAIOptions;
+    private readonly YesSqlStoreOptions _yesSqlStoreOptions;
 
     public SampleAICompletionUsageService(
         ISession session,
         TimeProvider timeProvider,
         IHttpContextAccessor httpContextAccessor,
         SampleAIChatSessionEventService chatSessionEventService,
-        IOptions<GeneralAIOptions> generalAIOptions)
+        IOptions<GeneralAIOptions> generalAIOptions,
+        IOptions<YesSqlStoreOptions> yesSqlStoreOptions)
     {
         _session = session;
         _timeProvider = timeProvider;
         _httpContextAccessor = httpContextAccessor;
         _chatSessionEventService = chatSessionEventService;
         _generalAIOptions = generalAIOptions.Value;
+        _yesSqlStoreOptions = yesSqlStoreOptions.Value;
     }
 
     public async Task UsageRecordedAsync(AICompletionUsageRecord record, CancellationToken cancellationToken = default)
@@ -60,7 +64,7 @@ public sealed class SampleAICompletionUsageService : IAICompletionUsageObserver
         DateTime? endDateUtc,
         CancellationToken cancellationToken = default)
     {
-        var query = _session.Query<AICompletionUsageRecord, AICompletionUsageIndex>();
+        var query = _session.Query<AICompletionUsageRecord, AICompletionUsageIndex>(collection: _yesSqlStoreOptions.AICollectionName);
 
         if (startDateUtc.HasValue)
         {

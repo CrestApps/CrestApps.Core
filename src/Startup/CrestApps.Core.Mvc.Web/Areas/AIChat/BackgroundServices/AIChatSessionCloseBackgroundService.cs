@@ -2,8 +2,10 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using YesSql;
 using ISession = YesSql.ISession;
 
@@ -47,9 +49,10 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                 var postCloseProcessor = scope.ServiceProvider.GetRequiredService<AIChatSessionPostCloseProcessor>();
                 var promptStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionPromptStore>();
                 var utcNow = _timeProvider.GetUtcNow().UtcDateTime;
+                var yesSqlsOptions = scope.ServiceProvider.GetRequiredService<IOptions<YesSqlStoreOptions>>();
 
-                await CloseInactiveSessionsAsync(session, profileManager, promptStore, postCloseProcessor, utcNow, stoppingToken);
-                await RetryPendingProcessingAsync(session, profileManager, promptStore, postCloseProcessor, utcNow, stoppingToken);
+                await CloseInactiveSessionsAsync(session, profileManager, promptStore, postCloseProcessor, utcNow, yesSqlsOptions.Value, stoppingToken);
+                await RetryPendingProcessingAsync(session, profileManager, promptStore, postCloseProcessor, utcNow, yesSqlsOptions.Value, stoppingToken);
 
                 await session.SaveChangesAsync(stoppingToken);
             }
@@ -73,6 +76,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
         IAIChatSessionPromptStore promptStore,
         AIChatSessionPostCloseProcessor postCloseProcessor,
         DateTime utcNow,
+        YesSqlStoreOptions yesSqlStoreOptions,
         CancellationToken cancellationToken)
     {
         var profiles = await profileManager.GetAsync(AIProfileType.Chat, cancellationToken);
@@ -95,7 +99,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                 .Query<AIChatSession, AIChatSessionIndex>(
                     i => i.ProfileId == profile.ItemId
                         && i.Status == ChatSessionStatus.Active
-                            && i.LastActivityUtc < cutoffUtc)
+                            && i.LastActivityUtc < cutoffUtc, collection: yesSqlStoreOptions.AICollectionName)
                             .ListAsync(cancellationToken);
 
             foreach (var chatSession in inactiveSessions)
@@ -133,12 +137,13 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
         IAIChatSessionPromptStore promptStore,
         AIChatSessionPostCloseProcessor postCloseProcessor,
         DateTime utcNow,
+        YesSqlStoreOptions yesSqlStoreOptions,
         CancellationToken cancellationToken)
     {
         var pendingSessions = await session
             .Query<AIChatSession, AIChatSessionIndex>(
                 i => i.Status == ChatSessionStatus.Closed
-                    || i.Status == ChatSessionStatus.Abandoned)
+                    || i.Status == ChatSessionStatus.Abandoned, collection: yesSqlStoreOptions.AICollectionName)
                     .ListAsync(cancellationToken);
 
         foreach (var chatSession in pendingSessions)

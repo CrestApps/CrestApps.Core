@@ -118,8 +118,8 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
         ArgumentNullException.ThrowIfNull(schemaBuilder);
 
         return schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(table =>
-                {
-                    table.AddColumn<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0));
-                }, collection: storeOptions?.AICollectionName);
+        {
+            table.AddColumn<int>(nameof(AIChatSessionMetricsIndex.CompletionCount), column => column.WithDefault(0));
+        }, collection: storeOptions?.AICollectionName);
     }
 }

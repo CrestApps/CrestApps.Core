@@ -59,7 +59,7 @@ else
                 </div>
 
                 <div class="mb-3">
-                    <label for="providerSelect" class="form-label">Provider <span class="text-danger">*</span></label>
+                    <label for="providerSelect" class="form-label">Provider</label>
                     <select id="providerSelect" class="form-select" @bind="SelectedProvider">
                         <option value="">Select provider</option>
                         @foreach (var provider in _providers)
@@ -90,7 +90,7 @@ else
                 @if (!_isStandalone)
                 {
                     <div class="mb-3">
-                        <label for="connectionSelect" class="form-label">Connection <span class="text-danger">*</span></label>
+                        <label for="connectionSelect" class="form-label">Connection</label>
                         <select id="connectionSelect" class="form-select" @bind="_model.ConnectionName">
                             <option value="">No connection</option>
                             @foreach (var connection in _filteredConnections)

@@ -1,5 +1,7 @@
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
+using Microsoft.Extensions.Options;
 using YesSql;
 using ISession = YesSql.ISession;
 
@@ -8,13 +10,16 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 public sealed class SampleAIChatSessionEventService
 {
     private readonly ISession _session;
+    private readonly YesSqlStoreOptions _options;
     private readonly TimeProvider _timeProvider;
 
     public SampleAIChatSessionEventService(
         ISession session,
+        IOptions<YesSqlStoreOptions> options,
         TimeProvider timeProvider)
     {
         _session = session;
+        _options = options.Value;
         _timeProvider = timeProvider;
     }
 
@@ -143,7 +148,7 @@ public sealed class SampleAIChatSessionEventService
 
     public async Task<IReadOnlyList<AIChatSessionEvent>> GetAsync(string profileId, DateTime? startDateUtc, DateTime? endDateUtc, CancellationToken cancellationToken = default)
     {
-        var query = _session.Query<AIChatSessionEvent, AIChatSessionMetricsIndex>();
+        var query = _session.Query<AIChatSessionEvent, AIChatSessionMetricsIndex>(collection: _options.AICollectionName);
         if (!string.IsNullOrEmpty(profileId))
         {
             query = query.Where(x => x.ProfileId == profileId);
@@ -168,6 +173,6 @@ public sealed class SampleAIChatSessionEventService
 
     private async Task<AIChatSessionEvent> FindEventBySessionIdAsync(string sessionId)
     {
-        return await _session.Query<AIChatSessionEvent, AIChatSessionMetricsIndex>(x => x.SessionId == sessionId).FirstOrDefaultAsync();
+        return await _session.Query<AIChatSessionEvent, AIChatSessionMetricsIndex>(x => x.SessionId == sessionId, collection: _options.AICollectionName).FirstOrDefaultAsync();
     }
 }
