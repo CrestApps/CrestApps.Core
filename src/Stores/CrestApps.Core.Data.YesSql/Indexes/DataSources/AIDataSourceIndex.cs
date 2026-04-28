@@ -33,7 +33,7 @@ public sealed class AIDataSourceIndexProvider : IndexProvider<AIDataSource>
     /// <param name="options">The options.</param>
     public AIDataSourceIndexProvider(IOptions<YesSqlStoreOptions> options)
     {
-        CollectionName = options.Value.AIDocsCollectionName;
+        CollectionName = options.Value.AICollectionName;
     }
 
     /// <summary>
