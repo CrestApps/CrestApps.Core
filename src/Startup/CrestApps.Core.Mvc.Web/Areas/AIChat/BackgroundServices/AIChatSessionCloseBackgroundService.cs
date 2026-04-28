@@ -84,7 +84,7 @@ public sealed class AIChatSessionCloseBackgroundService : BackgroundService
                 break;
             }
 
-            var settings = profile.GetSettings<AIProfileDataExtractionSettings>();
+            var settings = profile.GetOrCreateSettings<AIProfileDataExtractionSettings>();
             var timeout = settings?.SessionInactivityTimeoutInMinutes > 0
                 ? TimeSpan.FromMinutes(settings.SessionInactivityTimeoutInMinutes)
                 : _defaultInactivityTimeout;

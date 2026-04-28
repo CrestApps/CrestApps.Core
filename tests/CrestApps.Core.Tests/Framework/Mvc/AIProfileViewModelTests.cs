@@ -198,7 +198,7 @@ public sealed class AIProfileViewModelTests
         Assert.Equal(9, profileMetadata.PastMessagesCount);
         Assert.False(profileMetadata.UseCaching);
 
-        var profileSettings = profile.GetSettings<AIProfileSettings>();
+        var profileSettings = profile.GetOrCreateSettings<AIProfileSettings>();
         Assert.True(profileSettings.LockSystemMessage);
         Assert.True(profileSettings.IsListable);
         Assert.False(profileSettings.IsRemovable);
@@ -223,7 +223,7 @@ public sealed class AIProfileViewModelTests
         Assert.Equal(6, profile.GetOrCreate<DocumentsMetadata>().DocumentTopN);
         Assert.True(profile.GetOrCreate<AIProfileSessionDocumentsMetadata>().AllowSessionDocuments);
 
-        var extractionSettings = profile.GetSettings<AIProfileDataExtractionSettings>();
+        var extractionSettings = AIProfileExtensions.GetOrCreateSettings<AIProfileDataExtractionSettings>(profile);
         Assert.True(extractionSettings.EnableDataExtraction);
         Assert.Equal(2, extractionSettings.ExtractionCheckInterval);
         Assert.Equal(12, extractionSettings.SessionInactivityTimeoutInMinutes);
@@ -239,8 +239,8 @@ public sealed class AIProfileViewModelTests
         Assert.Equal(2, conversionGoal.MinScore);
         Assert.Equal(7, conversionGoal.MaxScore);
 
-        Assert.True(profile.GetSettings<AIProfilePostSessionSettings>().EnablePostSessionProcessing);
-        var postSessionTask = Assert.Single(profile.GetSettings<AIProfilePostSessionSettings>().PostSessionTasks);
+        Assert.True(AIProfileExtensions.GetOrCreateSettings<AIProfilePostSessionSettings>(profile).EnablePostSessionProcessing);
+        var postSessionTask = Assert.Single(AIProfileExtensions.GetOrCreateSettings<AIProfilePostSessionSettings>(profile).PostSessionTasks);
         Assert.Equal("summary", postSessionTask.Name);
         Assert.Equal(PostSessionTaskType.Semantic, postSessionTask.Type);
         Assert.Equal("Summarize the chat", postSessionTask.Instructions);
@@ -362,8 +362,8 @@ public sealed class AIProfileViewModelTests
 
         Assert.NotNull(reloaded);
         Assert.True(reloaded.Properties.ContainsKey(nameof(DataSourceMetadata)));
-        Assert.True(reloaded.GetSettings<AIProfileSettings>().IsListable);
-        Assert.False(reloaded.GetSettings<AIProfileSettings>().IsRemovable);
+        Assert.True(AIProfileExtensions.GetOrCreateSettings<AIProfileSettings>(reloaded).IsListable);
+        Assert.False(AIProfileExtensions.GetOrCreateSettings<AIProfileSettings>(reloaded).IsRemovable);
         Assert.Equal("serialized-source", reloaded.GetOrCreate<DataSourceMetadata>().DataSourceId);
     }
 }

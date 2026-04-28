@@ -46,7 +46,7 @@ public sealed class AIChatSessionPostCloseProcessor
     /// <param name="chatSession">The chat session.</param>
     public static bool NeedsProcessing(AIProfile profile, AIChatSession chatSession)
     {
-        var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
+        var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
 
         var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
             && postSessionSettings.EnablePostSessionProcessing
@@ -82,7 +82,7 @@ public sealed class AIChatSessionPostCloseProcessor
     {
         var result = new AIChatSessionPostCloseProcessingResult();
 
-        var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
+        var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
 
         var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
             && postSessionSettings.EnablePostSessionProcessing
@@ -191,7 +191,7 @@ public sealed class AIChatSessionPostCloseProcessor
         IReadOnlyList<AIChatSessionPrompt> prompts,
         CancellationToken cancellationToken)
     {
-        var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
+        var postSessionSettings = AIProfileExtensions.GetOrCreateSettings<AIProfilePostSessionSettings>(profile);
         var taskNames = postSessionSettings.PostSessionTasks.Select(t => t.Name).ToList();
 
         try

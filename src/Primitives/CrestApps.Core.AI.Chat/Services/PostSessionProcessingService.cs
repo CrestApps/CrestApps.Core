@@ -221,7 +221,7 @@ public sealed class PostSessionProcessingService
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(prompts);
 
-        var settings = profile.GetSettings<AIProfilePostSessionSettings>();
+        var settings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
 
         if (!settings.EnablePostSessionProcessing || settings.PostSessionTasks.Count == 0)
         {

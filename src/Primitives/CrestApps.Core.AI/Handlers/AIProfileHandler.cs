@@ -27,6 +27,8 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
     /// </summary>
     /// <param name="httpContextAccessor">The HTTP context accessor.</param>
     /// <param name="timeProvider">The time provider.</param>
+    /// <param name="store">The AI profile store.</param>
+    /// <param name="deploymentStore">The AI deployment store.</param>
     /// <param name="stringLocalizer">The string localizer.</param>
     public AIProfileHandler(
         IHttpContextAccessor httpContextAccessor,
@@ -229,7 +231,7 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
             profile.CreatedUtc = createdUtc;
         }
 
-        var settings = profile.GetSettings<AIProfileSettings>();
+        var settings = profile.GetOrCreateSettings<AIProfileSettings>();
         var metadataUpdated = false;
         var settingsUpdated = false;
         var chatModeSettingsUpdated = false;
@@ -317,7 +319,7 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
             profile.WithSettings(settings);
         }
 
-        var chatModeSettings = profile.GetSettings<ChatModeProfileSettings>();
+        var chatModeSettings = profile.GetOrCreateSettings<ChatModeProfileSettings>();
 
         if (json.TryGetEnumValue(nameof(ChatModeProfileSettings.ChatMode), out ChatMode chatMode))
         {

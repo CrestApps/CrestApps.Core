@@ -187,9 +187,9 @@ public sealed class AIProfileViewModel
 
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
-        var settings = profile.GetSettings<AIProfileSettings>();
-        var dataExtractionSettings = profile.GetSettings<AIProfileDataExtractionSettings>();
-        var postSessionSettings = profile.GetSettings<AIProfilePostSessionSettings>();
+        var settings = profile.GetOrCreateSettings<AIProfileSettings>();
+        var dataExtractionSettings = profile.GetOrCreateSettings<AIProfileDataExtractionSettings>();
+        var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
         var memoryMetadata = profile.GetOrCreate<MemoryMetadata>();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
 
