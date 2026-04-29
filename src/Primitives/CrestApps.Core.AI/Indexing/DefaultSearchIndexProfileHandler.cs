@@ -156,7 +156,7 @@ public sealed class DefaultSearchIndexProfileHandler : IndexProfileHandlerBase
         json.TryUpdateTrimmedStringValue(nameof(SearchIndexProfile.ProviderName), value => indexProfile.ProviderName = value);
         json.TryUpdateTrimmedStringValue(nameof(SearchIndexProfile.IndexFullName), value => indexProfile.IndexFullName = value);
         json.TryUpdateTrimmedStringValue(nameof(SearchIndexProfile.Type), value => indexProfile.Type = value);
-        json.TryUpdateTrimmedStringValue(nameof(SearchIndexProfile.EmbeddingDeploymentId), value => indexProfile.EmbeddingDeploymentId = value);
+        json.TryUpdateTrimmedStringValue(nameof(SearchIndexProfile.EmbeddingDeploymentName), value => indexProfile.EmbeddingDeploymentName = value);
         json.TryUpdateTrimmedStringValue(nameof(SearchIndexProfile.OwnerId), value => indexProfile.OwnerId = value);
         json.TryUpdateTrimmedStringValue(nameof(SearchIndexProfile.Author), value => indexProfile.Author = value);
 

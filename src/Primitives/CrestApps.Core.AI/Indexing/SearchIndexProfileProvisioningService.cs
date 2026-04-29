@@ -77,7 +77,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
         }
         catch (InvalidOperationException ex)
         {
-            return Fail(ex.Message, nameof(SearchIndexProfile.EmbeddingDeploymentId));
+            return Fail(ex.Message, nameof(SearchIndexProfile.EmbeddingDeploymentName));
         }
 
         if (fields == null)

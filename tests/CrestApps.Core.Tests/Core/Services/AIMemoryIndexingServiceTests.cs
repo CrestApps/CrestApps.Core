@@ -26,13 +26,13 @@ public sealed class AIMemoryIndexingServiceTests
                 Name = "memory-profile",
                 ProviderName = "AzureAISearch",
                 Type = IndexProfileTypes.AIMemory,
-                EmbeddingDeploymentId = "deployment-1",
+                EmbeddingDeploymentName = "deployment-1",
                 IndexFullName = "memory-profile-index",
             });
 
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager
-            .Setup(manager => manager.FindByIdAsync("deployment-1", It.IsAny<CancellationToken>()))
+            .Setup(manager => manager.FindByNameAsync("deployment-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "deployment-1",

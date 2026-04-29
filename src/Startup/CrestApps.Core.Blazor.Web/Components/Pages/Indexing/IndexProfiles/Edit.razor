@@ -82,7 +82,7 @@ else
                             <option value="">Select an Embedding Deployment</option>
                             @foreach (var deployment in _model.EmbeddingDeployments)
                             {
-                                <option value="@deployment.Key" selected="@(deployment.Key == _model.EmbeddingDeploymentId)">@deployment.Value</option>
+                                <option value="@deployment.Key" selected="@(deployment.Key == _model.EmbeddingDeploymentName)">@deployment.Value</option>
                             }
                         </select>
                         <div class="form-text">The embedding deployment cannot be changed after the index is created.</div>

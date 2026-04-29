@@ -107,6 +107,12 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 
         if (dataSource == null || string.IsNullOrEmpty(dataSource.AIKnowledgeBaseIndexProfileName))
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Data source with ID '{DataSourceId}' not found or does not have an associated index profile name.",
+                    dataSourceId);
+            }
+
             return;
         }
 
@@ -114,6 +120,22 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 
         if (indexProfile == null)
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Index profile with name '{IndexProfileName}' not found.",
+                    dataSource.AIKnowledgeBaseIndexProfileName);
+            }
+
+            return;
+        }
+
+        if (!indexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Unable to retrieve profile metadata for index profile '{IndexProfileName}'.", indexProfile.Name);
+            }
+
             return;
         }
 
@@ -121,18 +143,42 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 
         if (contentManager == null)
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Content manager for provider '{ProviderName}' not found.",
+                    indexProfile.ProviderName);
+            }
+
             return;
         }
 
-        var profileMetadata = SearchIndexProfileEmbeddingMetadataAccessor.GetMetadata(indexProfile);
-        var embeddingGenerator = await EmbeddingDeploymentResolver.CreateEmbeddingGeneratorAsync(
-            _deploymentManager,
-            _aiClientFactory,
-            profileMetadata,
-            indexProfile.EmbeddingDeploymentId);
+        var deploymentName = profileMetadata.EmbeddingDeploymentName ?? indexProfile.EmbeddingDeploymentName;
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Unable to create embedding generator for provider '{ProviderName}'.",
+                    indexProfile.ProviderName);
+            }
+
+            return;
+        }
+
+        var deployment = await _deploymentManager.FindByNameAsync(deploymentName);
+
+        var embeddingGenerator = deployment == null
+            ? null
+            : await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
 
         if (embeddingGenerator == null)
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Unable to create embedding generator for provider '{ProviderName}'.",
+                    indexProfile.ProviderName);
+            }
+
             return;
         }
 

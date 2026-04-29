@@ -19,7 +19,7 @@ public sealed class IndexProfileViewModel
 
     public string Type { get; set; }
 
-    public string EmbeddingDeploymentId { get; set; }
+    public string EmbeddingDeploymentName { get; set; }
 
     [BindNever]
     public IReadOnlyList<IndexProfileSourceDescriptor> Sources { get; set; } = [];
@@ -43,7 +43,7 @@ public sealed class IndexProfileViewModel
             IndexName = profile.IndexName,
             ProviderName = profile.ProviderName,
             Type = profile.Type,
-            EmbeddingDeploymentId = profile.EmbeddingDeploymentId,
+            EmbeddingDeploymentName = profile.EmbeddingDeploymentName,
         };
     }
 
@@ -54,6 +54,6 @@ public sealed class IndexProfileViewModel
         profile.IndexName = IndexName?.Trim();
         profile.ProviderName = ProviderName;
         profile.Type = Type;
-        profile.EmbeddingDeploymentId = EmbeddingDeploymentId;
+        profile.EmbeddingDeploymentName = EmbeddingDeploymentName;
     }
 }

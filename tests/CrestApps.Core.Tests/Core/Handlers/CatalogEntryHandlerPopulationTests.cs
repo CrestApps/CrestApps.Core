@@ -387,7 +387,7 @@ public sealed class CatalogEntryHandlerPopulationTests
             [nameof(SearchIndexProfile.IndexName)] = "articles-index",
             [nameof(SearchIndexProfile.ProviderName)] = "provider",
             [nameof(SearchIndexProfile.Type)] = "Articles",
-            [nameof(SearchIndexProfile.EmbeddingDeploymentId)] = "embedding",
+            [nameof(SearchIndexProfile.EmbeddingDeploymentName)] = "embedding",
         };
 
         await handler.InitializingAsync(new InitializingContext<SearchIndexProfile>(profile, data), CancellationToken);
@@ -400,7 +400,7 @@ public sealed class CatalogEntryHandlerPopulationTests
         Assert.Equal("articles-index", profile.IndexName);
         Assert.Equal("provider", profile.ProviderName);
         Assert.Equal("Articles", profile.Type);
-        Assert.Equal("embedding", profile.EmbeddingDeploymentId);
+        Assert.Equal("embedding", profile.EmbeddingDeploymentName);
         Assert.Equal("user-1", profile.OwnerId);
         Assert.Equal("alice", profile.Author);
         Assert.True(profile.CreatedUtc != default);

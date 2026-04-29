@@ -40,9 +40,9 @@ public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAw
     public string Type { get; set; }
 
     /// <summary>
-    /// Gets or sets the deployment ID used for generating embeddings.
+    /// Gets or sets the deployment name used for generating embeddings.
     /// </summary>
-    public string EmbeddingDeploymentId { get; set; }
+    public string EmbeddingDeploymentName { get; set; }
 
     /// <summary>
     /// Gets or sets the date and time when this index profile was created.
@@ -75,7 +75,7 @@ public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAw
             ProviderName = ProviderName,
             IndexFullName = IndexFullName,
             Type = Type,
-            EmbeddingDeploymentId = EmbeddingDeploymentId,
+            EmbeddingDeploymentName = EmbeddingDeploymentName,
             CreatedUtc = CreatedUtc,
             OwnerId = OwnerId,
             Author = Author,

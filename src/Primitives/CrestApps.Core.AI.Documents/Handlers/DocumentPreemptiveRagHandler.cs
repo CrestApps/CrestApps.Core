@@ -264,12 +264,25 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
             return [];
         }
 
-        var metadata = SearchIndexProfileEmbeddingMetadataAccessor.GetMetadata(indexProfile);
-        var embeddingGenerator = await EmbeddingDeploymentResolver.CreateEmbeddingGeneratorAsync(
-            _deploymentManager,
-            _aiClientFactory,
-            metadata,
-            indexProfile.EmbeddingDeploymentId);
+        if (!indexProfile.TryGet(out DataSourceIndexProfileMetadata metadata))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Unable to retrieve embedding configuration from index profile '{IndexProfileName}'.", settings.IndexProfileName);
+            }
+
+            return [];
+        }
+
+        var deploymentName = metadata?.EmbeddingDeploymentName ?? indexProfile.EmbeddingDeploymentName;
+
+        var deployment = string.IsNullOrWhiteSpace(deploymentName)
+            ? null
+            : await _deploymentManager.FindByNameAsync(deploymentName);
+
+        var embeddingGenerator = deployment == null
+            ? null
+            : await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
 
         if (embeddingGenerator == null)
         {
@@ -278,7 +291,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
                 _logger.LogDebug(
                     "Document Preemptive RAG: embedding deployment is not configured or could not be resolved on index profile '{IndexProfileName}'. DeploymentId={DeploymentId}.",
                     settings.IndexProfileName,
-                    metadata?.EmbeddingDeploymentId ?? indexProfile.EmbeddingDeploymentId ?? "(null)");
+                    deploymentName ?? "(null)");
             }
 
             return [];

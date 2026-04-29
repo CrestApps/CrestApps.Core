@@ -139,13 +139,28 @@ public sealed class DataSourceSearchTool : AIFunction
 
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-            var profileMetadata = SearchIndexProfileEmbeddingMetadataAccessor.GetMetadata(masterIndexProfile);
 
-            var embeddingGenerator = await EmbeddingDeploymentResolver.CreateEmbeddingGeneratorAsync(
-                deploymentManager,
-                aiClientFactory,
-                profileMetadata,
-                masterIndexProfile.EmbeddingDeploymentId);
+            if (!masterIndexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata))
+            {
+                logger.LogWarning("AI Tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
+
+                return "Embedding configuration is missing for the knowledge base index.";
+            }
+
+            var deploymentName = profileMetadata.EmbeddingDeploymentName ?? masterIndexProfile.EmbeddingDeploymentName;
+
+            if (string.IsNullOrWhiteSpace(deploymentName))
+            {
+                logger.LogWarning("AI tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
+
+                return "Embedding configuration is missing for the knowledge base index.";
+            }
+
+            var deployment = await deploymentManager.FindByNameAsync(deploymentName, cancellationToken);
+
+            var embeddingGenerator = deployment == null
+                ? null
+                : await aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
 
             if (embeddingGenerator == null)
             {

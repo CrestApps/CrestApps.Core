@@ -33,7 +33,7 @@ internal sealed class ArticleIndexProfileHandler : IndexProfileHandlerBase
     {
         if (string.Equals(indexProfile.Type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase))
         {
-            indexProfile.EmbeddingDeploymentId = null;
+            indexProfile.EmbeddingDeploymentName = null;
         }
 
         return ValueTask.CompletedTask;
