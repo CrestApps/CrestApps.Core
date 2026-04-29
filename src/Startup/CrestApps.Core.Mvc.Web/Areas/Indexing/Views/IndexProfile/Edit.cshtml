@@ -49,12 +49,12 @@
             </div>
 
             <div class="mb-3" id="embeddingDeploymentGroup">
-                <label asp-for="EmbeddingDeploymentId" class="form-label">Embedding deployment</label>
-                <select asp-for="EmbeddingDeploymentId" asp-items="Model.EmbeddingDeployments" class="form-select" disabled>
+                <label asp-for="EmbeddingDeploymentName" class="form-label">Embedding deployment</label>
+                <select asp-for="EmbeddingDeploymentName" asp-items="Model.EmbeddingDeployments" class="form-select" disabled>
                     <option value="">Select an Embedding Deployment</option>
                 </select>
-                <input type="hidden" asp-for="EmbeddingDeploymentId" />
-                <span asp-validation-for="EmbeddingDeploymentId" class="text-danger"></span>
+                <input type="hidden" asp-for="EmbeddingDeploymentName" />
+                <span asp-validation-for="EmbeddingDeploymentName" class="text-danger"></span>
                 <div class="form-text">The embedding deployment cannot be changed after the index is created.</div>
             </div>
 

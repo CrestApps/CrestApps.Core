@@ -36,12 +36,12 @@ public sealed class AIMemorySearchServiceTests
                 Name = "memory-profile",
                 ProviderName = "AzureAISearch",
                 Type = IndexProfileTypes.AIMemory,
-                EmbeddingDeploymentId = "deployment-1",
+                EmbeddingDeploymentName = "deployment-1",
             });
 
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager
-            .Setup(manager => manager.FindByIdAsync("deployment-1", It.IsAny<CancellationToken>()))
+            .Setup(manager => manager.FindByNameAsync("deployment-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "deployment-1",
@@ -101,6 +101,83 @@ public sealed class AIMemorySearchServiceTests
         var result = Assert.Single(results);
         Assert.Equal("memory-1", result.MemoryId);
         Assert.Equal(0.91f, result.Score);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WhenEmbeddingDeploymentExistsOnlyInMetadata_ReturnsAggregatedResults()
+    {
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore
+            .Setup(store => store.FindByNameAsync("memory-profile", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SearchIndexProfile
+            {
+                Name = "memory-profile",
+                ProviderName = "AzureAISearch",
+                Type = IndexProfileTypes.AIMemory,
+                Properties = new Dictionary<string, object>
+                {
+                    [nameof(DataSourceIndexProfileMetadata)] = new DataSourceIndexProfileMetadata
+                    {
+                        EmbeddingDeploymentName = "deployment-1",
+                    },
+                },
+            });
+
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager
+            .Setup(manager => manager.FindByNameAsync("deployment-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIDeployment
+            {
+                ItemId = "deployment-1",
+                ClientName = "AzureOpenAI",
+                ConnectionName = "Default",
+                Name = "text-embedding-3-small",
+                ModelName = "text-embedding-3-small",
+            });
+
+        var vectorSearchService = new Mock<IMemoryVectorSearchService>();
+        vectorSearchService
+            .Setup(service => service.SearchAsync(
+                It.IsAny<SearchIndexProfile>(),
+                It.IsAny<float[]>(),
+                "user-1",
+                2,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new AIMemorySearchResult
+                {
+                    MemoryId = "memory-1",
+                    Name = "project",
+                    Content = "CrestApps.OrchardCore",
+                    Score = 0.88f,
+                },
+            ]);
+
+        var aiClientFactory = new Mock<IAIClientFactory>();
+        aiClientFactory
+            .Setup(factory => factory.CreateEmbeddingGeneratorAsync(It.Is<AIDeployment>(d => d.ItemId == "deployment-1")))
+            .Returns(new ValueTask<IEmbeddingGenerator<string, Embedding<float>>>(new FakeEmbeddingGenerator([1f, 2f, 3f])));
+
+        var service = CreateService(
+            options: new AIMemoryOptions
+            {
+                IndexProfileName = "memory-profile",
+                TopN = 2,
+            },
+            aiClientFactory: aiClientFactory.Object,
+            configureServices: services =>
+            {
+                services.AddSingleton(indexProfileStore.Object);
+                services.AddSingleton(deploymentManager.Object);
+                services.AddKeyedSingleton<IMemoryVectorSearchService>("AzureAISearch", vectorSearchService.Object);
+            });
+
+        var results = (await service.SearchAsync("user-1", ["hello"], requestedTopN: null, TestContext.Current.CancellationToken)).ToList();
+
+        var result = Assert.Single(results);
+        Assert.Equal("memory-1", result.MemoryId);
+        Assert.Equal(0.88f, result.Score);
     }
 
     private static AIMemorySearchService CreateService(

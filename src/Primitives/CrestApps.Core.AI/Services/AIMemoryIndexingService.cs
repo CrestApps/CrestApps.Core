@@ -215,10 +215,27 @@ public sealed class AIMemoryIndexingService
 
     private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(SearchIndexProfile indexProfile)
     {
-        return await EmbeddingDeploymentResolver.CreateEmbeddingGeneratorAsync(
-            _deploymentManager,
-            _aiClientFactory,
-            SearchIndexProfileEmbeddingMetadataAccessor.GetMetadata(indexProfile));
+        var deploymentName = indexProfile.EmbeddingDeploymentName;
+
+        if (indexProfile.TryGet(out DataSourceIndexProfileMetadata metadata) &&
+            !string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentName))
+        {
+            deploymentName = metadata.EmbeddingDeploymentName;
+        }
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            return null;
+        }
+
+        var deployment = await _deploymentManager.FindByNameAsync(deploymentName);
+
+        if (deployment == null)
+        {
+            return null;
+        }
+
+        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
     private static IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions)

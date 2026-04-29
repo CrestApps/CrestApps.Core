@@ -73,7 +73,7 @@
             {
                 <div class="mb-3">
                     <label class="form-label">Embedding deployment</label>
-                    <InputSelect @bind-Value="_model.EmbeddingDeploymentId" class="form-select">
+                    <InputSelect @bind-Value="_model.EmbeddingDeploymentName" class="form-select">
                         <option value="">Select an Embedding Deployment</option>
                         @foreach (var deployment in _model.EmbeddingDeployments)
                         {

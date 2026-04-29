@@ -29,7 +29,7 @@ public sealed class DocumentPreemptiveRagHandlerTests
         };
         indexProfile.Put(new DataSourceIndexProfileMetadata
         {
-            EmbeddingDeploymentId = "embedding-id",
+            EmbeddingDeploymentName = "embedding",
         });
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore.Setup(store => store
@@ -37,7 +37,7 @@ public sealed class DocumentPreemptiveRagHandlerTests
             .ReturnsAsync(indexProfile);
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager.Setup(manager => manager
-            .FindByIdAsync("embedding-id"))
+            .FindByNameAsync("embedding"))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "embedding-id",
@@ -293,7 +293,7 @@ public sealed class DocumentPreemptiveRagHandlerTests
         };
         indexProfile.Put(new DataSourceIndexProfileMetadata
         {
-            EmbeddingDeploymentId = "embedding-id",
+            EmbeddingDeploymentName = "embedding",
         });
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
         indexProfileStore.Setup(store => store
@@ -301,7 +301,7 @@ public sealed class DocumentPreemptiveRagHandlerTests
             .ReturnsAsync(indexProfile);
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager.Setup(manager => manager
-            .FindByIdAsync("embedding-id"))
+            .FindByNameAsync("embedding"))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "embedding-id",

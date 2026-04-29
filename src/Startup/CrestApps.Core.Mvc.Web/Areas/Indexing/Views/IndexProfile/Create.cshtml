@@ -47,11 +47,11 @@
             </div>
 
             <div class="mb-3" id="embeddingDeploymentGroup">
-                <label asp-for="EmbeddingDeploymentId" class="form-label">Embedding deployment</label>
-                <select asp-for="EmbeddingDeploymentId" asp-items="Model.EmbeddingDeployments" class="form-select">
+                <label asp-for="EmbeddingDeploymentName" class="form-label">Embedding deployment</label>
+                <select asp-for="EmbeddingDeploymentName" asp-items="Model.EmbeddingDeployments" class="form-select">
                     <option value="">Select an Embedding Deployment</option>
                 </select>
-                <span asp-validation-for="EmbeddingDeploymentId" class="text-danger"></span>
+                <span asp-validation-for="EmbeddingDeploymentName" class="text-danger"></span>
                 <div class="form-text">The embedding deployment used to generate vector embeddings for this index.</div>
             </div>
 
@@ -72,7 +72,7 @@
         const articleType = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(IndexProfileTypes.Articles));
         const providerSelect = document.getElementById('@Html.IdFor(m => m.ProviderName)');
         const typeSelect = document.getElementById('@Html.IdFor(m => m.Type)');
-        const embeddingSelect = document.getElementById('@Html.IdFor(m => m.EmbeddingDeploymentId)');
+        const embeddingSelect = document.getElementById('@Html.IdFor(m => m.EmbeddingDeploymentName)');
         const embeddingGroup = document.getElementById('embeddingDeploymentGroup');
         const typeDescription = document.getElementById('typeDescription');
 

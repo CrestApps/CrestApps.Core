@@ -367,8 +367,32 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return null;
         }
 
-        var profileMetadata = SearchIndexProfileEmbeddingMetadataAccessor.GetMetadata(knowledgeBaseProfile);
-        var embeddingGenerator = await EmbeddingDeploymentResolver.CreateEmbeddingGeneratorAsync(_deploymentManager, _aiClientFactory, profileMetadata);
+        var deploymentName = knowledgeBaseProfile.EmbeddingDeploymentName;
+
+        if (knowledgeBaseProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata) &&
+            !string.IsNullOrEmpty(profileMetadata.EmbeddingDeploymentName))
+        {
+            deploymentName = profileMetadata.EmbeddingDeploymentName;
+        }
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);
+
+            return null;
+        }
+
+        var deployment = await _deploymentManager.FindByNameAsync(deploymentName);
+
+        if (deployment == null)
+        {
+            _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);
+
+            return null;
+        }
+
+        var embeddingGenerator = await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
+
         if (embeddingGenerator == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);

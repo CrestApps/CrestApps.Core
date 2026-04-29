@@ -191,24 +191,28 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory)
     {
-        if (string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentId))
+        var deploymentName = indexProfile.EmbeddingDeploymentName;
+
+        if (indexProfile.TryGet(out DataSourceIndexProfileMetadata metadata) && !string.IsNullOrEmpty(metadata.EmbeddingDeploymentName))
+        {
+            deploymentName = metadata.EmbeddingDeploymentName;
+        }
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
         {
             _logger.LogWarning("AI memory index profile '{IndexProfileName}' is missing an embedding deployment.", indexProfile.Name);
 
             return null;
         }
 
-        var deployment = await deploymentManager.FindByIdAsync(indexProfile.EmbeddingDeploymentId);
+        var deployment = await deploymentManager.FindByNameAsync(deploymentName);
 
-        if (deployment is null ||
-            string.IsNullOrWhiteSpace(deployment.ClientName) ||
-            string.IsNullOrWhiteSpace(deployment.ConnectionName) ||
-            string.IsNullOrWhiteSpace(deployment.ModelName))
+        if (deployment is null)
         {
             _logger.LogWarning(
-                "AI memory index profile '{IndexProfileName}' could not resolve embedding deployment '{EmbeddingDeploymentId}'.",
+                "AI memory index profile '{IndexProfileName}' could not resolve embedding deployment '{EmbeddingDeploymentName}'.",
                 indexProfile.Name,
-                indexProfile.EmbeddingDeploymentId);
+                deploymentName);
 
             return null;
         }

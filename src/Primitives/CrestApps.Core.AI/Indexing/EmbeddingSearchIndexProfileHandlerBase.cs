@@ -51,31 +51,31 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentId))
+        if (string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentName))
         {
-            result.Fail(new ValidationResult("Embedding deployment is required for this index type.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
+            result.Fail(new ValidationResult("Embedding deployment is required for this index type.", [nameof(SearchIndexProfile.EmbeddingDeploymentName)]));
 
             return;
         }
 
-        var deployment = await _deploymentCatalog.FindByIdAsync(indexProfile.EmbeddingDeploymentId, cancellationToken);
+        var deployment = await _deploymentCatalog.FindByNameAsync(indexProfile.EmbeddingDeploymentName, cancellationToken);
         if (deployment == null)
         {
-            result.Fail(new ValidationResult("The selected embedding deployment could not be found.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
+            result.Fail(new ValidationResult("The selected embedding deployment could not be found.", [nameof(SearchIndexProfile.EmbeddingDeploymentName)]));
 
             return;
         }
 
         if (!deployment.SupportsType(AIDeploymentType.Embedding))
         {
-            result.Fail(new ValidationResult("The selected deployment does not support embeddings.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
+            result.Fail(new ValidationResult("The selected deployment does not support embeddings.", [nameof(SearchIndexProfile.EmbeddingDeploymentName)]));
 
             return;
         }
 
         if (string.IsNullOrWhiteSpace(deployment.ClientName) || string.IsNullOrWhiteSpace(deployment.ConnectionName) || string.IsNullOrWhiteSpace(deployment.ModelName))
         {
-            result.Fail(new ValidationResult("The selected embedding deployment is missing provider, connection, or model information.", [nameof(SearchIndexProfile.EmbeddingDeploymentId)]));
+            result.Fail(new ValidationResult("The selected embedding deployment is missing provider, connection, or model information.", [nameof(SearchIndexProfile.EmbeddingDeploymentName)]));
         }
     }
 
@@ -112,7 +112,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
     protected abstract IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions);
     private async Task<int> GetEmbeddingDimensionsAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken)
     {
-        var deployment = await _deploymentCatalog.FindByIdAsync(indexProfile.EmbeddingDeploymentId, cancellationToken);
+        var deployment = await _deploymentCatalog.FindByNameAsync(indexProfile.EmbeddingDeploymentName, cancellationToken);
         if (deployment == null)
         {
             throw new InvalidOperationException("The selected embedding deployment could not be found.");
