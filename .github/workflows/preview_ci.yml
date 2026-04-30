@@ -75,7 +75,7 @@ jobs:
       if: steps.check-publish.outputs.should-publish == 'true'
       # See pr_ci.yml for the reason why we disable NuGet audit warnings.
       run: |
-        dotnet build -c Release -warnaserror /p:TreatWarningsAsErrors=true /p:RunAnalyzers=true /p:NuGetAudit=false /p:VersionSuffix=preview /p:BuildNumber=$BuildNumber
+        dotnet build -c Release -warnaserror /p:TreatWarningsAsErrors=true /p:RunAnalyzers=true /p:NuGetAudit=false /p:VersionSuffixBase=preview /p:BuildNumber=$BuildNumber
     - name: Unit Tests
       if: steps.check-publish.outputs.should-publish == 'true'
       run: |
@@ -83,5 +83,5 @@ jobs:
     - name: Deploy preview NuGet packages
       if: steps.check-publish.outputs.should-publish == 'true'
       run: |
-        dotnet pack -c Release --no-build /p:VersionSuffix=preview /p:BuildNumber=$BuildNumber
+        dotnet pack -c Release --no-build /p:VersionSuffixBase=preview /p:BuildNumber=$BuildNumber
         dotnet nuget push './src/**/*.nupkg' -t 600 -k ${{secrets.CLOUDSMITH_API_KEY}} -n -s https://nuget.cloudsmith.io/crestapps/crestapps-core/v3/index.json --skip-duplicate
