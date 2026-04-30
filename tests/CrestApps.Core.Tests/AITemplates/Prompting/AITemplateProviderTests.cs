@@ -27,7 +27,7 @@ public sealed class OptionsAITemplateProviderTests
 
         var provider = new OptionsTemplateProvider(Options.Create(options));
 
-        var result = await provider.GetTemplatesAsync();
+        var result = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, result.Count);
         Assert.Contains(result, t => t.Id == "code-template");
@@ -40,7 +40,7 @@ public sealed class OptionsAITemplateProviderTests
         var options = new TemplateOptions();
         var provider = new OptionsTemplateProvider(Options.Create(options));
 
-        var result = await provider.GetTemplatesAsync();
+        var result = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result);
     }
@@ -87,7 +87,7 @@ public sealed class PromptsFileSystemAITemplateProviderTests : IDisposable
             parsers,
             NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(templates);
         Assert.Equal("test-prompt", templates[0].Id);
@@ -119,7 +119,7 @@ public sealed class PromptsFileSystemAITemplateProviderTests : IDisposable
             parsers,
             NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(templates);
         Assert.Equal("feature-prompt", templates[0].Id);
@@ -139,7 +139,7 @@ public sealed class PromptsFileSystemAITemplateProviderTests : IDisposable
             parsers,
             NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(templates);
     }
@@ -161,7 +161,7 @@ public sealed class PromptsFileSystemAITemplateProviderTests : IDisposable
             parsers,
             NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(templates);
         Assert.Equal("my cool prompt", templates[0].Metadata.Title);
@@ -186,7 +186,7 @@ public sealed class PromptsFileSystemAITemplateProviderTests : IDisposable
             parsers,
             NullLogger<PromptsFileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(templates);
         Assert.Equal("valid", templates[0].Id);
@@ -235,7 +235,7 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
             parsers,
             NullLogger<FileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates);
         Assert.Equal("generic-template", template.Id);
@@ -275,7 +275,7 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
             parsers,
             NullLogger<FileSystemTemplateProvider>.Instance);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates);
         Assert.Equal("test", template.Id);
@@ -294,7 +294,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var assembly = typeof(EmbeddedResourceAITemplateProviderTests).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.NotEmpty(templates);
         Assert.Contains(templates, t => t.Id == "test-template");
@@ -309,7 +309,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var assembly = typeof(EmbeddedResourceAITemplateProviderTests).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var testTemplate = templates.FirstOrDefault(t => t.Id == "test-template");
         Assert.NotNull(testTemplate);
@@ -328,7 +328,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var assembly = typeof(EmbeddedResourceAITemplateProviderTests).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates, t => t.Id == "generic-template");
         Assert.Equal(AITemplateSources.Profile, template.Kind);
@@ -344,7 +344,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var assembly = typeof(EmbeddedResourceAITemplateProviderTests).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.All(templates, t => Assert.Equal(assembly.GetName().Name, t.Source));
     }
@@ -358,7 +358,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var assembly = typeof(EmbeddedResourceAITemplateProviderTests).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers, source: "MySource", featureId: "MyFeature");
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         Assert.All(templates, t =>
         {
@@ -374,7 +374,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var assembly = typeof(AI.AITemplateIds).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates, t => t.Id == CrestApps.Core.AI.AITemplateIds.DocumentContextHeader);
         Assert.Equal("Document Context Header", template.Metadata.Title);
@@ -388,7 +388,7 @@ public sealed class EmbeddedResourceAITemplateProviderTests
         var assembly = typeof(AI.AITemplateIds).Assembly;
         var provider = new EmbeddedResourceTemplateProvider(assembly, parsers);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates, t => t.Id == CrestApps.Core.AI.AITemplateIds.ExtractedDataAvailability);
         Assert.Equal("Extracted Data Availability", template.Metadata.Title);
@@ -497,7 +497,7 @@ public sealed class RuntimeEmbeddedPromptRegistrationTests
         using var scope = serviceProvider.CreateScope();
         var templateService = scope.ServiceProvider.GetRequiredService<ITemplateService>();
 
-        var templates = await templateService.ListAsync();
+        var templates = await templateService.ListAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains(templates, template => string.Equals(template.Id, "use-markdown-syntax", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(templates, template => string.Equals(template.Id, "tabular-batch-processing", StringComparison.OrdinalIgnoreCase));
@@ -529,11 +529,11 @@ public sealed class AIProfileSystemPromptTemplateProviderTests
         });
 
         var templateManager = new Mock<CrestApps.Core.AI.Profiles.IAIProfileTemplateManager>();
-        templateManager.Setup(x => x.GetAllAsync()).ReturnsAsync([dbTemplate]);
+        templateManager.Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([dbTemplate]);
 
         var provider = new AIProfileSystemPromptTemplateProvider(templateManager.Object);
 
-        var templates = await provider.GetTemplatesAsync();
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates);
         Assert.Equal("ai-profile:db-template-1", template.Id);

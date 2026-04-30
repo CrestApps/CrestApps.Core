@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.Elasticsearch.Services;
 
 /// <summary>
-/// Creates Elasticsearch clients from the current connection options.
+/// Creates Elasticsearch clients from the configured connection options.
 /// </summary>
 public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
 {

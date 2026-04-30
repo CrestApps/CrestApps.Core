@@ -1336,14 +1336,14 @@
             _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], _model.ClaudeModel, anthropicOptions?.DefaultModel);
         }
 
-        var copilotOptions = CopilotOpts.Value;
-        _model.CopilotIsConfigured = copilotOptions.AuthenticationType switch
+        var hasCopilotOptions = CopilotOpts.TryGetValidValue(out CopilotOptions copilotOptions);
+        _model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.AuthenticationType switch
         {
             CopilotAuthenticationType.GitHubOAuth => !string.IsNullOrWhiteSpace(copilotOptions.ClientId) && !string.IsNullOrWhiteSpace(copilotOptions.ClientSecret),
             CopilotAuthenticationType.ApiKey => !string.IsNullOrWhiteSpace(copilotOptions.ProviderType) && !string.IsNullOrWhiteSpace(copilotOptions.BaseUrl) && !string.IsNullOrWhiteSpace(copilotOptions.DefaultModel),
             _ => false,
         };
-        _model.CopilotAuthenticationType = (int)copilotOptions.AuthenticationType;
+        _model.CopilotAuthenticationType = hasCopilotOptions ? (int)copilotOptions.AuthenticationType : 0;
 
         var templates = await TemplateManager.GetAllAsync();
         _model.Templates = templates.Select(t => new KeyValuePair<string, string>(t.DisplayText ?? t.Name, t.ItemId)).ToList();

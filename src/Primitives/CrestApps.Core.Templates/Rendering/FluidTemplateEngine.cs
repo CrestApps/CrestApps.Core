@@ -1,39 +1,60 @@
 using CrestApps.Core.Templates.Tags;
 using Fluid;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using FluidTemplateOptions = Fluid.TemplateOptions;
 
 namespace CrestApps.Core.Templates.Rendering;
 
 /// <summary>
 /// Processes Liquid templates using the Fluid template engine.
+/// Member access on POCO arguments is governed by the configured
+/// <see cref="FluidTemplateOptions.MemberAccessStrategy"/>; the framework
+/// defaults to <see cref="DefaultMemberAccessStrategy"/> (deny by default).
+/// Consumers must register types they wish to expose via
+/// <c>services.Configure&lt;Fluid.TemplateOptions&gt;(o =&gt; o.MemberAccessStrategy.Register&lt;MyType&gt;())</c>.
 /// </summary>
 public sealed class FluidTemplateEngine : ITemplateEngine
 {
     private static readonly FluidParser _parser = CreateParser();
 
+    /// <summary>
+    /// Ambient key used to flow the active <see cref="CancellationToken"/> through Fluid render contexts.
+    /// Custom tags and filters that perform asynchronous work should observe this token.
+    /// </summary>
+    internal const string CancellationTokenAmbientKey = "__crestapps_cancellation_token";
+
     private readonly IServiceProvider _serviceProvider;
+    private readonly FluidTemplateOptions _options;
     private readonly ILogger<FluidTemplateEngine> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FluidTemplateEngine"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="options">The Fluid template options.</param>
     /// <param name="logger">The logger.</param>
     public FluidTemplateEngine(
         IServiceProvider serviceProvider,
+        IOptions<FluidTemplateOptions> options,
         ILogger<FluidTemplateEngine> logger)
     {
         _serviceProvider = serviceProvider;
+        _options = options?.Value ?? new FluidTemplateOptions();
         _logger = logger;
     }
 
     /// <summary>
-    /// Renders the operation.
+    /// Renders a Liquid template using the configured Fluid engine.
     /// </summary>
-    /// <param name="template">The template.</param>
-    /// <param name="arguments">The arguments.</param>
-    public async Task<string> RenderAsync(string template, IDictionary<string, object> arguments = null)
+    /// <param name="template">The template content.</param>
+    /// <param name="arguments">The template arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The rendered output.</returns>
+    public async Task<string> RenderAsync(string template, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrWhiteSpace(template))
         {
             return string.Empty;
@@ -46,14 +67,10 @@ public sealed class FluidTemplateEngine : ITemplateEngine
             return template;
         }
 
-        var options = new Fluid.TemplateOptions
-        {
-            MemberAccessStrategy = new UnsafeMemberAccessStrategy()
-        };
-
-        var context = new TemplateContext(options);
+        var context = new TemplateContext(_options);
         context.AmbientValues["ServiceProvider"] = _serviceProvider;
         context.AmbientValues[RenderTemplateTag.AmbientFluidParserKey] = _parser;
+        context.AmbientValues[CancellationTokenAmbientKey] = cancellationToken;
 
         if (arguments != null)
         {
@@ -65,14 +82,17 @@ public sealed class FluidTemplateEngine : ITemplateEngine
 
         var result = await fluidTemplate.RenderAsync(context);
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         return NormalizeWhitespace(result);
     }
 
     /// <summary>
-    /// Tries to validate.
+    /// Validates that the supplied Liquid template has valid syntax.
     /// </summary>
-    /// <param name="template">The template.</param>
-    /// <param name="errors">The errors.</param>
+    /// <param name="template">The template content.</param>
+    /// <param name="errors">The validation errors, if any.</param>
+    /// <returns><see langword="true"/> if the template is valid; otherwise, <see langword="false"/>.</returns>
     public bool TryValidate(string template, out IList<string> errors)
     {
         errors = [];

@@ -15,7 +15,8 @@ internal sealed class CopilotOrchestrationContextHandler : IOrchestrationContext
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         if (context.Resource is not ExtensibleEntity entity)
         {
@@ -34,7 +35,8 @@ internal sealed class CopilotOrchestrationContextHandler : IOrchestrationContext
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

@@ -5,24 +5,33 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.Data.EntityCore;
 
 /// <summary>
-/// Entity Framework Core database context for CrestApps.Core, managing the
-/// <see cref="CatalogRecord"/> and <see cref="AIChatSessionRecord"/> tables.
+/// The framework's Entity Framework Core <see cref="DbContext"/> for CrestApps stores.
 /// </summary>
+/// <remarks>
+/// This type is not intended to be subclassed by consumers. To contribute additional
+/// model configuration, implement <see cref="ICrestAppsModelConfigurer"/> and register
+/// it with the dependency injection container; configurers are invoked from
+/// <see cref="OnModelCreating(ModelBuilder)"/> in registration order.
+/// </remarks>
 public sealed class CrestAppsEntityDbContext : DbContext
 {
     private readonly EntityCoreDataStoreOptions _options;
+    private readonly IEnumerable<ICrestAppsModelConfigurer> _modelConfigurers;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CrestAppsEntityDbContext"/> class.
     /// </summary>
-    /// <param name="options">The options.</param>
-    /// <param name="storeOptions">The store options.</param>
+    /// <param name="options">The Entity Framework Core context options.</param>
+    /// <param name="storeOptions">The CrestApps Entity Framework Core store options.</param>
+    /// <param name="modelConfigurers">The additional model configurers to apply.</param>
     public CrestAppsEntityDbContext(
         DbContextOptions<CrestAppsEntityDbContext> options,
-        IOptions<EntityCoreDataStoreOptions> storeOptions)
+        IOptions<EntityCoreDataStoreOptions> storeOptions,
+        IEnumerable<ICrestAppsModelConfigurer> modelConfigurers)
         : base(options)
     {
         _options = storeOptions.Value;
+        _modelConfigurers = modelConfigurers ?? [];
     }
 
     /// <summary>
@@ -36,7 +45,7 @@ public sealed class CrestAppsEntityDbContext : DbContext
     public DbSet<AIChatSessionRecord> AIChatSessionRecords => Set<AIChatSessionRecord>();
 
     /// <summary>
-    /// Ons model creating.
+    /// Configures the CrestApps Entity Framework Core model.
     /// </summary>
     /// <param name="modelBuilder">The model builder.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -69,6 +78,13 @@ public sealed class CrestAppsEntityDbContext : DbContext
             entity.HasIndex(x => new { x.EntityType, x.AIDocumentId });
             entity.HasIndex(x => new { x.EntityType, x.UserId, x.Name });
             entity.HasIndex(x => new { x.EntityType, x.Type });
+
+            if (_options.EnforceNamedSourceUniqueness)
+            {
+                entity
+                    .HasIndex(x => new { x.EntityType, x.Source, x.Name })
+                    .IsUnique();
+            }
         });
 
         modelBuilder.Entity<AIChatSessionRecord>(entity =>
@@ -85,5 +101,10 @@ public sealed class CrestAppsEntityDbContext : DbContext
             entity.HasIndex(x => x.ProfileId);
             entity.HasIndex(x => x.LastActivityUtc);
         });
+
+        foreach (var configurer in _modelConfigurers)
+        {
+            configurer.Configure(modelBuilder, _options);
+        }
     }
 }

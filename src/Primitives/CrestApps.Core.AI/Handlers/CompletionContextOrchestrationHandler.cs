@@ -26,10 +26,11 @@ internal sealed class CompletionContextOrchestrationHandler : IOrchestrationCont
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public async Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         // Build the AICompletionContext using the existing handler pipeline.
-        var completionContext = await _completionContextBuilder.BuildAsync(context.Resource);
+        var completionContext = await _completionContextBuilder.BuildAsync(context.Resource, cancellationToken: cancellationToken);
         context.Context.CompletionContext = completionContext;
 
         // Propagate DisableTools from the completion context.
@@ -46,7 +47,8 @@ internal sealed class CompletionContextOrchestrationHandler : IOrchestrationCont
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

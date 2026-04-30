@@ -12,12 +12,13 @@ public static class TemplateServiceExtensions
     /// </summary>
     /// <param name="templateService">The template service.</param>
     /// <param name="kind">The template kind to match.</param>
-    public static async Task<IReadOnlyList<Template>> GetByKindAsync(this ITemplateService templateService, string kind)
+    /// <param name="cancellationToken">A token that can cancel the operation.</param>
+    public static async Task<IReadOnlyList<Template>> GetByKindAsync(this ITemplateService templateService, string kind, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(templateService);
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
 
-        var templates = await templateService.ListAsync();
+        var templates = await templateService.ListAsync(cancellationToken);
 
         return (templates ?? [])
                     .Where(template => template.Kind is not null && string.Equals(template.Kind, kind, StringComparison.OrdinalIgnoreCase))

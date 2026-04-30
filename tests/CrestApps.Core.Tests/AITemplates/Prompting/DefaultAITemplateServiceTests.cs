@@ -23,7 +23,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider1, provider2]);
 
-        var templates = await service.ListAsync();
+        var templates = await service.ListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, templates.Count);
         Assert.Contains(templates, t => t.Id == "p1");
@@ -44,7 +44,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider1, provider2]);
 
-        var templates = await service.ListAsync();
+        var templates = await service.ListAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates);
         Assert.Equal("shared", template.Id);
@@ -56,7 +56,7 @@ public sealed class DefaultAITemplateServiceTests
     {
         var service = CreateService([]);
 
-        var templates = await service.ListAsync();
+        var templates = await service.ListAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(templates);
     }
@@ -73,7 +73,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        var templates = await service.GetByKindAsync("SystemPrompt");
+        var templates = await service.GetByKindAsync("SystemPrompt", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, templates.Count);
         Assert.Contains(templates, template => template.Id == "system-1");
@@ -90,7 +90,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        var template = await service.GetAsync("test-prompt");
+        var template = await service.GetAsync("test-prompt", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(template);
         Assert.Equal("Hello world", template.Content);
@@ -106,7 +106,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        var template = await service.GetAsync("test-prompt");
+        var template = await service.GetAsync("test-prompt", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(template);
     }
@@ -121,7 +121,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        var template = await service.GetAsync("non-existent");
+        var template = await service.GetAsync("non-existent", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(template);
     }
@@ -139,7 +139,7 @@ public sealed class DefaultAITemplateServiceTests
         var result = await service.RenderAsync("greeting", new Dictionary<string, object>
         {
             ["name"] = "World",
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Hello, World!", result);
     }
@@ -154,7 +154,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        var result = await service.RenderAsync("simple");
+        var result = await service.RenderAsync("simple", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("You are an AI.", result);
     }
@@ -164,7 +164,7 @@ public sealed class DefaultAITemplateServiceTests
     {
         var service = CreateService([]);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.RenderAsync("missing"));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.RenderAsync("missing", cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        var result = await service.MergeAsync(["a", "b"]);
+        var result = await service.MergeAsync(["a", "b"], cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Part A\n\nPart B", result);
     }
@@ -194,7 +194,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        var result = await service.MergeAsync(["x", "y"], separator: " | ");
+        var result = await service.MergeAsync(["x", "y"], separator: " | ", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("X | Y", result);
     }
@@ -209,7 +209,7 @@ public sealed class DefaultAITemplateServiceTests
 
         var service = CreateService([provider]);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.MergeAsync(["a", "missing"]));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.MergeAsync(["a", "missing"], cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public sealed class DefaultAITemplateServiceTests
     {
         var service = CreateService([]);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.MergeAsync(["missing1", "missing2"]));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.MergeAsync(["missing1", "missing2"], cancellationToken: TestContext.Current.CancellationToken));
     }
 
     private static DefaultTemplateService CreateService(ITemplateProvider[] providers)
@@ -225,6 +225,7 @@ public sealed class DefaultAITemplateServiceTests
         var sp = new ServiceCollection().BuildServiceProvider();
         var renderer = new FluidTemplateEngine(
         sp,
+        Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptions()),
         NullLogger<FluidTemplateEngine>.Instance);
 
         return new DefaultTemplateService(providers, renderer);
@@ -239,7 +240,7 @@ public sealed class DefaultAITemplateServiceTests
             _templates = templates;
         }
 
-        public Task<IReadOnlyList<Template>> GetTemplatesAsync()
+        public Task<IReadOnlyList<Template>> GetTemplatesAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_templates);
         }

@@ -11,6 +11,7 @@ public interface ITemplateProvider
     /// <summary>
     /// Gets all prompt templates from this provider.
     /// </summary>
+    /// <param name="cancellationToken">A token that can cancel the operation.</param>
     /// <returns>The discovered prompt templates.</returns>
-    Task<IReadOnlyList<Template>> GetTemplatesAsync();
+    Task<IReadOnlyList<Template>> GetTemplatesAsync(CancellationToken cancellationToken = default);
 }

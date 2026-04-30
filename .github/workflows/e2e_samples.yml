@@ -1,0 +1,107 @@
+name: E2E - Sample Hosts
+
+# Runs the Playwright-based CrestApps.Core.Tests.Samples suite against the MVC and Blazor sample hosts.
+# This workflow is intentionally separate from the PR/main CI pipelines so e2e cost and flakiness do not
+# block routine pull requests. It runs nightly and can also be triggered manually from the Actions tab.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 07:00 UTC daily (~03:00 ET / midnight PT) — chosen to land before the start of the workday.
+    - cron: '0 7 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-samples-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  ASPNETCORE_ENVIRONMENT: Development
+  CRESTAPPS_MVC_BASE_URL: http://localhost:5101
+  CRESTAPPS_BLAZOR_BASE_URL: http://localhost:5201
+
+jobs:
+  e2e:
+    name: E2E - Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            10.0.x
+
+      - name: Build solution
+        run: |
+          dotnet build ./CrestApps.Core.slnx -c Release /p:RunAnalyzers=true /p:NuGetAudit=false
+
+      - name: Install Playwright browsers (Chromium)
+        run: |
+          pwsh ./tests/CrestApps.Core.Tests.Samples/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Start MVC sample host
+        run: |
+          mkdir -p ./artifacts/e2e-logs
+          nohup dotnet run --no-build -c Release \
+            --project ./src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj \
+            --urls "http://localhost:5101" \
+            > ./artifacts/e2e-logs/mvc.log 2>&1 &
+          echo "MVC_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Start Blazor sample host
+        run: |
+          nohup dotnet run --no-build -c Release \
+            --project ./src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj \
+            --urls "http://localhost:5201" \
+            > ./artifacts/e2e-logs/blazor.log 2>&1 &
+          echo "BLAZOR_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for sample hosts to become reachable
+        run: |
+          set -euo pipefail
+          wait_for() {
+            local name="$1"; local url="$2"; local tries=60
+            for i in $(seq 1 "$tries"); do
+              if curl -fsS --max-time 5 "$url" > /dev/null; then
+                echo "$name reachable after ${i}s ($url)"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "::error::$name did not become reachable at $url within $((tries * 2))s"
+            return 1
+          }
+          wait_for "MVC" "$CRESTAPPS_MVC_BASE_URL/Account/Login"
+          wait_for "Blazor" "$CRESTAPPS_BLAZOR_BASE_URL/account/login"
+
+      - name: Run E2E sample tests
+        run: |
+          dotnet test ./tests/CrestApps.Core.Tests.Samples/CrestApps.Core.Tests.Samples.csproj \
+            -c Release --no-build \
+            --logger "trx;LogFileName=samples.trx" \
+            --results-directory ./artifacts/e2e-results
+
+      - name: Stop sample hosts
+        if: always()
+        run: |
+          for pid in "${MVC_PID:-}" "${BLAZOR_PID:-}"; do
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+              kill "$pid" || true
+            fi
+          done
+
+      - name: Upload e2e logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-samples-artifacts
+          path: |
+            ./artifacts/e2e-logs/**
+            ./artifacts/e2e-results/**
+          if-no-files-found: warn

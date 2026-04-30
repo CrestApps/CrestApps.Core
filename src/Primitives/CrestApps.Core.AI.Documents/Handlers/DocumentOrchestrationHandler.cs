@@ -47,7 +47,8 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         if (context.Resource is ChatInteraction interaction &&
             interaction.Documents is { Count: > 0 })
@@ -87,7 +88,8 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public async Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         IEnumerable<ChatDocumentInfo> knowledgeBaseDocuments = null;
         IEnumerable<ChatDocumentInfo> userSuppliedDocuments = null;
@@ -171,7 +173,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             ["isInScope"] = ragMetadata?.IsInScope == true,
         };
 
-        var header = await _templateService.RenderAsync(AITemplateIds.DocumentAvailability, arguments);
+        var header = await _templateService.RenderAsync(AITemplateIds.DocumentAvailability, arguments, cancellationToken);
 
         if (!string.IsNullOrEmpty(header))
         {

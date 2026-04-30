@@ -46,7 +46,9 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(sp =>
         {
-            var store = StoreFactory.CreateAndInitializeAsync(configure(new Configuration())).GetAwaiter().GetResult();
+            var config = configure(new Configuration());
+
+            var store = StoreFactory.CreateAndInitializeAsync(config).GetAwaiter().GetResult();
             var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
 
             if (!string.IsNullOrWhiteSpace(options.AICollectionName))
@@ -63,8 +65,6 @@ public static class ServiceCollectionExtensions
             {
                 store.InitializeCollectionAsync(options.AIMemoryCollectionName).GetAwaiter().GetResult();
             }
-
-            store.InitializeAsync().GetAwaiter().GetResult();
 
             store.RegisterIndexes(sp.GetServices<IIndexProvider>());
 

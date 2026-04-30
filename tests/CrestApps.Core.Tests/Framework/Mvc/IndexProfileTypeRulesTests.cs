@@ -253,10 +253,17 @@ public sealed class IndexProfileTypeRulesTests
         }
 
         var serviceProvider = services.BuildServiceProvider();
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager
+            .Setup(manager => manager.GetByTypeAsync(AIDeploymentType.Embedding, It.IsAny<CancellationToken>()))
+            .Returns((AIDeploymentType _, CancellationToken _) => ValueTask.FromResult<IEnumerable<AIDeployment>>([]));
+        deploymentManager
+            .Setup(manager => manager.FindByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((string _, CancellationToken _) => ValueTask.FromResult<AIDeployment>(null));
         var controller = new IndexProfileController(
             profileManager,
             Mock.Of<ISearchIndexProfileProvisioningService>(),
-            new TestDeploymentCatalog(),
+            deploymentManager.Object,
             serviceProvider,
             Options.Create(new IndexProfileSourceOptions()),
             NullLogger<IndexProfileController>.Instance);
@@ -394,60 +401,6 @@ public sealed class IndexProfileTypeRulesTests
         public ValueTask<ValidationResultDetails> ValidateAsync(SearchIndexProfile model, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new ValidationResultDetails());
-        }
-    }
-
-    private sealed class TestDeploymentCatalog : IAIDeploymentStore
-    {
-        public ValueTask CreateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask<bool> DeleteAsync(AIDeployment entry, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.FromResult(true);
-        }
-
-        public ValueTask<AIDeployment> FindByIdAsync(string id, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.FromResult<AIDeployment>(null);
-        }
-
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAllAsync(CancellationToken cancellationToken = default)
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
-        }
-
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
-        }
-
-        public ValueTask<IReadOnlyCollection<AIDeployment>> GetAsync(string source, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.FromResult<IReadOnlyCollection<AIDeployment>>([]);
-        }
-
-        public ValueTask<AIDeployment> GetAsync(string name, string source, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.FromResult<AIDeployment>(null);
-        }
-
-        public ValueTask<AIDeployment> FindByNameAsync(string name, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.FromResult<AIDeployment>(null);
-        }
-
-        public ValueTask<PageResult<AIDeployment>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
-            where TQuery : QueryContext
-        {
-            return ValueTask.FromResult(new PageResult<AIDeployment>());
-        }
-
-        public ValueTask UpdateAsync(AIDeployment entry, CancellationToken cancellationToken = default)
-        {
-            return ValueTask.CompletedTask;
         }
     }
 }

@@ -123,7 +123,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"Summarized the conversation.\"}]}")));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt text");
         var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
 
@@ -165,7 +165,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(chatResponse);
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 
@@ -205,7 +205,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"Summarized the conversation.\"}]}")));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 
@@ -374,7 +374,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"Summarized the conversation.\"}]}")));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
 
@@ -412,7 +412,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseJson)));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt text");
         var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
 
@@ -509,7 +509,7 @@ public sealed class PostSessionProcessingServiceTests
         if (mockTemplateService is not null)
         {
             mockTemplateService.Setup(t => t
-                .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+                .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync("Default rendered text");
         }
 
@@ -576,7 +576,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 
@@ -618,7 +618,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 
@@ -660,7 +660,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"The user requested fence information and follow-up was initiated.\"}]}")));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 
@@ -703,7 +703,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 
@@ -755,7 +755,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Still not JSON.")));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 
@@ -798,7 +798,7 @@ public sealed class PostSessionProcessingServiceTests
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "")));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
-            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
         var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
 

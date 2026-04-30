@@ -1,5 +1,6 @@
 @page "/indexing/profiles/edit/{Id}"
 @attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Infrastructure.Indexing
@@ -7,7 +8,7 @@
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
 @inject ISearchIndexProfileManager IndexProfileManager
-@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject IAIDeploymentManager DeploymentManager
 @inject IOptions<IndexProfileSourceOptions> SourceOptions
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -180,11 +181,17 @@ else
             .Select(s => new KeyValuePair<string, string>(s.Type, s.DisplayName))
             .ToList();
 
-        var deployments = await DeploymentCatalog.GetAllAsync();
-
-        _model.EmbeddingDeployments = deployments
-            .Where(d => d.Type == AIDeploymentType.Embedding)
-            .Select(d => new KeyValuePair<string, string>(d.ItemId, d.Name))
+        _model.EmbeddingDeployments = (await DeploymentManager.GetByTypeAsync(AIDeploymentType.Embedding))
+            .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new KeyValuePair<string, string>(d.Name, BuildDeploymentLabel(d)))
             .ToList();
+    }
+
+    private static string BuildDeploymentLabel(AIDeployment deployment)
+    {
+        return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? deployment.Name
+            : $"{deployment.Name} ({deployment.ModelName})";
     }
 }

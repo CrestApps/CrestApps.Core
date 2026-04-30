@@ -35,7 +35,8 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
     /// </summary>
     /// <param name="resource">The resource.</param>
     /// <param name="configure">The configure.</param>
-    public async ValueTask<OrchestrationContext> BuildAsync(object resource, Action<OrchestrationContext> configure = null)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async ValueTask<OrchestrationContext> BuildAsync(object resource, Action<OrchestrationContext> configure = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(resource);
 
@@ -50,7 +51,7 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
         {
             try
             {
-                await handler.BuildingAsync(building);
+                await handler.BuildingAsync(building, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -66,7 +67,7 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
         {
             try
             {
-                await handler.BuiltAsync(built);
+                await handler.BuiltAsync(built, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

@@ -115,13 +115,13 @@ public sealed class AIMemoryPreemptiveRagHandlerTests
 
     private sealed class FakeAITemplateService : ITemplateService
     {
-        public Task<IReadOnlyList<Template>> ListAsync()
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<Template>>([]);
 
-        public Task<Template> GetAsync(string id)
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
             => Task.FromResult<Template>(null);
 
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             if (id == MemoryConstants.TemplateIds.MemoryContextHeader)
             {
@@ -150,7 +150,7 @@ public sealed class AIMemoryPreemptiveRagHandlerTests
             return Task.FromResult(string.Empty);
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = null)
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = null, CancellationToken cancellationToken = default)
             => Task.FromResult(string.Empty);
     }
 }

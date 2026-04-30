@@ -3,6 +3,7 @@ using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Providers;
 using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
+using CrestApps.Core.Templates.Tags;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -39,6 +40,13 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, OptionsTemplateProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, FileSystemTemplateProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, PromptsFileSystemTemplateProvider>());
+        services.Configure<Fluid.TemplateOptions>(options =>
+        {
+            if (!options.Filters.TryGetValue(IncludeTemplateFilter.FilterName, out _))
+            {
+                options.Filters.AddFilter(IncludeTemplateFilter.FilterName, IncludeTemplateFilter.IncludePromptAsync);
+            }
+        });
 
         if (configure != null)
         {

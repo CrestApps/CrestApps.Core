@@ -8,71 +8,6 @@ namespace CrestApps.Core.Tests.Core.Models;
 public sealed class AIProfileExtensionsTests
 {
     [Fact]
-    public void WithSettings_UsesSharedExtensibleEntitySerializerOptions()
-    {
-        var originalOptions = ExtensibleEntityExtensions.JsonSerializerOptions;
-
-        try
-        {
-            ExtensibleEntityExtensions.JsonSerializerOptions = CreateCamelCaseEnumOptions();
-
-            var profile = new AIProfile();
-
-            profile.WithSettings(new TestSettings
-            {
-                Mode = TestMode.SecondValue,
-            });
-
-            var settingsNode = Assert.IsType<JsonObject>(profile.Settings[nameof(TestSettings)]);
-
-            Assert.Equal("secondValue", settingsNode[nameof(TestSettings.Mode)]?.GetValue<string>());
-
-            var settings = profile.GetOrCreateSettings<TestSettings>();
-
-            Assert.Equal(TestMode.SecondValue, settings.Mode);
-        }
-        finally
-        {
-            ExtensibleEntityExtensions.JsonSerializerOptions = originalOptions;
-        }
-    }
-
-    [Fact]
-    public void AlterSettings_UsesSharedExtensibleEntitySerializerOptions()
-    {
-        var originalOptions = ExtensibleEntityExtensions.JsonSerializerOptions;
-
-        try
-        {
-            ExtensibleEntityExtensions.JsonSerializerOptions = CreateCamelCaseEnumOptions();
-
-            var profile = new AIProfile
-            {
-                Settings =
-                {
-                    [nameof(TestSettings)] = JsonSerializer.SerializeToNode(new TestSettings
-                    {
-                        Mode = TestMode.FirstValue,
-                    }, ExtensibleEntityExtensions.JsonSerializerOptions),
-                },
-            };
-
-            profile.AlterSettings<TestSettings>(settings =>
-            {
-                settings.Mode = TestMode.SecondValue;
-            });
-
-            var settingsNode = Assert.IsType<JsonObject>(profile.Settings[nameof(TestSettings)]);
-
-            Assert.Equal("secondValue", settingsNode[nameof(TestSettings.Mode)]?.GetValue<string>());
-        }
-        finally
-        {
-            ExtensibleEntityExtensions.JsonSerializerOptions = originalOptions;
-        }
-    }
-
-    [Fact]
     public void WithSettings_UsesProvidedSerializerOptions()
     {
         var profile = new AIProfile();
@@ -87,13 +22,39 @@ public sealed class AIProfileExtensionsTests
 
         Assert.Equal("secondValue", settingsNode[nameof(TestSettings.Mode)]?.GetValue<string>());
 
-        var settings = profile.GetOrCreateSettings<TestSettings>(jsonSerializerOptions);
+        var settings = profile.GetSettings<TestSettings>(jsonSerializerOptions);
 
         Assert.Equal(TestMode.SecondValue, settings.Mode);
     }
 
     [Fact]
-    public void GetSettings_RemainsBackwardCompatible()
+    public void AlterSettings_UsesProvidedSerializerOptions()
+    {
+        var jsonSerializerOptions = CreateCamelCaseEnumOptions();
+
+        var profile = new AIProfile
+        {
+            Settings =
+            {
+                [nameof(TestSettings)] = JsonSerializer.SerializeToNode(new TestSettings
+                {
+                    Mode = TestMode.FirstValue,
+                }, jsonSerializerOptions),
+            },
+        };
+
+        profile.AlterSettings<TestSettings>(settings =>
+        {
+            settings.Mode = TestMode.SecondValue;
+        }, jsonSerializerOptions);
+
+        var settingsNode = Assert.IsType<JsonObject>(profile.Settings[nameof(TestSettings)]);
+
+        Assert.Equal("secondValue", settingsNode[nameof(TestSettings.Mode)]?.GetValue<string>());
+    }
+
+    [Fact]
+    public void GetSettings_FallsBackToFrameworkDefaultsWhenNoOptionsProvided()
     {
         var profile = new AIProfile();
 

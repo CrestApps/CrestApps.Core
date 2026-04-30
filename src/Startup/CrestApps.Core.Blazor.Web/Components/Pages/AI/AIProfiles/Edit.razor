@@ -1164,14 +1164,14 @@ else if (_model != null)
             _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], _model.ClaudeModel, anthropicOptions?.DefaultModel);
         }
 
-        var copilotOptions = CopilotOpts.Value;
-        _model.CopilotIsConfigured = copilotOptions.AuthenticationType switch
+        var hasCopilotOptions = CopilotOpts.TryGetValidValue(out CopilotOptions copilotOptions);
+        _model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.AuthenticationType switch
         {
             CopilotAuthenticationType.GitHubOAuth => !string.IsNullOrWhiteSpace(copilotOptions.ClientId) && !string.IsNullOrWhiteSpace(copilotOptions.ClientSecret),
             CopilotAuthenticationType.ApiKey => !string.IsNullOrWhiteSpace(copilotOptions.ProviderType) && !string.IsNullOrWhiteSpace(copilotOptions.BaseUrl) && !string.IsNullOrWhiteSpace(copilotOptions.DefaultModel),
             _ => false,
         };
-        _model.CopilotAuthenticationType = (int)copilotOptions.AuthenticationType;
+        _model.CopilotAuthenticationType = hasCopilotOptions ? (int)copilotOptions.AuthenticationType : 0;
 
         var toolOptions = ToolOpts.Value;
         var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);

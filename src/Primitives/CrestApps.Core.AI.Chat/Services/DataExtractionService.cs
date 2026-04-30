@@ -148,7 +148,7 @@ public sealed class DataExtractionService
             return ([], false);
         }
 
-        var prompt = await BuildExtractionPromptAsync(fieldsToExtract, session, prompts);
+        var prompt = await BuildExtractionPromptAsync(fieldsToExtract, session, prompts, cancellationToken);
 
         if (string.IsNullOrEmpty(prompt))
         {
@@ -166,7 +166,7 @@ public sealed class DataExtractionService
                 return ([], false);
             }
 
-            var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.DataExtraction);
+            var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.DataExtraction, cancellationToken: cancellationToken);
 
             var messages = new List<ChatMessage>
             {
@@ -288,7 +288,11 @@ public sealed class DataExtractionService
         return null;
     }
 
-    private async Task<string> BuildExtractionPromptAsync(List<DataExtractionEntry> fieldsToExtract, AIChatSession session, IReadOnlyList<AIChatSessionPrompt> prompts)
+    private async Task<string> BuildExtractionPromptAsync(
+        List<DataExtractionEntry> fieldsToExtract,
+        AIChatSession session,
+        IReadOnlyList<AIChatSessionPrompt> prompts,
+        CancellationToken cancellationToken)
     {
         string lastUserMessage = null;
         string lastAssistantMessage = null;
@@ -342,7 +346,7 @@ public sealed class DataExtractionService
             arguments["lastAssistantMessage"] = lastAssistantMessage;
         }
 
-        return await _aiTemplateService.RenderAsync(AITemplateIds.DataExtractionPrompt, arguments);
+        return await _aiTemplateService.RenderAsync(AITemplateIds.DataExtractionPrompt, arguments, cancellationToken);
     }
 
     private sealed class ExtractionResponse

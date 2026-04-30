@@ -39,12 +39,15 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
 
         if (context.ChatType == ChatContextType.AIChatSession)
         {
-            orchestratorContext = await orchestrationContextBuilder.BuildAsync(context.Profile, ctx =>
-            {
-                ctx.UserMessage = context.Prompt;
-                ctx.ConversationHistory = context.ConversationHistory;
-                ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.Session] = context.ChatSession;
-            });
+            orchestratorContext = await orchestrationContextBuilder.BuildAsync(
+                context.Profile,
+                ctx =>
+                {
+                    ctx.UserMessage = context.Prompt;
+                    ctx.ConversationHistory = context.ConversationHistory;
+                    ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.Session] = context.ChatSession;
+                },
+                cancellationToken);
 
             orchestratorName = context.Profile.OrchestratorName;
 
@@ -56,11 +59,14 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
         }
         else
         {
-            orchestratorContext = await orchestrationContextBuilder.BuildAsync(context.Interaction, ctx =>
-            {
-                ctx.UserMessage = context.Prompt;
-                ctx.ConversationHistory = context.ConversationHistory;
-            });
+            orchestratorContext = await orchestrationContextBuilder.BuildAsync(
+                context.Interaction,
+                ctx =>
+                {
+                    ctx.UserMessage = context.Prompt;
+                    ctx.ConversationHistory = context.ConversationHistory;
+                },
+                cancellationToken);
 
             orchestratorName = context.Interaction.OrchestratorName;
 

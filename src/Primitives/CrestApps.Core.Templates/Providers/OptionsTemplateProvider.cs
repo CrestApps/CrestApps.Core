@@ -13,16 +13,18 @@ public sealed class OptionsTemplateProvider : ITemplateProvider
     /// <summary>
     /// Initializes a new instance of the <see cref="OptionsTemplateProvider"/> class.
     /// </summary>
-    /// <param name="options">The options.</param>
+    /// <param name="options">The template options.</param>
     public OptionsTemplateProvider(IOptions<TemplateOptions> options)
     {
         _options = options.Value;
     }
 
     /// <summary>
-    /// Gets templates.
+    /// Gets the templates registered through <see cref="TemplateOptions"/>.
     /// </summary>
-    public Task<IReadOnlyList<Template>> GetTemplatesAsync()
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The registered templates.</returns>
+    public Task<IReadOnlyList<Template>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IReadOnlyList<Template>>(_options.Templates.ToList());
     }

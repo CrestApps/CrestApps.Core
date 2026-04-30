@@ -7,7 +7,7 @@
     <UserSecretsId>CrestApps-Mvc-Web</UserSecretsId>
     <IsPackable>false</IsPackable>
     <PackageTags>$(PackageTags) mvc sample host admin-ui signalr</PackageTags>
-    <DefaultItemExcludes>$(DefaultItemExcludes);**\App_Data\**;node_modules\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/App_Data/**;node_modules/**</DefaultItemExcludes>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
   </PropertyGroup>
 
@@ -52,10 +52,6 @@
     <ProjectReference Include="../../Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
     <ProjectReference Include="../../Stores/CrestApps.Core.Data.YesSql/CrestApps.Core.Data.YesSql.csproj" />
     <ProjectReference Include="../CrestApps.Core.Startup.Shared/CrestApps.Core.Startup.Shared.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="App_Data\" />
   </ItemGroup>
 
 </Project>

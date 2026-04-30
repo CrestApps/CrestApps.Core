@@ -18,7 +18,7 @@ public sealed class IndexProfileController : Controller
 {
     private readonly ISearchIndexProfileManager _indexProfileManager;
     private readonly ISearchIndexProfileProvisioningService _provisioningService;
-    private readonly IAIDeploymentStore _deploymentCatalog;
+    private readonly IAIDeploymentManager _deploymentManager;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<IndexProfileController> _logger;
     private readonly IReadOnlyList<IndexProfileSourceDescriptor> _sources;
@@ -26,14 +26,14 @@ public sealed class IndexProfileController : Controller
     public IndexProfileController(
         ISearchIndexProfileManager indexProfileManager,
         ISearchIndexProfileProvisioningService provisioningService,
-        IAIDeploymentStore deploymentCatalog,
+        IAIDeploymentManager deploymentManager,
         IServiceProvider serviceProvider,
         IOptions<IndexProfileSourceOptions> sourceOptions,
         ILogger<IndexProfileController> logger)
     {
         _indexProfileManager = indexProfileManager;
         _provisioningService = provisioningService;
-        _deploymentCatalog = deploymentCatalog;
+        _deploymentManager = deploymentManager;
         _serviceProvider = serviceProvider;
         _logger = logger;
         _sources = sourceOptions.Value.Sources
@@ -68,6 +68,7 @@ public sealed class IndexProfileController : Controller
             model.Name = model.IndexName?.Trim();
         }
 
+        model.EmbeddingDeploymentName = await NormalizeDeploymentSelectorAsync(model.EmbeddingDeploymentName);
         await ValidateAsync(model);
 
         if (!ModelState.IsValid)
@@ -374,11 +375,30 @@ public sealed class IndexProfileController : Controller
             .Select(source => new SelectListItem(source.DisplayName, source.Type))
             .ToList();
 
-        var deployments = await _deploymentCatalog.GetAllAsync();
+        model.EmbeddingDeployments = (await _deploymentManager.GetByTypeAsync(AIDeploymentType.Embedding))
+            .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
+            .ToList();
+    }
 
-        model.EmbeddingDeployments = deployments
-            .Where(d => d.Type == AIDeploymentType.Embedding)
-                .Select(d => new SelectListItem(d.Name, d.ItemId));
+    private async Task<string> NormalizeDeploymentSelectorAsync(string selector)
+    {
+        if (string.IsNullOrWhiteSpace(selector))
+        {
+            return selector;
+        }
+
+        var deployment = await _deploymentManager.FindByIdAsync(selector);
+
+        return deployment?.Name ?? selector.Trim();
+    }
+
+    private static string BuildDeploymentLabel(AIDeployment deployment)
+    {
+        return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? deployment.Name
+            : $"{deployment.Name} ({deployment.ModelName})";
     }
 
 }

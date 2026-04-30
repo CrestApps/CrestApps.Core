@@ -89,7 +89,7 @@ public sealed class PostSessionProcessingService
             throw new InvalidOperationException($"Unable to create a chat client for resolution analysis on profile '{profile.ItemId}'.");
         }
 
-        var transcript = await RenderTranscriptAsync(AITemplateIds.ResolutionAnalysisPrompt, prompts);
+        var transcript = await RenderTranscriptAsync(AITemplateIds.ResolutionAnalysisPrompt, prompts, cancellationToken: cancellationToken);
 
         if (string.IsNullOrEmpty(transcript))
         {
@@ -98,7 +98,7 @@ public sealed class PostSessionProcessingService
 
         var messages = new List<ChatMessage>
         {
-            new(ChatRole.System, await _aiTemplateService.RenderAsync(AITemplateIds.ResolutionAnalysis)),
+            new(ChatRole.System, await _aiTemplateService.RenderAsync(AITemplateIds.ResolutionAnalysis, cancellationToken: cancellationToken)),
             new(ChatRole.User, transcript),
         };
 
@@ -151,7 +151,7 @@ public sealed class PostSessionProcessingService
             ["prompts"] = ProjectPrompts(prompts),
         };
 
-        var userPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.ConversionGoalEvaluationPrompt, arguments);
+        var userPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.ConversionGoalEvaluationPrompt, arguments, cancellationToken);
 
         if (string.IsNullOrEmpty(userPrompt))
         {
@@ -160,7 +160,7 @@ public sealed class PostSessionProcessingService
 
         var messages = new List<ChatMessage>
         {
-            new(ChatRole.System, await _aiTemplateService.RenderAsync(AITemplateIds.ConversionGoalEvaluation)),
+            new(ChatRole.System, await _aiTemplateService.RenderAsync(AITemplateIds.ConversionGoalEvaluation, cancellationToken: cancellationToken)),
             new(ChatRole.User, userPrompt),
         };
 
@@ -299,7 +299,7 @@ public sealed class PostSessionProcessingService
             ["prompts"] = ProjectPrompts(prompts),
         };
 
-        var prompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysisPrompt, arguments);
+        var prompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysisPrompt, arguments, cancellationToken);
 
         if (string.IsNullOrEmpty(prompt))
         {
@@ -311,7 +311,7 @@ public sealed class PostSessionProcessingService
             return null;
         }
 
-        var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysis);
+        var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysis, cancellationToken: cancellationToken);
 
         var messages = new List<ChatMessage>
         {
@@ -874,7 +874,8 @@ public sealed class PostSessionProcessingService
     private async Task<string> RenderTranscriptAsync(
         string templateId,
         IReadOnlyList<AIChatSessionPrompt> prompts,
-        Dictionary<string, object> extraArguments = null)
+        Dictionary<string, object> extraArguments = null,
+        CancellationToken cancellationToken = default)
     {
         var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
@@ -889,7 +890,7 @@ public sealed class PostSessionProcessingService
             }
         }
 
-        return await _aiTemplateService.RenderAsync(templateId, arguments);
+        return await _aiTemplateService.RenderAsync(templateId, arguments, cancellationToken);
     }
 
     private static List<object> ProjectPrompts(IReadOnlyList<AIChatSessionPrompt> prompts)

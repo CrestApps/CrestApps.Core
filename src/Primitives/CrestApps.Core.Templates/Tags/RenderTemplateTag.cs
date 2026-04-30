@@ -1,4 +1,5 @@
 using System.Text.Encodings.Web;
+using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
 using Fluid;
 using Fluid.Ast;
@@ -36,9 +37,10 @@ public static class RenderTemplateTag
     /// Tag handler invoked by the Fluid engine when <c>{% render_ai_template "id" %}</c> is encountered.
     /// </summary>
     /// <param name="expression">The expression.</param>
-    /// <param name="writer">The JSON writer.</param>
+    /// <param name="writer">The output writer.</param>
     /// <param name="encoder">The encoder.</param>
     /// <param name="context">The context.</param>
+    /// <returns>The Fluid completion value.</returns>
     public static async ValueTask<Completion> WriteToAsync(
         Expression expression,
         TextWriter writer,
@@ -51,6 +53,9 @@ public static class RenderTemplateTag
         {
             return Completion.Normal;
         }
+
+        var cancellationToken = GetCancellationToken(context);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Guard against infinite recursion.
         var depth = 0;
@@ -78,7 +83,7 @@ public static class RenderTemplateTag
             return Completion.Normal;
         }
 
-        var template = await service.GetAsync(templateId);
+        var template = await service.GetAsync(templateId, cancellationToken);
 
         if (template == null || string.IsNullOrWhiteSpace(template.Content))
         {
@@ -112,5 +117,21 @@ public static class RenderTemplateTag
         }
 
         return Completion.Normal;
+    }
+
+    /// <summary>
+    /// Gets the ambient cancellation token for the current Fluid render context.
+    /// </summary>
+    /// <param name="context">The Fluid template context.</param>
+    /// <returns>The ambient cancellation token, or <see cref="CancellationToken.None"/> when none was provided.</returns>
+    internal static CancellationToken GetCancellationToken(TemplateContext context)
+    {
+        if (context.AmbientValues.TryGetValue(FluidTemplateEngine.CancellationTokenAmbientKey, out var value) &&
+            value is CancellationToken token)
+        {
+            return token;
+        }
+
+        return CancellationToken.None;
     }
 }

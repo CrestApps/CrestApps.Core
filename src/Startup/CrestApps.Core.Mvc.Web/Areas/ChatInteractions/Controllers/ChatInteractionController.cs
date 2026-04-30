@@ -61,7 +61,7 @@ public sealed class ChatInteractionController : Controller
 
     private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
     private readonly ClaudeClientService _anthropicClientService;
-    private readonly CopilotOptions _copilotOptions;
+    private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
 
@@ -89,7 +89,7 @@ public sealed class ChatInteractionController : Controller
         IOptions<OrchestratorOptions> orchestratorOptions,
         IOptionsSnapshot<ClaudeOptions> anthropicOptions,
         ClaudeClientService anthropicClientService,
-        IOptions<CopilotOptions> copilotOptions,
+        IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions)
     {
@@ -116,7 +116,7 @@ public sealed class ChatInteractionController : Controller
         _orchestratorOptions = orchestratorOptions.Value;
         _anthropicOptions = anthropicOptions;
         _anthropicClientService = anthropicClientService;
-        _copilotOptions = copilotOptions.Value;
+        _copilotOptions = copilotOptions;
 
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
@@ -315,9 +315,10 @@ public sealed class ChatInteractionController : Controller
 
         // Copilot
 
-        model.CopilotAuthenticationType = (int)_copilotOptions.AuthenticationType;
-        model.CopilotIsConfigured = IsCopilotConfigured();
-        await PopulateCopilotStatusAsync(model);
+        var hasCopilotOptions = _copilotOptions.TryGetValidValue(out var copilotOptions);
+        model.CopilotAuthenticationType = hasCopilotOptions ? (int)copilotOptions.AuthenticationType : 0;
+        model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
+        await PopulateCopilotStatusAsync(model, copilotOptions);
 
         // A2A Connections
         var connections = await _a2aConnectionCatalog.GetAllAsync();
@@ -450,9 +451,10 @@ public sealed class ChatInteractionController : Controller
 
         // Copilot
 
-        model.CopilotAuthenticationType = (int)_copilotOptions.AuthenticationType;
-        model.CopilotIsConfigured = IsCopilotConfigured();
-        await PopulateCopilotChatStatusAsync(model);
+        var hasCopilotOptions = _copilotOptions.TryGetValidValue(out var copilotOptions);
+        model.CopilotAuthenticationType = hasCopilotOptions ? (int)copilotOptions.AuthenticationType : 0;
+        model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
+        await PopulateCopilotChatStatusAsync(model, copilotOptions);
 
         // A2A Connections
         var connections = await _a2aConnectionCatalog.GetAllAsync();
@@ -765,9 +767,9 @@ public sealed class ChatInteractionController : Controller
         await _interactionManager.UpdateAsync(interaction);
     }
 
-    private async Task PopulateCopilotStatusAsync(ChatInteractionViewModel model)
+    private async Task PopulateCopilotStatusAsync(ChatInteractionViewModel model, CopilotOptions copilotOptions)
     {
-        if (_copilotOptions.AuthenticationType == CopilotAuthenticationType.GitHubOAuth)
+        if (copilotOptions is not null && copilotOptions.AuthenticationType == CopilotAuthenticationType.GitHubOAuth)
         {
             var userId = User.Identity?.Name;
 
@@ -811,9 +813,9 @@ public sealed class ChatInteractionController : Controller
             : await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
-    private async Task PopulateCopilotChatStatusAsync(ChatInteractionChatViewModel model)
+    private async Task PopulateCopilotChatStatusAsync(ChatInteractionChatViewModel model, CopilotOptions copilotOptions)
     {
-        if (_copilotOptions.AuthenticationType == CopilotAuthenticationType.GitHubOAuth)
+        if (copilotOptions is not null && copilotOptions.AuthenticationType == CopilotAuthenticationType.GitHubOAuth)
         {
             var userId = User.Identity?.Name;
 
@@ -857,8 +859,6 @@ public sealed class ChatInteractionController : Controller
         var models = await _anthropicClientService.ListModelsAsync();
         model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, anthropicOptions.DefaultModel);
     }
-
-    private bool IsCopilotConfigured() => _copilotOptions.IsConfigured();
 
     private static string FormatCopilotModelName(CopilotModelInfo model)
     {

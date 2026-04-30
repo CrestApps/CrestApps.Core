@@ -15,7 +15,8 @@ internal sealed class AIToolExecutionContextOrchestrationHandler : IOrchestratio
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
@@ -24,7 +25,8 @@ internal sealed class AIToolExecutionContextOrchestrationHandler : IOrchestratio
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         var invocationContext = AIInvocationScope.Current;
         if (invocationContext is null)

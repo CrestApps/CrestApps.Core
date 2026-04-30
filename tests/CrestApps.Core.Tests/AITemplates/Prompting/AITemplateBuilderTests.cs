@@ -107,7 +107,7 @@ public sealed class AITemplateBuilderTests
         builder.Append("Before");
         builder.AppendTemplate("greeting");
         builder.Append("After");
-        var result = await builder.BuildAsync(service);
+        var result = await builder.BuildAsync(service, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("Before\nHello from template!\nAfter", result);
     }
 
@@ -120,7 +120,7 @@ public sealed class AITemplateBuilderTests
         builder.Append("Before");
         builder.AppendTemplate("nonexistent");
         builder.Append("After");
-        var result = await builder.BuildAsync(service);
+        var result = await builder.BuildAsync(service, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("Before\nAfter", result);
     }
 
@@ -134,7 +134,7 @@ public sealed class AITemplateBuilderTests
         };
         var builder = new TemplateBuilder();
         builder.AppendTemplate("t1", args);
-        var result = await builder.BuildAsync(service);
+        var result = await builder.BuildAsync(service, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("Rendered with args", result);
     }
 
@@ -143,7 +143,7 @@ public sealed class AITemplateBuilderTests
     {
         var builder = new TemplateBuilder();
         builder.Append("test");
-        await Assert.ThrowsAsync<ArgumentNullException>(() => builder.BuildAsync(null));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => builder.BuildAsync(null, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -171,22 +171,22 @@ public sealed class AITemplateBuilderTests
             _templates = templates;
         }
 
-        public Task<IReadOnlyList<Template>> ListAsync()
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<Template>>([]);
         }
 
-        public Task<Template> GetAsync(string id)
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Template>(null);
         }
 
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_templates.TryGetValue(id, out var result) ? result : null);
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n")
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult<string>(null);
         }

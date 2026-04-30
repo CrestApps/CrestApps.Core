@@ -21,10 +21,10 @@ public sealed class EmbeddedResourceTemplateProvider : ITemplateProvider
     /// <summary>
     /// Initializes a new instance of the <see cref="EmbeddedResourceTemplateProvider"/> class.
     /// </summary>
-    /// <param name="assembly">The assembly.</param>
-    /// <param name="parsers">The parsers.</param>
-    /// <param name="source">The source.</param>
-    /// <param name="featureId">The feature id.</param>
+    /// <param name="assembly">The assembly to scan for embedded templates.</param>
+    /// <param name="parsers">The template parsers.</param>
+    /// <param name="source">The logical source name to assign to discovered templates.</param>
+    /// <param name="featureId">The feature identifier to assign to discovered templates.</param>
     public EmbeddedResourceTemplateProvider(
         Assembly assembly,
         IEnumerable<ITemplateParser> parsers,
@@ -38,9 +38,11 @@ public sealed class EmbeddedResourceTemplateProvider : ITemplateProvider
     }
 
     /// <summary>
-    /// Gets templates.
+    /// Gets the templates discovered from embedded resources.
     /// </summary>
-    public Task<IReadOnlyList<Template>> GetTemplatesAsync()
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The discovered templates.</returns>
+    public Task<IReadOnlyList<Template>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
         var templates = new List<Template>();
         var resourceNames = _assembly.GetManifestResourceNames();

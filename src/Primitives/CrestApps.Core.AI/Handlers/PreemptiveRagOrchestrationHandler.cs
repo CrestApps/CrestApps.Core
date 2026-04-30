@@ -49,7 +49,8 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
@@ -58,7 +59,8 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
     /// Builts the operation.
     /// </summary>
     /// <param name="buildContext">The build context.</param>
-    public async Task BuiltAsync(OrchestrationContextBuiltContext buildContext)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task BuiltAsync(OrchestrationContextBuiltContext buildContext, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(buildContext.OrchestrationContext.UserMessage))
         {
@@ -91,7 +93,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         // search but still inject instructions so the model knows to call search tools.
         if (!_settings.EnablePreemptiveRag && !buildContext.OrchestrationContext.DisableTools)
         {
-            await InjectToolSearchInstructionsAsync(buildContext, ragMetadata);
+            await InjectToolSearchInstructionsAsync(buildContext, ragMetadata, cancellationToken);
 
             return;
         }
@@ -121,7 +123,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
             var hasAnyRefs = buildContext.OrchestrationContext.Properties.ContainsKey("DataSourceReferences") || buildContext.OrchestrationContext.Properties.ContainsKey("DocumentReferences");
             if (hasAnyRefs)
             {
-                var prompt = await _templateService.RenderAsync(AITemplateIds.RagResponseGuidelines);
+                var prompt = await _templateService.RenderAsync(AITemplateIds.RagResponseGuidelines, cancellationToken: cancellationToken);
                 if (!string.IsNullOrEmpty(prompt))
                 {
                     buildContext.OrchestrationContext.SystemMessageBuilder.AppendLine();
@@ -138,7 +140,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         {
             if (buildContext.OrchestrationContext.DisableTools)
             {
-                var prompt = await _templateService.RenderAsync(AITemplateIds.RagScopeNoRefsToolsDisabled);
+                var prompt = await _templateService.RenderAsync(AITemplateIds.RagScopeNoRefsToolsDisabled, cancellationToken: cancellationToken);
                 if (!string.IsNullOrEmpty(prompt))
                 {
                     buildContext.OrchestrationContext.SystemMessageBuilder.AppendLine();
@@ -147,7 +149,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
             }
             else
             {
-                var prompt = await _templateService.RenderAsync(AITemplateIds.RagScopeNoRefsToolsEnabled, CreateSearchToolArguments());
+                var prompt = await _templateService.RenderAsync(AITemplateIds.RagScopeNoRefsToolsEnabled, CreateSearchToolArguments(), cancellationToken);
                 if (!string.IsNullOrEmpty(prompt))
                 {
                     buildContext.OrchestrationContext.SystemMessageBuilder.AppendLine();
@@ -157,7 +159,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         }
         else
         {
-            var prompt = await _templateService.RenderAsync(AITemplateIds.RagScopeWithRefs);
+            var prompt = await _templateService.RenderAsync(AITemplateIds.RagScopeWithRefs, cancellationToken: cancellationToken);
             if (!string.IsNullOrEmpty(prompt))
             {
                 buildContext.OrchestrationContext.SystemMessageBuilder.AppendLine();
@@ -166,12 +168,12 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         }
     }
 
-    private async Task InjectToolSearchInstructionsAsync(OrchestrationContextBuiltContext buildContext, AIDataSourceRagMetadata ragMetadata)
+    private async Task InjectToolSearchInstructionsAsync(OrchestrationContextBuiltContext buildContext, AIDataSourceRagMetadata ragMetadata, CancellationToken cancellationToken)
     {
         if (ragMetadata?.IsInScope == true)
         {
             // IsInScope ON: the model MUST call search tools and MUST NOT use general knowledge.
-            var prompt = await _templateService.RenderAsync(AITemplateIds.RagToolSearchStrict, CreateSearchToolArguments());
+            var prompt = await _templateService.RenderAsync(AITemplateIds.RagToolSearchStrict, CreateSearchToolArguments(), cancellationToken);
             if (!string.IsNullOrEmpty(prompt))
             {
                 buildContext.OrchestrationContext.SystemMessageBuilder.AppendLine();
@@ -181,7 +183,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         else
         {
             // IsInScope OFF: the model MUST try search tools first, then may supplement with general knowledge.
-            var prompt = await _templateService.RenderAsync(AITemplateIds.RagToolSearchRelaxed, CreateSearchToolArguments());
+            var prompt = await _templateService.RenderAsync(AITemplateIds.RagToolSearchRelaxed, CreateSearchToolArguments(), cancellationToken);
             if (!string.IsNullOrEmpty(prompt))
             {
                 buildContext.OrchestrationContext.SystemMessageBuilder.AppendLine();

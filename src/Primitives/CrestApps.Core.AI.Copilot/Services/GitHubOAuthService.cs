@@ -5,6 +5,7 @@ using System.Web;
 using CrestApps.Core.AI.Copilot.Models;
 using GitHub.Copilot.SDK;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -16,11 +17,14 @@ namespace CrestApps.Core.AI.Copilot.Services;
 public sealed class GitHubOAuthService
 {
     private const string ProtectorPurpose = "CrestApps.Core.AI.Copilot.GitHubTokens";
+    private const string StateProtectorPurpose = "CrestApps.Core.AI.Copilot.GitHubOAuthState";
+    private const string StateCookieName = ".crestapps.gh-oauth-state";
 
     private readonly ICopilotCredentialStore _credentialStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IOptions<CopilotOptions> _options;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<GitHubOAuthService> _logger;
 
@@ -39,12 +43,14 @@ public sealed class GitHubOAuthService
         IOptions<CopilotOptions> options,
         IHttpClientFactory httpClientFactory,
         TimeProvider timeProvider,
-        ILogger<GitHubOAuthService> logger)
+        ILogger<GitHubOAuthService> logger,
+        IHttpContextAccessor httpContextAccessor)
     {
         _credentialStore = credentialStore;
         _dataProtectionProvider = dataProtectionProvider;
         _options = options;
         _httpClientFactory = httpClientFactory;
+        _httpContextAccessor = httpContextAccessor;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -68,6 +74,30 @@ public sealed class GitHubOAuthService
         var scopes = string.Join(" ", settings.Scopes ?? ["user:email", "read:org"]);
 
         var state = returnUrl ?? string.Empty;
+        var httpContext = _httpContextAccessor?.HttpContext;
+
+        if (httpContext != null)
+        {
+            state = Guid.NewGuid().ToString("N");
+
+            var stateProtector = _dataProtectionProvider.CreateProtector(StateProtectorPurpose);
+            var statePayload = JsonSerializer.Serialize(new GitHubOAuthState
+            {
+                Nonce = state,
+                ReturnUrl = returnUrl,
+                ExpiresUtc = _timeProvider.GetUtcNow().AddMinutes(10),
+            });
+            var protectedState = stateProtector.Protect(statePayload);
+
+            httpContext.Response.Cookies.Append(StateCookieName, protectedState, new CookieOptions
+            {
+                HttpOnly = true,
+                IsEssential = true,
+                SameSite = SameSiteMode.Lax,
+                Secure = httpContext.Request.IsHttps,
+                Expires = _timeProvider.GetUtcNow().AddMinutes(10),
+            });
+        }
 
         var queryParams = HttpUtility.ParseQueryString(string.Empty);
         queryParams["client_id"] = settings.ClientId;
@@ -76,6 +106,75 @@ public sealed class GitHubOAuthService
         queryParams["state"] = state;
 
         return $"https://github.com/login/oauth/authorize?{queryParams}";
+    }
+
+    /// <summary>
+    /// Validates the callback state and extracts the safe return URL.
+    /// </summary>
+    /// <param name="state">The callback state.</param>
+    /// <param name="validatedReturnUrl">The validated return URL when the state is valid.</param>
+    /// <returns><see langword="true"/> when the state contains a safe return URL; otherwise, <see langword="false"/>.</returns>
+    public bool TryValidateCallbackState(string state, out string validatedReturnUrl)
+    {
+        var httpContext = _httpContextAccessor?.HttpContext;
+
+        if (httpContext == null)
+        {
+            if (string.Equals(state, "__popup__", StringComparison.Ordinal))
+            {
+                validatedReturnUrl = state;
+
+                return true;
+            }
+
+            if (IsLocalUrl(state))
+            {
+                validatedReturnUrl = state;
+
+                return true;
+            }
+
+            validatedReturnUrl = null;
+
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(state) || !httpContext.Request.Cookies.TryGetValue(StateCookieName, out var protectedState) || string.IsNullOrWhiteSpace(protectedState))
+        {
+            validatedReturnUrl = null;
+
+            return false;
+        }
+
+        try
+        {
+            var stateProtector = _dataProtectionProvider.CreateProtector(StateProtectorPurpose);
+            var payload = JsonSerializer.Deserialize<GitHubOAuthState>(stateProtector.Unprotect(protectedState));
+
+            if (payload == null ||
+                !string.Equals(payload.Nonce, state, StringComparison.Ordinal) ||
+                payload.ExpiresUtc < _timeProvider.GetUtcNow())
+            {
+                validatedReturnUrl = null;
+
+                return false;
+            }
+
+            if (string.Equals(payload.ReturnUrl, "__popup__", StringComparison.Ordinal) || IsLocalUrl(payload.ReturnUrl))
+            {
+                validatedReturnUrl = payload.ReturnUrl;
+
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "GitHub OAuth callback state validation failed.");
+        }
+
+        validatedReturnUrl = null;
+
+        return false;
     }
 
     /// <summary>
@@ -363,5 +462,21 @@ public sealed class GitHubOAuthService
 
             return [];
         }
+    }
+
+    private static bool IsLocalUrl(string url)
+    {
+        return !string.IsNullOrEmpty(url) &&
+            ((url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\'))) ||
+            (url[0] == '~' && url.Length > 1 && url[1] == '/'));
+    }
+
+    private sealed class GitHubOAuthState
+    {
+        public string Nonce { get; set; }
+
+        public string ReturnUrl { get; set; }
+
+        public DateTimeOffset ExpiresUtc { get; set; }
     }
 }

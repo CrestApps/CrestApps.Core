@@ -70,6 +70,8 @@ Aspire manages containers for services like Redis. You need a container runtime 
 dotnet run --project .\src\Startup\CrestApps.Core.Aspire.AppHost\CrestApps.Core.Aspire.AppHost.csproj
 ```
 
+The MVC and Blazor sample hosts both keep their writable runtime state inside each project's own `App_Data` folder. Their project files exclude `**/App_Data/**` from `.NET 10` watch discovery so Visual Studio Aspire runs do not restart the hosted app when uploads, logs, or local SQLite files change at runtime.
+
 ## Smallest useful app integration
 
 Use the `AddCrestAppsCore(...)` builder as the main entry point:
