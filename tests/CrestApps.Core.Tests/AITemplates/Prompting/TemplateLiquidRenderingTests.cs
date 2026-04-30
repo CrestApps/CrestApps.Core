@@ -1,6 +1,8 @@
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Rendering;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -8,7 +10,7 @@ namespace CrestApps.Core.Tests.AITemplates.Prompting;
 
 /// <summary>
 /// Verifies that Liquid templates can access typed .NET object properties
-/// through the <see cref="FluidTemplateEngine"/>'s UnsafeMemberAccessStrategy.
+/// through the <see cref="FluidTemplateEngine"/>'s configured member access strategy.
 /// Each test renders a real template pattern with sample objects.
 /// </summary>
 public sealed class TemplateLiquidRenderingTests
@@ -18,8 +20,14 @@ public sealed class TemplateLiquidRenderingTests
     public TemplateLiquidRenderingTests()
     {
         var services = new ServiceCollection().BuildServiceProvider();
+        var templateOptions = new Fluid.TemplateOptions();
+        Fluid.MemberAccessStrategyExtensions.Register<AIToolDefinitionEntry>(templateOptions.MemberAccessStrategy);
+        Fluid.MemberAccessStrategyExtensions.Register<ChatDocumentInfo>(templateOptions.MemberAccessStrategy);
+        Fluid.MemberAccessStrategyExtensions.Register<ToolRegistryEntry>(templateOptions.MemberAccessStrategy);
+
         _engine = new FluidTemplateEngine(
             services,
+            Microsoft.Extensions.Options.Options.Create(templateOptions),
             NullLogger<FluidTemplateEngine>.Instance);
     }
 
@@ -74,7 +82,7 @@ Available document tools:
             ["availableDocuments"] = docs,
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains("read_document", result);
         Assert.Contains("Reads document content", result);
@@ -105,7 +113,7 @@ The user has uploaded documents as supplementary context.
             ["tools"] = Array.Empty<AIToolDefinitionEntry>(),
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains("supplementary context", result);
         Assert.DoesNotContain("Available document tools", result);
@@ -131,11 +139,20 @@ System tools:
 {% endif %}
 """;
 
-        // Fluid renders enums as integers, so Source must be projected to string.
-        var tools = new object[]
+        var tools = new[]
         {
-            new { Name = "search_web", Description = "Searches the web for information", Source = "Local" },
-            new { Name = "read_document", Description = "Reads document content", Source = "System" },
+            new Dictionary<string, object>
+            {
+                ["Name"] = "search_web",
+                ["Description"] = "Searches the web for information",
+                ["Source"] = "Local",
+            },
+            new Dictionary<string, object>
+            {
+                ["Name"] = "read_document",
+                ["Description"] = "Reads document content",
+                ["Source"] = "System",
+            },
         };
 
         var arguments = new Dictionary<string, object>
@@ -143,7 +160,7 @@ System tools:
             ["tools"] = tools,
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains("search_web", result);
         Assert.Contains("Searches the web for information", result);
@@ -173,7 +190,7 @@ No tools needed.
             ["tools"] = Array.Empty<object>(),
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain("User tools available", result);
         Assert.DoesNotContain("System tools available", result);
@@ -190,7 +207,7 @@ No tools needed.
             ["searchToolName"] = "search_data_source",
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Use the search_data_source tool to search for relevant data sources.", result);
     }
@@ -209,7 +226,7 @@ Process the data in tabular format.
             ["baseSystemMessage"] = "You are a helpful data analyst.",
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains("You are a helpful data analyst.", result);
         Assert.Contains("Process the data in tabular format.", result);
@@ -247,7 +264,7 @@ Process the data in tabular format.
             ["tools"] = tools,
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains("tool_with_desc: Has a description", result);
         Assert.Contains("tool_no_desc", result);
@@ -279,9 +296,53 @@ Process the data in tabular format.
             ["docs"] = docs,
         };
 
-        var result = await _engine.RenderAsync(template, arguments);
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains("file.txt", result);
         Assert.Contains("unknown", result);
+    }
+
+    [Fact]
+    public async Task CoreAITemplating_DefaultRegistrations_RenderKnownTemplateArgumentTypes()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddCoreAITemplating(options =>
+        {
+            options.AddTemplate(
+                "member-access",
+                "{{ tool.Name }}|{{ doc.FileName }}|{{ registry.Description }}");
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ITemplateService>();
+        var arguments = new Dictionary<string, object>
+        {
+            ["tool"] = new AIToolDefinitionEntry(typeof(object))
+            {
+                Name = "read_document",
+                Description = "Reads document content",
+                Purpose = AIToolPurposes.DocumentProcessing,
+            },
+            ["doc"] = new ChatDocumentInfo
+            {
+                DocumentId = "doc1",
+                FileName = "report.pdf",
+                ContentType = "application/pdf",
+                FileSize = 2048,
+            },
+            ["registry"] = new ToolRegistryEntry
+            {
+                Id = "tool1",
+                Name = "search",
+                Description = "Searches data sources",
+                Source = ToolRegistryEntrySource.Local,
+            },
+        };
+
+        var result = await service.RenderAsync("member-access", arguments, TestContext.Current.CancellationToken);
+
+        Assert.Equal("read_document|report.pdf|Searches data sources", result);
     }
 }

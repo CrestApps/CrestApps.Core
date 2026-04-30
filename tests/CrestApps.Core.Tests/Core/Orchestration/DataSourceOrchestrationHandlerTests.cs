@@ -22,7 +22,7 @@ public sealed class DataSourceOrchestrationHandlerTests
                 DataSourceId = "ds1",
             },
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         var systemMessage = context.SystemMessageBuilder.ToString();
         Assert.Contains("[Configured Data Source]", systemMessage);
         Assert.Contains(SystemToolNames.SearchDataSources, systemMessage);
@@ -37,7 +37,7 @@ public sealed class DataSourceOrchestrationHandlerTests
         {
             CompletionContext = new AICompletionContext(),
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
         Assert.Empty(context.MustIncludeTools);
     }
@@ -52,17 +52,17 @@ public sealed class DataSourceOrchestrationHandlerTests
 
     private sealed class FakeTemplateService : ITemplateService
     {
-        public Task<IReadOnlyList<Template>> ListAsync()
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<Template>>([]);
         }
 
-        public Task<Template> GetAsync(string id)
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Template>(null);
         }
 
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             if (id == AITemplateIds.DataSourceAvailability)
             {
@@ -74,7 +74,7 @@ public sealed class DataSourceOrchestrationHandlerTests
             return Task.FromResult($"[Template: {id}]");
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n")
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult(string.Join(separator, ids.Select(id => $"[Template: {id}]")));
         }

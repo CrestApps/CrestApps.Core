@@ -10,8 +10,9 @@ public interface ITemplateEngine
     /// </summary>
     /// <param name="template">The Liquid template content.</param>
     /// <param name="arguments">Key-value pairs to pass as template variables.</param>
+    /// <param name="cancellationToken">A token that can cancel the rendering operation.</param>
     /// <returns>The rendered output string.</returns>
-    Task<string> RenderAsync(string template, IDictionary<string, object> arguments = null);
+    Task<string> RenderAsync(string template, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Validates that a Liquid template has valid syntax.

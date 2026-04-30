@@ -58,7 +58,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
             return;
         }
 
-        var deployment = await _deploymentCatalog.FindByNameAsync(indexProfile.EmbeddingDeploymentName, cancellationToken);
+        var deployment = await ResolveDeploymentAsync(indexProfile.EmbeddingDeploymentName, cancellationToken);
         if (deployment == null)
         {
             result.Fail(new ValidationResult("The selected embedding deployment could not be found.", [nameof(SearchIndexProfile.EmbeddingDeploymentName)]));
@@ -112,7 +112,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
     protected abstract IReadOnlyCollection<SearchIndexField> BuildFields(int vectorDimensions);
     private async Task<int> GetEmbeddingDimensionsAsync(SearchIndexProfile indexProfile, CancellationToken cancellationToken)
     {
-        var deployment = await _deploymentCatalog.FindByNameAsync(indexProfile.EmbeddingDeploymentName, cancellationToken);
+        var deployment = await ResolveDeploymentAsync(indexProfile.EmbeddingDeploymentName, cancellationToken);
         if (deployment == null)
         {
             throw new InvalidOperationException("The selected embedding deployment could not be found.");
@@ -136,5 +136,12 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
         }
 
         throw new InvalidOperationException("The selected embedding deployment did not return a valid embedding vector.");
+    }
+
+    private async ValueTask<AIDeployment> ResolveDeploymentAsync(string selector, CancellationToken cancellationToken)
+    {
+        var deployment = await _deploymentCatalog.FindByNameAsync(selector, cancellationToken);
+
+        return deployment ?? await _deploymentCatalog.FindByIdAsync(selector, cancellationToken);
     }
 }

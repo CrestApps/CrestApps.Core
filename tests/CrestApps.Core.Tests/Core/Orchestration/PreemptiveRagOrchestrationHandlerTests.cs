@@ -23,7 +23,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
     {
         var handler = CreateHandler([], enablePreemptiveRag: true);
         var context = CreateOrchestrationContext(userMessage: "test query");
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
     }
 
@@ -36,7 +36,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var fakeHandler = CreateFakeRagHandler(canHandle: true);
         var handler = CreateHandler([fakeHandler.Object], enablePreemptiveRag: true);
         var context = CreateOrchestrationContext(userMessage: "");
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
         fakeHandler.Verify(h => h.CanHandleAsync(It.IsAny<OrchestrationContextBuiltContext>()), Times.Never);
     }
@@ -50,7 +50,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var fakeHandler = CreateFakeRagHandler(canHandle: false);
         var handler = CreateHandler([fakeHandler.Object], enablePreemptiveRag: true);
         var context = CreateOrchestrationContext(userMessage: "test query");
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
     }
 
@@ -65,7 +65,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var fakeHandler = CreateFakeRagHandler(canHandle: true);
         var handler = CreateHandler([fakeHandler.Object], enablePreemptiveRag: false);
         var context = CreateOrchestrationContext(userMessage: "test query", disableTools: false);
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         var message = context.SystemMessageBuilder.ToString();
         Assert.Contains($"[Template: {AITemplateIds.RagToolSearchRelaxed}]", message);
     }
@@ -82,7 +82,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var context = CreateOrchestrationContext(userMessage: "test query", disableTools: false);
         var profile = new AIProfile();
         profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         var message = context.SystemMessageBuilder.ToString();
         Assert.Contains($"[Template: {AITemplateIds.RagToolSearchStrict}]", message);
     }
@@ -99,7 +99,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var context = CreateOrchestrationContext(userMessage: "test query");
         var profile = new AIProfile();
         // No AIDataSourceRagMetadata → IsInScope is null (not true).
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         var message = context.SystemMessageBuilder.ToString();
         Assert.Contains($"[Template: {AITemplateIds.RagResponseGuidelines}]", message);
     }
@@ -116,7 +116,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var context = CreateOrchestrationContext(userMessage: "test query", disableTools: true);
         var profile = new AIProfile();
         profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         var message = context.SystemMessageBuilder.ToString();
         Assert.Contains($"[Template: {AITemplateIds.RagScopeNoRefsToolsDisabled}]", message);
     }
@@ -133,7 +133,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var context = CreateOrchestrationContext(userMessage: "test query", disableTools: false);
         var profile = new AIProfile();
         profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         var message = context.SystemMessageBuilder.ToString();
         Assert.Contains($"[Template: {AITemplateIds.RagScopeNoRefsToolsEnabled}]", message);
     }
@@ -150,7 +150,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var context = CreateOrchestrationContext(userMessage: "test query", disableTools: false);
         var profile = new AIProfile();
         profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         var message = context.SystemMessageBuilder.ToString();
         Assert.Contains($"[Template: {AITemplateIds.RagScopeWithRefs}]", message);
     }
@@ -167,7 +167,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var context = CreateOrchestrationContext(userMessage: "test query");
         var profile = new AIProfile();
         // No AIDataSourceRagMetadata → IsInScope is null (not true).
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
     }
 
@@ -182,7 +182,7 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         var context = CreateOrchestrationContext(userMessage: "test query");
         var interaction = new ChatInteraction();
         interaction.Put(new AIDataSourceRagMetadata { IsInScope = true });
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(interaction, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(interaction, context), TestContext.Current.CancellationToken);
         var message = context.SystemMessageBuilder.ToString();
         Assert.Contains($"[Template: {AITemplateIds.RagScopeWithRefs}]", message);
     }
@@ -224,22 +224,22 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
 
     private sealed class FakeAITemplateService : ITemplateService
     {
-        public Task<IReadOnlyList<Template>> ListAsync()
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<Template>>([]);
         }
 
-        public Task<Template> GetAsync(string id)
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Template>(null);
         }
 
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult($"[Template: {id}]");
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n")
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult(string.Join(separator, ids.Select(id => $"[Template: {id}]")));
         }

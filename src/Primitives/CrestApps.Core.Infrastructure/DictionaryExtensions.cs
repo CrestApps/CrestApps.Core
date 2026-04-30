@@ -56,7 +56,11 @@ public static class DictionaryExtensions
         if (entry.TryGetValue(key, out var value))
         {
             string stringValue;
-            if (value is JsonElement jsonElement)
+            if (value is RedactedSecret redacted)
+            {
+                stringValue = redacted.Reveal();
+            }
+            else if (value is JsonElement jsonElement)
             {
                 stringValue = jsonElement.GetString();
             }

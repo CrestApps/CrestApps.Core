@@ -378,7 +378,17 @@ public sealed class IndexProfileController : Controller
 
         model.EmbeddingDeployments = deployments
             .Where(d => d.Type == AIDeploymentType.Embedding)
-                .Select(d => new SelectListItem(d.Name, d.ItemId));
+            .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
+            .ToList();
+    }
+
+    private static string BuildDeploymentLabel(AIDeployment deployment)
+    {
+        return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? deployment.Name
+            : $"{deployment.Name} ({deployment.ModelName})";
     }
 
 }

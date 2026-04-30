@@ -6,7 +6,6 @@ using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
@@ -34,37 +33,22 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.Controllers;
 public sealed class AITemplateController : Controller
 {
     private readonly ICatalog<AIProfileTemplate> _catalog;
-    private readonly IAIDeploymentStore _deploymentCatalog;
+    private readonly ICatalog<AIDeployment> _deploymentCatalog;
     private readonly ICatalog<A2AConnection> _a2aConnectionCatalog;
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IAIProfileManager _profileManager;
+    private readonly IAIProfileTemplateManager _templateManager;
     private readonly InteractionDocumentOptions _interactionDocumentOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
     private readonly OrchestratorOptions _orchestratorOptions;
     private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
     private readonly ClaudeClientService _anthropicClientService;
-    private readonly CopilotOptions _copilotOptions;
+    private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-
-    public AITemplateController(
-        ICatalog<AIProfileTemplate> catalog,
-        IAIDeploymentStore deploymentCatalog,
-        ICatalog<A2AConnection> a2aConnectionCatalog,
-        ICatalog<McpConnection> mcpConnectionCatalog,
-        IAIDataSourceStore dataSourceStore,
-        IAIProfileManager profileManager,
-        IOptions<InteractionDocumentOptions> interactionDocumentOptions,
-        ISearchIndexProfileStore indexProfileStore,
-        ITemplateService aiTemplateService,
-        IOptions<OrchestratorOptions> orchestratorOptions,
-        IOptionsSnapshot<ClaudeOptions> anthropicOptions,
-        ClaudeClientService anthropicClientService,
-        IOptions<CopilotOptions> copilotOptions,
-        GitHubOAuthService oauthService,
-        IOptions<AIToolDefinitionOptions> toolOptions)
+    public AITemplateController(ICatalog<AIProfileTemplate> catalog, ICatalog<AIDeployment> deploymentCatalog, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDataSourceStore dataSourceStore, IAIProfileManager profileManager, IAIProfileTemplateManager templateManager, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptionsSnapshot<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -72,13 +56,14 @@ public sealed class AITemplateController : Controller
         _mcpConnectionCatalog = mcpConnectionCatalog;
         _dataSourceStore = dataSourceStore;
         _profileManager = profileManager;
+        _templateManager = templateManager;
         _interactionDocumentOptions = interactionDocumentOptions.Value;
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;
         _orchestratorOptions = orchestratorOptions.Value;
         _anthropicOptions = anthropicOptions;
         _anthropicClientService = anthropicClientService;
-        _copilotOptions = copilotOptions.Value;
+        _copilotOptions = copilotOptions;
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
     }
@@ -86,7 +71,6 @@ public sealed class AITemplateController : Controller
     public async Task<IActionResult> Index()
     {
         var templates = await _catalog.GetAllAsync();
-
         return View(templates);
     }
 
@@ -94,7 +78,6 @@ public sealed class AITemplateController : Controller
     {
         var model = new AITemplateViewModel();
         await PopulateDropdownsAsync(model);
-
         return View(model);
     }
 
@@ -115,7 +98,6 @@ public sealed class AITemplateController : Controller
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
-
             return View(model);
         }
 
@@ -129,7 +111,6 @@ public sealed class AITemplateController : Controller
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.ApplyTo(template);
         await _catalog.CreateAsync(template);
-
         return RedirectToAction(nameof(Index));
     }
 
@@ -144,7 +125,6 @@ public sealed class AITemplateController : Controller
         var model = AITemplateViewModel.FromTemplate(template);
         await NormalizeDeploymentSelectorsAsync(model);
         await PopulateDropdownsAsync(model);
-
         return View(model);
     }
 
@@ -160,7 +140,6 @@ public sealed class AITemplateController : Controller
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
-
             return View(model);
         }
 
@@ -175,7 +154,6 @@ public sealed class AITemplateController : Controller
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.ApplyTo(existing);
         await _catalog.UpdateAsync(existing);
-
         return RedirectToAction(nameof(Index));
     }
 
@@ -190,7 +168,6 @@ public sealed class AITemplateController : Controller
         }
 
         await _catalog.DeleteAsync(template);
-
         return RedirectToAction(nameof(Index));
     }
 
@@ -204,9 +181,10 @@ public sealed class AITemplateController : Controller
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
         model.ClaudeIsConfigured = hasAnthropicOptions && anthropicOptions.IsConfigured();
         await PopulateClaudeModelsAsync(model, anthropicOptions);
-        model.CopilotAuthenticationType = _copilotOptions.AuthenticationType;
-        model.CopilotIsConfigured = IsCopilotConfigured();
-        await PopulateCopilotStatusAsync(model);
+        var hasCopilotOptions = _copilotOptions.TryGetValidValue(out var copilotOptions);
+        model.CopilotAuthenticationType = hasCopilotOptions ? copilotOptions.AuthenticationType : default;
+        model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
+        await PopulateCopilotStatusAsync(model, copilotOptions);
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();
@@ -246,22 +224,20 @@ public sealed class AITemplateController : Controller
         var validNames = allAgents.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return (selectedNames ?? [])
-                    .Where(name => !string.IsNullOrWhiteSpace(name) && validNames.Contains(name))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
+            .Where(name => !string.IsNullOrWhiteSpace(name) && validNames.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _a2aConnectionCatalog.GetAllAsync()).Select(connection => connection.ItemId).ToHashSet(StringComparer.Ordinal);
-
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
     private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _mcpConnectionCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
-
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
@@ -279,7 +255,6 @@ public sealed class AITemplateController : Controller
         }
 
         var deployment = await _deploymentCatalog.FindByIdAsync(selector);
-
         return deployment?.Name ?? selector;
     }
 
@@ -293,7 +268,6 @@ public sealed class AITemplateController : Controller
         if (anthropicOptions is null || !anthropicOptions.IsConfigured())
         {
             model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], model.ClaudeModel, anthropicOptions?.DefaultModel);
-
             return;
         }
 
@@ -301,9 +275,9 @@ public sealed class AITemplateController : Controller
         model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build(models, model.ClaudeModel, anthropicOptions.DefaultModel);
     }
 
-    private async Task PopulateCopilotStatusAsync(AITemplateViewModel model)
+    private async Task PopulateCopilotStatusAsync(AITemplateViewModel model, CopilotOptions copilotOptions)
     {
-        if (_copilotOptions.AuthenticationType != CopilotAuthenticationType.GitHubOAuth)
+        if (copilotOptions is null || copilotOptions.AuthenticationType != CopilotAuthenticationType.GitHubOAuth)
         {
             return;
         }
@@ -327,14 +301,12 @@ public sealed class AITemplateController : Controller
         model.CopilotAvailableModels = models.Select(m => new SelectListItem(FormatCopilotModelName(m), m.Id)).ToList();
     }
 
-    private bool IsCopilotConfigured() => _copilotOptions.IsConfigured();
-
     private static string FormatCopilotModelName(CopilotModelInfo model)
     {
         var name = !string.IsNullOrWhiteSpace(model.Name) ? model.Name : model.Id;
 
         return model.CostMultiplier > 0
-                    ? $"{name} (x{model.CostMultiplier.ToString("0.##", CultureInfo.InvariantCulture)})"
-                    : name;
+            ? $"{name} (x{model.CostMultiplier.ToString("0.##", CultureInfo.InvariantCulture)})"
+            : name;
     }
 }

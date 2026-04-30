@@ -43,7 +43,7 @@ public sealed class DocumentOrchestrationHandlerTests
                 FileSize = 1024,
             }, ],
         };
-        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context));
+        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context), TestContext.Current.CancellationToken);
         Assert.Single(context.Documents);
         Assert.Equal("doc1", context.Documents[0].DocumentId);
         Assert.Equal("report.pdf", context.Documents[0].FileName);
@@ -58,7 +58,7 @@ public sealed class DocumentOrchestrationHandlerTests
         {
             Documents = []
         };
-        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context));
+        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context), TestContext.Current.CancellationToken);
         Assert.Empty(context.Documents);
     }
 
@@ -71,7 +71,7 @@ public sealed class DocumentOrchestrationHandlerTests
         {
             Documents = null
         };
-        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context));
+        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context), TestContext.Current.CancellationToken);
         Assert.Empty(context.Documents);
     }
 
@@ -84,7 +84,7 @@ public sealed class DocumentOrchestrationHandlerTests
         {
             DisplayText = "Test Profile"
         };
-        await handler.BuildingAsync(new OrchestrationContextBuildingContext(profile, context));
+        await handler.BuildingAsync(new OrchestrationContextBuildingContext(profile, context), TestContext.Current.CancellationToken);
         Assert.Empty(context.Documents);
     }
 
@@ -109,7 +109,7 @@ public sealed class DocumentOrchestrationHandlerTests
                 FileName = "file3.xlsx"
             }, ],
         };
-        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context));
+        await handler.BuildingAsync(new OrchestrationContextBuildingContext(interaction, context), TestContext.Current.CancellationToken);
         Assert.Equal(3, context.Documents.Count);
     }
 
@@ -128,7 +128,7 @@ public sealed class DocumentOrchestrationHandlerTests
                 FileSize = 2048,
             }, ],
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new ChatInteraction(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new ChatInteraction(), context), TestContext.Current.CancellationToken);
         var systemMessage = context.SystemMessageBuilder.ToString();
         Assert.Contains("report.pdf", systemMessage);
         Assert.Contains("read_document", systemMessage);
@@ -158,7 +158,7 @@ public sealed class DocumentOrchestrationHandlerTests
             }, ],
         };
         interaction.Put(new AIDataSourceRagMetadata { IsInScope = true });
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(interaction, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(interaction, context), TestContext.Current.CancellationToken);
         var systemMessage = context.SystemMessageBuilder.ToString();
         Assert.Contains("Scope mode: strict", systemMessage);
     }
@@ -174,7 +174,7 @@ public sealed class DocumentOrchestrationHandlerTests
         var profile = new AIProfile();
         profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
         profile.Put(new DocumentsMetadata { Documents = [new ChatDocumentInfo { DocumentId = "doc1", FileName = "report.pdf", ContentType = "application/pdf", FileSize = 2048, },], });
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         var systemMessage = context.SystemMessageBuilder.ToString();
         Assert.Contains("Background knowledge is available for this profile.", systemMessage);
         Assert.Contains("Search the profile knowledge documents first", systemMessage);
@@ -190,7 +190,7 @@ public sealed class DocumentOrchestrationHandlerTests
         {
             CompletionContext = new AICompletionContext(),
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         Assert.Null(context.CompletionContext.SystemMessage);
     }
 
@@ -212,7 +212,7 @@ public sealed class DocumentOrchestrationHandlerTests
                 FileSize = 512,
             }, ],
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new ChatInteraction(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new ChatInteraction(), context), TestContext.Current.CancellationToken);
         // Document tools are system tools — the orchestrator always includes them.
         // The handler should NOT inject tool names.
         Assert.Single(context.CompletionContext.ToolNames);
@@ -234,7 +234,7 @@ public sealed class DocumentOrchestrationHandlerTests
                 FileSize = 1024,
             }, ],
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new ChatInteraction(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new ChatInteraction(), context), TestContext.Current.CancellationToken);
         Assert.True(context.CompletionContext.AdditionalProperties.ContainsKey(AICompletionContextKeys.HasDocuments));
         Assert.Equal(true, context.CompletionContext.AdditionalProperties[AICompletionContextKeys.HasDocuments]);
     }
@@ -247,23 +247,23 @@ public sealed class DocumentOrchestrationHandlerTests
         {
             CompletionContext = new AICompletionContext(),
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         Assert.False(context.CompletionContext.AdditionalProperties.ContainsKey(AICompletionContextKeys.HasDocuments));
     }
 
     private sealed class FakeAITemplateService : ITemplateService
     {
-        public Task<IReadOnlyList<Template>> ListAsync()
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<Template>>([]);
         }
 
-        public Task<Template> GetAsync(string id)
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Template>(null);
         }
 
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             if (arguments != null && arguments.TryGetValue("tools", out var toolsObj) && toolsObj is IEnumerable<object> tools)
             {
@@ -300,7 +300,7 @@ public sealed class DocumentOrchestrationHandlerTests
             return Task.FromResult($"[Template: {id}]");
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n")
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult(string.Join(separator, ids.Select(id => $"[Template: {id}]")));
         }

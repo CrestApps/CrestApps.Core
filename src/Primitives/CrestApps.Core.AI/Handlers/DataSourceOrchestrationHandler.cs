@@ -33,7 +33,8 @@ internal sealed class DataSourceOrchestrationHandler : IOrchestrationContextBuil
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
@@ -42,7 +43,8 @@ internal sealed class DataSourceOrchestrationHandler : IOrchestrationContextBuil
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public async Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         if (context.OrchestrationContext.CompletionContext == null || string.IsNullOrWhiteSpace(context.OrchestrationContext.CompletionContext.DataSourceId))
         {
@@ -64,7 +66,7 @@ internal sealed class DataSourceOrchestrationHandler : IOrchestrationContextBuil
             arguments["searchToolName"] = SystemToolNames.SearchDataSources;
         }
 
-        var header = await _templateService.RenderAsync(AITemplateIds.DataSourceAvailability, arguments);
+        var header = await _templateService.RenderAsync(AITemplateIds.DataSourceAvailability, arguments, cancellationToken);
         if (!string.IsNullOrEmpty(header))
         {
             context.OrchestrationContext.SystemMessageBuilder.AppendLine();

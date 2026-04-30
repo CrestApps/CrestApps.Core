@@ -20,9 +20,9 @@ public sealed class AIProfileSystemPromptTemplateProvider : ITemplateProvider
         _templateManager = templateManager;
     }
 
-    public async Task<IReadOnlyList<Template>> GetTemplatesAsync()
+    public async Task<IReadOnlyList<Template>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
-        var templates = await _templateManager.GetAllAsync();
+        var templates = await _templateManager.GetAllAsync(cancellationToken);
 
         return (templates ?? [])
                     .Where(IsSystemPromptTemplate)

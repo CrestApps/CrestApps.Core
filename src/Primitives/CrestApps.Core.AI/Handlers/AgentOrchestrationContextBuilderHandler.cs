@@ -32,7 +32,8 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
@@ -41,7 +42,8 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public async Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         var completionContext = context.OrchestrationContext.CompletionContext;
         if (completionContext is null)
@@ -50,7 +52,7 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
         }
 
         var requestedAgentNames = completionContext.AgentNames;
-        var agents = await _profileManager.GetAsync(AIProfileType.Agent);
+        var agents = await _profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
         if (!agents.Any())
         {
             return;
@@ -82,7 +84,7 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
             _logger.LogDebug("Enriching system message with {AgentCount} available agent(s).", availableAgents.Count);
         }
 
-        var header = await _templateService.RenderAsync(AITemplateIds.AgentAvailability, new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) { ["agents"] = availableAgents, });
+        var header = await _templateService.RenderAsync(AITemplateIds.AgentAvailability, new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) { ["agents"] = availableAgents, }, cancellationToken);
         if (!string.IsNullOrEmpty(header))
         {
             context.OrchestrationContext.SystemMessageBuilder.AppendLine();

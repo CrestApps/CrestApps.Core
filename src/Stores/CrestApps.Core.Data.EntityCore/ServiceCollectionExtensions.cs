@@ -14,7 +14,9 @@ using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -40,8 +42,19 @@ public static class ServiceCollectionExtensions
             services.Configure(configureStore);
         }
 
-        services.AddDbContext<CrestAppsEntityDbContext>(configure);
-        services.TryAddScoped<IStoreCommitter, EntityCoreStoreCommitter>();
+        services.AddDbContext<CrestAppsEntityDbContext>((sp, options) =>
+        {
+            configure(options);
+
+            var snapshot = sp.GetRequiredService<IOptions<EntityCoreDataStoreOptions>>().Value;
+            var coreOptionsBuilder = ((IDbContextOptionsBuilderInfrastructure)options);
+            coreOptionsBuilder.AddOrUpdateExtension(new CrestAppsOptionsExtension(
+                snapshot.TablePrefix,
+                snapshot.EnforceNamedSourceUniqueness));
+
+            options.ReplaceService<IModelCacheKeyFactory, CrestAppsModelCacheKeyFactory>();
+        });
+        services.AddScoped<IStoreCommitter, EntityCoreStoreCommitter>();
 
         return services;
     }

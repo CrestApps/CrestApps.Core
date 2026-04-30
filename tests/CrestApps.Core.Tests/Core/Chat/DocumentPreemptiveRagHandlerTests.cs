@@ -397,9 +397,9 @@ public sealed class DocumentPreemptiveRagHandlerTests
 
     private sealed class FakeTemplateService : ITemplateService
     {
-        public Task<IReadOnlyList<Template>> ListAsync() => Task.FromResult<IReadOnlyList<Template>>([]);
-        public Task<Template> GetAsync(string id) => Task.FromResult<Template>(null);
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Template>>([]);
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default) => Task.FromResult<Template>(null);
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             if (id == AITemplateIds.DocumentContextHeader)
             {
@@ -415,7 +415,7 @@ public sealed class DocumentPreemptiveRagHandlerTests
             return Task.FromResult($"[Template: {id}]");
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n")
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult(string.Join(separator, ids));
         }

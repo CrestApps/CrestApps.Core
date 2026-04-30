@@ -45,7 +45,8 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
@@ -54,7 +55,8 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public async Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         if (context.OrchestrationContext.CompletionContext is null)
         {
@@ -92,7 +94,7 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
         AIInvocationScope.Current?.Items.TryAdd(MemoryConstants.CompletionContextKeys.UserId, userId);
         var memoryTools = _toolDefinitions.Tools.Where(t => t.Value.HasPurpose(AIToolPurposes.Memory)).Select(t => t.Value).ToList();
         context.OrchestrationContext.MustIncludeTools.AddRange(memoryTools.Select(tool => tool.Name));
-        var header = await _templateService.RenderAsync(MemoryConstants.TemplateIds.MemoryAvailability, new Dictionary<string, object> { ["tools"] = memoryTools, ["searchToolName"] = SearchUserMemoriesTool.TheName, ["listToolName"] = ListUserMemoriesTool.TheName, ["saveToolName"] = SaveUserMemoryTool.TheName, ["removeToolName"] = RemoveUserMemoryTool.TheName, });
+        var header = await _templateService.RenderAsync(MemoryConstants.TemplateIds.MemoryAvailability, new Dictionary<string, object> { ["tools"] = memoryTools, ["searchToolName"] = SearchUserMemoriesTool.TheName, ["listToolName"] = ListUserMemoriesTool.TheName, ["saveToolName"] = SaveUserMemoryTool.TheName, ["removeToolName"] = RemoveUserMemoryTool.TheName, }, cancellationToken);
         if (!string.IsNullOrEmpty(header))
         {
             context.OrchestrationContext.SystemMessageBuilder.AppendLine();

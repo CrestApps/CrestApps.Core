@@ -40,12 +40,20 @@ public sealed class CopilotAuthController : Controller
     [HttpGet]
     public async Task<IActionResult> OAuthCallback(string code, string state, string error)
     {
+        if (!_oauthService.TryValidateCallbackState(state, out var validatedReturnUrl))
+        {
+            _logger.LogWarning("GitHub OAuth callback rejected due to invalid state.");
+            TempData["ErrorMessage"] = "GitHub authentication failed. Please try again.";
+
+            return RedirectToAction("Index", "Settings", new { area = "Admin" });
+        }
+
         if (!string.IsNullOrEmpty(error))
         {
             _logger.LogWarning("GitHub OAuth error: {Error}", error.SanitizeForLog());
             TempData["ErrorMessage"] = "GitHub authentication failed. Please try again.";
 
-            return HandleOAuthReturn(state, success: false, username: null);
+            return HandleOAuthReturn(validatedReturnUrl, success: false, username: null);
         }
 
         if (string.IsNullOrEmpty(code))
@@ -53,7 +61,7 @@ public sealed class CopilotAuthController : Controller
             _logger.LogWarning("No authorization code received from GitHub.");
             TempData["ErrorMessage"] = "No authorization code received from GitHub.";
 
-            return HandleOAuthReturn(state, success: false, username: null);
+            return HandleOAuthReturn(validatedReturnUrl, success: false, username: null);
         }
 
         var userId = GetUserId();
@@ -69,7 +77,7 @@ public sealed class CopilotAuthController : Controller
 
             TempData["SuccessMessage"] = $"Successfully connected to GitHub as {credential.GitHubUsername}.";
 
-            return HandleOAuthReturn(state, success: true, username: credential.GitHubUsername);
+            return HandleOAuthReturn(validatedReturnUrl, success: true, username: credential.GitHubUsername);
         }
         catch (Exception ex)
         {
@@ -77,7 +85,7 @@ public sealed class CopilotAuthController : Controller
             TempData["ErrorMessage"] = "Failed to connect to GitHub. Please try again.";
         }
 
-        return HandleOAuthReturn(state, success: false, username: null);
+        return HandleOAuthReturn(validatedReturnUrl, success: false, username: null);
     }
 
     [HttpGet]
@@ -156,9 +164,9 @@ public sealed class CopilotAuthController : Controller
         return Json(new { success = true });
     }
 
-    private IActionResult HandleOAuthReturn(string state, bool success, string username)
+    private IActionResult HandleOAuthReturn(string returnUrl, bool success, string username)
     {
-        if (string.Equals(state, "__popup__", StringComparison.Ordinal))
+        if (string.Equals(returnUrl, "__popup__", StringComparison.Ordinal))
         {
             var safeUsername = System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(username ?? string.Empty);
 
@@ -170,9 +178,9 @@ public sealed class CopilotAuthController : Controller
                             "text/html");
         }
 
-        if (Url.IsLocalUrl(state))
+        if (Url.IsLocalUrl(returnUrl))
         {
-            return Redirect(state);
+            return Redirect(returnUrl);
         }
 
         return RedirectToAction("Index", "Settings", new { area = "Admin" });

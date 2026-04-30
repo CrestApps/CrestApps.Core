@@ -1186,7 +1186,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var completionContextBuilder = services.GetRequiredService<IAICompletionContextBuilder>();
         var completionService = services.GetRequiredService<IAICompletionService>();
         (var chatSession, _) = await GetOrCreateSessionAsync(services, sessionId, parentProfile, userPrompt: profile.Name);
-        var generatedPrompt = await aiTemplateEngine.RenderAsync(profile.PromptTemplate, new Dictionary<string, object>() { ["Profile"] = profile, ["Session"] = chatSession, });
+        var generatedPrompt = await aiTemplateEngine.RenderAsync(profile.PromptTemplate, new Dictionary<string, object>() { ["Profile"] = profile, ["Session"] = chatSession, }, cancellationToken);
         var assistantMessage = new AIChatSessionPrompt
         {
             ItemId = GenerateId(),
@@ -1196,13 +1196,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             Title = profile.PromptSubject,
             CreatedUtc = GetUtcNow(),
         };
+
         var completionContext = await completionContextBuilder.BuildAsync(profile, cancellationToken: cancellationToken);
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
         var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName, cancellationToken: cancellationToken)
             ?? throw new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile.");
+
         using var builder = ZString.CreateStringBuilder();
         var contentItemIds = new HashSet<string>();
         var references = new Dictionary<string, AICompletionReference>();
+
         await foreach (var chunk in completionService.CompleteStreamingAsync(chatDeployment, [new ChatMessage(ChatRole.User, generatedPrompt)], completionContext, cancellationToken))
         {
             if (string.IsNullOrEmpty(chunk.Text))

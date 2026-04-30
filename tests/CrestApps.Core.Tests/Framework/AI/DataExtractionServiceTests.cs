@@ -134,13 +134,13 @@ public sealed class DataExtractionServiceTests
             .ReturnsAsync(chatClient.Object);
 
         templateService.Setup(service => service
-            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>()))
+            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("system prompt");
 
         IDictionary<string, object> promptArguments = null;
         templateService.Setup(service => service
-            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>()))
-            .Callback<string, IDictionary<string, object>>((_, arguments) => promptArguments = arguments)
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IDictionary<string, object>, CancellationToken>((_, arguments, _) => promptArguments = arguments)
             .ReturnsAsync("rendered prompt");
 
         chatClient.Setup(client => client
@@ -174,7 +174,7 @@ public sealed class DataExtractionServiceTests
 
         // Assert
         templateService.Verify(
-            service => service.RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>()),
+            service => service.RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()),
             Times.Once);
         Assert.NotNull(promptArguments);
         Assert.Equal("My email is test@example.com", promptArguments["lastUserMessage"]);

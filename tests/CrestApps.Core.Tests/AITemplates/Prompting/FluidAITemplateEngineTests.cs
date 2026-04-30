@@ -13,13 +13,14 @@ public sealed class FluidAITemplateEngineTests
         var services = new ServiceCollection().BuildServiceProvider();
         _renderer = new FluidTemplateEngine(
             services,
+            Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptions()),
             NullLogger<FluidTemplateEngine>.Instance);
     }
 
     [Fact]
     public async Task RenderAsync_NullTemplate_ReturnsEmpty()
     {
-        var result = await _renderer.RenderAsync(null);
+        var result = await _renderer.RenderAsync(null, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(string.Empty, result);
     }
@@ -27,7 +28,7 @@ public sealed class FluidAITemplateEngineTests
     [Fact]
     public async Task RenderAsync_EmptyTemplate_ReturnsEmpty()
     {
-        var result = await _renderer.RenderAsync(string.Empty);
+        var result = await _renderer.RenderAsync(string.Empty, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(string.Empty, result);
     }
@@ -35,7 +36,7 @@ public sealed class FluidAITemplateEngineTests
     [Fact]
     public async Task RenderAsync_PlainText_ReturnsUnchanged()
     {
-        var result = await _renderer.RenderAsync("You are a helpful assistant.");
+        var result = await _renderer.RenderAsync("You are a helpful assistant.", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("You are a helpful assistant.", result);
     }
@@ -50,7 +51,7 @@ public sealed class FluidAITemplateEngineTests
             ["company"] = "Contoso",
         };
 
-        var result = await _renderer.RenderAsync(template, arguments);
+        var result = await _renderer.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Hello, Alice! You work at Contoso.", result);
     }
@@ -65,7 +66,7 @@ public sealed class FluidAITemplateEngineTests
             ["tools"] = "hammer, saw",
         };
 
-        var result = await _renderer.RenderAsync(template, arguments);
+        var result = await _renderer.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Tools: hammer, saw", result);
     }
@@ -79,7 +80,7 @@ public sealed class FluidAITemplateEngineTests
             ["show_tools"] = false,
         };
 
-        var result = await _renderer.RenderAsync(template, arguments);
+        var result = await _renderer.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("No tools", result);
     }
@@ -93,7 +94,7 @@ public sealed class FluidAITemplateEngineTests
             ["items"] = new[] { "a", "b", "c" },
         };
 
-        var result = await _renderer.RenderAsync(template, arguments);
+        var result = await _renderer.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Items: a, b, c,", result);
     }
@@ -103,7 +104,7 @@ public sealed class FluidAITemplateEngineTests
     {
         var template = "Hello, {{ name }}!";
 
-        var result = await _renderer.RenderAsync(template);
+        var result = await _renderer.RenderAsync(template, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Hello, !", result);
     }
@@ -113,7 +114,7 @@ public sealed class FluidAITemplateEngineTests
     {
         var template = "{% if %}broken{% endif %}";
 
-        var result = await _renderer.RenderAsync(template);
+        var result = await _renderer.RenderAsync(template, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(template, result);
     }
@@ -224,7 +225,7 @@ Hello
 World
 """;
 
-        var result = await _renderer.RenderAsync(template);
+        var result = await _renderer.RenderAsync(template, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Hello\n\nWorld", result);
     }

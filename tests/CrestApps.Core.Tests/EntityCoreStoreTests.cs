@@ -10,6 +10,7 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -243,6 +244,64 @@ public sealed class EntityCoreStoreTests
         Assert.NotNull(await catalog.FindByNameAsync(profile.Name, cancellationToken));
     }
 
+    [Fact]
+    public async Task EnforceNamedSourceUniqueness_RejectsDuplicateNameAndSourceWithinEntityType()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync(options => options.EnforceNamedSourceUniqueness = true);
+        using var scope = harness.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<CrestAppsEntityDbContext>();
+
+        dbContext.CatalogRecords.Add(new CrestApps.Core.Data.EntityCore.Models.CatalogRecord
+        {
+            EntityType = "TestEntity",
+            ItemId = Guid.NewGuid().ToString("N"),
+            Name = "duplicate",
+            Source = "OpenAI",
+            Payload = "{}",
+        });
+        dbContext.CatalogRecords.Add(new CrestApps.Core.Data.EntityCore.Models.CatalogRecord
+        {
+            EntityType = "TestEntity",
+            ItemId = Guid.NewGuid().ToString("N"),
+            Name = "duplicate",
+            Source = "OpenAI",
+            Payload = "{}",
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(async () => await dbContext.SaveChangesAsync(cancellationToken));
+    }
+
+    [Fact]
+    public async Task EnforceNamedSourceUniqueness_DefaultsToFalseAndAllowsDuplicates()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<CrestAppsEntityDbContext>();
+
+        dbContext.CatalogRecords.Add(new CrestApps.Core.Data.EntityCore.Models.CatalogRecord
+        {
+            EntityType = "TestEntity",
+            ItemId = Guid.NewGuid().ToString("N"),
+            Name = "shared",
+            Source = "OpenAI",
+            Payload = "{}",
+        });
+        dbContext.CatalogRecords.Add(new CrestApps.Core.Data.EntityCore.Models.CatalogRecord
+        {
+            EntityType = "TestEntity",
+            ItemId = Guid.NewGuid().ToString("N"),
+            Name = "shared",
+            Source = "OpenAI",
+            Payload = "{}",
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private sealed class EntityCoreTestHarness : IAsyncDisposable
     {
         private readonly string _databasePath;
@@ -257,7 +316,7 @@ public sealed class EntityCoreStoreTests
 
         public ServiceProvider Services { get; }
 
-        public static async Task<EntityCoreTestHarness> CreateAsync()
+        public static async Task<EntityCoreTestHarness> CreateAsync(Action<EntityCoreDataStoreOptions> configureStore = null)
         {
             var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
             var services = new ServiceCollection();
@@ -267,7 +326,11 @@ public sealed class EntityCoreStoreTests
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddCoreAIServices();
-            services.AddCoreEntityCoreSqliteDataStore($"Data Source={databasePath}");
+            services.AddCoreEntityCoreDataStore(options => options.UseSqlite($"Data Source={databasePath}"), store =>
+            {
+                store.TablePrefix = "CA_";
+                configureStore?.Invoke(store);
+            });
             services.AddEntityCoreStores();
 
             var provider = services.BuildServiceProvider();

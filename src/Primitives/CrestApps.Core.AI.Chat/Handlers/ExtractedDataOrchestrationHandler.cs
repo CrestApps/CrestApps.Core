@@ -31,7 +31,8 @@ public sealed class ExtractedDataOrchestrationHandler : IOrchestrationContextBui
     /// Buildings the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public Task BuildingAsync(OrchestrationContextBuildingContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
@@ -40,7 +41,8 @@ public sealed class ExtractedDataOrchestrationHandler : IOrchestrationContextBui
     /// Builts the operation.
     /// </summary>
     /// <param name="context">The context.</param>
-    public async Task BuiltAsync(OrchestrationContextBuiltContext context)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         if (context.Resource is not AIProfile profile || context.OrchestrationContext.CompletionContext is null || !profile.TryGetSettings<AIProfileDataExtractionSettings>(out var settings) || !settings.EnableDataExtraction || settings.DataExtractionEntries.Count == 0 || !context.OrchestrationContext.CompletionContext.AdditionalProperties.TryGetValue("Session", out var sessionObject) || sessionObject is not AIChatSession session || session.ExtractedData.Count == 0)
         {
@@ -54,7 +56,7 @@ public sealed class ExtractedDataOrchestrationHandler : IOrchestrationContextBui
         }
 
         var missingFields = settings.DataExtractionEntries.Where(entry => !session.ExtractedData.TryGetValue(entry.Name, out var state) || state?.Values.Count == 0).Select(entry => new { entry.Name, entry.Description, entry.AllowMultipleValues, entry.IsUpdatable, }).ToList();
-        var header = await _templateService.RenderAsync(AITemplateIds.ExtractedDataAvailability, new Dictionary<string, object> { ["collectedFields"] = collectedFields, ["missingFields"] = missingFields, });
+        var header = await _templateService.RenderAsync(AITemplateIds.ExtractedDataAvailability, new Dictionary<string, object> { ["collectedFields"] = collectedFields, ["missingFields"] = missingFields, }, cancellationToken);
         if (string.IsNullOrEmpty(header))
         {
             return;

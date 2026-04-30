@@ -650,8 +650,9 @@
             _model.AnthropicAvailableModels = ClaudeModelSelectListFactory.Build([], _model.ClaudeModel, anthropicOptions?.DefaultModel);
         }
 
-        _model.CopilotIsConfigured = CopilotOpts.Value.IsConfigured();
-        _model.CopilotAuthenticationType = CopilotOpts.Value.AuthenticationType;
+        var hasCopilotOptions = CopilotOpts.TryGetValidValue(out CopilotOptions copilotOptions);
+        _model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
+        _model.CopilotAuthenticationType = hasCopilotOptions ? copilotOptions.AuthenticationType : default;
 
         var toolOpts = ToolOpts.Value;
         var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);

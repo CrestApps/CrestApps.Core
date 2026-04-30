@@ -24,8 +24,9 @@ public interface IOrchestrationContextBuilder
     /// An optional delegate to override or fine-tune the context after handlers have run
     /// </param>
     /// <c>BuildingAsync</c> but before <c>BuiltAsync</c>.
+    /// <param name="cancellationToken">The cancellation token for the build operation.</param>
     /// </param>
     /// <returns>A task that completes with the fully built <see cref="OrchestrationContext"/>.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="resource"/> is <see langword="null"/>.</exception>
-    ValueTask<OrchestrationContext> BuildAsync(object resource, Action<OrchestrationContext> configure = null);
+    ValueTask<OrchestrationContext> BuildAsync(object resource, Action<OrchestrationContext> configure = null, CancellationToken cancellationToken = default);
 }

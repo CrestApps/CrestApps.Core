@@ -111,7 +111,7 @@ public sealed class GenerateChartTool : AIFunction
             var promptService = arguments.Services.GetService<ITemplateService>();
 
             var systemPrompt = promptService != null
-                ? await promptService.RenderAsync(AITemplateIds.ChartGeneration)
+                ? await promptService.RenderAsync(AITemplateIds.ChartGeneration, cancellationToken: cancellationToken)
                 : string.Empty;
 
             var messages = new List<ChatMessage>

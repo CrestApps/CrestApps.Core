@@ -19,14 +19,16 @@ public interface IOrchestrationContextBuilderHandler
     /// configuration delegate is applied.
     /// </summary>
     /// <param name="context">Carries both the source resource and the mutable <see cref="OrchestrationContext"/>.</param>
+    /// <param name="cancellationToken">The cancellation token for the build operation.</param>
     /// <returns>A task that completes when the mutation or validation is done.</returns>
-    Task BuildingAsync(OrchestrationContextBuildingContext context);
+    Task BuildingAsync(OrchestrationContextBuildingContext context, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Called after the context has been fully constructed and the optional caller configuration delegate
     /// has been applied.
     /// </summary>
     /// <param name="context">Carries the final <see cref="OrchestrationContext"/> along with the source resource.</param>
+    /// <param name="cancellationToken">The cancellation token for the build operation.</param>
     /// <returns>A task that completes when post-build processing is done.</returns>
-    Task BuiltAsync(OrchestrationContextBuiltContext context);
+    Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default);
 }

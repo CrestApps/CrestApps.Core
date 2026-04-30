@@ -48,7 +48,7 @@ public sealed class ExtractedDataOrchestrationHandlerTests
                 },
             },
         };
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         var systemMessage = context.SystemMessageBuilder.ToString();
         Assert.Contains("[Collected Session Data]", systemMessage);
         Assert.Contains("first_name=Mike", systemMessage);
@@ -73,23 +73,23 @@ public sealed class ExtractedDataOrchestrationHandlerTests
             CompletionContext = new AICompletionContext(),
         };
         context.CompletionContext.AdditionalProperties["Session"] = new AIChatSession();
-        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context));
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(profile, context), TestContext.Current.CancellationToken);
         Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
     }
 
     private sealed class FakeTemplateService : ITemplateService
     {
-        public Task<IReadOnlyList<Template>> ListAsync()
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<Template>>([]);
         }
 
-        public Task<Template> GetAsync(string id)
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Template>(null);
         }
 
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             if (id != AITemplateIds.ExtractedDataAvailability)
             {
@@ -104,18 +104,28 @@ public sealed class ExtractedDataOrchestrationHandlerTests
             return Task.FromResult($"[Collected Session Data]{Environment.NewLine}{collected}{Environment.NewLine}missing={missing}");
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n")
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult(string.Join(separator, ids));
         }
 
         private static string GetStringProperty(object value, string propertyName)
         {
+            if (value is IDictionary<string, object> dictionary && dictionary.TryGetValue(propertyName, out var dictionaryValue))
+            {
+                return dictionaryValue?.ToString();
+            }
+
             return value.GetType().GetProperty(propertyName)?.GetValue(value)?.ToString();
         }
 
         private static IEnumerable<string> GetValues(object value)
         {
+            if (value is IDictionary<string, object> dictionary && dictionary.TryGetValue("Values", out var dictionaryValue))
+            {
+                return dictionaryValue as IEnumerable<string> ?? [];
+            }
+
             return value.GetType().GetProperty("Values")?.GetValue(value) as IEnumerable<string> ?? [];
         }
     }

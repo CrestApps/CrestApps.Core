@@ -24,8 +24,8 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
     /// <summary>
     /// Initializes a new instance of the <see cref="FileSystemTemplateProvider"/> class.
     /// </summary>
-    /// <param name="options">The options.</param>
-    /// <param name="parsers">The parsers.</param>
+    /// <param name="options">The template options.</param>
+    /// <param name="parsers">The template parsers.</param>
     /// <param name="logger">The logger.</param>
     public FileSystemTemplateProvider(
         IOptions<TemplateOptions> options,
@@ -38,9 +38,11 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
     }
 
     /// <summary>
-    /// Gets templates.
+    /// Gets the templates discovered from configured file system paths.
     /// </summary>
-    public Task<IReadOnlyList<Template>> GetTemplatesAsync()
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The discovered templates.</returns>
+    public Task<IReadOnlyList<Template>> GetTemplatesAsync(CancellationToken cancellationToken = default)
     {
         var templates = new List<Template>();
 

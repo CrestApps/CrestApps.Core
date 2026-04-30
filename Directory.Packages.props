@@ -29,6 +29,7 @@
     <PackageVersion Include="YesSql.Core" Version="5.4.7" />
     <PackageVersion Include="YesSql.Provider.Sqlite" Version="5.4.7" />
     <PackageVersion Include="ZString" Version="2.6.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- Copilot Packages -->

@@ -117,22 +117,22 @@ public sealed class DefaultOrchestratorResolverTests
 
     private sealed class NullAITemplateService : ITemplateService
     {
-        public Task<IReadOnlyList<Template>> ListAsync()
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<Template>>([]);
         }
 
-        public Task<Template> GetAsync(string id)
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<Template>(null);
         }
 
-        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null)
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<string>(null);
         }
 
-        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n")
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult<string>(null);
         }

@@ -187,7 +187,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
                 }).ToList(),
             };
 
-            var planningSystemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.TaskPlanning, arguments);
+            var planningSystemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.TaskPlanning, arguments, cancellationToken);
 
             var chatClient = await GetUtilityChatClientAsync(context);
 
