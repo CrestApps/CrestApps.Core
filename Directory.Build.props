@@ -46,8 +46,13 @@
 
   <PropertyGroup>
     <VersionPrefix>1.0.0</VersionPrefix>
-    <VersionSuffix></VersionSuffix>
-    <VersionSuffix Condition="'$(VersionSuffix)' != '' AND '$(BuildNumber)' != ''">$(VersionSuffix)-$(BuildNumber)</VersionSuffix>
+    <!-- VersionSuffixBase is the label passed in from the command line (e.g. "preview").
+         VersionSuffix is assembled here so the build number is always appended when provided.
+         Passing /p:VersionSuffix=... on the command line would create a global MSBuild property
+         that project-file conditionals cannot override, which is why an intermediate property
+         is used instead. -->
+    <VersionSuffix Condition="'$(VersionSuffixBase)' != '' AND '$(BuildNumber)' != ''">$(VersionSuffixBase)-$(BuildNumber)</VersionSuffix>
+    <VersionSuffix Condition="'$(VersionSuffixBase)' != '' AND '$(BuildNumber)' == ''">$(VersionSuffixBase)</VersionSuffix>
     <InformationalVersion></InformationalVersion>
   </PropertyGroup>
 
