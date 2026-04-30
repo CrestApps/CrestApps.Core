@@ -1,5 +1,6 @@
 using System.Text;
 using CrestApps.Core.AI.Documents;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ public sealed class DocumentFileStoreRegistrationTests
         {
             var services = new ServiceCollection()
                 .AddSingleton<IHostEnvironment>(new TestHostEnvironment(contentRoot))
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
                 .AddLogging()
                 .AddCoreAIDocumentProcessing();
             await using var provider = services.BuildServiceProvider();
@@ -46,6 +48,7 @@ public sealed class DocumentFileStoreRegistrationTests
         {
             var services = new ServiceCollection()
                 .AddSingleton<IHostEnvironment>(new TestHostEnvironment(contentRoot))
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
                 .Configure<DocumentFileSystemFileStoreOptions>(options => options.BasePath = "CustomDocuments")
                 .AddLogging()
                 .AddCoreAIDocumentProcessing();
@@ -75,6 +78,7 @@ public sealed class DocumentFileStoreRegistrationTests
         {
             var services = new ServiceCollection()
                 .AddSingleton<IHostEnvironment>(new TestHostEnvironment(contentRoot))
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
                 .AddSingleton<IPostConfigureOptions<DocumentFileSystemFileStoreOptions>>(
                     new PostConfigureOptions<DocumentFileSystemFileStoreOptions>(Options.DefaultName, options =>
                     {
