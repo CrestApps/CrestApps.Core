@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -8,15 +9,22 @@ namespace CrestApps.Core.AI.Documents;
 /// </summary>
 public sealed class DocumentFileSystemFileStoreOptionsConfiguration : IConfigureOptions<DocumentFileSystemFileStoreOptions>
 {
+    private const string ConfigurationKey = "CrestApps:AI:Documents:BasePath";
+
     private readonly IHostEnvironment _env;
+    private readonly IConfiguration _configuration;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DocumentFileSystemFileStoreOptionsConfiguration"/> class.
     /// </summary>
-    /// <param name="env">The env.</param>
-    public DocumentFileSystemFileStoreOptionsConfiguration(IHostEnvironment env)
+    /// <param name="env">The host environment.</param>
+    /// <param name="configuration">The application configuration.</param>
+    public DocumentFileSystemFileStoreOptionsConfiguration(
+        IHostEnvironment env,
+        IConfiguration configuration)
     {
         _env = env;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -28,6 +36,11 @@ public sealed class DocumentFileSystemFileStoreOptionsConfiguration : IConfigure
         ArgumentNullException.ThrowIfNull(options);
 
         var configuredBasePath = options.BasePath;
+
+        if (string.IsNullOrWhiteSpace(configuredBasePath))
+        {
+            configuredBasePath = _configuration[ConfigurationKey];
+        }
 
         if (string.IsNullOrWhiteSpace(configuredBasePath))
         {

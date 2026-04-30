@@ -37,6 +37,13 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
     WriteCrashEntry("Process exit signaled", $"Exit code: {Environment.ExitCode}");
 };
 
+// When running under Visual Studio, all mutable data (database, logs, documents,
+// site settings) must be stored outside the project source tree. VS monitors the
+// source directory for file changes, and any new file triggers VS to stop the debug
+// session. Redirecting App_Data and document storage to a temp location avoids this.
+var appDataBasePath = Path.Combine(Path.GetTempPath(), "CrestApps", "AppData");
+var documentsBasePath = Path.Combine(Path.GetTempPath(), "CrestApps", "Documents");
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 builder.Services.Configure<HostOptions>(options =>
@@ -63,12 +70,22 @@ var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
     .WithHttpsEndpoint(5001, name: "HttpsMvcWeb")
     .WithEnvironment((options) =>
     {
+        var mvcAppData = Path.Combine(appDataBasePath, "MvcWeb");
+        options.EnvironmentVariables.Add("CrestApps__AppDataPath", mvcAppData);
+        options.EnvironmentVariables.Add("CRESTAPPS_LOG_DIR", Path.Combine(mvcAppData, "logs"));
+        options.EnvironmentVariables.Add("CrestApps__AI__Documents__BasePath", documentsBasePath);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__DefaultDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__MvcApp__MCP__Server__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__ExposeAgentsAsSkill", "true");
+
+        // Prevent VS-injected startup hooks (BrowserRefresh, DeltaApplier, BrowserLink)
+        // from loading into child processes. These middlewares can interfere with
+        // multipart file uploads when running under VS + Aspire.
+        options.EnvironmentVariables["DOTNET_STARTUP_HOOKS"] = "";
+        options.EnvironmentVariables["__ASPNETCORE_BROWSER_TOOLS"] = "";
     });
 
 var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWeb")
@@ -78,12 +95,22 @@ var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWe
     .WithHttpsEndpoint(5201, name: "HttpsBlazorWeb")
     .WithEnvironment((options) =>
     {
+        var blazorAppData = Path.Combine(appDataBasePath, "BlazorWeb");
+        options.EnvironmentVariables.Add("CrestApps__AppDataPath", blazorAppData);
+        options.EnvironmentVariables.Add("CRESTAPPS_LOG_DIR", Path.Combine(blazorAppData, "logs"));
+        options.EnvironmentVariables.Add("CrestApps__AI__Documents__BasePath", documentsBasePath);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__DefaultDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__BlazorApp__MCP__Server__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__ExposeAgentsAsSkill", "true");
+
+        // Prevent VS-injected startup hooks (BrowserRefresh, DeltaApplier, BrowserLink)
+        // from loading into child processes. These middlewares can interfere with
+        // multipart file uploads when running under VS + Aspire.
+        options.EnvironmentVariables["DOTNET_STARTUP_HOOKS"] = "";
+        options.EnvironmentVariables["__ASPNETCORE_BROWSER_TOOLS"] = "";
     });
 
 builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_McpClient>("McpClientSample")
@@ -111,6 +138,35 @@ builder.AddProject<Projects.CrestApps_Core_Mvc_Samples_A2AClient>("A2AClientSamp
     .WithEnvironment("A2A__Servers__BlazorWeb__Endpoint", "https://localhost:5201");
 
 var app = builder.Build();
+
+// Open the Aspire Dashboard in the default browser after the app starts.
+// We do this from code instead of using launchBrowser:true in launchSettings because
+// VS attaches a browser management connection to browsers it launches, and that
+// connection crashes when a native file dialog (e.g. file upload picker) opens.
+// Opening the browser from code means VS has no management link to it.
+var dashboardUrl = builder.Configuration["ASPNETCORE_URLS"]?.Split(';')
+    .FirstOrDefault(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+    ?? builder.Configuration["ASPNETCORE_URLS"]?.Split(';').FirstOrDefault();
+
+var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+lifetime.ApplicationStarted.Register(() =>
+{
+    if (!string.IsNullOrEmpty(dashboardUrl))
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = dashboardUrl,
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+            // Non-critical: browser open is best-effort.
+        }
+    }
+});
 
 try
 {

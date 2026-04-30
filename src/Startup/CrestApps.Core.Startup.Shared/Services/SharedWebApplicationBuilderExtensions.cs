@@ -13,6 +13,8 @@ namespace CrestApps.Core.Startup.Shared.Services;
 
 public static class SharedWebApplicationBuilderExtensions
 {
+    private const string AppDataPathConfigurationKey = "CrestApps:AppDataPath";
+
     /// <summary>
     /// Applies the shared sample-host infrastructure used by the MVC and Blazor
     /// sample applications and returns the resolved <c>App_Data</c> path.
@@ -29,10 +31,24 @@ public static class SharedWebApplicationBuilderExtensions
         builder.Logging.ClearProviders();
         builder.WebHost.UseNLog();
 
-        var appDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+        // Allow the App_Data path to be overridden via configuration (e.g. an environment
+        // variable CrestApps__AppDataPath). When running under Aspire + Visual Studio the
+        // content root points to the project source directory, and any file writes there
+        // can trigger VS to stop the debug session. Redirecting App_Data outside the
+        // source tree avoids that problem.
+        var configuredAppDataPath = builder.Configuration[AppDataPathConfigurationKey];
+
+        var appDataPath = !string.IsNullOrWhiteSpace(configuredAppDataPath)
+            ? configuredAppDataPath
+            : Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+
         Directory.CreateDirectory(appDataPath);
 
-        builder.Configuration.AddJsonFile("App_Data/appsettings.json", optional: true, reloadOnChange: false);
+        builder.Configuration.AddJsonFile(
+            Path.Combine(appDataPath, "appsettings.json"),
+            optional: true,
+            reloadOnChange: false);
+
         builder.Services.AddSharedSiteSettings(appDataPath);
 
         return appDataPath;
