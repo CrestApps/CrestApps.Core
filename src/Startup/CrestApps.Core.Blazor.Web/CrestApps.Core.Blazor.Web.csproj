@@ -11,6 +11,12 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);**/App_Data/**;node_modules/**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <!-- Exclude App_Data from dotnet-watch so file uploads do not trigger a
+       project restart when the Aspire AppHost is launched from Visual Studio. -->
+  <ItemGroup>
+    <Watch Remove="App_Data\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="NLog" />
