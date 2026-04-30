@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -518,7 +519,16 @@ public sealed class PostSessionProcessingServiceTests
             MaximumIterationsPerRequest = 10,
         };
 
-        return new PostSessionProcessingService(mockClientFactory.Object, toolsService ?? mockToolsService.Object, templateService ?? mockTemplateService.Object, defaultOptions, new Mock<IServiceProvider>().Object, TimeProvider.System, NullLoggerFactory.Instance, mockDeploymentManager.Object);
+        return new PostSessionProcessingService(
+            mockClientFactory.Object,
+            toolsService ?? mockToolsService.Object,
+            templateService ?? mockTemplateService.Object,
+            [new DefaultMarkdownTemplateParser()],
+            defaultOptions,
+            new Mock<IServiceProvider>().Object,
+            TimeProvider.System,
+            NullLoggerFactory.Instance,
+            mockDeploymentManager.Object);
     }
 
     /// <summary>
@@ -671,6 +681,63 @@ public sealed class PostSessionProcessingServiceTests
         Assert.NotNull(result);
         Assert.True(result.ContainsKey("summary"));
         Assert.Equal("The user requested fence information and follow-up was initiated.", result["summary"].Value);
+        Assert.Equal(PostSessionTaskResultStatus.Succeeded, result["summary"].Status);
+        mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WithTools_WhenStructuredRetryReturnsMarkdownWrappedJson_ShouldRecoverFromAssistantText()
+    {
+        // Arrange: the structured retry still returns markdown-wrapped text even though the JSON is recoverable.
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks = [new PostSessionTask
+            {
+                Name = "summary",
+                Type = PostSessionTaskType.Semantic,
+                Instructions = "Summarize the conversation.",
+            }, ];
+            s.ToolNames = ["sendEmail"];
+        });
+        var session = CreateSession();
+        var prompts = CreatePrompts();
+        var mockTool = new TestAIFunction("sendEmail");
+        var mockToolsService = new Mock<IAIToolsService>();
+        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockChatClient = new Mock<IChatClient>();
+        mockChatClient.SetupSequence(c => c
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{")))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, """
+                ---
+                Title: Post-session result
+                ---
+                ```json
+                {
+                  "tasks": [
+                    {
+                      "name": "summary",
+                      "value": "Customer requested a quote and the assistant collected the zip code."
+                    }
+                  ]
+                }
+                ```
+                """)));
+        var mockTemplateService = new Mock<ITemplateService>();
+        mockTemplateService.Setup(t => t
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Rendered prompt");
+        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
+        // Act
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        // Assert: the recovery pass should fall back to the assistant text and extract the structured result.
+        Assert.NotNull(result);
+        Assert.True(result.ContainsKey("summary"));
+        Assert.Equal("Customer requested a quote and the assistant collected the zip code.", result["summary"].Value);
         Assert.Equal(PostSessionTaskResultStatus.Succeeded, result["summary"].Status);
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }

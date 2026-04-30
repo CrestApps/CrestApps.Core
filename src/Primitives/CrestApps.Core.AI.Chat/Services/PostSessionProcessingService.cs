@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Support.Json;
+using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,7 @@ public sealed class PostSessionProcessingService
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIToolsService _toolsService;
     private readonly ITemplateService _aiTemplateService;
+    private readonly ITemplateParser _markdownTemplateParser;
     private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
     private readonly DefaultAIOptions _defaultOptions;
@@ -35,6 +37,7 @@ public sealed class PostSessionProcessingService
     /// <param name="clientFactory">The client factory.</param>
     /// <param name="toolsService">The tools service.</param>
     /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="templateParsers">The registered template parsers.</param>
     /// <param name="defaultOptions">The default options.</param>
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="timeProvider">The time provider.</param>
@@ -44,6 +47,7 @@ public sealed class PostSessionProcessingService
         IAIClientFactory clientFactory,
         IAIToolsService toolsService,
         ITemplateService aiTemplateService,
+        IEnumerable<ITemplateParser> templateParsers,
         DefaultAIOptions defaultOptions,
         IServiceProvider serviceProvider,
         TimeProvider timeProvider,
@@ -54,6 +58,7 @@ public sealed class PostSessionProcessingService
         _deploymentManager = deploymentManager;
         _toolsService = toolsService;
         _aiTemplateService = aiTemplateService;
+        _markdownTemplateParser = ResolveMarkdownTemplateParser(templateParsers);
         _serviceProvider = serviceProvider;
         _timeProvider = timeProvider;
         _defaultOptions = defaultOptions;
@@ -479,79 +484,96 @@ public sealed class PostSessionProcessingService
     private PostSessionProcessingResponse TryParsePostSessionResponse(string sessionId, string responseText)
     {
         // Strategy 1: Direct JSON deserialization.
-        try
+        if (TryDeserializePostSessionResponse(responseText, out var directResult))
         {
-            var result = JsonSerializer.Deserialize<PostSessionProcessingResponse>(
-                responseText, JSOptions.CaseInsensitive);
-
-            if (result?.Tasks != null && result.Tasks.Count > 0)
-            {
-                return result;
-            }
+            return directResult;
         }
-        catch (JsonException)
+
+        if (_logger.IsEnabled(LogLevel.Debug))
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug(
-                    "Post-session response for session '{SessionId}' is not valid JSON. Trying fallback extraction.",
-                    sessionId);
-            }
+            _logger.LogDebug(
+                "Post-session response for session '{SessionId}' is not valid JSON. Trying fallback extraction.",
+                sessionId);
         }
 
         // Strategy 2: Extract JSON from markdown code fences.
         var jsonBlock = JsonExtractor.ExtractFromCodeFence(responseText);
 
-        if (jsonBlock != null)
+        if (TryDeserializePostSessionResponse(jsonBlock, out var fencedResult))
         {
-            try
+            if (_logger.IsEnabled(LogLevel.Debug))
             {
-                var result = JsonSerializer.Deserialize<PostSessionProcessingResponse>(
-                    jsonBlock, JSOptions.CaseInsensitive);
-
-                if (result?.Tasks != null && result.Tasks.Count > 0)
-                {
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                    {
-                        _logger.LogDebug(
-                            "Post-session response for session '{SessionId}' parsed successfully from code fence.",
-                            sessionId);
-                    }
-
-                    return result;
-                }
+                _logger.LogDebug(
+                    "Post-session response for session '{SessionId}' parsed successfully from code fence.",
+                    sessionId);
             }
-            catch (JsonException)
-            {
-                // Code fence content wasn't valid JSON either, continue to next strategy.
-            }
+
+            return fencedResult;
         }
 
         // Strategy 3: Extract the first JSON object from surrounding text.
         var jsonObject = JsonExtractor.ExtractJsonObject(responseText);
 
-        if (jsonObject != null && jsonObject != responseText)
+        if (jsonObject != null &&
+            jsonObject != responseText &&
+            TryDeserializePostSessionResponse(jsonObject, out var objectResult))
         {
-            try
+            if (_logger.IsEnabled(LogLevel.Debug))
             {
-                var result = JsonSerializer.Deserialize<PostSessionProcessingResponse>(
-                    jsonObject, JSOptions.CaseInsensitive);
-
-                if (result?.Tasks != null && result.Tasks.Count > 0)
-                {
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                    {
-                        _logger.LogDebug(
-                            "Post-session response for session '{SessionId}' parsed successfully from embedded JSON object.",
-                            sessionId);
-                    }
-
-                    return result;
-                }
+                _logger.LogDebug(
+                    "Post-session response for session '{SessionId}' parsed successfully from embedded JSON object.",
+                    sessionId);
             }
-            catch (JsonException)
+
+            return objectResult;
+        }
+
+        // Strategy 4: Normalize markdown/front matter, then retry the same lenient extraction.
+        var normalizedBody = _markdownTemplateParser.Parse(responseText).Body?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(normalizedBody) &&
+            !string.Equals(normalizedBody, responseText.Trim(), StringComparison.Ordinal))
+        {
+            if (TryDeserializePostSessionResponse(normalizedBody, out var normalizedResult))
             {
-                // Extracted text wasn't valid JSON either.
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Post-session response for session '{SessionId}' parsed successfully from normalized markdown body.",
+                        sessionId);
+                }
+
+                return normalizedResult;
+            }
+
+            var normalizedJsonBlock = JsonExtractor.ExtractFromCodeFence(normalizedBody);
+
+            if (TryDeserializePostSessionResponse(normalizedJsonBlock, out var normalizedFencedResult))
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Post-session response for session '{SessionId}' parsed successfully from normalized markdown code fence.",
+                        sessionId);
+                }
+
+                return normalizedFencedResult;
+            }
+
+            var normalizedJsonObject = JsonExtractor.ExtractJsonObject(normalizedBody);
+
+            if (normalizedJsonObject != null &&
+                normalizedJsonObject != normalizedBody &&
+                TryDeserializePostSessionResponse(normalizedJsonObject, out var normalizedObjectResult))
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Post-session response for session '{SessionId}' parsed successfully from normalized markdown embedded JSON object.",
+                        sessionId);
+                }
+
+                return normalizedObjectResult;
             }
         }
 
@@ -617,7 +639,7 @@ public sealed class PostSessionProcessingService
                 CreateResponseLogPreview(recoveryResponseText));
         }
 
-        PostSessionProcessingResponse result;
+        PostSessionProcessingResponse result = null;
 
         try
         {
@@ -631,8 +653,6 @@ public sealed class PostSessionProcessingService
                     "Structured recovery for post-session tool response on session '{SessionId}' did not return JSON content.",
                     sessionId);
             }
-
-            return null;
         }
         catch (JsonException)
         {
@@ -642,11 +662,24 @@ public sealed class PostSessionProcessingService
                     "Structured recovery for post-session tool response on session '{SessionId}' returned invalid JSON content.",
                     sessionId);
             }
-
-            return null;
         }
 
-        if (result?.Tasks is null || result.Tasks.Count == 0)
+        if (result?.Tasks is { Count: > 0 })
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Structured recovery for post-session tool response on session '{SessionId}' succeeded with {TaskCount} task result(s).",
+                    sessionId,
+                    result.Tasks.Count);
+            }
+
+            return ApplyResults(tasks, result.Tasks);
+        }
+
+        var recoveredFromText = TryParsePostSessionResponse(sessionId, recoveryResponseText);
+
+        if (recoveredFromText?.Tasks is null || recoveredFromText.Tasks.Count == 0)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -661,12 +694,46 @@ public sealed class PostSessionProcessingService
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "Structured recovery for post-session tool response on session '{SessionId}' succeeded with {TaskCount} task result(s).",
+                "Structured recovery for post-session tool response on session '{SessionId}' succeeded by parsing assistant text with {TaskCount} task result(s).",
                 sessionId,
-                result.Tasks.Count);
+                recoveredFromText.Tasks.Count);
         }
 
-        return ApplyResults(tasks, result.Tasks);
+        return ApplyResults(tasks, recoveredFromText.Tasks);
+    }
+
+    private static bool TryDeserializePostSessionResponse(
+        string responseText,
+        out PostSessionProcessingResponse response)
+    {
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            response = null;
+            return false;
+        }
+
+        try
+        {
+            response = JsonSerializer.Deserialize<PostSessionProcessingResponse>(
+                responseText,
+                JSOptions.CaseInsensitive);
+
+            return response?.Tasks is { Count: > 0 };
+        }
+        catch (JsonException)
+        {
+            response = null;
+            return false;
+        }
+    }
+
+    private static ITemplateParser ResolveMarkdownTemplateParser(IEnumerable<ITemplateParser> templateParsers)
+    {
+        ArgumentNullException.ThrowIfNull(templateParsers);
+
+        return templateParsers.FirstOrDefault(parser =>
+            parser.SupportedExtensions.Any(extension => string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase)))
+            ?? throw new InvalidOperationException("No markdown template parser is registered for post-session response recovery.");
     }
 
     private Dictionary<string, PostSessionResult> CreateFailedResults(
