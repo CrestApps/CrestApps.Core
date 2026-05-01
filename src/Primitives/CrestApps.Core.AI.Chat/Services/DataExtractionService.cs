@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Support;
 using CrestApps.Core.Support.Json;
 using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
@@ -258,13 +259,23 @@ public sealed class DataExtractionService
                 continue;
             }
 
-            var entry = settings.DataExtractionEntries.FirstOrDefault(e =>
-                string.Equals(e.Name, result.Name, StringComparison.OrdinalIgnoreCase));
+            var match = FindMatchingEntry(settings, result);
 
-            if (entry == null)
+            if (match == null)
             {
+                if (!string.IsNullOrWhiteSpace(result.Name))
+                {
+                    _logger.LogWarning(
+                        "Ignoring extracted field '{FieldName}' for session '{SessionId}' because no configured extraction field matched. Configured fields: {ConfiguredFields}.",
+                        result.Name.SanitizeForLog(),
+                        session.SessionId,
+                        string.Join(", ", settings.DataExtractionEntries.Select(entry => entry.Name).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.SanitizeForLog())));
+                }
+
                 continue;
             }
+
+            var entry = match.Entry;
 
             if (!session.ExtractedData.TryGetValue(entry.Name, out var state))
             {
@@ -293,7 +304,7 @@ public sealed class DataExtractionService
             }
             else
             {
-                var value = result.Values[0];
+                var value = ResolveSingleValue(match, state, result);
 
                 if (string.IsNullOrWhiteSpace(value))
                 {
@@ -318,6 +329,136 @@ public sealed class DataExtractionService
         }
 
         return changeSet;
+    }
+
+    private MatchedExtractionEntry FindMatchingEntry(
+        AIProfileDataExtractionSettings settings,
+        ExtractionResult result)
+    {
+        if (string.IsNullOrWhiteSpace(result?.Name))
+        {
+            return null;
+        }
+
+        var directMatch = settings.DataExtractionEntries.FirstOrDefault(entry =>
+            string.Equals(entry.Name, result.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (directMatch != null)
+        {
+            return new MatchedExtractionEntry(directMatch, ClassifyField(result.Name), false);
+        }
+
+        var normalizedResultName = NormalizeFieldName(result.Name);
+
+        if (string.IsNullOrEmpty(normalizedResultName))
+        {
+            return null;
+        }
+
+        var normalizedMatch = settings.DataExtractionEntries.FirstOrDefault(entry =>
+            string.Equals(NormalizeFieldName(entry.Name), normalizedResultName, StringComparison.OrdinalIgnoreCase));
+
+        if (normalizedMatch != null)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Mapped extracted field '{ExtractedFieldName}' to configured field '{ConfiguredFieldName}' for session data extraction.",
+                    result.Name.SanitizeForLog(),
+                    normalizedMatch.Name.SanitizeForLog());
+            }
+
+            return new MatchedExtractionEntry(normalizedMatch, ClassifyField(result.Name), false);
+        }
+
+        var resultFieldKind = ClassifyField(result.Name);
+
+        if (resultFieldKind == ExtractionFieldKind.Unknown)
+        {
+            return null;
+        }
+
+        var semanticMatch = settings.DataExtractionEntries.FirstOrDefault(entry => IsSemanticMatch(entry, resultFieldKind));
+
+        if (semanticMatch == null)
+        {
+            return null;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Mapped extracted field '{ExtractedFieldName}' to configured field '{ConfiguredFieldName}' for session data extraction using semantic aliasing.",
+                result.Name.SanitizeForLog(),
+                semanticMatch.Name.SanitizeForLog());
+        }
+
+        return new MatchedExtractionEntry(semanticMatch, resultFieldKind, true);
+    }
+
+    private static bool IsSemanticMatch(DataExtractionEntry entry, ExtractionFieldKind resultFieldKind)
+    {
+        var entryFieldKind = ClassifyField(entry?.Name, entry?.Description);
+
+        if (resultFieldKind == ExtractionFieldKind.PhoneNumber)
+        {
+            return entryFieldKind == ExtractionFieldKind.PhoneNumber;
+        }
+
+        if (resultFieldKind is ExtractionFieldKind.FirstName or ExtractionFieldKind.LastName or ExtractionFieldKind.FullName)
+        {
+            return entryFieldKind == ExtractionFieldKind.FullName;
+        }
+
+        return false;
+    }
+
+    private static string ResolveSingleValue(
+        MatchedExtractionEntry match,
+        ExtractedFieldState state,
+        ExtractionResult result)
+    {
+        var value = result.Values[0];
+
+        if (!match.IsSemanticAlias || match.ResultFieldKind is not ExtractionFieldKind.FirstName and not ExtractionFieldKind.LastName)
+        {
+            return value;
+        }
+
+        return MergeNameParts(state?.Values.FirstOrDefault(), value, match.ResultFieldKind);
+    }
+
+    private static string MergeNameParts(
+        string existingValue,
+        string newValue,
+        ExtractionFieldKind resultFieldKind)
+    {
+        if (string.IsNullOrWhiteSpace(newValue))
+        {
+            return existingValue;
+        }
+
+        if (string.IsNullOrWhiteSpace(existingValue))
+        {
+            return newValue.Trim();
+        }
+
+        var existingParts = existingValue.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var incomingValue = newValue.Trim();
+
+        if (resultFieldKind == ExtractionFieldKind.FirstName)
+        {
+            return existingParts.Length > 1
+                ? string.Join(' ', [incomingValue, .. existingParts.Skip(1)])
+                : incomingValue;
+        }
+
+        if (existingParts.Length > 1)
+        {
+            return string.Join(' ', [.. existingParts.Take(existingParts.Length - 1), incomingValue]);
+        }
+
+        return string.Concat(existingParts[0], " ", incomingValue);
     }
 
     private async Task<IChatClient> GetChatClientAsync(AIProfile profile)
@@ -488,6 +629,87 @@ public sealed class DataExtractionService
         }
     }
 
+    private static string NormalizeFieldName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var builder = new System.Text.StringBuilder(name.Length);
+
+        foreach (var character in name)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(char.ToLowerInvariant(character));
+            }
+        }
+
+        return builder.Length == 0
+            ? null
+            : builder.ToString();
+    }
+
+    private static ExtractionFieldKind ClassifyField(
+        string name,
+        string description = null)
+    {
+        var normalizedName = NormalizeFieldName(name);
+        var normalizedDescription = NormalizeFieldName(description);
+
+        if (ContainsAny(normalizedName, normalizedDescription, "phone", "phonenumber", "telephone", "mobile", "cell"))
+        {
+            return ExtractionFieldKind.PhoneNumber;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "firstname", "givenname"))
+        {
+            return ExtractionFieldKind.FirstName;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "lastname", "surname", "familyname"))
+        {
+            return ExtractionFieldKind.LastName;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "fullname"))
+        {
+            return ExtractionFieldKind.FullName;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "customername"))
+        {
+            return ExtractionFieldKind.FullName;
+        }
+
+        if (!string.IsNullOrEmpty(normalizedDescription) &&
+            normalizedDescription.Contains("firstname", StringComparison.Ordinal) &&
+            normalizedDescription.Contains("lastname", StringComparison.Ordinal))
+        {
+            return ExtractionFieldKind.FullName;
+        }
+
+        return ExtractionFieldKind.Unknown;
+    }
+
+    private static bool ContainsAny(
+        string normalizedName,
+        string normalizedDescription,
+        params string[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            if ((!string.IsNullOrEmpty(normalizedName) && normalizedName.Contains(candidate, StringComparison.Ordinal)) ||
+                (!string.IsNullOrEmpty(normalizedDescription) && normalizedDescription.Contains(candidate, StringComparison.Ordinal)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static ITemplateParser ResolveMarkdownTemplateParser(IEnumerable<ITemplateParser> templateParsers)
     {
         ArgumentNullException.ThrowIfNull(templateParsers);
@@ -564,5 +786,19 @@ public sealed class DataExtractionService
         public List<string> Values { get; set; } = [];
 
         public double Confidence { get; set; }
+    }
+
+    private sealed record MatchedExtractionEntry(
+        DataExtractionEntry Entry,
+        ExtractionFieldKind ResultFieldKind,
+        bool IsSemanticAlias);
+
+    private enum ExtractionFieldKind
+    {
+        Unknown,
+        FullName,
+        FirstName,
+        LastName,
+        PhoneNumber,
     }
 }

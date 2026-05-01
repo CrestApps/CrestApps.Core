@@ -331,6 +331,274 @@ public sealed class DataExtractionServiceTests
         Assert.Equal("89118", result.NewFields[0].Value);
     }
 
+    [Fact]
+    public async Task ProcessAsync_WhenResponseFieldUsesCamelCaseAlias_ShouldMatchConfiguredSnakeCaseField()
+    {
+        // Arrange
+        var clientFactory = new Mock<IAIClientFactory>();
+        var templateService = new Mock<ITemplateService>();
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        var chatClient = new Mock<IChatClient>();
+        var profile = CreateProfile(settings =>
+        {
+            settings.EnableDataExtraction = true;
+            settings.ExtractionCheckInterval = 1;
+            settings.DataExtractionEntries =
+            [
+                new DataExtractionEntry
+                {
+                    Name = "first_name",
+                    Description = "The customer's first name.",
+                },
+                new DataExtractionEntry
+                {
+                    Name = "last_name",
+                    Description = "The customer's last name.",
+                },
+            ];
+        });
+        profile.UtilityDeploymentName = "utility";
+
+        deploymentManager.Setup(manager => manager
+            .ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null))
+            .ReturnsAsync(new AIDeployment
+            {
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                ModelName = "gpt-4.1",
+            });
+
+        clientFactory.Setup(factory => factory
+            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .ReturnsAsync(chatClient.Object);
+
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("system prompt");
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("rendered prompt");
+
+        chatClient.Setup(client => client
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, """
+                {
+                  "fields": [
+                    {
+                      "name": "firstName",
+                      "values": ["Mike"],
+                      "confidence": 0.99
+                    },
+                    {
+                      "name": "lastName",
+                      "values": ["Smith"],
+                      "confidence": 0.99
+                    }
+                  ],
+                  "sessionEnded": false
+                }
+                """)));
+
+        var service = CreateService(clientFactory, templateService, deploymentManager);
+        var session = new AIChatSession();
+
+        // Act
+        var result = await service.ProcessAsync(
+            profile,
+            session,
+            [
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your full name?" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "Mike Smith" },
+            ],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(2, result.NewFields.Count);
+        Assert.True(session.ExtractedData.TryGetValue("first_name", out var firstNameState));
+        Assert.Equal(["Mike"], firstNameState.Values);
+        Assert.True(session.ExtractedData.TryGetValue("last_name", out var lastNameState));
+        Assert.Equal(["Smith"], lastNameState.Values);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenConfiguredFieldIsCustomerName_ShouldCombineFirstAndLastNameResponses()
+    {
+        // Arrange
+        var clientFactory = new Mock<IAIClientFactory>();
+        var templateService = new Mock<ITemplateService>();
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        var chatClient = new Mock<IChatClient>();
+        var profile = CreateProfile(settings =>
+        {
+            settings.EnableDataExtraction = true;
+            settings.ExtractionCheckInterval = 1;
+            settings.DataExtractionEntries =
+            [
+                new DataExtractionEntry
+                {
+                    Name = "customer_name",
+                    Description = "The customer first, last or full name.",
+                    IsUpdatable = true,
+                },
+            ];
+        });
+        profile.UtilityDeploymentName = "utility";
+
+        deploymentManager.Setup(manager => manager
+            .ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null))
+            .ReturnsAsync(new AIDeployment
+            {
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                ModelName = "gpt-4.1",
+            });
+
+        clientFactory.Setup(factory => factory
+            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .ReturnsAsync(chatClient.Object);
+
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("system prompt");
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("rendered prompt");
+
+        chatClient.SetupSequence(client => client
+                .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, """
+                {
+                  "fields": [
+                    {
+                      "name": "firstName",
+                      "values": ["Mike"],
+                      "confidence": 0.99
+                    }
+                  ],
+                  "sessionEnded": false
+                }
+                """)))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, """
+                {
+                  "fields": [
+                    {
+                      "name": "last name",
+                      "values": ["Smith"],
+                      "confidence": 0.99
+                    }
+                  ],
+                  "sessionEnded": false
+                }
+                """)));
+
+        var service = CreateService(clientFactory, templateService, deploymentManager);
+        var session = new AIChatSession();
+
+        // Act
+        await service.ProcessAsync(
+            profile,
+            session,
+            [
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your first name?" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "Mike" },
+            ],
+            TestContext.Current.CancellationToken);
+
+        await service.ProcessAsync(
+            profile,
+            session,
+            [
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your first name?" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "Mike" },
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your last name?" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "Smith" },
+            ],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(session.ExtractedData.TryGetValue("customer_name", out var state));
+        Assert.Equal(["Mike Smith"], state.Values);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenConfiguredFieldIsCustomerPhone_ShouldMatchPhoneNumberAlias()
+    {
+        // Arrange
+        var clientFactory = new Mock<IAIClientFactory>();
+        var templateService = new Mock<ITemplateService>();
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        var chatClient = new Mock<IChatClient>();
+        var profile = CreateProfile(settings =>
+        {
+            settings.EnableDataExtraction = true;
+            settings.ExtractionCheckInterval = 1;
+            settings.DataExtractionEntries =
+            [
+                new DataExtractionEntry
+                {
+                    Name = "customer_phone",
+                    Description = "Customer phone number.",
+                    IsUpdatable = true,
+                },
+            ];
+        });
+        profile.UtilityDeploymentName = "utility";
+
+        deploymentManager.Setup(manager => manager
+            .ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null))
+            .ReturnsAsync(new AIDeployment
+            {
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                ModelName = "gpt-4.1",
+            });
+
+        clientFactory.Setup(factory => factory
+            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .ReturnsAsync(chatClient.Object);
+
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("system prompt");
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("rendered prompt");
+
+        chatClient.Setup(client => client
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, """
+                {
+                  "fields": [
+                    {
+                      "name": "phone number",
+                      "values": ["7024993350"],
+                      "confidence": 0.99
+                    }
+                  ],
+                  "sessionEnded": false
+                }
+                """)));
+
+        var service = CreateService(clientFactory, templateService, deploymentManager);
+        var session = new AIChatSession();
+
+        // Act
+        var result = await service.ProcessAsync(
+            profile,
+            session,
+            [
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is the best phone number for the team to reach you?" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "7024993350" },
+            ],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(session.ExtractedData.TryGetValue("customer_phone", out var state));
+        Assert.Equal(["7024993350"], state.Values);
+    }
+
     private static DataExtractionService CreateService()
     {
         var clientFactory = new Mock<IAIClientFactory>();
