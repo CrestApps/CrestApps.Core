@@ -35,6 +35,12 @@ public static class ServiceCollectionExtensions
             o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI completion.");
         });
 
+        services.AddCoreAIDeploymentProvider(AzureAIInferenceConstants.ClientName, o =>
+        {
+            o.DisplayName = new LocalizedString("Azure AI Inference", "Azure AI Inference / GitHub Models");
+            o.Description = new LocalizedString("Azure AI Inference", "Use Azure AI Inference or GitHub Models for AI deployments.");
+        });
+
         return services;
     }
 

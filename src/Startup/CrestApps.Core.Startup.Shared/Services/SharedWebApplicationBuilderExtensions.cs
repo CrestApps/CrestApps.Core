@@ -41,13 +41,11 @@ public static class SharedWebApplicationBuilderExtensions
         var appDataPath = !string.IsNullOrWhiteSpace(configuredAppDataPath)
             ? configuredAppDataPath
             : Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+        var projectAppDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 
         Directory.CreateDirectory(appDataPath);
 
-        builder.Configuration.AddJsonFile(
-            Path.Combine(appDataPath, "appsettings.json"),
-            optional: true,
-            reloadOnChange: false);
+        AddSharedAppDataConfigurationSources(builder.Configuration, projectAppDataPath, appDataPath);
 
         builder.Services.AddSharedSiteSettings(appDataPath);
 
@@ -72,5 +70,34 @@ public static class SharedWebApplicationBuilderExtensions
         services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
 
         return services;
+    }
+
+    private static void AddSharedAppDataConfigurationSources(
+        ConfigurationManager configuration,
+        string projectAppDataPath,
+        string appDataPath)
+    {
+        configuration.AddJsonFile(
+            Path.Combine(projectAppDataPath, "appsettings.json"),
+            optional: true,
+            reloadOnChange: false);
+
+        if (PathsMatch(projectAppDataPath, appDataPath))
+        {
+            return;
+        }
+
+        configuration.AddJsonFile(
+            Path.Combine(appDataPath, "appsettings.json"),
+            optional: true,
+            reloadOnChange: false);
+    }
+
+    private static bool PathsMatch(string left, string right)
+    {
+        return string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            StringComparison.OrdinalIgnoreCase);
     }
 }

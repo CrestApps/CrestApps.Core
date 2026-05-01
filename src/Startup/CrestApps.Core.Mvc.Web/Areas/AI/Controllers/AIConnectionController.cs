@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -42,15 +41,11 @@ public sealed class AIConnectionController : Controller
     public async Task<IActionResult> Index()
     {
         var connections = await _store.GetAllAsync();
-        var models = connections.Select(connection =>
-        {
-            var model = AIConnectionViewModel.FromConnection(connection);
-            model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId);
+        IReadOnlyCollection<AIConnectionViewModel> models = connections.Select(AIConnectionViewModel.FromConnection)
+            .OrderBy(static model => model.DisplayText ?? model.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-            return model;
-        }).ToList();
-
-        return View(models.OrderBy(static model => model.DisplayText ?? model.Name, StringComparer.OrdinalIgnoreCase).ToList());
+        return View(models);
     }
 
     public IActionResult Create()
@@ -113,20 +108,13 @@ public sealed class AIConnectionController : Controller
 
     public async Task<IActionResult> Edit(string id)
     {
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(id))
-        {
-            TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
-
-            return RedirectToAction(nameof(Index));
-        }
-
         var connection = await _catalog.FindByIdAsync(id);
         if (connection == null)
         {
             return NotFound();
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
+        if (connection.IsReadOnly)
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
 
@@ -144,20 +132,13 @@ public sealed class AIConnectionController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(AIConnectionViewModel model)
     {
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(model.ItemId))
-        {
-            TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
-
-            return RedirectToAction(nameof(Index));
-        }
-
         var existing = await _catalog.FindByIdAsync(model.ItemId);
         if (existing == null)
         {
             return NotFound();
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(existing.ItemId))
+        if (existing.IsReadOnly)
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be edited from the UI.";
 
@@ -204,20 +185,13 @@ public sealed class AIConnectionController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string id)
     {
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(id))
-        {
-            TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be deleted from the UI.";
-
-            return RedirectToAction(nameof(Index));
-        }
-
         var connection = await _catalog.FindByIdAsync(id);
         if (connection == null)
         {
             return NotFound();
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
+        if (connection.IsReadOnly)
         {
             TempData["ErrorMessage"] = "Connections defined in appsettings are read-only and cannot be deleted from the UI.";
 

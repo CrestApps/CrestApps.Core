@@ -92,14 +92,6 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
 
-builder.Services.Configure<AIProviderConnectionCatalogOptions>(options =>
-{
-    options.ConnectionSections.Clear();
-    options.ConnectionSections.Add("CrestApps:AI:Connections");
-
-    options.ProviderSections.Clear();
-});
-
 builder.Services
     .AddMvcSampleHostServices(appDataPath)
     .AddCrestAppsCore(crestApps => crestApps

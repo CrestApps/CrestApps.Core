@@ -52,9 +52,10 @@ public sealed class AIDeploymentViewModel
             TechnicalName = deployment.Name,
             SelectedTypes = deployment.Type.GetSupportedTypes()
                 .Select(static type => type.ToString())
-                .ToArray(),
+            .ToArray(),
             ConnectionName = deployment.ConnectionName,
             ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
+            IsReadOnly = deployment.IsReadOnly,
         };
 
         if (deployment.Properties != null)

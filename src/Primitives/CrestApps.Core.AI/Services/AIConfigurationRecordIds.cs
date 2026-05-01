@@ -41,22 +41,4 @@ public static class AIConfigurationRecordIds
 
         return $"{_deploymentPrefix}{Convert.ToHexStringLower(hash)[..22]}";
     }
-
-    /// <summary>
-    /// Determines whether configuration connection id.
-    /// </summary>
-    /// <param name="itemId">The item id.</param>
-    public static bool IsConfigurationConnectionId(string itemId)
-    {
-        return !string.IsNullOrWhiteSpace(itemId) && itemId.StartsWith(_connectionPrefix, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Determines whether configuration deployment id.
-    /// </summary>
-    /// <param name="itemId">The item id.</param>
-    public static bool IsConfigurationDeploymentId(string itemId)
-    {
-        return !string.IsNullOrWhiteSpace(itemId) && itemId.StartsWith(_deploymentPrefix, StringComparison.OrdinalIgnoreCase);
-    }
 }

@@ -162,13 +162,6 @@ else if (_model != null)
 
     protected override async Task OnInitializedAsync()
     {
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(Id))
-        {
-            Navigation.NavigateTo("/ai/connections");
-
-            return;
-        }
-
         var connection = await Catalog.FindByIdAsync(Id);
         if (connection == null)
         {
@@ -177,7 +170,7 @@ else if (_model != null)
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
+        if (connection.IsReadOnly)
         {
             Navigation.NavigateTo("/ai/connections");
 
@@ -226,7 +219,7 @@ else if (_model != null)
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
+        if (connection.IsReadOnly)
         {
             Navigation.NavigateTo("/ai/connections");
 

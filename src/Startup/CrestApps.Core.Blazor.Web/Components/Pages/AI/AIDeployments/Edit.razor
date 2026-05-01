@@ -199,7 +199,7 @@ else
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        if (deployment.IsReadOnly)
         {
             Navigation.NavigateTo("/ai/deployments");
 
@@ -269,13 +269,6 @@ else
     {
         _validationErrors.Clear();
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(_model.ItemId))
-        {
-            Navigation.NavigateTo("/ai/deployments");
-
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(_model.ModelName))
         {
             _validationErrors.Add("Model name is required.");
@@ -325,7 +318,7 @@ else
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        if (deployment.IsReadOnly)
         {
             Navigation.NavigateTo("/ai/deployments");
 

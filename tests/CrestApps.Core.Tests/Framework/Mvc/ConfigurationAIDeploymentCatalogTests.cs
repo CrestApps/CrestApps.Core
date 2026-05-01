@@ -1,8 +1,12 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.OpenAI;
+using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -102,7 +106,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     }
 
     [Fact]
-    public async Task GetAllAsync_ShouldPreserveConfiguredClientName()
+    public async Task GetAllAsync_ShouldNormalizeAzureOpenAIAliasToAzure()
     {
         // Arrange
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
@@ -116,14 +120,14 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             ["CrestApps:AI:Deployments:0:ApiKey"] = "secret",
         }).Build();
         var aiOptions = new AIOptions();
-        aiOptions.AddDeploymentProvider("AzureOpenAI");
+        aiOptions.AddDeploymentProvider(AzureOpenAIConstants.ClientName);
         var store = CreateStore(configuration, aiOptions);
 
         // Act
         var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
 
         // Assert
-        Assert.Equal("AzureOpenAI", deployment.ClientName);
+        Assert.Equal(AzureOpenAIConstants.ClientName, deployment.ClientName);
         Assert.Equal(AIDeploymentType.Embedding, deployment.Type);
     }
 
@@ -153,6 +157,35 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         Assert.Equal("gpt-4.1", deployment.Name);
         Assert.Equal("gpt-4.1", deployment.ModelName);
         Assert.Equal(AIDeploymentType.Chat, deployment.Type);
+    }
+
+    [Fact]
+    public async Task AddCoreAIOpenAI_WhenDeploymentConfigured_ShouldExposeItInDeploymentStore()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "gpt-4.1",
+            ["CrestApps:AI:Deployments:0:ModelName"] = "gpt-4.1",
+            ["CrestApps:AI:Deployments:0:Type"] = "Chat",
+        }).Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
+        services.AddLogging();
+        services.AddCoreAIServices();
+        services.AddCoreAIOpenAI();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var deploymentStore = serviceProvider.GetRequiredService<IAIDeploymentStore>();
+        var deployment = Assert.Single(await deploymentStore.GetAllAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("gpt-4.1", deployment.Name);
+        Assert.Equal("OpenAI", deployment.ClientName);
+        Assert.Equal("shared-openai", deployment.ConnectionName);
+        Assert.True(deployment.IsReadOnly);
     }
 
     [Fact]
