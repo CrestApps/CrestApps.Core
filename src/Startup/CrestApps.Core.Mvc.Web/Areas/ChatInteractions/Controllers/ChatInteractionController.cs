@@ -21,7 +21,6 @@ using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
@@ -53,8 +52,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly SiteSettingsStore _siteSettings;
-    private readonly SampleAIDocumentIndexingService _documentIndexingService;
-    private readonly InteractionDocumentOptions _interactionDocumentOptions;
+    private readonly DefaultAIDocumentIndexingService _documentIndexingService;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
     private readonly OrchestratorOptions _orchestratorOptions;
@@ -82,8 +80,7 @@ public sealed class ChatInteractionController : Controller
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
         SiteSettingsStore siteSettings,
-        SampleAIDocumentIndexingService documentIndexingService,
-        IOptions<InteractionDocumentOptions> interactionDocumentOptions,
+        DefaultAIDocumentIndexingService documentIndexingService,
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService aiTemplateService,
         IOptions<OrchestratorOptions> orchestratorOptions,
@@ -110,7 +107,6 @@ public sealed class ChatInteractionController : Controller
         _aiClientFactory = aiClientFactory;
         _siteSettings = siteSettings;
         _documentIndexingService = documentIndexingService;
-        _interactionDocumentOptions = interactionDocumentOptions.Value;
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;
         _orchestratorOptions = orchestratorOptions.Value;

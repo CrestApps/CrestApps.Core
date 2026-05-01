@@ -179,7 +179,7 @@ public sealed class DataSourceSearchTool : AIFunction
             }
 
             var ragMetadata = GetRagMetadata(executionContext);
-            var siteSettings = arguments.Services.GetRequiredService<IOptions<AIDataSourceOptions>>().Value;
+            var siteSettings = arguments.Services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>().CurrentValue;
 
             string providerFilter = null;
 

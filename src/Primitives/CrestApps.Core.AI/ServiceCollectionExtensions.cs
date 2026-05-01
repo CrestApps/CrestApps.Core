@@ -408,7 +408,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Register embedded templates from this assembly so they are available
-        // regardless of the host (OrchardCore, MVC, or any ASP.NET Core app).
+        // regardless of the host application.
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
 
         services.TryAddSingleton(TimeProvider.System);
@@ -420,16 +420,14 @@ public static class ServiceCollectionExtensions
         services.AddOptions<AIDataSourceOptions>();
 
         // Register DefaultAIOptions as a scoped service that reads from IOptionsSnapshot
-
-        // and applies GeneralAISettings overrides. Host applications (OrchardCore, MVC, etc.)
-
-        // can replace this with their own implementation (e.g., reading from ISiteService).
+        // and applies the current GeneralAIOptions value. Host applications can replace
+        // this with their own implementation when they resolve settings differently.
         services.TryAddScoped(sp =>
         {
             var snapshot = sp.GetRequiredService<IOptionsSnapshot<DefaultAIOptions>>();
-            var settings = sp.GetRequiredService<IOptions<GeneralAIOptions>>();
+            var settings = sp.GetRequiredService<IOptionsMonitor<GeneralAIOptions>>();
 
-            return snapshot.Value.ApplySiteOverrides(settings.Value);
+            return snapshot.Value.ApplySiteOverrides(settings.CurrentValue);
         });
 
         // Register the Framework-level deployment manager.

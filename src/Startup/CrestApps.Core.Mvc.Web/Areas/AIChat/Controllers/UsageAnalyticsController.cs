@@ -1,5 +1,5 @@
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,13 +12,14 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 public sealed class UsageAnalyticsController : Controller
 {
     private readonly IAICompletionUsageService _usageService;
-    private readonly GeneralAIOptions _generalAIOptions;
+    private readonly IOptionsMonitor<GeneralAIOptions> _generalAIOptions;
+
     public UsageAnalyticsController(
         IAICompletionUsageService usageService,
-        IOptions<GeneralAIOptions> generalAIOptions)
+        IOptionsMonitor<GeneralAIOptions> generalAIOptions)
     {
         _usageService = usageService;
-        _generalAIOptions = generalAIOptions.Value;
+        _generalAIOptions = generalAIOptions;
     }
 
     [HttpGet]
@@ -26,7 +27,7 @@ public sealed class UsageAnalyticsController : Controller
     {
         return View(new UsageAnalyticsIndexViewModel
         {
-            IsAIUsageTrackingEnabled = _generalAIOptions.EnableAIUsageTracking,
+            IsAIUsageTrackingEnabled = _generalAIOptions.CurrentValue.EnableAIUsageTracking,
         });
     }
 
@@ -35,7 +36,7 @@ public sealed class UsageAnalyticsController : Controller
     [ActionName(nameof(Index))]
     public async Task<IActionResult> IndexPost(UsageAnalyticsIndexViewModel model)
     {
-        model.IsAIUsageTrackingEnabled = _generalAIOptions.EnableAIUsageTracking;
+        model.IsAIUsageTrackingEnabled = _generalAIOptions.CurrentValue.EnableAIUsageTracking;
         var records = await _usageService.GetAsync(model.StartDateUtc, model.EndDateUtc);
         ApplyReport(model, records);
 

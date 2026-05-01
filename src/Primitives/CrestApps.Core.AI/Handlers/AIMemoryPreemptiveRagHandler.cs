@@ -13,8 +13,8 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
 {
     private readonly IAIMemorySearchService _memorySearchService;
     private readonly ITemplateService _templateService;
-    private readonly GeneralAIOptions _generalAIOptions;
-    private readonly IOptions<ChatInteractionMemoryOptions> _chatInteractionMemoryOptions;
+    private readonly IOptionsMonitor<GeneralAIOptions> _generalAIOptions;
+    private readonly IOptionsMonitor<ChatInteractionMemoryOptions> _chatInteractionMemoryOptions;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<AIMemoryPreemptiveRagHandler> _logger;
 
@@ -23,21 +23,21 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
     /// </summary>
     /// <param name="memorySearchService">The memory search service.</param>
     /// <param name="templateService">The template service.</param>
-    /// <param name="generalAIOptions">The general ai options.</param>
+    /// <param name="generalAIOptions">The general ai options monitor.</param>
     /// <param name="chatInteractionMemoryOptions">The chat interaction memory options.</param>
     /// <param name="httpContextAccessor">The http context accessor.</param>
     /// <param name="logger">The logger.</param>
     public AIMemoryPreemptiveRagHandler(
         IAIMemorySearchService memorySearchService,
         ITemplateService templateService,
-        IOptions<GeneralAIOptions> generalAIOptions,
-        IOptions<ChatInteractionMemoryOptions> chatInteractionMemoryOptions,
+        IOptionsMonitor<GeneralAIOptions> generalAIOptions,
+        IOptionsMonitor<ChatInteractionMemoryOptions> chatInteractionMemoryOptions,
         IHttpContextAccessor httpContextAccessor,
         ILogger<AIMemoryPreemptiveRagHandler> logger)
     {
         _memorySearchService = memorySearchService;
         _templateService = templateService;
-        _generalAIOptions = generalAIOptions.Value;
+        _generalAIOptions = generalAIOptions;
         _chatInteractionMemoryOptions = chatInteractionMemoryOptions;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
@@ -61,7 +61,7 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
             return false;
         }
 
-        if (!_generalAIOptions.EnablePreemptiveMemoryRetrieval)
+        if (!_generalAIOptions.CurrentValue.EnablePreemptiveMemoryRetrieval)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -71,7 +71,7 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
             return false;
         }
 
-        var isEnabled = AIMemoryOrchestrationContextHelper.IsEnabled(context.Resource, _chatInteractionMemoryOptions);
+        var isEnabled = AIMemoryOrchestrationContextHelper.IsEnabled(context.Resource, _chatInteractionMemoryOptions.CurrentValue);
 
         if (!isEnabled && _logger.IsEnabled(LogLevel.Debug))
         {

@@ -24,9 +24,9 @@ namespace CrestApps.Core.AI.Chat.Hubs;
 /// interaction loading, settings persistence, history clearing, conversation mode,
 /// audio transcription, and text-to-speech synthesis.
 /// <para>
-/// All public hub methods are <c>virtual</c> so that framework-specific subclasses
-/// (e.g., OrchardCore) can wrap each call with their own scoping or authorization
-/// logic and then call the base implementation.
+/// All public hub methods are <c>virtual</c> so that host-specific subclasses can
+/// wrap each call with their own scoping or authorization logic and then call the
+/// base implementation.
 /// </para>
 /// </summary>
 public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
@@ -55,9 +55,8 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     protected ILogger Logger { get; }
 
     /// <summary>
-    /// Executes an action within a service scope. Override in OrchardCore to use
-    /// <c>ShellScope.UsingChildScopeAsync</c> so that each hub invocation gets
-    /// its own <c>ISession</c> / <c>IDocumentStore</c> lifecycle.
+    /// Executes an action within a service scope. Override in a host that needs a
+    /// dedicated child scope for each hub invocation.
     /// </summary>
     // ------------------------- Scoping hook -------------------------
 
@@ -86,8 +85,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     }
 
     /// <summary>
-    /// Generates a unique identifier. Override to use a framework-specific
-    /// ID generator (e.g., OrchardCore's <c>IdGenerator</c>).
+    /// Generates a unique identifier. Override to use a host-specific ID generator.
     /// </summary>
     protected virtual string GenerateId()
     {
@@ -127,8 +125,8 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     }
 
     /// <summary>
-    /// Resolves the deployment settings for speech services. Override in
-    /// OrchardCore to read from ISiteService instead of IOptionsMonitor.
+    /// Resolves the deployment settings for speech services. Override in another
+    /// host to read from its preferred settings source.
     /// </summary>
     // ------------------------- Deployment resolution -------------------------
 

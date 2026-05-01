@@ -6,7 +6,6 @@ using CrestApps.Core.Infrastructure.Indexing;
 
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using Microsoft.Extensions.Options;
-
 namespace CrestApps.Core.Blazor.Web.Areas.Indexing.Services;
 
 /// <summary>
@@ -14,19 +13,19 @@ namespace CrestApps.Core.Blazor.Web.Areas.Indexing.Services;
 /// </summary>
 public sealed class SampleAIDocumentIndexingService
 {
-    private readonly InteractionDocumentOptions _options;
+    private readonly IOptionsMonitor<InteractionDocumentOptions> _options;
     private readonly ISearchIndexProfileStore _indexProfileStore;
 
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<SampleAIDocumentIndexingService> _logger;
 
     public SampleAIDocumentIndexingService(
-        IOptions<InteractionDocumentOptions> options,
+        IOptionsMonitor<InteractionDocumentOptions> options,
         ISearchIndexProfileStore indexProfileStore,
         IServiceProvider serviceProvider,
         ILogger<SampleAIDocumentIndexingService> logger)
     {
-        _options = options.Value;
+        _options = options;
         _indexProfileStore = indexProfileStore;
         _serviceProvider = serviceProvider;
 
@@ -178,7 +177,7 @@ public sealed class SampleAIDocumentIndexingService
 
     private async Task<SearchIndexProfile> GetConfiguredIndexProfileAsync(CancellationToken cancellationToken)
     {
-        var settings = _options;
+        var settings = _options.CurrentValue;
 
         if (string.IsNullOrWhiteSpace(settings.IndexProfileName))
         {

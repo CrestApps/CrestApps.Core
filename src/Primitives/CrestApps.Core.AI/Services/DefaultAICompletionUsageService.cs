@@ -16,7 +16,7 @@ public sealed class DefaultAICompletionUsageService : IAICompletionUsageService
     private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly GeneralAIOptions _generalAIOptions;
+    private readonly IOptionsMonitor<GeneralAIOptions> _generalAIOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultAICompletionUsageService"/> class.
@@ -25,19 +25,19 @@ public sealed class DefaultAICompletionUsageService : IAICompletionUsageService
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="httpContextAccessor">The HTTP context accessor.</param>
-    /// <param name="generalAIOptions">The general AI options.</param>
+    /// <param name="generalAIOptions">The general AI options monitor.</param>
     public DefaultAICompletionUsageService(
         IAICompletionUsageStore store,
         IServiceProvider serviceProvider,
         TimeProvider timeProvider,
         IHttpContextAccessor httpContextAccessor,
-        IOptions<GeneralAIOptions> generalAIOptions)
+        IOptionsMonitor<GeneralAIOptions> generalAIOptions)
     {
         _store = store;
         _serviceProvider = serviceProvider;
         _timeProvider = timeProvider;
         _httpContextAccessor = httpContextAccessor;
-        _generalAIOptions = generalAIOptions.Value;
+        _generalAIOptions = generalAIOptions;
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public sealed class DefaultAICompletionUsageService : IAICompletionUsageService
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        if (!_generalAIOptions.EnableAIUsageTracking)
+        if (!_generalAIOptions.CurrentValue.EnableAIUsageTracking)
         {
             return;
         }

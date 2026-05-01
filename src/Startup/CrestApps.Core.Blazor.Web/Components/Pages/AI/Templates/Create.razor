@@ -33,9 +33,9 @@
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
-@inject IOptions<CopilotOptions> CopilotOpts
+@inject IOptionsMonitor<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
-@inject IOptions<InteractionDocumentOptions> DocOpts
+@inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 
@@ -703,7 +703,7 @@
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var docSettings = DocOpts.Value;
+        var docSettings = DocOpts.CurrentValue;
         _model.DocumentIndexProfileName = docSettings.IndexProfileName;
         if (!string.IsNullOrWhiteSpace(docSettings.IndexProfileName))
         {

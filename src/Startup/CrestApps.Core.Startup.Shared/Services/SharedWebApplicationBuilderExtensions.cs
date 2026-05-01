@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -62,6 +63,7 @@ public static class SharedWebApplicationBuilderExtensions
         ArgumentException.ThrowIfNullOrEmpty(appDataPath);
 
         services.AddSingleton(new SiteSettingsStore(appDataPath));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton(typeof(IOptionsChangeTokenSource<>), typeof(SiteSettingsOptionsChangeTokenSource<>)));
         services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigureGeneralAIOptions>();
         services.AddSingleton<IConfigureOptions<AIMemoryOptions>, SiteSettingsConfigureAIMemoryOptions>();
         services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, SiteSettingsConfigureInteractionDocumentOptions>();

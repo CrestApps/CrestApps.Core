@@ -25,12 +25,30 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
 
     public void Configure(CopilotOptions options)
     {
-        var settings = _siteSettings.Get<CopilotSettings>();
+        Apply(_siteSettings.Get<CopilotSettings>(), options, _dataProtectionProvider, _logger);
+    }
 
-        if (settings == null)
-        {
-            return;
-        }
+    public static CopilotOptions Create(
+        CopilotSettings settings,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger logger)
+    {
+        var options = new CopilotOptions();
+        Apply(settings, options, dataProtectionProvider, logger);
+
+        return options;
+    }
+
+    public static void Apply(
+        CopilotSettings settings,
+        CopilotOptions options,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(dataProtectionProvider);
+        ArgumentNullException.ThrowIfNull(logger);
 
         options.AuthenticationType = settings.AuthenticationType;
         options.ClientId = settings.ClientId;
@@ -41,7 +59,7 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
         options.DefaultModel = settings.DefaultModel;
         options.AzureApiVersion = settings.AzureApiVersion;
 
-        var protector = _dataProtectionProvider.CreateProtector(ProtectorPurpose);
+        var protector = dataProtectionProvider.CreateProtector(ProtectorPurpose);
 
         if (!string.IsNullOrWhiteSpace(settings.ProtectedClientSecret))
         {
@@ -51,7 +69,7 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to unprotect Copilot client secret.");
+                logger.LogWarning(ex, "Failed to unprotect Copilot client secret.");
             }
         }
 
@@ -63,7 +81,7 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to unprotect Copilot API key.");
+                logger.LogWarning(ex, "Failed to unprotect Copilot API key.");
             }
         }
     }

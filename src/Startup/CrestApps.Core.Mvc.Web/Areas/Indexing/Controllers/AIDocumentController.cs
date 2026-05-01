@@ -6,7 +6,6 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,7 +23,7 @@ public sealed class AIDocumentController : Controller
     private readonly IAIDocumentProcessingService _documentProcessingService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
-    private readonly SampleAIDocumentIndexingService _documentIndexingService;
+    private readonly DefaultAIDocumentIndexingService _documentIndexingService;
 
     public AIDocumentController(
         IAIDocumentStore documentStore,
@@ -34,7 +33,7 @@ public sealed class AIDocumentController : Controller
         IAIDocumentProcessingService documentProcessingService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
-        SampleAIDocumentIndexingService documentIndexingService)
+        DefaultAIDocumentIndexingService documentIndexingService)
     {
         _documentStore = documentStore;
         _chunkStore = chunkStore;

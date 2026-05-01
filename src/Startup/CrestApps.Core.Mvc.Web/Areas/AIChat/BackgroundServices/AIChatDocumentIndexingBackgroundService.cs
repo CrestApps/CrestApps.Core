@@ -1,5 +1,5 @@
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 
@@ -26,7 +26,7 @@ public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
             try
             {
                 await using var scope = _scopeFactory.CreateAsyncScope();
-                var indexingService = scope.ServiceProvider.GetRequiredService<SampleAIDocumentIndexingService>();
+                var indexingService = scope.ServiceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
 
                 switch (workItem.Type)
                 {

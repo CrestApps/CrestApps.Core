@@ -3,8 +3,8 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Framework.AI;
@@ -47,7 +47,10 @@ public sealed class DefaultAICompletionUsageServiceTests
             serviceProvider.Object,
             TimeProvider.System,
             httpContextAccessor.Object,
-            Options.Create(new GeneralAIOptions { EnableAIUsageTracking = true }));
+            new TestOptionsMonitor<GeneralAIOptions>
+            {
+                CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = true },
+            });
 
         await service.UsageRecordedAsync(record, TestContext.Current.CancellationToken);
 
@@ -70,8 +73,43 @@ public sealed class DefaultAICompletionUsageServiceTests
             serviceProvider.Object,
             TimeProvider.System,
             httpContextAccessor.Object,
-            Options.Create(new GeneralAIOptions { EnableAIUsageTracking = false }));
+            new TestOptionsMonitor<GeneralAIOptions>
+            {
+                CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = false },
+            });
 
         await service.UsageRecordedAsync(new AICompletionUsageRecord(), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task UsageRecordedAsync_UsesCurrentSettingsValueAtCallTime()
+    {
+        var record = new AICompletionUsageRecord();
+        var optionsAccessor = new TestOptionsMonitor<GeneralAIOptions>
+        {
+            CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = false },
+        };
+        var usageStore = new Mock<IAICompletionUsageStore>(MockBehavior.Strict);
+        var serviceProvider = new Mock<IServiceProvider>(MockBehavior.Strict);
+        var httpContextAccessor = new Mock<IHttpContextAccessor>(MockBehavior.Strict);
+
+        var service = new DefaultAICompletionUsageService(
+            usageStore.Object,
+            serviceProvider.Object,
+            TimeProvider.System,
+            httpContextAccessor.Object,
+            optionsAccessor);
+
+        await service.UsageRecordedAsync(record, TestContext.Current.CancellationToken);
+
+        optionsAccessor.CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = true };
+        usageStore
+            .Setup(x => x.SaveAsync(record, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+        httpContextAccessor.SetupGet(x => x.HttpContext).Returns((HttpContext)null!);
+
+        await service.UsageRecordedAsync(record, TestContext.Current.CancellationToken);
+
+        usageStore.VerifyAll();
     }
 }

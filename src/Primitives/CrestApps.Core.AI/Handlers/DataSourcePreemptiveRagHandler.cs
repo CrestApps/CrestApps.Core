@@ -43,7 +43,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         ITemplateService templateService,
         IAIDeploymentManager deploymentManager,
         IAITextNormalizer textNormalizer,
-        IOptions<AIDataSourceOptions> options,
+        IOptionsMonitor<AIDataSourceOptions> options,
         ILogger<DataSourcePreemptiveRagHandler> logger)
     {
         _serviceProvider = serviceProvider;
@@ -51,7 +51,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         _templateService = templateService;
         _deploymentManager = deploymentManager;
         _textNormalizer = textNormalizer;
-        _options = options.Value;
+        _options = options.CurrentValue;
         _logger = logger;
     }
 

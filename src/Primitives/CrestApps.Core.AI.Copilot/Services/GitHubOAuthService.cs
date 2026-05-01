@@ -22,7 +22,7 @@ public sealed class GitHubOAuthService
 
     private readonly ICopilotCredentialStore _credentialStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly IOptions<CopilotOptions> _options;
+    private readonly IOptionsMonitor<CopilotOptions> _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TimeProvider _timeProvider;
@@ -40,7 +40,7 @@ public sealed class GitHubOAuthService
     public GitHubOAuthService(
         ICopilotCredentialStore credentialStore,
         IDataProtectionProvider dataProtectionProvider,
-        IOptions<CopilotOptions> options,
+        IOptionsMonitor<CopilotOptions> options,
         IHttpClientFactory httpClientFactory,
         TimeProvider timeProvider,
         ILogger<GitHubOAuthService> logger,
@@ -64,7 +64,7 @@ public sealed class GitHubOAuthService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(callbackUrl);
 
-        var settings = _options.Value;
+        var settings = _options.CurrentValue;
 
         if (string.IsNullOrWhiteSpace(settings.ClientId))
         {
@@ -191,7 +191,7 @@ public sealed class GitHubOAuthService
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        var settings = _options.Value;
+        var settings = _options.CurrentValue;
 
         if (string.IsNullOrWhiteSpace(settings.ClientId) || string.IsNullOrWhiteSpace(settings.ClientSecret))
         {
@@ -213,7 +213,7 @@ public sealed class GitHubOAuthService
             Content = JsonContent.Create(tokenRequest),
         };
         tokenRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        tokenRequestMessage.Headers.UserAgent.ParseAdd("CrestApps-OrchardCore-Copilot/1.0");
+        tokenRequestMessage.Headers.UserAgent.ParseAdd("CrestApps-Core-Copilot/1.0");
 
         var tokenResponse = await httpClient.SendAsync(tokenRequestMessage, cancellationToken);
         tokenResponse.EnsureSuccessStatusCode();
@@ -230,7 +230,7 @@ public sealed class GitHubOAuthService
         // Get user information from GitHub.
         using var userRequestMessage = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
         userRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        userRequestMessage.Headers.UserAgent.ParseAdd("CrestApps-OrchardCore-Copilot/1.0");
+        userRequestMessage.Headers.UserAgent.ParseAdd("CrestApps-Core-Copilot/1.0");
         userRequestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var userResponse = await httpClient.SendAsync(userRequestMessage, cancellationToken);

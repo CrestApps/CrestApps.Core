@@ -6,9 +6,9 @@ using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
@@ -226,7 +226,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
         services.AddKeyedSingleton<ISearchDocumentManager>(AISearchConstants.ProviderName, documentManager);
 
         return new SampleAIDocumentIndexingService(
-                    Options.Create(new InteractionDocumentOptions { IndexProfileName = "chat-documents" }),
+                    new TestOptionsMonitor<InteractionDocumentOptions> { CurrentValue = new InteractionDocumentOptions { IndexProfileName = "chat-documents" } },
                     indexProfileStore,
                     services.BuildServiceProvider(),
                     NullLogger<SampleAIDocumentIndexingService>.Instance);

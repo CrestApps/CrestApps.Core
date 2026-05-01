@@ -195,10 +195,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 {
     branch.Use(async (context, next) =>
     {
-        var siteSettings = context.RequestServices.GetRequiredService<SiteSettingsStore>();
-        var settings = siteSettings.TryGet<McpServerOptions>(out var storedSettings)
-            ? storedSettings
-            : context.RequestServices.GetRequiredService<IOptions<McpServerOptions>>().Value;
+        var settings = context.RequestServices.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
 
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {

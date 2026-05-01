@@ -39,7 +39,7 @@ public sealed class AITemplateController : Controller
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IAIProfileManager _profileManager;
     private readonly IAIProfileTemplateManager _templateManager;
-    private readonly InteractionDocumentOptions _interactionDocumentOptions;
+    private readonly IOptionsMonitor<InteractionDocumentOptions> _interactionDocumentOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _aiTemplateService;
     private readonly OrchestratorOptions _orchestratorOptions;
@@ -48,7 +48,23 @@ public sealed class AITemplateController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-    public AITemplateController(ICatalog<AIProfileTemplate> catalog, ICatalog<AIDeployment> deploymentCatalog, ICatalog<A2AConnection> a2aConnectionCatalog, ICatalog<McpConnection> mcpConnectionCatalog, IAIDataSourceStore dataSourceStore, IAIProfileManager profileManager, IAIProfileTemplateManager templateManager, IOptions<InteractionDocumentOptions> interactionDocumentOptions, ISearchIndexProfileStore indexProfileStore, ITemplateService aiTemplateService, IOptions<OrchestratorOptions> orchestratorOptions, IOptionsSnapshot<ClaudeOptions> anthropicOptions, ClaudeClientService anthropicClientService, IOptionsSnapshot<CopilotOptions> copilotOptions, GitHubOAuthService oauthService, IOptions<AIToolDefinitionOptions> toolOptions)
+    public AITemplateController(
+        ICatalog<AIProfileTemplate> catalog,
+        ICatalog<AIDeployment> deploymentCatalog,
+        ICatalog<A2AConnection> a2aConnectionCatalog,
+        ICatalog<McpConnection> mcpConnectionCatalog,
+        IAIDataSourceStore dataSourceStore,
+        IAIProfileManager profileManager,
+        IAIProfileTemplateManager templateManager,
+        IOptionsMonitor<InteractionDocumentOptions> interactionDocumentOptions,
+        ISearchIndexProfileStore indexProfileStore,
+        ITemplateService aiTemplateService,
+        IOptions<OrchestratorOptions> orchestratorOptions,
+        IOptionsSnapshot<ClaudeOptions> anthropicOptions,
+        ClaudeClientService anthropicClientService,
+        IOptionsSnapshot<CopilotOptions> copilotOptions,
+        GitHubOAuthService oauthService,
+        IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -57,7 +73,7 @@ public sealed class AITemplateController : Controller
         _dataSourceStore = dataSourceStore;
         _profileManager = profileManager;
         _templateManager = templateManager;
-        _interactionDocumentOptions = interactionDocumentOptions.Value;
+        _interactionDocumentOptions = interactionDocumentOptions;
         _indexProfileStore = indexProfileStore;
         _aiTemplateService = aiTemplateService;
         _orchestratorOptions = orchestratorOptions.Value;
@@ -202,7 +218,7 @@ public sealed class AITemplateController : Controller
             .ToList();
         var promptTemplates = await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt);
         model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable).OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase).Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description, }).ToList(), }).ToList();
-        var documentSettings = _interactionDocumentOptions;
+        var documentSettings = _interactionDocumentOptions.CurrentValue;
         model.DocumentIndexProfileName = documentSettings.IndexProfileName;
         if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
         {

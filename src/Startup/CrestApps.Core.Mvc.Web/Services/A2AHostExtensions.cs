@@ -72,7 +72,7 @@ internal static class A2AHostExtensions
         taskManager.OnAgentCardQuery = async (agentUrl, cancellationToken) =>
         {
             var services = httpContextAccessor.HttpContext!.RequestServices;
-            var options = services.GetRequiredService<IOptions<A2AHostOptions>>().Value;
+            var options = services.GetRequiredService<IOptionsMonitor<A2AHostOptions>>().CurrentValue;
             var profileManager = services.GetRequiredService<IAIProfileManager>();
             var profiles = await profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
 
@@ -100,7 +100,7 @@ internal static class A2AHostExtensions
 
     private static async Task HandleWellKnownEndpointAsync(HttpContext context)
     {
-        var options = context.RequestServices.GetRequiredService<IOptions<A2AHostOptions>>().Value;
+        var options = context.RequestServices.GetRequiredService<IOptionsMonitor<A2AHostOptions>>().CurrentValue;
         var profileManager = context.RequestServices.GetRequiredService<IAIProfileManager>();
         var profiles = await profileManager.GetAsync(AIProfileType.Agent);
         var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
@@ -264,7 +264,7 @@ internal static class A2AHostExtensions
         IHttpContextAccessor httpContextAccessor,
         AgentMessage lastMessage)
     {
-        var options = services.GetRequiredService<IOptions<A2AHostOptions>>().Value;
+        var options = services.GetRequiredService<IOptionsMonitor<A2AHostOptions>>().CurrentValue;
         var profileManager = services.GetRequiredService<IAIProfileManager>();
         var profiles = await profileManager.GetAsync(AIProfileType.Agent);
 

@@ -36,9 +36,9 @@
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
-@inject IOptions<CopilotOptions> CopilotOpts
+@inject IOptionsMonitor<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
-@inject IOptions<InteractionDocumentOptions> DocOpts
+@inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISpeechVoiceResolver SpeechVoiceResolver
 @inject AIProfileDocumentService ProfileDocumentService
@@ -1197,7 +1197,7 @@ else if (_model != null)
         var allDataSources = await DataSourceStore.GetAllAsync();
         _model.DataSources = allDataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new KeyValuePair<string, string>(ds.DisplayText, ds.ItemId)).ToList();
 
-        var documentSettings = DocOpts.Value;
+        var documentSettings = DocOpts.CurrentValue;
         _model.DocumentIndexProfileName = documentSettings.IndexProfileName;
         if (!string.IsNullOrWhiteSpace(documentSettings.IndexProfileName))
         {

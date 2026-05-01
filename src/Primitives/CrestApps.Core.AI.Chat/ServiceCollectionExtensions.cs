@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds the default chat notification sender and built-in notification action handlers.
     /// The sender dispatches notifications to keyed <see cref="IChatNotificationTransport"/>
-    /// implementations, which must be registered separately by each host (OrchardCore, MVC, etc.).
+    /// implementations, which must be registered separately by each host application.
     /// </summary>
     /// <param name="services">The service collection.</param>
     public static IServiceCollection AddCoreAIChatNotifications(this IServiceCollection services)

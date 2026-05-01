@@ -42,7 +42,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
     private readonly IToolRegistry _toolRegistry;
     private readonly GitHubOAuthService _oauthService;
     private readonly ICopilotCredentialStore _credentialStore;
-    private readonly IOptions<CopilotOptions> _options;
+    private readonly IOptionsMonitor<CopilotOptions> _options;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger<CopilotOrchestrator> _logger;
 
@@ -59,7 +59,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         IToolRegistry toolRegistry,
         GitHubOAuthService oauthService,
         ICopilotCredentialStore credentialStore,
-        IOptions<CopilotOptions> options,
+        IOptionsMonitor<CopilotOptions> options,
         IDataProtectionProvider dataProtectionProvider,
         ILogger<CopilotOrchestrator> logger)
     {
@@ -140,7 +140,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             sessionConfig.OnPermissionRequest = CreatePermissionRequestHandler(metadata.IsAllowAll);
         }
 
-        var settings = _options.Value;
+        var settings = _options.CurrentValue;
         if (!IsConfigured(settings))
         {
             yield return CreateTextResponse("Copilot is not configured and cannot be used until it has been configured.");

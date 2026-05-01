@@ -2,10 +2,10 @@
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Completions
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
-@using Microsoft.Extensions.Options
 @inject IAICompletionUsageService UsageService
-@inject IOptions<GeneralAIOptions> GeneralAIOptionsAccessor
+@inject Microsoft.Extensions.Options.IOptionsMonitor<CrestApps.Core.AI.Models.GeneralAIOptions> GeneralAIOptions
 
 <PageTitle>AI Usage Analytics - Blazor AI Integration Sample</PageTitle>
 
@@ -105,13 +105,19 @@ else
 
     protected override void OnInitialized()
     {
-        _model.IsAIUsageTrackingEnabled = GeneralAIOptionsAccessor.Value.EnableAIUsageTracking;
+        RefreshUsageTrackingState();
     }
 
     private async Task RunReportAsync()
     {
+        RefreshUsageTrackingState();
         var records = await UsageService.GetAsync(_model.StartDateUtc, _model.EndDateUtc);
         ApplyReport(records);
+    }
+
+    private void RefreshUsageTrackingState()
+    {
+        _model.IsAIUsageTrackingEnabled = GeneralAIOptions.CurrentValue.EnableAIUsageTracking;
     }
 
     private void ApplyReport(IReadOnlyList<AICompletionUsageRecord> records)
