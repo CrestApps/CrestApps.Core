@@ -228,7 +228,7 @@ public sealed class AIChatSessionPostCloseProcessor
         CancellationToken cancellationToken)
     {
         var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
-        var taskNames = postSessionSettings.PostSessionTasks.Select(t => t.Name).ToList();
+        var taskNames = postSessionSettings.PostSessionTasks.Select(t => t.Name);
 
         try
         {
@@ -271,6 +271,11 @@ public sealed class AIChatSessionPostCloseProcessor
                     if (chatSession.PostSessionResults.TryGetValue(taskName, out var existing))
                     {
                         CopyAttemptState(existing, taskResult);
+                    }
+
+                    if (taskResult.Status == PostSessionTaskResultStatus.Succeeded)
+                    {
+                        taskResult.ErrorMessage = null;
                     }
 
                     chatSession.PostSessionResults[taskName] = taskResult;
@@ -329,7 +334,7 @@ public sealed class AIChatSessionPostCloseProcessor
                     succeededCount,
                     failedCount,
                     pendingCount,
-                    taskNames.Count);
+                    taskNames.Count());
             }
         }
         catch (Exception ex)

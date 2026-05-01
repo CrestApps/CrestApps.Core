@@ -181,7 +181,7 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WhenToolResponseContainsOnlyInvalidTaskEntries_ShouldAttemptStructuredRecovery()
+    public async Task ProcessAsync_WhenToolResponseContainsOnlyInvalidTaskEntriesWithoutToolCalls_ShouldFallBackToNoToolsStructuredPass()
     {
         var profile = CreateProfile();
         profile.AlterSettings<AIProfilePostSessionSettings>(s =>
@@ -204,6 +204,7 @@ public sealed class PostSessionProcessingServiceTests
         mockChatClient.SetupSequence(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"\",\"value\":\"\"}]}")))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"\",\"value\":\"\"}]}")))
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"Summarized the conversation.\"}]}")));
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(t => t
@@ -217,6 +218,7 @@ public sealed class PostSessionProcessingServiceTests
         Assert.Equal("summary", taskResult.Key);
         Assert.Equal(PostSessionTaskResultStatus.Succeeded, taskResult.Value.Status);
         Assert.Equal("Summarized the conversation.", taskResult.Value.Value);
+        mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 
     [Fact]

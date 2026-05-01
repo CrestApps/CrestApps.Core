@@ -318,6 +318,16 @@ public sealed class PostSessionProcessingService
 
         var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.PostSessionAnalysis, cancellationToken: cancellationToken);
 
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Post-session prompt details for session '{SessionId}': SystemPromptPreview='{SystemPromptPreview}', UserPromptPreview='{UserPromptPreview}', Tasks=[{TaskNames}].",
+                session.SessionId,
+                CreateResponseLogPreview(systemPrompt),
+                CreateResponseLogPreview(prompt),
+                string.Join(", ", tasksToProcess.Select(t => t.Name)));
+        }
+
         var messages = new List<ChatMessage>
         {
             new(ChatRole.System, systemPrompt),
@@ -353,62 +363,14 @@ public sealed class PostSessionProcessingService
                 session.SessionId);
         }
 
-        var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(messages, new ChatOptions
-        {
-            Temperature = 0f,
-        }.AddUsageTracking(session: session), null, cancellationToken);
-
-        var responseText = GetLastAssistantMessageText(response.Messages);
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogDebug(
-                "Post-session structured raw response for session '{SessionId}': '{ResponseText}'.",
-                session.SessionId,
-                CreateResponseLogPreview(responseText));
-        }
-
-        if (response.Result?.Tasks == null)
-        {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug(
-                    "Post-session structured output for session '{SessionId}' returned no tasks.",
-                    session.SessionId);
-            }
-
-            return null;
-        }
-
-        if (response.Result.Tasks.Count == 0)
-        {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug(
-                    "Post-session structured output for session '{SessionId}' returned an empty tasks array.",
-                    session.SessionId);
-            }
-
-            return CreateEmptyStructuredResults(session.SessionId, tasksToProcess, responseText);
-        }
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogDebug(
-                "Post-session structured output for session '{SessionId}' returned {TaskCount} task result(s): [{TaskNames}].",
-                session.SessionId,
-                response.Result.Tasks.Count,
-                CreateTaskResultSummary(response.Result.Tasks));
-        }
-
-        var appliedResults = ApplyResults(tasksToProcess, response.Result.Tasks);
-
-        if (appliedResults.Count > 0)
-        {
-            return appliedResults;
-        }
-
-        return CreateInvalidStructuredResults(session.SessionId, tasksToProcess, response.Result.Tasks, responseText);
+        return await ProcessStructuredAsync(
+            session,
+            chatClient,
+            messages,
+            tasksToProcess,
+            "structured output path",
+            false,
+            cancellationToken);
     }
 
     private async Task<Dictionary<string, PostSessionResult>> ProcessWithToolsAsync(
@@ -435,19 +397,17 @@ public sealed class PostSessionProcessingService
             Tools = tools,
         }.AddUsageTracking(session: session), cancellationToken);
 
+        var toolCallCount = response.Messages?
+            .SelectMany(m => m.Contents?.OfType<FunctionCallContent>() ?? [])
+            .Count() ?? 0;
+
+        var toolResultCount = response.Messages?
+            .SelectMany(m => m.Contents?.OfType<FunctionResultContent>() ?? [])
+            .Count() ?? 0;
+
         // Log tool invocation details from the response messages.
         if (_logger.IsEnabled(LogLevel.Debug))
         {
-            var toolCallCount = response.Messages?
-
-                .SelectMany(m => m.Contents?.OfType<FunctionCallContent>() ?? [])
-                .Count() ?? 0;
-
-            var toolResultCount = response.Messages?
-
-                .SelectMany(m => m.Contents?.OfType<FunctionResultContent>() ?? [])
-                .Count() ?? 0;
-
             _logger.LogDebug(
                 "Post-session tools response for session '{SessionId}': MessageCount={MessageCount}, ToolCalls={ToolCallCount}, ToolResults={ToolResultCount}.",
                 session.SessionId,
@@ -521,10 +481,169 @@ public sealed class PostSessionProcessingService
 
         if (recoveredResults is not null && recoveredResults.Count > 0)
         {
+            var hasUsableRecoveredResults = recoveredResults.Values.Any(result =>
+                result.Status == PostSessionTaskResultStatus.Succeeded
+                && !string.IsNullOrWhiteSpace(result.Value));
+
+            if (hasUsableRecoveredResults)
+            {
+                return recoveredResults;
+            }
+
+            if (toolCallCount == 0 && toolResultCount == 0)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Post-session tool processing for session '{SessionId}' produced no tool calls/results and no usable structured recovery output. Retrying without tools.",
+                        session.SessionId);
+                }
+
+                return await ProcessStructuredAsync(
+                    session,
+                    chatClient,
+                    messages,
+                    tasks,
+                    "no-tools fallback after tool path produced no usable output",
+                    true,
+                    cancellationToken);
+            }
+
             return recoveredResults;
         }
 
+        if (toolCallCount == 0 && toolResultCount == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Post-session tool processing for session '{SessionId}' produced no tool calls/results and no recoverable structured output. Retrying without tools.",
+                    session.SessionId);
+            }
+
+            return await ProcessStructuredAsync(
+                session,
+                chatClient,
+                messages,
+                tasks,
+                "no-tools fallback after empty tool path result",
+                true,
+                cancellationToken);
+        }
+
         return CreateFailedResults(session.SessionId, tasks, responseText);
+    }
+
+    private async Task<Dictionary<string, PostSessionResult>> ProcessStructuredAsync(
+        AIChatSession session,
+        IChatClient chatClient,
+        List<ChatMessage> messages,
+        List<PostSessionTask> tasksToProcess,
+        string reason,
+        bool failWhenStructuredResultMissing,
+        CancellationToken cancellationToken)
+    {
+        var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(messages, new ChatOptions
+        {
+            Temperature = 0f,
+        }.AddUsageTracking(session: session), null, cancellationToken);
+
+        var responseText = GetLastAssistantMessageText(response.Messages);
+        PostSessionProcessingResponse result = null;
+
+        try
+        {
+            result = response.Result;
+        }
+        catch (InvalidOperationException)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Post-session structured output for session '{SessionId}' ({Reason}) did not contain JSON in the typed result path.",
+                    session.SessionId,
+                    reason);
+            }
+        }
+        catch (JsonException)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Post-session structured output for session '{SessionId}' ({Reason}) returned invalid JSON in the typed result path.",
+                    session.SessionId,
+                    reason);
+            }
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Post-session structured raw response for session '{SessionId}' ({Reason}): '{ResponseText}'.",
+                session.SessionId,
+                reason,
+                CreateResponseLogPreview(responseText));
+        }
+
+        if (result?.Tasks == null)
+        {
+            var parsedResult = TryParsePostSessionResponse(session.SessionId, responseText);
+
+            if (parsedResult?.Tasks != null)
+            {
+                result = parsedResult;
+            }
+        }
+
+        if (result?.Tasks == null)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Post-session structured output for session '{SessionId}' ({Reason}) returned no tasks.",
+                    session.SessionId,
+                    reason);
+            }
+
+            if (failWhenStructuredResultMissing)
+            {
+                return CreateFailedResults(session.SessionId, tasksToProcess, responseText);
+            }
+
+            return null;
+        }
+
+        if (result.Tasks.Count == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Post-session structured output for session '{SessionId}' ({Reason}) returned an empty tasks array.",
+                    session.SessionId,
+                    reason);
+            }
+
+            return CreateEmptyStructuredResults(session.SessionId, tasksToProcess, responseText);
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Post-session structured output for session '{SessionId}' ({Reason}) returned {TaskCount} raw task result(s): [{TaskNames}].",
+                session.SessionId,
+                reason,
+                result.Tasks.Count,
+                CreateTaskResultSummary(result.Tasks));
+        }
+
+        var appliedResults = ApplyResults(tasksToProcess, result.Tasks);
+
+        if (appliedResults.Count > 0)
+        {
+            return appliedResults;
+        }
+
+        return CreateInvalidStructuredResults(session.SessionId, tasksToProcess, result.Tasks, responseText);
     }
 
     /// <summary>
@@ -730,7 +849,7 @@ public sealed class PostSessionProcessingService
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(
-                    "Structured recovery for post-session tool response on session '{SessionId}' succeeded with {TaskCount} task result(s).",
+                    "Structured recovery for post-session tool response on session '{SessionId}' returned {TaskCount} raw task result(s).",
                     sessionId,
                     result.Tasks.Count);
             }
@@ -774,7 +893,7 @@ public sealed class PostSessionProcessingService
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "Structured recovery for post-session tool response on session '{SessionId}' succeeded by parsing assistant text with {TaskCount} task result(s).",
+                "Structured recovery for post-session tool response on session '{SessionId}' parsed {TaskCount} raw task result(s) from assistant text.",
                 sessionId,
                 recoveredFromText.Tasks.Count);
         }

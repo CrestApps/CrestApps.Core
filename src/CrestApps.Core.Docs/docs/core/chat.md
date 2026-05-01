@@ -224,7 +224,7 @@ Each `PostSessionResults` entry now keeps `AttemptHistory` for failed or incompl
 
 Hosts can override that retry cap through the shared `AIChatSessionProcessingOptions.MaxPostCloseAttempts` site setting. The MVC admin settings page surfaces the same value as **Max post-close attempts**, and the shared processor reads it through `IOptionsMonitor<>` so both the default hosted runner and custom schedulers honor the same limit.
 
-When the model returns valid structured JSON with an empty `tasks` array, the framework now records that as an explicit post-session failure instead of a misleading JSON-parse error. If the tool-enabled response returns invalid task entries such as empty names or values, the framework now runs a structured recovery pass before treating the attempt as failed. The shared post-session prompts also require one result per configured task, even when the task decides not to call a tool.
+When the model returns valid structured JSON with an empty `tasks` array, the framework now records that as an explicit post-session failure instead of a misleading JSON-parse error. If the tool-enabled response returns invalid task entries such as empty names or values, the framework now runs a structured recovery pass and, when no tool calls actually happened, retries the same work through the structured no-tools path before treating the attempt as failed. The shared post-session prompts also require one result per configured task, even when the task decides not to call a tool.
 
 ### Extracted Data Reporting Snapshots
 
