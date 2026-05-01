@@ -24,7 +24,10 @@ public sealed class UsageAnalyticsController : Controller
     [HttpGet]
     public IActionResult Index()
     {
-        return View(new UsageAnalyticsIndexViewModel { IsAIUsageTrackingEnabled = _generalAIOptions.EnableAIUsageTracking, });
+        return View(new UsageAnalyticsIndexViewModel
+        {
+            IsAIUsageTrackingEnabled = _generalAIOptions.EnableAIUsageTracking,
+        });
     }
 
     [HttpPost]

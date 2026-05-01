@@ -1,6 +1,8 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
+using Microsoft.Extensions.Options;
 using YesSql;
 using ISession = YesSql.ISession;
 
@@ -9,17 +11,23 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtractedDataRecorder
 {
     private readonly ISession _session;
+    private readonly YesSqlStoreOptions _options;
     private readonly TimeProvider _timeProvider;
 
     public SampleAIChatSessionExtractedDataService(
         ISession session,
+        IOptions<YesSqlStoreOptions> options,
         TimeProvider timeProvider)
     {
         _session = session;
+        _options = options.Value;
         _timeProvider = timeProvider;
     }
 
-    public async Task RecordExtractedDataAsync(AIProfile profile, AIChatSession session, CancellationToken cancellationToken = default)
+    public async Task RecordExtractedDataAsync(
+        AIProfile profile,
+        AIChatSession session,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(session);
@@ -44,7 +52,8 @@ public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtr
         record.SessionStartedUtc = session.CreatedUtc;
         record.SessionEndedUtc = session.ClosedAtUtc;
         record.UpdatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        record.Values = session.ExtractedData.Where(pair => pair.Value.Values.Count > 0).ToDictionary(pair => pair.Key, pair => pair.Value.Values.ToList(), StringComparer.OrdinalIgnoreCase);
+        record.Values = session.ExtractedData.Where(pair => pair.Value.Values.Count > 0)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.Values.ToList(), StringComparer.OrdinalIgnoreCase);
 
         await _session.SaveAsync(record);
     }
@@ -53,7 +62,7 @@ public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtr
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
 
-        var query = _session.Query<AIChatSessionExtractedDataRecord, AIChatSessionExtractedDataIndex>(x => x.ProfileId == profileId);
+        var query = _session.Query<AIChatSessionExtractedDataRecord, AIChatSessionExtractedDataIndex>(x => x.ProfileId == profileId, collection: _options.AICollectionName);
         if (startDateUtc.HasValue)
         {
             var start = startDateUtc.Value.Date;
@@ -73,6 +82,7 @@ public sealed class SampleAIChatSessionExtractedDataService : IAIChatSessionExtr
 
     private async Task<AIChatSessionExtractedDataRecord> FindBySessionIdAsync(string sessionId)
     {
-        return await _session.Query<AIChatSessionExtractedDataRecord, AIChatSessionExtractedDataIndex>(x => x.SessionId == sessionId).FirstOrDefaultAsync();
+        return await _session.Query<AIChatSessionExtractedDataRecord, AIChatSessionExtractedDataIndex>(x => x.SessionId == sessionId, collection: _options.AICollectionName)
+            .FirstOrDefaultAsync();
     }
 }

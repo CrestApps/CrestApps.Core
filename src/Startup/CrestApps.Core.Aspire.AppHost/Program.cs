@@ -37,13 +37,6 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
     WriteCrashEntry("Process exit signaled", $"Exit code: {Environment.ExitCode}");
 };
 
-// When running under Visual Studio, all mutable data (database, logs, documents,
-// site settings) must be stored outside the project source tree. VS monitors the
-// source directory for file changes, and any new file triggers VS to stop the debug
-// session. Redirecting App_Data and document storage to a temp location avoids this.
-var appDataBasePath = Path.Combine(Path.GetTempPath(), "CrestApps", "AppData");
-var documentsBasePath = Path.Combine(Path.GetTempPath(), "CrestApps", "Documents");
-
 var builder = DistributedApplication.CreateBuilder(args);
 
 builder.Services.Configure<HostOptions>(options =>
@@ -70,10 +63,6 @@ var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
     .WithHttpsEndpoint(5001, name: "HttpsMvcWeb")
     .WithEnvironment((options) =>
     {
-        var mvcAppData = Path.Combine(appDataBasePath, "MvcWeb");
-        options.EnvironmentVariables.Add("CrestApps__AppDataPath", mvcAppData);
-        options.EnvironmentVariables.Add("CRESTAPPS_LOG_DIR", Path.Combine(mvcAppData, "logs"));
-        options.EnvironmentVariables.Add("CrestApps__AI__Documents__BasePath", documentsBasePath);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__DefaultDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
@@ -95,10 +84,6 @@ var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWe
     .WithHttpsEndpoint(5201, name: "HttpsBlazorWeb")
     .WithEnvironment((options) =>
     {
-        var blazorAppData = Path.Combine(appDataBasePath, "BlazorWeb");
-        options.EnvironmentVariables.Add("CrestApps__AppDataPath", blazorAppData);
-        options.EnvironmentVariables.Add("CRESTAPPS_LOG_DIR", Path.Combine(blazorAppData, "logs"));
-        options.EnvironmentVariables.Add("CrestApps__AI__Documents__BasePath", documentsBasePath);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__DefaultDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);

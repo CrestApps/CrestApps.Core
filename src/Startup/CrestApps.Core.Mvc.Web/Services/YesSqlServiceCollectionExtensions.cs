@@ -33,6 +33,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using YesSql;
+using YesSql.Indexes;
 using YesSql.Provider.Sqlite;
 using YesSql.Sql;
 
@@ -40,9 +41,6 @@ namespace CrestApps.Core.Mvc.Web.Services;
 
 internal static class YesSqlServiceCollectionExtensions
 {
-    private static readonly string LegacyArticleDocumentType = $"{typeof(global::CrestApps.Core.Mvc.Web.Areas.Admin.Models.Article).FullName}, {typeof(global::CrestApps.Core.Mvc.Web.Areas.Admin.Models.Article).Assembly.GetName().Name}";
-    private static readonly string CurrentArticleDocumentType = $"{typeof(Article).FullName}, {typeof(Article).Assembly.GetName().Name}";
-
     /// <summary>
     /// Registers the MVC sample host services that sit around the framework:
     /// YesSql storage, sample-only managers, article demo services, and the
@@ -90,6 +88,8 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, SampleAIChatDocumentEventHandler>();
 
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ArticleIndexProvider>());
+
         services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
             .AddScoped<ICatalogEntryHandler<Article>, ArticleHandler>()
@@ -135,7 +135,6 @@ internal static class YesSqlServiceCollectionExtensions
 
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("CrestApps.Core.Mvc.Web.YesSql");
         var storeOptions = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<YesSqlStoreOptions>>().Value;
-        RegisterIndexes(store);
         await InitializeCollectionsAsync(store, storeOptions);
         await using var connection = store.Configuration.ConnectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -196,9 +195,7 @@ internal static class YesSqlServiceCollectionExtensions
     private static async Task ConfigureSqliteConnectionAsync(DbConnection connection)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA journal_mode=WAL;";
-        _ = await command.ExecuteScalarAsync();
-        command.CommandText = "PRAGMA synchronous=NORMAL;";
+        command.CommandText = "PRAGMA synchronous=FULL;";
         await command.ExecuteNonQueryAsync();
         command.CommandText = "PRAGMA busy_timeout=30000;";
         await command.ExecuteNonQueryAsync();
@@ -213,12 +210,5 @@ internal static class YesSqlServiceCollectionExtensions
         catch
         { /* Table already exists. */
         }
-    }
-
-    private static void RegisterIndexes(IStore store)
-    {
-        // Host-specific index provider. Shared index providers are registered
-        // automatically via DI in the per-feature AddCoreAI*StoresYesSql() methods.
-        store.RegisterIndexes<ArticleIndexProvider>();
     }
 }

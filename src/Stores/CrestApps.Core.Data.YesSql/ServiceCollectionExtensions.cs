@@ -50,23 +50,44 @@ public static class ServiceCollectionExtensions
 
             var store = StoreFactory.CreateAndInitializeAsync(config).GetAwaiter().GetResult();
             var options = sp.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
+            var indexGroups = sp.GetServices<IIndexProvider>()
+                .GroupBy(index => index.CollectionName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var initializedCollections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             if (!string.IsNullOrWhiteSpace(options.AICollectionName))
             {
                 store.InitializeCollectionAsync(options.AICollectionName).GetAwaiter().GetResult();
+                initializedCollections.Add(options.AICollectionName);
             }
 
             if (!string.IsNullOrWhiteSpace(options.AIDocsCollectionName))
             {
                 store.InitializeCollectionAsync(options.AIDocsCollectionName).GetAwaiter().GetResult();
+                initializedCollections.Add(options.AIDocsCollectionName);
             }
 
             if (!string.IsNullOrWhiteSpace(options.AIMemoryCollectionName))
             {
                 store.InitializeCollectionAsync(options.AIMemoryCollectionName).GetAwaiter().GetResult();
+                initializedCollections.Add(options.AIMemoryCollectionName);
             }
 
-            store.RegisterIndexes(sp.GetServices<IIndexProvider>());
+            if (!string.IsNullOrWhiteSpace(options.DefaultCollectionName))
+            {
+                store.InitializeCollectionAsync(options.DefaultCollectionName).GetAwaiter().GetResult();
+                initializedCollections.Add(options.DefaultCollectionName);
+            }
+
+            foreach (var group in indexGroups)
+            {
+                if (!string.IsNullOrWhiteSpace(group.Key) && initializedCollections.Add(group.Key))
+                {
+                    store.InitializeCollectionAsync(group.Key).GetAwaiter().GetResult();
+                }
+
+                store.RegisterIndexes(group, string.IsNullOrWhiteSpace(group.Key) ? null : group.Key);
+            }
 
             return store;
         });
