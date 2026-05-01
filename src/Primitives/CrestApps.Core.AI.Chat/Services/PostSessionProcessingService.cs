@@ -429,9 +429,7 @@ public sealed class PostSessionProcessingService
         // call and tool result messages. After FunctionInvokingChatClient resolves
         // all tool calls, the model produces a final assistant message with the JSON
         // task results - that is the only message we care about.
-        var responseText = response.Messages?
-            .LastOrDefault(m => m.Role == ChatRole.Assistant && !string.IsNullOrEmpty(m.Text))
-        ?.Text?.Trim();
+        var responseText = GetLastAssistantMessageText(response.Messages);
 
         // Always log the raw response text for troubleshooting.
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -597,8 +595,7 @@ public sealed class PostSessionProcessingService
     {
         var followUpMessages = new List<ChatMessage>(requestMessages);
 
-        var trailingAssistantText = responseMessages?
-            .LastOrDefault(message => message.Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text));
+        var trailingAssistantText = GetLastAssistantMessage(responseMessages);
 
         if (responseMessages is not null)
         {
@@ -626,10 +623,7 @@ public sealed class PostSessionProcessingService
             Temperature = 0f,
         }, null, cancellationToken);
 
-        var recoveryResponseText = response.Messages?
-
-            .LastOrDefault(message => message.Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text))
-        ?.Text?.Trim();
+        var recoveryResponseText = GetLastAssistantMessageText(response.Messages);
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -725,6 +719,53 @@ public sealed class PostSessionProcessingService
             response = null;
             return false;
         }
+    }
+
+    private static ChatMessage GetLastAssistantMessage(IList<ChatMessage> messages)
+    {
+        if (messages is null)
+        {
+            return null;
+        }
+
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            if (messages[i].Role != ChatRole.Assistant)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(GetMessageText(messages[i])))
+            {
+                return messages[i];
+            }
+        }
+
+        return null;
+    }
+
+    private static string GetLastAssistantMessageText(IList<ChatMessage> messages)
+    {
+        return GetMessageText(GetLastAssistantMessage(messages))?.Trim();
+    }
+
+    private static string GetMessageText(ChatMessage message)
+    {
+        if (message == null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.Text))
+        {
+            return message.Text;
+        }
+
+        var contentText = string.Concat(message.Contents?.OfType<TextContent>().Select(content => content.Text) ?? []);
+
+        return string.IsNullOrWhiteSpace(contentText)
+            ? null
+            : contentText;
     }
 
     private static ITemplateParser ResolveMarkdownTemplateParser(IEnumerable<ITemplateParser> templateParsers)

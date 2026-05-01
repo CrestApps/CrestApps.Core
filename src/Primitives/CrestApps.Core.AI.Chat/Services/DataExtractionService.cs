@@ -1,7 +1,10 @@
+using System.Text.Json;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Support.Json;
+using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -16,6 +19,7 @@ public sealed class DataExtractionService
     private readonly IAIClientFactory _clientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ITemplateService _aiTemplateService;
+    private readonly ITemplateParser _markdownTemplateParser;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DataExtractionService> _logger;
 
@@ -24,12 +28,14 @@ public sealed class DataExtractionService
     /// </summary>
     /// <param name="clientFactory">The client factory.</param>
     /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="templateParsers">The registered template parsers.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="deploymentManager">The deployment manager.</param>
     public DataExtractionService(
         IAIClientFactory clientFactory,
         ITemplateService aiTemplateService,
+        IEnumerable<ITemplateParser> templateParsers,
         TimeProvider timeProvider,
         ILogger<DataExtractionService> logger,
         IAIDeploymentManager deploymentManager = null)
@@ -37,6 +43,7 @@ public sealed class DataExtractionService
         _clientFactory = clientFactory;
         _deploymentManager = deploymentManager;
         _aiTemplateService = aiTemplateService;
+        _markdownTemplateParser = ResolveMarkdownTemplateParser(templateParsers);
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -180,12 +187,54 @@ public sealed class DataExtractionService
                 MaxOutputTokens = 1024,
             }.AddUsageTracking(session: session), null, cancellationToken);
 
-            if (response.Result?.Fields == null || response.Result.Fields.Count == 0)
+            var responseText = GetLastAssistantMessageText(response.Messages);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Data extraction raw response for session '{SessionId}': '{ResponseText}'.",
+                    session.SessionId,
+                    CreateResponseLogPreview(responseText));
+            }
+
+            ExtractionResponse result = null;
+
+            try
+            {
+                result = response.Result;
+            }
+            catch (InvalidOperationException)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Data extraction response for session '{SessionId}' did not return JSON content.",
+                        session.SessionId);
+                }
+            }
+            catch (JsonException)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Data extraction response for session '{SessionId}' returned invalid JSON content.",
+                        session.SessionId);
+                }
+            }
+
+            if (result?.Fields != null && result.Fields.Count > 0)
+            {
+                return (result.Fields, result.SessionEnded);
+            }
+
+            var recovered = TryParseExtractionResponse(session.SessionId, responseText);
+
+            if (recovered?.Fields == null || recovered.Fields.Count == 0)
             {
                 return ([], false);
             }
 
-            return (response.Result.Fields, response.Result.SessionEnded);
+            return (recovered.Fields, recovered.SessionEnded);
         }
         catch (Exception ex)
         {
@@ -347,6 +396,158 @@ public sealed class DataExtractionService
         }
 
         return await _aiTemplateService.RenderAsync(AITemplateIds.DataExtractionPrompt, arguments, cancellationToken);
+    }
+
+    private ExtractionResponse TryParseExtractionResponse(string sessionId, string responseText)
+    {
+        if (TryDeserializeExtractionResponse(responseText, out var directResult))
+        {
+            return directResult;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Data extraction response for session '{SessionId}' is not valid JSON. Trying fallback extraction.",
+                sessionId);
+        }
+
+        var jsonBlock = JsonExtractor.ExtractFromCodeFence(responseText);
+
+        if (TryDeserializeExtractionResponse(jsonBlock, out var fencedResult))
+        {
+            return fencedResult;
+        }
+
+        var jsonObject = JsonExtractor.ExtractJsonObject(responseText);
+
+        if (jsonObject != null &&
+            jsonObject != responseText &&
+            TryDeserializeExtractionResponse(jsonObject, out var objectResult))
+        {
+            return objectResult;
+        }
+
+        var normalizedBody = _markdownTemplateParser.Parse(responseText).Body?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(normalizedBody) &&
+            !string.Equals(normalizedBody, responseText?.Trim(), StringComparison.Ordinal))
+        {
+            if (TryDeserializeExtractionResponse(normalizedBody, out var normalizedResult))
+            {
+                return normalizedResult;
+            }
+
+            var normalizedJsonBlock = JsonExtractor.ExtractFromCodeFence(normalizedBody);
+
+            if (TryDeserializeExtractionResponse(normalizedJsonBlock, out var normalizedFencedResult))
+            {
+                return normalizedFencedResult;
+            }
+
+            var normalizedJsonObject = JsonExtractor.ExtractJsonObject(normalizedBody);
+
+            if (normalizedJsonObject != null &&
+                normalizedJsonObject != normalizedBody &&
+                TryDeserializeExtractionResponse(normalizedJsonObject, out var normalizedObjectResult))
+            {
+                return normalizedObjectResult;
+            }
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Data extraction response for session '{SessionId}' could not be parsed as structured JSON after all extraction attempts.",
+                sessionId);
+        }
+
+        return null;
+    }
+
+    private static bool TryDeserializeExtractionResponse(
+        string responseText,
+        out ExtractionResponse response)
+    {
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            response = null;
+            return false;
+        }
+
+        try
+        {
+            response = JsonSerializer.Deserialize<ExtractionResponse>(responseText, JSOptions.CaseInsensitive);
+
+            return response is not null;
+        }
+        catch (JsonException)
+        {
+            response = null;
+            return false;
+        }
+    }
+
+    private static ITemplateParser ResolveMarkdownTemplateParser(IEnumerable<ITemplateParser> templateParsers)
+    {
+        ArgumentNullException.ThrowIfNull(templateParsers);
+
+        return templateParsers.FirstOrDefault(parser =>
+            parser.SupportedExtensions.Any(extension => string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase)))
+            ?? throw new InvalidOperationException("No markdown template parser is registered for data extraction response recovery.");
+    }
+
+    private static string GetLastAssistantMessageText(IList<ChatMessage> messages)
+    {
+        if (messages is null)
+        {
+            return null;
+        }
+
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            var messageText = GetMessageText(messages[i]);
+
+            if (messages[i].Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(messageText))
+            {
+                return messageText.Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static string GetMessageText(ChatMessage message)
+    {
+        if (message == null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.Text))
+        {
+            return message.Text;
+        }
+
+        var contentText = string.Concat(message.Contents?.OfType<TextContent>().Select(content => content.Text) ?? []);
+
+        return string.IsNullOrWhiteSpace(contentText)
+            ? null
+            : contentText;
+    }
+
+    private static string CreateResponseLogPreview(string responseText)
+    {
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            return "<empty>";
+        }
+
+        const int maxLength = 512;
+
+        return responseText.Length <= maxLength
+            ? responseText
+            : responseText[..maxLength] + "...";
     }
 
     private sealed class ExtractionResponse

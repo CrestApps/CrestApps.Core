@@ -643,6 +643,52 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessAsync_WithTools_WhenAssistantResponseUsesContentsText_ShouldParseSuccessfully()
+    {
+        // Arrange: provider returns assistant text through Contents instead of ChatMessage.Text.
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks = [new PostSessionTask
+            {
+                Name = "summary",
+                Type = PostSessionTaskType.Semantic,
+                Instructions = "Summarize the conversation.",
+            }, ];
+            s.ToolNames = ["sendEmail"];
+        });
+        var session = CreateSession();
+        var prompts = CreatePrompts();
+        var mockTool = new TestAIFunction("sendEmail");
+        var mockToolsService = new Mock<IAIToolsService>();
+        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var responseMessage = new ChatMessage
+        {
+            Role = ChatRole.Assistant,
+            Contents = [new TextContent("""{"tasks":[{"name":"summary","value":"Customer asked about pricing."}]}""")],
+        };
+        var mockChatClient = new Mock<IChatClient>();
+        mockChatClient.Setup(c => c
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(responseMessage));
+        var mockTemplateService = new Mock<ITemplateService>();
+        mockTemplateService.Setup(t => t
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Rendered prompt");
+        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
+        // Act
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.ContainsKey("summary"));
+        Assert.Equal("Customer asked about pricing.", result["summary"].Value);
+        Assert.Equal(PostSessionTaskResultStatus.Succeeded, result["summary"].Status);
+    }
+
+    [Fact]
     public async Task ProcessAsync_WithTools_WhenResponseIsTruncatedJson_ShouldRecoverWithStructuredRetry()
     {
         // Arrange: tool execution succeeds but the final assistant response is truncated.

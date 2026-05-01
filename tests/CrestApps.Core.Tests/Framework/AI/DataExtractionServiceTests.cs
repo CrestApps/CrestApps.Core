@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -150,6 +151,7 @@ public sealed class DataExtractionServiceTests
         var service = new DataExtractionService(
             clientFactory.Object,
             templateService.Object,
+            [new DefaultMarkdownTemplateParser()],
             TimeProvider.System,
             NullLogger<DataExtractionService>.Instance,
             deploymentManager.Object);
@@ -181,13 +183,175 @@ public sealed class DataExtractionServiceTests
         Assert.Equal("What is your email?", promptArguments["lastAssistantMessage"]);
     }
 
+    [Fact]
+    public async Task ProcessAsync_WhenResponseIsMarkdownWrappedJson_ShouldExtractValues()
+    {
+        // Arrange
+        var clientFactory = new Mock<IAIClientFactory>();
+        var templateService = new Mock<ITemplateService>();
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        var chatClient = new Mock<IChatClient>();
+        var profile = CreateProfile(settings =>
+        {
+            settings.EnableDataExtraction = true;
+            settings.ExtractionCheckInterval = 1;
+            settings.DataExtractionEntries = [new DataExtractionEntry
+            {
+                Name = "zipCode",
+                Description = "The user's zip code.",
+            }, ];
+        });
+        profile.UtilityDeploymentName = "utility";
+
+        deploymentManager.Setup(manager => manager
+            .ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null))
+            .ReturnsAsync(new AIDeployment
+            {
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                ModelName = "gpt-4.1",
+            });
+
+        clientFactory.Setup(factory => factory
+            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .ReturnsAsync(chatClient.Object);
+
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("system prompt");
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("rendered prompt");
+
+        chatClient.Setup(client => client
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, """
+                ```json
+                {
+                  "fields": [
+                    {
+                      "name": "zipCode",
+                      "values": ["89118"],
+                      "confidence": 0.99
+                    }
+                  ],
+                  "sessionEnded": false
+                }
+                ```
+                """)));
+
+        var service = CreateService(clientFactory, templateService, deploymentManager);
+        var session = new AIChatSession();
+
+        // Act
+        var result = await service.ProcessAsync(
+            profile,
+            session,
+            [
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your zip code?" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "89118" },
+            ],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Single(result.NewFields);
+        Assert.Equal("zipCode", result.NewFields[0].FieldName);
+        Assert.Equal("89118", result.NewFields[0].Value);
+        Assert.True(session.ExtractedData.TryGetValue("zipCode", out var state));
+        Assert.Equal(["89118"], state.Values);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenAssistantResponseUsesContentsText_ShouldExtractValues()
+    {
+        // Arrange
+        var clientFactory = new Mock<IAIClientFactory>();
+        var templateService = new Mock<ITemplateService>();
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        var chatClient = new Mock<IChatClient>();
+        var profile = CreateProfile(settings =>
+        {
+            settings.EnableDataExtraction = true;
+            settings.ExtractionCheckInterval = 1;
+            settings.DataExtractionEntries = [new DataExtractionEntry
+            {
+                Name = "zipCode",
+                Description = "The user's zip code.",
+            }, ];
+        });
+        profile.UtilityDeploymentName = "utility";
+
+        deploymentManager.Setup(manager => manager
+            .ResolveOrDefaultAsync(AIDeploymentType.Utility, "utility", null))
+            .ReturnsAsync(new AIDeployment
+            {
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+                ModelName = "gpt-4.1",
+            });
+
+        clientFactory.Setup(factory => factory
+            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .ReturnsAsync(chatClient.Object);
+
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtraction, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("system prompt");
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("rendered prompt");
+
+        var responseMessage = new ChatMessage
+        {
+            Role = ChatRole.Assistant,
+            Contents = [new TextContent("""{"fields":[{"name":"zipCode","values":["89118"],"confidence":0.99}],"sessionEnded":false}""")],
+        };
+
+        chatClient.Setup(client => client
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(responseMessage));
+
+        var service = CreateService(clientFactory, templateService, deploymentManager);
+        var session = new AIChatSession();
+
+        // Act
+        var result = await service.ProcessAsync(
+            profile,
+            session,
+            [
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "What is your zip code?" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "89118" },
+            ],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Single(result.NewFields);
+        Assert.Equal("89118", result.NewFields[0].Value);
+    }
+
     private static DataExtractionService CreateService()
     {
         var clientFactory = new Mock<IAIClientFactory>();
         var templateService = new Mock<ITemplateService>();
         var deploymentManager = new Mock<IAIDeploymentManager>();
 
-        return new DataExtractionService(clientFactory.Object, templateService.Object, TimeProvider.System, NullLogger<DataExtractionService>.Instance, deploymentManager.Object);
+        return CreateService(clientFactory, templateService, deploymentManager);
+    }
+
+    private static DataExtractionService CreateService(
+        Mock<IAIClientFactory> clientFactory,
+        Mock<ITemplateService> templateService,
+        Mock<IAIDeploymentManager> deploymentManager)
+    {
+        return new DataExtractionService(
+            clientFactory.Object,
+            templateService.Object,
+            [new DefaultMarkdownTemplateParser()],
+            TimeProvider.System,
+            NullLogger<DataExtractionService>.Instance,
+            deploymentManager.Object);
     }
 
     private static AIProfile CreateProfile(Action<AIProfileDataExtractionSettings> configure)
