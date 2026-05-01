@@ -1,4 +1,5 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Services;
@@ -395,6 +396,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.Replace(ServiceDescriptor.Scoped<IAIChatSessionEventStore, YesSqlAIChatSessionEventStore>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionMetricsIndexProvider>());
 
         return services;
@@ -408,6 +410,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.Replace(ServiceDescriptor.Scoped<IAICompletionUsageStore, YesSqlAICompletionUsageStore>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AICompletionUsageIndexProvider>());
 
         return services;

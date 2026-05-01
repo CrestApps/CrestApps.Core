@@ -184,6 +184,8 @@ public static class ServiceCollectionExtensions
 
         services.TryAddScoped<IAICompletionService, DefaultAICompletionService>();
         services.TryAddScoped<IAICompletionContextBuilder, DefaultAICompletionContextBuilder>();
+        services.TryAddScoped<IAICompletionUsageService, DefaultAICompletionUsageService>();
+        services.TryAddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<IAICompletionUsageService>());
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());

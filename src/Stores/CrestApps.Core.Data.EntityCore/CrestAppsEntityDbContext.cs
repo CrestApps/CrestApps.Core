@@ -45,6 +45,16 @@ public sealed class CrestAppsEntityDbContext : DbContext
     public DbSet<AIChatSessionRecord> AIChatSessionRecords => Set<AIChatSessionRecord>();
 
     /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AIChatSessionEventStoreRecord"/> rows.
+    /// </summary>
+    public DbSet<AIChatSessionEventStoreRecord> AIChatSessionEventRecords => Set<AIChatSessionEventStoreRecord>();
+
+    /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AICompletionUsageStoreRecord"/> rows.
+    /// </summary>
+    public DbSet<AICompletionUsageStoreRecord> AICompletionUsageRecords => Set<AICompletionUsageStoreRecord>();
+
+    /// <summary>
     /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AIChatSessionExtractedDataStoreRecord"/> rows.
     /// </summary>
     public DbSet<AIChatSessionExtractedDataStoreRecord> AIChatSessionExtractedDataRecords => Set<AIChatSessionExtractedDataStoreRecord>();
@@ -105,6 +115,30 @@ public sealed class CrestAppsEntityDbContext : DbContext
 
             entity.HasIndex(x => x.ProfileId);
             entity.HasIndex(x => x.LastActivityUtc);
+        });
+
+        modelBuilder.Entity<AIChatSessionEventStoreRecord>(entity =>
+        {
+            entity.ToTable($"{tablePrefix}AIChatSessionEvents");
+            entity.HasKey(x => x.SessionId);
+            entity.Property(x => x.SessionId).HasMaxLength(26);
+            entity.Property(x => x.ProfileId);
+            entity.Property(x => x.Payload).IsRequired();
+
+            entity.HasIndex(x => x.ProfileId);
+            entity.HasIndex(x => x.SessionStartedUtc);
+            entity.HasIndex(x => x.CreatedUtc);
+        });
+
+        modelBuilder.Entity<AICompletionUsageStoreRecord>(entity =>
+        {
+            entity.ToTable($"{tablePrefix}AICompletionUsage");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Payload).IsRequired();
+
+            entity.HasIndex(x => x.CreatedUtc);
+            entity.HasIndex(x => x.SessionId);
+            entity.HasIndex(x => x.InteractionId);
         });
 
         modelBuilder.Entity<AIChatSessionExtractedDataStoreRecord>(entity =>

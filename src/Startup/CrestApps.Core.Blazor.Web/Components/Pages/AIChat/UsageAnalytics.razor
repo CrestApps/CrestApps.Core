@@ -1,10 +1,10 @@
 @page "/ai-chat/usage-analytics"
 @attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Completions
 @using CrestApps.Core.AI.Models
-@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using Microsoft.Extensions.Options
-@inject SampleAICompletionUsageService UsageService
+@inject IAICompletionUsageService UsageService
 @inject IOptions<GeneralAIOptions> GeneralAIOptionsAccessor
 
 <PageTitle>AI Usage Analytics - Blazor AI Integration Sample</PageTitle>

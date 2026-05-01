@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.Builders;
@@ -67,10 +68,14 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddScoped<IAIChatSessionEventService, DefaultAIChatSessionEventService>();
+        services.TryAddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<IAIChatSessionEventService>());
+        services.TryAddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<IAIChatSessionEventService>());
         services.TryAddScoped<DataExtractionService>();
         services.TryAddScoped<PostSessionProcessingService>();
         services.TryAddScoped<AIChatSessionPostCloseProcessor>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ExtractedDataOrchestrationHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, DefaultAIChatSessionAnalyticsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, DataExtractionChatSessionHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, PostSessionProcessingChatSessionHandler>());
 

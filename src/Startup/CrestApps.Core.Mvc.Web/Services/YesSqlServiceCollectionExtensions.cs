@@ -22,7 +22,6 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Services;
@@ -70,15 +69,6 @@ internal static class YesSqlServiceCollectionExtensions
         services
             .AddScoped<AIProfileDocumentService>()
             .AddScoped<AIProfileTemplateDocumentService>();
-
-        services
-            .AddScoped<SampleAIChatSessionEventService>()
-            .AddScoped<SampleAICompletionUsageService>()
-            .AddScoped<SampleAIChatSessionEventPostCloseObserver>()
-            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<SampleAICompletionUsageService>())
-            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>();
 
         services
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()

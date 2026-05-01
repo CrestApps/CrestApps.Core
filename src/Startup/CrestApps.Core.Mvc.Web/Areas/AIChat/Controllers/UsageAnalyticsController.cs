@@ -1,5 +1,5 @@
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,10 +11,10 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class UsageAnalyticsController : Controller
 {
-    private readonly SampleAICompletionUsageService _usageService;
+    private readonly IAICompletionUsageService _usageService;
     private readonly GeneralAIOptions _generalAIOptions;
     public UsageAnalyticsController(
-        SampleAICompletionUsageService usageService,
+        IAICompletionUsageService usageService,
         IOptions<GeneralAIOptions> generalAIOptions)
     {
         _usageService = usageService;

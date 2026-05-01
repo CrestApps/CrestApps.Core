@@ -579,9 +579,28 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="services">The service collection.</param>
     /// <param name="chatSession">The chat session.</param>
     /// <param name="promptStore">The prompt store.</param>
-    protected virtual Task OnMessageRatedAsync(IServiceProvider services, AIChatSession chatSession, IAIChatSessionPromptStore promptStore)
+    protected virtual async Task OnMessageRatedAsync(IServiceProvider services, AIChatSession chatSession, IAIChatSessionPromptStore promptStore)
     {
-        return Task.CompletedTask;
+        var eventService = services.GetService<IAIChatSessionEventService>();
+
+        if (eventService is null)
+        {
+            return;
+        }
+
+        var allPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
+        var ratings = allPrompts
+            .Where(prompt => prompt.UserRating.HasValue)
+            .Select(prompt => prompt.UserRating.Value)
+            .ToList();
+
+        if (ratings.Count > 0)
+        {
+            await eventService.RecordUserRatingAsync(
+                chatSession.SessionId,
+                ratings.Count(rating => rating),
+                ratings.Count(rating => !rating));
+        }
     }
 
     /// <summary>

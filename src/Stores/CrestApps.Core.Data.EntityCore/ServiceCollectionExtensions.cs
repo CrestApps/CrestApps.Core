@@ -2,6 +2,7 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Services;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Mcp.Models;
@@ -197,6 +198,8 @@ public static class ServiceCollectionExtensions
 
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionManager, EntityCoreAIChatSessionManager>());
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>());
+        services.Replace(ServiceDescriptor.Scoped<IAIChatSessionEventStore, EntityCoreAIChatSessionEventStore>());
+        services.Replace(ServiceDescriptor.Scoped<IAICompletionUsageStore, EntityCoreAICompletionUsageStore>());
         services.AddCoreAIChatSessionExtractedDataStoresEntityCore();
         services.AddScoped<ICatalog<AIChatSessionPrompt>>(sp => sp.GetRequiredService<IAIChatSessionPromptStore>());
 
