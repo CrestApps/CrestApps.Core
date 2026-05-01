@@ -77,7 +77,9 @@ If a host needs to merge preemptive-RAG references with tool-generated reference
 | `CitationReferenceCollector` | `CitationReferenceCollector` | Scoped | Merges preemptive and tool-generated citations, resolves reference links, and tracks referenced articles |
 | `DataExtractionService` | `DataExtractionService` | Scoped | Extracts configured fields from completed chat turns |
 | `PostSessionProcessingService` | `PostSessionProcessingService` | Scoped | Runs AI-powered post-session tasks and evaluations |
-| `AIChatSessionCloseBackgroundService` | `AIChatSessionCloseBackgroundService` | Singleton (`IHostedService`) | Evaluates all chat profiles immediately on startup and then every 5 minutes to close inactive sessions and retry post-close processing |
+| `AIChatSessionCloseCycleService` | `AIChatSessionCloseCycleService` | Singleton | Runs one shared inactivity-close and post-close retry cycle so any host can reuse the framework logic without owning the implementation |
+| `AIChatSessionCloseRunner` | `AIChatSessionCloseRunner` | Singleton | Starts the shared session-close cycle on startup and then every 5 minutes through reusable `StartAsync` / `StopAsync` methods |
+| `AIChatSessionCloseBackgroundService` | `AIChatSessionCloseBackgroundService` | Singleton (`IHostedService`) | Thin default hosted wrapper that delegates to `AIChatSessionCloseRunner` |
 | `DataExtractionChatSessionHandler` | — | Scoped | Runs shared extraction and closes sessions on natural farewells |
 | `PostSessionProcessingChatSessionHandler` | — | Scoped | Triggers the shared post-close processor when a session closes |
 
@@ -197,7 +199,7 @@ NewAsync()          SaveAsync()         (inactivity / explicit close)
 | **Deletion** | `DeleteAsync()` removes the session and its associated prompts. `DeleteAllAsync()` removes all sessions for a given profile and user. |
 
 :::info
-`AddCoreAIChatSessionProcessing()` now registers the shared `AIChatSessionCloseBackgroundService`, so any host that enables the standard AI chat session pipeline and registers AI chat session stores gets the same inactivity-closing and post-close retry behavior without adding a host-specific worker. The worker runs once at startup and then every 5 minutes.
+`AddCoreAIChatSessionProcessing()` now registers the shared `AIChatSessionCloseCycleService`, reusable `AIChatSessionCloseRunner`, and the default hosted wrapper `AIChatSessionCloseBackgroundService`, so any host that enables the standard AI chat session pipeline and registers AI chat session stores gets the same inactivity-closing and post-close retry behavior without adding a host-specific worker. Hosts that use a different scheduling system can call the runner or one-cycle service directly instead of reimplementing the framework logic. The default runner starts immediately and then runs every 5 minutes.
 :::
 
 ### Key Properties of `AIChatSession`
@@ -218,7 +220,11 @@ NewAsync()          SaveAsync()         (inactivity / explicit close)
 | `ExtractedData` | `Dictionary<string, ExtractedFieldState>` | Extracted conversation fields |
 | `PostSessionProcessingStatus` | `PostSessionProcessingStatus` | Status of post-session tasks |
 
-Each `PostSessionResults` entry now keeps an `AttemptHistory` collection for failed or incomplete retries, and `ProcessedAtUtc` is only populated once the task reaches a terminal success or final failure state. Pending retries keep their last attempt details in history instead of surfacing a default timestamp.
+Each `PostSessionResults` entry now keeps `AttemptHistory` for failed or incomplete retries, and `ProcessedAtUtc` is only populated once the task reaches a terminal success or final failure state. Pending retries keep their last attempt details in history instead of surfacing a default timestamp. Post-session tool resolution also honors task-scoped `PostSessionTask.ToolNames` in addition to profile-level post-session tool configuration, and post-close retries default to 5 attempts before the task is treated as terminally failed.
+
+Hosts can override that retry cap through the shared `AIChatSessionProcessingOptions.MaxPostCloseAttempts` site setting. The MVC admin settings page surfaces the same value as **Max post-close attempts**, and the shared processor reads it through `IOptionsMonitor<>` so both the default hosted runner and custom schedulers honor the same limit.
+
+When the model returns valid structured JSON with an empty `tasks` array, the framework now records that as an explicit post-session failure instead of a misleading JSON-parse error. If the tool-enabled response returns invalid task entries such as empty names or values, the framework now runs a structured recovery pass before treating the attempt as failed. The shared post-session prompts also require one result per configured task, even when the task decides not to call a tool.
 
 ### Extracted Data Reporting Snapshots
 

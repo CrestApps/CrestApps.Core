@@ -324,7 +324,9 @@ public sealed class PostSessionProcessingService
             new(ChatRole.User, prompt),
         };
 
-        var tools = await ResolveToolsAsync(session.SessionId, settings.ToolNames);
+        var toolNames = GetConfiguredToolNames(settings.ToolNames, tasksToProcess);
+
+        var tools = await ResolveToolsAsync(session.SessionId, toolNames);
 
         // When tools are configured (e.g., sendEmail), use non-generic GetResponseAsync
         // to allow tool execution. The generic version uses structured output which
@@ -356,7 +358,17 @@ public sealed class PostSessionProcessingService
             Temperature = 0f,
         }.AddUsageTracking(session: session), null, cancellationToken);
 
-        if (response.Result?.Tasks == null || response.Result.Tasks.Count == 0)
+        var responseText = GetLastAssistantMessageText(response.Messages);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Post-session structured raw response for session '{SessionId}': '{ResponseText}'.",
+                session.SessionId,
+                CreateResponseLogPreview(responseText));
+        }
+
+        if (response.Result?.Tasks == null)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -368,16 +380,35 @@ public sealed class PostSessionProcessingService
             return null;
         }
 
+        if (response.Result.Tasks.Count == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Post-session structured output for session '{SessionId}' returned an empty tasks array.",
+                    session.SessionId);
+            }
+
+            return CreateEmptyStructuredResults(session.SessionId, tasksToProcess, responseText);
+        }
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
                 "Post-session structured output for session '{SessionId}' returned {TaskCount} task result(s): [{TaskNames}].",
                 session.SessionId,
                 response.Result.Tasks.Count,
-                string.Join(", ", response.Result.Tasks.Select(t => t.Name)));
+                CreateTaskResultSummary(response.Result.Tasks));
         }
 
-        return ApplyResults(tasksToProcess, response.Result.Tasks);
+        var appliedResults = ApplyResults(tasksToProcess, response.Result.Tasks);
+
+        if (appliedResults.Count > 0)
+        {
+            return appliedResults;
+        }
+
+        return CreateInvalidStructuredResults(session.SessionId, tasksToProcess, response.Result.Tasks, responseText);
     }
 
     private async Task<Dictionary<string, PostSessionResult>> ProcessWithToolsAsync(
@@ -444,9 +475,33 @@ public sealed class PostSessionProcessingService
         {
             var result = TryParsePostSessionResponse(session.SessionId, responseText);
 
-            if (result?.Tasks != null && result.Tasks.Count > 0)
+            if (result?.Tasks != null)
             {
-                return ApplyResults(tasks, result.Tasks);
+                if (result.Tasks.Count == 0)
+                {
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "Post-session tools response for session '{SessionId}' returned an empty tasks array. Attempting structured recovery.",
+                            session.SessionId);
+                    }
+                }
+                else
+                {
+                    var appliedResults = ApplyResults(tasks, result.Tasks);
+
+                    if (appliedResults.Count > 0)
+                    {
+                        return appliedResults;
+                    }
+
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "Post-session tools response for session '{SessionId}' returned invalid task entries. Attempting structured recovery.",
+                            session.SessionId);
+                    }
+                }
             }
         }
         else if (_logger.IsEnabled(LogLevel.Debug))
@@ -658,8 +713,20 @@ public sealed class PostSessionProcessingService
             }
         }
 
-        if (result?.Tasks is { Count: > 0 })
+        if (result?.Tasks != null)
         {
+            if (result.Tasks.Count == 0)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Structured recovery for post-session tool response on session '{SessionId}' returned an empty tasks array.",
+                        sessionId);
+                }
+
+                return CreateEmptyStructuredResults(sessionId, tasks, recoveryResponseText);
+            }
+
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(
@@ -668,12 +735,19 @@ public sealed class PostSessionProcessingService
                     result.Tasks.Count);
             }
 
-            return ApplyResults(tasks, result.Tasks);
+            var appliedResults = ApplyResults(tasks, result.Tasks);
+
+            if (appliedResults.Count > 0)
+            {
+                return appliedResults;
+            }
+
+            return CreateInvalidStructuredResults(sessionId, tasks, result.Tasks, recoveryResponseText);
         }
 
         var recoveredFromText = TryParsePostSessionResponse(sessionId, recoveryResponseText);
 
-        if (recoveredFromText?.Tasks is null || recoveredFromText.Tasks.Count == 0)
+        if (recoveredFromText?.Tasks is null)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -685,6 +759,18 @@ public sealed class PostSessionProcessingService
             return null;
         }
 
+        if (recoveredFromText.Tasks.Count == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Structured recovery for post-session tool response on session '{SessionId}' parsed an empty tasks array from assistant text.",
+                    sessionId);
+            }
+
+            return CreateEmptyStructuredResults(sessionId, tasks, recoveryResponseText);
+        }
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
@@ -693,7 +779,14 @@ public sealed class PostSessionProcessingService
                 recoveredFromText.Tasks.Count);
         }
 
-        return ApplyResults(tasks, recoveredFromText.Tasks);
+        var recoveredAppliedResults = ApplyResults(tasks, recoveredFromText.Tasks);
+
+        if (recoveredAppliedResults.Count > 0)
+        {
+            return recoveredAppliedResults;
+        }
+
+        return CreateInvalidStructuredResults(sessionId, tasks, recoveredFromText.Tasks, recoveryResponseText);
     }
 
     private static bool TryDeserializePostSessionResponse(
@@ -712,7 +805,7 @@ public sealed class PostSessionProcessingService
                 responseText,
                 JSOptions.CaseInsensitive);
 
-            return response?.Tasks is { Count: > 0 };
+            return response is not null;
         }
         catch (JsonException)
         {
@@ -806,6 +899,59 @@ public sealed class PostSessionProcessingService
                     StringComparer.OrdinalIgnoreCase);
     }
 
+    private Dictionary<string, PostSessionResult> CreateInvalidStructuredResults(
+        string sessionId,
+        List<PostSessionTask> tasks,
+        List<PostSessionTaskResult> results,
+        string responseText)
+    {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        const string errorMessage = "The AI returned structured task results, but none contained a usable task name and value that matched the configured post-session tasks.";
+
+        _logger.LogWarning(
+            "Post-session structured results for session '{SessionId}' were invalid. ReturnedResults=[{ReturnedResults}]. ResponsePreview='{ResponsePreview}'.",
+            sessionId,
+            CreateTaskResultSummary(results),
+            CreateResponseLogPreview(responseText));
+
+        return tasks.ToDictionary(
+            task => task.Name,
+            task => new PostSessionResult
+            {
+                Name = task.Name,
+                Status = PostSessionTaskResultStatus.Failed,
+                ErrorMessage = errorMessage,
+                ProcessedAtUtc = now,
+            },
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private Dictionary<string, PostSessionResult> CreateEmptyStructuredResults(
+        string sessionId,
+        List<PostSessionTask> tasks,
+        string responseText)
+    {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        const string errorMessage = "The AI returned structured JSON, but the tasks array was empty. Each configured post-session task must return a result, even when no tool call is needed.";
+
+        _logger.LogWarning(
+            "Post-session structured results for session '{SessionId}' were empty. ConfiguredTaskCount={ConfiguredTaskCount}. ResponsePreview='{ResponsePreview}'.",
+            sessionId,
+            tasks.Count,
+            CreateResponseLogPreview(responseText));
+
+        return tasks.ToDictionary(
+            task => task.Name,
+            task => new PostSessionResult
+            {
+                Name = task.Name,
+                Status = PostSessionTaskResultStatus.Failed,
+                ErrorMessage = errorMessage,
+                ProcessedAtUtc = now,
+            },
+            StringComparer.OrdinalIgnoreCase);
+    }
+
     private static string CreateResponseLogPreview(string responseText)
     {
         if (string.IsNullOrEmpty(responseText))
@@ -819,6 +965,52 @@ public sealed class PostSessionProcessingService
             .Replace("\n", "\\n", StringComparison.Ordinal);
 
         return normalized.Length > 2000 ? normalized[..2000] + "..." : normalized;
+    }
+
+    private static string CreateTaskResultSummary(IEnumerable<PostSessionTaskResult> results)
+    {
+        if (results == null)
+        {
+            return "(none)";
+        }
+
+        var summaries = results.Select(result =>
+            $"Name='{result?.Name ?? "(null)"}', HasValue={!string.IsNullOrWhiteSpace(result?.Value)}");
+
+        return string.Join("; ", summaries);
+    }
+
+    private static string[] GetConfiguredToolNames(
+        IEnumerable<string> profileToolNames,
+        IEnumerable<PostSessionTask> tasks)
+    {
+        var configuredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (profileToolNames != null)
+        {
+            foreach (var toolName in profileToolNames)
+            {
+                if (!string.IsNullOrWhiteSpace(toolName))
+                {
+                    configuredNames.Add(toolName);
+                }
+            }
+        }
+
+        if (tasks != null)
+        {
+            foreach (var toolName in tasks
+                         .Where(task => task?.ToolNames != null)
+                         .SelectMany(task => task.ToolNames))
+            {
+                if (!string.IsNullOrWhiteSpace(toolName))
+                {
+                    configuredNames.Add(toolName);
+                }
+            }
+        }
+
+        return configuredNames.Count > 0 ? [.. configuredNames] : [];
     }
 
     private Dictionary<string, PostSessionResult> ApplyResults(

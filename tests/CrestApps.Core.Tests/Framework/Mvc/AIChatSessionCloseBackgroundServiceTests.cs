@@ -18,6 +18,14 @@ public sealed class AIChatSessionCloseBackgroundServiceTests
         services.AddCoreAIChatSessionProcessing();
 
         Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(AIChatSessionCloseCycleService)
+            && descriptor.ImplementationType == typeof(AIChatSessionCloseCycleService)
+            && descriptor.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(AIChatSessionCloseRunner)
+            && descriptor.ImplementationType == typeof(AIChatSessionCloseRunner)
+            && descriptor.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(IHostedService)
             && descriptor.ImplementationType == typeof(AIChatSessionCloseBackgroundService)
             && descriptor.Lifetime == ServiceLifetime.Singleton);
@@ -55,7 +63,7 @@ public sealed class AIChatSessionCloseBackgroundServiceTests
 
     private static ChatSessionStatus DetermineInactiveSessionStatus(IReadOnlyList<AIChatSessionPrompt> prompts)
     {
-        var method = typeof(AIChatSessionCloseBackgroundService).GetMethod(
+        var method = typeof(AIChatSessionCloseCycleService).GetMethod(
             "DetermineInactiveSessionStatus",
             BindingFlags.NonPublic | BindingFlags.Static);
 

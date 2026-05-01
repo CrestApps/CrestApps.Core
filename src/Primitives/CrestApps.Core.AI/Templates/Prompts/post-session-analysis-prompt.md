@@ -9,6 +9,8 @@ Parameters:
 ---
 
 Analyze the following completed chat conversation and produce results for the requested tasks.
+Return exactly one structured result for each task listed below. Do not omit tasks, and do not return an empty tasks array. If a task does not need a tool call, still return its result value.
+
 Tasks to process:
 {% for task in tasks %}
 - {{ task.Name }} (type: {{ task.Type }}){% if task.Instructions %}: {{ task.Instructions }}{% endif %}{% if task.Type == "PredefinedOptions" and task.Options.size > 0 %}{% if task.AllowMultipleValues %} [allowMultiple=true]{% endif %} Options: [{% for option in task.Options %}{% if forloop.index0 > 0 %}, {% endif %}{{ option.Value }}{% if option.Description %} ({{ option.Description }}){% endif %}{% endfor %}]{% endif %}

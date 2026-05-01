@@ -70,12 +70,15 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddOptions<AIChatSessionProcessingOptions>();
         services.TryAddScoped<IAIChatSessionEventService, DefaultAIChatSessionEventService>();
         services.TryAddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<IAIChatSessionEventService>());
         services.TryAddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<IAIChatSessionEventService>());
         services.TryAddScoped<DataExtractionService>();
         services.TryAddScoped<PostSessionProcessingService>();
         services.TryAddScoped<AIChatSessionPostCloseProcessor>();
+        services.TryAddSingleton<AIChatSessionCloseCycleService>();
+        services.TryAddSingleton<AIChatSessionCloseRunner>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIChatSessionCloseBackgroundService>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ExtractedDataOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, DefaultAIChatSessionAnalyticsHandler>());

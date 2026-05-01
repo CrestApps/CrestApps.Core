@@ -1,11 +1,17 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Services;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.Templates.Parsing;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.ChatNotifications;
@@ -221,7 +227,38 @@ public sealed class EndSessionNotificationActionHandlerTests
             services.AddSingleton(timeProvider);
         }
 
+        services.AddSingleton(CreatePostCloseProcessor(timeProvider ?? TimeProvider.System));
+
         return services.BuildServiceProvider();
+    }
+
+    private static AIChatSessionPostCloseProcessor CreatePostCloseProcessor(TimeProvider timeProvider)
+    {
+        var templateService = new Mock<ITemplateService>();
+        var markdownParser = new Mock<ITemplateParser>();
+        markdownParser.SetupGet(parser => parser.SupportedExtensions).Returns([".md"]);
+
+        var postSessionProcessingService = new PostSessionProcessingService(
+            Mock.Of<IAIClientFactory>(),
+            Mock.Of<IAIToolsService>(),
+            templateService.Object,
+            [markdownParser.Object],
+            new DefaultAIOptions(),
+            Mock.Of<IServiceProvider>(),
+            timeProvider,
+            NullLoggerFactory.Instance,
+            Mock.Of<IAIDeploymentManager>());
+
+        var optionsMonitor = new Mock<IOptionsMonitor<AIChatSessionProcessingOptions>>();
+        optionsMonitor.SetupGet(monitor => monitor.CurrentValue).Returns(new AIChatSessionProcessingOptions());
+
+        return new AIChatSessionPostCloseProcessor(
+            postSessionProcessingService,
+            [],
+            [],
+            timeProvider,
+            optionsMonitor.Object,
+            NullLogger<AIChatSessionPostCloseProcessor>.Instance);
     }
 
     private sealed class PassthroughStringLocalizer<T> : IStringLocalizer<T>

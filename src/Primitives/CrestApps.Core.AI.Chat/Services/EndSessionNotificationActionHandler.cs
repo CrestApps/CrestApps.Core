@@ -27,6 +27,7 @@ public sealed class EndSessionNotificationActionHandler : IChatNotificationActio
         {
             var profileManager = context.Services.GetRequiredService<IAIProfileManager>();
             var sessionManager = context.Services.GetRequiredService<IAIChatSessionManager>();
+            var postCloseProcessor = context.Services.GetRequiredService<AIChatSessionPostCloseProcessor>();
             var session = await sessionManager.FindByIdAsync(context.SessionId, cancellationToken);
 
             if (session is null)
@@ -52,7 +53,7 @@ public sealed class EndSessionNotificationActionHandler : IChatNotificationActio
             }
             else
             {
-                queuedPostCloseProcessing = AIChatSessionPostCloseProcessor.QueueIfNeeded(profile, session);
+                queuedPostCloseProcessing = postCloseProcessor.QueueIfNeeded(profile, session);
             }
 
             await sessionManager.SaveAsync(session, cancellationToken);

@@ -7,6 +7,7 @@ using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.Services.PostSession;
@@ -20,6 +21,7 @@ public sealed class AIChatSessionPostCloseProcessorTests
     [Fact]
     public void QueueIfNeeded_WithRemainingPostSessionTasks_SetsPendingStatus()
     {
+        var processor = CreateProcessor(DateTime.UtcNow);
         var profile = CreateTaskProfile();
         var session = new AIChatSession
         {
@@ -27,7 +29,7 @@ public sealed class AIChatSessionPostCloseProcessorTests
             PostSessionProcessingStatus = PostSessionProcessingStatus.None,
         };
 
-        var queued = AIChatSessionPostCloseProcessor.QueueIfNeeded(profile, session);
+        var queued = processor.QueueIfNeeded(profile, session);
 
         Assert.True(queued);
         Assert.Equal(PostSessionProcessingStatus.Pending, session.PostSessionProcessingStatus);
@@ -36,18 +38,61 @@ public sealed class AIChatSessionPostCloseProcessorTests
     [Fact]
     public void QueueIfNeeded_WhenNoRemainingWork_LeavesStatusUnchanged()
     {
+        var processor = CreateProcessor(DateTime.UtcNow);
         var profile = CreateTaskProfile();
         var session = new AIChatSession
         {
             SessionId = "session-1",
             IsPostSessionTasksProcessed = true,
             PostSessionProcessingStatus = PostSessionProcessingStatus.Completed,
+            PostSessionResults =
+            {
+                ["summary"] = new PostSessionResult
+                {
+                    Name = "summary",
+                    Status = PostSessionTaskResultStatus.Succeeded,
+                    Value = "Done",
+                    ProcessedAtUtc = new DateTime(2026, 5, 1, 19, 0, 0, DateTimeKind.Utc),
+                },
+            },
         };
 
-        var queued = AIChatSessionPostCloseProcessor.QueueIfNeeded(profile, session);
+        var queued = processor.QueueIfNeeded(profile, session);
 
         Assert.False(queued);
         Assert.Equal(PostSessionProcessingStatus.Completed, session.PostSessionProcessingStatus);
+    }
+
+    [Fact]
+    public void QueueIfNeeded_WhenLegacyFailureHasRemainingRetries_RequeuesProcessing()
+    {
+        var processor = CreateProcessor(DateTime.UtcNow);
+
+        Assert.Equal(5, processor.MaxPostCloseAttempts);
+
+        var profile = CreateTaskProfile();
+        var session = new AIChatSession
+        {
+            SessionId = "session-legacy",
+            IsPostSessionTasksProcessed = true,
+            PostSessionProcessingStatus = PostSessionProcessingStatus.Failed,
+            PostSessionResults =
+            {
+                ["summary"] = new PostSessionResult
+                {
+                    Name = "summary",
+                    Status = PostSessionTaskResultStatus.Failed,
+                    Attempts = 3,
+                    ProcessedAtUtc = new DateTime(2026, 5, 1, 20, 0, 0, DateTimeKind.Utc),
+                },
+            },
+        };
+
+        var queued = processor.QueueIfNeeded(profile, session);
+
+        Assert.True(queued);
+        Assert.False(session.IsPostSessionTasksProcessed);
+        Assert.Equal(PostSessionProcessingStatus.Pending, session.PostSessionProcessingStatus);
     }
 
     [Fact]
@@ -83,18 +128,18 @@ public sealed class AIChatSessionPostCloseProcessorTests
         {
             Name = "summary",
             Status = PostSessionTaskResultStatus.Pending,
-            Attempts = AIChatSessionPostCloseProcessor.MaxPostCloseAttempts - 1,
+            Attempts = processor.MaxPostCloseAttempts - 1,
         };
 
         await processor.ProcessAsync(profile, session, CreatePrompts(), TestContext.Current.CancellationToken);
 
         var result = session.PostSessionResults["summary"];
-        Assert.Equal(AIChatSessionPostCloseProcessor.MaxPostCloseAttempts, result.Attempts);
+        Assert.Equal(processor.MaxPostCloseAttempts, result.Attempts);
         Assert.Equal(PostSessionTaskResultStatus.Failed, result.Status);
-        Assert.Equal($"Task produced no result after {AIChatSessionPostCloseProcessor.MaxPostCloseAttempts} attempt(s).", result.ErrorMessage);
+        Assert.Equal($"Task produced no result after {processor.MaxPostCloseAttempts} attempt(s).", result.ErrorMessage);
         Assert.Equal(now, result.ProcessedAtUtc);
         Assert.Single(result.AttemptHistory);
-        Assert.Equal(AIChatSessionPostCloseProcessor.MaxPostCloseAttempts, result.AttemptHistory[0].AttemptNumber);
+        Assert.Equal(processor.MaxPostCloseAttempts, result.AttemptHistory[0].AttemptNumber);
         Assert.Equal(PostSessionTaskResultStatus.Failed, result.AttemptHistory[0].Status);
     }
 
@@ -134,6 +179,28 @@ public sealed class AIChatSessionPostCloseProcessorTests
         Assert.Single(result.AttemptHistory);
         Assert.Equal(1, result.AttemptHistory[0].AttemptNumber);
         Assert.Equal("Task produced no result during attempt 1.", result.AttemptHistory[0].ErrorMessage);
+    }
+
+    [Fact]
+    public void MaxPostCloseAttempts_WhenConfigured_UsesConfiguredValue()
+    {
+        var timeProviderMock = new Mock<TimeProvider>();
+        var postSessionService = CreatePostSessionService(timeProviderMock.Object, string.Empty, null);
+        var optionsMonitor = new Mock<IOptionsMonitor<AIChatSessionProcessingOptions>>();
+        optionsMonitor.SetupGet(monitor => monitor.CurrentValue).Returns(new AIChatSessionProcessingOptions
+        {
+            MaxPostCloseAttempts = 7,
+        });
+
+        var processor = new AIChatSessionPostCloseProcessor(
+            postSessionService,
+            [],
+            [],
+            timeProviderMock.Object,
+            optionsMonitor.Object,
+            NullLogger<AIChatSessionPostCloseProcessor>.Instance);
+
+        Assert.Equal(7, processor.MaxPostCloseAttempts);
     }
 
     private static AIProfile CreateTaskProfile()
@@ -193,19 +260,22 @@ public sealed class AIChatSessionPostCloseProcessorTests
 
     private static AIChatSessionPostCloseProcessor CreateProcessor(
         DateTime now,
-        string renderedPrompt,
+        string renderedPrompt = "",
         string responseJson = null)
     {
         var timeProviderMock = new Mock<TimeProvider>();
         timeProviderMock.Setup(timeProvider => timeProvider.GetUtcNow()).Returns(new DateTimeOffset(now));
 
         var postSessionService = CreatePostSessionService(timeProviderMock.Object, renderedPrompt, responseJson);
+        var optionsMonitor = new Mock<IOptionsMonitor<AIChatSessionProcessingOptions>>();
+        optionsMonitor.SetupGet(monitor => monitor.CurrentValue).Returns(new AIChatSessionProcessingOptions());
 
         return new AIChatSessionPostCloseProcessor(
             postSessionService,
             [],
             [],
             timeProviderMock.Object,
+            optionsMonitor.Object,
             NullLogger<AIChatSessionPostCloseProcessor>.Instance);
     }
 

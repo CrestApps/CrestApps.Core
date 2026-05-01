@@ -136,9 +136,9 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WithToolNames_ShouldResolveToolsAndUseToolsPath()
+    public async Task ProcessAsync_WithTaskScopedToolNames_ShouldResolveToolsAndUseToolsPath()
     {
-        // Arrange: tasks with tool names configured — should use tools path.
+        // Arrange: task-scoped tool names should flow into the shared tools path.
         var profile = CreateProfile();
         profile.AlterSettings<AIProfilePostSessionSettings>(s =>
         {
@@ -148,8 +148,8 @@ public sealed class PostSessionProcessingServiceTests
                 Name = "summary",
                 Type = PostSessionTaskType.Semantic,
                 Instructions = "Summarize the conversation.",
+                ToolNames = ["sendEmail"],
             }, ];
-            s.ToolNames = ["sendEmail"];
         });
         var session = CreateSession();
         var prompts = CreatePrompts();
@@ -178,6 +178,83 @@ public sealed class PostSessionProcessingServiceTests
 
         // Assert: the chat client was invoked with tools in the options.
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.Is<ChatOptions>(opts => opts.Tools != null && opts.Tools.Count > 0), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenToolResponseContainsOnlyInvalidTaskEntries_ShouldAttemptStructuredRecovery()
+    {
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks = [new PostSessionTask
+            {
+                Name = "summary",
+                Type = PostSessionTaskType.Semantic,
+                Instructions = "Summarize the conversation.",
+                ToolNames = ["sendEmail"],
+            }, ];
+        });
+        var session = CreateSession();
+        var prompts = CreatePrompts();
+        var mockTool = new TestAIFunction("sendEmail");
+        var mockToolsService = new Mock<IAIToolsService>();
+        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockChatClient = new Mock<IChatClient>();
+        mockChatClient.SetupSequence(c => c
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"\",\"value\":\"\"}]}")))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"Summarized the conversation.\"}]}")));
+        var mockTemplateService = new Mock<ITemplateService>();
+        mockTemplateService.Setup(t => t
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Rendered prompt");
+        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        var taskResult = Assert.Single(result);
+        Assert.Equal("summary", taskResult.Key);
+        Assert.Equal(PostSessionTaskResultStatus.Succeeded, taskResult.Value.Status);
+        Assert.Equal("Summarized the conversation.", taskResult.Value.Value);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenToolResponseContainsEmptyTasksArray_ShouldReturnSpecificFailure()
+    {
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks = [new PostSessionTask
+            {
+                Name = "summary",
+                Type = PostSessionTaskType.Semantic,
+                Instructions = "Summarize the conversation.",
+                ToolNames = ["sendEmail"],
+            }, ];
+        });
+        var session = CreateSession();
+        var prompts = CreatePrompts();
+        var mockTool = new TestAIFunction("sendEmail");
+        var mockToolsService = new Mock<IAIToolsService>();
+        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockChatClient = new Mock<IChatClient>();
+        mockChatClient.Setup(c => c
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[]}")));
+        var mockTemplateService = new Mock<ITemplateService>();
+        mockTemplateService.Setup(t => t
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Rendered prompt");
+        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        var taskResult = Assert.Single(result);
+        Assert.Equal("summary", taskResult.Key);
+        Assert.Equal(PostSessionTaskResultStatus.Failed, taskResult.Value.Status);
+        Assert.Equal("The AI returned structured JSON, but the tasks array was empty. Each configured post-session task must return a result, even when no tool call is needed.", taskResult.Value.ErrorMessage);
     }
 
     [Fact]

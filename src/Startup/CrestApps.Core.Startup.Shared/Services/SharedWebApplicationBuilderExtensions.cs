@@ -66,6 +66,7 @@ public static class SharedWebApplicationBuilderExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton(typeof(IOptionsChangeTokenSource<>), typeof(SiteSettingsOptionsChangeTokenSource<>)));
         services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigureGeneralAIOptions>();
         services.AddSingleton<IConfigureOptions<AIMemoryOptions>, SiteSettingsConfigureAIMemoryOptions>();
+        services.AddSingleton<IConfigureOptions<AIChatSessionProcessingOptions>, SiteSettingsConfigureStoredOptions<AIChatSessionProcessingOptions>>();
         services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, SiteSettingsConfigureInteractionDocumentOptions>();
         services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
         services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();

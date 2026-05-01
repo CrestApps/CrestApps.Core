@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
@@ -23,8 +25,10 @@ public sealed class PostSessionResult
     public PostSessionTaskResultStatus Status { get; set; }
 
     /// <summary>
-    /// Gets or sets the error message if the task failed.
+    /// Gets or sets the current in-memory error message if the task failed.
+    /// Persisted troubleshooting details live in <see cref="AttemptHistory"/>.
     /// </summary>
+    [JsonIgnore]
     public string ErrorMessage { get; set; }
 
     /// <summary>
