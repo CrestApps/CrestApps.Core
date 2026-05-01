@@ -1,12 +1,12 @@
 @page "/ai-chat/extracted-data"
 @attribute [Authorize(Policy = "Admin")]
 @using System.Text
+@using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
-@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @inject IAIProfileManager ProfileManager
-@inject SampleAIChatSessionExtractedDataService ExtractedDataService
+@inject IAIChatSessionExtractedDataStore ExtractedDataStore
 @inject TimeProvider TimeProvider
 @inject IJSRuntime JS
 
@@ -134,7 +134,7 @@ else
             return;
         }
 
-        var records = await ExtractedDataService.GetAsync(_model.ProfileId, _model.StartDateUtc, _model.EndDateUtc);
+        var records = await ExtractedDataStore.GetAsync(_model.ProfileId, _model.StartDateUtc, _model.EndDateUtc);
         var rows = records.Select(record => new ChatExtractedDataRowViewModel
         {
             SessionId = record.SessionId,

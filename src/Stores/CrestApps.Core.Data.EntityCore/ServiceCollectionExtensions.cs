@@ -1,6 +1,7 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Mcp.Models;
@@ -196,7 +197,22 @@ public static class ServiceCollectionExtensions
 
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionManager, EntityCoreAIChatSessionManager>());
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>());
+        services.AddCoreAIChatSessionExtractedDataStoresEntityCore();
         services.AddScoped<ICatalog<AIChatSessionPrompt>>(sp => sp.GetRequiredService<IAIChatSessionPromptStore>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for chat session extracted-data snapshots.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIChatSessionExtractedDataStoresEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Scoped<IAIChatSessionExtractedDataStore, EntityCoreAIChatSessionExtractedDataStore>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionExtractedDataRecorder, DefaultAIChatSessionExtractedDataRecorder>());
 
         return services;
     }

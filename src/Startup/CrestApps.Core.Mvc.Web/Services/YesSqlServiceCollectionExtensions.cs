@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.Json;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Copilot;
@@ -74,11 +75,9 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<SampleAIChatSessionEventService>()
             .AddScoped<SampleAICompletionUsageService>()
             .AddScoped<SampleAIChatSessionEventPostCloseObserver>()
-            .AddScoped<SampleAIChatSessionExtractedDataService>()
             .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<SampleAICompletionUsageService>())
             .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
             .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionExtractedDataService>())
             .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>();
 
         services
@@ -165,6 +164,8 @@ internal static class YesSqlServiceCollectionExtensions
             .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
             .Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));
         await transaction.CommitAsync();
+
+        await MigrateLegacyExtractedDataRecordsAsync(services, storeOptions, logger);
     }
 
     private static async Task InitializeCollectionsAsync(IStore store, YesSqlStoreOptions storeOptions)
@@ -211,4 +212,139 @@ internal static class YesSqlServiceCollectionExtensions
         { /* Table already exists. */
         }
     }
+
+    private static async Task MigrateLegacyExtractedDataRecordsAsync(
+        IServiceProvider services,
+        YesSqlStoreOptions storeOptions,
+        ILogger logger)
+    {
+        if (string.Equals(storeOptions.AICollectionName, storeOptions.DefaultCollectionName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var legacyRows = await GetLegacyExtractedDataRowsAsync(services, storeOptions);
+        if (legacyRows.Count == 0)
+        {
+            return;
+        }
+
+        await using var scope = services.CreateAsyncScope();
+        var extractedDataStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionExtractedDataStore>();
+        var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+
+        foreach (var record in legacyRows
+                     .Select(row => row.Record)
+                     .Where(record => record is not null)
+                     .GroupBy(record => record.SessionId, StringComparer.OrdinalIgnoreCase)
+                     .Select(group => group
+                         .OrderByDescending(record => record.UpdatedUtc)
+                         .First()))
+        {
+            await extractedDataStore.SaveAsync(record);
+        }
+
+        await committer.CommitAsync();
+        await DeleteLegacyExtractedDataRowsAsync(services, storeOptions, legacyRows.Select(row => row.Id).ToList());
+
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Migrated {Count} legacy AI chat extracted-data snapshot records into the AI collection.", legacyRows.Count);
+        }
+    }
+
+    private static async Task<List<LegacyExtractedDataRow>> GetLegacyExtractedDataRowsAsync(
+        IServiceProvider services,
+        YesSqlStoreOptions storeOptions)
+    {
+        var rows = new List<LegacyExtractedDataRow>();
+        var tableName = GetDefaultCollectionDocumentTableName(storeOptions);
+
+        await using var connection = services.GetRequiredService<IStore>().Configuration.ConnectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        await ConfigureSqliteConnectionAsync(connection);
+
+        if (!await TableExistsAsync(connection, tableName))
+        {
+            return rows;
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT Id, Content FROM [{tableName}] WHERE Type = @type";
+        AddParameter(command, "@type", "CrestApps.Core.AI.Models.AIChatSessionExtractedDataRecord, CrestApps.Core.AI.Abstractions");
+
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (reader.IsDBNull(0) || reader.IsDBNull(1))
+            {
+                continue;
+            }
+
+            var record = JsonSerializer.Deserialize<AIChatSessionExtractedDataRecord>(reader.GetString(1));
+            if (record is null || string.IsNullOrWhiteSpace(record.SessionId) || string.IsNullOrWhiteSpace(record.ProfileId))
+            {
+                continue;
+            }
+
+            rows.Add(new LegacyExtractedDataRow(reader.GetInt32(0), record));
+        }
+
+        return rows;
+    }
+
+    private static async Task DeleteLegacyExtractedDataRowsAsync(
+        IServiceProvider services,
+        YesSqlStoreOptions storeOptions,
+        List<int> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var tableName = GetDefaultCollectionDocumentTableName(storeOptions);
+
+        await using var connection = services.GetRequiredService<IStore>().Configuration.ConnectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        await ConfigureSqliteConnectionAsync(connection);
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        foreach (var id in ids.Distinct())
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"DELETE FROM [{tableName}] WHERE Id = @id";
+            AddParameter(command, "@id", id);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
+    }
+
+    private static async Task<bool> TableExistsAsync(DbConnection connection, string tableName)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @name";
+        AddParameter(command, "@name", tableName);
+
+        return Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
+    }
+
+    private static string GetDefaultCollectionDocumentTableName(YesSqlStoreOptions storeOptions)
+    {
+        return string.IsNullOrWhiteSpace(storeOptions.DefaultCollectionName)
+            ? "Document"
+            : $"{storeOptions.DefaultCollectionName}_Document";
+    }
+
+    private static void AddParameter(DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
+    private sealed record LegacyExtractedDataRow(int Id, AIChatSessionExtractedDataRecord Record);
 }

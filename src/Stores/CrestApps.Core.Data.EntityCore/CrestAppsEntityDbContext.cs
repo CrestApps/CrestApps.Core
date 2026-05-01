@@ -45,6 +45,11 @@ public sealed class CrestAppsEntityDbContext : DbContext
     public DbSet<AIChatSessionRecord> AIChatSessionRecords => Set<AIChatSessionRecord>();
 
     /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AIChatSessionExtractedDataStoreRecord"/> rows.
+    /// </summary>
+    public DbSet<AIChatSessionExtractedDataStoreRecord> AIChatSessionExtractedDataRecords => Set<AIChatSessionExtractedDataStoreRecord>();
+
+    /// <summary>
     /// Configures the CrestApps Entity Framework Core model.
     /// </summary>
     /// <param name="modelBuilder">The model builder.</param>
@@ -100,6 +105,19 @@ public sealed class CrestAppsEntityDbContext : DbContext
 
             entity.HasIndex(x => x.ProfileId);
             entity.HasIndex(x => x.LastActivityUtc);
+        });
+
+        modelBuilder.Entity<AIChatSessionExtractedDataStoreRecord>(entity =>
+        {
+            entity.ToTable($"{tablePrefix}AIChatSessionExtractedData");
+            entity.HasKey(x => x.SessionId);
+            entity.Property(x => x.SessionId).HasMaxLength(26);
+            entity.Property(x => x.ProfileId).IsRequired();
+            entity.Property(x => x.Payload).IsRequired();
+
+            entity.HasIndex(x => x.ProfileId);
+            entity.HasIndex(x => x.SessionStartedUtc);
+            entity.HasIndex(x => x.UpdatedUtc);
         });
 
         foreach (var configurer in _modelConfigurers)

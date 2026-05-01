@@ -216,19 +216,28 @@ The framework now standardizes the post-close processing pipeline, but hosts sti
 
 ### Extracted Data Reporting Snapshots
 
-Hosts can persist queryable extracted-data snapshots by implementing `IAIChatSessionExtractedDataRecorder`.
+The framework now exposes `IAIChatSessionExtractedDataStore` for querying extracted-data reporting snapshots and ships a default `IAIChatSessionExtractedDataRecorder` that writes to that store whenever extraction produces new values or a session naturally closes.
 
 ```csharp
-public interface IAIChatSessionExtractedDataRecorder
+public interface IAIChatSessionExtractedDataStore
 {
-    Task RecordExtractedDataAsync(
-        AIProfile profile,
-        AIChatSession session,
+    Task SaveAsync(
+        AIChatSessionExtractedDataRecord record,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteAsync(
+        string sessionId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AIChatSessionExtractedDataRecord>> GetAsync(
+        string profileId,
+        DateTime? startDateUtc,
+        DateTime? endDateUtc,
         CancellationToken cancellationToken = default);
 }
 ```
 
-The shared `DataExtractionChatSessionHandler` now calls these recorders whenever extraction produces new values or naturally closes the session, so hosts can upsert reporting documents such as `AIChatSessionExtractedDataRecord` without duplicating extraction logic.
+When you register chat session stores with YesSql or EntityCore, the extracted-data store and default recorder are registered automatically as part of the chat feature extensions. Hosts can still add additional `IAIChatSessionExtractedDataRecorder` implementations for custom side effects, but they no longer need to implement snapshot persistence just to power extracted-data reports.
 
 ## Session Management
 

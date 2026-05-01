@@ -1,6 +1,7 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Mcp.Models;
@@ -420,6 +421,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.Replace(ServiceDescriptor.Scoped<IAIChatSessionExtractedDataStore, YesSqlAIChatSessionExtractedDataStore>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionExtractedDataRecorder, DefaultAIChatSessionExtractedDataRecorder>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionExtractedDataIndexProvider>());
 
         return services;

@@ -72,6 +72,7 @@ public sealed class EntityCoreStoreTests
         var documentStore = services.GetRequiredService<IAIDocumentStore>();
         var chunkStore = services.GetRequiredService<IAIDocumentChunkStore>();
         var sessionPromptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
+        var extractedDataStore = services.GetRequiredService<IAIChatSessionExtractedDataStore>();
         var interactionPromptStore = services.GetRequiredService<IChatInteractionPromptStore>();
         var indexProfileStore = services.GetRequiredService<ISearchIndexProfileStore>();
         var profileCatalog = services.GetRequiredService<INamedSourceCatalog<AIProfile>>();
@@ -158,6 +159,26 @@ public sealed class EntityCoreStoreTests
         Assert.Single(await sessionPromptStore.GetPromptsAsync("session-1"));
         Assert.Equal(1, await sessionPromptStore.DeleteAllPromptsAsync("session-1"));
         await committer.CommitAsync(cancellationToken);
+
+        await extractedDataStore.SaveAsync(
+            new AIChatSessionExtractedDataRecord
+            {
+                ItemId = "session-1",
+                SessionId = "session-1",
+                ProfileId = "profile-1",
+                SessionStartedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow,
+                Values = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["customer_name"] = ["Mike Alhayek"],
+                },
+            },
+            cancellationToken);
+        await committer.CommitAsync(cancellationToken);
+        Assert.Single(await extractedDataStore.GetAsync("profile-1", null, null, cancellationToken));
+        Assert.True(await extractedDataStore.DeleteAsync("session-1", cancellationToken));
+        await committer.CommitAsync(cancellationToken);
+        Assert.Empty(await extractedDataStore.GetAsync("profile-1", null, null, cancellationToken));
 
         var interactionPrompt = new ChatInteractionPrompt
         {
