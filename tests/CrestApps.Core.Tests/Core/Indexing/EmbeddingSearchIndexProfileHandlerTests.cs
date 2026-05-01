@@ -40,10 +40,12 @@ public sealed class EmbeddingSearchIndexProfileHandlerTests
     public async Task GetFieldsAsync_ShouldResolveEmbeddingDeploymentById()
     {
         var deployment = CreateEmbeddingDeployment();
+
         var handler = new AIDocumentSearchIndexProfileHandler(
             new FakeDeploymentStore(deployment),
             new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f, 0.2f, 0.3f])),
             NullLogger<AIDocumentSearchIndexProfileHandler>.Instance);
+
         var profile = new SearchIndexProfile
         {
             Type = IndexProfileTypes.AIDocuments,

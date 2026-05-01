@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using Microsoft.Extensions.DependencyInjection;

@@ -48,7 +48,6 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<Areas.AI.Services.AIProfileDocumentService>()
             .AddScoped<Areas.AI.Services.AIProfileTemplateDocumentService>()
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, Areas.AI.Handlers.AIMemoryEntryHandler>()
-            .AddScoped<Areas.Indexing.Services.SampleAIDocumentIndexingService>()
             .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, Areas.AIChat.Services.SampleAIChatDocumentEventHandler>()

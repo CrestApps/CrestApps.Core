@@ -44,7 +44,7 @@ public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while processing queued MVC chat document indexing work.");
+                _logger.LogError(ex, "An error occurred while processing queued chat document indexing work.");
             }
         }
     }
