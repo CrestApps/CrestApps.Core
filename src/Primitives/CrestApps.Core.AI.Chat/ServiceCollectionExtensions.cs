@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Extensions;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace CrestApps.Core.AI.Chat;
 
@@ -74,6 +76,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<DataExtractionService>();
         services.TryAddScoped<PostSessionProcessingService>();
         services.TryAddScoped<AIChatSessionPostCloseProcessor>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIChatSessionCloseBackgroundService>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ExtractedDataOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, DefaultAIChatSessionAnalyticsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, DataExtractionChatSessionHandler>());
@@ -99,6 +102,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddCoreAIChatNotifications();
         services.AddCoreAIChatSessionProcessing();
+        services.TryAddScoped<CompositeAIReferenceLinkResolver>();
+        services.TryAddScoped<CitationReferenceCollector>();
 
         // Register templates embedded in this assembly.
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);

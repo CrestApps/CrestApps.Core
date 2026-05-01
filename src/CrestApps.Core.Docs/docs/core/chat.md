@@ -66,14 +66,18 @@ In the MVC sample, Chat Interactions now reserve automatic spoken playback for *
 
 Both the MVC and Blazor sample hosts now render `[doc:n]` citations as superscript markers in assistant responses and show the resolved document references as clickable links directly below the cited message. When a citation points to an attached AI document, the reference link now downloads that file from the server after the host registers both `AddReferenceDownloads()` on the document-processing builder and `AddDownloadAIDocumentEndpoint()` on the endpoint route builder.
 
+If a host needs to merge preemptive-RAG references with tool-generated references during streaming, `AddCoreAIChatInteractions()` now registers `CitationReferenceCollector` plus `CompositeAIReferenceLinkResolver` so the host can reuse the shared citation-merging logic instead of duplicating it per UI project.
+
 ## Services Registered by `AddCoreAIChatInteractions()`
 
 | Service | Implementation | Lifetime | Purpose |
 |---------|---------------|----------|---------|
 | `ChatInteractionCompletionContextBuilderHandler` | — | Scoped | Enriches completion context with chat history |
 | `ChatInteractionEntryHandler` | — | Scoped | Catalog lifecycle handler for `ChatInteraction` |
+| `CitationReferenceCollector` | `CitationReferenceCollector` | Scoped | Merges preemptive and tool-generated citations, resolves reference links, and tracks referenced articles |
 | `DataExtractionService` | `DataExtractionService` | Scoped | Extracts configured fields from completed chat turns |
 | `PostSessionProcessingService` | `PostSessionProcessingService` | Scoped | Runs AI-powered post-session tasks and evaluations |
+| `AIChatSessionCloseBackgroundService` | `AIChatSessionCloseBackgroundService` | Singleton (`IHostedService`) | Evaluates all chat profiles immediately on startup and then every 5 minutes to close inactive sessions and retry post-close processing |
 | `DataExtractionChatSessionHandler` | — | Scoped | Runs shared extraction and closes sessions on natural farewells |
 | `PostSessionProcessingChatSessionHandler` | — | Scoped | Triggers the shared post-close processor when a session closes |
 
@@ -193,7 +197,7 @@ NewAsync()          SaveAsync()         (inactivity / explicit close)
 | **Deletion** | `DeleteAsync()` removes the session and its associated prompts. `DeleteAllAsync()` removes all sessions for a given profile and user. |
 
 :::info
-The framework now standardizes the post-close processing pipeline, but hosts still own the storage-specific background policy that decides when inactive sessions should be closed and retried.
+`AddCoreAIChatSessionProcessing()` now registers the shared `AIChatSessionCloseBackgroundService`, so any host that enables the standard AI chat session pipeline and registers AI chat session stores gets the same inactivity-closing and post-close retry behavior without adding a host-specific worker. The worker runs once at startup and then every 5 minutes.
 :::
 
 ### Key Properties of `AIChatSession`
@@ -213,6 +217,8 @@ The framework now standardizes the post-close processing pipeline, but hosts sti
 | `ClosedAtUtc` | `DateTime?` | When the session was closed |
 | `ExtractedData` | `Dictionary<string, ExtractedFieldState>` | Extracted conversation fields |
 | `PostSessionProcessingStatus` | `PostSessionProcessingStatus` | Status of post-session tasks |
+
+Each `PostSessionResults` entry now keeps an `AttemptHistory` collection for failed or incomplete retries, and `ProcessedAtUtc` is only populated once the task reaches a terminal success or final failure state. Pending retries keep their last attempt details in history instead of surfacing a default timestamp.
 
 ### Extracted Data Reporting Snapshots
 

@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Chat.Hubs;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
-using CrestApps.Core.Blazor.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Hubs;
@@ -27,7 +27,7 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
         Dictionary<string, AICompletionReference> references,
         HashSet<string> contentItemIds)
     {
-        var citationCollector = services.GetRequiredService<SampleCitationReferenceCollector>();
+        var citationCollector = services.GetRequiredService<CitationReferenceCollector>();
 
         if (handlerContext.Properties.TryGetValue("OrchestrationContext", out var ctxObj) &&
             ctxObj is OrchestrationContext orchestrationContext)

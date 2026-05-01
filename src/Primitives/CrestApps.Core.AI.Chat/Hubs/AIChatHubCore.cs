@@ -280,7 +280,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="contentItemIds">The content item ids.</param>
     protected virtual void CollectStreamingReferences(IServiceProvider services, ChatResponseHandlerContext handlerContext, Dictionary<string, AICompletionReference> references, HashSet<string> contentItemIds)
     {
-        // No-op. OC overrides to use CitationReferenceCollector.
+        // No-op. Hosts can override to integrate citation collection.
     }
 
     /// <summary>

@@ -175,10 +175,8 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 // =============================================================================
 // 5. BACKGROUND TASKS AND PIPELINE
 // =============================================================================
-// These hosted services keep chat sessions, document indexing, and data-source
-// synchronization moving in the background. Keep only the workers your app needs.
+// These hosted services keep sample-only document indexing moving in the background.
 // =============================================================================
-builder.Services.AddHostedService<AIChatSessionCloseBackgroundService>();
 builder.Services.AddSingleton<SampleAIChatDocumentIndexingQueue>();
 builder.Services.AddSingleton<ISampleAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<SampleAIChatDocumentIndexingQueue>());
 builder.Services.AddHostedService<AIChatDocumentIndexingBackgroundService>();

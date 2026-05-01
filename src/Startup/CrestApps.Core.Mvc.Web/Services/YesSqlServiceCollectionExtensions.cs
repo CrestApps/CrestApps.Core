@@ -85,8 +85,6 @@ internal static class YesSqlServiceCollectionExtensions
             .AddSharedArticleServices()
             .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
-            .AddScoped<SampleCitationReferenceCollector>()
-            .AddScoped<CompositeAIReferenceLinkResolver>()
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 

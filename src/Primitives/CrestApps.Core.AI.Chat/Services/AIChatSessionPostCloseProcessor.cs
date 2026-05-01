@@ -68,6 +68,26 @@ public sealed class AIChatSessionPostCloseProcessor
     }
 
     /// <summary>
+    /// Marks the session as pending shared post-close processing when work remains.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="chatSession">The chat session.</param>
+    public static bool QueueIfNeeded(AIProfile profile, AIChatSession chatSession)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(chatSession);
+
+        if (!NeedsProcessing(profile, chatSession))
+        {
+            return false;
+        }
+
+        chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.Pending;
+
+        return true;
+    }
+
+    /// <summary>
     /// Processs the operation.
     /// </summary>
     /// <param name="profile">The profile.</param>
@@ -221,6 +241,7 @@ public sealed class AIChatSessionPostCloseProcessor
                 if (chatSession.PostSessionResults.TryGetValue(taskName, out var existing)
                     && existing.Status != PostSessionTaskResultStatus.Succeeded)
                 {
+                    existing.AttemptHistory ??= [];
                     existing.Attempts++;
                 }
             }
@@ -233,7 +254,7 @@ public sealed class AIChatSessionPostCloseProcessor
                 {
                     if (chatSession.PostSessionResults.TryGetValue(taskName, out var existing))
                     {
-                        taskResult.Attempts = existing.Attempts;
+                        CopyAttemptState(existing, taskResult);
                     }
 
                     chatSession.PostSessionResults[taskName] = taskResult;
@@ -255,12 +276,25 @@ public sealed class AIChatSessionPostCloseProcessor
             foreach (var taskName in taskNames)
             {
                 if (chatSession.PostSessionResults.TryGetValue(taskName, out var taskResult)
-                    && taskResult.Status != PostSessionTaskResultStatus.Succeeded
-                    && taskResult.Attempts >= MaxPostCloseAttempts)
+                    && taskResult.Status != PostSessionTaskResultStatus.Succeeded)
                 {
-                    taskResult.Status = PostSessionTaskResultStatus.Failed;
-                    taskResult.ProcessedAtUtc = utcNow;
-                    taskResult.ErrorMessage ??= $"Task produced no result after {taskResult.Attempts} attempt(s).";
+                    taskResult.ErrorMessage = string.IsNullOrWhiteSpace(taskResult.ErrorMessage)
+                        ? taskResult.Attempts >= MaxPostCloseAttempts
+                            ? $"Task produced no result after {taskResult.Attempts} attempt(s)."
+                            : $"Task produced no result during attempt {taskResult.Attempts}."
+                        : taskResult.ErrorMessage;
+
+                    if (taskResult.Attempts >= MaxPostCloseAttempts)
+                    {
+                        taskResult.Status = PostSessionTaskResultStatus.Failed;
+                        taskResult.ProcessedAtUtc = utcNow;
+                    }
+                    else
+                    {
+                        taskResult.ProcessedAtUtc = null;
+                    }
+
+                    RecordAttemptFailure(taskResult, utcNow);
                 }
             }
 
@@ -307,9 +341,58 @@ public sealed class AIChatSessionPostCloseProcessor
                         taskResult.Status = PostSessionTaskResultStatus.Failed;
                         taskResult.ProcessedAtUtc = utcNow;
                     }
+                    else
+                    {
+                        taskResult.ProcessedAtUtc = null;
+                    }
+
+                    RecordAttemptFailure(taskResult, utcNow);
                 }
             }
         }
+    }
+
+    private static void CopyAttemptState(PostSessionResult source, PostSessionResult destination)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        destination.Attempts = source.Attempts;
+        destination.AttemptHistory = source.AttemptHistory == null
+            ? []
+            : [.. source.AttemptHistory.Select(attempt => new PostSessionTaskAttempt
+            {
+                AttemptNumber = attempt.AttemptNumber,
+                Status = attempt.Status,
+                ErrorMessage = attempt.ErrorMessage,
+                RecordedAtUtc = attempt.RecordedAtUtc,
+            })];
+    }
+
+    private static void RecordAttemptFailure(PostSessionResult taskResult, DateTime recordedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(taskResult);
+
+        taskResult.AttemptHistory ??= [];
+
+        var existingAttempt = taskResult.AttemptHistory.FirstOrDefault(attempt => attempt.AttemptNumber == taskResult.Attempts);
+
+        if (existingAttempt != null)
+        {
+            existingAttempt.Status = taskResult.Status;
+            existingAttempt.ErrorMessage = taskResult.ErrorMessage;
+            existingAttempt.RecordedAtUtc = recordedAtUtc;
+
+            return;
+        }
+
+        taskResult.AttemptHistory.Add(new PostSessionTaskAttempt
+        {
+            AttemptNumber = taskResult.Attempts,
+            Status = taskResult.Status,
+            ErrorMessage = taskResult.ErrorMessage,
+            RecordedAtUtc = recordedAtUtc,
+        });
     }
 
     private async Task RecordSessionAnalyticsAsync(

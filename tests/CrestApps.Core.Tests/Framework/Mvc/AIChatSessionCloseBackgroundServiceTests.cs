@@ -1,12 +1,28 @@
 using System.Reflection;
+using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class AIChatSessionCloseBackgroundServiceTests
 {
+    [Fact]
+    public void AddCoreAIChatSessionProcessing_RegistersHostedService()
+    {
+        var services = new ServiceCollection();
+
+        services.AddCoreAIChatSessionProcessing();
+
+        Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(AIChatSessionCloseBackgroundService)
+            && descriptor.Lifetime == ServiceLifetime.Singleton);
+    }
+
     [Fact]
     public void DetermineInactiveSessionStatus_WithUserPrompt_ReturnsClosed()
     {

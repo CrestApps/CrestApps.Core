@@ -1,9 +1,9 @@
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Mvc.Web.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
@@ -54,14 +54,14 @@ public sealed class MvcCitationReferenceCollectorTests
         Assert.Contains("article-2", contentItemIds);
     }
 
-    private static SampleCitationReferenceCollector CreateCollector()
+    private static CitationReferenceCollector CreateCollector()
     {
         var services = new ServiceCollection();
         services.AddKeyedSingleton<IAIReferenceLinkResolver, TestArticleResolver>(IndexProfileTypes.Articles);
         services.AddSingleton<CompositeAIReferenceLinkResolver>();
         var serviceProvider = services.BuildServiceProvider();
 
-        return new SampleCitationReferenceCollector(serviceProvider.GetRequiredService<CompositeAIReferenceLinkResolver>());
+        return new CitationReferenceCollector(serviceProvider.GetRequiredService<CompositeAIReferenceLinkResolver>());
     }
 
     private sealed class TestArticleResolver : IAIReferenceLinkResolver

@@ -33,7 +33,13 @@ public sealed class PostSessionResult
     public int Attempts { get; set; }
 
     /// <summary>
-    /// Gets or sets the UTC timestamp when this result was processed.
+    /// Gets or sets the history of failed or incomplete attempts for this task.
     /// </summary>
-    public DateTime ProcessedAtUtc { get; set; }
+    public List<PostSessionTaskAttempt> AttemptHistory { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the UTC timestamp when this task reached a terminal processed state.
+    /// This is only populated when the task succeeds or reaches a final failure state.
+    /// </summary>
+    public DateTime? ProcessedAtUtc { get; set; }
 }
