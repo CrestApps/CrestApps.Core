@@ -49,9 +49,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<AIChatSession> FindByIdAsync(string id, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(id);
-
-        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == id, collection: _collection).FirstOrDefaultAsync(cancellationToken);
+        return await FindStoredSessionAsync(id, cancellationToken);
     }
 
     /// <summary>
@@ -170,7 +168,21 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         ArgumentNullException.ThrowIfNull(chatSession);
 
         chatSession.LastActivityUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        await _session.SaveAsync(chatSession, _collection);
+        var storedSession = await FindStoredSessionAsync(chatSession.SessionId, cancellationToken);
+
+        if (storedSession == null)
+        {
+            await _session.SaveAsync(chatSession, _collection);
+
+            return;
+        }
+
+        if (!ReferenceEquals(storedSession, chatSession))
+        {
+            CopySession(chatSession, storedSession);
+        }
+
+        await _session.SaveAsync(storedSession, _collection);
     }
 
     /// <summary>
@@ -180,9 +192,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(sessionId);
-
-        var session = await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == sessionId, collection: _collection).FirstOrDefaultAsync(cancellationToken);
+        var session = await FindStoredSessionAsync(sessionId, cancellationToken);
 
         if (session == null)
         {
@@ -215,5 +225,39 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         }
 
         return count;
+    }
+
+    private async Task<AIChatSession> FindStoredSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sessionId);
+
+        return await _session.Query<AIChatSession, AIChatSessionIndex>(x => x.SessionId == sessionId, collection: _collection).FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static void CopySession(AIChatSession source, AIChatSession destination)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        destination.SessionId = source.SessionId;
+        destination.ProfileId = source.ProfileId;
+        destination.Title = source.Title;
+        destination.UserId = source.UserId;
+        destination.ClientId = source.ClientId;
+        destination.Documents = source.Documents == null ? [] : [.. source.Documents];
+        destination.CreatedUtc = source.CreatedUtc;
+        destination.LastActivityUtc = source.LastActivityUtc;
+        destination.ClosedAtUtc = source.ClosedAtUtc;
+        destination.Status = source.Status;
+        destination.ResponseHandlerName = source.ResponseHandlerName;
+        destination.ExtractedData = source.ExtractedData == null ? [] : new Dictionary<string, ExtractedFieldState>(source.ExtractedData);
+        destination.PostSessionResults = source.PostSessionResults == null ? [] : new Dictionary<string, PostSessionResult>(source.PostSessionResults);
+        destination.PostSessionProcessingStatus = source.PostSessionProcessingStatus;
+        destination.PostSessionProcessingAttempts = source.PostSessionProcessingAttempts;
+        destination.PostSessionProcessingLastAttemptUtc = source.PostSessionProcessingLastAttemptUtc;
+        destination.IsPostSessionTasksProcessed = source.IsPostSessionTasksProcessed;
+        destination.IsAnalyticsRecorded = source.IsAnalyticsRecorded;
+        destination.IsConversionGoalsEvaluated = source.IsConversionGoalsEvaluated;
+        destination.Properties = source.Properties == null ? [] : new Dictionary<string, object>(source.Properties);
     }
 }
