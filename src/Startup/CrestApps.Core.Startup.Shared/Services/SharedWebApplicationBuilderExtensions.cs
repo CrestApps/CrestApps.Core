@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,6 +46,10 @@ public static class SharedWebApplicationBuilderExtensions
         var projectAppDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 
         Directory.CreateDirectory(appDataPath);
+
+        var keysDirectory = new DirectoryInfo(Path.Combine(appDataPath, "DataProtection-Keys"));
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(keysDirectory);
 
         AddSharedAppDataConfigurationSources(builder.Configuration, projectAppDataPath, appDataPath);
 
