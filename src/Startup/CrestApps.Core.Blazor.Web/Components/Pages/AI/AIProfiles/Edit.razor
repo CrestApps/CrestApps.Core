@@ -109,21 +109,21 @@ else if (_model != null)
                             {
                                 <div class="text-danger">@_nameError</div>
                             }
-                            <div class="form-text">The technical name cannot be changed after creation.</div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Profile type</label>
-                                    <select class="form-select" value="@_model.Type" @onchange="OnProfileTypeChanged">
-                                        @foreach (var profileType in Enum.GetValues<AIProfileType>())
-                                        {
-                                            <option value="@profileType">@profileType</option>
-                                        }
-                                    </select>
-                                </div>
+                                <select class="form-select" value="@_model.Type" @onchange="OnProfileTypeChanged">
+                                    @foreach (var profileType in Enum.GetValues<AIProfileType>())
+                                    {
+                                        <option value="@profileType">@profileType</option>
+                                    }
+                                </select>
+                                <div class="form-text">Choose the type of the profile.</div>
                             </div>
+                        </div>
                             @if (_model.Type == AIProfileType.Chat)
                             {
                                 <div class="col-md-4">
@@ -131,24 +131,26 @@ else if (_model != null)
                                         <label class="form-label">Title type</label>
                                         <InputSelect class="form-select" @bind-Value="_model.TitleType">
                                             <option value="">Default</option>
-                                            @foreach (var tt in Enum.GetValues<AISessionTitleType>())
-                                            {
-                                                <option value="@tt">@tt</option>
-                                            }
-                                        </InputSelect>
-                                    </div>
+                                        @foreach (var tt in Enum.GetValues<AISessionTitleType>())
+                                        {
+                                            <option value="@tt">@tt</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">How the chat session title is determined.</div>
                                 </div>
-                                <div class="col-md-4">
+                            </div>
+                            <div class="col-md-4">
                                     <div class="mb-3">
                                         <label class="form-label">Chat mode</label>
                                         <InputSelect class="form-select" @bind-Value="_model.ChatMode">
                                             <option value="@ChatMode.TextInput">Text input</option>
-                                            <option value="@ChatMode.AudioInput">Audio input</option>
-                                            <option value="@ChatMode.Conversation">Conversation</option>
-                                        </InputSelect>
-                                    </div>
+                                        <option value="@ChatMode.AudioInput">Audio input</option>
+                                        <option value="@ChatMode.Conversation">Conversation</option>
+                                    </InputSelect>
+                                    <div class="form-text">Controls whether this profile uses text input only, microphone dictation, or full two-way conversation mode.</div>
                                 </div>
-                            }
+                            </div>
+                        }
                         </div>
 
                         @if (_model.Type == AIProfileType.Chat)
@@ -167,26 +169,27 @@ else if (_model != null)
                                     <label class="form-label">Voice</label>
                                     <InputSelect class="form-select" @bind-Value="_model.VoiceName">
                                         <option value="">Default voice</option>
-                                        @foreach (var group in _availableVoices.GroupBy(GetVoiceGroupLabel).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
-                                        {
+                                @foreach (var group in _availableVoices.GroupBy(GetVoiceGroupLabel).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+                                {
                                             <optgroup label="@group.Key">
                                                 @foreach (var voice in group.OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase))
                                                 {
                                                     <option value="@voice.Id">@voice.Name</option>
-                                                }
-                                            </optgroup>
                                         }
-                                    </InputSelect>
-                                    <div class="form-text">Leave empty to use the site's default text-to-speech voice.</div>
-                                </div>
-                            }
-                        }
+                                    </optgroup>
+                                }
+                            </InputSelect>
+                            <div class="form-text">Select a voice for conversation mode. Leave this empty to use the site's default voice.</div>
+                        </div>
+                    }
+                }
 
                         @if (_model.Type == AIProfileType.Agent)
                         {
                             <div class="mb-3">
                                 <label class="form-label">Description</label>
                                 <InputTextArea class="form-control" rows="3" @bind-Value="_model.Description" placeholder="Describe what this agent does" />
+                                <div class="form-text">A description of what this agent does. Used by the orchestrator to determine when to route requests to this agent.</div>
                             </div>
                         }
 
@@ -196,25 +199,27 @@ else if (_model != null)
                                     <label class="form-label">Chat deployment</label>
                                     <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName">
                                         <option value="">Use default chat deployment</option>
-                                        @foreach (var d in _model.ChatDeployments)
-                                        {
-                                            <option value="@d.Value">@d.Key</option>
-                                        }
-                                    </InputSelect>
-                                </div>
+                                    @foreach (var d in _model.ChatDeployments)
+                                    {
+                                        <option value="@d.Value">@d.Key</option>
+                                    }
+                                </InputSelect>
+                                <div class="form-text">The chat model deployment to use.</div>
                             </div>
+                        </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Utility deployment</label>
                                     <InputSelect class="form-select" @bind-Value="_model.UtilityDeploymentName">
                                         <option value="">Use default utility deployment</option>
-                                        @foreach (var d in _model.UtilityDeployments)
-                                        {
-                                            <option value="@d.Value">@d.Key</option>
-                                        }
-                                    </InputSelect>
-                                </div>
+                                    @foreach (var d in _model.UtilityDeployments)
+                                    {
+                                        <option value="@d.Value">@d.Key</option>
+                                    }
+                                </InputSelect>
+                                <div class="form-text">Optional deployment for utility tasks (planning, summarization).</div>
                             </div>
+                        </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Orchestrator</label>
@@ -225,6 +230,7 @@ else if (_model != null)
                                             <option value="@o.Value">@o.Key</option>
                                         }
                                     </select>
+                                    <div class="form-text">The orchestrator that manages AI interactions.</div>
                                 </div>
                             </div>
                         </div>
@@ -348,6 +354,7 @@ else if (_model != null)
                             <div class="mb-3">
                                 <label class="form-label">Prompt subject</label>
                                 <InputText class="form-control" @bind-Value="_model.PromptSubject" placeholder="Optional subject context" />
+                                <div class="form-text">Provides context to the AI about the primary subject of the conversation.</div>
                             </div>
                         }
 
@@ -358,6 +365,7 @@ else if (_model != null)
                                     <InputCheckbox class="form-check-input" @bind-Value="_model.AddInitialPrompt" />
                                     <label class="form-check-label">Add initial prompt</label>
                                 </div>
+                                <div class="form-text">When enabled, each new chat session starts with an assistant message from the initial prompt and the welcome message is ignored.</div>
                             </div>
 
                             @if (!_model.AddInitialPrompt)
@@ -365,6 +373,7 @@ else if (_model != null)
                                 <div class="mb-3">
                                     <label class="form-label">Welcome message</label>
                                     <InputTextArea class="form-control" rows="3" @bind-Value="_model.WelcomeMessage" placeholder="Message shown when a chat starts" />
+                                    <div class="form-text">The welcome message to show on the user-interface when a new session is created.</div>
                                 </div>
                             }
                             else
@@ -372,6 +381,7 @@ else if (_model != null)
                                 <div class="mb-3">
                                     <label class="form-label">Initial prompt</label>
                                     <InputTextArea class="form-control" rows="4" @bind-Value="_model.InitialPrompt" placeholder="First assistant message" />
+                                    <div class="form-text">This assistant message is added as the first chat history entry when a new session is created.</div>
                                 </div>
                             }
                         }
@@ -381,6 +391,10 @@ else if (_model != null)
                             <div class="mb-3">
                                 <label class="form-label">Prompt template</label>
                                 <InputTextArea class="form-control" rows="5" @bind-Value="_model.PromptTemplate" placeholder="Template for generating prompts" />
+                                <div class="form-text">
+                                    Liquid syntax is supported. Available variables: <code>{{ User.UserName }}</code>, <code>{{ User.Email }}</code>,
+                                    <code>{{ Session.Id }}</code>, <code>{{ Profile.Name }}</code>, and any custom parameters.
+                                </div>
                             </div>
                         }
                     </div>
@@ -469,6 +483,7 @@ else if (_model != null)
                         <div class="mb-3">
                             <label class="form-label">System message</label>
                             <InputTextArea class="form-control" rows="5" @bind-Value="_model.SystemMessage" placeholder="You are a helpful AI assistant..." />
+                            <div class="form-text">Instructions that guide the AI's behavior throughout the conversation.</div>
                         </div>
 
                         <div class="row">
@@ -476,12 +491,14 @@ else if (_model != null)
                                 <div class="mb-3">
                                     <label class="form-label">Temperature</label>
                                     <InputNumber class="form-control" @bind-Value="_model.Temperature" />
+                                    <div class="form-text">Controls randomness. Lower = more focused, higher = more creative.</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">Top P</label>
                                     <InputNumber class="form-control" @bind-Value="_model.TopP" />
+                                    <div class="form-text">Nucleus sampling. Controls diversity of responses.</div>
                                 </div>
                             </div>
                         </div>
@@ -491,12 +508,14 @@ else if (_model != null)
                                 <div class="mb-3">
                                     <label class="form-label">Frequency penalty</label>
                                     <InputNumber class="form-control" @bind-Value="_model.FrequencyPenalty" />
+                                    <div class="form-text">Penalizes repeated tokens. Higher = less repetition.</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">Presence penalty</label>
                                     <InputNumber class="form-control" @bind-Value="_model.PresencePenalty" />
+                                    <div class="form-text">Penalizes tokens already present. Higher = more topic variety.</div>
                                 </div>
                             </div>
                         </div>
@@ -506,12 +525,14 @@ else if (_model != null)
                                 <div class="mb-3">
                                     <label class="form-label">Max output tokens</label>
                                     <InputNumber class="form-control" @bind-Value="_model.MaxTokens" />
+                                    <div class="form-text">Maximum number of tokens in the response.</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">Past messages count</label>
                                     <InputNumber class="form-control" @bind-Value="_model.PastMessagesCount" />
+                                    <div class="form-text">Number of previous messages to include in context.</div>
                                 </div>
                             </div>
                         </div>
@@ -521,6 +542,7 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" />
                                 <label class="form-check-label">Enable response caching</label>
                             </div>
+                            <div class="form-text">Cache responses to improve performance for repeated queries.</div>
                         </div>
                     </div>
 
@@ -627,6 +649,7 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.EnableUserMemory" />
                                 <label class="form-check-label">Enable user memory</label>
                             </div>
+                            <div class="form-text">Store and recall user conversation history for personalized responses.</div>
                         </div>
 
                         <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-database"></i> Data Source</h6>
@@ -639,11 +662,13 @@ else if (_model != null)
                                     <option value="@ds.Value">@ds.Key</option>
                                 }
                             </InputSelect>
+                            <div class="form-text">Select a data source to enable Retrieval-Augmented Generation (RAG) for this profile.</div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Filter</label>
                             <InputText class="form-control" @bind-Value="_model.DataSourceFilter" placeholder="Optional provider-specific filter" />
+                            <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
                         </div>
 
                         <div class="mb-3">
@@ -651,6 +676,7 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.DataSourceIsInScope" />
                                 <label class="form-check-label">Restrict answers to retrieved data only</label>
                             </div>
+                            <div class="form-text">Controls how strictly the AI should follow retrieved data-source matches.</div>
                         </div>
 
                         <div class="row">
@@ -658,6 +684,7 @@ else if (_model != null)
                                 <div class="mb-3">
                                     <label class="form-label">Document Top N</label>
                                     <InputNumber class="form-control" @bind-Value="_model.DocumentTopN" />
+                                    <div class="form-text">Number of top matching chunks or documents to include as AI context.</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -670,6 +697,7 @@ else if (_model != null)
                                             <option value="@mode">@mode</option>
                                         }
                                     </InputSelect>
+                                    <div class="form-text">Chunk keeps chunk-level context. Hierarchical matches on chunks, then injects the full text of the matched documents.</div>
                                 </div>
                             </div>
                         </div>
@@ -679,12 +707,14 @@ else if (_model != null)
                                 <div class="mb-3">
                                     <label class="form-label">Strictness</label>
                                     <InputNumber class="form-control" @bind-Value="_model.DataSourceStrictness" />
+                                    <div class="form-text">Controls how strictly the AI should follow retrieved data-source matches.</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">Retrieved documents</label>
                                     <InputNumber class="form-control" @bind-Value="_model.DataSourceTopNDocuments" />
+                                    <div class="form-text">How many data-source documents to retrieve for RAG.</div>
                                 </div>
                             </div>
                         </div>
@@ -694,6 +724,7 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionDocuments" />
                                 <label class="form-check-label">Allow session document uploads</label>
                             </div>
+                            <div class="form-text">Allow users to upload documents during chat sessions with this profile.</div>
                         </div>
 
                         <div class="attached-documents-panel mt-3">
@@ -768,6 +799,7 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.EnableDataExtraction" />
                                 <label class="form-check-label">Enable data extraction</label>
                             </div>
+                            <div class="form-text">Run AI-powered extraction on conversation messages to populate structured fields.</div>
                         </div>
 
                         @if (_model.EnableDataExtraction)
@@ -777,12 +809,14 @@ else if (_model != null)
                                     <div class="mb-3">
                                         <label class="form-label">Extraction check interval</label>
                                         <InputNumber class="form-control" @bind-Value="_model.ExtractionCheckInterval" />
+                                        <div class="form-text">How often extraction runs (1 = every message, 2 = every other message, etc.).</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label">Session inactivity timeout (minutes)</label>
                                         <InputNumber class="form-control" @bind-Value="_model.SessionInactivityTimeoutInMinutes" />
+                                        <div class="form-text">Sessions inactive longer than this will be automatically closed.</div>
                                     </div>
                                 </div>
                             </div>
@@ -828,12 +862,14 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.EnableSessionMetrics" />
                                 <label class="form-check-label">Enable session metrics</label>
                             </div>
+                            <div class="form-text">Capture usage, latency, and feedback metrics for analytics.</div>
                         </div>
                         <div class="mb-4">
                             <div class="form-check form-switch">
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.EnableAIResolutionDetection" />
                                 <label class="form-check-label">Enable AI resolution detection</label>
                             </div>
+                            <div class="form-text">When enabled, the AI will determine whether the user's issue was resolved during the session.</div>
                         </div>
 
                         <h6 class="mb-2"><i class="bi bi-clipboard-check"></i> Post-session Processing</h6>
@@ -880,6 +916,7 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.EnableConversionMetrics" />
                                 <label class="form-check-label">Enable conversion metrics</label>
                             </div>
+                            <div class="form-text">Evaluate each session against defined goals and assign scores to measure session success.</div>
                         </div>
 
                         @if (_model.EnableConversionMetrics)
@@ -922,12 +959,14 @@ else if (_model != null)
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.IsRemovable" />
                                 <label class="form-check-label">Removable</label>
                             </div>
+                            <div class="form-text">Allow this profile to be deleted.</div>
                         </div>
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.LockSystemMessage" />
                                 <label class="form-check-label">Lock system message</label>
                             </div>
+                            <div class="form-text">Prevent modification of the system message after creation.</div>
                         </div>
                     </div>
                 </div>

@@ -19,6 +19,7 @@
 @using CrestApps.Core.Services
 @using CrestApps.Core.Templates.Services
 @using Microsoft.Extensions.Options
+@inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ICatalogManager<ChatInteraction> InteractionManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2AConnectionCatalog
@@ -402,7 +403,7 @@
                         <div class="col-md-6 mb-3">
                             <label for="topNDocs" class="form-label">Retrieved documents</label>
                             <InputNumber id="topNDocs" class="form-control" @bind-Value="_model.DataSourceTopNDocuments" />
-                            <div class="form-text">Number of documents retrieved for context.</div>
+                            <div class="form-text">How many data-source documents to retrieve for RAG.</div>
                         </div>
                     </div>
 
@@ -412,7 +413,7 @@
                         <div class="mb-3">
                             <label class="form-label">Upload documents</label>
                             <InputFile class="form-control" OnChange="OnDocumentsSelected" multiple />
-                            <div class="form-text">Upload documents to be indexed for this interaction.</div>
+                            <div class="form-text">Supported formats: @ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue()</div>
                         </div>
                     }
                 }
