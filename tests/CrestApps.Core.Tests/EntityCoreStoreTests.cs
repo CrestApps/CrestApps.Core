@@ -371,6 +371,47 @@ public sealed class EntityCoreStoreTests
     }
 
     [Fact]
+    public async Task Entity_core_search_index_profile_store_reads_legacy_embedding_deployment_id_payload()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var indexProfileStore = services.GetRequiredService<ISearchIndexProfileStore>();
+        var committer = services.GetRequiredService<IStoreCommitter>();
+        var dbContext = services.GetRequiredService<CrestAppsEntityDbContext>();
+
+        var indexProfile = new SearchIndexProfile
+        {
+            Name = "legacy-docs-index",
+            DisplayText = "Legacy docs index",
+            IndexName = "legacy-docs-index",
+            ProviderName = "Elasticsearch",
+            Type = IndexProfileTypes.AIDocuments,
+            EmbeddingDeploymentName = "legacy-embedding-id",
+            CreatedUtc = DateTime.UtcNow,
+        };
+
+        await indexProfileStore.CreateAsync(indexProfile, cancellationToken);
+        await committer.CommitAsync(cancellationToken);
+
+        _ = await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            UPDATE CA_CatalogRecords
+            SET Payload = REPLACE(Payload, '"EmbeddingDeploymentName":"legacy-embedding-id"', '"EmbeddingDeploymentId":"legacy-embedding-id"')
+            WHERE EntityType = {0} AND ItemId = {1}
+            """,
+            typeof(SearchIndexProfile).FullName!,
+            indexProfile.ItemId);
+
+        var storedProfile = await indexProfileStore.FindByNameAsync(indexProfile.Name, cancellationToken);
+
+        Assert.NotNull(storedProfile);
+        Assert.Equal("legacy-embedding-id", storedProfile.EmbeddingDeploymentName);
+    }
+
+    [Fact]
     public async Task EnforceNamedSourceUniqueness_RejectsDuplicateNameAndSourceWithinEntityType()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

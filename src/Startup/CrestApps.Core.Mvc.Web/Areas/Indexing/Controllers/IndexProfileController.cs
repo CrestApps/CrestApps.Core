@@ -102,6 +102,7 @@ public sealed class IndexProfileController : Controller
         }
 
         var model = IndexProfileViewModel.FromProfile(profile);
+        model.EmbeddingDeploymentName = await NormalizeDeploymentSelectorAsync(model.EmbeddingDeploymentName);
         await PopulateDropdownsAsync(model);
 
         return View(model);
@@ -118,6 +119,7 @@ public sealed class IndexProfileController : Controller
             return NotFound();
         }
 
+        model.EmbeddingDeploymentName = await NormalizeDeploymentSelectorAsync(model.EmbeddingDeploymentName);
         await ValidateAsync(model, profile, profile.ItemId);
 
         if (!ModelState.IsValid)
@@ -127,7 +129,8 @@ public sealed class IndexProfileController : Controller
             return View(model);
         }
 
-        profile.DisplayText = model.DisplayText;
+        profile.DisplayText = model.DisplayText?.Trim();
+        profile.EmbeddingDeploymentName = model.EmbeddingDeploymentName;
 
         await _indexProfileManager.UpdateAsync(profile);
         await _indexProfileManager.SynchronizeAsync(profile, HttpContext.RequestAborted);
