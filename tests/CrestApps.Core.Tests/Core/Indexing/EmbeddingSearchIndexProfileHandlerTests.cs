@@ -6,7 +6,6 @@ using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,15 +17,18 @@ public sealed class EmbeddingSearchIndexProfileHandlerTests
     public async Task ValidateAsync_ShouldResolveEmbeddingDeploymentById()
     {
         var deployment = CreateEmbeddingDeployment();
+
         var handler = new AIDocumentSearchIndexProfileHandler(
             new FakeDeploymentStore(deployment),
             new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f, 0.2f])),
             NullLogger<AIDocumentSearchIndexProfileHandler>.Instance);
+
         var profile = new SearchIndexProfile
         {
             Type = IndexProfileTypes.AIDocuments,
             EmbeddingDeploymentName = deployment.ItemId,
         };
+
         var result = new ValidationResultDetails();
 
         await handler.ValidateAsync(profile, result, TestContext.Current.CancellationToken);
@@ -38,10 +40,12 @@ public sealed class EmbeddingSearchIndexProfileHandlerTests
     public async Task GetFieldsAsync_ShouldResolveEmbeddingDeploymentById()
     {
         var deployment = CreateEmbeddingDeployment();
+
         var handler = new AIDocumentSearchIndexProfileHandler(
             new FakeDeploymentStore(deployment),
             new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f, 0.2f, 0.3f])),
             NullLogger<AIDocumentSearchIndexProfileHandler>.Instance);
+
         var profile = new SearchIndexProfile
         {
             Type = IndexProfileTypes.AIDocuments,

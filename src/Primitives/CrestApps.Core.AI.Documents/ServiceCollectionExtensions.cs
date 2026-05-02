@@ -72,6 +72,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IAIDocumentProcessingService, DefaultAIDocumentProcessingService>();
+        services.TryAddScoped<DefaultAIDocumentIndexingService>();
         services.TryAddScoped<ITabularBatchProcessor, TabularBatchProcessor>();
         services.TryAddSingleton<ITabularBatchResultCache, TabularBatchResultCache>();
 

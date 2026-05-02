@@ -33,9 +33,9 @@
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
-@inject IOptions<CopilotOptions> CopilotOpts
+@inject IOptionsMonitor<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
-@inject IOptions<InteractionDocumentOptions> DocOpts
+@inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 
@@ -53,7 +53,7 @@
             }
 
             <div class="mb-3">
-                <label class="form-label">Title</label>
+                <label class="form-label">Title <span class="text-danger">*</span></label>
                 <input id="templateTitle" class="form-control" value="@_model.DisplayText" @oninput="OnDisplayTextInput" placeholder="e.g., Customer Support Template" />
             </div>
 
@@ -66,13 +66,14 @@
                 }
 
                 <div class="form-text">Auto-generated from the title.</div>
+                <div class="form-text">The technical name cannot be changed after creation.</div>
             </div>
 
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label">Category</label>
-                        <InputText class="form-control" @bind-Value="_model.Category" placeholder="e.g., Support" />
+                        <InputText class="form-control" @bind-Value="_model.Category" placeholder="e.g., Customer Service" />
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -88,28 +89,28 @@
                     <InputCheckbox class="form-check-input" @bind-Value="_model.IsListable" />
                     <label class="form-check-label">Listable</label>
                 </div>
-                <div class="form-text">Show this template in template pickers.</div>
+                <div class="form-text">Whether this template appears in listing UIs.</div>
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Source <span class="text-danger">*</span></label>
                 <select class="form-select" value="@_model.Source" @onchange="OnSourceChanged">
-                    <option value="@AITemplateSources.SystemPrompt">System Prompt</option>
-                    <option value="@AITemplateSources.Profile">Profile</option>
+                    <option value="@AITemplateSources.SystemPrompt">System prompt</option>
+                    <option value="@AITemplateSources.Profile">AI profile</option>
                 </select>
                 @if (!string.IsNullOrEmpty(_sourceError))
                 {
                     <div class="text-danger">@_sourceError</div>
                 }
-                <div class="form-text">System Prompt templates contain only a system message. Profile templates contain a full profile configuration.</div>
+                <div class="form-text">System prompt templates define only a system message. Profile templates include full AI profile configuration.</div>
             </div>
 
             @if (_model.Source == AITemplateSources.SystemPrompt)
             {
                 <div class="mb-3">
                     <label class="form-label">System message</label>
-                    <InputTextArea class="form-control" rows="8" @bind-Value="_model.SystemMessage" placeholder="You are a helpful AI assistant..." />
-                    <div class="form-text">The system message for this template.</div>
+                    <InputTextArea class="form-control" rows="8" @bind-Value="_model.SystemMessage" placeholder="You are a helpful assistant that..." />
+                    <div class="form-text">The system message that defines the AI's behavior and role.</div>
                 </div>
             }
             else if (_model.Source == AITemplateSources.Profile)
@@ -169,7 +170,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">Chat deployment</label>
                                     <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName">
-                                        <option value="">Use default</option>
+                                        <option value="">Use default chat deployment</option>
                                         @foreach (var d in _model.ChatDeployments)
                                         {
                                             <option value="@d.Value">@d.Key</option>
@@ -181,7 +182,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">Utility deployment</label>
                                     <InputSelect class="form-select" @bind-Value="_model.UtilityDeploymentName">
-                                        <option value="">Use default</option>
+                                        <option value="">Use default utility deployment</option>
                                         @foreach (var d in _model.UtilityDeployments)
                                         {
                                             <option value="@d.Value">@d.Key</option>
@@ -193,7 +194,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">Orchestrator</label>
                                     <select class="form-select" value="@_model.OrchestratorName" @onchange="OnOrchestratorChanged">
-                                        <option value="">Use default</option>
+                                        <option value="">Use default orchestrator</option>
                                         @foreach (var o in _model.Orchestrators)
                                         {
                                             <option value="@o.Value">@o.Key</option>
@@ -249,7 +250,7 @@
                                         <div class="mb-3">
                                             <label class="form-label">Claude model</label>
                                             <InputSelect class="form-select" @bind-Value="_model.ClaudeModel">
-                                                <option value="">Use default</option>
+                                                <option value="">Use default model</option>
                                                 @foreach (var m in _model.AnthropicAvailableModels)
                                                 {
                                                     <option value="@m.Value">@m.Key</option>
@@ -703,7 +704,7 @@
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var docSettings = DocOpts.Value;
+        var docSettings = DocOpts.CurrentValue;
         _model.DocumentIndexProfileName = docSettings.IndexProfileName;
         if (!string.IsNullOrWhiteSpace(docSettings.IndexProfileName))
         {

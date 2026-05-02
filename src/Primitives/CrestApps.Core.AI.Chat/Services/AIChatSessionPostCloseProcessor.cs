@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Chat.Services;
 
@@ -9,12 +10,11 @@ namespace CrestApps.Core.AI.Chat.Services;
 /// </summary>
 public sealed class AIChatSessionPostCloseProcessor
 {
-    public const int MaxPostCloseAttempts = 3;
-
     private readonly PostSessionProcessingService _postSessionProcessingService;
     private readonly IEnumerable<IAIChatSessionAnalyticsRecorder> _analyticsRecorders;
     private readonly IEnumerable<IAIChatSessionConversionGoalRecorder> _conversionGoalRecorders;
     private readonly TimeProvider _timeProvider;
+    private readonly IOptionsMonitor<AIChatSessionProcessingOptions> _optionsMonitor;
     private readonly ILogger<AIChatSessionPostCloseProcessor> _logger;
 
     /// <summary>
@@ -24,31 +24,45 @@ public sealed class AIChatSessionPostCloseProcessor
     /// <param name="analyticsRecorders">The analytics recorders.</param>
     /// <param name="conversionGoalRecorders">The conversion goal recorders.</param>
     /// <param name="timeProvider">The time provider.</param>
+    /// <param name="optionsMonitor">The processing options monitor.</param>
     /// <param name="logger">The logger.</param>
     public AIChatSessionPostCloseProcessor(
         PostSessionProcessingService postSessionProcessingService,
         IEnumerable<IAIChatSessionAnalyticsRecorder> analyticsRecorders,
         IEnumerable<IAIChatSessionConversionGoalRecorder> conversionGoalRecorders,
         TimeProvider timeProvider,
+        IOptionsMonitor<AIChatSessionProcessingOptions> optionsMonitor,
         ILogger<AIChatSessionPostCloseProcessor> logger)
     {
         _postSessionProcessingService = postSessionProcessingService;
         _analyticsRecorders = analyticsRecorders;
         _conversionGoalRecorders = conversionGoalRecorders;
         _timeProvider = timeProvider;
+        _optionsMonitor = optionsMonitor;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Gets the effective maximum number of post-close retry attempts.
+    /// </summary>
+    public int MaxPostCloseAttempts
+        => NormalizeMaxPostCloseAttempts(_optionsMonitor.CurrentValue?.MaxPostCloseAttempts ?? AIChatSessionProcessingOptions.DefaultMaxPostCloseAttempts);
 
     /// <summary>
     /// Needss processing.
     /// </summary>
     /// <param name="profile">The profile.</param>
     /// <param name="chatSession">The chat session.</param>
-    public static bool NeedsProcessing(AIProfile profile, AIChatSession chatSession)
+    public bool NeedsProcessing(AIProfile profile, AIChatSession chatSession)
     {
-        var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(chatSession);
 
-        var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
+        var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
+        var tasksComplete = ArePostSessionTasksComplete(postSessionSettings, chatSession, MaxPostCloseAttempts);
+        chatSession.IsPostSessionTasksProcessed = tasksComplete;
+
+        var needsPostSessionTasks = !tasksComplete
             && postSessionSettings.EnablePostSessionProcessing
             && postSessionSettings.PostSessionTasks.Count > 0;
 
@@ -68,6 +82,26 @@ public sealed class AIChatSessionPostCloseProcessor
     }
 
     /// <summary>
+    /// Marks the session as pending shared post-close processing when work remains.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    /// <param name="chatSession">The chat session.</param>
+    public bool QueueIfNeeded(AIProfile profile, AIChatSession chatSession)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(chatSession);
+
+        if (!NeedsProcessing(profile, chatSession))
+        {
+            return false;
+        }
+
+        chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.Pending;
+
+        return true;
+    }
+
+    /// <summary>
     /// Processs the operation.
     /// </summary>
     /// <param name="profile">The profile.</param>
@@ -83,6 +117,7 @@ public sealed class AIChatSessionPostCloseProcessor
         var result = new AIChatSessionPostCloseProcessingResult();
 
         var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
+        chatSession.IsPostSessionTasksProcessed = ArePostSessionTasksComplete(postSessionSettings, chatSession, MaxPostCloseAttempts);
 
         var needsPostSessionTasks = !chatSession.IsPostSessionTasksProcessed
             && postSessionSettings.EnablePostSessionProcessing
@@ -100,6 +135,8 @@ public sealed class AIChatSessionPostCloseProcessor
                 && analyticsMetadata.EnableConversionMetrics
                 && analyticsMetadata.ConversionGoals.Count > 0;
         }
+
+        analyticsMetadata ??= new AnalyticsMetadata();
 
         if (!needsPostSessionTasks && !needsAnalytics && !needsConversionGoals)
         {
@@ -192,7 +229,7 @@ public sealed class AIChatSessionPostCloseProcessor
         CancellationToken cancellationToken)
     {
         var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
-        var taskNames = postSessionSettings.PostSessionTasks.Select(t => t.Name).ToList();
+        var taskNames = postSessionSettings.PostSessionTasks.Select(t => t.Name);
 
         try
         {
@@ -221,6 +258,7 @@ public sealed class AIChatSessionPostCloseProcessor
                 if (chatSession.PostSessionResults.TryGetValue(taskName, out var existing)
                     && existing.Status != PostSessionTaskResultStatus.Succeeded)
                 {
+                    existing.AttemptHistory ??= [];
                     existing.Attempts++;
                 }
             }
@@ -233,7 +271,12 @@ public sealed class AIChatSessionPostCloseProcessor
                 {
                     if (chatSession.PostSessionResults.TryGetValue(taskName, out var existing))
                     {
-                        taskResult.Attempts = existing.Attempts;
+                        CopyAttemptState(existing, taskResult);
+                    }
+
+                    if (taskResult.Status == PostSessionTaskResultStatus.Succeeded)
+                    {
+                        taskResult.ErrorMessage = null;
                     }
 
                     chatSession.PostSessionResults[taskName] = taskResult;
@@ -255,19 +298,30 @@ public sealed class AIChatSessionPostCloseProcessor
             foreach (var taskName in taskNames)
             {
                 if (chatSession.PostSessionResults.TryGetValue(taskName, out var taskResult)
-                    && taskResult.Status != PostSessionTaskResultStatus.Succeeded
-                    && taskResult.Attempts >= MaxPostCloseAttempts)
+                    && taskResult.Status != PostSessionTaskResultStatus.Succeeded)
                 {
-                    taskResult.Status = PostSessionTaskResultStatus.Failed;
-                    taskResult.ProcessedAtUtc = utcNow;
-                    taskResult.ErrorMessage ??= $"Task produced no result after {taskResult.Attempts} attempt(s).";
+                    taskResult.ErrorMessage = string.IsNullOrWhiteSpace(taskResult.ErrorMessage)
+                        ? taskResult.Attempts >= MaxPostCloseAttempts
+                            ? $"Task produced no result after {taskResult.Attempts} attempt(s)."
+                            : $"Task produced no result during attempt {taskResult.Attempts}."
+                        : taskResult.ErrorMessage;
+
+                    if (taskResult.Attempts >= MaxPostCloseAttempts)
+                    {
+                        taskResult.Status = PostSessionTaskResultStatus.Failed;
+                        taskResult.ProcessedAtUtc = utcNow;
+                    }
+                    else
+                    {
+                        taskResult.Status = PostSessionTaskResultStatus.Pending;
+                        taskResult.ProcessedAtUtc = null;
+                    }
+
+                    RecordAttemptFailure(taskResult, utcNow);
                 }
             }
 
-            chatSession.IsPostSessionTasksProcessed = taskNames.All(name =>
-                chatSession.PostSessionResults.TryGetValue(name, out var taskResult)
-                && (taskResult.Status == PostSessionTaskResultStatus.Succeeded
-                    || (taskResult.Status == PostSessionTaskResultStatus.Failed && taskResult.Attempts >= MaxPostCloseAttempts)));
+            chatSession.IsPostSessionTasksProcessed = ArePostSessionTasksComplete(postSessionSettings, chatSession, MaxPostCloseAttempts);
 
             if (_logger.IsEnabled(LogLevel.Information))
             {
@@ -281,7 +335,7 @@ public sealed class AIChatSessionPostCloseProcessor
                     succeededCount,
                     failedCount,
                     pendingCount,
-                    taskNames.Count);
+                    taskNames.Count());
             }
         }
         catch (Exception ex)
@@ -307,9 +361,103 @@ public sealed class AIChatSessionPostCloseProcessor
                         taskResult.Status = PostSessionTaskResultStatus.Failed;
                         taskResult.ProcessedAtUtc = utcNow;
                     }
+                    else
+                    {
+                        taskResult.Status = PostSessionTaskResultStatus.Pending;
+                        taskResult.ProcessedAtUtc = null;
+                    }
+
+                    RecordAttemptFailure(taskResult, utcNow);
                 }
             }
         }
+    }
+
+    private static void CopyAttemptState(PostSessionResult source, PostSessionResult destination)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        destination.Attempts = source.Attempts;
+        destination.AttemptHistory = source.AttemptHistory == null
+            ? []
+            : [.. source.AttemptHistory.Select(attempt => new PostSessionTaskAttempt
+            {
+                AttemptNumber = attempt.AttemptNumber,
+                Status = attempt.Status,
+                ErrorMessage = attempt.ErrorMessage,
+                RecordedAtUtc = attempt.RecordedAtUtc,
+            })];
+    }
+
+    private static void RecordAttemptFailure(PostSessionResult taskResult, DateTime recordedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(taskResult);
+
+        taskResult.AttemptHistory ??= [];
+
+        var existingAttempt = taskResult.AttemptHistory.FirstOrDefault(attempt => attempt.AttemptNumber == taskResult.Attempts);
+
+        if (existingAttempt != null)
+        {
+            existingAttempt.Status = taskResult.Status;
+            existingAttempt.ErrorMessage = taskResult.ErrorMessage;
+            existingAttempt.RecordedAtUtc = recordedAtUtc;
+
+            return;
+        }
+
+        taskResult.AttemptHistory.Add(new PostSessionTaskAttempt
+        {
+            AttemptNumber = taskResult.Attempts,
+            Status = taskResult.Status,
+            ErrorMessage = taskResult.ErrorMessage,
+            RecordedAtUtc = recordedAtUtc,
+        });
+    }
+
+    private static bool ArePostSessionTasksComplete(
+        AIProfilePostSessionSettings postSessionSettings,
+        AIChatSession chatSession,
+        int maxPostCloseAttempts)
+    {
+        ArgumentNullException.ThrowIfNull(postSessionSettings);
+        ArgumentNullException.ThrowIfNull(chatSession);
+
+        if (!postSessionSettings.EnablePostSessionProcessing || postSessionSettings.PostSessionTasks.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (var task in postSessionSettings.PostSessionTasks)
+        {
+            if (!chatSession.PostSessionResults.TryGetValue(task.Name, out var taskResult))
+            {
+                return false;
+            }
+
+            if (taskResult.Status == PostSessionTaskResultStatus.Succeeded)
+            {
+                continue;
+            }
+
+            if (taskResult.Status == PostSessionTaskResultStatus.Failed
+                && taskResult.Attempts >= maxPostCloseAttempts)
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static int NormalizeMaxPostCloseAttempts(int maxPostCloseAttempts)
+    {
+        return maxPostCloseAttempts < 1
+            ? AIChatSessionProcessingOptions.DefaultMaxPostCloseAttempts
+            : maxPostCloseAttempts;
     }
 
     private async Task RecordSessionAnalyticsAsync(

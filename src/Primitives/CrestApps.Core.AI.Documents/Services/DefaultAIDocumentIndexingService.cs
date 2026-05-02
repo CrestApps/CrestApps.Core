@@ -1,39 +1,53 @@
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure;
-
 using CrestApps.Core.Infrastructure.Indexing;
-
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
+namespace CrestApps.Core.AI.Documents.Services;
 
 /// <summary>
-/// Indexes sample-host uploaded AI document chunks into the configured AI Documents search index.
+/// Indexes uploaded AI document chunks into the configured AI Documents search index.
 /// </summary>
-public sealed class SampleAIDocumentIndexingService
+public sealed class DefaultAIDocumentIndexingService
 {
-    private readonly InteractionDocumentOptions _options;
+    private readonly IOptionsMonitor<InteractionDocumentOptions> _options;
     private readonly ISearchIndexProfileStore _indexProfileStore;
-
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<SampleAIDocumentIndexingService> _logger;
+    private readonly ILogger<DefaultAIDocumentIndexingService> _logger;
 
-    public SampleAIDocumentIndexingService(
-        IOptions<InteractionDocumentOptions> options,
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAIDocumentIndexingService"/> class.
+    /// </summary>
+    /// <param name="options">The interaction document options monitor.</param>
+    /// <param name="indexProfileStore">The index profile store.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="logger">The logger.</param>
+    public DefaultAIDocumentIndexingService(
+        IOptionsMonitor<InteractionDocumentOptions> options,
         ISearchIndexProfileStore indexProfileStore,
         IServiceProvider serviceProvider,
-        ILogger<SampleAIDocumentIndexingService> logger)
+        ILogger<DefaultAIDocumentIndexingService> logger)
     {
-        _options = options.Value;
+        _options = options;
         _indexProfileStore = indexProfileStore;
         _serviceProvider = serviceProvider;
-
         _logger = logger;
     }
 
-    public async Task IndexAsync(AIDocument document, IReadOnlyCollection<AIDocumentChunk> chunks, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Indexes the supplied document chunks.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <param name="chunks">The document chunks.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task IndexAsync(
+        AIDocument document,
+        IReadOnlyCollection<AIDocumentChunk> chunks,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(chunks);
@@ -109,6 +123,11 @@ public sealed class SampleAIDocumentIndexingService
         }
     }
 
+    /// <summary>
+    /// Deletes a document entry from the configured search index.
+    /// </summary>
+    /// <param name="documentId">The document ID.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteAsync(string documentId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
@@ -139,6 +158,11 @@ public sealed class SampleAIDocumentIndexingService
         }
     }
 
+    /// <summary>
+    /// Deletes document chunks from the configured search index.
+    /// </summary>
+    /// <param name="chunkIds">The chunk IDs.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     public async Task DeleteChunksAsync(IEnumerable<string> chunkIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(chunkIds);
@@ -178,7 +202,7 @@ public sealed class SampleAIDocumentIndexingService
 
     private async Task<SearchIndexProfile> GetConfiguredIndexProfileAsync(CancellationToken cancellationToken)
     {
-        var settings = _options;
+        var settings = _options.CurrentValue;
 
         if (string.IsNullOrWhiteSpace(settings.IndexProfileName))
         {
@@ -188,6 +212,7 @@ public sealed class SampleAIDocumentIndexingService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+
         var indexProfile = await _indexProfileStore.FindByNameAsync(settings.IndexProfileName, cancellationToken);
 
         if (indexProfile == null)
@@ -213,53 +238,53 @@ public sealed class SampleAIDocumentIndexingService
         [
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.ChunkId,
-            FieldType = SearchFieldType.Keyword,
-            IsKey = true,
-            IsFilterable = true,
+                Name = DocumentIndexConstants.ColumnNames.ChunkId,
+                FieldType = SearchFieldType.Keyword,
+                IsKey = true,
+                IsFilterable = true,
             },
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.DocumentId,
-            FieldType = SearchFieldType.Keyword,
-            IsFilterable = true,
+                Name = DocumentIndexConstants.ColumnNames.DocumentId,
+                FieldType = SearchFieldType.Keyword,
+                IsFilterable = true,
             },
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.Content,
-            FieldType = SearchFieldType.Text,
-            IsSearchable = true,
+                Name = DocumentIndexConstants.ColumnNames.Content,
+                FieldType = SearchFieldType.Text,
+                IsSearchable = true,
             },
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.FileName,
-            FieldType = SearchFieldType.Text,
-            IsFilterable = true,
-            IsSearchable = true,
+                Name = DocumentIndexConstants.ColumnNames.FileName,
+                FieldType = SearchFieldType.Text,
+                IsFilterable = true,
+                IsSearchable = true,
             },
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.ReferenceId,
-            FieldType = SearchFieldType.Keyword,
-            IsFilterable = true,
+                Name = DocumentIndexConstants.ColumnNames.ReferenceId,
+                FieldType = SearchFieldType.Keyword,
+                IsFilterable = true,
             },
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.ReferenceType,
-            FieldType = SearchFieldType.Keyword,
-            IsFilterable = true,
+                Name = DocumentIndexConstants.ColumnNames.ReferenceType,
+                FieldType = SearchFieldType.Keyword,
+                IsFilterable = true,
             },
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.ChunkIndex,
-            FieldType = SearchFieldType.Integer,
-            IsFilterable = true,
+                Name = DocumentIndexConstants.ColumnNames.ChunkIndex,
+                FieldType = SearchFieldType.Integer,
+                IsFilterable = true,
             },
             new SearchIndexField
             {
-            Name = DocumentIndexConstants.ColumnNames.Embedding,
-            FieldType = SearchFieldType.Vector,
-            VectorDimensions = vectorDimensions,
+                Name = DocumentIndexConstants.ColumnNames.Embedding,
+                FieldType = SearchFieldType.Vector,
+                VectorDimensions = vectorDimensions,
             },
         ];
     }

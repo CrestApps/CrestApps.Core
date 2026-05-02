@@ -17,7 +17,7 @@ namespace CrestApps.Core.AI.Services;
 public sealed class AIMemoryIndexingService
 {
     private readonly IAIMemoryStore _memoryStore;
-    private readonly AIMemoryOptions _memoryOptions;
+    private readonly IOptionsMonitor<AIMemoryOptions> _memoryOptions;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
@@ -36,7 +36,7 @@ public sealed class AIMemoryIndexingService
     /// <param name="logger">The logger.</param>
     public AIMemoryIndexingService(
         IAIMemoryStore memoryStore,
-        IOptions<AIMemoryOptions> memoryOptions,
+        IOptionsMonitor<AIMemoryOptions> memoryOptions,
         ISearchIndexProfileStore indexProfileStore,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
@@ -44,7 +44,7 @@ public sealed class AIMemoryIndexingService
         ILogger<AIMemoryIndexingService> logger)
     {
         _memoryStore = memoryStore;
-        _memoryOptions = memoryOptions.Value;
+        _memoryOptions = memoryOptions;
         _indexProfileStore = indexProfileStore;
         _deploymentManager = deploymentManager;
         _aiClientFactory = aiClientFactory;
@@ -188,24 +188,26 @@ public sealed class AIMemoryIndexingService
 
     private async Task<SearchIndexProfile> GetConfiguredIndexProfileAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_memoryOptions.IndexProfileName))
+        var memoryOptions = _memoryOptions.CurrentValue;
+
+        if (string.IsNullOrWhiteSpace(memoryOptions.IndexProfileName))
         {
             return null;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var indexProfile = await _indexProfileStore.FindByNameAsync(_memoryOptions.IndexProfileName, cancellationToken);
+        var indexProfile = await _indexProfileStore.FindByNameAsync(memoryOptions.IndexProfileName, cancellationToken);
 
         if (indexProfile is null)
         {
-            _logger.LogWarning("AI memory indexing is configured to use '{IndexProfileName}', but that index profile was not found.", _memoryOptions.IndexProfileName);
+            _logger.LogWarning("AI memory indexing is configured to use '{IndexProfileName}', but that index profile was not found.", memoryOptions.IndexProfileName);
 
             return null;
         }
 
         if (!string.Equals(indexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogWarning("AI memory indexing requires an '{ExpectedType}' index profile, but '{IndexProfileName}' is '{ActualType}'.", IndexProfileTypes.AIMemory, _memoryOptions.IndexProfileName, indexProfile.Type);
+            _logger.LogWarning("AI memory indexing requires an '{ExpectedType}' index profile, but '{IndexProfileName}' is '{ActualType}'.", IndexProfileTypes.AIMemory, memoryOptions.IndexProfileName, indexProfile.Type);
 
             return null;
         }

@@ -135,13 +135,7 @@ else
         var connections = await Store.GetAllAsync();
 
         _connections = connections
-            .Select(connection =>
-            {
-                var model = AIConnectionViewModel.FromConnection(connection);
-                model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId);
-
-                return model;
-            })
+            .Select(AIConnectionViewModel.FromConnection)
             .OrderBy(static model => model.DisplayText ?? model.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -151,13 +145,6 @@ else
 
     private async Task DeleteAsync(string id)
     {
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(id))
-        {
-            _errorMessage = "Connections defined in appsettings are read-only and cannot be deleted from the UI.";
-
-            return;
-        }
-
         var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this connection?");
 
         if (!confirmed)
@@ -173,7 +160,7 @@ else
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId))
+        if (connection.IsReadOnly)
         {
             _errorMessage = "Connections defined in appsettings are read-only and cannot be deleted from the UI.";
 

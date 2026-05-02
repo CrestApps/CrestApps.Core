@@ -35,6 +35,11 @@ public sealed class CrestAppsEntityDbContext : DbContext
     }
 
     /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="DocumentRecord"/> rows.
+    /// </summary>
+    public DbSet<DocumentRecord> Documents => Set<DocumentRecord>();
+
+    /// <summary>
     /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="CatalogRecord"/> rows.
     /// </summary>
     public DbSet<CatalogRecord> CatalogRecords => Set<CatalogRecord>();
@@ -45,6 +50,21 @@ public sealed class CrestAppsEntityDbContext : DbContext
     public DbSet<AIChatSessionRecord> AIChatSessionRecords => Set<AIChatSessionRecord>();
 
     /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AIChatSessionEventStoreRecord"/> rows.
+    /// </summary>
+    public DbSet<AIChatSessionEventStoreRecord> AIChatSessionEventRecords => Set<AIChatSessionEventStoreRecord>();
+
+    /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AICompletionUsageStoreRecord"/> rows.
+    /// </summary>
+    public DbSet<AICompletionUsageStoreRecord> AICompletionUsageRecords => Set<AICompletionUsageStoreRecord>();
+
+    /// <summary>
+    /// Gets the <see cref="DbSet{TEntity}"/> for <see cref="AIChatSessionExtractedDataStoreRecord"/> rows.
+    /// </summary>
+    public DbSet<AIChatSessionExtractedDataStoreRecord> AIChatSessionExtractedDataRecords => Set<AIChatSessionExtractedDataStoreRecord>();
+
+    /// <summary>
     /// Configures the CrestApps Entity Framework Core model.
     /// </summary>
     /// <param name="modelBuilder">The model builder.</param>
@@ -52,10 +72,21 @@ public sealed class CrestAppsEntityDbContext : DbContext
     {
         var tablePrefix = _options.TablePrefix ?? string.Empty;
 
+        modelBuilder.Entity<DocumentRecord>(entity =>
+        {
+            entity.ToTable($"{tablePrefix}Documents");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).IsRequired();
+            entity.Property(x => x.Content).IsRequired();
+
+            entity.HasIndex(x => x.Type);
+        });
+
         modelBuilder.Entity<CatalogRecord>(entity =>
         {
             entity.ToTable($"{tablePrefix}CatalogRecords");
-            entity.HasKey(x => new { x.EntityType, x.ItemId });
+            entity.HasKey(x => x.Id);
+            entity.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId);
             entity.Property(x => x.EntityType).IsRequired();
             entity.Property(x => x.ItemId).HasMaxLength(26);
             entity.Property(x => x.Name);
@@ -68,8 +99,8 @@ public sealed class CrestAppsEntityDbContext : DbContext
             entity.Property(x => x.AIDocumentId);
             entity.Property(x => x.UserId);
             entity.Property(x => x.Type);
-            entity.Property(x => x.Payload).IsRequired();
 
+            entity.HasIndex(x => new { x.EntityType, x.ItemId }).IsUnique();
             entity.HasIndex(x => new { x.EntityType, x.Name });
             entity.HasIndex(x => new { x.EntityType, x.Source });
             entity.HasIndex(x => new { x.EntityType, x.SessionId });
@@ -90,16 +121,56 @@ public sealed class CrestAppsEntityDbContext : DbContext
         modelBuilder.Entity<AIChatSessionRecord>(entity =>
         {
             entity.ToTable($"{tablePrefix}AIChatSessions");
-            entity.HasKey(x => x.SessionId);
+            entity.HasKey(x => x.Id);
+            entity.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId);
             entity.Property(x => x.SessionId).HasMaxLength(26);
             entity.Property(x => x.ProfileId);
             entity.Property(x => x.Title);
             entity.Property(x => x.UserId);
             entity.Property(x => x.ClientId);
-            entity.Property(x => x.Payload).IsRequired();
 
+            entity.HasIndex(x => x.SessionId).IsUnique();
             entity.HasIndex(x => x.ProfileId);
             entity.HasIndex(x => x.LastActivityUtc);
+        });
+
+        modelBuilder.Entity<AIChatSessionEventStoreRecord>(entity =>
+        {
+            entity.ToTable($"{tablePrefix}AIChatSessionEvents");
+            entity.HasKey(x => x.Id);
+            entity.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId);
+            entity.Property(x => x.SessionId).HasMaxLength(26);
+            entity.Property(x => x.ProfileId);
+
+            entity.HasIndex(x => x.SessionId).IsUnique();
+            entity.HasIndex(x => x.ProfileId);
+            entity.HasIndex(x => x.SessionStartedUtc);
+            entity.HasIndex(x => x.CreatedUtc);
+        });
+
+        modelBuilder.Entity<AICompletionUsageStoreRecord>(entity =>
+        {
+            entity.ToTable($"{tablePrefix}AICompletionUsage");
+            entity.HasKey(x => x.Id);
+            entity.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId);
+
+            entity.HasIndex(x => x.CreatedUtc);
+            entity.HasIndex(x => x.SessionId);
+            entity.HasIndex(x => x.InteractionId);
+        });
+
+        modelBuilder.Entity<AIChatSessionExtractedDataStoreRecord>(entity =>
+        {
+            entity.ToTable($"{tablePrefix}AIChatSessionExtractedData");
+            entity.HasKey(x => x.Id);
+            entity.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId);
+            entity.Property(x => x.SessionId).HasMaxLength(26);
+            entity.Property(x => x.ProfileId).IsRequired();
+
+            entity.HasIndex(x => x.SessionId).IsUnique();
+            entity.HasIndex(x => x.ProfileId);
+            entity.HasIndex(x => x.SessionStartedUtc);
+            entity.HasIndex(x => x.UpdatedUtc);
         });
 
         foreach (var configurer in _modelConfigurers)

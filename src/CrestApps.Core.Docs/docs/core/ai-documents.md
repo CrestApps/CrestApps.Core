@@ -164,7 +164,7 @@ The `ReferenceId` and `ReferenceType` pair ties the document to an owning resour
 | `AIReferenceTypes.Document.ChatInteraction` | `"chatinteraction"` | Document attached to a chat interaction |
 | `AIReferenceTypes.Document.ChatSession` | `"chatsession"` | Document attached to a chat session |
 
-Hosts can layer extra behavior on top of this shared pipeline, such as indexing uploaded chunks into Elasticsearch or Azure AI Search. That host-specific indexing should be treated as a secondary step: uploads should complete after persistence, while any slower or failure-prone indexing work runs independently so the document remains attached and the host can log indexing failures explicitly.
+Hosts can layer extra behavior on top of this shared pipeline, but the default follow-up indexing step now lives in the framework as `DefaultAIDocumentIndexingService`. Hosts can call that service after persisting `AIDocument` and `AIDocumentChunk` records so uploaded chunks are mirrored into the configured AI Documents vector index without duplicating provider-specific index management code.
 
 ### Step 2 — Read File Content
 

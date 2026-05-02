@@ -89,11 +89,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     /// <param name="context">The context.</param>
     public async Task HandleAsync(PreemptiveRagContext context)
     {
-        var snapshotSettings = _serviceProvider.GetService<IOptionsSnapshot<InteractionDocumentOptions>>()?.Value;
-        var optionsSettings = _serviceProvider.GetRequiredService<IOptions<InteractionDocumentOptions>>().Value;
-        var defaultSettings = !string.IsNullOrWhiteSpace(snapshotSettings?.IndexProfileName)
-            ? snapshotSettings
-            : optionsSettings;
+        var defaultSettings = _serviceProvider.GetRequiredService<IOptionsMonitor<InteractionDocumentOptions>>().CurrentValue;
         var userSuppliedDocuments = DocumentContextInjectionModeResolver.ResolveUserSuppliedDocuments(context);
         var fullUserDocumentMode = DocumentContextInjectionModeResolver.Resolve(context.OrchestrationContext, userSuppliedDocuments.Count);
 

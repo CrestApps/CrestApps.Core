@@ -79,14 +79,29 @@ else
                 {
                     <div class="mb-3">
                         <label class="form-label">Embedding deployment</label>
-                        <select class="form-select" disabled>
-                            <option value="">Select an Embedding Deployment</option>
-                            @foreach (var deployment in _model.EmbeddingDeployments)
-                            {
-                                <option value="@deployment.Key" selected="@(deployment.Key == _model.EmbeddingDeploymentName)">@deployment.Value</option>
-                            }
-                        </select>
-                        <div class="form-text">The embedding deployment cannot be changed after the index is created.</div>
+
+                        @if (EmbeddingDeploymentSelectionLocked)
+                        {
+                            <select class="form-select" disabled>
+                                <option value="">Select an Embedding Deployment</option>
+                                @foreach (var deployment in _model.EmbeddingDeployments)
+                                {
+                                    <option value="@deployment.Key" selected="@(deployment.Key == _model.EmbeddingDeploymentName)">@deployment.Value</option>
+                                }
+                            </select>
+                            <div class="form-text">The embedding deployment cannot be changed after a valid deployment has been selected.</div>
+                        }
+                        else
+                        {
+                            <InputSelect @bind-Value="_model.EmbeddingDeploymentName" class="form-select">
+                                <option value="">Select an Embedding Deployment</option>
+                                @foreach (var deployment in _model.EmbeddingDeployments)
+                                {
+                                    <option value="@deployment.Key">@deployment.Value</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">Choose an embedding deployment before rebuilding this index.</div>
+                        }
                     </div>
                 }
 
@@ -114,6 +129,11 @@ else
         !string.IsNullOrEmpty(_model.Type) &&
         !string.Equals(_model.Type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase);
 
+    private bool EmbeddingDeploymentSelectionLocked =>
+        ShowEmbeddingDeployment &&
+        _model.EmbeddingDeployments.Any(deployment =>
+            string.Equals(deployment.Key, _model.EmbeddingDeploymentName, StringComparison.Ordinal));
+
     protected override async Task OnInitializedAsync()
     {
         var profile = await IndexProfileManager.FindByIdAsync(Id);
@@ -127,6 +147,7 @@ else
 
         _model = IndexProfileViewModel.FromProfile(profile);
         await PopulateDropdownsAsync();
+        _model.EmbeddingDeploymentName = await NormalizeDeploymentSelectorAsync(_model.EmbeddingDeploymentName);
     }
 
     private async Task HandleSubmitAsync()
@@ -141,7 +162,12 @@ else
             return;
         }
 
-        profile.DisplayText = _model.DisplayText;
+        profile.DisplayText = _model.DisplayText?.Trim();
+
+        if (ShowEmbeddingDeployment)
+        {
+            profile.EmbeddingDeploymentName = await NormalizeDeploymentSelectorAsync(_model.EmbeddingDeploymentName);
+        }
 
         var validationResult = await IndexProfileManager.ValidateAsync(profile);
 
@@ -193,5 +219,17 @@ else
         return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase)
             ? deployment.Name
             : $"{deployment.Name} ({deployment.ModelName})";
+    }
+
+    private async Task<string> NormalizeDeploymentSelectorAsync(string selector)
+    {
+        if (string.IsNullOrWhiteSpace(selector))
+        {
+            return selector;
+        }
+
+        var deployment = await DeploymentManager.FindByIdAsync(selector);
+
+        return deployment?.Name ?? selector.Trim();
     }
 }

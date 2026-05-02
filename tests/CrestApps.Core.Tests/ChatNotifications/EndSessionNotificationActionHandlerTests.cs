@@ -1,10 +1,17 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Services;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.Templates.Parsing;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.ChatNotifications;
@@ -28,6 +35,8 @@ public sealed class EndSessionNotificationActionHandlerTests
         var sessionManagerMock = new Mock<IAIChatSessionManager>();
         sessionManagerMock.Setup(m => m.FindByIdAsync("session-1")).ReturnsAsync(session);
         sessionManagerMock.Setup(m => m.SaveAsync(session)).Returns(Task.CompletedTask).Verifiable();
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock.Setup(m => m.FindByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((AIProfile)null);
 
         ChatNotification captured = null;
         var senderMock = new Mock<IChatNotificationSender>();
@@ -39,7 +48,11 @@ public sealed class EndSessionNotificationActionHandlerTests
         var timeProviderMock = new Mock<TimeProvider>();
         timeProviderMock.Setup(t => t.GetUtcNow()).Returns(new DateTimeOffset(now));
 
-        var services = BuildServiceProvider(sessionManager: sessionManagerMock.Object, notificationSender: senderMock.Object, timeProvider: timeProviderMock.Object);
+        var services = BuildServiceProvider(
+            sessionManager: sessionManagerMock.Object,
+            profileManager: profileManagerMock.Object,
+            notificationSender: senderMock.Object,
+            timeProvider: timeProviderMock.Object);
         var context = CreateContext("session-1", ChatContextType.AIChatSession, services);
         var handler = new EndSessionNotificationActionHandler();
 
@@ -62,12 +75,16 @@ public sealed class EndSessionNotificationActionHandlerTests
     public async Task HandleAsync_AIChatSession_SessionNotFound_DoesNotSendSessionEndedNotification()
     {
         // Arrange
+        var profileManagerMock = new Mock<IAIProfileManager>();
         var sessionManagerMock = new Mock<IAIChatSessionManager>();
         sessionManagerMock.Setup(m => m.FindByIdAsync("missing")).ReturnsAsync((AIChatSession)null);
 
         var senderMock = new Mock<IChatNotificationSender>();
 
-        var services = BuildServiceProvider(sessionManager: sessionManagerMock.Object, notificationSender: senderMock.Object);
+        var services = BuildServiceProvider(
+            sessionManager: sessionManagerMock.Object,
+            profileManager: profileManagerMock.Object,
+            notificationSender: senderMock.Object);
         var context = CreateContext("missing", ChatContextType.AIChatSession, services);
         var handler = new EndSessionNotificationActionHandler();
 
@@ -106,6 +123,64 @@ public sealed class EndSessionNotificationActionHandlerTests
         Assert.Equal(ChatNotificationTypes.SessionEnded, captured.Type);
     }
 
+    [Fact]
+    public async Task HandleAsync_AIChatSession_WithPendingPostCloseWork_QueuesProcessing()
+    {
+        var profile = new AIProfile
+        {
+            ItemId = "profile-1",
+            Type = AIProfileType.Chat,
+        };
+        profile.AlterSettings<AIProfilePostSessionSettings>(settings =>
+        {
+            settings.EnablePostSessionProcessing = true;
+            settings.PostSessionTasks =
+            [
+                new PostSessionTask
+                {
+                    Name = "summary",
+                    Type = PostSessionTaskType.Semantic,
+                    Instructions = "Summarize the conversation.",
+                },
+            ];
+        });
+
+        var session = new AIChatSession
+        {
+            SessionId = "session-queued",
+            ProfileId = profile.ItemId,
+            Status = ChatSessionStatus.Active,
+        };
+
+        var sessionManagerMock = new Mock<IAIChatSessionManager>();
+        sessionManagerMock.Setup(m => m.FindByIdAsync("session-queued")).ReturnsAsync(session);
+        sessionManagerMock.Setup(m => m.SaveAsync(session)).Returns(Task.CompletedTask).Verifiable();
+
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock.Setup(m => m.FindByIdAsync(profile.ItemId, It.IsAny<CancellationToken>())).ReturnsAsync(profile);
+
+        ChatNotification captured = null;
+        var senderMock = new Mock<IChatNotificationSender>();
+        senderMock.Setup(s => s
+            .SendAsync("session-queued", ChatContextType.AIChatSession, It.IsAny<ChatNotification>()))
+            .Callback<string, ChatContextType, ChatNotification>((_, _, n) => captured = n)
+            .Returns(Task.CompletedTask);
+
+        var services = BuildServiceProvider(
+            sessionManager: sessionManagerMock.Object,
+            profileManager: profileManagerMock.Object,
+            notificationSender: senderMock.Object);
+        var context = CreateContext("session-queued", ChatContextType.AIChatSession, services);
+        var handler = new EndSessionNotificationActionHandler();
+
+        await handler.HandleAsync(context, CancellationToken.None);
+
+        Assert.Equal(ChatSessionStatus.Closed, session.Status);
+        Assert.Equal(PostSessionProcessingStatus.Pending, session.PostSessionProcessingStatus);
+        sessionManagerMock.Verify();
+        Assert.NotNull(captured);
+    }
+
     // ───────────────────────────────────────────────────────────────
     // Helpers
     // ───────────────────────────────────────────────────────────────
@@ -122,7 +197,11 @@ public sealed class EndSessionNotificationActionHandlerTests
         };
     }
 
-    private static ServiceProvider BuildServiceProvider(IAIChatSessionManager sessionManager = null, IChatNotificationSender notificationSender = null, TimeProvider timeProvider = null)
+    private static ServiceProvider BuildServiceProvider(
+        IAIChatSessionManager sessionManager = null,
+        IAIProfileManager profileManager = null,
+        IChatNotificationSender notificationSender = null,
+        TimeProvider timeProvider = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
@@ -131,6 +210,11 @@ public sealed class EndSessionNotificationActionHandlerTests
         if (sessionManager is not null)
         {
             services.AddSingleton(sessionManager);
+        }
+
+        if (profileManager is not null)
+        {
+            services.AddSingleton(profileManager);
         }
 
         if (notificationSender is not null)
@@ -143,7 +227,38 @@ public sealed class EndSessionNotificationActionHandlerTests
             services.AddSingleton(timeProvider);
         }
 
+        services.AddSingleton(CreatePostCloseProcessor(timeProvider ?? TimeProvider.System));
+
         return services.BuildServiceProvider();
+    }
+
+    private static AIChatSessionPostCloseProcessor CreatePostCloseProcessor(TimeProvider timeProvider)
+    {
+        var templateService = new Mock<ITemplateService>();
+        var markdownParser = new Mock<ITemplateParser>();
+        markdownParser.SetupGet(parser => parser.SupportedExtensions).Returns([".md"]);
+
+        var postSessionProcessingService = new PostSessionProcessingService(
+            Mock.Of<IAIClientFactory>(),
+            Mock.Of<IAIToolsService>(),
+            templateService.Object,
+            [markdownParser.Object],
+            new DefaultAIOptions(),
+            Mock.Of<IServiceProvider>(),
+            timeProvider,
+            NullLoggerFactory.Instance,
+            Mock.Of<IAIDeploymentManager>());
+
+        var optionsMonitor = new Mock<IOptionsMonitor<AIChatSessionProcessingOptions>>();
+        optionsMonitor.SetupGet(monitor => monitor.CurrentValue).Returns(new AIChatSessionProcessingOptions());
+
+        return new AIChatSessionPostCloseProcessor(
+            postSessionProcessingService,
+            [],
+            [],
+            timeProvider,
+            optionsMonitor.Object,
+            NullLogger<AIChatSessionPostCloseProcessor>.Instance);
     }
 
     private sealed class PassthroughStringLocalizer<T> : IStringLocalizer<T>

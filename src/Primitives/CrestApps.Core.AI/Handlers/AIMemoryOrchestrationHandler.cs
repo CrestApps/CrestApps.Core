@@ -15,7 +15,7 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
 {
     private readonly ITemplateService _templateService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IOptions<ChatInteractionMemoryOptions> _chatInteractionMemoryOptions;
+    private readonly IOptionsMonitor<ChatInteractionMemoryOptions> _chatInteractionMemoryOptions;
     private readonly AIToolDefinitionOptions _toolDefinitions;
     private readonly ILogger<AIMemoryOrchestrationHandler> _logger;
 
@@ -30,7 +30,7 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
     public AIMemoryOrchestrationHandler(
         ITemplateService templateService,
         IHttpContextAccessor httpContextAccessor,
-        IOptions<ChatInteractionMemoryOptions> chatInteractionMemoryOptions,
+        IOptionsMonitor<ChatInteractionMemoryOptions> chatInteractionMemoryOptions,
         IOptions<AIToolDefinitionOptions> toolDefinitions,
         ILogger<AIMemoryOrchestrationHandler> logger)
     {
@@ -79,7 +79,7 @@ internal sealed class AIMemoryOrchestrationHandler : IOrchestrationContextBuilde
             return;
         }
 
-        var isEnabled = AIMemoryOrchestrationContextHelper.IsEnabled(context.Resource, _chatInteractionMemoryOptions);
+        var isEnabled = AIMemoryOrchestrationContextHelper.IsEnabled(context.Resource, _chatInteractionMemoryOptions.CurrentValue);
         if (!isEnabled)
         {
             if (_logger.IsEnabled(LogLevel.Debug))

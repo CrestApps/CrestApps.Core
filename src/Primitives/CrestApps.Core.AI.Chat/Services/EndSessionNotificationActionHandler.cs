@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,9 @@ public sealed class EndSessionNotificationActionHandler : IChatNotificationActio
 
         if (context.ChatType == ChatContextType.AIChatSession)
         {
+            var profileManager = context.Services.GetRequiredService<IAIProfileManager>();
             var sessionManager = context.Services.GetRequiredService<IAIChatSessionManager>();
+            var postCloseProcessor = context.Services.GetRequiredService<AIChatSessionPostCloseProcessor>();
             var session = await sessionManager.FindByIdAsync(context.SessionId, cancellationToken);
 
             if (session is null)
@@ -38,11 +41,29 @@ public sealed class EndSessionNotificationActionHandler : IChatNotificationActio
 
             session.Status = ChatSessionStatus.Closed;
             session.ClosedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+            var queuedPostCloseProcessing = false;
+            var profile = await profileManager.FindByIdAsync(session.ProfileId, cancellationToken);
+
+            if (profile is null)
+            {
+                logger.LogWarning(
+                    "End session for '{SessionId}' closed the session, but profile '{ProfileId}' was not found so post-close work could not be queued.",
+                    context.SessionId,
+                    session.ProfileId);
+            }
+            else
+            {
+                queuedPostCloseProcessing = postCloseProcessor.QueueIfNeeded(profile, session);
+            }
+
             await sessionManager.SaveAsync(session, cancellationToken);
 
-            if (logger.IsEnabled(LogLevel.Debug))
+            if (logger.IsEnabled(LogLevel.Information))
             {
-                logger.LogDebug("Session '{SessionId}' ended via notification action.", context.SessionId);
+                logger.LogInformation(
+                    "Session '{SessionId}' ended via notification action. Queued post-close processing: {QueuedPostCloseProcessing}.",
+                    context.SessionId,
+                    queuedPostCloseProcessing);
             }
         }
 

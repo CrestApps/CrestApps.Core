@@ -35,6 +35,7 @@ public sealed class AIConnectionViewModel
             Name = connection.Name,
             DisplayText = connection.DisplayText,
             Source = AIProviderNameNormalizer.Normalize(connection.Source),
+            IsReadOnly = connection.IsReadOnly,
         };
 
         if (connection.Properties != null)

@@ -104,7 +104,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
             return;
         }
 
-        if (!_serviceProvider.GetRequiredService<IOptions<GeneralAIOptions>>().Value.EnableAIUsageTracking)
+        if (!_serviceProvider.GetRequiredService<IOptionsMonitor<GeneralAIOptions>>().CurrentValue.EnableAIUsageTracking)
         {
             return;
         }

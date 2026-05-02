@@ -1,7 +1,6 @@
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -49,13 +48,7 @@ public sealed class AIDeploymentController : Controller
         var deployments = await _deploymentStore.GetAllAsync();
 
         return View(deployments
-                    .Select(deployment =>
-                    {
-                        var model = AIDeploymentViewModel.FromDeployment(deployment);
-                        model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
-
-                        return model;
-                    })
+                    .Select(AIDeploymentViewModel.FromDeployment)
                     .OrderBy(static deployment => deployment.TechnicalName, StringComparer.OrdinalIgnoreCase)
                     .ToList());
     }
@@ -135,7 +128,7 @@ public sealed class AIDeploymentController : Controller
             return NotFound();
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        if (deployment.IsReadOnly)
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
 
@@ -152,13 +145,6 @@ public sealed class AIDeploymentController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(AIDeploymentViewModel model)
     {
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(model.ItemId))
-        {
-            TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
-
-            return RedirectToAction(nameof(Index));
-        }
-
         if (string.IsNullOrWhiteSpace(model.ModelName))
         {
             ModelState.AddModelError(nameof(model.ModelName), "Model name is required.");
@@ -200,7 +186,7 @@ public sealed class AIDeploymentController : Controller
             return NotFound();
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(existing.ItemId))
+        if (existing.IsReadOnly)
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be edited from the UI.";
 
@@ -232,7 +218,7 @@ public sealed class AIDeploymentController : Controller
             return NotFound();
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        if (deployment.IsReadOnly)
         {
             TempData["ErrorMessage"] = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
 

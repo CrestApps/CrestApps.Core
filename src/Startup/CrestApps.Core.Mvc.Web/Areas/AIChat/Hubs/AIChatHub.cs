@@ -1,9 +1,7 @@
-using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Hubs;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
-using CrestApps.Core.Mvc.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
@@ -29,7 +27,7 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
         Dictionary<string, AICompletionReference> references,
         HashSet<string> contentItemIds)
     {
-        var citationCollector = services.GetRequiredService<SampleCitationReferenceCollector>();
+        var citationCollector = services.GetRequiredService<CitationReferenceCollector>();
 
         if (handlerContext.Properties.TryGetValue("OrchestrationContext", out var ctxObj) &&
             ctxObj is OrchestrationContext orchestrationContext)
@@ -41,30 +39,4 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
         citationCollector.CollectToolReferences(references, contentItemIds);
     }
 
-    protected override async Task OnMessageRatedAsync(
-        IServiceProvider services,
-        AIChatSession chatSession,
-        IAIChatSessionPromptStore promptStore)
-    {
-        var eventService = services.GetService<SampleAIChatSessionEventService>();
-
-        if (eventService is null)
-        {
-            return;
-        }
-
-        var allPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
-        var ratings = allPrompts
-            .Where(prompt => prompt.UserRating.HasValue)
-            .Select(prompt => prompt.UserRating.Value)
-            .ToList();
-
-        if (ratings.Count > 0)
-        {
-            await eventService.RecordUserRatingAsync(
-                chatSession.SessionId,
-                ratings.Count(rating => rating),
-                ratings.Count(rating => !rating));
-        }
-    }
 }

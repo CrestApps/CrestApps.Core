@@ -2,7 +2,8 @@ namespace CrestApps.Core.AI.Copilot;
 
 /// <summary>
 /// Abstracts storage and retrieval of GitHub OAuth credentials per user.
-/// Implement with your preferred user store (OrchardCore users, EF Identity, etc.).
+/// Implement with your preferred user store, such as ASP.NET Core Identity or
+/// another host-specific account system.
 /// </summary>
 public interface ICopilotCredentialStore
 {

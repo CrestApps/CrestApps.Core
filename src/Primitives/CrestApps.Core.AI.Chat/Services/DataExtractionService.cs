@@ -1,7 +1,11 @@
+using System.Text.Json;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Support;
+using CrestApps.Core.Support.Json;
+using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -16,6 +20,7 @@ public sealed class DataExtractionService
     private readonly IAIClientFactory _clientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ITemplateService _aiTemplateService;
+    private readonly ITemplateParser _markdownTemplateParser;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DataExtractionService> _logger;
 
@@ -24,12 +29,14 @@ public sealed class DataExtractionService
     /// </summary>
     /// <param name="clientFactory">The client factory.</param>
     /// <param name="aiTemplateService">The ai template service.</param>
+    /// <param name="templateParsers">The registered template parsers.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="deploymentManager">The deployment manager.</param>
     public DataExtractionService(
         IAIClientFactory clientFactory,
         ITemplateService aiTemplateService,
+        IEnumerable<ITemplateParser> templateParsers,
         TimeProvider timeProvider,
         ILogger<DataExtractionService> logger,
         IAIDeploymentManager deploymentManager = null)
@@ -37,6 +44,7 @@ public sealed class DataExtractionService
         _clientFactory = clientFactory;
         _deploymentManager = deploymentManager;
         _aiTemplateService = aiTemplateService;
+        _markdownTemplateParser = ResolveMarkdownTemplateParser(templateParsers);
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -180,12 +188,54 @@ public sealed class DataExtractionService
                 MaxOutputTokens = 1024,
             }.AddUsageTracking(session: session), null, cancellationToken);
 
-            if (response.Result?.Fields == null || response.Result.Fields.Count == 0)
+            var responseText = GetLastAssistantMessageText(response.Messages);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Data extraction raw response for session '{SessionId}': '{ResponseText}'.",
+                    session.SessionId,
+                    CreateResponseLogPreview(responseText));
+            }
+
+            ExtractionResponse result = null;
+
+            try
+            {
+                result = response.Result;
+            }
+            catch (InvalidOperationException)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Data extraction response for session '{SessionId}' did not return JSON content.",
+                        session.SessionId);
+                }
+            }
+            catch (JsonException)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Data extraction response for session '{SessionId}' returned invalid JSON content.",
+                        session.SessionId);
+                }
+            }
+
+            if (result?.Fields != null && result.Fields.Count > 0)
+            {
+                return (result.Fields, result.SessionEnded);
+            }
+
+            var recovered = TryParseExtractionResponse(session.SessionId, responseText);
+
+            if (recovered?.Fields == null || recovered.Fields.Count == 0)
             {
                 return ([], false);
             }
 
-            return (response.Result.Fields, response.Result.SessionEnded);
+            return (recovered.Fields, recovered.SessionEnded);
         }
         catch (Exception ex)
         {
@@ -209,13 +259,23 @@ public sealed class DataExtractionService
                 continue;
             }
 
-            var entry = settings.DataExtractionEntries.FirstOrDefault(e =>
-                string.Equals(e.Name, result.Name, StringComparison.OrdinalIgnoreCase));
+            var match = FindMatchingEntry(settings, result);
 
-            if (entry == null)
+            if (match == null)
             {
+                if (!string.IsNullOrWhiteSpace(result.Name))
+                {
+                    _logger.LogWarning(
+                        "Ignoring extracted field '{FieldName}' for session '{SessionId}' because no configured extraction field matched. Configured fields: {ConfiguredFields}.",
+                        result.Name.SanitizeForLog(),
+                        session.SessionId,
+                        string.Join(", ", settings.DataExtractionEntries.Select(entry => entry.Name).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.SanitizeForLog())));
+                }
+
                 continue;
             }
+
+            var entry = match.Entry;
 
             if (!session.ExtractedData.TryGetValue(entry.Name, out var state))
             {
@@ -244,7 +304,7 @@ public sealed class DataExtractionService
             }
             else
             {
-                var value = result.Values[0];
+                var value = ResolveSingleValue(match, state, result);
 
                 if (string.IsNullOrWhiteSpace(value))
                 {
@@ -269,6 +329,136 @@ public sealed class DataExtractionService
         }
 
         return changeSet;
+    }
+
+    private MatchedExtractionEntry FindMatchingEntry(
+        AIProfileDataExtractionSettings settings,
+        ExtractionResult result)
+    {
+        if (string.IsNullOrWhiteSpace(result?.Name))
+        {
+            return null;
+        }
+
+        var directMatch = settings.DataExtractionEntries.FirstOrDefault(entry =>
+            string.Equals(entry.Name, result.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (directMatch != null)
+        {
+            return new MatchedExtractionEntry(directMatch, ClassifyField(result.Name), false);
+        }
+
+        var normalizedResultName = NormalizeFieldName(result.Name);
+
+        if (string.IsNullOrEmpty(normalizedResultName))
+        {
+            return null;
+        }
+
+        var normalizedMatch = settings.DataExtractionEntries.FirstOrDefault(entry =>
+            string.Equals(NormalizeFieldName(entry.Name), normalizedResultName, StringComparison.OrdinalIgnoreCase));
+
+        if (normalizedMatch != null)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Mapped extracted field '{ExtractedFieldName}' to configured field '{ConfiguredFieldName}' for session data extraction.",
+                    result.Name.SanitizeForLog(),
+                    normalizedMatch.Name.SanitizeForLog());
+            }
+
+            return new MatchedExtractionEntry(normalizedMatch, ClassifyField(result.Name), false);
+        }
+
+        var resultFieldKind = ClassifyField(result.Name);
+
+        if (resultFieldKind == ExtractionFieldKind.Unknown)
+        {
+            return null;
+        }
+
+        var semanticMatch = settings.DataExtractionEntries.FirstOrDefault(entry => IsSemanticMatch(entry, resultFieldKind));
+
+        if (semanticMatch == null)
+        {
+            return null;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Mapped extracted field '{ExtractedFieldName}' to configured field '{ConfiguredFieldName}' for session data extraction using semantic aliasing.",
+                result.Name.SanitizeForLog(),
+                semanticMatch.Name.SanitizeForLog());
+        }
+
+        return new MatchedExtractionEntry(semanticMatch, resultFieldKind, true);
+    }
+
+    private static bool IsSemanticMatch(DataExtractionEntry entry, ExtractionFieldKind resultFieldKind)
+    {
+        var entryFieldKind = ClassifyField(entry?.Name, entry?.Description);
+
+        if (resultFieldKind == ExtractionFieldKind.PhoneNumber)
+        {
+            return entryFieldKind == ExtractionFieldKind.PhoneNumber;
+        }
+
+        if (resultFieldKind is ExtractionFieldKind.FirstName or ExtractionFieldKind.LastName or ExtractionFieldKind.FullName)
+        {
+            return entryFieldKind == ExtractionFieldKind.FullName;
+        }
+
+        return false;
+    }
+
+    private static string ResolveSingleValue(
+        MatchedExtractionEntry match,
+        ExtractedFieldState state,
+        ExtractionResult result)
+    {
+        var value = result.Values[0];
+
+        if (!match.IsSemanticAlias || match.ResultFieldKind is not ExtractionFieldKind.FirstName and not ExtractionFieldKind.LastName)
+        {
+            return value;
+        }
+
+        return MergeNameParts(state?.Values.FirstOrDefault(), value, match.ResultFieldKind);
+    }
+
+    private static string MergeNameParts(
+        string existingValue,
+        string newValue,
+        ExtractionFieldKind resultFieldKind)
+    {
+        if (string.IsNullOrWhiteSpace(newValue))
+        {
+            return existingValue;
+        }
+
+        if (string.IsNullOrWhiteSpace(existingValue))
+        {
+            return newValue.Trim();
+        }
+
+        var existingParts = existingValue.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var incomingValue = newValue.Trim();
+
+        if (resultFieldKind == ExtractionFieldKind.FirstName)
+        {
+            return existingParts.Length > 1
+                ? string.Join(' ', [incomingValue, .. existingParts.Skip(1)])
+                : incomingValue;
+        }
+
+        if (existingParts.Length > 1)
+        {
+            return string.Join(' ', [.. existingParts.Take(existingParts.Length - 1), incomingValue]);
+        }
+
+        return string.Concat(existingParts[0], " ", incomingValue);
     }
 
     private async Task<IChatClient> GetChatClientAsync(AIProfile profile)
@@ -349,6 +539,239 @@ public sealed class DataExtractionService
         return await _aiTemplateService.RenderAsync(AITemplateIds.DataExtractionPrompt, arguments, cancellationToken);
     }
 
+    private ExtractionResponse TryParseExtractionResponse(string sessionId, string responseText)
+    {
+        if (TryDeserializeExtractionResponse(responseText, out var directResult))
+        {
+            return directResult;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Data extraction response for session '{SessionId}' is not valid JSON. Trying fallback extraction.",
+                sessionId);
+        }
+
+        var jsonBlock = JsonExtractor.ExtractFromCodeFence(responseText);
+
+        if (TryDeserializeExtractionResponse(jsonBlock, out var fencedResult))
+        {
+            return fencedResult;
+        }
+
+        var jsonObject = JsonExtractor.ExtractJsonObject(responseText);
+
+        if (jsonObject != null &&
+            jsonObject != responseText &&
+            TryDeserializeExtractionResponse(jsonObject, out var objectResult))
+        {
+            return objectResult;
+        }
+
+        var normalizedBody = _markdownTemplateParser.Parse(responseText).Body?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(normalizedBody) &&
+            !string.Equals(normalizedBody, responseText?.Trim(), StringComparison.Ordinal))
+        {
+            if (TryDeserializeExtractionResponse(normalizedBody, out var normalizedResult))
+            {
+                return normalizedResult;
+            }
+
+            var normalizedJsonBlock = JsonExtractor.ExtractFromCodeFence(normalizedBody);
+
+            if (TryDeserializeExtractionResponse(normalizedJsonBlock, out var normalizedFencedResult))
+            {
+                return normalizedFencedResult;
+            }
+
+            var normalizedJsonObject = JsonExtractor.ExtractJsonObject(normalizedBody);
+
+            if (normalizedJsonObject != null &&
+                normalizedJsonObject != normalizedBody &&
+                TryDeserializeExtractionResponse(normalizedJsonObject, out var normalizedObjectResult))
+            {
+                return normalizedObjectResult;
+            }
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Data extraction response for session '{SessionId}' could not be parsed as structured JSON after all extraction attempts.",
+                sessionId);
+        }
+
+        return null;
+    }
+
+    private static bool TryDeserializeExtractionResponse(
+        string responseText,
+        out ExtractionResponse response)
+    {
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            response = null;
+            return false;
+        }
+
+        try
+        {
+            response = JsonSerializer.Deserialize<ExtractionResponse>(responseText, JSOptions.CaseInsensitive);
+
+            return response is not null;
+        }
+        catch (JsonException)
+        {
+            response = null;
+            return false;
+        }
+    }
+
+    private static string NormalizeFieldName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var builder = new System.Text.StringBuilder(name.Length);
+
+        foreach (var character in name)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(char.ToLowerInvariant(character));
+            }
+        }
+
+        return builder.Length == 0
+            ? null
+            : builder.ToString();
+    }
+
+    private static ExtractionFieldKind ClassifyField(
+        string name,
+        string description = null)
+    {
+        var normalizedName = NormalizeFieldName(name);
+        var normalizedDescription = NormalizeFieldName(description);
+
+        if (ContainsAny(normalizedName, normalizedDescription, "phone", "phonenumber", "telephone", "mobile", "cell"))
+        {
+            return ExtractionFieldKind.PhoneNumber;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "firstname", "givenname"))
+        {
+            return ExtractionFieldKind.FirstName;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "lastname", "surname", "familyname"))
+        {
+            return ExtractionFieldKind.LastName;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "fullname"))
+        {
+            return ExtractionFieldKind.FullName;
+        }
+
+        if (ContainsAny(normalizedName, normalizedDescription, "customername"))
+        {
+            return ExtractionFieldKind.FullName;
+        }
+
+        if (!string.IsNullOrEmpty(normalizedDescription) &&
+            normalizedDescription.Contains("firstname", StringComparison.Ordinal) &&
+            normalizedDescription.Contains("lastname", StringComparison.Ordinal))
+        {
+            return ExtractionFieldKind.FullName;
+        }
+
+        return ExtractionFieldKind.Unknown;
+    }
+
+    private static bool ContainsAny(
+        string normalizedName,
+        string normalizedDescription,
+        params string[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            if ((!string.IsNullOrEmpty(normalizedName) && normalizedName.Contains(candidate, StringComparison.Ordinal)) ||
+                (!string.IsNullOrEmpty(normalizedDescription) && normalizedDescription.Contains(candidate, StringComparison.Ordinal)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static ITemplateParser ResolveMarkdownTemplateParser(IEnumerable<ITemplateParser> templateParsers)
+    {
+        ArgumentNullException.ThrowIfNull(templateParsers);
+
+        return templateParsers.FirstOrDefault(parser =>
+            parser.SupportedExtensions.Any(extension => string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase)))
+            ?? throw new InvalidOperationException("No markdown template parser is registered for data extraction response recovery.");
+    }
+
+    private static string GetLastAssistantMessageText(IList<ChatMessage> messages)
+    {
+        if (messages is null)
+        {
+            return null;
+        }
+
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            var messageText = GetMessageText(messages[i]);
+
+            if (messages[i].Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(messageText))
+            {
+                return messageText.Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static string GetMessageText(ChatMessage message)
+    {
+        if (message == null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.Text))
+        {
+            return message.Text;
+        }
+
+        var contentText = string.Concat(message.Contents?.OfType<TextContent>().Select(content => content.Text) ?? []);
+
+        return string.IsNullOrWhiteSpace(contentText)
+            ? null
+            : contentText;
+    }
+
+    private static string CreateResponseLogPreview(string responseText)
+    {
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            return "<empty>";
+        }
+
+        const int maxLength = 512;
+
+        return responseText.Length <= maxLength
+            ? responseText
+            : responseText[..maxLength] + "...";
+    }
+
     private sealed class ExtractionResponse
     {
         public List<ExtractionResult> Fields { get; set; } = [];
@@ -363,5 +786,19 @@ public sealed class DataExtractionService
         public List<string> Values { get; set; } = [];
 
         public double Confidence { get; set; }
+    }
+
+    private sealed record MatchedExtractionEntry(
+        DataExtractionEntry Entry,
+        ExtractionFieldKind ResultFieldKind,
+        bool IsSemanticAlias);
+
+    private enum ExtractionFieldKind
+    {
+        Unknown,
+        FullName,
+        FirstName,
+        LastName,
+        PhoneNumber,
     }
 }

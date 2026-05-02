@@ -1,9 +1,11 @@
 using System.Data.Common;
+using System.Text.Json;
+using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
-using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
@@ -21,7 +23,6 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Services;
@@ -33,6 +34,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using YesSql;
+using YesSql.Indexes;
 using YesSql.Provider.Sqlite;
 using YesSql.Sql;
 
@@ -40,9 +42,6 @@ namespace CrestApps.Core.Mvc.Web.Services;
 
 internal static class YesSqlServiceCollectionExtensions
 {
-    private static readonly string LegacyArticleDocumentType = $"{typeof(global::CrestApps.Core.Mvc.Web.Areas.Admin.Models.Article).FullName}, {typeof(global::CrestApps.Core.Mvc.Web.Areas.Admin.Models.Article).Assembly.GetName().Name}";
-    private static readonly string CurrentArticleDocumentType = $"{typeof(Article).FullName}, {typeof(Article).Assembly.GetName().Name}";
-
     /// <summary>
     /// Registers the MVC sample host services that sit around the framework:
     /// YesSql storage, sample-only managers, article demo services, and the
@@ -73,22 +72,12 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<AIProfileTemplateDocumentService>();
 
         services
-            .AddScoped<SampleAIChatSessionEventService>()
-            .AddScoped<SampleAICompletionUsageService>()
-            .AddScoped<SampleAIChatSessionEventPostCloseObserver>()
-            .AddScoped<SampleAIChatSessionExtractedDataService>()
-            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<SampleAICompletionUsageService>())
-            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<SampleAIChatSessionExtractedDataService>())
-            .AddScoped<IAIChatSessionHandler, AnalyticsChatSessionHandler>();
-
-        services
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()
-            .AddScoped<SampleAIDocumentIndexingService>()
             .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, SampleAIChatDocumentEventHandler>();
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ArticleIndexProvider>());
 
         services
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
@@ -96,12 +85,12 @@ internal static class YesSqlServiceCollectionExtensions
             .AddSharedArticleServices()
             .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
-            .AddScoped<SampleCitationReferenceCollector>()
-            .AddScoped<CompositeAIReferenceLinkResolver>()
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
+        services.AddSingleton<IConfigureOptions<A2AHostOptions>, SiteSettingsConfigureStoredOptions<A2AHostOptions>>();
+        services.AddSingleton<IConfigureOptions<McpServerOptions>, SiteSettingsConfigureStoredOptions<McpServerOptions>>();
         services.ConfigureOptions<SampleCopilotOptionsConfiguration>();
         services.ConfigureOptions<SampleClaudeOptionsConfiguration>();
         services.Configure<IndexProfileSourceOptions>(options => options
@@ -135,7 +124,6 @@ internal static class YesSqlServiceCollectionExtensions
 
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("CrestApps.Core.Mvc.Web.YesSql");
         var storeOptions = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<YesSqlStoreOptions>>().Value;
-        RegisterIndexes(store);
         await InitializeCollectionsAsync(store, storeOptions);
         await using var connection = store.Configuration.ConnectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -166,6 +154,8 @@ internal static class YesSqlServiceCollectionExtensions
             .Column<string>(nameof(ArticleIndex.ItemId), c => c.WithLength(26))
             .Column<string>(nameof(ArticleIndex.Title), c => c.WithLength(255))));
         await transaction.CommitAsync();
+
+        await MigrateLegacyExtractedDataRecordsAsync(services, storeOptions, logger);
     }
 
     private static async Task InitializeCollectionsAsync(IStore store, YesSqlStoreOptions storeOptions)
@@ -196,9 +186,7 @@ internal static class YesSqlServiceCollectionExtensions
     private static async Task ConfigureSqliteConnectionAsync(DbConnection connection)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA journal_mode=WAL;";
-        _ = await command.ExecuteScalarAsync();
-        command.CommandText = "PRAGMA synchronous=NORMAL;";
+        command.CommandText = "PRAGMA synchronous=FULL;";
         await command.ExecuteNonQueryAsync();
         command.CommandText = "PRAGMA busy_timeout=30000;";
         await command.ExecuteNonQueryAsync();
@@ -215,10 +203,138 @@ internal static class YesSqlServiceCollectionExtensions
         }
     }
 
-    private static void RegisterIndexes(IStore store)
+    private static async Task MigrateLegacyExtractedDataRecordsAsync(
+        IServiceProvider services,
+        YesSqlStoreOptions storeOptions,
+        ILogger logger)
     {
-        // Host-specific index provider. Shared index providers are registered
-        // automatically via DI in the per-feature AddCoreAI*StoresYesSql() methods.
-        store.RegisterIndexes<ArticleIndexProvider>();
+        if (string.Equals(storeOptions.AICollectionName, storeOptions.DefaultCollectionName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var legacyRows = await GetLegacyExtractedDataRowsAsync(services, storeOptions);
+        if (legacyRows.Count == 0)
+        {
+            return;
+        }
+
+        await using var scope = services.CreateAsyncScope();
+        var extractedDataStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionExtractedDataStore>();
+        var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+
+        foreach (var record in legacyRows
+                     .Select(row => row.Record)
+                     .Where(record => record is not null)
+                     .GroupBy(record => record.SessionId, StringComparer.OrdinalIgnoreCase)
+                     .Select(group => group
+                         .OrderByDescending(record => record.UpdatedUtc)
+                         .First()))
+        {
+            await extractedDataStore.SaveAsync(record);
+        }
+
+        await committer.CommitAsync();
+        await DeleteLegacyExtractedDataRowsAsync(services, storeOptions, legacyRows.Select(row => row.Id).ToList());
+
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Migrated {Count} legacy AI chat extracted-data snapshot records into the AI collection.", legacyRows.Count);
+        }
     }
+
+    private static async Task<List<LegacyExtractedDataRow>> GetLegacyExtractedDataRowsAsync(
+        IServiceProvider services,
+        YesSqlStoreOptions storeOptions)
+    {
+        var rows = new List<LegacyExtractedDataRow>();
+        var tableName = GetDefaultCollectionDocumentTableName(storeOptions);
+
+        await using var connection = services.GetRequiredService<IStore>().Configuration.ConnectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        await ConfigureSqliteConnectionAsync(connection);
+
+        if (!await TableExistsAsync(connection, tableName))
+        {
+            return rows;
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT Id, Content FROM [{tableName}] WHERE Type = @type";
+        AddParameter(command, "@type", "CrestApps.Core.AI.Models.AIChatSessionExtractedDataRecord, CrestApps.Core.AI.Abstractions");
+
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (reader.IsDBNull(0) || reader.IsDBNull(1))
+            {
+                continue;
+            }
+
+            var record = JsonSerializer.Deserialize<AIChatSessionExtractedDataRecord>(reader.GetString(1));
+            if (record is null || string.IsNullOrWhiteSpace(record.SessionId) || string.IsNullOrWhiteSpace(record.ProfileId))
+            {
+                continue;
+            }
+
+            rows.Add(new LegacyExtractedDataRow(reader.GetInt32(0), record));
+        }
+
+        return rows;
+    }
+
+    private static async Task DeleteLegacyExtractedDataRowsAsync(
+        IServiceProvider services,
+        YesSqlStoreOptions storeOptions,
+        List<int> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var tableName = GetDefaultCollectionDocumentTableName(storeOptions);
+
+        await using var connection = services.GetRequiredService<IStore>().Configuration.ConnectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        await ConfigureSqliteConnectionAsync(connection);
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        foreach (var id in ids.Distinct())
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"DELETE FROM [{tableName}] WHERE Id = @id";
+            AddParameter(command, "@id", id);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
+    }
+
+    private static async Task<bool> TableExistsAsync(DbConnection connection, string tableName)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @name";
+        AddParameter(command, "@name", tableName);
+
+        return Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
+    }
+
+    private static string GetDefaultCollectionDocumentTableName(YesSqlStoreOptions storeOptions)
+    {
+        return string.IsNullOrWhiteSpace(storeOptions.DefaultCollectionName)
+            ? "Document"
+            : $"{storeOptions.DefaultCollectionName}_Document";
+    }
+
+    private static void AddParameter(DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
+    private sealed record LegacyExtractedDataRow(int Id, AIChatSessionExtractedDataRecord Record);
 }

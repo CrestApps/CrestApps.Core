@@ -1,10 +1,10 @@
 using System.Text;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Tests.Core.Services;
 
@@ -131,12 +131,15 @@ public sealed class GitHubOAuthServiceStateTests
     private static (GitHubOAuthService service, TestHttpContextAccessor accessor) CreateService(TimeProvider time)
     {
         var dpp = new EphemeralDataProtectionProvider();
-        var options = Options.Create(new CopilotOptions
+        var options = new TestOptionsMonitor<CopilotOptions>
         {
-            ClientId = "test-client-id",
-            ClientSecret = "test-client-secret",
-            Scopes = ["user:email", "read:org"],
-        });
+            CurrentValue = new CopilotOptions
+            {
+                ClientId = "test-client-id",
+                ClientSecret = "test-client-secret",
+                Scopes = ["user:email", "read:org"],
+            },
+        };
 
         var accessor = new TestHttpContextAccessor();
         var service = new GitHubOAuthService(

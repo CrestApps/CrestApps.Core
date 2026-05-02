@@ -16,7 +16,6 @@ using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Ftp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Sftp;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
@@ -91,14 +90,6 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
-
-builder.Services.Configure<AIProviderConnectionCatalogOptions>(options =>
-{
-    options.ConnectionSections.Clear();
-    options.ConnectionSections.Add("CrestApps:AI:Connections");
-
-    options.ProviderSections.Clear();
-});
 
 builder.Services
     .AddMvcSampleHostServices(appDataPath)
@@ -184,10 +175,8 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 // =============================================================================
 // 5. BACKGROUND TASKS AND PIPELINE
 // =============================================================================
-// These hosted services keep chat sessions, document indexing, and data-source
-// synchronization moving in the background. Keep only the workers your app needs.
+// These hosted services keep sample-only document indexing moving in the background.
 // =============================================================================
-builder.Services.AddHostedService<AIChatSessionCloseBackgroundService>();
 builder.Services.AddSingleton<SampleAIChatDocumentIndexingQueue>();
 builder.Services.AddSingleton<ISampleAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<SampleAIChatDocumentIndexingQueue>());
 builder.Services.AddHostedService<AIChatDocumentIndexingBackgroundService>();
@@ -214,10 +203,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 {
     branch.Use(async (context, next) =>
     {
-        var siteSettings = context.RequestServices.GetRequiredService<SiteSettingsStore>();
-        var settings = siteSettings.TryGet<McpServerOptions>(out var storedSettings)
-            ? storedSettings
-            : context.RequestServices.GetRequiredService<IOptions<McpServerOptions>>().Value;
+        var settings = context.RequestServices.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
 
         if (settings.AuthenticationType == McpServerAuthenticationType.None)
         {
