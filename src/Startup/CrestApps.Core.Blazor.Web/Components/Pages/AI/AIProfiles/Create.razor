@@ -162,7 +162,7 @@
                                         <option value="@ChatMode.AudioInput">Audio input</option>
                                         <option value="@ChatMode.Conversation">Conversation</option>
                                     </InputSelect>
-                                    <div class="form-text">Choose text input, microphone dictation, or full conversation mode.</div>
+                                    <div class="form-text">Controls whether this profile uses text input only, microphone dictation, or full two-way conversation mode.</div>
                                 </div>
                             </div>
                         }
@@ -175,7 +175,7 @@
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.EnableTextToSpeechPlayback" />
                                 <label class="form-check-label">Enable text-to-speech playback</label>
                             </div>
-                            <div class="form-text">Show a play button on assistant messages when a text-to-speech deployment is configured.</div>
+                            <div class="form-text">When enabled, assistant messages show a play button that reads the response aloud using the configured text-to-speech deployment.</div>
                         </div>
 
                         @if (_model.ChatMode == ChatMode.Conversation)
@@ -194,7 +194,7 @@
                                         </optgroup>
                                     }
                                 </InputSelect>
-                                <div class="form-text">Leave empty to use the site's default text-to-speech voice.</div>
+                                <div class="form-text">Select a voice for conversation mode. Leave this empty to use the site's default voice.</div>
                             </div>
                         }
                     }
@@ -232,7 +232,7 @@
                                         <option value="@d.Value">@d.Key</option>
                                     }
                                 </InputSelect>
-                                <div class="form-text">Optional deployment for utility tasks.</div>
+                                <div class="form-text">Optional deployment for utility tasks (planning, summarization).</div>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -271,7 +271,7 @@
                                     <div class="mb-3">
                                         <label class="form-label">Model override</label>
                                         <InputText class="form-control" @bind-Value="_model.CopilotModel" placeholder="Leave empty to use the default model from settings" />
-                                        <div class="form-text">Optionally override the model name.</div>
+                                        <div class="form-text">Optionally override the model name. Leave empty to use the default model configured in Copilot settings.</div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Effort level</label>
@@ -281,7 +281,7 @@
                                                 <option value="@e">@(e == CopilotReasoningEffort.None ? "Default" : e.ToString())</option>
                                             }
                                         </InputSelect>
-                                        <div class="form-text">Select the reasoning effort level.</div>
+                                        <div class="form-text">Select the reasoning effort level for the Copilot model.</div>
                                     </div>
                                     <div class="form-check">
                                         <InputCheckbox class="form-check-input" @bind-Value="_model.CopilotIsAllowAll" />
@@ -318,11 +318,13 @@
                                                     <option value="@e">@(e == CopilotReasoningEffort.None ? "Default" : e.ToString())</option>
                                                 }
                                             </InputSelect>
+                                            <div class="form-text">Select the reasoning effort level for the Copilot model.</div>
                                         </div>
-                                        <div class="form-check">
+                                        <div class="form-check mb-3">
                                             <InputCheckbox class="form-check-input" @bind-Value="_model.CopilotIsAllowAll" />
                                             <label class="form-check-label">Allow all tool executions</label>
                                         </div>
+                                        <div class="form-text">When checked, the Copilot CLI runs with the --allow-all flag.</div>
                                     }
                                     else
                                     {
@@ -362,7 +364,7 @@
                                                 <option value="@m.Value">@m.Key</option>
                                             }
                                         </InputSelect>
-                                        <div class="form-text">Select a Claude model override, or leave on the configured default.</div>
+                                        <div class="form-text">Select a Claude model override for this item, or leave it on the configured default.</div>
                                     </div>
                                     <div class="mb-0">
                                         <label class="form-label">Effort level</label>
@@ -380,7 +382,7 @@
                                     <div class="mb-3">
                                         <label class="form-label">Claude model</label>
                                         <InputText class="form-control" @bind-Value="_model.ClaudeModel" placeholder="Leave empty to use the default model from settings" />
-                                        <div class="form-text">Optionally override the Claude model.</div>
+                                        <div class="form-text">Optionally override the Claude model. Leave empty to use the default model configured in settings.</div>
                                     </div>
                                     <div class="mb-0">
                                         <label class="form-label">Effort level</label>
@@ -412,7 +414,7 @@
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.AddInitialPrompt" />
                                 <label class="form-check-label">Add initial prompt</label>
                             </div>
-                            <div class="form-text">When enabled, each new chat session starts with an assistant message from the initial prompt.</div>
+                            <div class="form-text">When enabled, each new chat session starts with an assistant message from the initial prompt and the welcome message is ignored.</div>
                         </div>
 
                         @if (!_model.AddInitialPrompt)
@@ -420,7 +422,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Welcome message</label>
                                 <InputTextArea class="form-control" rows="3" @bind-Value="_model.WelcomeMessage" placeholder="Message shown when a chat starts" />
-                                <div class="form-text">The welcome message to show when a new session is created.</div>
+                                <div class="form-text">The welcome message to show on the user-interface when a new session is created.</div>
                             </div>
                         }
                         else
@@ -428,7 +430,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Initial prompt</label>
                                 <InputTextArea class="form-control" rows="4" @bind-Value="_model.InitialPrompt" placeholder="The assistant message added as the first chat history entry" />
-                                <div class="form-text">This assistant message is added as the first chat history entry.</div>
+                                <div class="form-text">This assistant message is added as the first chat history entry when a new session is created.</div>
                             </div>
                         }
                     }
@@ -606,11 +608,11 @@
                     <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
                     @if (_model.AvailableAgents.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No agent profiles are available.</div>
+                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No agent profiles are available. Create an agent profile first.</div>
                     }
                     else
                     {
-                        <p class="text-muted mb-3 small">Select the agent profiles this profile can delegate tasks to.</p>
+                        <p class="text-muted mb-3 small">Select the agent profiles this profile can delegate tasks to during conversations.</p>
                         @foreach (var agent in _model.AvailableAgents)
                         {
                             <div class="form-check mb-2">
@@ -630,11 +632,11 @@
                     <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> Agent to Agent Hosts</h6>
                     @if (_model.AvailableA2AConnections.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No A2A host connections are configured.</div>
+                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No A2A host connections are configured. Add them under <strong>Agent to Agent Hosts</strong> first.</div>
                     }
                     else
                     {
-                        <p class="text-muted mb-3 small">Select the remote A2A hosts this profile can use.</p>
+                        <p class="text-muted mb-3 small">Select the remote A2A hosts this profile can use for agent orchestration.</p>
                         @foreach (var connection in _model.AvailableA2AConnections)
                         {
                             <div class="form-check mb-2">
@@ -651,11 +653,11 @@
                     <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
                     @if (_model.AvailableMcpConnections.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No MCP hosts are configured.</div>
+                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No MCP hosts are configured. Add them under <strong>MCP Hosts</strong> first.</div>
                     }
                     else
                     {
-                        <p class="text-muted mb-3 small">Select the MCP server connections this profile can use.</p>
+                        <p class="text-muted mb-3 small">Select the MCP server connections this profile can use for external tools and resources.</p>
                         @foreach (var connection in _model.AvailableMcpConnections)
                         {
                             <div class="form-check mb-2">
@@ -680,7 +682,7 @@
                     else
                     {
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <p class="text-muted mb-0 small">Select the tools this profile can use.</p>
+                            <p class="text-muted mb-0 small">Select the tools this profile can use during conversations.</p>
                             <div class="btn-group btn-group-sm ms-3">
                                 <button type="button" class="btn btn-outline-primary" @onclick="SelectAllTools"><i class="bi bi-check-all"></i> Select all</button>
                                 <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllTools"><i class="bi bi-x-lg"></i> Deselect all</button>
@@ -747,7 +749,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Document Top N</label>
                                 <InputNumber class="form-control" @bind-Value="_model.DocumentTopN" min="1" max="20" placeholder="Default: 3" />
-                                <div class="form-text">Number of top matching chunks to include as AI context.</div>
+                                <div class="form-text">Number of top matching chunks or documents to include as AI context.</div>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -760,7 +762,7 @@
                                         <option value="@mode">@mode</option>
                                     }
                                 </InputSelect>
-                                <div class="form-text">Chunk keeps chunk-level context. Hierarchical injects full document text.</div>
+                                <div class="form-text">Chunk keeps chunk-level context. Hierarchical matches on chunks, then injects the full text of the matched documents.</div>
                             </div>
                         </div>
                     </div>
@@ -785,7 +787,7 @@
                     @if (!_model.HasDocumentIndexConfiguration)
                     {
                         <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile first.
+                            <i class="bi bi-exclamation-triangle"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile and select it under <strong>Settings → AI Settings → Documents</strong> before expecting uploaded documents to influence answers.
                         </div>
                     }
 
@@ -794,7 +796,7 @@
                             <InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionDocuments" />
                             <label class="form-check-label">Allow session document uploads</label>
                         </div>
-                        <div class="form-text">Allow users to upload documents during chat sessions.</div>
+                        <div class="form-text">Allow users to upload documents during chat sessions with this profile.</div>
                     </div>
 
                     <div class="attached-documents-panel mt-3">
@@ -872,7 +874,7 @@
                             <InputCheckbox class="form-check-input" @bind-Value="_model.EnableDataExtraction" />
                             <label class="form-check-label">Enable data extraction</label>
                         </div>
-                        <div class="form-text">Run AI-powered extraction on conversation messages.</div>
+                        <div class="form-text">Run AI-powered extraction on conversation messages to populate structured fields.</div>
                     </div>
 
                     @if (_model.EnableDataExtraction)
@@ -882,7 +884,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">Extraction check interval</label>
                                     <InputNumber class="form-control" @bind-Value="_model.ExtractionCheckInterval" min="1" max="20" />
-                                    <div class="form-text">How often extraction runs (1 = every message).</div>
+                                    <div class="form-text">How often extraction runs (1 = every message, 2 = every other message, etc.).</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -934,6 +936,7 @@
                     }
 
                     <hr class="my-4" />
+                        <p class="text-muted mb-3">Configure session metrics and post-session processing for conversations using this profile.</p>
 
                     <h6 class="mb-2"><i class="bi bi-graph-up"></i> Session Metrics</h6>
                     <div class="mb-3">
@@ -968,38 +971,133 @@
                             var index = i;
                             var task = _model.PostSessionTasks[index];
 
-                            <div class="card mb-2">
+                            <div class="card mb-3">
                                 <div class="card-header d-flex justify-content-between align-items-center py-2">
-                                    <span class="fw-semibold">@(string.IsNullOrWhiteSpace(task.Name) ? "New Task" : task.Name)</span>
-                                    <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PostSessionTasks.RemoveAt(index)">
+                                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                                        <li class="nav-item">
+                                            <button type="button" class="nav-link @(GetTaskActiveTab(index) == "info" ? "active" : "")" @onclick='() => SetTaskActiveTab(index, "info")'>Task Info</button>
+                                        </li>
+                                        <li class="nav-item">
+                                            <button type="button" class="nav-link @(GetTaskActiveTab(index) == "caps" ? "active" : "")" @onclick='() => SetTaskActiveTab(index, "caps")'>Capabilities</button>
+                                        </li>
+                                    </ul>
+                                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" @onclick="() => _model.PostSessionTasks.RemoveAt(index)">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </div>
                                 <div class="card-body">
-                                    <div class="mb-3">
-                                        <label class="form-label">Name</label>
-                                        <InputText class="form-control" @bind-Value="task.Name" placeholder="e.g., sentiment_analysis" />
+                                    <div style="display: @(GetTaskActiveTab(index) == "info" ? "block" : "none")">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                                                    <InputText class="form-control" @bind-Value="task.Name" placeholder="e.g., sentiment_analysis" />
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Type</label>
+                                                    <InputSelect class="form-select" @bind-Value="task.Type">
+                                                        @foreach (var tt in Enum.GetValues<PostSessionTaskType>())
+                                                        {
+                                                            <option value="@tt">@tt</option>
+                                                        }
+                                                    </InputSelect>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label">Instructions</label>
+                                            <InputTextArea class="form-control" rows="2" @bind-Value="task.Instructions" placeholder="Instructions for this task" />
+                                        </div>
+                                        <div class="mb-2">
+                                            <div class="form-check">
+                                                <InputCheckbox class="form-check-input" @bind-Value="task.AllowMultipleValues" />
+                                                <label class="form-check-label">Allow multiple values</label>
+                                            </div>
+                                        </div>
+                                        @if (task.Type == PostSessionTaskType.PredefinedOptions)
+                                        {
+                                            <div class="mb-0">
+                                                <label class="form-label">Options (one per line)</label>
+                                                <InputTextArea class="form-control" rows="3" @bind-Value="task.Options" placeholder="Option 1&#10;Option 2" />
+                                            </div>
+                                        }
                                     </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Type</label>
-                                        <InputSelect class="form-select" @bind-Value="task.Type">
-                                            @foreach (var tt in Enum.GetValues<PostSessionTaskType>())
+                                    <div style="display: @(GetTaskActiveTab(index) == "caps" ? "block" : "none")">
+                                        <p class="text-muted small mb-3">Select the capabilities available to this task.</p>
+                                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                                        @if (_model.AvailableAgents.Count == 0)
+                                        {
+                                            <p class="text-muted small">No agent profiles available.</p>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var agent in _model.AvailableAgents)
                                             {
-                                                <option value="@tt">@tt</option>
+                                                <div class="form-check mb-1">
+                                                    <input type="checkbox" class="form-check-input" id="task@(index)_agent_@agent.Name"
+                                                           checked="@task.SelectedAgentNames.Contains(agent.Name)"
+                                                           @onchange="e => ToggleTaskAgent(task, agent.Name, (bool)e.Value)" />
+                                                    <label class="form-check-label" for="task@(index)_agent_@agent.Name">@agent.DisplayText</label>
+                                                </div>
                                             }
-                                        </InputSelect>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Instructions</label>
-                                        <InputTextArea class="form-control" rows="3" @bind-Value="task.Instructions" placeholder="Instructions for this task" />
-                                    </div>
-                                    <div class="form-check mb-2">
-                                        <InputCheckbox class="form-check-input" @bind-Value="task.AllowMultipleValues" />
-                                        <label class="form-check-label">Allow multiple values</label>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Options (one per line)</label>
-                                        <InputTextArea class="form-control" rows="3" @bind-Value="task.Options" placeholder="Option 1&#10;Option 2" />
+                                        }
+                                        <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
+                                        @if (_model.AvailableA2AConnections.Count == 0)
+                                        {
+                                            <p class="text-muted small">No A2A hosts configured.</p>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var conn in _model.AvailableA2AConnections)
+                                            {
+                                                <div class="form-check mb-1">
+                                                    <input type="checkbox" class="form-check-input" id="task@(index)_a2a_@conn.ItemId"
+                                                           checked="@task.SelectedA2AConnectionIds.Contains(conn.ItemId)"
+                                                           @onchange="e => ToggleTaskA2A(task, conn.ItemId, (bool)e.Value)" />
+                                                    <label class="form-check-label" for="task@(index)_a2a_@conn.ItemId">@conn.DisplayText</label>
+                                                </div>
+                                            }
+                                        }
+                                        <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                                        @if (_model.AvailableMcpConnections.Count == 0)
+                                        {
+                                            <p class="text-muted small">No MCP hosts configured.</p>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var conn in _model.AvailableMcpConnections)
+                                            {
+                                                <div class="form-check mb-1">
+                                                    <input type="checkbox" class="form-check-input" id="task@(index)_mcp_@conn.ItemId"
+                                                           checked="@task.SelectedMcpConnectionIds.Contains(conn.ItemId)"
+                                                           @onchange="e => ToggleTaskMcp(task, conn.ItemId, (bool)e.Value)" />
+                                                    <label class="form-check-label" for="task@(index)_mcp_@conn.ItemId">@conn.DisplayText</label>
+                                                </div>
+                                            }
+                                        }
+                                        <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                                        @if (_model.AvailableTools.Count == 0)
+                                        {
+                                            <p class="text-muted small">No AI tools registered.</p>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var group in _model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
+                                            {
+                                                <h6 class="text-secondary mt-2 mb-1 small"><i class="bi bi-folder"></i> @group.Key</h6>
+                                                @foreach (var tool in group)
+                                                {
+                                                    <div class="form-check mb-1">
+                                                        <input type="checkbox" class="form-check-input" id="task@(index)_tool_@tool.Name"
+                                                               checked="@task.SelectedToolNames.Contains(tool.Name)"
+                                                               @onchange="e => ToggleTaskTool(task, tool.Name, (bool)e.Value)" />
+                                                        <label class="form-check-label" for="task@(index)_tool_@tool.Name">@tool.Title</label>
+                                                    </div>
+                                                }
+                                            }
+                                        }
                                     </div>
                                 </div>
                             </div>
@@ -1251,6 +1349,42 @@
     private void AddExtractionEntry() => _model.DataExtractionEntries.Add(new DataExtractionEntryItem());
     private void AddConversionGoal() => _model.ConversionGoals.Add(new ConversionGoalItem());
     private void AddPostSessionTask() => _model.PostSessionTasks.Add(new PostSessionTaskItem());
+
+    private Dictionary<int, string> _taskActiveTabs = new();
+    private string GetTaskActiveTab(int index) => _taskActiveTabs.TryGetValue(index, out var tab) ? tab : "info";
+    private void SetTaskActiveTab(int index, string tab) => _taskActiveTabs[index] = tab;
+
+    private void ToggleTaskAgent(PostSessionTaskItem task, string name, bool selected)
+    {
+        var list = task.SelectedAgentNames.ToList();
+        if (selected && !list.Contains(name)) list.Add(name);
+        else if (!selected) list.Remove(name);
+        task.SelectedAgentNames = list.ToArray();
+    }
+
+    private void ToggleTaskA2A(PostSessionTaskItem task, string id, bool selected)
+    {
+        var list = task.SelectedA2AConnectionIds.ToList();
+        if (selected && !list.Contains(id)) list.Add(id);
+        else if (!selected) list.Remove(id);
+        task.SelectedA2AConnectionIds = list.ToArray();
+    }
+
+    private void ToggleTaskMcp(PostSessionTaskItem task, string id, bool selected)
+    {
+        var list = task.SelectedMcpConnectionIds.ToList();
+        if (selected && !list.Contains(id)) list.Add(id);
+        else if (!selected) list.Remove(id);
+        task.SelectedMcpConnectionIds = list.ToArray();
+    }
+
+    private void ToggleTaskTool(PostSessionTaskItem task, string name, bool selected)
+    {
+        var list = task.SelectedToolNames.ToList();
+        if (selected && !list.Contains(name)) list.Add(name);
+        else if (!selected) list.Remove(name);
+        task.SelectedToolNames = list.ToArray();
+    }
 
     private IEnumerable<IGrouping<string, PromptTemplateOptionItem>> FilteredPromptTemplateGroups =>
         _model.AvailablePromptTemplates

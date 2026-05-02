@@ -9,43 +9,50 @@ using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Blazor.Web.Areas.AI.Services;
 
+/// <summary>
+/// Handles document upload and removal for AI profiles in the Blazor Server application.
+/// Uses <see cref="IServiceScopeFactory"/> to create isolated scopes for database operations,
+/// preventing <see cref="ObjectDisposedException"/> when async work outlives the circuit's DI scope.
+/// </summary>
 public sealed class AIProfileDocumentService
 {
-    private readonly IAIDocumentStore _documentStore;
-    private readonly IAIDocumentChunkStore _chunkStore;
-    private readonly IDocumentFileStore _fileStore;
-    private readonly IAIDocumentProcessingService _documentProcessingService;
-    private readonly IAIDeploymentManager _deploymentManager;
-    private readonly IAIClientFactory _aiClientFactory;
-    private readonly DefaultAIDocumentIndexingService _documentIndexingService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AIProfileDocumentService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIProfileDocumentService"/> class.
+    /// </summary>
+    /// <param name="scopeFactory">The service scope factory used to create isolated DI scopes.</param>
+    /// <param name="logger">The logger instance.</param>
     public AIProfileDocumentService(
-        IAIDocumentStore documentStore,
-        IAIDocumentChunkStore chunkStore,
-        IDocumentFileStore fileStore,
-        IAIDocumentProcessingService documentProcessingService,
-        IAIDeploymentManager deploymentManager,
-        IAIClientFactory aiClientFactory,
-        DefaultAIDocumentIndexingService documentIndexingService,
+        IServiceScopeFactory scopeFactory,
         ILogger<AIProfileDocumentService> logger)
     {
-        _documentStore = documentStore;
-        _chunkStore = chunkStore;
-        _fileStore = fileStore;
-        _documentProcessingService = documentProcessingService;
-        _deploymentManager = deploymentManager;
-        _aiClientFactory = aiClientFactory;
-        _documentIndexingService = documentIndexingService;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
+    /// <summary>
+    /// Uploads and processes documents for the specified AI profile.
+    /// </summary>
+    /// <param name="profile">The AI profile to attach documents to.</param>
+    /// <param name="files">The collection of files to upload.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
     public async Task UploadDocumentsAsync(AIProfile profile, IReadOnlyCollection<IFormFile> files, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(files);
 
-        var embeddingGenerator = await CreateEmbeddingGeneratorAsync(profile);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var documentStore = scope.ServiceProvider.GetRequiredService<IAIDocumentStore>();
+        var chunkStore = scope.ServiceProvider.GetRequiredService<IAIDocumentChunkStore>();
+        var fileStore = scope.ServiceProvider.GetRequiredService<IDocumentFileStore>();
+        var documentProcessingService = scope.ServiceProvider.GetRequiredService<IAIDocumentProcessingService>();
+        var deploymentManager = scope.ServiceProvider.GetRequiredService<IAIDeploymentManager>();
+        var aiClientFactory = scope.ServiceProvider.GetRequiredService<IAIClientFactory>();
+        var documentIndexingService = scope.ServiceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
+
+        var embeddingGenerator = await CreateEmbeddingGeneratorAsync(profile, deploymentManager, aiClientFactory);
 
         foreach (var file in files)
         {
@@ -58,7 +65,7 @@ public sealed class AIProfileDocumentService
 
             try
             {
-                var result = await _documentProcessingService.ProcessFileAsync(
+                var result = await documentProcessingService.ProcessFileAsync(
                     file,
                     profile.ItemId,
                     AIReferenceTypes.Document.Profile,
@@ -77,20 +84,20 @@ public sealed class AIProfileDocumentService
 
                 using (var stream = file.OpenReadStream())
                 {
-                    await _fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
+                    await fileStore.SaveFileAsync(storageLocation.StoragePath, stream);
                 }
 
                 result.Document.StoredFileName = storageLocation.StoredFileName;
                 result.Document.StoredFilePath = storageLocation.StoragePath;
 
-                await _documentStore.CreateAsync(result.Document, cancellationToken);
+                await documentStore.CreateAsync(result.Document, cancellationToken);
 
                 foreach (var chunk in result.Chunks)
                 {
-                    await _chunkStore.CreateAsync(chunk, cancellationToken);
+                    await chunkStore.CreateAsync(chunk, cancellationToken);
                 }
 
-                await _documentIndexingService.IndexAsync(result.Document, result.Chunks, cancellationToken);
+                await documentIndexingService.IndexAsync(result.Document, result.Chunks, cancellationToken);
 
                 var documentsMetadata = profile.GetOrCreate<DocumentsMetadata>();
                 documentsMetadata.Documents ??= [];
@@ -104,6 +111,12 @@ public sealed class AIProfileDocumentService
         }
     }
 
+    /// <summary>
+    /// Removes the specified documents from the AI profile.
+    /// </summary>
+    /// <param name="profile">The AI profile to remove documents from.</param>
+    /// <param name="documentIds">The IDs of documents to remove.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
     public async Task RemoveDocumentsAsync(AIProfile profile, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -115,6 +128,12 @@ public sealed class AIProfileDocumentService
         {
             return;
         }
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var documentStore = scope.ServiceProvider.GetRequiredService<IAIDocumentStore>();
+        var chunkStore = scope.ServiceProvider.GetRequiredService<IAIDocumentChunkStore>();
+        var fileStore = scope.ServiceProvider.GetRequiredService<IDocumentFileStore>();
+        var documentIndexingService = scope.ServiceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
 
         foreach (var documentId in documentIds)
         {
@@ -137,25 +156,25 @@ public sealed class AIProfileDocumentService
 
                 documentsMetadata.Documents.Remove(docInfo);
 
-                var chunks = await _chunkStore.GetChunksByAIDocumentIdAsync(documentId);
+                var chunks = await chunkStore.GetChunksByAIDocumentIdAsync(documentId);
 
                 if (chunks.Count > 0)
                 {
-                    await _documentIndexingService.DeleteChunksAsync(chunks.Select(c => c.ItemId).ToArray(), cancellationToken);
+                    await documentIndexingService.DeleteChunksAsync(chunks.Select(c => c.ItemId).ToArray(), cancellationToken);
                 }
 
-                await _chunkStore.DeleteByDocumentIdAsync(documentId);
+                await chunkStore.DeleteByDocumentIdAsync(documentId);
 
-                var document = await _documentStore.FindByIdAsync(documentId, cancellationToken);
+                var document = await documentStore.FindByIdAsync(documentId, cancellationToken);
 
                 if (document != null)
                 {
                     if (!string.IsNullOrWhiteSpace(document.StoredFilePath))
                     {
-                        await _fileStore.DeleteFileAsync(document.StoredFilePath);
+                        await fileStore.DeleteFileAsync(document.StoredFilePath);
                     }
 
-                    await _documentStore.DeleteAsync(document, cancellationToken);
+                    await documentStore.DeleteAsync(document, cancellationToken);
                 }
             }
             catch (Exception ex)
@@ -167,6 +186,11 @@ public sealed class AIProfileDocumentService
         profile.Put(documentsMetadata);
     }
 
+    /// <summary>
+    /// Removes all documents associated with the specified AI profile.
+    /// </summary>
+    /// <param name="profile">The AI profile to remove all documents from.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
     public Task RemoveAllDocumentsAsync(AIProfile profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -182,28 +206,31 @@ public sealed class AIProfileDocumentService
         return RemoveDocumentsAsync(profile, documentIds, cancellationToken);
     }
 
-    private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIProfile profile)
+    private static async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
+        AIProfile profile,
+        IAIDeploymentManager deploymentManager,
+        IAIClientFactory aiClientFactory)
     {
-        var deployment = await ResolveEmbeddingDeploymentAsync(profile);
+        var deployment = await ResolveEmbeddingDeploymentAsync(profile, deploymentManager);
 
         if (deployment == null || string.IsNullOrWhiteSpace(deployment.ConnectionName))
         {
             return null;
         }
 
-        return await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
+        return await aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
     }
 
-    private async Task<AIDeployment> ResolveEmbeddingDeploymentAsync(AIProfile profile)
+    private static async Task<AIDeployment> ResolveEmbeddingDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        var profileDeployment = await ResolveProfileDeploymentAsync(profile);
+        var profileDeployment = await ResolveProfileDeploymentAsync(profile, deploymentManager);
 
         if (profileDeployment != null &&
             !string.IsNullOrWhiteSpace(profileDeployment.ClientName))
         {
-            var scopedEmbeddingDeployment = await _deploymentManager.ResolveOrDefaultAsync(
+            var scopedEmbeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Embedding,
                 clientName: profileDeployment.ClientName);
 
@@ -213,14 +240,14 @@ public sealed class AIProfileDocumentService
             }
         }
 
-        return await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
+        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
     }
 
-    private async Task<AIDeployment> ResolveProfileDeploymentAsync(AIProfile profile)
+    private static async Task<AIDeployment> ResolveProfileDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
     {
         if (!string.IsNullOrWhiteSpace(profile.ChatDeploymentName))
         {
-            var chatDeployment = await _deploymentManager.ResolveOrDefaultAsync(
+            var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Chat,
                 deploymentName: profile.ChatDeploymentName);
 
@@ -232,7 +259,7 @@ public sealed class AIProfileDocumentService
 
         if (!string.IsNullOrWhiteSpace(profile.UtilityDeploymentName))
         {
-            var utilityDeployment = await _deploymentManager.ResolveOrDefaultAsync(
+            var utilityDeployment = await deploymentManager.ResolveOrDefaultAsync(
                 AIDeploymentType.Utility,
                 deploymentName: profile.UtilityDeploymentName);
 
