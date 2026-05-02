@@ -504,7 +504,93 @@ public static class ServiceCollectionExtensions
 
         using var scope = services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<CrestAppsEntityDbContext>();
+        var storeOptions = scope.ServiceProvider.GetRequiredService<IOptions<EntityCoreDataStoreOptions>>().Value;
 
         await dbContext.Database.EnsureCreatedAsync();
+        await EnsureOptionalTablesAsync(dbContext, storeOptions.TablePrefix ?? string.Empty);
+    }
+
+    private static async Task EnsureOptionalTablesAsync(
+        CrestAppsEntityDbContext dbContext,
+        string tablePrefix)
+    {
+        var chatSessionEventsTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionEvents");
+        var chatSessionEventsPrimaryKeyName = GetSafeSqlIdentifier($"PK_{tablePrefix}AIChatSessionEvents");
+        var chatSessionEventsProfileIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_ProfileId");
+        var chatSessionEventsSessionStartedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_SessionStartedUtc");
+        var chatSessionEventsCreatedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_CreatedUtc");
+
+        var chatSessionEventsSql =
+            $"""
+            CREATE TABLE IF NOT EXISTS "{chatSessionEventsTableName}" (
+                "SessionId" TEXT NOT NULL CONSTRAINT "{chatSessionEventsPrimaryKeyName}" PRIMARY KEY,
+                "ProfileId" TEXT NULL,
+                "SessionStartedUtc" TEXT NOT NULL,
+                "CreatedUtc" TEXT NOT NULL,
+                "Payload" TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS "{chatSessionEventsProfileIdIndexName}" ON "{chatSessionEventsTableName}" ("ProfileId");
+            CREATE INDEX IF NOT EXISTS "{chatSessionEventsSessionStartedUtcIndexName}" ON "{chatSessionEventsTableName}" ("SessionStartedUtc");
+            CREATE INDEX IF NOT EXISTS "{chatSessionEventsCreatedUtcIndexName}" ON "{chatSessionEventsTableName}" ("CreatedUtc");
+            """;
+
+        await dbContext.Database.ExecuteSqlRawAsync(chatSessionEventsSql);
+
+        var completionUsageTableName = GetSafeSqlIdentifier($"{tablePrefix}AICompletionUsage");
+        var completionUsagePrimaryKeyName = GetSafeSqlIdentifier($"PK_{tablePrefix}AICompletionUsage");
+        var completionUsageCreatedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_CreatedUtc");
+        var completionUsageSessionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_SessionId");
+        var completionUsageInteractionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_InteractionId");
+
+        var completionUsageSql =
+            $"""
+            CREATE TABLE IF NOT EXISTS "{completionUsageTableName}" (
+                "Id" INTEGER NOT NULL CONSTRAINT "{completionUsagePrimaryKeyName}" PRIMARY KEY AUTOINCREMENT,
+                "CreatedUtc" TEXT NOT NULL,
+                "SessionId" TEXT NULL,
+                "InteractionId" TEXT NULL,
+                "Payload" TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS "{completionUsageCreatedUtcIndexName}" ON "{completionUsageTableName}" ("CreatedUtc");
+            CREATE INDEX IF NOT EXISTS "{completionUsageSessionIdIndexName}" ON "{completionUsageTableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{completionUsageInteractionIdIndexName}" ON "{completionUsageTableName}" ("InteractionId");
+            """;
+
+        await dbContext.Database.ExecuteSqlRawAsync(completionUsageSql);
+
+        var extractedDataTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionExtractedData");
+        var extractedDataPrimaryKeyName = GetSafeSqlIdentifier($"PK_{tablePrefix}AIChatSessionExtractedData");
+        var extractedDataProfileIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_ProfileId");
+        var extractedDataSessionStartedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_SessionStartedUtc");
+        var extractedDataUpdatedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_UpdatedUtc");
+
+        var extractedDataSql =
+            $"""
+            CREATE TABLE IF NOT EXISTS "{extractedDataTableName}" (
+                "SessionId" TEXT NOT NULL CONSTRAINT "{extractedDataPrimaryKeyName}" PRIMARY KEY,
+                "ProfileId" TEXT NOT NULL,
+                "SessionStartedUtc" TEXT NOT NULL,
+                "SessionEndedUtc" TEXT NULL,
+                "UpdatedUtc" TEXT NOT NULL,
+                "Payload" TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS "{extractedDataProfileIdIndexName}" ON "{extractedDataTableName}" ("ProfileId");
+            CREATE INDEX IF NOT EXISTS "{extractedDataSessionStartedUtcIndexName}" ON "{extractedDataTableName}" ("SessionStartedUtc");
+            CREATE INDEX IF NOT EXISTS "{extractedDataUpdatedUtcIndexName}" ON "{extractedDataTableName}" ("UpdatedUtc");
+            """;
+
+        await dbContext.Database.ExecuteSqlRawAsync(extractedDataSql);
+    }
+
+    private static string GetSafeSqlIdentifier(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(identifier);
+
+        if (identifier.Any(character => !char.IsLetterOrDigit(character) && character != '_'))
+        {
+            throw new InvalidOperationException($"Unsupported SQLite identifier '{identifier}'.");
+        }
+
+        return identifier;
     }
 }

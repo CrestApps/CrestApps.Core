@@ -10,6 +10,7 @@ Parameters:
 
 Analyze the following completed chat conversation and produce results for the requested tasks.
 Return exactly one structured result for each task listed below. Do not omit tasks, and do not return an empty tasks array. If a task does not need a tool call, still return its result value.
+IMPORTANT: If you call any tools, you MUST still return the JSON output with the "tasks" array as your final response after all tool calls complete.
 
 Tasks to process:
 {% for task in tasks %}

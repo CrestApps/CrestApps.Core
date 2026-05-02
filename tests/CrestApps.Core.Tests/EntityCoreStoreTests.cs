@@ -5,11 +5,13 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -266,6 +268,109 @@ public sealed class EntityCoreStoreTests
     }
 
     [Fact]
+    public async Task Initialize_entity_core_schema_async_adds_missing_tables_to_existing_database()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+                var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    CREATE TABLE "CA_CatalogRecords" (
+                        "EntityType" TEXT NOT NULL,
+                        "ItemId" TEXT NOT NULL,
+                        "Payload" TEXT NOT NULL,
+                        CONSTRAINT "PK_CA_CatalogRecords" PRIMARY KEY ("EntityType", "ItemId")
+                    );
+                    CREATE TABLE "CA_AIChatSessions" (
+                        "SessionId" TEXT NOT NULL,
+                        "Payload" TEXT NOT NULL,
+                        CONSTRAINT "PK_CA_AIChatSessions" PRIMARY KEY ("SessionId")
+                    );
+                    """;
+
+                await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+            }
+
+            var tableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var services = CreateEntityCoreServices(databasePath);
+
+            await using (var provider = services.BuildServiceProvider())
+            {
+                await provider.InitializeEntityCoreSchemaAsync();
+
+                await using var verificationConnection = new SqliteConnection($"Data Source={databasePath}");
+                await verificationConnection.OpenAsync(TestContext.Current.CancellationToken);
+
+                var query = verificationConnection.CreateCommand();
+                query.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
+
+                await using var reader = await query.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+                while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+                {
+                    tableNames.Add(reader.GetString(0));
+                }
+            }
+
+            Assert.Contains("CA_AIChatSessionEvents", tableNames);
+            Assert.Contains("CA_AICompletionUsage", tableNames);
+            Assert.Contains("CA_AIChatSessionExtractedData", tableNames);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+            {
+                try
+                {
+                    File.Delete(databasePath);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Entity_core_ai_profile_store_reads_legacy_profiles_with_missing_type_column()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var profileCatalog = services.GetRequiredService<INamedSourceCatalog<AIProfile>>();
+        var profileStore = services.GetRequiredService<IAIProfileStore>();
+        var committer = services.GetRequiredService<IStoreCommitter>();
+        var dbContext = services.GetRequiredService<CrestAppsEntityDbContext>();
+
+        var profile = new AIProfile
+        {
+            Name = "legacy-chat-profile",
+            DisplayText = "Legacy chat profile",
+            Type = AIProfileType.Chat,
+            CreatedUtc = DateTime.UtcNow,
+        };
+
+        await profileCatalog.CreateAsync(profile, cancellationToken);
+        await committer.CommitAsync(cancellationToken);
+
+        _ = await dbContext.Database.ExecuteSqlRawAsync(
+            "UPDATE CA_CatalogRecords SET Type = NULL WHERE EntityType = {0} AND ItemId = {1}",
+            typeof(AIProfile).FullName!,
+            profile.ItemId);
+
+        var profiles = await profileStore.GetByTypeAsync(AIProfileType.Chat, cancellationToken);
+
+        Assert.Contains(profiles, item => item.ItemId == profile.ItemId);
+    }
+
+    [Fact]
     public async Task EnforceNamedSourceUniqueness_RejectsDuplicateNameAndSourceWithinEntityType()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -340,19 +445,7 @@ public sealed class EntityCoreStoreTests
         public static async Task<EntityCoreTestHarness> CreateAsync(Action<EntityCoreDataStoreOptions> configureStore = null)
         {
             var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
-            var services = new ServiceCollection();
-
-            services.AddHttpContextAccessor();
-            services.AddLogging();
-            services.AddSingleton(TimeProvider.System);
-            services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-            services.AddCoreAIServices();
-            services.AddCoreEntityCoreDataStore(options => options.UseSqlite($"Data Source={databasePath}"), store =>
-            {
-                store.TablePrefix = "CA_";
-                configureStore?.Invoke(store);
-            });
-            services.AddEntityCoreStores();
+            var services = CreateEntityCoreServices(databasePath, configureStore);
 
             var provider = services.BuildServiceProvider();
             await provider.InitializeEntityCoreSchemaAsync();
@@ -375,5 +468,26 @@ public sealed class EntityCoreStoreTests
                 }
             }
         }
+    }
+
+    private static ServiceCollection CreateEntityCoreServices(
+        string databasePath,
+        Action<EntityCoreDataStoreOptions> configureStore = null)
+    {
+        var services = new ServiceCollection();
+
+        services.AddHttpContextAccessor();
+        services.AddLogging();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddCoreAIServices();
+        services.AddCoreEntityCoreDataStore(options => options.UseSqlite($"Data Source={databasePath}"), store =>
+        {
+            store.TablePrefix = "CA_";
+            configureStore?.Invoke(store);
+        });
+        services.AddEntityCoreStores();
+
+        return services;
     }
 }

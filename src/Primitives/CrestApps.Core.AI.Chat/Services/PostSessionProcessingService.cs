@@ -146,12 +146,12 @@ public sealed class PostSessionProcessingService
 
         var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
-            ["goals"] = goals.Select(g => new
+            ["goals"] = goals.Select(g => new Dictionary<string, object>
             {
-                g.Name,
-                g.Description,
-                g.MinScore,
-                g.MaxScore,
+                ["Name"] = g.Name,
+                ["Description"] = g.Description,
+                ["MinScore"] = g.MinScore,
+                ["MaxScore"] = g.MaxScore,
             }).ToList(),
             ["prompts"] = ProjectPrompts(prompts),
         };
@@ -293,13 +293,17 @@ public sealed class PostSessionProcessingService
 
         var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
-            ["tasks"] = tasksToProcess.Select(t => new
+            ["tasks"] = tasksToProcess.Select(t => new Dictionary<string, object>
             {
-                t.Name,
-                Type = t.Type.ToString(),
-                t.Instructions,
-                t.AllowMultipleValues,
-                Options = t.Options?.Select(o => new { o.Value, o.Description }).ToList(),
+                ["Name"] = t.Name,
+                ["Type"] = t.Type.ToString(),
+                ["Instructions"] = t.Instructions,
+                ["AllowMultipleValues"] = t.AllowMultipleValues,
+                ["Options"] = t.Options?.Select(o => new Dictionary<string, object>
+                {
+                    ["Value"] = o.Value,
+                    ["Description"] = o.Description,
+                }).ToList(),
             }).ToList(),
             ["prompts"] = ProjectPrompts(prompts),
         };
@@ -381,6 +385,11 @@ public sealed class PostSessionProcessingService
         List<PostSessionTask> tasks,
         CancellationToken cancellationToken)
     {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            LogResponseMessages(session.SessionId, "tools-request", messages);
+        }
+
         // Wrap the raw client with FunctionInvokingChatClient so that tool_call
         // messages returned by the model are actually executed (e.g., sendEmail).
         var client = chatClient
@@ -414,6 +423,8 @@ public sealed class PostSessionProcessingService
                 response.Messages?.Count ?? 0,
                 toolCallCount,
                 toolResultCount);
+
+            LogResponseMessages(session.SessionId, "tools", response.Messages);
         }
 
         // Extract the final assistant message text, ignoring intermediate tool
@@ -583,6 +594,8 @@ public sealed class PostSessionProcessingService
                 session.SessionId,
                 reason,
                 CreateResponseLogPreview(responseText));
+
+            LogResponseMessages(session.SessionId, $"structured({reason})", response.Messages);
         }
 
         if (result?.Tasks == null)
@@ -784,12 +797,23 @@ public sealed class PostSessionProcessingService
             }
         }
 
+        // Add an explicit user message to guide the model into producing
+        // structured JSON after tool calls have been executed.
+        var taskNamesList = string.Join(", ", tasks.Select(t => t.Name));
+        followUpMessages.Add(new ChatMessage(ChatRole.User,
+            $"""
+            The tool calls above have been completed. Now return ONLY the required JSON output with the "tasks" array. 
+            Each task must have a "name" and "value" field. The tasks you must include are: {taskNamesList}.
+            Do NOT wrap in markdown. Return raw JSON only.
+            """));
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "Attempting structured recovery for post-session tool response on session '{SessionId}' using the original post-session analysis context. TaskCount={TaskCount}.",
+                "Attempting structured recovery for post-session tool response on session '{SessionId}' using the original post-session analysis context. TaskCount={TaskCount}, TotalMessages={MessageCount}.",
                 sessionId,
-                tasks.Count);
+                tasks.Count,
+                followUpMessages.Count);
         }
 
         var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(followUpMessages, new ChatOptions
@@ -805,6 +829,8 @@ public sealed class PostSessionProcessingService
                 "Post-session structured recovery raw response for session '{SessionId}': '{ResponseText}'.",
                 sessionId,
                 CreateResponseLogPreview(recoveryResponseText));
+
+            LogResponseMessages(sessionId, "structured-recovery", response.Messages);
         }
 
         PostSessionProcessingResponse result = null;
@@ -1316,13 +1342,75 @@ public sealed class PostSessionProcessingService
     {
         return prompts
             .Where(p => !p.IsGeneratedPrompt)
-            .Select(p => new
+            .Select(p => (object)new Dictionary<string, object>
             {
-                Role = p.Role == ChatRole.User ? "User" : "Assistant",
-                Content = p.Content?.Trim(),
+                ["Role"] = p.Role == ChatRole.User ? "User" : "Assistant",
+                ["Content"] = p.Content?.Trim(),
             })
-        .Cast<object>()
-        .ToList();
+            .ToList();
+    }
+
+    private void LogResponseMessages(string sessionId, string phase, IList<ChatMessage> messages)
+    {
+        if (!_logger.IsEnabled(LogLevel.Debug))
+        {
+            return;
+        }
+
+        if (messages is null || messages.Count == 0)
+        {
+            _logger.LogDebug(
+                "Post-session {Phase} messages for session '{SessionId}': (no messages).",
+                phase,
+                sessionId);
+
+            return;
+        }
+
+        for (var i = 0; i < messages.Count; i++)
+        {
+            var message = messages[i];
+            var textContent = GetMessageText(message);
+            var functionCalls = message.Contents?.OfType<FunctionCallContent>().ToList() ?? [];
+            var functionResults = message.Contents?.OfType<FunctionResultContent>().ToList() ?? [];
+
+            if (functionCalls.Count > 0)
+            {
+                var callSummaries = string.Join("; ", functionCalls.Select(fc =>
+                    $"{fc.Name}({CreateResponseLogPreview(fc.Arguments?.ToString())})"));
+
+                _logger.LogDebug(
+                    "Post-session {Phase} message[{Index}] for session '{SessionId}': Role={Role}, ToolCalls=[{ToolCalls}].",
+                    phase,
+                    i,
+                    sessionId,
+                    message.Role,
+                    callSummaries);
+            }
+            else if (functionResults.Count > 0)
+            {
+                var resultSummaries = string.Join("; ", functionResults.Select(fr =>
+                    $"{fr.CallId}={CreateResponseLogPreview(fr.Result?.ToString())}"));
+
+                _logger.LogDebug(
+                    "Post-session {Phase} message[{Index}] for session '{SessionId}': Role={Role}, ToolResults=[{ToolResults}].",
+                    phase,
+                    i,
+                    sessionId,
+                    message.Role,
+                    resultSummaries);
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Post-session {Phase} message[{Index}] for session '{SessionId}': Role={Role}, Text='{Text}'.",
+                    phase,
+                    i,
+                    sessionId,
+                    message.Role,
+                    CreateResponseLogPreview(textContent));
+            }
+        }
     }
 
     private sealed class PostSessionProcessingResponse

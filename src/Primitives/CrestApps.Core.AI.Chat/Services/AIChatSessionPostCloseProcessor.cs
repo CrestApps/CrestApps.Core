@@ -45,7 +45,8 @@ public sealed class AIChatSessionPostCloseProcessor
     /// <summary>
     /// Gets the effective maximum number of post-close retry attempts.
     /// </summary>
-    public int MaxPostCloseAttempts => NormalizeMaxPostCloseAttempts(_optionsMonitor.CurrentValue?.MaxPostCloseAttempts ?? AIChatSessionProcessingOptions.DefaultMaxPostCloseAttempts);
+    public int MaxPostCloseAttempts
+        => NormalizeMaxPostCloseAttempts(_optionsMonitor.CurrentValue?.MaxPostCloseAttempts ?? AIChatSessionProcessingOptions.DefaultMaxPostCloseAttempts);
 
     /// <summary>
     /// Needss processing.
@@ -378,7 +379,6 @@ public sealed class AIChatSessionPostCloseProcessor
         ArgumentNullException.ThrowIfNull(destination);
 
         destination.Attempts = source.Attempts;
-        destination.ErrorMessage = source.ErrorMessage;
         destination.AttemptHistory = source.AttemptHistory == null
             ? []
             : [.. source.AttemptHistory.Select(attempt => new PostSessionTaskAttempt

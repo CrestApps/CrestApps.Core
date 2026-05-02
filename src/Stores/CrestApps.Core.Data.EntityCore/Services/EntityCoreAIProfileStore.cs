@@ -27,9 +27,12 @@ public sealed class EntityCoreAIProfileStore : NamedSourceDocumentCatalog<AIProf
     {
         var profileType = type.ToString();
         var records = await GetReadQuery()
-            .Where(x => x.Type == profileType)
+            .Where(x => x.Type == profileType || x.Type == null || x.Type == string.Empty)
             .ToListAsync(cancellationToken);
 
-        return records.Select(CatalogRecordFactory.Materialize<AIProfile>).ToArray();
+        return records
+            .Select(CatalogRecordFactory.Materialize<AIProfile>)
+            .Where(profile => profile.Type == type)
+            .ToArray();
     }
 }
