@@ -34,10 +34,14 @@ public sealed class EntityCoreAICompletionUsageStore : IAICompletionUsageStore
 
         _dbContext.AICompletionUsageRecords.Add(new AICompletionUsageStoreRecord
         {
+            Document = new DocumentRecord
+            {
+                Type = typeof(AICompletionUsageRecord).FullName!,
+                Content = EntityCoreStoreSerializer.Serialize(record),
+            },
             CreatedUtc = record.CreatedUtc,
             SessionId = record.SessionId,
             InteractionId = record.InteractionId,
-            Payload = EntityCoreStoreSerializer.Serialize(record),
         });
 
         return Task.CompletedTask;
@@ -54,7 +58,10 @@ public sealed class EntityCoreAICompletionUsageStore : IAICompletionUsageStore
         DateTime? endDateUtc,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbContext.AICompletionUsageRecords.AsNoTracking();
+        var query = _dbContext.AICompletionUsageRecords
+            .AsNoTracking()
+            .Include(x => x.Document)
+            .AsQueryable();
 
         if (startDateUtc.HasValue)
         {
@@ -73,7 +80,7 @@ public sealed class EntityCoreAICompletionUsageStore : IAICompletionUsageStore
             .ToListAsync(cancellationToken);
 
         return records
-            .Select(record => EntityCoreStoreSerializer.Deserialize<AICompletionUsageRecord>(record.Payload))
+            .Select(record => EntityCoreStoreSerializer.Deserialize<AICompletionUsageRecord>(record.Document.Content))
             .ToList();
     }
 }

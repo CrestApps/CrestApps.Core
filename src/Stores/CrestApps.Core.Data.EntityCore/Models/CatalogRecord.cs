@@ -7,14 +7,28 @@ namespace CrestApps.Core.Data.EntityCore.Models;
 public sealed class CatalogRecord
 {
     /// <summary>
-    /// Gets or sets the CLR or logical type name of the catalogued entity,
-    /// used as part of the composite primary key.
+    /// Gets or sets the database-generated identity for this record.
+    /// </summary>
+    public long Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the foreign key to the <see cref="DocumentRecord"/> that holds
+    /// the serialized JSON payload for this catalogue entry.
+    /// </summary>
+    public long DocumentId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the navigation property to the associated <see cref="DocumentRecord"/>.
+    /// </summary>
+    public DocumentRecord Document { get; set; }
+
+    /// <summary>
+    /// Gets or sets the CLR or logical type name of the catalogued entity.
     /// </summary>
     public string EntityType { get; set; }
 
     /// <summary>
-    /// Gets or sets the unique identifier of the catalogued item,
-    /// used as part of the composite primary key.
+    /// Gets or sets the unique identifier of the catalogued item.
     /// </summary>
     public string ItemId { get; set; }
 
@@ -78,9 +92,4 @@ public sealed class CatalogRecord
     /// Gets or sets the UTC date and time when the record was last updated, if tracked.
     /// </summary>
     public DateTime? UpdatedUtc { get; set; }
-
-    /// <summary>
-    /// Gets or sets the serialized JSON payload containing the full entity data.
-    /// </summary>
-    public string Payload { get; set; }
 }

@@ -507,79 +507,715 @@ public static class ServiceCollectionExtensions
         var storeOptions = scope.ServiceProvider.GetRequiredService<IOptions<EntityCoreDataStoreOptions>>().Value;
 
         await dbContext.Database.EnsureCreatedAsync();
-        await EnsureOptionalTablesAsync(dbContext, storeOptions.TablePrefix ?? string.Empty);
+
+        var tablePrefix = storeOptions.TablePrefix ?? string.Empty;
+
+#pragma warning disable CS0618
+        await MigrateFromLegacySchemaIfNeededAsync(dbContext, tablePrefix);
+#pragma warning restore CS0618
+        await EnsureOptionalTablesAsync(dbContext, tablePrefix);
+    }
+
+    /// <summary>
+    /// Detects the pre-v1 (Payload-per-table) schema and migrates data into the
+    /// centralized <c>Documents</c> table, adding identity and foreign-key columns
+    /// to every index table. Existing databases are transformed in a single
+    /// transaction; brand-new databases created by <c>EnsureCreatedAsync</c>
+    /// are not affected.
+    /// </summary>
+    [Obsolete("Schema migration from pre-v1 layout. Will be removed before v1.0.0 ships.")]
+    private static async Task MigrateFromLegacySchemaIfNeededAsync(
+        CrestAppsEntityDbContext dbContext,
+        string tablePrefix)
+    {
+        var catalogTableName = GetSafeSqlIdentifier($"{tablePrefix}CatalogRecords");
+
+        if (!await HasColumnAsync(dbContext, catalogTableName, "Payload"))
+        {
+            return;
+        }
+
+        var documentsTableName = GetSafeSqlIdentifier($"{tablePrefix}Documents");
+        var sessionsTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessions");
+        var eventsTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionEvents");
+        var usageTableName = GetSafeSqlIdentifier($"{tablePrefix}AICompletionUsage");
+        var extractedTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionExtractedData");
+
+        var connection = dbContext.Database.GetDbConnection();
+        await connection.OpenAsync();
+
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            await ExecuteNonQueryAsync(connection, transaction,
+                $"""
+                CREATE TABLE IF NOT EXISTS "{documentsTableName}" (
+                    "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                    "Type" TEXT NOT NULL,
+                    "Content" TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}Documents_Type")}" ON "{documentsTableName}" ("Type");
+                """);
+
+            await MigrateCatalogRecordsAsync(connection, transaction, catalogTableName, documentsTableName, tablePrefix);
+            await MigrateAIChatSessionsAsync(connection, transaction, sessionsTableName, documentsTableName, tablePrefix);
+
+            if (await TableExistsAsync(connection, transaction, eventsTableName))
+            {
+                await MigrateAIChatSessionEventsAsync(connection, transaction, eventsTableName, documentsTableName, tablePrefix);
+            }
+
+            if (await TableExistsAsync(connection, transaction, usageTableName))
+            {
+                await MigrateAICompletionUsageAsync(connection, transaction, usageTableName, documentsTableName, tablePrefix);
+            }
+
+            if (await TableExistsAsync(connection, transaction, extractedTableName))
+            {
+                await MigrateAIChatSessionExtractedDataAsync(connection, transaction, extractedTableName, documentsTableName, tablePrefix);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
+    }
+
+    [Obsolete("Schema migration from pre-v1 layout. Will be removed before v1.0.0 ships.")]
+    private static async Task MigrateCatalogRecordsAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName,
+        string documentsTableName,
+        string tablePrefix)
+    {
+        var backupName = $"{tableName}_v0";
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""ALTER TABLE "{tableName}" RENAME TO "{backupName}";""");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE TABLE "{tableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
+                "EntityType" TEXT NOT NULL,
+                "ItemId" TEXT NOT NULL,
+                "Name" TEXT NULL,
+                "DisplayText" TEXT NULL,
+                "Source" TEXT NULL,
+                "SessionId" TEXT NULL,
+                "ChatInteractionId" TEXT NULL,
+                "ReferenceId" TEXT NULL,
+                "ReferenceType" TEXT NULL,
+                "AIDocumentId" TEXT NULL,
+                "UserId" TEXT NULL,
+                "Type" TEXT NULL,
+                "CreatedUtc" TEXT NULL,
+                "UpdatedUtc" TEXT NULL,
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
+            );
+            """);
+
+        var availableCols = await GetColumnNamesAsync(connection, transaction, backupName);
+
+        string Col(string name) =>
+            availableCols.Contains(name) ? $"\"{name}\"" : $"NULL AS \"{name}\"";
+
+        using (var readCmd = connection.CreateCommand())
+        {
+            readCmd.Transaction = transaction;
+            readCmd.CommandText =
+                $"""
+                SELECT "EntityType", "ItemId", {Col("Name")}, {Col("DisplayText")}, {Col("Source")},
+                       {Col("SessionId")}, {Col("ChatInteractionId")}, {Col("ReferenceId")}, {Col("ReferenceType")},
+                       {Col("AIDocumentId")}, {Col("UserId")}, {Col("Type")}, {Col("CreatedUtc")}, {Col("UpdatedUtc")},
+                       "Payload"
+                FROM "{backupName}";
+                """;
+
+            using var reader = await readCmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var docId = await InsertDocumentAsync(connection, transaction, documentsTableName,
+                    reader.GetString(0), reader.GetString(14));
+
+                using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText =
+                    $"""
+                    INSERT INTO "{tableName}" ("DocumentId","EntityType","ItemId","Name","DisplayText","Source","SessionId","ChatInteractionId","ReferenceId","ReferenceType","AIDocumentId","UserId","Type","CreatedUtc","UpdatedUtc")
+                    VALUES (@d,@et,@ii,@n,@dt,@s,@si,@ci,@ri,@rt,@ai,@ui,@t,@cu,@uu);
+                    """;
+
+                AddParam(insertCmd, "@d", docId);
+                AddParam(insertCmd, "@et", reader, 0);
+                AddParam(insertCmd, "@ii", reader, 1);
+                AddParam(insertCmd, "@n", reader, 2);
+                AddParam(insertCmd, "@dt", reader, 3);
+                AddParam(insertCmd, "@s", reader, 4);
+                AddParam(insertCmd, "@si", reader, 5);
+                AddParam(insertCmd, "@ci", reader, 6);
+                AddParam(insertCmd, "@ri", reader, 7);
+                AddParam(insertCmd, "@rt", reader, 8);
+                AddParam(insertCmd, "@ai", reader, 9);
+                AddParam(insertCmd, "@ui", reader, 10);
+                AddParam(insertCmd, "@t", reader, 11);
+                AddParam(insertCmd, "@cu", reader, 12);
+                AddParam(insertCmd, "@uu", reader, 13);
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        await ExecuteNonQueryAsync(connection, transaction, $"""DROP TABLE "{backupName}";""");
+
+        await CreateCatalogIndexes(connection, transaction, tableName, tablePrefix);
+    }
+
+    [Obsolete("Schema migration from pre-v1 layout. Will be removed before v1.0.0 ships.")]
+    private static async Task MigrateAIChatSessionsAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName,
+        string documentsTableName,
+        string tablePrefix)
+    {
+        var backupName = $"{tableName}_v0";
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""ALTER TABLE "{tableName}" RENAME TO "{backupName}";""");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE TABLE "{tableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
+                "SessionId" TEXT NOT NULL,
+                "ProfileId" TEXT NULL,
+                "Title" TEXT NULL,
+                "UserId" TEXT NULL,
+                "ClientId" TEXT NULL,
+                "Status" INTEGER NOT NULL DEFAULT 0,
+                "CreatedUtc" TEXT NOT NULL,
+                "LastActivityUtc" TEXT NOT NULL,
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
+            );
+            """);
+
+        var sessionType = typeof(CrestApps.Core.AI.Models.AIChatSession).FullName!;
+        var availableCols = await GetColumnNamesAsync(connection, transaction, backupName);
+        var epoch = "0001-01-01T00:00:00";
+
+        string Col(string name) =>
+            availableCols.Contains(name) ? $"\"{name}\"" : $"NULL AS \"{name}\"";
+
+        string ColOrDefault(string name, string defaultValue) =>
+            availableCols.Contains(name)
+                ? $"COALESCE(\"{name}\", '{defaultValue}') AS \"{name}\""
+                : $"'{defaultValue}' AS \"{name}\"";
+
+        using (var readCmd = connection.CreateCommand())
+        {
+            readCmd.Transaction = transaction;
+            readCmd.CommandText =
+                $"""
+                SELECT "SessionId", {Col("ProfileId")}, {Col("Title")}, {Col("UserId")},
+                       {Col("ClientId")}, {ColOrDefault("Status", "0")},
+                       {ColOrDefault("CreatedUtc", epoch)}, {ColOrDefault("LastActivityUtc", epoch)},
+                       "Payload"
+                FROM "{backupName}";
+                """;
+
+            using var reader = await readCmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var docId = await InsertDocumentAsync(connection, transaction, documentsTableName,
+                    sessionType, reader.GetString(8));
+
+                using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText =
+                    $"""
+                    INSERT INTO "{tableName}" ("DocumentId","SessionId","ProfileId","Title","UserId","ClientId","Status","CreatedUtc","LastActivityUtc")
+                    VALUES (@d,@si,@pi,@t,@ui,@ci,@st,@cu,@la);
+                    """;
+
+                AddParam(insertCmd, "@d", docId);
+                AddParam(insertCmd, "@si", reader, 0);
+                AddParam(insertCmd, "@pi", reader, 1);
+                AddParam(insertCmd, "@t", reader, 2);
+                AddParam(insertCmd, "@ui", reader, 3);
+                AddParam(insertCmd, "@ci", reader, 4);
+                AddParam(insertCmd, "@st", reader, 5);
+                AddParam(insertCmd, "@cu", reader, 6);
+                AddParam(insertCmd, "@la", reader, 7);
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        await ExecuteNonQueryAsync(connection, transaction, $"""DROP TABLE "{backupName}";""");
+
+        var sessionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessions_SessionId");
+        var profileIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessions_ProfileId");
+        var lastActivityIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessions_LastActivityUtc");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE UNIQUE INDEX IF NOT EXISTS "{sessionIdIndexName}" ON "{tableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{profileIdIndexName}" ON "{tableName}" ("ProfileId");
+            CREATE INDEX IF NOT EXISTS "{lastActivityIndexName}" ON "{tableName}" ("LastActivityUtc");
+            """);
+    }
+
+    [Obsolete("Schema migration from pre-v1 layout. Will be removed before v1.0.0 ships.")]
+    private static async Task MigrateAIChatSessionEventsAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName,
+        string documentsTableName,
+        string tablePrefix)
+    {
+        var backupName = $"{tableName}_v0";
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""ALTER TABLE "{tableName}" RENAME TO "{backupName}";""");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE TABLE "{tableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
+                "SessionId" TEXT NOT NULL,
+                "ProfileId" TEXT NULL,
+                "SessionStartedUtc" TEXT NOT NULL,
+                "CreatedUtc" TEXT NOT NULL,
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
+            );
+            """);
+
+        var eventType = typeof(CrestApps.Core.AI.Models.AIChatSessionEvent).FullName!;
+
+        using (var readCmd = connection.CreateCommand())
+        {
+            readCmd.Transaction = transaction;
+            readCmd.CommandText = $"""SELECT "SessionId","ProfileId","SessionStartedUtc","CreatedUtc","Payload" FROM "{backupName}";""";
+
+            using var reader = await readCmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var docId = await InsertDocumentAsync(connection, transaction, documentsTableName,
+                    eventType, reader.GetString(4));
+
+                using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText =
+                    $"""
+                    INSERT INTO "{tableName}" ("DocumentId","SessionId","ProfileId","SessionStartedUtc","CreatedUtc")
+                    VALUES (@d,@si,@pi,@ss,@cu);
+                    """;
+
+                AddParam(insertCmd, "@d", docId);
+                AddParam(insertCmd, "@si", reader, 0);
+                AddParam(insertCmd, "@pi", reader, 1);
+                AddParam(insertCmd, "@ss", reader, 2);
+                AddParam(insertCmd, "@cu", reader, 3);
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        await ExecuteNonQueryAsync(connection, transaction, $"""DROP TABLE "{backupName}";""");
+
+        var sessionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_SessionId");
+        var profileIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_ProfileId");
+        var sessionStartedIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_SessionStartedUtc");
+        var createdUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_CreatedUtc");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE UNIQUE INDEX IF NOT EXISTS "{sessionIdIndexName}" ON "{tableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{profileIdIndexName}" ON "{tableName}" ("ProfileId");
+            CREATE INDEX IF NOT EXISTS "{sessionStartedIndexName}" ON "{tableName}" ("SessionStartedUtc");
+            CREATE INDEX IF NOT EXISTS "{createdUtcIndexName}" ON "{tableName}" ("CreatedUtc");
+            """);
+    }
+
+    [Obsolete("Schema migration from pre-v1 layout. Will be removed before v1.0.0 ships.")]
+    private static async Task MigrateAICompletionUsageAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName,
+        string documentsTableName,
+        string tablePrefix)
+    {
+        var backupName = $"{tableName}_v0";
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""ALTER TABLE "{tableName}" RENAME TO "{backupName}";""");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE TABLE "{tableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
+                "CreatedUtc" TEXT NOT NULL,
+                "SessionId" TEXT NULL,
+                "InteractionId" TEXT NULL,
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
+            );
+            """);
+
+        var usageType = typeof(CrestApps.Core.AI.Models.AICompletionUsageRecord).FullName!;
+
+        using (var readCmd = connection.CreateCommand())
+        {
+            readCmd.Transaction = transaction;
+            readCmd.CommandText = $"""SELECT "CreatedUtc","SessionId","InteractionId","Payload" FROM "{backupName}";""";
+
+            using var reader = await readCmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var docId = await InsertDocumentAsync(connection, transaction, documentsTableName,
+                    usageType, reader.GetString(3));
+
+                using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText =
+                    $"""
+                    INSERT INTO "{tableName}" ("DocumentId","CreatedUtc","SessionId","InteractionId")
+                    VALUES (@d,@cu,@si,@ii);
+                    """;
+
+                AddParam(insertCmd, "@d", docId);
+                AddParam(insertCmd, "@cu", reader, 0);
+                AddParam(insertCmd, "@si", reader, 1);
+                AddParam(insertCmd, "@ii", reader, 2);
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        await ExecuteNonQueryAsync(connection, transaction, $"""DROP TABLE "{backupName}";""");
+
+        var createdUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_CreatedUtc");
+        var sessionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_SessionId");
+        var interactionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_InteractionId");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE INDEX IF NOT EXISTS "{createdUtcIndexName}" ON "{tableName}" ("CreatedUtc");
+            CREATE INDEX IF NOT EXISTS "{sessionIdIndexName}" ON "{tableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{interactionIdIndexName}" ON "{tableName}" ("InteractionId");
+            """);
+    }
+
+    [Obsolete("Schema migration from pre-v1 layout. Will be removed before v1.0.0 ships.")]
+    private static async Task MigrateAIChatSessionExtractedDataAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName,
+        string documentsTableName,
+        string tablePrefix)
+    {
+        var backupName = $"{tableName}_v0";
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""ALTER TABLE "{tableName}" RENAME TO "{backupName}";""");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE TABLE "{tableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
+                "SessionId" TEXT NOT NULL,
+                "ProfileId" TEXT NOT NULL,
+                "SessionStartedUtc" TEXT NOT NULL,
+                "SessionEndedUtc" TEXT NULL,
+                "UpdatedUtc" TEXT NOT NULL,
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
+            );
+            """);
+
+        var extractedType = typeof(CrestApps.Core.AI.Models.AIChatSessionExtractedDataRecord).FullName!;
+
+        using (var readCmd = connection.CreateCommand())
+        {
+            readCmd.Transaction = transaction;
+            readCmd.CommandText = $"""SELECT "SessionId","ProfileId","SessionStartedUtc","SessionEndedUtc","UpdatedUtc","Payload" FROM "{backupName}";""";
+
+            using var reader = await readCmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var docId = await InsertDocumentAsync(connection, transaction, documentsTableName,
+                    extractedType, reader.GetString(5));
+
+                using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText =
+                    $"""
+                    INSERT INTO "{tableName}" ("DocumentId","SessionId","ProfileId","SessionStartedUtc","SessionEndedUtc","UpdatedUtc")
+                    VALUES (@d,@si,@pi,@ss,@se,@uu);
+                    """;
+
+                AddParam(insertCmd, "@d", docId);
+                AddParam(insertCmd, "@si", reader, 0);
+                AddParam(insertCmd, "@pi", reader, 1);
+                AddParam(insertCmd, "@ss", reader, 2);
+                AddParam(insertCmd, "@se", reader, 3);
+                AddParam(insertCmd, "@uu", reader, 4);
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        await ExecuteNonQueryAsync(connection, transaction, $"""DROP TABLE "{backupName}";""");
+
+        var sessionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_SessionId");
+        var profileIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_ProfileId");
+        var sessionStartedIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_SessionStartedUtc");
+        var updatedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_UpdatedUtc");
+
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE UNIQUE INDEX IF NOT EXISTS "{sessionIdIndexName}" ON "{tableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{profileIdIndexName}" ON "{tableName}" ("ProfileId");
+            CREATE INDEX IF NOT EXISTS "{sessionStartedIndexName}" ON "{tableName}" ("SessionStartedUtc");
+            CREATE INDEX IF NOT EXISTS "{updatedUtcIndexName}" ON "{tableName}" ("UpdatedUtc");
+            """);
+    }
+
+    [Obsolete("Schema migration from pre-v1 layout. Will be removed before v1.0.0 ships.")]
+    private static async Task CreateCatalogIndexes(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName,
+        string tablePrefix)
+    {
+        await ExecuteNonQueryAsync(connection, transaction,
+            $"""
+            CREATE UNIQUE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_ItemId")}" ON "{tableName}" ("EntityType", "ItemId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_Name")}" ON "{tableName}" ("EntityType", "Name");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_Source")}" ON "{tableName}" ("EntityType", "Source");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_SessionId")}" ON "{tableName}" ("EntityType", "SessionId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_ChatInteractionId")}" ON "{tableName}" ("EntityType", "ChatInteractionId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_ReferenceId_ReferenceType")}" ON "{tableName}" ("EntityType", "ReferenceId", "ReferenceType");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_AIDocumentId")}" ON "{tableName}" ("EntityType", "AIDocumentId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_UserId_Name")}" ON "{tableName}" ("EntityType", "UserId", "Name");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_Type")}" ON "{tableName}" ("EntityType", "Type");
+            """);
     }
 
     private static async Task EnsureOptionalTablesAsync(
         CrestAppsEntityDbContext dbContext,
         string tablePrefix)
     {
-        var chatSessionEventsTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionEvents");
-        var chatSessionEventsPrimaryKeyName = GetSafeSqlIdentifier($"PK_{tablePrefix}AIChatSessionEvents");
-        var chatSessionEventsProfileIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_ProfileId");
-        var chatSessionEventsSessionStartedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_SessionStartedUtc");
-        var chatSessionEventsCreatedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_CreatedUtc");
+        var documentsTableName = GetSafeSqlIdentifier($"{tablePrefix}Documents");
+        var eventsTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionEvents");
+        var usageTableName = GetSafeSqlIdentifier($"{tablePrefix}AICompletionUsage");
+        var extractedTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionExtractedData");
 
-        var chatSessionEventsSql =
+        string documentsSql =
             $"""
-            CREATE TABLE IF NOT EXISTS "{chatSessionEventsTableName}" (
-                "SessionId" TEXT NOT NULL CONSTRAINT "{chatSessionEventsPrimaryKeyName}" PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS "{documentsTableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "Type" TEXT NOT NULL,
+                "Content" TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}Documents_Type")}" ON "{documentsTableName}" ("Type");
+            """;
+
+        await dbContext.Database.ExecuteSqlRawAsync(documentsSql);
+
+        string eventsSql =
+            $"""
+            CREATE TABLE IF NOT EXISTS "{eventsTableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
+                "SessionId" TEXT NOT NULL,
                 "ProfileId" TEXT NULL,
                 "SessionStartedUtc" TEXT NOT NULL,
                 "CreatedUtc" TEXT NOT NULL,
-                "Payload" TEXT NOT NULL
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
             );
-            CREATE INDEX IF NOT EXISTS "{chatSessionEventsProfileIdIndexName}" ON "{chatSessionEventsTableName}" ("ProfileId");
-            CREATE INDEX IF NOT EXISTS "{chatSessionEventsSessionStartedUtcIndexName}" ON "{chatSessionEventsTableName}" ("SessionStartedUtc");
-            CREATE INDEX IF NOT EXISTS "{chatSessionEventsCreatedUtcIndexName}" ON "{chatSessionEventsTableName}" ("CreatedUtc");
+            CREATE UNIQUE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_SessionId")}" ON "{eventsTableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_ProfileId")}" ON "{eventsTableName}" ("ProfileId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_SessionStartedUtc")}" ON "{eventsTableName}" ("SessionStartedUtc");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionEvents_CreatedUtc")}" ON "{eventsTableName}" ("CreatedUtc");
             """;
 
-        await dbContext.Database.ExecuteSqlRawAsync(chatSessionEventsSql);
+        await dbContext.Database.ExecuteSqlRawAsync(eventsSql);
 
-        var completionUsageTableName = GetSafeSqlIdentifier($"{tablePrefix}AICompletionUsage");
-        var completionUsagePrimaryKeyName = GetSafeSqlIdentifier($"PK_{tablePrefix}AICompletionUsage");
-        var completionUsageCreatedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_CreatedUtc");
-        var completionUsageSessionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_SessionId");
-        var completionUsageInteractionIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_InteractionId");
-
-        var completionUsageSql =
+        string usageSql =
             $"""
-            CREATE TABLE IF NOT EXISTS "{completionUsageTableName}" (
-                "Id" INTEGER NOT NULL CONSTRAINT "{completionUsagePrimaryKeyName}" PRIMARY KEY AUTOINCREMENT,
+            CREATE TABLE IF NOT EXISTS "{usageTableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
                 "CreatedUtc" TEXT NOT NULL,
                 "SessionId" TEXT NULL,
                 "InteractionId" TEXT NULL,
-                "Payload" TEXT NOT NULL
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
             );
-            CREATE INDEX IF NOT EXISTS "{completionUsageCreatedUtcIndexName}" ON "{completionUsageTableName}" ("CreatedUtc");
-            CREATE INDEX IF NOT EXISTS "{completionUsageSessionIdIndexName}" ON "{completionUsageTableName}" ("SessionId");
-            CREATE INDEX IF NOT EXISTS "{completionUsageInteractionIdIndexName}" ON "{completionUsageTableName}" ("InteractionId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_CreatedUtc")}" ON "{usageTableName}" ("CreatedUtc");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_SessionId")}" ON "{usageTableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AICompletionUsage_InteractionId")}" ON "{usageTableName}" ("InteractionId");
             """;
 
-        await dbContext.Database.ExecuteSqlRawAsync(completionUsageSql);
+        await dbContext.Database.ExecuteSqlRawAsync(usageSql);
 
-        var extractedDataTableName = GetSafeSqlIdentifier($"{tablePrefix}AIChatSessionExtractedData");
-        var extractedDataPrimaryKeyName = GetSafeSqlIdentifier($"PK_{tablePrefix}AIChatSessionExtractedData");
-        var extractedDataProfileIdIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_ProfileId");
-        var extractedDataSessionStartedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_SessionStartedUtc");
-        var extractedDataUpdatedUtcIndexName = GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_UpdatedUtc");
-
-        var extractedDataSql =
+        string extractedSql =
             $"""
-            CREATE TABLE IF NOT EXISTS "{extractedDataTableName}" (
-                "SessionId" TEXT NOT NULL CONSTRAINT "{extractedDataPrimaryKeyName}" PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS "{extractedTableName}" (
+                "Id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "DocumentId" INTEGER NOT NULL,
+                "SessionId" TEXT NOT NULL,
                 "ProfileId" TEXT NOT NULL,
                 "SessionStartedUtc" TEXT NOT NULL,
                 "SessionEndedUtc" TEXT NULL,
                 "UpdatedUtc" TEXT NOT NULL,
-                "Payload" TEXT NOT NULL
+                FOREIGN KEY ("DocumentId") REFERENCES "{documentsTableName}" ("Id")
             );
-            CREATE INDEX IF NOT EXISTS "{extractedDataProfileIdIndexName}" ON "{extractedDataTableName}" ("ProfileId");
-            CREATE INDEX IF NOT EXISTS "{extractedDataSessionStartedUtcIndexName}" ON "{extractedDataTableName}" ("SessionStartedUtc");
-            CREATE INDEX IF NOT EXISTS "{extractedDataUpdatedUtcIndexName}" ON "{extractedDataTableName}" ("UpdatedUtc");
+            CREATE UNIQUE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_SessionId")}" ON "{extractedTableName}" ("SessionId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_ProfileId")}" ON "{extractedTableName}" ("ProfileId");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_SessionStartedUtc")}" ON "{extractedTableName}" ("SessionStartedUtc");
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}AIChatSessionExtractedData_UpdatedUtc")}" ON "{extractedTableName}" ("UpdatedUtc");
             """;
 
-        await dbContext.Database.ExecuteSqlRawAsync(extractedDataSql);
+        await dbContext.Database.ExecuteSqlRawAsync(extractedSql);
+    }
+
+    private static async Task<bool> HasColumnAsync(
+        CrestAppsEntityDbContext dbContext,
+        string tableName,
+        string columnName)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        await connection.OpenAsync();
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"""PRAGMA table_info("{tableName}");""";
+
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static async Task<bool> TableExistsAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = $"""SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=@name;""";
+
+        var param = cmd.CreateParameter();
+        param.ParameterName = "@name";
+        param.Value = tableName;
+        cmd.Parameters.Add(param);
+
+        var result = await cmd.ExecuteScalarAsync();
+
+        return Convert.ToInt64(result) > 0;
+    }
+
+    private static async Task<long> InsertDocumentAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string documentsTableName,
+        string type,
+        string content)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = $"""INSERT INTO "{documentsTableName}" ("Type","Content") VALUES (@t,@c); SELECT last_insert_rowid();""";
+
+        var typeParam = cmd.CreateParameter();
+        typeParam.ParameterName = "@t";
+        typeParam.Value = type;
+        cmd.Parameters.Add(typeParam);
+
+        var contentParam = cmd.CreateParameter();
+        contentParam.ParameterName = "@c";
+        contentParam.Value = content;
+        cmd.Parameters.Add(contentParam);
+
+        return (long)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    private static async Task ExecuteNonQueryAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string sql)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = sql;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static void AddParam(
+        System.Data.Common.DbCommand command,
+        string name,
+        long value)
+    {
+        var param = command.CreateParameter();
+        param.ParameterName = name;
+        param.Value = value;
+        command.Parameters.Add(param);
+    }
+
+    private static void AddParam(
+        System.Data.Common.DbCommand command,
+        string name,
+        System.Data.Common.DbDataReader reader,
+        int ordinal)
+    {
+        var param = command.CreateParameter();
+        param.ParameterName = name;
+        param.Value = reader.IsDBNull(ordinal) ? DBNull.Value : reader.GetValue(ordinal);
+        command.Parameters.Add(param);
+    }
+
+    /// <summary>
+    /// Gets the set of column names present in the specified table.
+    /// </summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="transaction">The active transaction.</param>
+    /// <param name="tableName">The sanitized table name to inspect.</param>
+    /// <returns>A case-insensitive set of column names.</returns>
+    private static async Task<HashSet<string>> GetColumnNamesAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string tableName)
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = $"""PRAGMA table_info("{tableName}");""";
+
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            columns.Add(reader.GetString(1));
+        }
+
+        return columns;
     }
 
     private static string GetSafeSqlIdentifier(string identifier)

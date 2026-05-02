@@ -311,15 +311,148 @@ public sealed class EntityCoreStoreTests
                 query.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
 
                 await using var reader = await query.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+
                 while (await reader.ReadAsync(TestContext.Current.CancellationToken))
                 {
                     tableNames.Add(reader.GetString(0));
                 }
             }
 
+            Assert.Contains("CA_Documents", tableNames);
             Assert.Contains("CA_AIChatSessionEvents", tableNames);
             Assert.Contains("CA_AICompletionUsage", tableNames);
             Assert.Contains("CA_AIChatSessionExtractedData", tableNames);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+            {
+                try
+                {
+                    File.Delete(databasePath);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Initialize_entity_core_schema_async_migrates_legacy_tables_to_document_schema()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+                var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    CREATE TABLE "CA_CatalogRecords" (
+                        "EntityType" TEXT NOT NULL,
+                        "ItemId" TEXT NOT NULL,
+                        "Payload" TEXT NOT NULL,
+                        "Name" TEXT NULL,
+                        "DisplayText" TEXT NULL,
+                        "Source" TEXT NULL,
+                        "SessionId" TEXT NULL,
+                        "ChatInteractionId" TEXT NULL,
+                        "ReferenceId" TEXT NULL,
+                        "ReferenceType" TEXT NULL,
+                        "AIDocumentId" TEXT NULL,
+                        "UserId" TEXT NULL,
+                        "Type" TEXT NULL,
+                        "CreatedUtc" TEXT NULL,
+                        "UpdatedUtc" TEXT NULL,
+                        CONSTRAINT "PK_CA_CatalogRecords" PRIMARY KEY ("EntityType", "ItemId")
+                    );
+                    CREATE TABLE "CA_AIChatSessions" (
+                        "SessionId" TEXT NOT NULL,
+                        "Payload" TEXT NOT NULL,
+                        "Title" TEXT NULL,
+                        "ProfileId" TEXT NULL,
+                        "ProfileName" TEXT NULL,
+                        "UserId" TEXT NULL,
+                        "CreatedUtc" TEXT NULL,
+                        CONSTRAINT "PK_CA_AIChatSessions" PRIMARY KEY ("SessionId")
+                    );
+                    INSERT INTO "CA_CatalogRecords" ("EntityType","ItemId","Payload","Name","Type")
+                    VALUES ('CrestApps.Core.AI.Profiles.AIProfile','item1','{"Name":"test-profile"}','test-profile','Chat');
+                    INSERT INTO "CA_AIChatSessions" ("SessionId","Payload","Title","ProfileId")
+                    VALUES ('sess1','{"Title":"Hello"}','Hello','prof1');
+                    """;
+
+                await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+            }
+
+            var services = CreateEntityCoreServices(databasePath);
+
+            await using (var provider = services.BuildServiceProvider())
+            {
+                await provider.InitializeEntityCoreSchemaAsync();
+
+                await using var verificationConnection = new SqliteConnection($"Data Source={databasePath}");
+                await verificationConnection.OpenAsync(TestContext.Current.CancellationToken);
+
+                var hasDocuments = false;
+                var catalogHasDocumentId = false;
+                var catalogHasNoPayload = true;
+                var sessionHasDocumentId = false;
+                var documentCount = 0L;
+
+                var tableQuery = verificationConnection.CreateCommand();
+                tableQuery.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CA_Documents';";
+                hasDocuments = Convert.ToInt64(await tableQuery.ExecuteScalarAsync(TestContext.Current.CancellationToken)) == 1;
+
+                var catalogColQuery = verificationConnection.CreateCommand();
+                catalogColQuery.CommandText = "PRAGMA table_info('CA_CatalogRecords');";
+
+                await using (var colReader = await catalogColQuery.ExecuteReaderAsync(TestContext.Current.CancellationToken))
+                {
+                    while (await colReader.ReadAsync(TestContext.Current.CancellationToken))
+                    {
+                        var columnName = colReader.GetString(1);
+
+                        if (columnName == "DocumentId")
+                        {
+                            catalogHasDocumentId = true;
+                        }
+
+                        if (columnName == "Payload")
+                        {
+                            catalogHasNoPayload = false;
+                        }
+                    }
+                }
+
+                var sessionColQuery = verificationConnection.CreateCommand();
+                sessionColQuery.CommandText = "PRAGMA table_info('CA_AIChatSessions');";
+
+                await using (var colReader = await sessionColQuery.ExecuteReaderAsync(TestContext.Current.CancellationToken))
+                {
+                    while (await colReader.ReadAsync(TestContext.Current.CancellationToken))
+                    {
+                        if (colReader.GetString(1) == "DocumentId")
+                        {
+                            sessionHasDocumentId = true;
+                        }
+                    }
+                }
+
+                var docCountQuery = verificationConnection.CreateCommand();
+                docCountQuery.CommandText = "SELECT COUNT(*) FROM CA_Documents;";
+                documentCount = Convert.ToInt64(await docCountQuery.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+
+                Assert.True(hasDocuments, "CA_Documents table should exist after migration.");
+                Assert.True(catalogHasDocumentId, "CA_CatalogRecords should have DocumentId column.");
+                Assert.True(catalogHasNoPayload, "CA_CatalogRecords should not have Payload column after migration.");
+                Assert.True(sessionHasDocumentId, "CA_AIChatSessions should have DocumentId column.");
+                Assert.Equal(2, documentCount);
+            }
         }
         finally
         {
@@ -398,9 +531,9 @@ public sealed class EntityCoreStoreTests
 
         _ = await dbContext.Database.ExecuteSqlRawAsync(
             """
-            UPDATE CA_CatalogRecords
-            SET Payload = REPLACE(Payload, '"EmbeddingDeploymentName":"legacy-embedding-id"', '"EmbeddingDeploymentId":"legacy-embedding-id"')
-            WHERE EntityType = {0} AND ItemId = {1}
+            UPDATE CA_Documents
+            SET Content = REPLACE(Content, '"EmbeddingDeploymentName":"legacy-embedding-id"', '"EmbeddingDeploymentId":"legacy-embedding-id"')
+            WHERE Id = (SELECT DocumentId FROM CA_CatalogRecords WHERE EntityType = {0} AND ItemId = {1})
             """,
             typeof(SearchIndexProfile).FullName!,
             indexProfile.ItemId);
@@ -426,7 +559,11 @@ public sealed class EntityCoreStoreTests
             ItemId = Guid.NewGuid().ToString("N"),
             Name = "duplicate",
             Source = "OpenAI",
-            Payload = "{}",
+            Document = new CrestApps.Core.Data.EntityCore.Models.DocumentRecord
+            {
+                Type = "TestEntity",
+                Content = "{}",
+            },
         });
         dbContext.CatalogRecords.Add(new CrestApps.Core.Data.EntityCore.Models.CatalogRecord
         {
@@ -434,7 +571,11 @@ public sealed class EntityCoreStoreTests
             ItemId = Guid.NewGuid().ToString("N"),
             Name = "duplicate",
             Source = "OpenAI",
-            Payload = "{}",
+            Document = new CrestApps.Core.Data.EntityCore.Models.DocumentRecord
+            {
+                Type = "TestEntity",
+                Content = "{}",
+            },
         });
 
         await Assert.ThrowsAsync<DbUpdateException>(async () => await dbContext.SaveChangesAsync(cancellationToken));
@@ -455,7 +596,11 @@ public sealed class EntityCoreStoreTests
             ItemId = Guid.NewGuid().ToString("N"),
             Name = "shared",
             Source = "OpenAI",
-            Payload = "{}",
+            Document = new CrestApps.Core.Data.EntityCore.Models.DocumentRecord
+            {
+                Type = "TestEntity",
+                Content = "{}",
+            },
         });
         dbContext.CatalogRecords.Add(new CrestApps.Core.Data.EntityCore.Models.CatalogRecord
         {
@@ -463,7 +608,11 @@ public sealed class EntityCoreStoreTests
             ItemId = Guid.NewGuid().ToString("N"),
             Name = "shared",
             Source = "OpenAI",
-            Payload = "{}",
+            Document = new CrestApps.Core.Data.EntityCore.Models.DocumentRecord
+            {
+                Type = "TestEntity",
+                Content = "{}",
+            },
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);

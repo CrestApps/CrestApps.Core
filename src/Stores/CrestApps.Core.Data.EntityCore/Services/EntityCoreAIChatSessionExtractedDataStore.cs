@@ -34,6 +34,7 @@ public sealed class EntityCoreAIChatSessionExtractedDataStore : IAIChatSessionEx
         ArgumentException.ThrowIfNullOrWhiteSpace(record.SessionId);
 
         var existing = await _dbContext.AIChatSessionExtractedDataRecords
+            .Include(x => x.Document)
             .FirstOrDefaultAsync(x => x.SessionId == record.SessionId, cancellationToken);
 
         if (existing is null)
@@ -59,6 +60,7 @@ public sealed class EntityCoreAIChatSessionExtractedDataStore : IAIChatSessionEx
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
 
         var existing = await _dbContext.AIChatSessionExtractedDataRecords
+            .Include(x => x.Document)
             .FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
 
         if (existing is null)
@@ -67,6 +69,11 @@ public sealed class EntityCoreAIChatSessionExtractedDataStore : IAIChatSessionEx
         }
 
         _dbContext.AIChatSessionExtractedDataRecords.Remove(existing);
+
+        if (existing.Document is not null)
+        {
+            _dbContext.Documents.Remove(existing.Document);
+        }
 
         return true;
     }
@@ -88,6 +95,7 @@ public sealed class EntityCoreAIChatSessionExtractedDataStore : IAIChatSessionEx
 
         var query = _dbContext.AIChatSessionExtractedDataRecords
             .AsNoTracking()
+            .Include(x => x.Document)
             .Where(x => x.ProfileId == profileId);
 
         if (startDateUtc.HasValue)
@@ -115,18 +123,22 @@ public sealed class EntityCoreAIChatSessionExtractedDataStore : IAIChatSessionEx
     {
         return new()
         {
+            Document = new DocumentRecord
+            {
+                Type = typeof(AIChatSessionExtractedDataRecord).FullName!,
+                Content = EntityCoreStoreSerializer.Serialize(record),
+            },
             SessionId = record.SessionId,
             ProfileId = record.ProfileId,
             SessionStartedUtc = record.SessionStartedUtc,
             SessionEndedUtc = record.SessionEndedUtc,
             UpdatedUtc = record.UpdatedUtc,
-            Payload = EntityCoreStoreSerializer.Serialize(record),
         };
     }
 
     private static AIChatSessionExtractedDataRecord Materialize(AIChatSessionExtractedDataStoreRecord record)
     {
-        return EntityCoreStoreSerializer.Deserialize<AIChatSessionExtractedDataRecord>(record.Payload);
+        return EntityCoreStoreSerializer.Deserialize<AIChatSessionExtractedDataRecord>(record.Document.Content);
     }
 
     private static void UpdateRecord(AIChatSessionExtractedDataStoreRecord destination, AIChatSessionExtractedDataRecord source)
@@ -135,6 +147,6 @@ public sealed class EntityCoreAIChatSessionExtractedDataStore : IAIChatSessionEx
         destination.SessionStartedUtc = source.SessionStartedUtc;
         destination.SessionEndedUtc = source.SessionEndedUtc;
         destination.UpdatedUtc = source.UpdatedUtc;
-        destination.Payload = EntityCoreStoreSerializer.Serialize(source);
+        destination.Document.Content = EntityCoreStoreSerializer.Serialize(source);
     }
 }

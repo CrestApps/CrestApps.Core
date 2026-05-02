@@ -34,6 +34,7 @@ public sealed class EntityCoreAIChatSessionEventStore : IAIChatSessionEventStore
 
         var record = await _dbContext.AIChatSessionEventRecords
             .AsNoTracking()
+            .Include(x => x.Document)
             .FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
 
         return record is null ? null : Materialize(record);
@@ -52,6 +53,7 @@ public sealed class EntityCoreAIChatSessionEventStore : IAIChatSessionEventStore
         ArgumentException.ThrowIfNullOrWhiteSpace(chatSessionEvent.SessionId);
 
         var existing = await _dbContext.AIChatSessionEventRecords
+            .Include(x => x.Document)
             .FirstOrDefaultAsync(x => x.SessionId == chatSessionEvent.SessionId, cancellationToken);
 
         if (existing is null)
@@ -77,26 +79,30 @@ public sealed class EntityCoreAIChatSessionEventStore : IAIChatSessionEventStore
         DateTime? endDateUtc,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbContext.AIChatSessionEventRecords.AsNoTracking();
+        var query = _dbContext.AIChatSessionEventRecords
+            .AsNoTracking()
+            .Include(x => x.Document);
+
+        IQueryable<AIChatSessionEventStoreRecord> filtered = query;
 
         if (!string.IsNullOrEmpty(profileId))
         {
-            query = query.Where(x => x.ProfileId == profileId);
+            filtered = filtered.Where(x => x.ProfileId == profileId);
         }
 
         if (startDateUtc.HasValue)
         {
             var start = startDateUtc.Value.Date;
-            query = query.Where(x => x.SessionStartedUtc >= start);
+            filtered = filtered.Where(x => x.SessionStartedUtc >= start);
         }
 
         if (endDateUtc.HasValue)
         {
             var endExclusive = endDateUtc.Value.Date.AddDays(1);
-            query = query.Where(x => x.SessionStartedUtc < endExclusive);
+            filtered = filtered.Where(x => x.SessionStartedUtc < endExclusive);
         }
 
-        var records = await query
+        var records = await filtered
             .OrderByDescending(x => x.SessionStartedUtc)
             .ToListAsync(cancellationToken);
 
@@ -107,17 +113,21 @@ public sealed class EntityCoreAIChatSessionEventStore : IAIChatSessionEventStore
     {
         return new()
         {
+            Document = new DocumentRecord
+            {
+                Type = typeof(AIChatSessionEvent).FullName!,
+                Content = EntityCoreStoreSerializer.Serialize(chatSessionEvent),
+            },
             SessionId = chatSessionEvent.SessionId,
             ProfileId = chatSessionEvent.ProfileId,
             SessionStartedUtc = chatSessionEvent.SessionStartedUtc,
             CreatedUtc = chatSessionEvent.CreatedUtc,
-            Payload = EntityCoreStoreSerializer.Serialize(chatSessionEvent),
         };
     }
 
     private static AIChatSessionEvent Materialize(AIChatSessionEventStoreRecord record)
     {
-        return EntityCoreStoreSerializer.Deserialize<AIChatSessionEvent>(record.Payload);
+        return EntityCoreStoreSerializer.Deserialize<AIChatSessionEvent>(record.Document.Content);
     }
 
     private static void UpdateRecord(AIChatSessionEventStoreRecord destination, AIChatSessionEvent source)
@@ -125,6 +135,6 @@ public sealed class EntityCoreAIChatSessionEventStore : IAIChatSessionEventStore
         destination.ProfileId = source.ProfileId;
         destination.SessionStartedUtc = source.SessionStartedUtc;
         destination.CreatedUtc = source.CreatedUtc;
-        destination.Payload = EntityCoreStoreSerializer.Serialize(source);
+        destination.Document.Content = EntityCoreStoreSerializer.Serialize(source);
     }
 }

@@ -8,7 +8,7 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 internal static class CatalogRecordFactory
 {
     /// <summary>
-    /// Gets entity type.
+    /// Gets the entity type discriminator for the specified CLR type.
     /// </summary>
     public static string GetEntityType<T>()
     {
@@ -16,7 +16,7 @@ internal static class CatalogRecordFactory
     }
 
     /// <summary>
-    /// Gets entity type.
+    /// Gets the entity type discriminator for the specified CLR type.
     /// </summary>
     /// <param name="type">The type.</param>
     public static string GetEntityType(Type type)
@@ -25,21 +25,29 @@ internal static class CatalogRecordFactory
     }
 
     /// <summary>
-    /// Creates the operation.
+    /// Creates a new <see cref="CatalogRecord"/> and its associated <see cref="DocumentRecord"/>
+    /// from the supplied domain model.
     /// </summary>
     public static CatalogRecord Create<T>(T model)
         where T : CatalogItem
     {
         ArgumentNullException.ThrowIfNull(model);
+
+        var entityType = GetEntityType<T>();
         var record = new CatalogRecord
         {
-            EntityType = GetEntityType<T>(),
+            Document = new DocumentRecord
+            {
+                Type = entityType,
+                Content = EntityCoreStoreSerializer.Serialize(model),
+            },
+            EntityType = entityType,
             ItemId = model.ItemId,
             Name = (model as INameAwareModel)?.Name,
             DisplayText = (model as IDisplayTextAwareModel)?.DisplayText,
             Source = (model as ISourceAwareModel)?.Source,
-            Payload = EntityCoreStoreSerializer.Serialize(model),
         };
+
         switch (model)
         {
             case AIProfile profile:
@@ -80,13 +88,15 @@ internal static class CatalogRecordFactory
     }
 
     /// <summary>
-    /// Updates the operation.
+    /// Updates an existing <see cref="CatalogRecord"/> and its <see cref="DocumentRecord"/>
+    /// from the supplied domain model.
     /// </summary>
     public static void Update<T>(CatalogRecord record, T model)
         where T : CatalogItem
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(model);
+
         var updated = Create(model);
         record.Name = updated.Name;
         record.DisplayText = updated.DisplayText;
@@ -100,17 +110,21 @@ internal static class CatalogRecordFactory
         record.Type = updated.Type;
         record.CreatedUtc = updated.CreatedUtc;
         record.UpdatedUtc = updated.UpdatedUtc;
-        record.Payload = updated.Payload;
+        record.Document.Content = updated.Document.Content;
+
+        // Detach the Document created by Create() so EF doesn't try to add a duplicate.
+        updated.Document = null;
     }
 
     /// <summary>
-    /// Materializes the operation.
+    /// Materializes a domain model from the <see cref="DocumentRecord.Content"/>
+    /// of the supplied <see cref="CatalogRecord"/>.
     /// </summary>
     public static T Materialize<T>(CatalogRecord record)
         where T : CatalogItem
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        return EntityCoreStoreSerializer.Deserialize<T>(record.Payload);
+        return EntityCoreStoreSerializer.Deserialize<T>(record.Document.Content);
     }
 }
