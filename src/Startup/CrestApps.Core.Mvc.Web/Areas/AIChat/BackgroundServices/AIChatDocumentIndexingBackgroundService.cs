@@ -6,16 +6,16 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
 public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
 {
     private readonly SampleAIChatDocumentIndexingQueue _queue;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AIChatDocumentIndexingBackgroundService> _logger;
 
     public AIChatDocumentIndexingBackgroundService(
         SampleAIChatDocumentIndexingQueue queue,
-        IServiceScopeFactory scopeFactory,
+        IServiceProvider serviceProvider,
         ILogger<AIChatDocumentIndexingBackgroundService> logger)
     {
         _queue = queue;
-        _scopeFactory = scopeFactory;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -25,8 +25,7 @@ public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
         {
             try
             {
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var indexingService = scope.ServiceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
+                var indexingService = _serviceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
 
                 switch (workItem.Type)
                 {
