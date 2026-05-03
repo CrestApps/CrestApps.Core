@@ -10,29 +10,30 @@ namespace CrestApps.Core.AI.Chat.Services;
 /// <summary>
 /// Runs a single shared cycle that closes inactive AI chat sessions and retries pending post-close work.
 /// Hosts can call this service directly when they need the framework logic without the default hosted runner.
+/// Uses <see cref="IAIChatSessionStore"/> for unscoped data access, ensuring correct behavior
+/// in background processing contexts where no user/HTTP context is available.
 /// </summary>
 public sealed class AIChatSessionCloseCycleService
 {
     private static readonly TimeSpan _defaultInactivityTimeout = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan _retryDelay = TimeSpan.FromMinutes(5);
-    private const int _pageSize = 100;
 
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<AIChatSessionCloseCycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIChatSessionCloseCycleService"/> class.
     /// </summary>
-    /// <param name="scopeFactory">The service scope factory.</param>
+    /// <param name="serviceProvider">The service provider.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public AIChatSessionCloseCycleService(
-        IServiceScopeFactory scopeFactory,
+        IServiceProvider serviceProvider,
         TimeProvider timeProvider,
         ILogger<AIChatSessionCloseCycleService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _serviceProvider = serviceProvider;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -45,12 +46,11 @@ public sealed class AIChatSessionCloseCycleService
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var sessionManager = scope.ServiceProvider.GetRequiredService<IAIChatSessionManager>();
-            var profileManager = scope.ServiceProvider.GetRequiredService<IAIProfileManager>();
-            var postCloseProcessor = scope.ServiceProvider.GetRequiredService<AIChatSessionPostCloseProcessor>();
-            var promptStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionPromptStore>();
-            var storeCommitter = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+            var sessionStore = _serviceProvider.GetRequiredService<IAIChatSessionStore>();
+            var profileManager = _serviceProvider.GetRequiredService<IAIProfileManager>();
+            var postCloseProcessor = _serviceProvider.GetRequiredService<AIChatSessionPostCloseProcessor>();
+            var promptStore = _serviceProvider.GetRequiredService<IAIChatSessionPromptStore>();
+            var storeCommitter = _serviceProvider.GetRequiredService<IStoreCommitter>();
             var utcNow = _timeProvider.GetUtcNow().UtcDateTime;
             var profiles = (await profileManager.GetAsync(AIProfileType.Chat, cancellationToken)).ToList();
             var closedCount = 0;
@@ -66,13 +66,11 @@ public sealed class AIChatSessionCloseCycleService
                     break;
                 }
 
-                var entries = await ListSessionEntriesAsync(sessionManager, profile.ItemId, cancellationToken);
                 var (profileClosedCount, profileAbandonedCount) = await CloseInactiveSessionsAsync(
-                    sessionManager,
+                    sessionStore,
                     promptStore,
                     postCloseProcessor,
                     profile,
-                    entries,
                     utcNow,
                     cancellationToken);
 
@@ -80,11 +78,10 @@ public sealed class AIChatSessionCloseCycleService
                 abandonedCount += profileAbandonedCount;
 
                 var (profileRetriedCount, profileRecoveredCount, profileFailedCount) = await RetryPendingProcessingAsync(
-                    sessionManager,
+                    sessionStore,
                     promptStore,
                     postCloseProcessor,
                     profile,
-                    entries,
                     utcNow,
                     cancellationToken);
 
@@ -128,53 +125,14 @@ public sealed class AIChatSessionCloseCycleService
         }
     }
 
-    private static async Task<List<AIChatSessionEntry>> ListSessionEntriesAsync(
-        IAIChatSessionManager sessionManager,
-        string profileId,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(sessionManager);
-        ArgumentException.ThrowIfNullOrEmpty(profileId);
-
-        var entries = new List<AIChatSessionEntry>();
-        var queryContext = new AIChatSessionQueryContext
-        {
-            ProfileId = profileId,
-        };
-        var page = 1;
-
-        while (true)
-        {
-            var result = await sessionManager.PageAsync(page, _pageSize, queryContext, cancellationToken);
-            var pageEntries = result.Sessions.ToList();
-
-            if (pageEntries.Count == 0)
-            {
-                break;
-            }
-
-            entries.AddRange(pageEntries);
-            page++;
-        }
-
-        return entries;
-    }
-
     private async Task<(int ClosedCount, int AbandonedCount)> CloseInactiveSessionsAsync(
-        IAIChatSessionManager sessionManager,
+        IAIChatSessionStore sessionStore,
         IAIChatSessionPromptStore promptStore,
         AIChatSessionPostCloseProcessor postCloseProcessor,
         AIProfile profile,
-        IReadOnlyList<AIChatSessionEntry> entries,
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(sessionManager);
-        ArgumentNullException.ThrowIfNull(promptStore);
-        ArgumentNullException.ThrowIfNull(postCloseProcessor);
-        ArgumentNullException.ThrowIfNull(profile);
-        ArgumentNullException.ThrowIfNull(entries);
-
         var settings = profile.GetOrCreateSettings<AIProfileDataExtractionSettings>();
         var timeout = settings?.SessionInactivityTimeoutInMinutes > 0
             ? TimeSpan.FromMinutes(settings.SessionInactivityTimeoutInMinutes)
@@ -183,23 +141,13 @@ public sealed class AIChatSessionCloseCycleService
         var closedCount = 0;
         var abandonedCount = 0;
 
-        foreach (var entry in entries)
+        var inactiveSessions = await sessionStore.GetInactiveActiveSessionsAsync(profile.ItemId, cutoffUtc, cancellationToken);
+
+        foreach (var chatSession in inactiveSessions)
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 break;
-            }
-
-            if (entry.Status != ChatSessionStatus.Active || entry.LastActivityUtc >= cutoffUtc)
-            {
-                continue;
-            }
-
-            var chatSession = await sessionManager.FindByIdAsync(entry.SessionId, cancellationToken);
-
-            if (chatSession is null || chatSession.Status != ChatSessionStatus.Active)
-            {
-                continue;
             }
 
             var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
@@ -215,7 +163,7 @@ public sealed class AIChatSessionCloseCycleService
                 chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.None;
             }
 
-            await sessionManager.SaveAsync(chatSession, cancellationToken);
+            await sessionStore.SaveAsync(chatSession, cancellationToken);
 
             if (chatSession.Status == ChatSessionStatus.Closed)
             {
@@ -241,41 +189,24 @@ public sealed class AIChatSessionCloseCycleService
     }
 
     private async Task<(int RetriedCount, int RecoveredCount, int FailedCount)> RetryPendingProcessingAsync(
-        IAIChatSessionManager sessionManager,
+        IAIChatSessionStore sessionStore,
         IAIChatSessionPromptStore promptStore,
         AIChatSessionPostCloseProcessor postCloseProcessor,
         AIProfile profile,
-        IReadOnlyList<AIChatSessionEntry> entries,
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(sessionManager);
-        ArgumentNullException.ThrowIfNull(promptStore);
-        ArgumentNullException.ThrowIfNull(postCloseProcessor);
-        ArgumentNullException.ThrowIfNull(profile);
-        ArgumentNullException.ThrowIfNull(entries);
-
         var retriedCount = 0;
         var recoveredCount = 0;
         var failedCount = 0;
 
-        foreach (var entry in entries)
+        var closedSessions = await sessionStore.GetClosedSessionsAsync(profile.ItemId, cancellationToken);
+
+        foreach (var chatSession in closedSessions)
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 break;
-            }
-
-            if (entry.Status != ChatSessionStatus.Closed && entry.Status != ChatSessionStatus.Abandoned)
-            {
-                continue;
-            }
-
-            var chatSession = await sessionManager.FindByIdAsync(entry.SessionId, cancellationToken);
-
-            if (chatSession is null)
-            {
-                continue;
             }
 
             var originalStatus = chatSession.PostSessionProcessingStatus;
@@ -302,7 +233,7 @@ public sealed class AIChatSessionCloseCycleService
             if (chatSession.PostSessionProcessingAttempts >= postCloseProcessor.MaxPostCloseAttempts)
             {
                 chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.Failed;
-                await sessionManager.SaveAsync(chatSession, cancellationToken);
+                await sessionStore.SaveAsync(chatSession, cancellationToken);
                 failedCount++;
 
                 _logger.LogWarning(
@@ -321,7 +252,7 @@ public sealed class AIChatSessionCloseCycleService
 
             var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
             await postCloseProcessor.ProcessAsync(profile, chatSession, prompts, cancellationToken);
-            await sessionManager.SaveAsync(chatSession, cancellationToken);
+            await sessionStore.SaveAsync(chatSession, cancellationToken);
             retriedCount++;
 
             if (_logger.IsEnabled(LogLevel.Debug))

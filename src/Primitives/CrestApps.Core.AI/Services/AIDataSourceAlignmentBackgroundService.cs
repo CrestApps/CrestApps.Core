@@ -9,7 +9,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
 {
     private static readonly TimeSpan _alignmentCheckInterval = TimeSpan.FromMinutes(30);
 
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<AIDataSourceAlignmentBackgroundService> _logger;
 
@@ -18,15 +18,15 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
     /// <summary>
     /// Initializes a new instance of the <see cref="AIDataSourceAlignmentBackgroundService"/> class.
     /// </summary>
-    /// <param name="scopeFactory">The scope factory.</param>
+    /// <param name="serviceProvider">The scope factory.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public AIDataSourceAlignmentBackgroundService(
-        IServiceScopeFactory scopeFactory,
+        IServiceProvider serviceProvider,
         TimeProvider timeProvider,
         ILogger<AIDataSourceAlignmentBackgroundService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _serviceProvider = serviceProvider;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -66,8 +66,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
                     _logger.LogTrace("Starting scheduled AI data-source alignment for UTC date {RunDateUtc}.", runDateUtc);
                 }
 
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                await AlignDataSourcesAsync(scope.ServiceProvider, stoppingToken);
+                await AlignDataSourcesAsync(_serviceProvider, stoppingToken);
                 _lastRunDateUtc = runDateUtc;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
