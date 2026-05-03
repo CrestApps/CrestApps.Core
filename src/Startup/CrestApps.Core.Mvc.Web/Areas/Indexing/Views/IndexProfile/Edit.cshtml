@@ -3,6 +3,10 @@
 @model IndexProfileViewModel
 @{
     ViewData["Title"] = "Edit Index Profile";
+    var showEmbeddingDeployment = !string.IsNullOrWhiteSpace(Model.Type) &&
+        !string.Equals(Model.Type, IndexProfileTypes.Articles, StringComparison.OrdinalIgnoreCase);
+    var embeddingDeploymentSelectionLocked = showEmbeddingDeployment &&
+        Model.EmbeddingDeployments.Any(deployment => string.Equals(deployment.Value, Model.EmbeddingDeploymentName, StringComparison.Ordinal));
 }
 
 <h2><i class="bi bi-pencil"></i> Edit Index Profile</h2>
@@ -48,15 +52,28 @@
                 <div class="form-text" id="typeDescription">The index type cannot be changed after the index is created.</div>
             </div>
 
-            <div class="mb-3" id="embeddingDeploymentGroup">
-                <label asp-for="EmbeddingDeploymentName" class="form-label">Embedding deployment</label>
-                <select asp-for="EmbeddingDeploymentName" asp-items="Model.EmbeddingDeployments" class="form-select" disabled>
-                    <option value="">Select an Embedding Deployment</option>
-                </select>
-                <input type="hidden" asp-for="EmbeddingDeploymentName" />
-                <span asp-validation-for="EmbeddingDeploymentName" class="text-danger"></span>
-                <div class="form-text">The embedding deployment cannot be changed after the index is created.</div>
-            </div>
+            @if (showEmbeddingDeployment)
+            {
+                <div class="mb-3" id="embeddingDeploymentGroup">
+                    <label asp-for="EmbeddingDeploymentName" class="form-label">Embedding deployment</label>
+                    @if (embeddingDeploymentSelectionLocked)
+                    {
+                        <select asp-for="EmbeddingDeploymentName" asp-items="Model.EmbeddingDeployments" class="form-select" disabled>
+                            <option value="">Select an Embedding Deployment</option>
+                        </select>
+                        <input type="hidden" asp-for="EmbeddingDeploymentName" />
+                        <div class="form-text">The embedding deployment cannot be changed after a valid deployment has been selected.</div>
+                    }
+                    else
+                    {
+                        <select asp-for="EmbeddingDeploymentName" asp-items="Model.EmbeddingDeployments" class="form-select">
+                            <option value="">Select an Embedding Deployment</option>
+                        </select>
+                        <div class="form-text">Choose an embedding deployment before rebuilding this index.</div>
+                    }
+                    <span asp-validation-for="EmbeddingDeploymentName" class="text-danger"></span>
+                </div>
+            }
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
@@ -103,7 +120,10 @@
 
             const selected = matches.find(source => source.Type === typeSelect.value);
             typeDescription.textContent = selected?.Description ?? 'Determines how this index is used.';
-            embeddingGroup.classList.toggle('d-none', typeSelect.value === articleType);
+            if (embeddingGroup)
+            {
+                embeddingGroup.classList.toggle('d-none', typeSelect.value === articleType);
+            }
         }
 
         providerSelect.addEventListener('change', syncTypes);

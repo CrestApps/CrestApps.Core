@@ -1,7 +1,7 @@
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -28,7 +28,7 @@ public sealed class ChatExtractedDataControllerTests
 
         var controller = new ChatExtractedDataController(
             profileManager.Object,
-            new SampleAIChatSessionExtractedDataService(new Mock<global::YesSql.ISession>().Object, TimeProvider.System),
+            Mock.Of<IAIChatSessionExtractedDataStore>(),
             TimeProvider.System);
 
         var result = await controller.IndexPost(new ChatExtractedDataIndexViewModel());

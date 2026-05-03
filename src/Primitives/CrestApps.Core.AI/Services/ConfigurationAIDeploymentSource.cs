@@ -213,6 +213,8 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
 
     private AIDeployment CreateConfiguredDeployment(AIDeploymentConfigurationEntry entry)
     {
+        entry.ClientName = AIProviderNameNormalizer.Normalize(entry.ClientName);
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(

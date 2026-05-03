@@ -259,7 +259,61 @@ app.MapGroup("/api")
 
 If you already use another ORM or storage model, implement the same catalog/store abstractions against your preferred backend. See [Data Storage](data-storage.md) for the full per-feature store reference.
 
-## 6. Add features one layer at a time
+## 6. Keep site-settings-backed options live
+
+If your host maps admin-managed site settings into options, use `IOptionsMonitor<TOptions>` for consumers and notify the monitor through an `IOptionsChangeTokenSource<TOptions>` when the site settings store is saved.
+
+The shared sample hosts already follow this pattern. After they call `SiteSettingsStore.SaveChangesAsync()`, the store rotates its change token and `IOptionsMonitor<>` rebuilds the option values on the next `CurrentValue` access.
+
+For a custom host, the minimal pattern is:
+
+```csharp
+public sealed class SiteSettingsStore
+{
+    private CancellationTokenSource _reloadTokenSource = new();
+
+    public IChangeToken GetChangeToken()
+        => new CancellationChangeToken(_reloadTokenSource.Token);
+
+    public async Task SaveChangesAsync()
+    {
+        // Persist the updated site settings first.
+        await PersistAsync();
+
+        var previous = Interlocked.Exchange(ref _reloadTokenSource, new CancellationTokenSource());
+        previous.Cancel();
+        previous.Dispose();
+    }
+}
+
+internal sealed class SiteSettingsOptionsChangeTokenSource<TOptions> : IOptionsChangeTokenSource<TOptions>
+{
+    private readonly SiteSettingsStore _siteSettings;
+
+    public SiteSettingsOptionsChangeTokenSource(SiteSettingsStore siteSettings)
+    {
+        _siteSettings = siteSettings;
+    }
+
+    public string Name => Options.DefaultName;
+
+    public IChangeToken GetChangeToken() => _siteSettings.GetChangeToken();
+}
+```
+
+Register the change-token source once, keep your `IConfigureOptions<TOptions>` mapping, and then consume `IOptionsMonitor<TOptions>` anywhere you need current values:
+
+```csharp
+services.AddSingleton<SiteSettingsStore>();
+services.TryAddEnumerable(
+    ServiceDescriptor.Singleton(typeof(IOptionsChangeTokenSource<>), typeof(SiteSettingsOptionsChangeTokenSource<>)));
+
+services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigureGeneralAIOptions>();
+```
+
+That keeps settings refresh host-agnostic and avoids custom accessor interfaces.
+
+## 7. Add features one layer at a time
 
 The intended progression is:
 
@@ -270,7 +324,7 @@ The intended progression is:
 
 That layering keeps small apps lightweight while letting larger apps grow into a full AI platform without changing architectural direction.
 
-## 7. Use the MVC sample as the reference host
+## 8. Use the MVC sample as the reference host
 
 `src\Startup\CrestApps.Core.Mvc.Web\Program.cs` is the canonical example for:
 

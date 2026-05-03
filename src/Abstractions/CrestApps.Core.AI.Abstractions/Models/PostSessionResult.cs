@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
@@ -23,8 +25,10 @@ public sealed class PostSessionResult
     public PostSessionTaskResultStatus Status { get; set; }
 
     /// <summary>
-    /// Gets or sets the error message if the task failed.
+    /// Gets or sets the current in-memory error message if the task failed.
+    /// Persisted troubleshooting details live in <see cref="AttemptHistory"/>.
     /// </summary>
+    [JsonIgnore]
     public string ErrorMessage { get; set; }
 
     /// <summary>
@@ -33,7 +37,13 @@ public sealed class PostSessionResult
     public int Attempts { get; set; }
 
     /// <summary>
-    /// Gets or sets the UTC timestamp when this result was processed.
+    /// Gets or sets the history of failed or incomplete attempts for this task.
     /// </summary>
-    public DateTime ProcessedAtUtc { get; set; }
+    public List<PostSessionTaskAttempt> AttemptHistory { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the UTC timestamp when this task reached a terminal processed state.
+    /// This is only populated when the task succeeds or reaches a final failure state.
+    /// </summary>
+    public DateTime? ProcessedAtUtc { get; set; }
 }

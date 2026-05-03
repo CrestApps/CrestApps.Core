@@ -1,12 +1,12 @@
 @page "/ai-chat/analytics"
 @attribute [Authorize(Policy = "Admin")]
 @using System.Text
+@using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
-@using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @inject IAIProfileManager ProfileManager
-@inject SampleAIChatSessionEventService EventService
+@inject IAIChatSessionEventService EventService
 @inject TimeProvider TimeProvider
 @inject IJSRuntime JS
 

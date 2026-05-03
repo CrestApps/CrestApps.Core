@@ -25,11 +25,30 @@ internal sealed class SampleClaudeOptionsConfiguration : IConfigureOptions<Claud
 
     public void Configure(ClaudeOptions options)
     {
-        var settings = _siteSettings.Get<ClaudeSettings>();
-        if (settings == null)
-        {
-            return;
-        }
+        Apply(_siteSettings.Get<ClaudeSettings>(), options, _dataProtectionProvider, _logger);
+    }
+
+    public static ClaudeOptions Create(
+        ClaudeSettings settings,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger logger)
+    {
+        var options = new ClaudeOptions();
+        Apply(settings, options, dataProtectionProvider, logger);
+
+        return options;
+    }
+
+    public static void Apply(
+        ClaudeSettings settings,
+        ClaudeOptions options,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(dataProtectionProvider);
+        ArgumentNullException.ThrowIfNull(logger);
 
         options.BaseUrl = settings.BaseUrl;
         options.DefaultModel = settings.DefaultModel;
@@ -46,12 +65,12 @@ internal sealed class SampleClaudeOptionsConfiguration : IConfigureOptions<Claud
 
         try
         {
-            var protector = _dataProtectionProvider.CreateProtector(ProtectorPurpose);
+            var protector = dataProtectionProvider.CreateProtector(ProtectorPurpose);
             options.ApiKey = protector.Unprotect(settings.ProtectedApiKey);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to unprotect Anthropic API key.");
+            logger.LogWarning(ex, "Failed to unprotect Anthropic API key.");
         }
     }
 }

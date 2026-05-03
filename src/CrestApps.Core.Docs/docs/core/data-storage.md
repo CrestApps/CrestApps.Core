@@ -172,7 +172,7 @@ Every CrestApps feature that needs persistent storage exposes `.AddYesSqlStores(
 
 | Feature | Builder | EntityCore | YesSql | Stores registered |
 |---------|---------|------------|--------|-------------------|
-| **AI Services** | `CrestAppsAISuiteBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIProfileStore`, `AIProfileTemplate` catalog, `AIProviderConnection` binding source, `AIDeployment` binding source, `IAIChatSessionManager`, `IAIChatSessionPromptStore` |
+| **AI Services** | `CrestAppsAISuiteBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `IAIProfileStore`, `AIProfileTemplate` catalog, `AIProviderConnection` binding source, `AIDeployment` binding source, `IAIChatSessionManager`, `IAIChatSessionPromptStore`, `IAIChatSessionEventStore`, `IAICompletionUsageStore` |
 | **AI Profile Template** | — | `AddCoreAIProfileTemplateStoresEntityCore()` | `AddCoreAIProfileTemplateStoresYesSql()` | `AIProfileTemplate` catalog |
 | **A2A Client** | `CrestAppsA2AClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `A2AConnection` catalog |
 | **MCP Client** | `CrestAppsMcpClientBuilder` | `.AddEntityCoreStores()` | `.AddYesSqlStores()` | `McpConnection` catalog |
@@ -186,7 +186,7 @@ Every CrestApps feature that needs persistent storage exposes `.AddYesSqlStores(
 The **AI Services** builder method (`.AddYesSqlStores()` / `.AddEntityCoreStores()` on `CrestAppsAISuiteBuilder`) is a convenience that registers AI Profile Template and Chat Session stores together. Implementations that need finer-grained control (e.g., Orchard Core) can call the individual `IServiceCollection` extensions (`AddCoreAIProfileTemplateStoresYesSql()`, `AddCoreAIMcpServerStoresYesSql()`, etc.) directly.
 :::
 
-`AddCoreAIServices()` now registers a null fallback `IAIProfileStore`, plus the shared indexing runtime services (`ISearchIndexProfileManager`, `ISearchIndexProfileProvisioningService`, and a null fallback `ISearchIndexProfileStore`). Call `.AddAISuite(ai => ai.AddEntityCoreStores())` or `.AddYesSqlStores()` when you want persisted AI profile records instead of the fallback.
+`AddCoreAIServices()` now registers a null fallback `IAIProfileStore`, the default framework usage/session analytics services, and the shared indexing runtime services (`ISearchIndexProfileManager`, `ISearchIndexProfileProvisioningService`, and a null fallback `ISearchIndexProfileStore`). Call `.AddAISuite(ai => ai.AddEntityCoreStores())` or `.AddYesSqlStores()` when you want persisted AI profile records and analytics records instead of the fallback stores.
 
 **Entity Framework Core example** — register stores inline with each feature:
 

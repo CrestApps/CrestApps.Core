@@ -1,7 +1,7 @@
 using System.Text;
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,12 +14,12 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 public sealed class ChatAnalyticsController : Controller
 {
     private readonly IAIProfileManager _profileManager;
-    private readonly SampleAIChatSessionEventService _eventService;
+    private readonly IAIChatSessionEventService _eventService;
     private readonly TimeProvider _timeProvider;
 
     public ChatAnalyticsController(
         IAIProfileManager profileManager,
-        SampleAIChatSessionEventService eventService,
+        IAIChatSessionEventService eventService,
         TimeProvider timeProvider)
     {
         _profileManager = profileManager;

@@ -10,7 +10,6 @@ public static class HandlerExtensions
     /// <summary>
     /// Invokes a handler delegate on each item in the enumerable, logging and swallowing
     /// any exceptions thrown by individual handlers.
-    /// This is the Framework-level equivalent of OrchardCore.Modules.InvokeAsync.
     /// </summary>
     public static async Task InvokeAsync<THandler, TContext>(
         this IEnumerable<THandler> handlers,

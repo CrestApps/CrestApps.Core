@@ -2,11 +2,11 @@ using System.Text.Json;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Hubs;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
-using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.SignalR;
@@ -181,7 +181,7 @@ public sealed class ChatInteractionHubTests
         Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.", message);
     }
 
-    private static SampleCitationReferenceCollector CreateCitationCollector()
+    private static CitationReferenceCollector CreateCitationCollector()
     {
         return new(new CompositeAIReferenceLinkResolver(new ServiceCollection().BuildServiceProvider()));
     }

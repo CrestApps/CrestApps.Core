@@ -8,6 +8,22 @@ namespace CrestApps.Core.Data.EntityCore.Models;
 public sealed class AIChatSessionRecord
 {
     /// <summary>
+    /// Gets or sets the database-generated identity for this record.
+    /// </summary>
+    public long Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the foreign key to the <see cref="DocumentRecord"/> that holds
+    /// the serialized JSON payload for this session.
+    /// </summary>
+    public long DocumentId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the navigation property to the associated <see cref="DocumentRecord"/>.
+    /// </summary>
+    public DocumentRecord Document { get; set; }
+
+    /// <summary>
     /// Gets or sets the unique identifier of the chat session.
     /// </summary>
     public string SessionId { get; set; }
@@ -46,9 +62,4 @@ public sealed class AIChatSessionRecord
     /// Gets or sets the UTC date and time of the most recent activity in the session.
     /// </summary>
     public DateTime LastActivityUtc { get; set; }
-
-    /// <summary>
-    /// Gets or sets the serialized JSON payload containing the full session data.
-    /// </summary>
-    public string Payload { get; set; }
 }

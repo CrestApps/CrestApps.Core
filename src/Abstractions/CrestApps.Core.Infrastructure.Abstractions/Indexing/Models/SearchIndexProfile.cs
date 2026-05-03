@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 
@@ -45,6 +46,17 @@ public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAw
     public string EmbeddingDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the legacy embedding deployment identifier.
+    /// </summary>
+    [Obsolete("Use EmbeddingDeploymentName instead. Retained for backward compatibility.")]
+    [JsonIgnore]
+    public string EmbeddingDeploymentId
+    {
+        get => EmbeddingDeploymentName;
+        set => EmbeddingDeploymentName = value;
+    }
+
+    /// <summary>
     /// Gets or sets the date and time when this index profile was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
@@ -58,6 +70,15 @@ public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAw
     /// Gets or sets the author name.
     /// </summary>
     public string Author { get; set; }
+
+    /// <summary>
+    /// Sets the legacy embedding deployment identifier during deserialization.
+    /// </summary>
+    [JsonPropertyName("EmbeddingDeploymentId")]
+    public string LegacyEmbeddingDeploymentId
+    {
+        set => EmbeddingDeploymentName = value;
+    }
 
     string IIndexProfileInfo.IndexProfileId => ItemId;
 

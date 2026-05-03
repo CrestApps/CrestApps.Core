@@ -44,6 +44,7 @@
                 <label for="deploymentTechName" class="form-label">Technical name <span class="text-danger">*</span></label>
                 <input id="deploymentTechName" @bind="_model.TechnicalName" class="form-control" required />
                 <div class="form-text">This is the deployment identifier shown throughout the app. It is auto-generated from the model name and can be adjusted before saving.</div>
+                <div class="form-text">The technical name cannot be changed after creation.</div>
             </div>
 
             <div class="mb-3">

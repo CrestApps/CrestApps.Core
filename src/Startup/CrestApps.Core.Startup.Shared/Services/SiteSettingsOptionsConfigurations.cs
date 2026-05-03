@@ -16,7 +16,27 @@ internal sealed class SiteSettingsConfigureGeneralAIOptions : IConfigureOptions<
 
     public void Configure(GeneralAIOptions options)
     {
-        var settings = _siteSettings.Get<GeneralAISettings>();
+        SiteSettingsGeneralAIOptionsMapper.Apply(_siteSettings.Get<GeneralAISettings>(), options);
+    }
+}
+
+internal static class SiteSettingsGeneralAIOptionsMapper
+{
+    public static GeneralAIOptions Create(GeneralAISettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var options = new GeneralAIOptions();
+        Apply(settings, options);
+
+        return options;
+    }
+
+    public static void Apply(GeneralAISettings settings, GeneralAIOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+
         options.EnableAIUsageTracking = settings.EnableAIUsageTracking;
         options.EnablePreemptiveMemoryRetrieval = settings.EnablePreemptiveMemoryRetrieval;
         options.OverrideMaximumIterationsPerRequest = settings.OverrideMaximumIterationsPerRequest;
@@ -39,7 +59,27 @@ internal sealed class SiteSettingsConfigureAIMemoryOptions : IConfigureOptions<A
 
     public void Configure(AIMemoryOptions options)
     {
-        var settings = _siteSettings.Get<AIMemoryOptions>();
+        SiteSettingsAIMemoryOptionsMapper.Apply(_siteSettings.Get<AIMemoryOptions>(), options);
+    }
+}
+
+internal static class SiteSettingsAIMemoryOptionsMapper
+{
+    public static AIMemoryOptions Create(AIMemoryOptions settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var options = new AIMemoryOptions();
+        Apply(settings, options);
+
+        return options;
+    }
+
+    public static void Apply(AIMemoryOptions settings, AIMemoryOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+
         options.IndexProfileName = settings.IndexProfileName;
         options.TopN = settings.TopN;
     }
@@ -56,7 +96,27 @@ internal sealed class SiteSettingsConfigureInteractionDocumentOptions : IConfigu
 
     public void Configure(InteractionDocumentOptions options)
     {
-        var settings = _siteSettings.Get<InteractionDocumentSettings>();
+        SiteSettingsInteractionDocumentOptionsMapper.Apply(_siteSettings.Get<InteractionDocumentSettings>(), options);
+    }
+}
+
+internal static class SiteSettingsInteractionDocumentOptionsMapper
+{
+    public static InteractionDocumentOptions Create(InteractionDocumentSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var options = new InteractionDocumentOptions();
+        Apply(settings, options);
+
+        return options;
+    }
+
+    public static void Apply(InteractionDocumentSettings settings, InteractionDocumentOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+
         options.IndexProfileName = settings.IndexProfileName;
         options.TopN = settings.TopN;
         options.RetrievalMode = settings.RetrievalMode;
@@ -74,7 +134,27 @@ internal sealed class SiteSettingsConfigureAIDataSourceOptions : IConfigureOptio
 
     public void Configure(AIDataSourceOptions options)
     {
-        var settings = _siteSettings.Get<AIDataSourceSettings>();
+        SiteSettingsAIDataSourceOptionsMapper.Apply(_siteSettings.Get<AIDataSourceSettings>(), options);
+    }
+}
+
+internal static class SiteSettingsAIDataSourceOptionsMapper
+{
+    public static AIDataSourceOptions Create(AIDataSourceSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var options = new AIDataSourceOptions();
+        Apply(settings, options);
+
+        return options;
+    }
+
+    public static void Apply(AIDataSourceSettings settings, AIDataSourceOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+
         options.DefaultStrictness = settings.DefaultStrictness;
         options.DefaultTopNDocuments = settings.DefaultTopNDocuments;
     }
@@ -91,7 +171,27 @@ internal sealed class SiteSettingsConfigureChatInteractionMemoryOptions : IConfi
 
     public void Configure(ChatInteractionMemoryOptions options)
     {
-        var settings = _siteSettings.Get<MemoryMetadata>();
+        SiteSettingsChatInteractionMemoryOptionsMapper.Apply(_siteSettings.Get<MemoryMetadata>(), options);
+    }
+}
+
+internal static class SiteSettingsChatInteractionMemoryOptionsMapper
+{
+    public static ChatInteractionMemoryOptions Create(MemoryMetadata settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var options = new ChatInteractionMemoryOptions();
+        Apply(settings, options);
+
+        return options;
+    }
+
+    public static void Apply(MemoryMetadata settings, ChatInteractionMemoryOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+
         options.EnableUserMemory = settings.EnableUserMemory ?? true;
     }
 }
@@ -107,7 +207,27 @@ internal sealed class SiteSettingsConfigureDefaultDeploymentOptions : IConfigure
 
     public void Configure(DefaultAIDeploymentSettings options)
     {
-        var settings = _siteSettings.Get<DefaultAIDeploymentSettings>();
+        SiteSettingsDefaultAIDeploymentOptionsMapper.Apply(_siteSettings.Get<DefaultAIDeploymentSettings>(), options);
+    }
+}
+
+internal static class SiteSettingsDefaultAIDeploymentOptionsMapper
+{
+    public static DefaultAIDeploymentSettings Create(DefaultAIDeploymentSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var options = new DefaultAIDeploymentSettings();
+        Apply(settings, options);
+
+        return options;
+    }
+
+    public static void Apply(DefaultAIDeploymentSettings settings, DefaultAIDeploymentSettings options)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+
         options.DefaultChatDeploymentName = settings.DefaultChatDeploymentName;
         options.DefaultUtilityDeploymentName = settings.DefaultUtilityDeploymentName;
         options.DefaultEmbeddingDeploymentName = settings.DefaultEmbeddingDeploymentName;

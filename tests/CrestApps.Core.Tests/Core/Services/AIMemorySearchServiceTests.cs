@@ -5,10 +5,10 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.Services;
@@ -198,7 +198,7 @@ public sealed class AIMemorySearchServiceTests
                     serviceProvider.GetRequiredService<ISearchIndexProfileStore>(),
                     serviceProvider.GetRequiredService<IAIDeploymentManager>(),
                     serviceProvider.GetRequiredService<IAIClientFactory>(),
-                    Options.Create(options),
+                    new TestOptionsMonitor<AIMemoryOptions> { CurrentValue = options },
                     NullLogger<AIMemorySearchService>.Instance);
     }
 

@@ -4,8 +4,7 @@ using System.Text.Json.Nodes;
 namespace CrestApps.Core;
 
 /// <summary>
-/// Extension methods for <see cref="ExtensibleEntity"/> to provide dynamic property storage,
-/// matching the patterns from OrchardCore.Entities.Entity.
+/// Extension methods for <see cref="ExtensibleEntity"/> to provide dynamic property storage.
 /// </summary>
 public static class ExtensibleEntityExtensions
 {

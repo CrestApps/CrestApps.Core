@@ -110,11 +110,7 @@ public sealed class SearchDocumentsTool : AIFunction
                 _ => false,
             };
 
-            var snapshotSettings = arguments.Services.GetService<IOptionsSnapshot<InteractionDocumentOptions>>()?.Value;
-            var optionsSettings = arguments.Services.GetRequiredService<IOptions<InteractionDocumentOptions>>().Value;
-            var defaultSettings = !string.IsNullOrWhiteSpace(snapshotSettings?.IndexProfileName)
-                ? snapshotSettings
-                : optionsSettings;
+            var defaultSettings = arguments.Services.GetRequiredService<IOptionsMonitor<InteractionDocumentOptions>>().CurrentValue;
             var settings = ResolveSettings(executionContext?.Resource, defaultSettings);
 
             if (string.IsNullOrWhiteSpace(settings.IndexProfileName))

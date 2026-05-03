@@ -4,9 +4,9 @@ using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 
 #pragma warning disable MEAI001
@@ -101,14 +101,20 @@ public sealed class AIMemoryPreemptiveRagHandlerTests
         return new AIMemoryPreemptiveRagHandler(
                     memorySearchService.Object,
                     new FakeAITemplateService(),
-                    Options.Create(new GeneralAIOptions
+                    new TestOptionsMonitor<GeneralAIOptions>
                     {
-                        EnablePreemptiveMemoryRetrieval = enablePreemptiveMemoryRetrieval,
-                    }),
-                    Options.Create(new ChatInteractionMemoryOptions
+                        CurrentValue = new GeneralAIOptions
+                        {
+                            EnablePreemptiveMemoryRetrieval = enablePreemptiveMemoryRetrieval,
+                        },
+                    },
+                    new TestOptionsMonitor<ChatInteractionMemoryOptions>
                     {
-                        EnableUserMemory = enableChatInteractionMemory,
-                    }),
+                        CurrentValue = new ChatInteractionMemoryOptions
+                        {
+                            EnableUserMemory = enableChatInteractionMemory,
+                        },
+                    },
                     httpContextAccessor,
                     NullLogger<AIMemoryPreemptiveRagHandler>.Instance);
     }

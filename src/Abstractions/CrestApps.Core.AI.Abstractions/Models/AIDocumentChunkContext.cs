@@ -2,8 +2,7 @@ namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Represents a single chunk of an AI document passed to the vector indexing pipeline.
-/// This model is used as the record in <see cref="OrchardCore.Indexing.BuildDocumentIndexContext"/>
-/// when indexing document chunks via <see cref="OrchardCore.Indexing.IDocumentIndexHandler"/>.
+/// This model carries the chunk record used during document indexing.
 /// </summary>
 public sealed class AIDocumentChunkContext
 {

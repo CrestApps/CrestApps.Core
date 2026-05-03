@@ -2,8 +2,10 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -41,13 +43,15 @@ public static class SharedWebApplicationBuilderExtensions
         var appDataPath = !string.IsNullOrWhiteSpace(configuredAppDataPath)
             ? configuredAppDataPath
             : Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+        var projectAppDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 
         Directory.CreateDirectory(appDataPath);
 
-        builder.Configuration.AddJsonFile(
-            Path.Combine(appDataPath, "appsettings.json"),
-            optional: true,
-            reloadOnChange: false);
+        var keysDirectory = new DirectoryInfo(Path.Combine(appDataPath, "DataProtection-Keys"));
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(keysDirectory);
+
+        AddSharedAppDataConfigurationSources(builder.Configuration, projectAppDataPath, appDataPath);
 
         builder.Services.AddSharedSiteSettings(appDataPath);
 
@@ -64,13 +68,44 @@ public static class SharedWebApplicationBuilderExtensions
         ArgumentException.ThrowIfNullOrEmpty(appDataPath);
 
         services.AddSingleton(new SiteSettingsStore(appDataPath));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton(typeof(IOptionsChangeTokenSource<>), typeof(SiteSettingsOptionsChangeTokenSource<>)));
         services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigureGeneralAIOptions>();
         services.AddSingleton<IConfigureOptions<AIMemoryOptions>, SiteSettingsConfigureAIMemoryOptions>();
+        services.AddSingleton<IConfigureOptions<AIChatSessionProcessingOptions>, SiteSettingsConfigureStoredOptions<AIChatSessionProcessingOptions>>();
         services.AddSingleton<IConfigureOptions<InteractionDocumentOptions>, SiteSettingsConfigureInteractionDocumentOptions>();
         services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
         services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
         services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
 
         return services;
+    }
+
+    private static void AddSharedAppDataConfigurationSources(
+        ConfigurationManager configuration,
+        string projectAppDataPath,
+        string appDataPath)
+    {
+        configuration.AddJsonFile(
+            Path.Combine(projectAppDataPath, "appsettings.json"),
+            optional: true,
+            reloadOnChange: false);
+
+        if (PathsMatch(projectAppDataPath, appDataPath))
+        {
+            return;
+        }
+
+        configuration.AddJsonFile(
+            Path.Combine(appDataPath, "appsettings.json"),
+            optional: true,
+            reloadOnChange: false);
+    }
+
+    private static bool PathsMatch(string left, string right)
+    {
+        return string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            StringComparison.OrdinalIgnoreCase);
     }
 }

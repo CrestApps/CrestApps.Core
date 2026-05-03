@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace CrestApps.Core;
 
 /// <summary>
-/// Extension methods for JSON types to replace OrchardCore's JSON helpers.
+/// Extension methods for working with JSON types used throughout CrestApps Core.
 /// </summary>
 public static class JsonExtensions
 {

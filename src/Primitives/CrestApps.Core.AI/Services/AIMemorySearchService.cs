@@ -20,7 +20,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
-    private readonly AIMemoryOptions _memoryOptions;
+    private readonly IOptionsMonitor<AIMemoryOptions> _memoryOptions;
     private readonly ILogger<AIMemorySearchService> _logger;
 
     /// <summary>
@@ -37,14 +37,14 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         ISearchIndexProfileStore indexProfileStore,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
-        IOptions<AIMemoryOptions> memoryOptions,
+        IOptionsMonitor<AIMemoryOptions> memoryOptions,
         ILogger<AIMemorySearchService> logger)
     {
         _serviceProvider = serviceProvider;
         _indexProfileStore = indexProfileStore;
         _deploymentManager = deploymentManager;
         _aiClientFactory = aiClientFactory;
-        _memoryOptions = memoryOptions.Value;
+        _memoryOptions = memoryOptions;
         _logger = logger;
     }
 
@@ -81,14 +81,16 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
             return [];
         }
 
-        if (string.IsNullOrWhiteSpace(_memoryOptions.IndexProfileName))
+        var memoryOptions = _memoryOptions.CurrentValue;
+
+        if (string.IsNullOrWhiteSpace(memoryOptions.IndexProfileName))
         {
             _logger.LogDebug("Skipping AI memory search because no AI Memory index profile is configured.");
 
             return [];
         }
 
-        var indexProfile = await _indexProfileStore.FindByNameAsync(_memoryOptions.IndexProfileName, cancellationToken);
+        var indexProfile = await _indexProfileStore.FindByNameAsync(memoryOptions.IndexProfileName, cancellationToken);
 
         if (indexProfile is null || !string.Equals(indexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase))
         {
@@ -96,7 +98,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
             {
                 _logger.LogDebug(
                     "Skipping AI memory search because configured index profile '{IndexProfileName}' was not found or is not of type '{IndexProfileType}'.",
-                    _memoryOptions.IndexProfileName,
+                    memoryOptions.IndexProfileName,
                     IndexProfileTypes.AIMemory);
             }
 
@@ -138,7 +140,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
             return [];
         }
 
-        var configuredTopN = _memoryOptions.TopN > 0 ? _memoryOptions.TopN : 5;
+        var configuredTopN = memoryOptions.TopN > 0 ? memoryOptions.TopN : 5;
         var topN = requestedTopN.GetValueOrDefault(configuredTopN);
         topN = Math.Clamp(topN > 0 ? topN : configuredTopN, 1, 20);
 

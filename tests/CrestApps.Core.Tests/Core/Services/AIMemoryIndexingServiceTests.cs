@@ -5,10 +5,10 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.Services;
@@ -64,7 +64,7 @@ public sealed class AIMemoryIndexingServiceTests
 
         var service = new AIMemoryIndexingService(
             Mock.Of<IAIMemoryStore>(),
-            Options.Create(new AIMemoryOptions { IndexProfileName = "memory-profile" }),
+            new TestOptionsMonitor<AIMemoryOptions> { CurrentValue = new AIMemoryOptions { IndexProfileName = "memory-profile" } },
             indexProfileStore.Object,
             deploymentManager.Object,
             aiClientFactory.Object,
@@ -120,7 +120,7 @@ public sealed class AIMemoryIndexingServiceTests
 
         var service = new AIMemoryIndexingService(
             Mock.Of<IAIMemoryStore>(),
-            Options.Create(new AIMemoryOptions { IndexProfileName = "memory-profile" }),
+            new TestOptionsMonitor<AIMemoryOptions> { CurrentValue = new AIMemoryOptions { IndexProfileName = "memory-profile" } },
             indexProfileStore.Object,
             Mock.Of<IAIDeploymentManager>(),
             Mock.Of<IAIClientFactory>(),

@@ -30,9 +30,9 @@ namespace CrestApps.Core.AI.Chat.Hubs;
 /// session management, message rating, handler transfer, conversation mode support,
 /// and notification action dispatch.
 /// <para>
-/// All public hub methods are <c>virtual</c> so that framework-specific subclasses
-/// (e.g., OrchardCore) can wrap each call with their own scoping or authorization
-/// logic and then call the base implementation.
+/// All public hub methods are <c>virtual</c> so that host-specific subclasses can
+/// wrap each call with their own scoping or authorization logic and then call the
+/// base implementation.
 /// </para>
 /// </summary>
 public class AIChatHubCore<TClient> : Hub<TClient>
@@ -62,9 +62,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     protected ILogger Logger { get; }
 
     /// <summary>
-    /// Executes an action within a service scope. Override in OrchardCore to use
-    /// <c>ShellScope.UsingChildScopeAsync</c> so that each hub invocation gets
-    /// its own <c>ISession</c> / <c>IDocumentStore</c> lifecycle.
+    /// Executes an action within a service scope. Override in a host that needs a
+    /// dedicated child scope for each hub invocation.
     /// </summary>
     /// <param name="action">The action.</param>
     protected virtual Task ExecuteInScopeAsync(Func<IServiceProvider, Task> action)
@@ -91,8 +90,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
-    /// Generates a unique identifier. Override to use a framework-specific
-    /// ID generator (e.g., OrchardCore's <c>IdGenerator</c>).
+    /// Generates a unique identifier. Override to use a host-specific ID generator.
     /// </summary>
     protected virtual string GenerateId()
     {
@@ -282,7 +280,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="contentItemIds">The content item ids.</param>
     protected virtual void CollectStreamingReferences(IServiceProvider services, ChatResponseHandlerContext handlerContext, Dictionary<string, AICompletionReference> references, HashSet<string> contentItemIds)
     {
-        // No-op. OC overrides to use CitationReferenceCollector.
+        // No-op. Hosts can override to integrate citation collection.
     }
 
     /// <summary>
@@ -395,8 +393,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
-    /// Resolves the deployment settings for speech services. Override in
-    /// OrchardCore to read from ISiteService instead of IOptionsMonitor.
+    /// Resolves the deployment settings for speech services. Override in another
+    /// host to read from its preferred settings source.
     /// </summary>
     /// <param name="services">The service collection.</param>
     protected virtual Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)
@@ -579,9 +577,28 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="services">The service collection.</param>
     /// <param name="chatSession">The chat session.</param>
     /// <param name="promptStore">The prompt store.</param>
-    protected virtual Task OnMessageRatedAsync(IServiceProvider services, AIChatSession chatSession, IAIChatSessionPromptStore promptStore)
+    protected virtual async Task OnMessageRatedAsync(IServiceProvider services, AIChatSession chatSession, IAIChatSessionPromptStore promptStore)
     {
-        return Task.CompletedTask;
+        var eventService = services.GetService<IAIChatSessionEventService>();
+
+        if (eventService is null)
+        {
+            return;
+        }
+
+        var allPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
+        var ratings = allPrompts
+            .Where(prompt => prompt.UserRating.HasValue)
+            .Select(prompt => prompt.UserRating.Value)
+            .ToList();
+
+        if (ratings.Count > 0)
+        {
+            await eventService.RecordUserRatingAsync(
+                chatSession.SessionId,
+                ratings.Count(rating => rating),
+                ratings.Count(rating => !rating));
+        }
     }
 
     /// <summary>

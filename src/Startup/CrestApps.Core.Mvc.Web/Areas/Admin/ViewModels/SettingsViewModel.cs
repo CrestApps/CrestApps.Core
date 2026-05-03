@@ -16,6 +16,8 @@ public sealed class SettingsViewModel
 
     public int MaximumIterationsPerRequest { get; set; } = 10;
 
+    public int MaxPostCloseAttempts { get; set; } = AIChatSessionProcessingOptions.DefaultMaxPostCloseAttempts;
+
     public bool EnableDistributedCaching { get; set; } = true;
 
     public bool EnableOpenTelemetry { get; set; }

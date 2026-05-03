@@ -20,13 +20,14 @@
         <div class="col-md-8">
             <div class="mb-3">
                 <label asp-for="DisplayText" class="form-label">Title <span class="text-danger">*</span></label>
-                <input asp-for="DisplayText" class="form-control" id="templateTitle" required placeholder="e.g., Customer Support Prompt" />
+                <input asp-for="DisplayText" class="form-control" id="templateTitle" required placeholder="e.g., Customer Support Template" />
             </div>
             <div class="mb-3">
                 <label asp-for="Name" class="form-label">Technical name <span class="text-danger">*</span></label>
-                <input asp-for="Name" class="form-control" id="templateTechName" required placeholder="e.g., CustomerSupportPrompt" />
+                <input asp-for="Name" class="form-control" id="templateTechName" required placeholder="e.g., CustomerSupportTemplate" />
                 <span asp-validation-for="Name" class="text-danger"></span>
                 <div class="form-text">Auto-generated from the title.</div>
+                <div class="form-text">The technical name cannot be changed after creation.</div>
             </div>
             <div class="row">
                 <div class="col-md-6">

@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Handlers;
 
@@ -21,7 +20,7 @@ internal static class AIMemoryOrchestrationContextHelper
     /// </summary>
     /// <param name="resource">The resource.</param>
     /// <param name="chatInteractionMemoryOptions">The chat interaction memory options.</param>
-    public static bool IsEnabled(object resource, IOptions<ChatInteractionMemoryOptions> chatInteractionMemoryOptions)
+    public static bool IsEnabled(object resource, ChatInteractionMemoryOptions chatInteractionMemoryOptions)
     {
         if (resource is AIProfile profile)
         {
@@ -30,7 +29,7 @@ internal static class AIMemoryOrchestrationContextHelper
 
         if (resource is ChatInteraction)
         {
-            return chatInteractionMemoryOptions.Value.EnableUserMemory;
+            return chatInteractionMemoryOptions.EnableUserMemory;
         }
 
         return false;

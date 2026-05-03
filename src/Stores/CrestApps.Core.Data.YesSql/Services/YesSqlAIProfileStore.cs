@@ -31,9 +31,13 @@ public sealed class YesSqlAIProfileStore : NamedSourceDocumentCatalog<AIProfile,
     public async ValueTask<IReadOnlyCollection<AIProfile>> GetByTypeAsync(AIProfileType type, CancellationToken cancellationToken = default)
     {
         var profileType = type.ToString();
-        var items = await Session.Query<AIProfile, AIProfileIndex>(x => x.Type == profileType, collection: CollectionName)
+        var items = await Session.Query<AIProfile, AIProfileIndex>(
+                x => x.Type == profileType || x.Type == null || x.Type == string.Empty,
+                collection: CollectionName)
             .ListAsync(cancellationToken);
 
-        return items.ToArray();
+        return items
+            .Where(item => item.Type == type)
+            .ToArray();
     }
 }

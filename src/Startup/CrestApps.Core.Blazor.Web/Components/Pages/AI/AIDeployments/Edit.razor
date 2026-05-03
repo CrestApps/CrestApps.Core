@@ -55,7 +55,6 @@ else
                 <div class="mb-3">
                     <label for="deploymentTechName" class="form-label">Technical name <span class="text-danger">*</span></label>
                     <input id="deploymentTechName" value="@_model.TechnicalName" class="form-control" disabled />
-                    <div class="form-text">This deployment identifier is shown throughout the app and cannot be changed after creation.</div>
                 </div>
 
                 <div class="mb-3">
@@ -199,7 +198,7 @@ else
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        if (deployment.IsReadOnly)
         {
             Navigation.NavigateTo("/ai/deployments");
 
@@ -269,13 +268,6 @@ else
     {
         _validationErrors.Clear();
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(_model.ItemId))
-        {
-            Navigation.NavigateTo("/ai/deployments");
-
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(_model.ModelName))
         {
             _validationErrors.Add("Model name is required.");
@@ -325,7 +317,7 @@ else
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        if (deployment.IsReadOnly)
         {
             Navigation.NavigateTo("/ai/deployments");
 

@@ -73,12 +73,14 @@ public sealed class SettingsController : Controller
         var anthropicSettings = _siteSettings.Get<ClaudeSettings>();
         var paginationSettings = _siteSettings.Get<PaginationSettings>();
         var adminWidgetSettings = _siteSettings.Get<AIChatAdminWidgetSettings>();
+        var chatSessionProcessingSettings = _siteSettings.Get<AIChatSessionProcessingOptions>();
 
         var model = new SettingsViewModel
         {
             EnableAIUsageTracking = settings.EnableAIUsageTracking,
             EnablePreemptiveMemoryRetrieval = settings.EnablePreemptiveMemoryRetrieval,
             MaximumIterationsPerRequest = settings.MaximumIterationsPerRequest,
+            MaxPostCloseAttempts = chatSessionProcessingSettings.MaxPostCloseAttempts,
             EnableDistributedCaching = settings.EnableDistributedCaching,
             EnableOpenTelemetry = settings.EnableOpenTelemetry,
             ChatInteractionChatMode = chatInteractionSettings.ChatMode,
@@ -138,6 +140,11 @@ public sealed class SettingsController : Controller
         if (model.MaximumIterationsPerRequest < 1)
         {
             ModelState.AddModelError(nameof(model.MaximumIterationsPerRequest), "Must be at least 1.");
+        }
+
+        if (model.MaxPostCloseAttempts < 1)
+        {
+            ModelState.AddModelError(nameof(model.MaxPostCloseAttempts), "Must be at least 1.");
         }
 
         if (model.DocumentTopN < 1)
@@ -226,6 +233,11 @@ public sealed class SettingsController : Controller
             settings.MaximumIterationsPerRequest = model.MaximumIterationsPerRequest;
             settings.EnableDistributedCaching = model.EnableDistributedCaching;
             settings.EnableOpenTelemetry = model.EnableOpenTelemetry;
+        });
+
+        _siteSettings.Set(new AIChatSessionProcessingOptions
+        {
+            MaxPostCloseAttempts = model.MaxPostCloseAttempts,
         });
 
         _siteSettings.Set<ChatInteractionSettings>(settings =>

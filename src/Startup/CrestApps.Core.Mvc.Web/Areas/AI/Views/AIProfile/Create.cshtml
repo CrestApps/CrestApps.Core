@@ -85,6 +85,7 @@
                         <label asp-for="Name" class="form-label">Technical name <span class="text-danger">*</span></label>
                         <input asp-for="Name" id="profileName" class="form-control" required placeholder="e.g., my-chat-assistant" />
                         <span asp-validation-for="Name" class="text-danger"></span>
+                        <div class="form-text">The technical name cannot be changed after creation.</div>
                     </div>
                     <div class="row rag-data-source-dependent">
                         <div class="col-md-4">

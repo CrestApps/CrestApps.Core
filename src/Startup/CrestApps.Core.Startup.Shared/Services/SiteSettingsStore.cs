@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Primitives;
 
 namespace CrestApps.Core.Startup.Shared.Services;
 
@@ -50,6 +51,7 @@ public sealed class SiteSettingsStore
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly string _filePath;
     private readonly JsonObject _root;
+    private CancellationTokenSource _reloadTokenSource = new();
 
     public SiteSettingsStore(string appDataPath)
     {
@@ -125,6 +127,14 @@ public sealed class SiteSettingsStore
         Set(current);
     }
 
+    public IChangeToken GetChangeToken()
+    {
+        lock (_stateLock)
+        {
+            return new CancellationChangeToken(_reloadTokenSource.Token);
+        }
+    }
+
     public async Task SaveChangesAsync()
     {
         string json;
@@ -148,6 +158,7 @@ public sealed class SiteSettingsStore
             var tempPath = _filePath + ".tmp";
             await File.WriteAllTextAsync(tempPath, json);
             File.Move(tempPath, _filePath, overwrite: true);
+            SignalChanged();
         }
         finally
         {
@@ -227,5 +238,19 @@ public sealed class SiteSettingsStore
                 root.Remove(oldKey);
             }
         }
+    }
+
+    private void SignalChanged()
+    {
+        CancellationTokenSource previousTokenSource;
+
+        lock (_stateLock)
+        {
+            previousTokenSource = _reloadTokenSource;
+            _reloadTokenSource = new CancellationTokenSource();
+        }
+
+        previousTokenSource.Cancel();
+        previousTokenSource.Dispose();
     }
 }

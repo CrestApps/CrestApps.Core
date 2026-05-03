@@ -19,6 +19,7 @@
                 <input asp-for="Name" class="form-control" id="connectionTechName" required placeholder="e.g., MyOpenAIConnection" />
                 <span asp-validation-for="Name" class="text-danger"></span>
                 <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
+                <div class="form-text">The technical name cannot be changed after creation.</div>
             </div>
             <div class="mb-3">
                 <label asp-for="Source" class="form-label">Provider <span class="text-danger">*</span></label>

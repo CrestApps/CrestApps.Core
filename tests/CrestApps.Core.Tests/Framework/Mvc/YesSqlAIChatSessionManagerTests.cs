@@ -1,8 +1,10 @@
+using System.Linq.Expressions;
 using System.Security.Claims;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.Data.YesSql;
+using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using CrestApps.Core.Data.YesSql.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
@@ -43,7 +45,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             httpContextAccessor.Object,
-            new Mock<global::YesSql.ISession>().Object,
+            new Mock<YesSql.ISession>().Object,
             promptStore.Object,
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -78,7 +80,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             httpContextAccessor.Object,
-            new Mock<global::YesSql.ISession>(MockBehavior.Strict).Object,
+            new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -116,7 +118,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             Mock.Of<IHttpContextAccessor>(accessor => accessor.HttpContext == null),
-            new Mock<global::YesSql.ISession>(MockBehavior.Strict).Object,
+            new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -149,7 +151,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             Mock.Of<IHttpContextAccessor>(accessor => accessor.HttpContext == null),
-            new Mock<global::YesSql.ISession>(MockBehavior.Strict).Object,
+            new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -167,7 +169,22 @@ public sealed class YesSqlAIChatSessionManagerTests
         var timeProvider = new Mock<TimeProvider>();
         timeProvider.Setup(provider => provider.GetUtcNow()).Returns(new DateTimeOffset(now));
 
-        var sessionStore = new Mock<global::YesSql.ISession>();
+        var sessionStore = new Mock<YesSql.ISession>();
+        var query = new Mock<YesSql.IQuery>();
+        var typedQuery = new Mock<YesSql.IQuery<AIChatSession>>();
+        var indexedQuery = new Mock<YesSql.IQuery<AIChatSession, AIChatSessionIndex>>();
+        sessionStore.Setup(session => session.Query("AI")).Returns(query.Object);
+        query.Setup(sessionQuery => sessionQuery.For<AIChatSession>(It.IsAny<bool>())).Returns(typedQuery.Object);
+        typedQuery.Setup(sessionQuery => sessionQuery.With<AIChatSessionIndex>()).Returns(indexedQuery.Object);
+        typedQuery
+            .Setup(sessionQuery => sessionQuery.With<AIChatSessionIndex>(It.IsAny<Expression<Func<AIChatSessionIndex, bool>>>()))
+            .Returns(indexedQuery.Object);
+        indexedQuery
+            .Setup(sessionQuery => sessionQuery.Where(It.IsAny<Expression<Func<AIChatSessionIndex, bool>>>()))
+            .Returns(indexedQuery.Object);
+        indexedQuery
+            .Setup(sessionQuery => sessionQuery.FirstOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIChatSession)null!);
         sessionStore
             .Setup(session => session.SaveAsync(It.IsAny<AIChatSession>(), It.IsAny<bool>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
@@ -196,7 +213,7 @@ public sealed class YesSqlAIChatSessionManagerTests
     {
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
-            new Mock<global::YesSql.ISession>(MockBehavior.Strict).Object,
+            new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -209,7 +226,7 @@ public sealed class YesSqlAIChatSessionManagerTests
     {
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
-            new Mock<global::YesSql.ISession>(MockBehavior.Strict).Object,
+            new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -222,7 +239,7 @@ public sealed class YesSqlAIChatSessionManagerTests
     {
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
-            new Mock<global::YesSql.ISession>(MockBehavior.Strict).Object,
+            new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));

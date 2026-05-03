@@ -1,19 +1,19 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
-public sealed class MvcAIDocumentIndexingServiceTests
+public sealed class DefaultAIDocumentIndexingServiceTests
 {
     [Fact]
     public async Task IndexAsync_WhenChunksDoNotContainEmbeddingsOrContent_SkipsIndexing()
@@ -216,7 +216,7 @@ public sealed class MvcAIDocumentIndexingServiceTests
         indexProfileStore.Verify(store => store.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static SampleAIDocumentIndexingService CreateService(
+    private static DefaultAIDocumentIndexingService CreateService(
         ISearchIndexProfileStore indexProfileStore,
         ISearchIndexManager indexManager,
         ISearchDocumentManager documentManager)
@@ -225,11 +225,11 @@ public sealed class MvcAIDocumentIndexingServiceTests
         services.AddKeyedSingleton<ISearchIndexManager>(AISearchConstants.ProviderName, indexManager);
         services.AddKeyedSingleton<ISearchDocumentManager>(AISearchConstants.ProviderName, documentManager);
 
-        return new SampleAIDocumentIndexingService(
-                    Options.Create(new InteractionDocumentOptions { IndexProfileName = "chat-documents" }),
+        return new DefaultAIDocumentIndexingService(
+                    new TestOptionsMonitor<InteractionDocumentOptions> { CurrentValue = new InteractionDocumentOptions { IndexProfileName = "chat-documents" } },
                     indexProfileStore,
                     services.BuildServiceProvider(),
-                    NullLogger<SampleAIDocumentIndexingService>.Instance);
+                    NullLogger<DefaultAIDocumentIndexingService>.Instance);
     }
 
     private static SearchIndexProfile CreateIndexProfile(string type = IndexProfileTypes.AIDocuments)

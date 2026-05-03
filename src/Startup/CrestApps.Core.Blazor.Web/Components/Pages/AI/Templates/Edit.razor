@@ -32,9 +32,9 @@
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
-@inject IOptions<CopilotOptions> CopilotOpts
+@inject IOptionsMonitor<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
-@inject IOptions<InteractionDocumentOptions> DocOpts
+@inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 
@@ -58,7 +58,7 @@
             }
 
             <div class="mb-3">
-                <label class="form-label">Title</label>
+                <label class="form-label">Title <span class="text-danger">*</span></label>
                 <InputText class="form-control" @bind-Value="_model.DisplayText" placeholder="e.g., Customer Support Template" />
             </div>
 
@@ -71,7 +71,7 @@
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label">Category</label>
-                        <InputText class="form-control" @bind-Value="_model.Category" placeholder="e.g., Support" />
+                        <InputText class="form-control" @bind-Value="_model.Category" placeholder="e.g., Customer Service" />
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -87,28 +87,28 @@
                     <InputCheckbox class="form-check-input" @bind-Value="_model.IsListable" />
                     <label class="form-check-label">Listable</label>
                 </div>
-                <div class="form-text">Show this template in template pickers.</div>
+                <div class="form-text">Whether this template appears in listing UIs.</div>
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Source <span class="text-danger">*</span></label>
                 <select class="form-select" value="@_model.Source" @onchange="OnSourceChanged">
-                    <option value="@AITemplateSources.SystemPrompt">System Prompt</option>
-                    <option value="@AITemplateSources.Profile">Profile</option>
+                    <option value="@AITemplateSources.SystemPrompt">System prompt</option>
+                    <option value="@AITemplateSources.Profile">AI profile</option>
                 </select>
                 @if (!string.IsNullOrEmpty(_sourceError))
                 {
                     <div class="text-danger">@_sourceError</div>
                 }
-                <div class="form-text">System Prompt templates contain only a system message. Profile templates contain a full profile configuration.</div>
+                <div class="form-text">System prompt templates define only a system message. Profile templates include full AI profile configuration.</div>
             </div>
 
             @if (_model.Source == AITemplateSources.SystemPrompt)
             {
                 <div class="mb-3">
                     <label class="form-label">System message</label>
-                    <InputTextArea class="form-control" rows="8" @bind-Value="_model.SystemMessage" placeholder="You are a helpful AI assistant..." />
-                    <div class="form-text">The system message for this template.</div>
+                    <InputTextArea class="form-control" rows="8" @bind-Value="_model.SystemMessage" placeholder="You are a helpful assistant that..." />
+                    <div class="form-text">The system message that defines the AI's behavior and role.</div>
                 </div>
             }
             else if (_model.Source == AITemplateSources.Profile)
@@ -147,6 +147,7 @@
                                     <option value="@pt">@pt</option>
                                 }
                             </select>
+                            <div class="form-text">Choose the type of the profile.</div>
                         </div>
 
                         @if (_model.ProfileType == AIProfileType.Chat)
@@ -160,6 +161,7 @@
                                         <option value="@tt">@tt</option>
                                     }
                                 </InputSelect>
+                                <div class="form-text">How the chat session title is determined.</div>
                             </div>
                         }
 
@@ -168,36 +170,39 @@
                                 <div class="mb-3">
                                     <label class="form-label">Chat deployment</label>
                                     <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName">
-                                        <option value="">Use default</option>
+                                        <option value="">Use default chat deployment</option>
                                         @foreach (var d in _model.ChatDeployments)
                                         {
                                             <option value="@d.Value">@d.Key</option>
                                         }
                                     </InputSelect>
+                                    <div class="form-text">The chat model deployment to use.</div>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Utility deployment</label>
                                     <InputSelect class="form-select" @bind-Value="_model.UtilityDeploymentName">
-                                        <option value="">Use default</option>
+                                        <option value="">Use default utility deployment</option>
                                         @foreach (var d in _model.UtilityDeployments)
                                         {
                                             <option value="@d.Value">@d.Key</option>
                                         }
                                     </InputSelect>
+                                    <div class="form-text">Optional deployment for utility tasks.</div>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Orchestrator</label>
                                     <select class="form-select" value="@_model.OrchestratorName" @onchange="OnOrchestratorChanged">
-                                        <option value="">Use default</option>
+                                        <option value="">Use default orchestrator</option>
                                         @foreach (var o in _model.Orchestrators)
                                         {
                                             <option value="@o.Value">@o.Key</option>
                                         }
                                     </select>
+                                    <div class="form-text">The orchestrator that manages AI interactions.</div>
                                 </div>
                             </div>
                         </div>
@@ -217,6 +222,7 @@
                                         <div class="mb-3">
                                             <label class="form-label">Model</label>
                                             <InputText class="form-control" @bind-Value="_model.CopilotModel" placeholder="Leave empty for default" />
+                                            <div class="form-text">Optionally override the model name. Leave empty to use the default model configured in Copilot settings.</div>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">Effort level</label>
@@ -226,8 +232,10 @@
                                                     <option value="@e">@(e == CopilotReasoningEffort.None ? "Default" : e.ToString())</option>
                                                 }
                                             </InputSelect>
+                                            <div class="form-text">Select the reasoning effort level for the Copilot model.</div>
                                         </div>
                                         <div class="form-check"><InputCheckbox class="form-check-input" @bind-Value="_model.CopilotIsAllowAll" /><label class="form-check-label">Allow all tool executions</label></div>
+                                        <div class="form-text">When checked, the Copilot CLI runs with the --allow-all flag.</div>
                                     }
                                 </div>
                             </div>
@@ -248,12 +256,13 @@
                                         <div class="mb-3">
                                             <label class="form-label">Claude model</label>
                                             <InputSelect class="form-select" @bind-Value="_model.ClaudeModel">
-                                                <option value="">Use default</option>
+                                                <option value="">Use default model</option>
                                                 @foreach (var m in _model.AnthropicAvailableModels)
                                                 {
                                                     <option value="@m.Value">@m.Key</option>
                                                 }
                                             </InputSelect>
+                                            <div class="form-text">Select a Claude model override for this item, or leave it on the configured default.</div>
                                         </div>
                                         <div class="mb-0">
                                             <label class="form-label">Effort level</label>
@@ -263,6 +272,7 @@
                                                     <option value="@e">@(e == ClaudeEffortLevel.None ? "Default" : e.ToString())</option>
                                                 }
                                             </InputSelect>
+                                            <div class="form-text">Select the reasoning effort level. Higher effort produces more thorough responses but uses more tokens.</div>
                                         </div>
                                     }
                                 </div>
@@ -272,6 +282,7 @@
                         <div class="mb-3">
                             <label class="form-label">Prompt subject</label>
                             <InputText class="form-control" @bind-Value="_model.PromptSubject" />
+                            <div class="form-text">Provides context to the AI about the primary subject of the conversation.</div>
                         </div>
 
                         <div class="mb-3">
@@ -279,6 +290,7 @@
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.AddInitialPrompt" />
                                 <label class="form-check-label">Add initial prompt</label>
                             </div>
+                            <div class="form-text">When enabled, each new chat session starts with an assistant message from the initial prompt and the welcome message is ignored.</div>
                         </div>
 
                         @if (!_model.AddInitialPrompt)
@@ -286,6 +298,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Welcome message</label>
                                 <InputTextArea class="form-control" rows="3" @bind-Value="_model.WelcomeMessage" />
+                                <div class="form-text">The welcome message to show on the user-interface when a new session is created.</div>
                             </div>
                         }
                         else
@@ -293,12 +306,17 @@
                             <div class="mb-3">
                                 <label class="form-label">Initial prompt</label>
                                 <InputTextArea class="form-control" rows="4" @bind-Value="_model.InitialPrompt" />
+                                <div class="form-text">This assistant message is added as the first chat history entry when a new session is created.</div>
                             </div>
                         }
 
                         <div class="mb-3">
                             <label class="form-label">Prompt template</label>
                             <InputTextArea class="form-control" rows="5" @bind-Value="_model.PromptTemplate" />
+                            <div class="form-text">
+                                Liquid syntax is supported. Available variables: <code>{{ User.UserName }}</code>, <code>{{ User.Email }}</code>,
+                                <code>{{ Session.Id }}</code>, <code>{{ Profile.Name }}</code>, and any custom parameters.
+                            </div>
                         </div>
                     </div>
 
@@ -368,21 +386,22 @@
                         <div class="mb-3">
                             <label class="form-label">System message</label>
                             <InputTextArea class="form-control" rows="5" @bind-Value="_model.SystemMessage" />
+                            <div class="form-text">The system message that defines the AI's behavior and role.</div>
                         </div>
 
                         <div class="row">
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Temperature</label><InputNumber class="form-control" @bind-Value="_model.Temperature" /></div></div>
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Top P</label><InputNumber class="form-control" @bind-Value="_model.TopP" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Temperature</label><InputNumber class="form-control" @bind-Value="_model.Temperature" /><div class="form-text">Controls randomness. Lower = more focused, higher = more creative.</div></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Top P</label><InputNumber class="form-control" @bind-Value="_model.TopP" /><div class="form-text">Nucleus sampling. Controls diversity of responses.</div></div></div>
                         </div>
                         <div class="row">
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Frequency penalty</label><InputNumber class="form-control" @bind-Value="_model.FrequencyPenalty" /></div></div>
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Presence penalty</label><InputNumber class="form-control" @bind-Value="_model.PresencePenalty" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Frequency penalty</label><InputNumber class="form-control" @bind-Value="_model.FrequencyPenalty" /><div class="form-text">Penalizes repeated tokens. Higher = less repetition.</div></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Presence penalty</label><InputNumber class="form-control" @bind-Value="_model.PresencePenalty" /><div class="form-text">Penalizes tokens already present. Higher = more topic variety.</div></div></div>
                         </div>
                         <div class="row">
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Max output tokens</label><InputNumber class="form-control" @bind-Value="_model.MaxOutputTokens" /></div></div>
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Past messages count</label><InputNumber class="form-control" @bind-Value="_model.PastMessagesCount" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Max output tokens</label><InputNumber class="form-control" @bind-Value="_model.MaxOutputTokens" /><div class="form-text">Maximum number of tokens in the response.</div></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Past messages count</label><InputNumber class="form-control" @bind-Value="_model.PastMessagesCount" /><div class="form-text">Number of previous messages to include in context.</div></div></div>
                         </div>
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" /><label class="form-check-label">Enable response caching</label></div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" /><label class="form-check-label">Enable response caching</label></div><div class="form-text">Cache responses to improve performance for repeated queries.</div></div>
                     </div>
 
                     <!-- Capabilities -->
@@ -430,24 +449,25 @@
 
                     <!-- Knowledge -->
                     <div style="display: @(_activeTab == "knowledge" ? "block" : "none")">
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableUserMemory" /><label class="form-check-label">Enable user memory</label></div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableUserMemory" /><label class="form-check-label">Enable user memory</label></div><div class="form-text">Store and recall user conversation history for personalized responses.</div></div>
                         <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-database"></i> Data Source</h6>
                         <div class="mb-3">
                             <InputSelect class="form-select" @bind-Value="_model.DataSourceId">
                                 <option value="">No data source</option>
                                 @foreach (var ds in _model.DataSources) { <option value="@ds.Value">@ds.Key</option> }
                             </InputSelect>
+                            <div class="form-text">Select a data source to enable Retrieval-Augmented Generation (RAG) for profiles created from this template.</div>
                         </div>
-                        <div class="mb-3"><InputText class="form-control" @bind-Value="_model.DataSourceFilter" placeholder="Filter" /></div>
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.DataSourceIsInScope" /><label class="form-check-label">Restrict to retrieved data</label></div></div>
+                        <div class="mb-3"><InputText class="form-control" @bind-Value="_model.DataSourceFilter" placeholder="Filter" /><div class="form-text">Optional filter expression passed to the configured data source provider.</div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.DataSourceIsInScope" /><label class="form-check-label">Restrict to retrieved data</label></div><div class="form-text">Controls how strictly the AI should follow retrieved data-source matches.</div></div>
                         <div class="row">
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Document Top N</label><InputNumber class="form-control" @bind-Value="_model.DocumentTopN" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Document Top N</label><InputNumber class="form-control" @bind-Value="_model.DocumentTopN" /><div class="form-text">Number of top matching chunks or documents to include as AI context.</div></div></div>
                             <div class="col-md-6"><div class="mb-3"><label class="form-label">Retrieval mode</label>
-                                <InputSelect class="form-select" @bind-Value="_model.DocumentRetrievalMode"><option value="">Default</option>@foreach (var m in Enum.GetValues<DocumentRetrievalMode>()) { <option value="@m">@m</option> }</InputSelect></div></div>
+                                <InputSelect class="form-select" @bind-Value="_model.DocumentRetrievalMode"><option value="">Default</option>@foreach (var m in Enum.GetValues<DocumentRetrievalMode>()) { <option value="@m">@m</option> }</InputSelect><div class="form-text">Chunk keeps chunk-level context. Hierarchical matches on chunks, then injects the full text of the matched documents.</div></div></div>
                         </div>
                         <div class="row">
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Strictness</label><InputNumber class="form-control" @bind-Value="_model.DataSourceStrictness" /></div></div>
-                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Retrieved documents</label><InputNumber class="form-control" @bind-Value="_model.DataSourceTopNDocuments" /></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Strictness</label><InputNumber class="form-control" @bind-Value="_model.DataSourceStrictness" /><div class="form-text">Controls how strictly the AI should follow retrieved data-source matches.</div></div></div>
+                            <div class="col-md-6"><div class="mb-3"><label class="form-label">Retrieved documents</label><InputNumber class="form-control" @bind-Value="_model.DataSourceTopNDocuments" /><div class="form-text">How many data-source documents to retrieve for RAG.</div></div></div>
                         </div>
 
                         <div class="mb-3">
@@ -462,12 +482,12 @@
 
                     <!-- Data Processing & Metrics -->
                     <div style="display: @(_activeTab == "processing" ? "block" : "none")">
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableDataExtraction" /><label class="form-check-label">Enable data extraction</label></div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableDataExtraction" /><label class="form-check-label">Enable data extraction</label></div><div class="form-text">Run AI-powered extraction on conversation messages to populate structured fields.</div></div>
                         @if (_model.EnableDataExtraction)
                         {
                             <div class="row">
-                                <div class="col-md-6"><div class="mb-3"><label class="form-label">Check interval</label><InputNumber class="form-control" @bind-Value="_model.ExtractionCheckInterval" /></div></div>
-                                <div class="col-md-6"><div class="mb-3"><label class="form-label">Inactivity timeout (min)</label><InputNumber class="form-control" @bind-Value="_model.SessionInactivityTimeoutInMinutes" /></div></div>
+                                <div class="col-md-6"><div class="mb-3"><label class="form-label">Check interval</label><InputNumber class="form-control" @bind-Value="_model.ExtractionCheckInterval" /><div class="form-text">How often extraction runs (1 = every message, 2 = every other message, etc.).</div></div></div>
+                                <div class="col-md-6"><div class="mb-3"><label class="form-label">Inactivity timeout (min)</label><InputNumber class="form-control" @bind-Value="_model.SessionInactivityTimeoutInMinutes" /><div class="form-text">Sessions inactive longer than this will be automatically closed.</div></div></div>
                             </div>
                             @for (var i = 0; i < _model.DataExtractionEntries.Count; i++)
                             {
@@ -485,8 +505,8 @@
                             <button type="button" class="btn btn-sm btn-success" @onclick="() => _model.DataExtractionEntries.Add(new DataExtractionEntryItem())"><i class="bi bi-plus"></i> Add Entry</button>
                         }
                         <hr class="my-4" />
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableSessionMetrics" /><label class="form-check-label">Enable session metrics</label></div></div>
-                        <div class="mb-4"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableAIResolutionDetection" /><label class="form-check-label">Enable AI resolution detection</label></div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableSessionMetrics" /><label class="form-check-label">Enable session metrics</label></div><div class="form-text">Capture usage, latency, and feedback metrics for analytics.</div></div>
+                        <div class="mb-4"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableAIResolutionDetection" /><label class="form-check-label">Enable AI resolution detection</label></div><div class="form-text">When enabled, the AI will determine whether the user's issue was resolved during the session.</div></div>
 
                         <h6 class="mb-2"><i class="bi bi-clipboard-check"></i> Post-session Processing</h6>
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnablePostSessionProcessing" /><label class="form-check-label">Enable post-session processing</label></div></div>
@@ -510,7 +530,7 @@
                         }
 
                         <hr class="my-4" />
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableConversionMetrics" /><label class="form-check-label">Enable conversion metrics</label></div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableConversionMetrics" /><label class="form-check-label">Enable conversion metrics</label></div><div class="form-text">Evaluate each session against defined goals and assign scores to measure session success.</div></div>
                         @if (_model.EnableConversionMetrics)
                         {
                             @for (var i = 0; i < _model.ConversionGoals.Count; i++)
@@ -534,8 +554,8 @@
 
                     <!-- Settings -->
                     <div style="display: @(_activeTab == "settings" ? "block" : "none")">
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.IsRemovable" /><label class="form-check-label">Removable</label></div></div>
-                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.LockSystemMessage" /><label class="form-check-label">Lock system message</label></div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.IsRemovable" /><label class="form-check-label">Removable</label></div><div class="form-text">Allow profiles created from this template to be deleted.</div></div>
+                        <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.LockSystemMessage" /><label class="form-check-label">Lock system message</label></div><div class="form-text">Prevent modification of the system message after creation.</div></div>
                     </div>
                 </div>
             }
@@ -680,7 +700,7 @@
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var docSettings = DocOpts.Value;
+        var docSettings = DocOpts.CurrentValue;
         _model.DocumentIndexProfileName = docSettings.IndexProfileName;
         if (!string.IsNullOrWhiteSpace(docSettings.IndexProfileName))
         {

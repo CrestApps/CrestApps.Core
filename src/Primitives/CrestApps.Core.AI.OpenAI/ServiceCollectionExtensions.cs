@@ -37,6 +37,12 @@ public static class ServiceCollectionExtensions
             o.Description = new LocalizedString("OpenAI", "Use OpenAI models for AI completion.");
         });
 
+        services.AddCoreAIDeploymentProvider(OpenAIConstants.ClientName, o =>
+        {
+            o.DisplayName = new LocalizedString("OpenAI", "OpenAI");
+            o.Description = new LocalizedString("OpenAI", "Use OpenAI models for AI deployments.");
+        });
+
         return services;
     }
 

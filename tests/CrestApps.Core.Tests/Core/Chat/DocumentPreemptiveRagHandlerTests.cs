@@ -9,6 +9,7 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -66,11 +67,14 @@ public sealed class DocumentPreemptiveRagHandlerTests
             .AddSingleton<IAIDeploymentManager>(deploymentManager.Object)
             .AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object)
             .AddSingleton<ITemplateService, FakeTemplateService>()
-            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions
+            .AddSingleton<IOptionsMonitor<InteractionDocumentOptions>>(new TestOptionsMonitor<InteractionDocumentOptions>
             {
-                IndexProfileName = "docs-index",
-                TopN = 3,
-            }))
+                CurrentValue = new InteractionDocumentOptions
+                {
+                    IndexProfileName = "docs-index",
+                    TopN = 3,
+                },
+            })
             .AddLogging()
             .AddKeyedSingleton<IVectorSearchService>("test-provider", vectorSearchService.Object)
             .AddCoreAIDocumentProcessing()
@@ -106,7 +110,10 @@ public sealed class DocumentPreemptiveRagHandlerTests
             .AddSingleton<IAIDeploymentManager>(Mock.Of<IAIDeploymentManager>())
             .AddSingleton<ISearchIndexProfileStore>(Mock.Of<ISearchIndexProfileStore>())
             .AddSingleton<ITemplateService, FakeTemplateService>()
-            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions()))
+            .AddSingleton<IOptionsMonitor<InteractionDocumentOptions>>(new TestOptionsMonitor<InteractionDocumentOptions>
+            {
+                CurrentValue = new InteractionDocumentOptions(),
+            })
             .AddLogging()
             .AddCoreAIDocumentProcessing()
             .BuildServiceProvider();
@@ -162,7 +169,10 @@ public sealed class DocumentPreemptiveRagHandlerTests
             .AddSingleton<IAIDocumentStore>(documentStore.Object)
             .AddSingleton<IAIDocumentChunkStore>(chunkStore.Object)
             .AddSingleton<ITemplateService, FakeTemplateService>()
-            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions()))
+            .AddSingleton<IOptionsMonitor<InteractionDocumentOptions>>(new TestOptionsMonitor<InteractionDocumentOptions>
+            {
+                CurrentValue = new InteractionDocumentOptions(),
+            })
             .AddLogging()
             .AddCoreAIDocumentProcessing()
             .BuildServiceProvider();
@@ -236,7 +246,10 @@ public sealed class DocumentPreemptiveRagHandlerTests
             .AddSingleton<IAIDocumentStore>(documentStore.Object)
             .AddSingleton<IAIDocumentChunkStore>(chunkStore.Object)
             .AddSingleton<ITemplateService, FakeTemplateService>()
-            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions()))
+            .AddSingleton<IOptionsMonitor<InteractionDocumentOptions>>(new TestOptionsMonitor<InteractionDocumentOptions>
+            {
+                CurrentValue = new InteractionDocumentOptions(),
+            })
             .AddLogging()
             .AddCoreAIDocumentProcessing()
             .BuildServiceProvider();
@@ -355,12 +368,15 @@ public sealed class DocumentPreemptiveRagHandlerTests
             .AddSingleton<IAIDocumentStore>(documentStore.Object)
             .AddSingleton<IAIDocumentChunkStore>(chunkStore.Object)
             .AddSingleton<ITemplateService, FakeTemplateService>()
-            .AddSingleton<IOptions<InteractionDocumentOptions>>(Options.Create(new InteractionDocumentOptions
+            .AddSingleton<IOptionsMonitor<InteractionDocumentOptions>>(new TestOptionsMonitor<InteractionDocumentOptions>
             {
-                IndexProfileName = "docs-index",
-                TopN = 2,
-                RetrievalMode = DocumentRetrievalMode.Hierarchical,
-            }))
+                CurrentValue = new InteractionDocumentOptions
+                {
+                    IndexProfileName = "docs-index",
+                    TopN = 2,
+                    RetrievalMode = DocumentRetrievalMode.Hierarchical,
+                },
+            })
             .AddLogging()
             .AddKeyedSingleton<IVectorSearchService>("test-provider", vectorSearchService.Object)
             .AddCoreAIDocumentProcessing()

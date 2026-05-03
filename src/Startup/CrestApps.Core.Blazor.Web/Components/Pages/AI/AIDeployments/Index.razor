@@ -153,13 +153,7 @@ else
         var deployments = await Store.GetAllAsync();
 
         _deployments = deployments
-            .Select(deployment =>
-            {
-                var model = AIDeploymentViewModel.FromDeployment(deployment);
-                model.IsReadOnly = AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId);
-
-                return model;
-            })
+            .Select(AIDeploymentViewModel.FromDeployment)
             .OrderBy(static model => model.TechnicalName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -169,13 +163,6 @@ else
 
     private async Task DeleteAsync(string id)
     {
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(id))
-        {
-            _errorMessage = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
-
-            return;
-        }
-
         var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this deployment?");
 
         if (!confirmed)
@@ -191,7 +178,7 @@ else
             return;
         }
 
-        if (AIConfigurationRecordIds.IsConfigurationDeploymentId(deployment.ItemId))
+        if (deployment.IsReadOnly)
         {
             _errorMessage = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
 

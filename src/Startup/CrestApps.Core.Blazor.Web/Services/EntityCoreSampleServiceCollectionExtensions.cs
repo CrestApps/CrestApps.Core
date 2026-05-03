@@ -1,8 +1,9 @@
+using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
-using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
@@ -16,6 +17,7 @@ using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Blazor.Web.Services;
 
@@ -40,22 +42,10 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddSharedArticleServices()
             .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
-            .AddScoped<SampleCitationReferenceCollector>()
-            .AddScoped<CompositeAIReferenceLinkResolver>()
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<Areas.AI.Services.AIProfileDocumentService>()
             .AddScoped<Areas.AI.Services.AIProfileTemplateDocumentService>()
-            .AddScoped<Areas.AIChat.Services.SampleAIChatSessionEventService>()
-            .AddScoped<Areas.AIChat.Services.SampleAICompletionUsageService>()
-            .AddScoped<Areas.AIChat.Services.SampleAIChatSessionEventPostCloseObserver>()
-            .AddScoped<Areas.AIChat.Services.SampleAIChatSessionExtractedDataService>()
-            .AddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAICompletionUsageService>())
-            .AddScoped<IAIChatSessionAnalyticsRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionConversionGoalRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionEventPostCloseObserver>())
-            .AddScoped<IAIChatSessionExtractedDataRecorder>(sp => sp.GetRequiredService<Areas.AIChat.Services.SampleAIChatSessionExtractedDataService>())
-            .AddScoped<IAIChatSessionHandler, Areas.AIChat.Handlers.AnalyticsChatSessionHandler>()
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, Areas.AI.Handlers.AIMemoryEntryHandler>()
-            .AddScoped<Areas.Indexing.Services.SampleAIDocumentIndexingService>()
             .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, Areas.AIChat.Services.SampleAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, Areas.AIChat.Services.SampleAIChatDocumentEventHandler>()
@@ -63,6 +53,8 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
+        services.AddSingleton<IConfigureOptions<A2AHostOptions>, SiteSettingsConfigureStoredOptions<A2AHostOptions>>();
+        services.AddSingleton<IConfigureOptions<McpServerOptions>, SiteSettingsConfigureStoredOptions<McpServerOptions>>();
         services.ConfigureOptions<Areas.AIChat.Services.SampleCopilotOptionsConfiguration>();
         services.ConfigureOptions<Areas.AIChat.Services.SampleClaudeOptionsConfiguration>();
 

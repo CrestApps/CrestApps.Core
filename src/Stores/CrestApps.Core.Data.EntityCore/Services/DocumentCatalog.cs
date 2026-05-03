@@ -14,7 +14,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     protected readonly ILogger Logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DocumentCatalog"/> class.
+    /// Initializes a new instance of the <see cref="DocumentCatalog{T}"/> class.
     /// </summary>
     /// <param name="dbContext">The db context.</param>
     /// <param name="logger">The logger.</param>
@@ -27,7 +27,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Deletes the operation.
+    /// Deletes the specified catalogue entry and its associated document.
     /// </summary>
     /// <param name="entry">The entry.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -37,6 +37,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
 
         await DeletingAsync(entry);
         var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == entry.ItemId, cancellationToken);
+
         if (existing is null)
         {
             return false;
@@ -44,11 +45,16 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
 
         DbContext.CatalogRecords.Remove(existing);
 
+        if (existing.Document is not null)
+        {
+            DbContext.Documents.Remove(existing.Document);
+        }
+
         return true;
     }
 
     /// <summary>
-    /// Finds by id.
+    /// Finds a catalogue entry by its unique identifier.
     /// </summary>
     /// <param name="id">The id.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -62,7 +68,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Gets the operation.
+    /// Retrieves catalogue entries whose identifiers are in the supplied set.
     /// </summary>
     /// <param name="ids">The ids.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -71,6 +77,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         ArgumentNullException.ThrowIfNull(ids);
 
         var itemIds = ids.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToArray();
+
         if (itemIds.Length == 0)
         {
             return [];
@@ -82,13 +89,14 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Pages the operation.
+    /// Returns a paged result set of catalogue entries matching the supplied query context.
     /// </summary>
     public async ValueTask<PageResult<T>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
         where TQuery : QueryContext
     {
         var query = GetReadQuery();
         var ordered = false;
+
         if (context is not null)
         {
             if (!string.IsNullOrEmpty(context.Name))
@@ -96,6 +104,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
                 if (typeof(INameAwareModel).IsAssignableFrom(typeof(T)))
                 {
                     query = query.Where(x => x.Name != null && x.Name.Contains(context.Name));
+
                     if (context.Sorted)
                     {
                         query = query.OrderBy(x => x.Name);
@@ -105,6 +114,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
                 else if (typeof(IDisplayTextAwareModel).IsAssignableFrom(typeof(T)))
                 {
                     query = query.Where(x => x.DisplayText != null && x.DisplayText.Contains(context.Name));
+
                     if (context.Sorted)
                     {
                         query = query.OrderBy(x => x.DisplayText);
@@ -138,7 +148,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Applies paging.
+    /// Applies additional paging filters specific to a subclass.
     /// </summary>
     protected virtual IQueryable<CatalogRecord> ApplyPaging<TQuery>(IQueryable<CatalogRecord> query, TQuery context)
         where TQuery : QueryContext
@@ -147,7 +157,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Gets all.
+    /// Returns all catalogue entries of this type, up to an internal cap.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
     public async ValueTask<IReadOnlyCollection<T>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -167,7 +177,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Creates the operation.
+    /// Creates a new catalogue entry and its associated document.
     /// </summary>
     /// <param name="record">The record.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -186,7 +196,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Updates the operation.
+    /// Updates an existing catalogue entry, or creates it if it does not exist.
     /// </summary>
     /// <param name="record">The record.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -201,6 +211,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
 
         await SavingAsync(record);
         var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == record.ItemId, cancellationToken);
+
         if (existing is null)
         {
             DbContext.CatalogRecords.Add(CatalogRecordFactory.Create(record));
@@ -212,23 +223,28 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Gets read query.
+    /// Returns an untracked query over catalogue records of this type, including the document.
     /// </summary>
     protected IQueryable<CatalogRecord> GetReadQuery()
     {
-        return DbContext.CatalogRecords.AsNoTracking().Where(x => x.EntityType == CatalogRecordFactory.GetEntityType<T>());
+        return DbContext.CatalogRecords
+            .AsNoTracking()
+            .Include(x => x.Document)
+            .Where(x => x.EntityType == CatalogRecordFactory.GetEntityType<T>());
     }
 
     /// <summary>
-    /// Gets tracked query.
+    /// Returns a tracked query over catalogue records of this type, including the document.
     /// </summary>
     protected IQueryable<CatalogRecord> GetTrackedQuery()
     {
-        return DbContext.CatalogRecords.Where(x => x.EntityType == CatalogRecordFactory.GetEntityType<T>());
+        return DbContext.CatalogRecords
+            .Include(x => x.Document)
+            .Where(x => x.EntityType == CatalogRecordFactory.GetEntityType<T>());
     }
 
     /// <summary>
-    /// Deletings the operation.
+    /// Hook invoked before a catalogue entry is deleted.
     /// </summary>
     /// <param name="model">The model.</param>
     protected virtual ValueTask DeletingAsync(T model)
@@ -237,7 +253,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
     }
 
     /// <summary>
-    /// Savings the operation.
+    /// Hook invoked before a catalogue entry is created or updated.
     /// </summary>
     /// <param name="record">The record.</param>
     protected virtual ValueTask SavingAsync(T record)

@@ -41,4 +41,23 @@ public static class OptionsValidationExtensions
             return false;
         }
     }
+
+    public static bool TryGetValidValue<TOptions>(this IOptionsMonitor<TOptions> optionsAccessor, out TOptions value)
+        where TOptions : class
+    {
+        ArgumentNullException.ThrowIfNull(optionsAccessor);
+
+        try
+        {
+            value = optionsAccessor.CurrentValue;
+
+            return true;
+        }
+        catch (OptionsValidationException)
+        {
+            value = null;
+
+            return false;
+        }
+    }
 }

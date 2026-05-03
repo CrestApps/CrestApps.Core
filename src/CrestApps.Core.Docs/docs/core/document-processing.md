@@ -50,11 +50,14 @@ The document processing system handles the full pipeline from upload to retrieva
 | Service | Implementation | Lifetime | Purpose |
 |---------|---------------|----------|---------|
 | `IAIDocumentProcessingService` | `DefaultAIDocumentProcessingService` | Scoped | Reads, chunks, and materializes `AIDocument` / `AIDocumentChunk` records |
+| `DefaultAIDocumentIndexingService` | `DefaultAIDocumentIndexingService` | Scoped | Mirrors persisted document chunks into the configured AI Documents vector index and removes them when hosts delete documents |
 | `ITabularBatchProcessor` | `TabularBatchProcessor` | Scoped | Processes CSV/Excel batch queries |
 | `ITabularBatchResultCache` | `TabularBatchResultCache` | Singleton | Caches tabular query results |
 | `DocumentOrchestrationHandler` | — | Scoped | Injects document context into orchestration |
 
 `AddCoreAIDocumentProcessing()` and the `AddDocumentProcessing(...)` builder extension are provided by `CrestApps.Core.AI.Documents`.
+
+When a host persists uploaded `AIDocument` and `AIDocumentChunk` records, it can call `DefaultAIDocumentIndexingService` as the follow-up indexing step instead of duplicating index creation, chunk upserts, and cleanup logic in the application layer.
 
 ### Citation download links
 

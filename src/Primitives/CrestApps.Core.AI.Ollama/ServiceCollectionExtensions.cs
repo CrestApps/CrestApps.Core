@@ -35,6 +35,12 @@ public static class ServiceCollectionExtensions
             o.Description = new LocalizedString("Ollama", "Use locally hosted Ollama models for AI completion.");
         });
 
+        services.AddCoreAIDeploymentProvider(OllamaConstants.ClientName, o =>
+        {
+            o.DisplayName = new LocalizedString("Ollama", "Ollama");
+            o.Description = new LocalizedString("Ollama", "Use locally hosted Ollama models for AI deployments.");
+        });
+
         return services;
     }
 

@@ -32,7 +32,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     }
 
     /// <summary>
-    /// Finds by id.
+    /// Finds a chat session by its unique identifier.
     /// </summary>
     /// <param name="id">The id.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -40,13 +40,16 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        var record = await _dbContext.AIChatSessionRecords.AsNoTracking().FirstOrDefaultAsync(x => x.SessionId == id, cancellationToken);
+        var record = await _dbContext.AIChatSessionRecords
+            .AsNoTracking()
+            .Include(x => x.Document)
+            .FirstOrDefaultAsync(x => x.SessionId == id, cancellationToken);
 
         return record is null ? null : Materialize(record);
     }
 
     /// <summary>
-    /// Finds the operation.
+    /// Finds a chat session by its unique identifier.
     /// </summary>
     /// <param name="id">The id.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -58,7 +61,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     }
 
     /// <summary>
-    /// Pages the operation.
+    /// Returns a paged list of lightweight session entries.
     /// </summary>
     /// <param name="page">The page.</param>
     /// <param name="pageSize">The page size.</param>
@@ -67,6 +70,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     public async Task<AIChatSessionResult> PageAsync(int page, int pageSize, AIChatSessionQueryContext context = null, CancellationToken cancellationToken = default)
     {
         var query = _dbContext.AIChatSessionRecords.AsNoTracking();
+
         if (!string.IsNullOrEmpty(context?.ProfileId))
         {
             query = query.Where(x => x.ProfileId == context.ProfileId);
@@ -84,7 +88,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     }
 
     /// <summary>
-    /// News the operation.
+    /// Creates a new chat session for the specified profile.
     /// </summary>
     /// <param name="profile">The profile.</param>
     /// <param name="context">The context.</param>
@@ -144,7 +148,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     }
 
     /// <summary>
-    /// Saves the operation.
+    /// Saves or updates a chat session.
     /// </summary>
     /// <param name="chatSession">The chat session.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -153,7 +157,9 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         ArgumentNullException.ThrowIfNull(chatSession);
 
         chatSession.LastActivityUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == chatSession.SessionId, cancellationToken);
+        var record = await _dbContext.AIChatSessionRecords
+            .Include(x => x.Document)
+            .FirstOrDefaultAsync(x => x.SessionId == chatSession.SessionId, cancellationToken);
 
         if (record is null)
         {
@@ -166,7 +172,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     }
 
     /// <summary>
-    /// Deletes the operation.
+    /// Deletes a chat session and its associated prompts and document.
     /// </summary>
     /// <param name="sessionId">The session id.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -174,7 +180,9 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
 
-        var record = await _dbContext.AIChatSessionRecords.FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
+        var record = await _dbContext.AIChatSessionRecords
+            .Include(x => x.Document)
+            .FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
 
         if (record is null)
         {
@@ -183,21 +191,28 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
         var promptEntityType = CatalogRecordFactory.GetEntityType<AIChatSessionPrompt>();
         var promptRecords = await _dbContext.CatalogRecords
+            .Include(x => x.Document)
             .Where(x => x.EntityType == promptEntityType && x.SessionId == sessionId)
             .ToListAsync(cancellationToken);
 
         if (promptRecords.Count > 0)
         {
+            _dbContext.Documents.RemoveRange(promptRecords.Select(x => x.Document).Where(x => x is not null));
             _dbContext.CatalogRecords.RemoveRange(promptRecords);
         }
 
         _dbContext.AIChatSessionRecords.Remove(record);
 
+        if (record.Document is not null)
+        {
+            _dbContext.Documents.Remove(record.Document);
+        }
+
         return true;
     }
 
     /// <summary>
-    /// Deletes all.
+    /// Deletes all sessions for a profile and their associated prompts and documents.
     /// </summary>
     /// <param name="profileId">The profile id.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -205,7 +220,10 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     {
         ArgumentException.ThrowIfNullOrEmpty(profileId);
 
-        var records = await _dbContext.AIChatSessionRecords.Where(x => x.ProfileId == profileId).ToListAsync(cancellationToken);
+        var records = await _dbContext.AIChatSessionRecords
+            .Include(x => x.Document)
+            .Where(x => x.ProfileId == profileId)
+            .ToListAsync(cancellationToken);
 
         if (records.Count == 0)
         {
@@ -215,14 +233,17 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         var sessionIds = records.Select(x => x.SessionId).ToList();
         var promptEntityType = CatalogRecordFactory.GetEntityType<AIChatSessionPrompt>();
         var promptRecords = await _dbContext.CatalogRecords
+            .Include(x => x.Document)
             .Where(x => x.EntityType == promptEntityType && sessionIds.Contains(x.SessionId))
             .ToListAsync(cancellationToken);
 
         if (promptRecords.Count > 0)
         {
+            _dbContext.Documents.RemoveRange(promptRecords.Select(x => x.Document).Where(x => x is not null));
             _dbContext.CatalogRecords.RemoveRange(promptRecords);
         }
 
+        _dbContext.Documents.RemoveRange(records.Select(x => x.Document).Where(x => x is not null));
         _dbContext.AIChatSessionRecords.RemoveRange(records);
 
         return records.Count;
@@ -230,13 +251,18 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
     private static AIChatSession Materialize(AIChatSessionRecord record)
     {
-        return EntityCoreStoreSerializer.Deserialize<AIChatSession>(record.Payload);
+        return EntityCoreStoreSerializer.Deserialize<AIChatSession>(record.Document.Content);
     }
 
     private static AIChatSessionRecord CreateRecord(AIChatSession session)
     {
         return new()
         {
+            Document = new DocumentRecord
+            {
+                Type = typeof(AIChatSession).FullName!,
+                Content = EntityCoreStoreSerializer.Serialize(session),
+            },
             SessionId = session.SessionId,
             ProfileId = session.ProfileId,
             Title = session.Title,
@@ -245,7 +271,6 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
             Status = session.Status,
             CreatedUtc = session.CreatedUtc,
             LastActivityUtc = session.LastActivityUtc,
-            Payload = EntityCoreStoreSerializer.Serialize(session),
         };
     }
 
@@ -258,6 +283,6 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         record.Status = session.Status;
         record.CreatedUtc = session.CreatedUtc;
         record.LastActivityUtc = session.LastActivityUtc;
-        record.Payload = EntityCoreStoreSerializer.Serialize(session);
+        record.Document.Content = EntityCoreStoreSerializer.Serialize(session);
     }
 }

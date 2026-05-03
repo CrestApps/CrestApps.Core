@@ -1,7 +1,7 @@
 using System.Text;
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,15 +14,22 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 public sealed class ChatExtractedDataController : Controller
 {
     private readonly IAIProfileManager _profileManager;
-    private readonly SampleAIChatSessionExtractedDataService _extractedDataService;
+    private readonly IAIChatSessionExtractedDataStore _extractedDataStore;
     private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ChatExtractedDataController"/> class.
+    /// </summary>
+    /// <param name="profileManager">The AI profile manager.</param>
+    /// <param name="extractedDataStore">The extracted-data snapshot store.</param>
+    /// <param name="timeProvider">The time provider.</param>
     public ChatExtractedDataController(
         IAIProfileManager profileManager,
-        SampleAIChatSessionExtractedDataService extractedDataService,
+        IAIChatSessionExtractedDataStore extractedDataStore,
         TimeProvider timeProvider)
     {
         _profileManager = profileManager;
-        _extractedDataService = extractedDataService;
+        _extractedDataStore = extractedDataStore;
         _timeProvider = timeProvider;
     }
 
@@ -48,7 +55,7 @@ public sealed class ChatExtractedDataController : Controller
             return View("Index", model);
         }
 
-        var records = await _extractedDataService.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
+        var records = await _extractedDataStore.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
         ApplyReport(model, records);
 
         return View("Index", model);
@@ -63,7 +70,7 @@ public sealed class ChatExtractedDataController : Controller
             return BadRequest();
         }
 
-        var records = await _extractedDataService.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
+        var records = await _extractedDataStore.GetAsync(model.ProfileId, model.StartDateUtc, model.EndDateUtc);
         var rows = BuildRows(records);
 
         var columns = rows.SelectMany(row => row.Values.Keys).Distinct(StringComparer.OrdinalIgnoreCase)

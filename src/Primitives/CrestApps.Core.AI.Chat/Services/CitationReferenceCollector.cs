@@ -3,38 +3,64 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 
-namespace CrestApps.Core.Mvc.Web.Services;
+namespace CrestApps.Core.AI.Chat.Services;
 
 /// <summary>
-/// Collects citation references for the sample host and resolves any configured
-/// links before they are streamed to the chat client.
+/// Collects chat citation references from orchestration and tool execution context,
+/// resolves any configured links, and records article content item IDs for hosts
+/// that need follow-up lookups.
 /// </summary>
-public sealed class SampleCitationReferenceCollector
+public sealed class CitationReferenceCollector
 {
     private const string DataSourceReferencesKey = "DataSourceReferences";
     private const string DocumentReferencesKey = "DocumentReferences";
 
     private readonly CompositeAIReferenceLinkResolver _linkResolver;
 
-    public SampleCitationReferenceCollector(CompositeAIReferenceLinkResolver linkResolver)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CitationReferenceCollector"/> class.
+    /// </summary>
+    /// <param name="linkResolver">The composite link resolver.</param>
+    public CitationReferenceCollector(CompositeAIReferenceLinkResolver linkResolver)
     {
         _linkResolver = linkResolver;
     }
 
+    /// <summary>
+    /// Collects citation references stored on the orchestration context and resolves
+    /// any configured links.
+    /// </summary>
+    /// <param name="orchestrationContext">The orchestration context.</param>
+    /// <param name="references">The target citation map.</param>
+    /// <param name="contentItemIds">The target article content item ID set.</param>
     public void CollectPreemptiveReferences(
         OrchestrationContext orchestrationContext,
         Dictionary<string, AICompletionReference> references,
         HashSet<string> contentItemIds)
     {
+        ArgumentNullException.ThrowIfNull(orchestrationContext);
+        ArgumentNullException.ThrowIfNull(references);
+        ArgumentNullException.ThrowIfNull(contentItemIds);
+
         CollectFromProperties(orchestrationContext, DataSourceReferencesKey, references);
         CollectFromProperties(orchestrationContext, DocumentReferencesKey, references);
         ResolveLinks(references, contentItemIds);
     }
 
+    /// <summary>
+    /// Collects citation references captured during tool execution and resolves any
+    /// configured links.
+    /// </summary>
+    /// <param name="references">The target citation map.</param>
+    /// <param name="contentItemIds">The target article content item ID set.</param>
+    /// <returns><see langword="true"/> when new references were added; otherwise, <see langword="false"/>.</returns>
     public bool CollectToolReferences(
         Dictionary<string, AICompletionReference> references,
         HashSet<string> contentItemIds)
     {
+        ArgumentNullException.ThrowIfNull(references);
+        ArgumentNullException.ThrowIfNull(contentItemIds);
+
         var invocationContext = AIInvocationScope.Current;
 
         if (invocationContext is null)
@@ -60,7 +86,9 @@ public sealed class SampleCitationReferenceCollector
         return added;
     }
 
-    private void ResolveLinks(Dictionary<string, AICompletionReference> references, HashSet<string> contentItemIds)
+    private void ResolveLinks(
+        Dictionary<string, AICompletionReference> references,
+        HashSet<string> contentItemIds)
     {
         foreach (var (_, reference) in references)
         {

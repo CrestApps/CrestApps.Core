@@ -43,7 +43,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         ITemplateService templateService,
         IAIDeploymentManager deploymentManager,
         IAITextNormalizer textNormalizer,
-        IOptions<AIDataSourceOptions> options,
+        IOptionsMonitor<AIDataSourceOptions> options,
         ILogger<DataSourcePreemptiveRagHandler> logger)
     {
         _serviceProvider = serviceProvider;
@@ -51,7 +51,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         _templateService = templateService;
         _deploymentManager = deploymentManager;
         _textNormalizer = textNormalizer;
-        _options = options.Value;
+        _options = options.CurrentValue;
         _logger = logger;
     }
 
@@ -129,16 +129,6 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             return;
         }
 
-        if (!indexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata))
-        {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Unable to retrieve profile metadata for index profile '{IndexProfileName}'.", indexProfile.Name);
-            }
-
-            return;
-        }
-
         var contentManager = _serviceProvider.GetKeyedService<IDataSourceContentManager>(indexProfile.ProviderName);
 
         if (contentManager == null)
@@ -152,14 +142,18 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             return;
         }
 
-        var deploymentName = profileMetadata.EmbeddingDeploymentName ?? indexProfile.EmbeddingDeploymentName;
+        var deploymentName = indexProfile.EmbeddingDeploymentName;
 
-        if (string.IsNullOrWhiteSpace(deploymentName))
+        if (indexProfile.TryGet<DataSourceIndexProfileMetadata>(out var profileMetadata) && !string.IsNullOrEmpty(profileMetadata.EmbeddingDeploymentName))
+        {
+            deploymentName = profileMetadata.EmbeddingDeploymentName;
+        }
+
+        if (string.IsNullOrEmpty(deploymentName))
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("Unable to create embedding generator for provider '{ProviderName}'.",
-                    indexProfile.ProviderName);
+                _logger.LogDebug("Unable to retrieve deployment name for index profile '{IndexProfileName}'.", indexProfile.Name);
             }
 
             return;

@@ -1,7 +1,9 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
@@ -186,7 +188,7 @@ public sealed class AIProviderConnectionConfigurationTests
 
         var connections = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains(connections, connection => connection.Name == "config-primary" && AIConfigurationRecordIds.IsConfigurationConnectionId(connection.ItemId));
+        Assert.Contains(connections, connection => connection.Name == "config-primary" && connection.IsReadOnly);
         Assert.Contains(connections, connection => connection.Name == "ui-secondary" && connection.ItemId == "ui-connection");
     }
 
@@ -360,6 +362,7 @@ public sealed class AIProviderConnectionConfigurationTests
                 Name = "config-primary",
                 DisplayText = "Config primary",
                 Source = "OpenAI",
+                IsReadOnly = true,
             },
             new AIProviderConnection
             {
@@ -459,6 +462,7 @@ public sealed class AIProviderConnectionConfigurationTests
                 ModelName = "whisper",
                 ClientName = "AzureSpeech",
                 Type = AIDeploymentType.SpeechToText,
+                IsReadOnly = true,
             },
         ]);
 
@@ -492,17 +496,24 @@ public sealed class AIProviderConnectionConfigurationTests
     }
 
     [Fact]
-    public void AddAzureOpenAIProvider_ShouldRegisterAzureSpeechAsDeploymentProvider()
+    public void AddCoreAIProviders_ShouldRegisterDeploymentProvidersUsedByTheDeploymentCatalog()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddCoreAIServices();
+        services.AddCoreAIOpenAI();
         services.AddCoreAIAzureOpenAI();
+        services.AddCoreAIOllama();
+        services.AddCoreAIAzureAIInference();
         using var serviceProvider = services.BuildServiceProvider();
 
         var options = serviceProvider.GetRequiredService<IOptions<AIOptions>>().Value;
 
+        Assert.True(options.Deployments.ContainsKey(OpenAIConstants.ClientName));
+        Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.ClientName));
         Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.AzureSpeechClientName));
+        Assert.True(options.Deployments.ContainsKey(OllamaConstants.ClientName));
+        Assert.True(options.Deployments.ContainsKey(AzureAIInferenceConstants.ClientName));
         Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechClientName].UseContainedConnection);
     }
 

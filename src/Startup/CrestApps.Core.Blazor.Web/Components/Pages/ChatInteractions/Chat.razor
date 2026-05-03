@@ -31,10 +31,10 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject SiteSettingsStore SiteSettingsStore
-@inject IOptions<AIDataSourceOptions> DataSourceOptions
+@inject IOptionsMonitor<AIDataSourceOptions> DataSourceOptions
 @inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
 @inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
-@inject IOptions<InteractionDocumentOptions> InteractionDocumentOptionsAccessor
+@inject IOptionsMonitor<InteractionDocumentOptions> InteractionDocumentOptionsAccessor
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDocumentStore DocumentStore
@@ -259,11 +259,11 @@ else
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-strictness">Strictness</label>
-                                        <input id="chat-setting-strictness" class="form-control setting-input" data-setting="strictness" type="number" min="@AIDataSourceOptions.MinStrictness" max="@AIDataSourceOptions.MaxStrictness" value="@(_model.DataSourceStrictness ?? DataSourceOptions.Value.DefaultStrictness)" />
+                                        <input id="chat-setting-strictness" class="form-control setting-input" data-setting="strictness" type="number" min="@AIDataSourceOptions.MinStrictness" max="@AIDataSourceOptions.MaxStrictness" value="@(_model.DataSourceStrictness ?? DataSourceOptions.CurrentValue.DefaultStrictness)" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label" for="chat-setting-top-documents">Retrieved documents</label>
-                                        <input id="chat-setting-top-documents" class="form-control setting-input" data-setting="topNDocuments" type="number" min="1" max="50" value="@(_model.DataSourceTopNDocuments ?? DataSourceOptions.Value.DefaultTopNDocuments)" />
+                                        <input id="chat-setting-top-documents" class="form-control setting-input" data-setting="topNDocuments" type="number" min="1" max="50" value="@(_model.DataSourceTopNDocuments ?? DataSourceOptions.CurrentValue.DefaultTopNDocuments)" />
                                     </div>
                                 </div>
 
