@@ -265,10 +265,143 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         Assert.Equal("ui-deployment", deployments.Single().ItemId);
     }
 
+    [Fact]
+    public async Task GetAllAsync_ShouldCreateDeploymentsFromProviderSectionConnectionDeploymentNames()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Providers:Azure:Connections:test1:Endpoint"] = "https://test1.openai.azure.com/",
+            ["CrestApps:AI:Providers:Azure:Connections:test1:AuthenticationType"] = "ApiKey",
+            ["CrestApps:AI:Providers:Azure:Connections:test1:ApiKey"] = "secret",
+            ["CrestApps:AI:Providers:Azure:Connections:test1:DefaultDeploymentName"] = "gpt-4.1-mini",
+            ["CrestApps:AI:Providers:Azure:Connections:test1:DefaultEmbeddingDeploymentName"] = "text-embedding-3-small",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider(AzureOpenAIConstants.ClientName);
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
+        Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
+        Assert.Equal("test1", chatDeployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.Chat | AIDeploymentType.Utility, chatDeployment.Type);
+        Assert.True(chatDeployment.IsReadOnly);
+
+        var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
+        Assert.Equal(AzureOpenAIConstants.ClientName, embeddingDeployment.ClientName);
+        Assert.Equal("test1", embeddingDeployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.Embedding, embeddingDeployment.Type);
+        Assert.True(embeddingDeployment.IsReadOnly);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldCreateDeploymentsFromTopLevelConnectionSectionDeploymentNames()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Connections:0:Name"] = "my-openai",
+            ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Connections:0:DefaultDeploymentName"] = "gpt-4.1",
+            ["CrestApps:AI:Connections:0:DefaultEmbeddingDeploymentName"] = "text-embedding-3-large",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1");
+        Assert.Equal("OpenAI", chatDeployment.ClientName);
+        Assert.Equal("my-openai", chatDeployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.Chat | AIDeploymentType.Utility, chatDeployment.Type);
+        Assert.True(chatDeployment.IsReadOnly);
+
+        var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-large");
+        Assert.Equal("OpenAI", embeddingDeployment.ClientName);
+        Assert.Equal("my-openai", embeddingDeployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.Embedding, embeddingDeployment.Type);
+        Assert.True(embeddingDeployment.IsReadOnly);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldCreateDeploymentsFromCustomProviderSections()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:CrestApps_AI:Providers:Azure:Connections:test1:Endpoint"] = "https://test1.openai.azure.com/",
+            ["CrestApps:CrestApps_AI:Providers:Azure:Connections:test1:DefaultDeploymentName"] = "gpt-4.1-mini",
+            ["CrestApps:CrestApps_AI:Providers:Azure:Connections:test1:DefaultEmbeddingDeploymentName"] = "text-embedding-3-small",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider(AzureOpenAIConstants.ClientName);
+
+        var connectionCatalogOptions = new AIProviderConnectionCatalogOptions();
+        connectionCatalogOptions.ProviderSections.Add("CrestApps:CrestApps_AI:Providers");
+
+        var store = CreateStore(configuration, aiOptions, connectionCatalogOptions: connectionCatalogOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
+        Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
+        Assert.Equal("test1", chatDeployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.Chat | AIDeploymentType.Utility, chatDeployment.Type);
+        Assert.True(chatDeployment.IsReadOnly);
+
+        var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
+        Assert.Equal(AzureOpenAIConstants.ClientName, embeddingDeployment.ClientName);
+        Assert.Equal("test1", embeddingDeployment.ConnectionName);
+        Assert.Equal(AIDeploymentType.Embedding, embeddingDeployment.Type);
+        Assert.True(embeddingDeployment.IsReadOnly);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldNotDuplicateConnectionDeploymentsAlreadyInExplicitSection()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "Azure",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "test1",
+            ["CrestApps:AI:Deployments:0:Name"] = "gpt-4.1-mini",
+            ["CrestApps:AI:Deployments:0:Type"] = "Chat",
+            ["CrestApps:AI:Providers:Azure:Connections:test1:DefaultDeploymentName"] = "gpt-4.1-mini",
+            ["CrestApps:AI:Providers:Azure:Connections:test1:DefaultEmbeddingDeploymentName"] = "text-embedding-3-small",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider(AzureOpenAIConstants.ClientName);
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
+        Assert.Equal(AIDeploymentType.Chat, chatDeployment.Type);
+
+        var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
+        Assert.Equal(AIDeploymentType.Embedding, embeddingDeployment.Type);
+    }
+
     private static DefaultAIDeploymentStore CreateStore(
         IConfiguration configuration,
         AIOptions aiOptions,
         AIDeploymentCatalogOptions catalogOptions = null,
+        AIProviderConnectionCatalogOptions connectionCatalogOptions = null,
         List<AIDeployment> dbEntries = null)
     {
         var sources = new List<INamedSourceCatalogSource<AIDeployment>>();
@@ -283,6 +416,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
             TimeProvider.System,
             Options.Create(aiOptions),
             Options.Create(catalogOptions ?? new AIDeploymentCatalogOptions()),
+            Options.Create(connectionCatalogOptions ?? new AIProviderConnectionCatalogOptions()),
             NullLogger<ConfigurationAIDeploymentSource>.Instance));
 
         return new DefaultAIDeploymentStore(sources);

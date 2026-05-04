@@ -20,6 +20,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
     private readonly AIDeploymentCatalogOptions _catalogOptions;
+    private readonly AIProviderConnectionCatalogOptions _connectionCatalogOptions;
     private readonly ILogger<ConfigurationAIDeploymentSource> _logger;
 
     /// <summary>
@@ -29,18 +30,21 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="aiOptions">The ai options.</param>
     /// <param name="catalogOptions">The catalog options.</param>
+    /// <param name="connectionCatalogOptions">The connection catalog options.</param>
     /// <param name="logger">The logger.</param>
     public ConfigurationAIDeploymentSource(
         IConfiguration configuration,
         TimeProvider timeProvider,
         IOptions<AIOptions> aiOptions,
         IOptions<AIDeploymentCatalogOptions> catalogOptions,
+        IOptions<AIProviderConnectionCatalogOptions> connectionCatalogOptions,
         ILogger<ConfigurationAIDeploymentSource> logger)
     {
         _configuration = configuration;
         _timeProvider = timeProvider;
         _aiOptions = aiOptions.Value;
         _catalogOptions = catalogOptions.Value;
+        _connectionCatalogOptions = connectionCatalogOptions.Value;
         _logger = logger;
     }
 
@@ -72,6 +76,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         try
         {
             ReadConfiguredDeployments(deployments, names);
+            ReadConnectionDeployments(deployments, names);
         }
         catch (Exception ex)
         {
@@ -135,6 +140,127 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                     break;
             }
         }
+    }
+
+    private void ReadConnectionDeployments(Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names)
+    {
+        foreach (var sectionPath in _connectionCatalogOptions.ConnectionSections)
+        {
+            var section = _configuration.GetSection(sectionPath);
+
+            if (!section.Exists())
+            {
+                continue;
+            }
+
+            foreach (var connectionSection in section.GetChildren())
+            {
+                var clientName = AIProviderNameNormalizer.Normalize(
+                    connectionSection["ClientName"] ?? connectionSection["ProviderName"]);
+                var connectionName = connectionSection["Name"] ?? connectionSection.Key;
+
+                ReadConnectionDeploymentNames(connectionSection, clientName, connectionName, deployments, names, sectionPath);
+            }
+        }
+
+        foreach (var sectionPath in _connectionCatalogOptions.ProviderSections)
+        {
+            var section = _configuration.GetSection(sectionPath);
+
+            if (!section.Exists())
+            {
+                continue;
+            }
+
+            foreach (var providerSection in section.GetChildren())
+            {
+                var providerName = AIProviderNameNormalizer.Normalize(providerSection.Key);
+                var connectionsSection = providerSection.GetSection("Connections");
+
+                if (!connectionsSection.Exists())
+                {
+                    continue;
+                }
+
+                foreach (var connectionSection in connectionsSection.GetChildren())
+                {
+                    var connectionName = connectionSection["Name"] ?? connectionSection.Key;
+
+                    ReadConnectionDeploymentNames(connectionSection, providerName, connectionName, deployments, names, sectionPath);
+                }
+            }
+        }
+    }
+
+    private void ReadConnectionDeploymentNames(
+        IConfigurationSection connectionSection,
+        string clientName,
+        string connectionName,
+        Dictionary<string, AIDeployment> deployments,
+        Dictionary<string, string> names,
+        string sectionPath)
+    {
+        if (string.IsNullOrWhiteSpace(clientName) || string.IsNullOrWhiteSpace(connectionName))
+        {
+            return;
+        }
+
+        if (!_aiOptions.Deployments.ContainsKey(clientName))
+        {
+            return;
+        }
+
+        var chatDeploymentName = connectionSection["ChatDeploymentName"]
+            ?? connectionSection["DeploymentName"]
+            ?? connectionSection["DefaultChatDeploymentName"]
+            ?? connectionSection["DefaultDeploymentName"];
+
+        var embeddingDeploymentName = connectionSection["EmbeddingDeploymentName"]
+            ?? connectionSection["DefaultEmbeddingDeploymentName"];
+
+        var imagesDeploymentName = connectionSection["ImagesDeploymentName"]
+            ?? connectionSection["DefaultImagesDeploymentName"];
+
+        var speechToTextDeploymentName = connectionSection["SpeechToTextDeploymentName"]
+            ?? connectionSection["DefaultSpeechToTextDeploymentName"];
+
+        var utilityDeploymentName = connectionSection["UtilityDeploymentName"]
+            ?? connectionSection["DefaultUtilityDeploymentName"];
+
+        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, AIDeploymentType.Chat | AIDeploymentType.Utility, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, AIDeploymentType.Utility, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, AIDeploymentType.Embedding, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, AIDeploymentType.Image, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, AIDeploymentType.SpeechToText, sectionPath);
+    }
+
+    private void AddConnectionDeployment(
+        Dictionary<string, AIDeployment> deployments,
+        Dictionary<string, string> names,
+        string clientName,
+        string connectionName,
+        string deploymentName,
+        AIDeploymentType type,
+        string sectionPath)
+    {
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            return;
+        }
+
+        var deployment = new AIDeployment
+        {
+            ItemId = AIConfigurationRecordIds.CreateDeploymentId(clientName, connectionName, deploymentName),
+            Name = deploymentName,
+            ModelName = deploymentName,
+            Source = clientName,
+            ConnectionName = connectionName,
+            Type = type,
+            IsReadOnly = true,
+            CreatedUtc = _timeProvider.GetUtcNow().DateTime,
+        };
+
+        AddDeployment(deployments, names, deployment, sectionPath);
     }
 
     private void ReadConfiguredDeploymentsFromArray(JsonArray deploymentArray, Dictionary<string, AIDeployment> deployments, Dictionary<string, string> names, string sectionPath)
@@ -286,6 +412,20 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                 "Skipping AI deployment '{DeploymentName}' from {SourceDescription} because another deployment with the same name is already defined.",
                 deployment.Name,
                 sourceDescription);
+
+            return;
+        }
+
+        if (deployments.ContainsKey(deployment.ItemId))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Skipping AI deployment '{DeploymentName}' from '{SourceDescription}' because ItemId '{DeploymentId}' is already registered.",
+                    deployment.Name,
+                    sourceDescription,
+                    deployment.ItemId);
+            }
 
             return;
         }
