@@ -7,22 +7,22 @@ namespace CrestApps.Core.AI.Services;
 internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
 {
     private readonly AIDataSourceIndexingQueue _queue;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AIDataSourceIndexingBackgroundService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIDataSourceIndexingBackgroundService"/> class.
     /// </summary>
     /// <param name="queue">The queue.</param>
-    /// <param name="scopeFactory">The scope factory.</param>
+    /// <param name="serviceProvider">The scope factory.</param>
     /// <param name="logger">The logger.</param>
     public AIDataSourceIndexingBackgroundService(
         AIDataSourceIndexingQueue queue,
-        IServiceScopeFactory scopeFactory,
+        IServiceProvider serviceProvider,
         ILogger<AIDataSourceIndexingBackgroundService> logger)
     {
         _queue = queue;
-        _scopeFactory = scopeFactory;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -41,8 +41,7 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
                     _logger.LogTrace("Dequeued data-source work item {WorkItemType}. DataSourceId={DataSourceId}, SourceIndexProfileName={SourceIndexProfileName}, DocumentCount={DocumentCount}.", workItem.Type, workItem.DataSource?.ItemId, workItem.SourceIndexProfileName, workItem.DocumentIds.Count);
                 }
 
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var indexingService = scope.ServiceProvider.GetRequiredService<IAIDataSourceIndexingService>();
+                var indexingService = _serviceProvider.GetRequiredService<IAIDataSourceIndexingService>();
 
                 switch (workItem.Type)
                 {

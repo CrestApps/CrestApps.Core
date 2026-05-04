@@ -16,6 +16,7 @@ using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Ftp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Sftp;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
@@ -144,6 +145,12 @@ builder.Services
         )
      )
  );
+
+builder.Services.Configure<AIProviderConnectionCatalogOptions>(o =>
+{
+    // This code will be removed in the v3. We'll keep it now for backward compatibility.
+    o.ProviderSections.Add("CrestApps:CrestApps_AI:Providers");
+});
 
 // =============================================================================
 // 4. MCP AND CUSTOM TOOLS

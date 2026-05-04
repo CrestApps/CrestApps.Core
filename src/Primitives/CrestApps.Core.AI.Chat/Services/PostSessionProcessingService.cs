@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Support.Json;
 using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
@@ -21,7 +22,7 @@ public sealed class PostSessionProcessingService
 {
     private readonly IAIClientFactory _clientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
-    private readonly IAIToolsService _toolsService;
+    private readonly IToolRegistry _toolRegistry;
     private readonly ITemplateService _aiTemplateService;
     private readonly ITemplateParser _markdownTemplateParser;
     private readonly IServiceProvider _serviceProvider;
@@ -35,7 +36,7 @@ public sealed class PostSessionProcessingService
     /// Initializes a new instance of the <see cref="PostSessionProcessingService"/> class.
     /// </summary>
     /// <param name="clientFactory">The client factory.</param>
-    /// <param name="toolsService">The tools service.</param>
+    /// <param name="toolRegistry">The tool registry.</param>
     /// <param name="aiTemplateService">The ai template service.</param>
     /// <param name="templateParsers">The registered template parsers.</param>
     /// <param name="defaultOptions">The default options.</param>
@@ -45,7 +46,7 @@ public sealed class PostSessionProcessingService
     /// <param name="deploymentManager">The deployment manager.</param>
     public PostSessionProcessingService(
         IAIClientFactory clientFactory,
-        IAIToolsService toolsService,
+        IToolRegistry toolRegistry,
         ITemplateService aiTemplateService,
         IEnumerable<ITemplateParser> templateParsers,
         DefaultAIOptions defaultOptions,
@@ -56,7 +57,7 @@ public sealed class PostSessionProcessingService
     {
         _clientFactory = clientFactory;
         _deploymentManager = deploymentManager;
-        _toolsService = toolsService;
+        _toolRegistry = toolRegistry;
         _aiTemplateService = aiTemplateService;
         _markdownTemplateParser = ResolveMarkdownTemplateParser(templateParsers);
         _serviceProvider = serviceProvider;
@@ -338,9 +339,7 @@ public sealed class PostSessionProcessingService
             new(ChatRole.User, prompt),
         };
 
-        var toolNames = GetConfiguredToolNames(settings.ToolNames, tasksToProcess);
-
-        var tools = await ResolveToolsAsync(session.SessionId, toolNames);
+        var tools = await ResolveToolsAsync(session.SessionId, settings.ToolNames, tasksToProcess);
 
         // When tools are configured (e.g., sendEmail), use non-generic GetResponseAsync
         // to allow tool execution. The generic version uses structured output which
@@ -348,9 +347,9 @@ public sealed class PostSessionProcessingService
         // to produce structured JSON output.
         if (tools is not null && tools.Count > 0)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
+            if (_logger.IsEnabled(LogLevel.Information))
             {
-                _logger.LogDebug(
+                _logger.LogInformation(
                     "Post-session processing for session '{SessionId}' using tools path with {ToolCount} tool(s): [{ToolNames}].",
                     session.SessionId,
                     tools.Count,
@@ -360,9 +359,9 @@ public sealed class PostSessionProcessingService
             return await ProcessWithToolsAsync(session, chatClient, messages, tools, tasksToProcess, cancellationToken);
         }
 
-        if (_logger.IsEnabled(LogLevel.Debug))
+        if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "Post-session processing for session '{SessionId}' using structured output path (no tools configured or resolved).",
                 session.SessionId);
         }
@@ -415,15 +414,18 @@ public sealed class PostSessionProcessingService
             .Count() ?? 0;
 
         // Log tool invocation details from the response messages.
-        if (_logger.IsEnabled(LogLevel.Debug))
+        if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "Post-session tools response for session '{SessionId}': MessageCount={MessageCount}, ToolCalls={ToolCallCount}, ToolResults={ToolResultCount}.",
                 session.SessionId,
                 response.Messages?.Count ?? 0,
                 toolCallCount,
                 toolResultCount);
+        }
 
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
             LogResponseMessages(session.SessionId, "tools", response.Messages);
         }
 
@@ -1125,39 +1127,6 @@ public sealed class PostSessionProcessingService
         return string.Join("; ", summaries);
     }
 
-    private static string[] GetConfiguredToolNames(
-        IEnumerable<string> profileToolNames,
-        IEnumerable<PostSessionTask> tasks)
-    {
-        var configuredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        if (profileToolNames != null)
-        {
-            foreach (var toolName in profileToolNames)
-            {
-                if (!string.IsNullOrWhiteSpace(toolName))
-                {
-                    configuredNames.Add(toolName);
-                }
-            }
-        }
-
-        if (tasks != null)
-        {
-            foreach (var toolName in tasks
-                         .Where(task => task?.ToolNames != null)
-                         .SelectMany(task => task.ToolNames))
-            {
-                if (!string.IsNullOrWhiteSpace(toolName))
-                {
-                    configuredNames.Add(toolName);
-                }
-            }
-        }
-
-        return configuredNames.Count > 0 ? [.. configuredNames] : [];
-    }
-
     private Dictionary<string, PostSessionResult> ApplyResults(
         List<PostSessionTask> tasks,
         List<PostSessionTaskResult> results)
@@ -1271,13 +1240,18 @@ public sealed class PostSessionProcessingService
         return null;
     }
 
-    private async Task<IList<AITool>> ResolveToolsAsync(string sessionId, string[] toolNames)
+    private async Task<IList<AITool>> ResolveToolsAsync(
+        string sessionId,
+        string[] profileToolNames,
+        List<PostSessionTask> tasks)
     {
+        var toolNames = CollectToolNames(profileToolNames, tasks);
+
         if (toolNames is null || toolNames.Length == 0)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
+            if (_logger.IsEnabled(LogLevel.Information))
             {
-                _logger.LogDebug(
+                _logger.LogInformation(
                     "No tool names configured for post-session processing of session '{SessionId}'.",
                     sessionId);
             }
@@ -1285,35 +1259,112 @@ public sealed class PostSessionProcessingService
             return null;
         }
 
-        if (_logger.IsEnabled(LogLevel.Debug))
+        if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "Resolving {ToolCount} tool(s) for post-session processing of session '{SessionId}': [{ToolNames}].",
                 toolNames.Length,
                 sessionId,
                 string.Join(", ", toolNames));
         }
 
-        var tools = new List<AITool>();
-
-        foreach (var name in toolNames)
+        var completionContext = new AICompletionContext
         {
-            var tool = await _toolsService.GetByNameAsync(name);
+            ToolNames = toolNames,
+        };
 
-            if (tool is not null)
-            {
-                tools.Add(tool);
-            }
-            else
+        var entries = await _toolRegistry.GetAllAsync(completionContext);
+
+        if (entries.Count == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Warning))
             {
                 _logger.LogWarning(
-                    "Post-session tool '{ToolName}' could not be resolved for session '{SessionId}'. Ensure the tool is registered and its feature is enabled.",
-                    name,
+                    "Tool registry returned no entries for post-session processing of session '{SessionId}'. Requested tool names: [{ToolNames}].",
+                    sessionId,
+                    string.Join(", ", toolNames));
+            }
+
+            return null;
+        }
+
+        var tools = new List<AITool>();
+
+        foreach (var entry in entries)
+        {
+            try
+            {
+                var tool = await entry.CreateAsync(_serviceProvider);
+
+                if (tool is not null)
+                {
+                    tools.Add(tool);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Post-session tool '{ToolName}' could not be created for session '{SessionId}'.",
+                        entry.Name,
+                        sessionId);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Post-session tool '{ToolName}' failed to create for session '{SessionId}'.",
+                    entry.Name,
                     sessionId);
             }
         }
 
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Resolved {ToolCount} tool(s) for post-session processing of session '{SessionId}': [{ToolNames}].",
+                tools.Count,
+                sessionId,
+                string.Join(", ", tools.Select(t => t.Name)));
+        }
+
         return tools.Count > 0 ? tools : null;
+    }
+
+    private static string[] CollectToolNames(
+        string[] profileToolNames,
+        List<PostSessionTask> tasks)
+    {
+        var toolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (profileToolNames is not null)
+        {
+            foreach (var name in profileToolNames)
+            {
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    toolNames.Add(name);
+                }
+            }
+        }
+
+        if (tasks is not null)
+        {
+            foreach (var task in tasks)
+            {
+                if (task.ToolNames is not null)
+                {
+                    foreach (var name in task.ToolNames)
+                    {
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            toolNames.Add(name);
+                        }
+                    }
+                }
+            }
+        }
+
+        return toolNames.Count > 0 ? [.. toolNames] : [];
     }
 
     private async Task<string> RenderTranscriptAsync(

@@ -952,58 +952,7 @@ else if (_model != null)
                                         </div>
                                         <div style="display: @(GetTaskActiveTab(index) == "caps" ? "block" : "none")">
                                             <p class="text-muted small mb-3">Select the capabilities available to this task.</p>
-                                            <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
-                                            @if (_model.AvailableAgents.Count == 0)
-                                            {
-                                                <p class="text-muted small">No agent profiles available.</p>
-                                            }
-                                            else
-                                            {
-                                                @foreach (var agent in _model.AvailableAgents)
-                                                {
-                                                    <div class="form-check mb-1">
-                                                        <input type="checkbox" class="form-check-input" id="task@(index)_agent_@agent.Name"
-                                                               checked="@task.SelectedAgentNames.Contains(agent.Name)"
-                                                               @onchange="e => ToggleTaskAgent(task, agent.Name, (bool)e.Value)" />
-                                                        <label class="form-check-label" for="task@(index)_agent_@agent.Name">@agent.DisplayText</label>
-                                                    </div>
-                                                }
-                                            }
-                                            <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
-                                            @if (_model.AvailableA2AConnections.Count == 0)
-                                            {
-                                                <p class="text-muted small">No A2A hosts configured.</p>
-                                            }
-                                            else
-                                            {
-                                                @foreach (var conn in _model.AvailableA2AConnections)
-                                                {
-                                                    <div class="form-check mb-1">
-                                                        <input type="checkbox" class="form-check-input" id="task@(index)_a2a_@conn.ItemId"
-                                                               checked="@task.SelectedA2AConnectionIds.Contains(conn.ItemId)"
-                                                               @onchange="e => ToggleTaskA2A(task, conn.ItemId, (bool)e.Value)" />
-                                                        <label class="form-check-label" for="task@(index)_a2a_@conn.ItemId">@conn.DisplayText</label>
-                                                    </div>
-                                                }
-                                            }
-                                            <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
-                                            @if (_model.AvailableMcpConnections.Count == 0)
-                                            {
-                                                <p class="text-muted small">No MCP hosts configured.</p>
-                                            }
-                                            else
-                                            {
-                                                @foreach (var conn in _model.AvailableMcpConnections)
-                                                {
-                                                    <div class="form-check mb-1">
-                                                        <input type="checkbox" class="form-check-input" id="task@(index)_mcp_@conn.ItemId"
-                                                               checked="@task.SelectedMcpConnectionIds.Contains(conn.ItemId)"
-                                                               @onchange="e => ToggleTaskMcp(task, conn.ItemId, (bool)e.Value)" />
-                                                        <label class="form-check-label" for="task@(index)_mcp_@conn.ItemId">@conn.DisplayText</label>
-                                                    </div>
-                                                }
-                                            }
-                                            <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                                            <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
                                             @if (_model.AvailableTools.Count == 0)
                                             {
                                                 <p class="text-muted small">No AI tools registered.</p>
@@ -1213,30 +1162,6 @@ else if (_model != null)
     private Dictionary<int, string> _taskActiveTabs = new();
     private string GetTaskActiveTab(int index) => _taskActiveTabs.TryGetValue(index, out var tab) ? tab : "info";
     private void SetTaskActiveTab(int index, string tab) => _taskActiveTabs[index] = tab;
-
-    private void ToggleTaskAgent(PostSessionTaskItem task, string name, bool selected)
-    {
-        var list = task.SelectedAgentNames.ToList();
-        if (selected && !list.Contains(name)) list.Add(name);
-        else if (!selected) list.Remove(name);
-        task.SelectedAgentNames = list.ToArray();
-    }
-
-    private void ToggleTaskA2A(PostSessionTaskItem task, string id, bool selected)
-    {
-        var list = task.SelectedA2AConnectionIds.ToList();
-        if (selected && !list.Contains(id)) list.Add(id);
-        else if (!selected) list.Remove(id);
-        task.SelectedA2AConnectionIds = list.ToArray();
-    }
-
-    private void ToggleTaskMcp(PostSessionTaskItem task, string id, bool selected)
-    {
-        var list = task.SelectedMcpConnectionIds.ToList();
-        if (selected && !list.Contains(id)) list.Add(id);
-        else if (!selected) list.Remove(id);
-        task.SelectedMcpConnectionIds = list.ToArray();
-    }
 
     private void ToggleTaskTool(PostSessionTaskItem task, string name, bool selected)
     {

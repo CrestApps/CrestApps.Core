@@ -1,8 +1,8 @@
-using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
@@ -319,7 +319,7 @@ public sealed class AIChatSessionPostCloseProcessorTests
 
         return new PostSessionProcessingService(
             mockClientFactory.Object,
-            Mock.Of<IAIToolsService>(),
+            Mock.Of<IToolRegistry>(),
             mockTemplateService.Object,
             [new DefaultMarkdownTemplateParser()],
             new DefaultAIOptions

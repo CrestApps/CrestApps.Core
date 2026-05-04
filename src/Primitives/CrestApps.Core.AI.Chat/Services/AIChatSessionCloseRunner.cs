@@ -12,6 +12,7 @@ public sealed class AIChatSessionCloseRunner
     private static readonly TimeSpan _interval = TimeSpan.FromMinutes(5);
 
     private readonly AIChatSessionCloseCycleService _cycleService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AIChatSessionCloseRunner> _logger;
     private readonly Lock _syncLock = new();
 
@@ -22,12 +23,15 @@ public sealed class AIChatSessionCloseRunner
     /// Initializes a new instance of the <see cref="AIChatSessionCloseRunner"/> class.
     /// </summary>
     /// <param name="cycleService">The shared cycle service.</param>
+    /// <param name="serviceProvider">The service provider.</param>
     /// <param name="logger">The logger.</param>
     public AIChatSessionCloseRunner(
         AIChatSessionCloseCycleService cycleService,
+        IServiceProvider serviceProvider,
         ILogger<AIChatSessionCloseRunner> logger)
     {
         _cycleService = cycleService;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -104,20 +108,20 @@ public sealed class AIChatSessionCloseRunner
     /// Runs the shared AI chat session close cycle immediately.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public Task RunOnceAsync(CancellationToken cancellationToken = default)
+    public async Task RunOnceAsync(CancellationToken cancellationToken = default)
     {
-        return _cycleService.RunOnceAsync(cancellationToken);
+        await _cycleService.RunOnceAsync(_serviceProvider, cancellationToken);
     }
 
     private async Task RunAsync(CancellationToken stoppingToken)
     {
-        await _cycleService.RunOnceAsync(stoppingToken);
+        await _cycleService.RunOnceAsync(_serviceProvider, stoppingToken);
 
         using var timer = new PeriodicTimer(_interval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await _cycleService.RunOnceAsync(stoppingToken);
+            await _cycleService.RunOnceAsync(_serviceProvider, stoppingToken);
         }
     }
 }

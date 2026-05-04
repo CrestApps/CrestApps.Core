@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
@@ -154,8 +155,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var mockChatClient = new Mock<IChatClient>();
         // The tools path calls non-generic GetResponseAsync.
         // Simulate response with a JSON result.
@@ -168,13 +169,13 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
 
         // Assert: tools service was asked to resolve the tool.
-        mockToolsService.Verify(t => t.GetByNameAsync("sendEmail"), Times.Once);
+        mockToolRegistry.Verify(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>()), Times.Once);
 
         // Assert: the chat client was invoked with tools in the options.
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.Is<ChatOptions>(opts => opts.Tools != null && opts.Tools.Count > 0), It.IsAny<CancellationToken>()), Times.Once);
@@ -198,8 +199,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.SetupSequence(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
@@ -210,7 +211,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
 
@@ -239,8 +240,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
@@ -249,7 +250,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
 
@@ -277,8 +278,8 @@ public sealed class PostSessionProcessingServiceTests
         });
         var session = CreateSession();
         var prompts = CreatePrompts();
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("nonExistentTool")).ReturnsAsync((AITool)null);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry>());
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
@@ -287,13 +288,13 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
 
         // Assert: tool resolution was attempted.
-        mockToolsService.Verify(t => t.GetByNameAsync("nonExistentTool"), Times.Once);
+        mockToolRegistry.Verify(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>()), Times.Once);
 
         // Assert: when no tools resolve, the structured output path is used (no tools in options).
         mockChatClient.Verify(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.Is<ChatOptions>(opts => opts.Tools == null || opts.Tools.Count == 0), It.IsAny<CancellationToken>()), Times.Once);
@@ -557,7 +558,7 @@ public sealed class PostSessionProcessingServiceTests
         ];
     }
 
-    private static PostSessionProcessingService CreateService(IChatClient chatClient = null, IAIToolsService toolsService = null, ITemplateService templateService = null)
+    private static PostSessionProcessingService CreateService(IChatClient chatClient = null, IToolRegistry toolRegistry = null, ITemplateService templateService = null)
     {
         var mockClientFactory = new Mock<IAIClientFactory>();
         if (chatClient is not null)
@@ -583,7 +584,7 @@ public sealed class PostSessionProcessingServiceTests
                 .ReturnsAsync(deployment);
         }
 
-        var mockToolsService = toolsService is not null ? null : new Mock<IAIToolsService>();
+        var mockToolRegistry = toolRegistry is not null ? null : new Mock<IToolRegistry>();
         var mockTemplateService = templateService is not null ? null : new Mock<ITemplateService>();
         // Set up default template renders.
         if (mockTemplateService is not null)
@@ -600,7 +601,7 @@ public sealed class PostSessionProcessingServiceTests
 
         return new PostSessionProcessingService(
             mockClientFactory.Object,
-            toolsService ?? mockToolsService.Object,
+            toolRegistry ?? mockToolRegistry.Object,
             templateService ?? mockTemplateService.Object,
             [new DefaultMarkdownTemplateParser()],
             defaultOptions,
@@ -637,6 +638,17 @@ public sealed class PostSessionProcessingServiceTests
         }
     }
 
+    private static ToolRegistryEntry CreateToolEntry(string name, AITool tool)
+    {
+        return new ToolRegistryEntry
+        {
+            Id = name,
+            Name = name,
+            Source = ToolRegistryEntrySource.Local,
+            CreateAsync = _ => new ValueTask<AITool>(tool),
+        };
+    }
+
     [Fact]
     public async Task ProcessAsync_WithTools_WhenResponseIsJsonInCodeFence_ShouldParseSuccessfully()
     {
@@ -656,8 +668,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var responseText = "```json\n{\"tasks\":[{\"name\":\"summary\",\"value\":\"Customer asked about pricing.\"}]}\n```";
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
@@ -667,7 +679,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
@@ -698,8 +710,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var responseText = "Here are the results:\n{\"tasks\":[{\"name\":\"summary\",\"value\":\"Customer asked about pricing.\"}]}\nDone.";
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
@@ -709,7 +721,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
@@ -740,8 +752,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var responseMessage = new ChatMessage
         {
             Role = ChatRole.Assistant,
@@ -755,7 +767,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
@@ -786,8 +798,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.SetupSequence(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
@@ -797,7 +809,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
@@ -829,8 +841,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.SetupSequence(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
@@ -854,7 +866,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
@@ -886,8 +898,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var responseText = "The customer asked about pricing options.";
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
@@ -897,7 +909,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
@@ -939,8 +951,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
@@ -949,7 +961,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
@@ -982,8 +994,8 @@ public sealed class PostSessionProcessingServiceTests
         var session = CreateSession();
         var prompts = CreatePrompts();
         var mockTool = new TestAIFunction("sendEmail");
-        var mockToolsService = new Mock<IAIToolsService>();
-        mockToolsService.Setup(t => t.GetByNameAsync("sendEmail")).ReturnsAsync(mockTool);
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("sendEmail", mockTool) });
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
             .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
@@ -992,7 +1004,7 @@ public sealed class PostSessionProcessingServiceTests
         mockTemplateService.Setup(t => t
             .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Rendered prompt");
-        var service = CreateService(chatClient: mockChatClient.Object, toolsService: mockToolsService.Object, templateService: mockTemplateService.Object);
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
 
         // Act
         var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);

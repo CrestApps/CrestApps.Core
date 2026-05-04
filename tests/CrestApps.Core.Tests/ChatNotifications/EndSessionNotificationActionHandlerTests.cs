@@ -1,10 +1,10 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Services;
-using CrestApps.Core.AI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -240,7 +240,7 @@ public sealed class EndSessionNotificationActionHandlerTests
 
         var postSessionProcessingService = new PostSessionProcessingService(
             Mock.Of<IAIClientFactory>(),
-            Mock.Of<IAIToolsService>(),
+            Mock.Of<IToolRegistry>(),
             templateService.Object,
             [markdownParser.Object],
             new DefaultAIOptions(),

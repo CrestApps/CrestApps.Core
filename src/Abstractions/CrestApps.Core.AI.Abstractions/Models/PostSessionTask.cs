@@ -40,19 +40,4 @@ public sealed class PostSessionTask
     /// Gets or sets the AI tool names available to this task during post-session processing.
     /// </summary>
     public string[] ToolNames { get; set; } = [];
-
-    /// <summary>
-    /// Gets or sets the AI agent profile names available to this task during post-session processing.
-    /// </summary>
-    public string[] AgentNames { get; set; } = [];
-
-    /// <summary>
-    /// Gets or sets the A2A connection identifiers available to this task during post-session processing.
-    /// </summary>
-    public string[] A2AConnectionIds { get; set; } = [];
-
-    /// <summary>
-    /// Gets or sets the MCP connection identifiers available to this task during post-session processing.
-    /// </summary>
-    public string[] McpConnectionIds { get; set; } = [];
 }

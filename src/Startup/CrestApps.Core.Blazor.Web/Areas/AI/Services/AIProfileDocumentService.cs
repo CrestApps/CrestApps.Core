@@ -16,19 +16,19 @@ namespace CrestApps.Core.Blazor.Web.Areas.AI.Services;
 /// </summary>
 public sealed class AIProfileDocumentService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AIProfileDocumentService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIProfileDocumentService"/> class.
     /// </summary>
-    /// <param name="scopeFactory">The service scope factory used to create isolated DI scopes.</param>
+    /// <param name="serviceProvider">The service scope factory used to create isolated DI scopes.</param>
     /// <param name="logger">The logger instance.</param>
     public AIProfileDocumentService(
-        IServiceScopeFactory scopeFactory,
+        IServiceProvider serviceProvider,
         ILogger<AIProfileDocumentService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -43,14 +43,13 @@ public sealed class AIProfileDocumentService
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(files);
 
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var documentStore = scope.ServiceProvider.GetRequiredService<IAIDocumentStore>();
-        var chunkStore = scope.ServiceProvider.GetRequiredService<IAIDocumentChunkStore>();
-        var fileStore = scope.ServiceProvider.GetRequiredService<IDocumentFileStore>();
-        var documentProcessingService = scope.ServiceProvider.GetRequiredService<IAIDocumentProcessingService>();
-        var deploymentManager = scope.ServiceProvider.GetRequiredService<IAIDeploymentManager>();
-        var aiClientFactory = scope.ServiceProvider.GetRequiredService<IAIClientFactory>();
-        var documentIndexingService = scope.ServiceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
+        var documentStore = _serviceProvider.GetRequiredService<IAIDocumentStore>();
+        var chunkStore = _serviceProvider.GetRequiredService<IAIDocumentChunkStore>();
+        var fileStore = _serviceProvider.GetRequiredService<IDocumentFileStore>();
+        var documentProcessingService = _serviceProvider.GetRequiredService<IAIDocumentProcessingService>();
+        var deploymentManager = _serviceProvider.GetRequiredService<IAIDeploymentManager>();
+        var aiClientFactory = _serviceProvider.GetRequiredService<IAIClientFactory>();
+        var documentIndexingService = _serviceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
 
         var embeddingGenerator = await CreateEmbeddingGeneratorAsync(profile, deploymentManager, aiClientFactory);
 
@@ -129,7 +128,7 @@ public sealed class AIProfileDocumentService
             return;
         }
 
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = _serviceProvider.CreateAsyncScope();
         var documentStore = scope.ServiceProvider.GetRequiredService<IAIDocumentStore>();
         var chunkStore = scope.ServiceProvider.GetRequiredService<IAIDocumentChunkStore>();
         var fileStore = scope.ServiceProvider.GetRequiredService<IDocumentFileStore>();

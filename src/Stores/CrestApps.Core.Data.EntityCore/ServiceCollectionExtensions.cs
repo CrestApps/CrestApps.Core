@@ -197,6 +197,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionManager, EntityCoreAIChatSessionManager>());
+        services.Replace(ServiceDescriptor.Scoped<IAIChatSessionStore, EntityCoreAIChatSessionStore>());
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>());
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionEventStore, EntityCoreAIChatSessionEventStore>());
         services.Replace(ServiceDescriptor.Scoped<IAICompletionUsageStore, EntityCoreAICompletionUsageStore>());

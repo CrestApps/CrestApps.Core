@@ -380,6 +380,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<IAIChatSessionManager, YesSqlAIChatSessionManager>();
+        services.AddScoped<IAIChatSessionStore, YesSqlAIChatSessionStore>();
         services.AddScoped<IAIChatSessionPromptStore, YesSqlAIChatSessionPromptStore>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIChatSessionIndexProvider>());

@@ -248,9 +248,6 @@ public sealed class AIProfileViewModel
                 AllowMultipleValues = t.AllowMultipleValues,
                 Options = string.Join(Environment.NewLine, t.Options.Select(o => o.Value)),
                 SelectedToolNames = t.ToolNames ?? [],
-                SelectedAgentNames = t.AgentNames ?? [],
-                SelectedA2AConnectionIds = t.A2AConnectionIds ?? [],
-                SelectedMcpConnectionIds = t.McpConnectionIds ?? [],
             }).ToList(),
 
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
@@ -551,9 +548,6 @@ public sealed class AIProfileViewModel
             .Select(o => new PostSessionTaskOption { Value = o.Trim() })
             .ToList(),
                 ToolNames = t.SelectedToolNames ?? [],
-                AgentNames = t.SelectedAgentNames ?? [],
-                A2AConnectionIds = t.SelectedA2AConnectionIds ?? [],
-                McpConnectionIds = t.SelectedMcpConnectionIds ?? [],
             }).ToList();
         });
 
@@ -630,12 +624,6 @@ public sealed class PostSessionTaskItem
     public string Options { get; set; }
 
     public string[] SelectedToolNames { get; set; } = [];
-
-    public string[] SelectedAgentNames { get; set; } = [];
-
-    public string[] SelectedA2AConnectionIds { get; set; } = [];
-
-    public string[] SelectedMcpConnectionIds { get; set; } = [];
 }
 
 public sealed class PromptTemplateSelectionItem
