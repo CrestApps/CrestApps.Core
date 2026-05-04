@@ -146,12 +146,6 @@ builder.Services
      )
  );
 
-builder.Services.Configure<AIProviderConnectionCatalogOptions>(o =>
-{
-    // This code will be removed in the v3. We'll keep it now for backward compatibility.
-    o.ProviderSections.Add("CrestApps:CrestApps_AI:Providers");
-});
-
 // =============================================================================
 // 4. MCP AND CUSTOM TOOLS
 // =============================================================================
