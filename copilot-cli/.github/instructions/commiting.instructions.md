@@ -35,6 +35,45 @@ npm install
 npm run build
 ```
 
+## Local Development Guidelines
+
+**When working locally (CLI use only), never commit changes directly.**  
+
+1. **Keep changes local**  
+   - All experimental or temporary modifications must remain on your machine.  
+   - Do not merge or push to the shared repository.
+
+2. **Use local configuration overrides**  
+   - Store environment-specific settings in `appsettings.Development.json` or environment variables.  
+   - Avoid editing shared configuration files.
+
+3. **Isolate experiments**  
+   - Test code in separate modules, branches, or projects.  
+   - Avoid breaking the main solution or CI/CD pipelines.
+
+4. **Cleanup after local testing**  
+   - Revert temporary code changes before switching branches.  
+   - Remove unused assets, build outputs, or temporary files.
+
+5. **Document local changes**  
+   - Maintain a local log of experimental changes (`LOCAL-DEV-CHANGES.md`) if necessary.  
+   - Never commit this file to the repo.
+
+6. **Offline testing**  
+   - Focus on asset builds, static analysis, and unit tests that do not require external network dependencies.  
+   - Document any network-dependent features for later testing.
+
+---
+
+## Coding Standards and Conventions
+
+- Follow .editorconfig for C# naming and formatting rules
+- Use async/await, dependency injection, ILogger for logging
+- Seal classes by default except for ViewModels used by Orchard Core display drivers
+- Avoid static mutable state, hardcoded secrets, synchronous I/O, and `DateTime.UtcNow`
+
+---
+
 ## Working rules
 
 - Keep changes focused on `CrestApps.Core`
