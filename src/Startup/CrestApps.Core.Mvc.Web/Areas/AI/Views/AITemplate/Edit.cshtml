@@ -749,55 +749,7 @@
                                                 </div>
                                                 <div class="tab-pane fade" id="taskCaps_@i" role="tabpanel">
                                                     <p class="text-muted small mb-3">Select the capabilities available to this task.</p>
-                                                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
-                                                    @if (Model.AvailableAgents.Count == 0)
-                                                    {
-                                                        <p class="text-muted small">No agent profiles available.</p>
-                                                    }
-                                                    else
-                                                    {
-                                                        @foreach (var agent in Model.AvailableAgents)
-                                                        {
-                                                            <div class="form-check mb-1">
-                                                                <input class="form-check-input" type="checkbox" name="PostSessionTasks[@i].SelectedAgentNames" value="@agent.Name"
-                                                                       id="task@(i)_agent_@agent.Name" @(task.SelectedAgentNames.Contains(agent.Name) ? "checked" : "") />
-                                                                <label class="form-check-label" for="task@(i)_agent_@agent.Name">@agent.DisplayText</label>
-                                                            </div>
-                                                        }
-                                                    }
-                                                    <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
-                                                    @if (Model.AvailableA2AConnections.Count == 0)
-                                                    {
-                                                        <p class="text-muted small">No A2A hosts configured.</p>
-                                                    }
-                                                    else
-                                                    {
-                                                        @foreach (var conn in Model.AvailableA2AConnections)
-                                                        {
-                                                            <div class="form-check mb-1">
-                                                                <input class="form-check-input" type="checkbox" name="PostSessionTasks[@i].SelectedA2AConnectionIds" value="@conn.ItemId"
-                                                                       id="task@(i)_a2a_@conn.ItemId" @(task.SelectedA2AConnectionIds.Contains(conn.ItemId) ? "checked" : "") />
-                                                                <label class="form-check-label" for="task@(i)_a2a_@conn.ItemId">@conn.DisplayText</label>
-                                                            </div>
-                                                        }
-                                                    }
-                                                    <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
-                                                    @if (Model.AvailableMcpConnections.Count == 0)
-                                                    {
-                                                        <p class="text-muted small">No MCP hosts configured.</p>
-                                                    }
-                                                    else
-                                                    {
-                                                        @foreach (var conn in Model.AvailableMcpConnections)
-                                                        {
-                                                            <div class="form-check mb-1">
-                                                                <input class="form-check-input" type="checkbox" name="PostSessionTasks[@i].SelectedMcpConnectionIds" value="@conn.ItemId"
-                                                                       id="task@(i)_mcp_@conn.ItemId" @(task.SelectedMcpConnectionIds.Contains(conn.ItemId) ? "checked" : "") />
-                                                                <label class="form-check-label" for="task@(i)_mcp_@conn.ItemId">@conn.DisplayText</label>
-                                                            </div>
-                                                        }
-                                                    }
-                                                    <h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                                                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
                                                     @if (Model.AvailableTools.Count == 0)
                                                     {
                                                         <p class="text-muted small">No AI tools registered.</p>
@@ -1340,24 +1292,12 @@
             var taskIndex = @Model.PostSessionTasks.Count;
 
             var taskCapabilities = {
-                agents: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableAgents.Select(a => new { a.Name, a.DisplayText }))),
-                a2a: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableA2AConnections.Select(c => new { c.ItemId, c.DisplayText }))),
-                mcp: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableMcpConnections.Select(c => new { c.ItemId, c.DisplayText }))),
                 tools: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key).Select(g => new { Category = g.Key, Items = g.Select(t => new { t.Name, t.Title }) })))
             };
 
             function buildTaskCapabilitiesHtml(idx) {
                 var html = '<p class="text-muted small mb-3">Select the capabilities available to this task.</p>';
-                html += '<h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>';
-                if (taskCapabilities.agents.length === 0) { html += '<p class="text-muted small">No agent profiles available.</p>'; }
-                else { taskCapabilities.agents.forEach(function (a) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedAgentNames" value="' + a.Name + '" id="task' + idx + '_agent_' + a.Name + '" /><label class="form-check-label" for="task' + idx + '_agent_' + a.Name + '">' + a.DisplayText + '</label></div>'; }); }
-                html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>';
-                if (taskCapabilities.a2a.length === 0) { html += '<p class="text-muted small">No A2A hosts configured.</p>'; }
-                else { taskCapabilities.a2a.forEach(function (c) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedA2AConnectionIds" value="' + c.ItemId + '" id="task' + idx + '_a2a_' + c.ItemId + '" /><label class="form-check-label" for="task' + idx + '_a2a_' + c.ItemId + '">' + c.DisplayText + '</label></div>'; }); }
-                html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>';
-                if (taskCapabilities.mcp.length === 0) { html += '<p class="text-muted small">No MCP hosts configured.</p>'; }
-                else { taskCapabilities.mcp.forEach(function (c) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedMcpConnectionIds" value="' + c.ItemId + '" id="task' + idx + '_mcp_' + c.ItemId + '" /><label class="form-check-label" for="task' + idx + '_mcp_' + c.ItemId + '">' + c.DisplayText + '</label></div>'; }); }
-                html += '<h6 class="mb-2 mt-3 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>';
+                html += '<h6 class="mb-2 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>';
                 if (taskCapabilities.tools.length === 0) { html += '<p class="text-muted small">No AI tools registered.</p>'; }
                 else { taskCapabilities.tools.forEach(function (g) { html += '<h6 class="text-secondary mt-2 mb-1 small"><i class="bi bi-folder"></i> ' + g.Category + '</h6>'; g.Items.forEach(function (t) { html += '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="PostSessionTasks[' + idx + '].SelectedToolNames" value="' + t.Name + '" id="task' + idx + '_tool_' + t.Name + '" /><label class="form-check-label" for="task' + idx + '_tool_' + t.Name + '">' + t.Title + '</label></div>'; }); }); }
                 return html;

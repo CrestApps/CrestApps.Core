@@ -318,9 +318,6 @@ public sealed class AITemplateViewModel
                         AllowMultipleValues = t.AllowMultipleValues,
                         Options = string.Join(Environment.NewLine, t.Options.Select(o => o.Value)),
                         SelectedToolNames = t.ToolNames ?? [],
-                        SelectedAgentNames = t.AgentNames ?? [],
-                        SelectedA2AConnectionIds = t.A2AConnectionIds ?? [],
-                        SelectedMcpConnectionIds = t.McpConnectionIds ?? [],
                     })
                 .ToList();
             }
@@ -524,9 +521,6 @@ public sealed class AITemplateViewModel
                         .Select(o => new PostSessionTaskOption { Value = o.Trim() })
                         .ToList(),
                         ToolNames = t.SelectedToolNames ?? [],
-                        AgentNames = t.SelectedAgentNames ?? [],
-                        A2AConnectionIds = t.SelectedA2AConnectionIds ?? [],
-                        McpConnectionIds = t.SelectedMcpConnectionIds ?? [],
                     })
                 .ToList(),
             });
