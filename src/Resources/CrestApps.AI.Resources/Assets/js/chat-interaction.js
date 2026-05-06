@@ -17,7 +17,7 @@ window.chatInteractionManager = function () {
                     <div>
                         <div v-if="message.role === 'user'" class="ai-chat-msg-role ai-chat-msg-role-user">You</div>
                         <div v-else-if="message.role !== 'indicator'" :class="getAssistantRoleClasses(message)">
-                            <span :class="getAssistantIconClasses(message, index)"><span :class="getAssistantIcon(message)"></span></span>
+                            <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
                             {{ getAssistantLabel(message) }}
                         </div>
                         <div class="ai-chat-message-body lh-base">
@@ -31,10 +31,10 @@ window.chatInteractionManager = function () {
                             </ol>
                             <span class="message-buttons-container" v-if="!isIndicator(message)">
                                 <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
-                                    <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
+                                    <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
                                 </button>
                                 <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message)" title="Click here to copy response to clipboard.">
-                                    <span class="fa-solid fa-copy"></span>
+                                    <i class="fa-solid fa-copy"></i>
                                 </button>
                             </span>
                         </div>
@@ -42,15 +42,15 @@ window.chatInteractionManager = function () {
                 </div>
                 <div v-for="notification in notifications" :key="'notif-' + notification.type" class="ai-chat-notification" :class="'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')">
                     <div class="ai-chat-notification-content">
-                        <span v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></span>
+                        <i v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></i>
                         <span class="ai-chat-notification-text">{{ notification.content }}</span>
                         <button v-if="notification.dismissible" class="btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss" @click="dismissNotification(notification.type)" title="Dismiss">
-                            <span class="fa-solid fa-xmark"></span>
+                            <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
                     <div v-if="notification.actions && notification.actions.length" class="ai-chat-notification-actions">
                         <button v-for="action in notification.actions" :key="action.name" class="btn btn-sm" :class="action.cssClass || 'btn-outline-secondary'" @click="handleNotificationAction(notification.type, action.name)">
-                            <span v-if="action.icon" :class="action.icon" class="me-1"></span>
+                            <i v-if="action.icon" :class="action.icon" class="me-1"></i>
                             {{ action.label }}
                         </button>
                     </div>
@@ -59,7 +59,7 @@ window.chatInteractionManager = function () {
         `,
         indicatorTemplate: `
             <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-                <span class="ai-streaming-icon"><span class="fa fa-robot" style="display: inline-block;"></span></span>
+                <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
                 Assistant
             </div>
         `,
@@ -86,6 +86,49 @@ window.chatInteractionManager = function () {
         var span = document.createElement('span');
         span.textContent = text;
         return span.innerHTML;
+    }
+
+    function containsFontAwesomePlaceholders(root) {
+        if (!root || root.nodeType !== 1) {
+            return false;
+        }
+
+        var selector = 'i[class*="fa-"],i.fa,i.fas,i.far,i.fab';
+        if (typeof root.matches === 'function' && root.matches(selector)) {
+            return true;
+        }
+
+        return typeof root.querySelector === 'function' && !!root.querySelector(selector);
+    }
+
+    function refreshFontAwesomeIcons(root) {
+        var fontAwesome = window.FontAwesome;
+        if (!containsFontAwesomePlaceholders(root) || !fontAwesome || !fontAwesome.dom || typeof fontAwesome.dom.i2svg !== 'function') {
+            return;
+        }
+
+        fontAwesome.dom.i2svg({ node: root });
+    }
+
+    function observeFontAwesomeIcons(root) {
+        if (!root || typeof MutationObserver === 'undefined') {
+            return null;
+        }
+
+        var observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    refreshFontAwesomeIcons(node);
+                });
+            });
+        });
+
+        observer.observe(root, {
+            childList: true,
+            subtree: true
+        });
+
+        return observer;
     }
 
     function normalizeReference(reference) {
@@ -259,7 +302,7 @@ window.chatInteractionManager = function () {
         }
 
         var langDisplay = lang ? escapeHtmlEntities(lang) : 'code';
-        return `<div class="ai-code-block"><div class="ai-code-header"><span class="ai-code-lang"><span class="fa-solid fa-code"></span> ${langDisplay}</span><button type="button" class="ai-code-copy-btn" title="Copy code"><span class="fa-regular fa-copy"></span></button></div><pre><code class="hljs${lang ? ' language-' + lang : ''}">${highlighted}</code></pre></div>`;
+        return `<div class="ai-code-block"><div class="ai-code-header"><span class="ai-code-lang"><i class="fa-solid fa-code"></i> ${langDisplay}</span><button type="button" class="ai-code-copy-btn" title="Copy code"><i class="fa-regular fa-copy"></i></button></div><pre><code class="hljs${lang ? ' language-' + lang : ''}">${highlighted}</code></pre></div>`;
     };
 
     // Custom image renderer for generated images with thumbnail styling and download button.
@@ -273,7 +316,7 @@ window.chatInteractionManager = function () {
             <img src="${src}" alt="${alt}" class="img-thumbnail" style="max-width: ${maxWidth}px; height: auto;" />
             <div class="mt-2">
                 <a href="${src}" target="_blank" download="${alt}" title="${defaultConfig.downloadImageTitle}" class="btn btn-sm btn-outline-secondary ai-download-image">
-                    <span class="fa-solid fa-download"></span>
+                    <i class="fa-solid fa-download"></i>
                 </a>
             </div>
         </div>`;
@@ -294,7 +337,7 @@ window.chatInteractionManager = function () {
             + `</div>`
             + `<div class="mt-2">`
             + `<button type="button" class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart-id="${chartId}" title="${defaultConfig.downloadChartTitle}">`
-            + `<span class="fa-solid fa-download"></span> ${defaultConfig.downloadChartButtonText}`
+            + `<i class="fa-solid fa-download"></i> ${defaultConfig.downloadChartButtonText}`
             + `</button>`
             + `</div>`;
     }
@@ -1110,8 +1153,8 @@ window.chatInteractionManager = function () {
                         var buttonIndex = Number(button.getAttribute('data-tts-message-index'));
                         var isPlaying = buttonIndex === this.ttsPlayingMessageIndex;
                         var iconHtml = isPlaying
-                            ? '<span class="fa-solid fa-circle-pause"></span>'
-                            : '<span class="fa-solid fa-circle-play"></span>';
+                            ? '<i class="fa-solid fa-circle-pause"></i>'
+                            : '<i class="fa-solid fa-circle-play"></i>';
 
                         button.classList.toggle('tts-playing', isPlaying);
                         button.setAttribute('title', isPlaying ? 'Pause audio' : 'Read aloud');
@@ -1858,9 +1901,9 @@ window.chatInteractionManager = function () {
                             if (codeEl) {
                                 navigator.clipboard.writeText(codeEl.textContent);
                                 var copiedText = config.codeCopiedText || 'Copied!';
-                                btn.innerHTML = '<span class="fa-solid fa-check"></span> ' + copiedText;
+                                btn.innerHTML = '<i class="fa-solid fa-check"></i> ' + copiedText;
                                 setTimeout(() => {
-                                    btn.innerHTML = '<span class="fa-regular fa-copy"></span>';
+                                    btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
                                 }, 2000);
                             }
                         });
@@ -2169,10 +2212,10 @@ window.chatInteractionManager = function () {
 
                     if (this.isRecording) {
                         this.micButton.classList.add('stt-recording');
-                        this.micButton.innerHTML = '<span class="fa-solid fa-stop"></span>';
+                        this.micButton.innerHTML = '<i class="fa-solid fa-stop"></i>';
                     } else {
                         this.micButton.classList.remove('stt-recording');
-                        this.micButton.innerHTML = '<span class="fa-solid fa-microphone"></span>';
+                        this.micButton.innerHTML = '<i class="fa-solid fa-microphone"></i>';
                     }
                 }
             },
@@ -2202,6 +2245,11 @@ window.chatInteractionManager = function () {
                 (async () => {
                     await this.startConnection();
                     this.initializeApp();
+
+                    this.$nextTick(() => {
+                        refreshFontAwesomeIcons(this.$el);
+                        this.fontAwesomeObserver = observeFontAwesomeIcons(this.$el);
+                    });
                 })();
 
                 window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -2210,6 +2258,11 @@ window.chatInteractionManager = function () {
             beforeUnmount() {
                 window.removeEventListener('beforeunload', this.handleBeforeUnload);
                 window.removeEventListener('crestapps-ai-chat-stop-tts', this.handleExternalTtsStop);
+
+                if (this.fontAwesomeObserver) {
+                    this.fontAwesomeObserver.disconnect();
+                    this.fontAwesomeObserver = null;
+                }
 
                 this.stopAudio(false);
 

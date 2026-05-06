@@ -785,7 +785,7 @@ Both widgets require the following libraries to be loaded on the page **before**
 |---------|---------|-------------|
 | [Chart.js](https://www.chartjs.org/) | Interactive chart rendering | `https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js` |
 | [highlight.js](https://highlightjs.org/) | Code syntax highlighting | `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js` |
-| [Font Awesome 7](https://fontawesome.com/) | Message action icons and brand icons such as Claude | `https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7/css/all.min.css` |
+| [Font Awesome 7](https://fontawesome.com/) | Message action icons and brand icons such as Claude; works with either the CSS/webfont include or the SVG+JS bundle | `https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7/css/all.min.css` |
 
 ### Widget layout behavior
 

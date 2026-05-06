@@ -2,6 +2,8 @@
 
 Browser-ready JavaScript widgets and CSS for **CrestApps AI** chat sessions and chat interactions. Drop them into any page that uses the [CrestApps.Core](https://github.com/CrestApps/CrestApps.Core) backend to get a fully functional AI chat experience with streaming responses, document uploads, image generation, interactive charts, copy-to-clipboard, and user feedback buttons.
 
+Font Awesome message icons work with either the webfont/CSS include or the SVG+JS bundle such as `@fortawesome/fontawesome-free/js/all.js`.
+
 ## Features
 
 | Feature | Details |
