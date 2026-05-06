@@ -6,10 +6,4 @@
     <PackageTags>$(PackageTags) ai chat resources javascript assets</PackageTags>
   </PropertyGroup>
 
-  <!-- Hide generated folders from Solution Explorer -->
-  <ItemGroup>
-    <None Remove="node_modules\**" />
-    <Content Remove="node_modules\**" />
-  </ItemGroup>
-
 </Project>
