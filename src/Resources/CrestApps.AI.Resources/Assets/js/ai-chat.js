@@ -53,18 +53,18 @@ window.openAIChatManager = function () {
                         <span class="message-buttons-container" v-if="!isIndicator(message)">
                             <template v-if="metricsEnabled && message.role === 'assistant'">
                                 <span class="ai-chat-message-assistant-feedback" :data-message-id="message.id">
-                                    <button class="btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn" @click="rateMessage(message, true, $event)" :title="thumbsUpTitle">
+                                    <button type="button" class="btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn" @click="rateMessage(message, true, $event)" :title="thumbsUpTitle">
                                         <i class="fa-regular fa-thumbs-up"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn" @click="rateMessage(message, false, $event)" :title="thumbsDownTitle">
+                                    <button type="button" class="btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn" @click="rateMessage(message, false, $event)" :title="thumbsDownTitle">
                                         <i class="fa-regular fa-thumbs-down"></i>
                                     </button>
                                 </span>
                             </template>
-                            <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
-                                <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
+                            <button type="button" v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
+                                <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
                             </button>
-                            <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message)" :title="copyTitle">
+                            <button type="button" class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message)" :title="copyTitle">
                                 <i class="fa-solid fa-copy"></i>
                             </button>
                         </span>
@@ -75,12 +75,12 @@ window.openAIChatManager = function () {
                 <div class="ai-chat-notification-content">
                     <i v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></i>
                     <span class="ai-chat-notification-text">{{ notification.content }}</span>
-                    <button v-if="notification.dismissible" class="btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss" @click="dismissNotification(notification.type)" title="Dismiss">
+                    <button type="button" v-if="notification.dismissible" class="btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss" @click="dismissNotification(notification.type)" title="Dismiss">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
                 <div v-if="notification.actions && notification.actions.length" class="ai-chat-notification-actions">
-                    <button v-for="action in notification.actions" :key="action.name" class="btn btn-sm" :class="action.cssClass || 'btn-outline-secondary'" @click="handleNotificationAction(notification.type, action.name)">
+                    <button type="button" v-for="action in notification.actions" :key="action.name" class="btn btn-sm" :class="action.cssClass || 'btn-outline-secondary'" @click="handleNotificationAction(notification.type, action.name)">
                         <i v-if="action.icon" :class="action.icon" class="me-1"></i>
                         {{ action.label }}
                     </button>
@@ -1713,13 +1713,9 @@ window.openAIChatManager = function () {
                     buttons.forEach(button => {
                         var buttonIndex = Number(button.getAttribute('data-tts-message-index'));
                         var isPlaying = buttonIndex === this.ttsPlayingMessageIndex;
-                        var iconHtml = isPlaying
-                            ? '<i class="fa-solid fa-circle-pause"></i>'
-                            : '<i class="fa-solid fa-circle-play"></i>';
 
                         button.classList.toggle('tts-playing', isPlaying);
                         button.setAttribute('title', isPlaying ? 'Pause audio' : 'Read aloud');
-                        button.replaceChildren(DOMPurify.sanitize(iconHtml, { RETURN_DOM_FRAGMENT: true }));
                     });
                 },
                 synthesizeSpeech(text, cacheIndex) {
