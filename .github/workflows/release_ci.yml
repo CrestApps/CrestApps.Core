@@ -15,7 +15,21 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 jobs:
+  nuget_audit:
+    runs-on: ubuntu-latest
+    name: NuGet Audit
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: |
+          10.0.x
+    - name: Audit NuGet packages
+      run: |
+        dotnet restore ./CrestApps.Core.slnx -warnaserror /p:TreatWarningsAsErrors=true /p:NuGetAudit=true
+
   test:
+    needs: nuget_audit
     runs-on: ${{ matrix.os }}
     name: Build, Test, Deploy
     strategy:
@@ -42,10 +56,9 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: echo "BuildNumber=$(( $GITHUB_RUN_NUMBER ))" >> $GITHUB_ENV
     - name: Build
-      # NuGetAudit is intentionally not disabled here like it is for other CI builds, because we need to address any
-      # vulnerable packages before releasing a new version.
+      # NuGet auditing runs in the dedicated audit job above so dependency issues fail fast in one predictable place.
       run: |
-        dotnet build -c Release -warnaserror /p:TreatWarningsAsErrors=true /p:RunAnalyzers=true -p:Version=${{ steps.get_version.outputs.VERSION }}
+        dotnet build -c Release -warnaserror /p:TreatWarningsAsErrors=true /p:RunAnalyzers=true /p:NuGetAudit=false -p:Version=${{ steps.get_version.outputs.VERSION }}
     - name: Unit Tests
       run: |
         dotnet test -c Release --no-build ./tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj 
