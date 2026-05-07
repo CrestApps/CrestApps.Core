@@ -12,7 +12,21 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 jobs:
+  nuget_audit:
+    runs-on: ubuntu-latest
+    name: NuGet Audit
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: |
+          10.0.x
+    - name: Audit NuGet packages
+      run: |
+        dotnet restore ./CrestApps.Core.slnx -warnaserror /p:TreatWarningsAsErrors=true /p:NuGetAudit=true
+
   test:
+    needs: nuget_audit
     runs-on: ubuntu-latest
     name: Build, Test, Deploy
     steps:
@@ -73,7 +87,7 @@ jobs:
       run: echo "BuildNumber=$GITHUB_RUN_NUMBER" >> $GITHUB_ENV
     - name: Build
       if: steps.check-publish.outputs.should-publish == 'true'
-      # See pr_ci.yml for the reason why we disable NuGet audit warnings.
+      # NuGet auditing runs in the dedicated audit job above so dependency issues fail fast in one predictable place.
       run: |
         dotnet build -c Release -warnaserror /p:TreatWarningsAsErrors=true /p:RunAnalyzers=true /p:NuGetAudit=false /p:VersionSuffixBase=preview /p:BuildNumber=$BuildNumber
     - name: Unit Tests
