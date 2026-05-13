@@ -62,50 +62,49 @@ public static class AIChatSessionMetricsIndexSchemaBuilderExtensions
     /// <param name="schemaBuilder">The schema builder.</param>
     /// <param name="storeOptions">The store options.</param>
     /// <param name="options">The options.</param>
-    public static Task CreateAIChatSessionMetricsNamedIndexesAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
+    public static async Task CreateAIChatSessionMetricsNamedIndexesAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions storeOptions, AIChatSessionMetricsIndexSchemaOptions options = null)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
         ArgumentNullException.ThrowIfNull(storeOptions);
 
         if (!options.CreateNamedIndexes)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        return Task.WhenAll(
-            schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
-                table => table.CreateIndex("IDX_AIChatSessionMetrics_DocumentId",
-                    "DocumentId",
-                    nameof(AIChatSessionMetricsIndex.SessionId),
-                    nameof(AIChatSessionMetricsIndex.ProfileId),
-                    nameof(AIChatSessionMetricsIndex.CreatedUtc)),
-                collection: storeOptions.AICollectionName),
+        await schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
+            table => table.CreateIndex("IDX_AIChatSessionMetrics_DocumentId",
+                "DocumentId",
+                nameof(AIChatSessionMetricsIndex.SessionId),
+                nameof(AIChatSessionMetricsIndex.ProfileId),
+                nameof(AIChatSessionMetricsIndex.CreatedUtc)),
+            collection: storeOptions.AICollectionName);
 
-            schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
-                table => table.CreateIndex("IDX_AIChatSessionMetrics_ProfileDate",
-                    "DocumentId",
-                    nameof(AIChatSessionMetricsIndex.ProfileId),
-                    nameof(AIChatSessionMetricsIndex.SessionStartedUtc),
-                    nameof(AIChatSessionMetricsIndex.SessionEndedUtc),
-                    nameof(AIChatSessionMetricsIndex.IsResolved)),
-                collection: storeOptions.AICollectionName),
+        await schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
+            table => table.CreateIndex("IDX_AIChatSessionMetrics_ProfileDate",
+                "DocumentId",
+                nameof(AIChatSessionMetricsIndex.ProfileId),
+                nameof(AIChatSessionMetricsIndex.SessionStartedUtc),
+                nameof(AIChatSessionMetricsIndex.SessionEndedUtc),
+                nameof(AIChatSessionMetricsIndex.IsResolved)),
+            collection: storeOptions.AICollectionName);
 
-            schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
-                table => table.CreateIndex("IDX_AIChatSessionMetrics_VisitorId",
-                    "DocumentId",
-                    nameof(AIChatSessionMetricsIndex.VisitorId),
-                    nameof(AIChatSessionMetricsIndex.ProfileId),
-                    nameof(AIChatSessionMetricsIndex.SessionStartedUtc)),
-                collection: storeOptions.AICollectionName),
+        await schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
+            table => table.CreateIndex("IDX_AIChatSessionMetrics_VisitorId",
+                "DocumentId",
+                nameof(AIChatSessionMetricsIndex.VisitorId),
+                nameof(AIChatSessionMetricsIndex.ProfileId),
+                nameof(AIChatSessionMetricsIndex.SessionStartedUtc)),
+            collection: storeOptions.AICollectionName);
 
-            schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
-                table => table.CreateIndex("IDX_AIChatSessionMetrics_TimeOfDay",
-                    "DocumentId",
-                    nameof(AIChatSessionMetricsIndex.ProfileId),
-                    nameof(AIChatSessionMetricsIndex.HourOfDay),
-                    nameof(AIChatSessionMetricsIndex.DayOfWeek),
-                    nameof(AIChatSessionMetricsIndex.SessionStartedUtc)),
-                collection: storeOptions.AICollectionName));
+        await schemaBuilder.AlterIndexTableAsync<AIChatSessionMetricsIndex>(
+            table => table.CreateIndex("IDX_AIChatSessionMetrics_TimeOfDay",
+                "DocumentId",
+                nameof(AIChatSessionMetricsIndex.ProfileId),
+                nameof(AIChatSessionMetricsIndex.HourOfDay),
+                nameof(AIChatSessionMetricsIndex.DayOfWeek),
+                nameof(AIChatSessionMetricsIndex.SessionStartedUtc)),
+            collection: storeOptions.AICollectionName);
     }
 
     /// <summary>
