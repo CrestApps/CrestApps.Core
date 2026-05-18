@@ -274,7 +274,7 @@ public sealed class SettingsController : Controller
         {
             IndexProfileName = model.DocumentIndexProfileName?.Trim(),
             TopN = model.DocumentTopN,
-            RetrievalMode = _siteSettings.Get<InteractionDocumentSettings>().RetrievalMode,
+            RetrievalMode = model.DocumentRetrievalMode,
         });
 
         _siteSettings.Set(new AIDataSourceSettings

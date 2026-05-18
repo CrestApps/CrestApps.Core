@@ -13,6 +13,8 @@ description: Learn how to use ExtensibleEntity for dynamic property storage and 
 
 `ExtensibleEntity` provides a `Properties` dictionary that allows you to attach arbitrary strongly-typed data to any entity without changing its schema. This powers features like AI profile metadata, chat session annotations, and custom application data.
 
+Serialized entities keep extensible values inside the nested `Properties` object. Root-level flattened extension data is not treated as valid extensible metadata.
+
 ## Quick Reference
 
 | Method | When to Use |
