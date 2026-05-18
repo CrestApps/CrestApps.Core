@@ -1,4 +1,5 @@
 @using CrestApps.Core.AI.Claude.Models
+@using CrestApps.Core.AI.Documents.Models
 @model CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels.SettingsViewModel
 @{
     ViewData["Title"] = "AI Settings";
@@ -255,6 +256,17 @@
                         <input asp-for="DocumentTopN" class="form-control" type="number" min="1" max="20" style="max-width: 200px;" />
                         <span asp-validation-for="DocumentTopN" class="text-danger"></span>
                         <div class="form-text">The default number of matched chunks or documents to include when a profile does not override it.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="DocumentRetrievalMode" class="form-label">Default retrieval mode</label>
+                        <select asp-for="DocumentRetrievalMode" class="form-select">
+                            @foreach (var retrievalMode in Enum.GetValues<DocumentRetrievalMode>())
+                            {
+                                <option value="@((int)retrievalMode)">@retrievalMode</option>
+                            }
+                        </select>
+                        <div class="form-text">Controls whether document retrieval returns matching chunks directly or expands results hierarchically by parent document.</div>
                     </div>
 
                 </div>

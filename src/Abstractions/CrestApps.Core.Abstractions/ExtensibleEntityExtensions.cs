@@ -44,8 +44,8 @@ public static class ExtensibleEntityExtensions
         var key = typeof(T).Name;
 
         return entity.Properties.TryGetValue(key, out var value)
-                    ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions) ?? new T()
-                    : new T();
+            ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions) ?? new T()
+            : new T();
     }
 
     /// <summary>
@@ -57,8 +57,8 @@ public static class ExtensibleEntityExtensions
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         return entity.Properties.TryGetValue(name, out var value)
-                    ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions)
-                    : default;
+            ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions)
+            : default;
     }
 
     /// <summary>

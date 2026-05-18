@@ -277,7 +277,7 @@ public sealed class AIProfileViewModelTests
     }
 
     [Fact]
-    public void FromProfile_ReadsFlattenedExtensionDataAfterReload()
+    public void FromProfile_ReadsNestedExtensionDataAfterReload()
     {
         var json = """
             {
@@ -293,15 +293,17 @@ public sealed class AIProfileViewModelTests
                 }
               },
               "ItemId":"3e169d42eee44ccb956d61cd046daf43",
-              "DataSourceMetadata":{
-                "DataSourceId":"4kwqvhkg2p1jx30rrjn7vqv6da"
-              },
-              "AIDataSourceRagMetadata":{
-                "IsInScope":true
-              },
-              "DocumentsMetadata":{
-                "Documents":[],
-                "DocumentTopN":5
+              "Properties":{
+                "DataSourceMetadata":{
+                  "DataSourceId":"4kwqvhkg2p1jx30rrjn7vqv6da"
+                },
+                "AIDataSourceRagMetadata":{
+                  "IsInScope":true
+                },
+                "DocumentsMetadata":{
+                  "Documents":[],
+                  "DocumentTopN":5
+                }
               }
             }
             """;
@@ -338,7 +340,7 @@ public sealed class AIProfileViewModelTests
     }
 
     [Fact]
-    public void JsonSerialization_ShouldKeepSettingsNestedAndMetadataFlattened()
+    public void JsonSerialization_ShouldKeepSettingsAndMetadataInsideNestedPropertiesObject()
     {
         var profile = new AIProfile
         {
@@ -353,10 +355,14 @@ public sealed class AIProfileViewModelTests
         profile.Alter<DataSourceMetadata>(metadata => metadata.DataSourceId = "serialized-source");
 
         var json = JsonSerializer.Serialize(profile);
+        var node = JsonNode.Parse(json)?.AsObject();
 
         Assert.Contains("\"Settings\":", json, StringComparison.Ordinal);
         Assert.Contains("\"AIProfileSettings\":", json, StringComparison.Ordinal);
-        Assert.Contains("\"DataSourceMetadata\":", json, StringComparison.Ordinal);
+        Assert.Contains("\"Properties\":", json, StringComparison.Ordinal);
+        Assert.NotNull(node);
+        Assert.Null(node[nameof(DataSourceMetadata)]);
+        Assert.NotNull(node[nameof(ExtensibleEntity.Properties)]?[nameof(DataSourceMetadata)]);
 
         var reloaded = JsonSerializer.Deserialize<AIProfile>(json);
 

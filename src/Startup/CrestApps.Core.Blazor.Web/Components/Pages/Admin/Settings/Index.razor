@@ -347,6 +347,17 @@ else
                             <div class="form-text">The default number of matched chunks or documents to include when a profile does not override it.</div>
                         </div>
 
+                        <div class="mb-3">
+                            <label for="docRetrievalMode" class="form-label">Default retrieval mode</label>
+                            <InputSelect id="docRetrievalMode" @bind-Value="_model.DocumentRetrievalMode" class="form-select">
+                                @foreach (var retrievalMode in Enum.GetValues<DocumentRetrievalMode>())
+                                {
+                                    <option value="@retrievalMode">@retrievalMode</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">Controls whether document retrieval returns matching chunks directly or expands results hierarchically by parent document.</div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -948,7 +959,7 @@ else
         {
             IndexProfileName = _model.DocumentIndexProfileName?.Trim(),
             TopN = _model.DocumentTopN,
-            RetrievalMode = SiteSettings.Get<InteractionDocumentSettings>().RetrievalMode,
+            RetrievalMode = _model.DocumentRetrievalMode,
         });
 
         SiteSettings.Set(new AIDataSourceSettings
