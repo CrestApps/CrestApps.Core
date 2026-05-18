@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Templates.Services;
@@ -53,9 +54,16 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
             context.Context.ToolNames = functionInvocationMetadata.Names;
         }
 
-        if (context.Context.ToolNames is not { Length: > 0 } && profile.Settings.TryGetPropertyValue("AIProfileFunctionInvocationMetadata", out var legacyNode))
+        if (context.Context.ToolNames is not { Length: > 0 } &&
+            profile.Settings.TryGetValue("AIProfileFunctionInvocationMetadata", out var legacyNode))
         {
-            var legacyMetadata = legacyNode.Deserialize<FunctionInvocationMetadata>();
+            var legacyMetadata = legacyNode switch
+            {
+                JsonNode jsonNode => jsonNode.Deserialize<FunctionInvocationMetadata>(),
+                JsonElement jsonElement => jsonElement.Deserialize<FunctionInvocationMetadata>(),
+                _ => JsonSerializer.Deserialize<FunctionInvocationMetadata>(JsonSerializer.Serialize(legacyNode)),
+            };
+
             if (legacyMetadata?.Names is { Length: > 0 })
             {
                 context.Context.ToolNames = legacyMetadata.Names;

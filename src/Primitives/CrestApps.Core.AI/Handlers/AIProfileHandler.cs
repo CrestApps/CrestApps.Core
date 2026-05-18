@@ -387,9 +387,12 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
             return;
         }
 
-        var existingSettingsSnapshot = profile.Settings.Clone();
+        var currentSettingsJson = JsonExtensions.FromObject(profile.Settings ?? new Dictionary<string, object>(), ExtensibleEntityExtensions.JsonSerializerOptions);
+        var existingSettingsSnapshot = currentSettingsJson.Clone();
 
-        AIPropertiesMergeHelper.Merge(profile.Settings, settings);
-        AIPropertiesMergeHelper.MergeNamedEntries(profile.Settings, existingSettingsSnapshot);
+        AIPropertiesMergeHelper.Merge(currentSettingsJson, settings);
+        AIPropertiesMergeHelper.MergeNamedEntries(currentSettingsJson, existingSettingsSnapshot);
+
+        profile.Settings = JsonSerializer.Deserialize<Dictionary<string, object>>(currentSettingsJson, ExtensibleEntityExtensions.JsonSerializerOptions) ?? [];
     }
 }
