@@ -113,7 +113,7 @@ public sealed class CatalogEntryHandlerPopulationTests
                     },
                 },
             },
-            Settings = new JsonObject
+            Settings = new Dictionary<string, object>
             {
                 ["CustomSettings"] = new JsonObject
                 {
@@ -175,9 +175,10 @@ public sealed class CatalogEntryHandlerPopulationTests
         await handler.InitializingAsync(new InitializingContext<AIProfile>(profile, data), CancellationToken);
 
         var properties = JsonExtensions.FromObject(profile.Properties);
+        var settings = JsonExtensions.FromObject(profile.Settings);
         var propertyEntries = Assert.IsType<JsonArray>(properties["Entries"]);
         var firstPropertyEntry = Assert.IsType<JsonObject>(propertyEntries[0]);
-        var customSettings = Assert.IsType<JsonObject>(profile.Settings["CustomSettings"]);
+        var customSettings = Assert.IsType<JsonObject>(settings["CustomSettings"]);
         var settingsEntries = Assert.IsType<JsonArray>(customSettings["Entries"]);
         var firstSettingsEntry = Assert.IsType<JsonObject>(settingsEntries[0]);
 

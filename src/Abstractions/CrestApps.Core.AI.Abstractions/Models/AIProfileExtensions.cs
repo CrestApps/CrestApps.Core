@@ -29,19 +29,16 @@ public static class AIProfileExtensions
     public static T GetOrCreateSettings<T>(this AIProfile profile, JsonSerializerOptions jsonSerializerOptions = null)
         where T : new()
     {
+        ArgumentNullException.ThrowIfNull(profile);
+
         if (profile.Settings == null)
         {
             return new T();
         }
 
-        var node = profile.Settings[typeof(T).Name];
-
-        if (node == null)
-        {
-            return new T();
-        }
-
-        return node.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions) ?? new T();
+        return profile.Settings.TryGetValue(typeof(T).Name, out var value)
+            ? DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions) ?? new T()
+            : new T();
     }
 
     /// <summary>
@@ -50,6 +47,8 @@ public static class AIProfileExtensions
     public static bool TryGetSettings<T>(this AIProfile profile, out T settings, JsonSerializerOptions jsonSerializerOptions = null)
         where T : class
     {
+        ArgumentNullException.ThrowIfNull(profile);
+
         if (profile.Settings == null)
         {
             settings = null;
@@ -57,18 +56,16 @@ public static class AIProfileExtensions
             return false;
         }
 
-        var node = profile.Settings[typeof(T).Name];
-
-        if (node == null)
+        if (!profile.Settings.TryGetValue(typeof(T).Name, out var value) || value == null)
         {
             settings = null;
 
             return false;
         }
 
-        settings = node.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions);
+        settings = DeserializeValue<T>(value, jsonSerializerOptions ?? _jsonOptions);
 
-        return true;
+        return settings != null;
     }
 
     /// <summary>
@@ -80,16 +77,10 @@ public static class AIProfileExtensions
     public static AIProfile AlterSettings<T>(this AIProfile profile, Action<T> setting, JsonSerializerOptions jsonSerializerOptions = null)
         where T : class, new()
     {
-        var existingJObject = profile.Settings[typeof(T).Name] as JsonObject;
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(setting);
 
-        if (existingJObject == null)
-        {
-            existingJObject = JsonExtensions.FromObject(new T(), jsonSerializerOptions ?? _jsonOptions);
-
-            profile.Settings[typeof(T).Name] = existingJObject;
-        }
-
-        var settingsToMerge = existingJObject.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions);
+        var settingsToMerge = profile.GetOrCreateSettings<T>(jsonSerializerOptions ?? _jsonOptions);
 
         setting(settingsToMerge);
 
@@ -103,6 +94,7 @@ public static class AIProfileExtensions
     /// </summary>
     public static AIProfile WithSettings<T>(this AIProfile profile, T settings, JsonSerializerOptions jsonSerializerOptions = null)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(settings);
 
         var jObject = JsonExtensions.FromObject(settings, jsonSerializerOptions ?? _jsonOptions);
@@ -110,5 +102,37 @@ public static class AIProfileExtensions
         profile.Settings[typeof(T).Name] = jObject;
 
         return profile;
+    }
+
+    private static T DeserializeValue<T>(object value, JsonSerializerOptions jsonSerializerOptions = null)
+    {
+        if (value is null)
+        {
+            return default;
+        }
+
+        if (value is T typed)
+        {
+            return typed;
+        }
+
+        if (value is JsonElement jsonElement)
+        {
+            if (jsonElement.ValueKind == JsonValueKind.Null)
+            {
+                return default;
+            }
+
+            return jsonElement.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions);
+        }
+
+        if (value is JsonNode jsonNode)
+        {
+            return jsonNode.Deserialize<T>(jsonSerializerOptions ?? _jsonOptions);
+        }
+
+        var json = JsonSerializer.Serialize(value, jsonSerializerOptions ?? _jsonOptions);
+
+        return JsonSerializer.Deserialize<T>(json, jsonSerializerOptions ?? _jsonOptions);
     }
 }

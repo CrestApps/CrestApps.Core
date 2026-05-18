@@ -13,6 +13,6 @@ public abstract class ExtensibleEntity
     /// Gets or sets the dictionary of additional properties stored under the
     /// <c>Properties</c> JSON object.
     /// </summary>
-    [JsonConverter(typeof(ExtensibleEntityPropertiesJsonConverter))]
+    [JsonConverter(typeof(JsonExtensionDataConverter))]
     public IDictionary<string, object> Properties { get; set; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 }

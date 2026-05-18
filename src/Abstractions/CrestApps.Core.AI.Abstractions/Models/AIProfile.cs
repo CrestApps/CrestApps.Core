@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
@@ -149,7 +148,8 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
     /// <summary>
     /// Gets or sets the JSON-based settings for the profile.
     /// </summary>
-    public JsonObject Settings { get; init; } = [];
+    [JsonConverter(typeof(JsonExtensionDataConverter))]
+    public IDictionary<string, object> Settings { get; set; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets legacy connection name.
@@ -189,8 +189,8 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
             CreatedUtc = CreatedUtc,
             OwnerId = OwnerId,
             Author = Author,
-            Properties = Properties?.Clone(),
-            Settings = Settings?.Clone(),
+            Properties = Properties?.Clone() ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase),
+            Settings = Settings?.Clone() ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase),
         };
     }
 

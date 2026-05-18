@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -10,7 +8,7 @@ namespace CrestApps.Core;
 /// Serializes and deserializes <see cref="ExtensibleEntity.Properties"/> as a normal nested
 /// JSON object while keeping its values inside the property bag.
 /// </summary>
-internal sealed class ExtensibleEntityPropertiesJsonConverter : JsonConverter<IDictionary<string, object>>
+public sealed class JsonExtensionDataConverter : JsonConverter<IDictionary<string, object>>
 {
     /// <summary>
     /// Reads the property bag from a nested JSON object.
