@@ -24,7 +24,6 @@ using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
