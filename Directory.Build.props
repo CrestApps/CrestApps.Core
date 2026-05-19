@@ -51,7 +51,7 @@
          Passing /p:VersionSuffix=... on the command line would create a global MSBuild property
          that project-file conditionals cannot override, which is why an intermediate property
          is used instead. -->
-    <VersionSuffix Condition="'$(VersionSuffixBase)' != '' AND '$(BuildNumber)' != ''">$(VersionSuffixBase)-$(BuildNumber)</VersionSuffix>
+    <VersionSuffix Condition="'$(VersionSuffixBase)' != '' AND '$(BuildNumber)' != ''">$(VersionSuffixBase).$(BuildNumber)</VersionSuffix>
     <VersionSuffix Condition="'$(VersionSuffixBase)' != '' AND '$(BuildNumber)' == ''">$(VersionSuffixBase)</VersionSuffix>
     <InformationalVersion></InformationalVersion>
   </PropertyGroup>
