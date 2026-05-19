@@ -36,18 +36,11 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
     public async Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         var dataSourceId = GetString(settings, "dataSourceId");
-        var isInScope = GetBool(settings, "isInScope") ?? false;
-        var topNDocuments = GetInt(settings, "topNDocuments");
+
         if (string.IsNullOrWhiteSpace(dataSourceId))
         {
             interaction.Alter<DataSourceMetadata>(metadata => metadata.DataSourceId = null);
-            interaction.Alter<AIDataSourceRagMetadata>(metadata =>
-            {
-                metadata.Strictness = null;
-                metadata.TopNDocuments = topNDocuments;
-                metadata.IsInScope = isInScope;
-                metadata.Filter = null;
-            });
+            ApplyRagSettings(interaction, settings);
 
             return;
         }
@@ -65,13 +58,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         {
             _logger.LogWarning("Chat interaction data source '{DataSourceId}' was not found while saving settings.", dataSourceId);
             interaction.Alter<DataSourceMetadata>(metadata => metadata.DataSourceId = null);
-            interaction.Alter<AIDataSourceRagMetadata>(metadata =>
-            {
-                metadata.Strictness = null;
-                metadata.TopNDocuments = topNDocuments;
-                metadata.IsInScope = isInScope;
-                metadata.Filter = null;
-            });
+            ApplyRagSettings(interaction, settings);
 
             return;
         }
@@ -81,13 +68,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
             metadata.DataSourceId = dataSource.ItemId;
         });
 
-        interaction.Alter<AIDataSourceRagMetadata>(metadata =>
-        {
-            metadata.Strictness = GetInt(settings, "strictness");
-            metadata.TopNDocuments = topNDocuments;
-            metadata.IsInScope = isInScope;
-            metadata.Filter = GetString(settings, "filter");
-        });
+        ApplyRagSettings(interaction, settings);
     }
 
     /// <summary>
@@ -99,6 +80,22 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
     public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
+    }
+
+    private static void ApplyRagSettings(ChatInteraction interaction, JsonElement settings)
+    {
+        var isInScope = GetBool(settings, "isInScope") ?? false;
+        var topNDocuments = GetInt(settings, "topNDocuments");
+        var strictness = GetInt(settings, "strictness");
+        var filter = GetString(settings, "filter");
+
+        interaction.Alter<AIDataSourceRagMetadata>(metadata =>
+        {
+            metadata.Strictness = strictness;
+            metadata.TopNDocuments = topNDocuments;
+            metadata.IsInScope = isInScope;
+            metadata.Filter = filter;
+        });
     }
 
     private static string GetString(JsonElement element, string propertyName)

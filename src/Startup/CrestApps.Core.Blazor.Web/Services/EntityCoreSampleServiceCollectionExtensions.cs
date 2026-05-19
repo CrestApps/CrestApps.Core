@@ -1,5 +1,4 @@
 using CrestApps.Core.AI.A2A.Models;
-using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
@@ -16,7 +15,6 @@ using CrestApps.Core.Startup.Shared.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Blazor.Web.Services;
@@ -52,7 +50,6 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<ICatalogEntryHandler<Article>, ArticleHandler>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.AddSingleton<IConfigureOptions<A2AHostOptions>, SiteSettingsConfigureStoredOptions<A2AHostOptions>>();
         services.AddSingleton<IConfigureOptions<McpServerOptions>, SiteSettingsConfigureStoredOptions<McpServerOptions>>();
         services.ConfigureOptions<Areas.AIChat.Services.SampleCopilotOptionsConfiguration>();

@@ -24,7 +24,6 @@ using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
-using CrestApps.Core.Mvc.Web.Areas.Indexing.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
@@ -88,7 +87,6 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.AddSingleton<IConfigureOptions<A2AHostOptions>, SiteSettingsConfigureStoredOptions<A2AHostOptions>>();
         services.AddSingleton<IConfigureOptions<McpServerOptions>, SiteSettingsConfigureStoredOptions<McpServerOptions>>();
         services.ConfigureOptions<SampleCopilotOptionsConfiguration>();
