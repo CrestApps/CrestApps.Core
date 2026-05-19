@@ -1,5 +1,7 @@
 using System.Text;
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Documents.Handlers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -114,6 +116,19 @@ public sealed class DocumentFileStoreRegistrationTests
         var fileStore = provider.GetRequiredService<IDocumentFileStore>();
 
         Assert.Same(customFileStore, fileStore);
+    }
+
+    [Fact]
+    public void AddCoreAIDocumentProcessing_RegistersDocumentChatInteractionSettingsHandler()
+    {
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddCoreAIDocumentProcessing();
+        using var provider = services.BuildServiceProvider();
+
+        var handlers = provider.GetServices<IChatInteractionSettingsHandler>();
+
+        Assert.Contains(handlers, handler => handler is DocumentChatInteractionSettingsHandler);
     }
 
     private static string CreateTempDirectory()

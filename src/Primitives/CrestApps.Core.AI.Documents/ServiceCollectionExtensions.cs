@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Indexing;
 using CrestApps.Core.AI.Documents.Models;
@@ -76,6 +77,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ITabularBatchProcessor, TabularBatchProcessor>();
         services.TryAddSingleton<ITabularBatchResultCache, TabularBatchResultCache>();
 
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
 

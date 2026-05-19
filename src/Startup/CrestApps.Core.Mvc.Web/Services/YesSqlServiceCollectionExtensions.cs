@@ -88,7 +88,6 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
 
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.AddSingleton<IConfigureOptions<A2AHostOptions>, SiteSettingsConfigureStoredOptions<A2AHostOptions>>();
         services.AddSingleton<IConfigureOptions<McpServerOptions>, SiteSettingsConfigureStoredOptions<McpServerOptions>>();
         services.ConfigureOptions<SampleCopilotOptionsConfiguration>();

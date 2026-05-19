@@ -3,10 +3,19 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.Core.Startup.Shared.Services;
+namespace CrestApps.Core.AI.Documents.Handlers;
 
+/// <summary>
+/// Applies document-specific chat interaction settings before an interaction is persisted.
+/// </summary>
 public sealed class DocumentChatInteractionSettingsHandler : IChatInteractionSettingsHandler
 {
+    /// <summary>
+    /// Applies document retrieval settings from the raw client payload to the interaction metadata.
+    /// </summary>
+    /// <param name="interaction">The chat interaction being updated.</param>
+    /// <param name="settings">The raw settings payload from the client.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     public Task UpdatingAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         interaction.Alter<DocumentsMetadata>(metadata =>
@@ -17,6 +26,12 @@ public sealed class DocumentChatInteractionSettingsHandler : IChatInteractionSet
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Runs after the interaction has been persisted.
+    /// </summary>
+    /// <param name="interaction">The updated chat interaction.</param>
+    /// <param name="settings">The raw settings payload from the client.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     public Task UpdatedAsync(ChatInteraction interaction, JsonElement settings, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
@@ -32,6 +47,7 @@ public sealed class DocumentChatInteractionSettingsHandler : IChatInteractionSet
         if (property.ValueKind == JsonValueKind.String)
         {
             var value = property.GetString();
+
             if (string.IsNullOrWhiteSpace(value))
             {
                 return null;
