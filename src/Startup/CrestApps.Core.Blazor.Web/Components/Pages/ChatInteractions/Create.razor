@@ -455,7 +455,10 @@
 
         var orchestratorOptions = OrchestratorOptionsAccessor.Value;
         var orchestrators = orchestratorOptions.GetOrchestratorDescriptors();
-        _model.Orchestrators = orchestrators.Select(o => new SelectOption(o.Value.Title ?? o.Key, o.Key)).ToList();
+        _model.Orchestrators = orchestrators
+            .Where(o => !string.Equals(o.Key, orchestratorOptions.DefaultOrchestratorName, StringComparison.OrdinalIgnoreCase))
+            .Select(o => new SelectOption(o.Value.Title ?? o.Key, o.Key))
+            .ToList();
 
         // A2A Connections
         var connections = await A2AConnectionCatalog.GetAllAsync();
