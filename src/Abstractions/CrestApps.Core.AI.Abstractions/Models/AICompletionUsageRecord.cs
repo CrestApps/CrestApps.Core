@@ -105,5 +105,4 @@ public sealed class AICompletionUsageRecord : ExtensibleEntity
     /// Gets or sets the UTC timestamp when this usage record was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
-
 }

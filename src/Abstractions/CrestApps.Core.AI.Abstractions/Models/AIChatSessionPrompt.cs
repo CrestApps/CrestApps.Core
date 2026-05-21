@@ -53,5 +53,4 @@ public sealed class AIChatSessionPrompt : CatalogItem
     /// Gets or sets the UTC date and time when the prompt was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
-
 }

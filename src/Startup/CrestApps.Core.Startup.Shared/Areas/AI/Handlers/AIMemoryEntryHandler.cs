@@ -6,8 +6,10 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Support;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AI.Handlers;
+namespace CrestApps.Core.Startup.Shared.Areas.AI.Handlers;
 
 public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry>
 {
@@ -31,10 +33,8 @@ public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry
     public override Task InitializingAsync(InitializingContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 
-    public override async Task UpdatingAsync(UpdatingContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
-    {
-        await PopulateAsync(context.Model, context.Data);
-    }
+    public override Task UpdatingAsync(UpdatingContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
+        => PopulateAsync(context.Model, context.Data);
 
     public override Task InitializedAsync(InitializedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
     {

@@ -259,7 +259,7 @@ public sealed class GitHubOAuthService
             UserId = userId,
             GitHubUsername = username,
             ExpiresAt = null,
-            UpdatedUtc = now,
+            ModifiedUtc = now,
         };
     }
 
@@ -286,7 +286,7 @@ public sealed class GitHubOAuthService
             UserId = userId,
             GitHubUsername = credential.GitHubUsername,
             ExpiresAt = credential.ExpiresAt,
-            UpdatedUtc = credential.UpdatedUtc,
+            ModifiedUtc = credential.UpdatedUtc,
         };
     }
 

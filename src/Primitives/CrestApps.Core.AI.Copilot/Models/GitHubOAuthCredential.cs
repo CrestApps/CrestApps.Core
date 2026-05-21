@@ -41,17 +41,7 @@ public sealed class GitHubOAuthCredential : IModifiedUtcAwareModel
     public DateTime CreatedUtc { get; set; }
 
     /// <summary>
-    /// When this credential was last updated.
-    /// </summary>
-    public DateTime? UpdatedUtc { get; set; }
-
-    /// <summary>
     /// When this credential was last modified.
-    /// Maps to <see cref="UpdatedUtc"/> for backward compatibility.
     /// </summary>
-    public DateTime? ModifiedUtc
-    {
-        get => UpdatedUtc;
-        set => UpdatedUtc = value;
-    }
+    public DateTime? ModifiedUtc { get; set; }
 }
