@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Documents;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
 
 public sealed class SampleAIChatDocumentEventHandler : IAIChatDocumentEventHandler
 {

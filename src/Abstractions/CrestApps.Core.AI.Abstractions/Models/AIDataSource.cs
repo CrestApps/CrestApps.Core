@@ -7,7 +7,7 @@ namespace CrestApps.Core.AI.Models;
 /// Represents an AI data source that links an index profile to an AI knowledge base
 /// for document retrieval and augmented generation.
 /// </summary>
-public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneable<AIDataSource>
+public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIDataSource>
 {
     /// <summary>
     /// Gets or sets the legacy profile source value retained for backward compatibility.
@@ -30,6 +30,11 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneab
     /// Gets or sets the UTC timestamp when this data source was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC timestamp when this data source was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the identifier of the user who created this data source.
@@ -77,6 +82,7 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, ICloneab
             ItemId = ItemId,
             DisplayText = DisplayText,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
 #pragma warning disable CS0618 // Type or member is obsolete
             ProfileSource = ProfileSource,
             Type = Type,

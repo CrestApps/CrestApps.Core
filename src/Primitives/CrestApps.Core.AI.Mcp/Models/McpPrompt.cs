@@ -7,7 +7,7 @@ namespace CrestApps.Core.AI.Mcp.Models;
 /// <summary>
 /// Represents an MCP prompt entry that wraps the SDK's Prompt class and adds catalog metadata.
 /// </summary>
-public sealed class McpPrompt : CatalogItem, INameAwareModel, ICloneable<McpPrompt>
+public sealed class McpPrompt : CatalogItem, INameAwareModel, IModifiedUtcAwareModel, ICloneable<McpPrompt>
 {
     /// <summary>
     /// Gets or sets the name of the prompt.
@@ -18,6 +18,11 @@ public sealed class McpPrompt : CatalogItem, INameAwareModel, ICloneable<McpProm
     /// Gets or sets the UTC date and time when the prompt was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC date and time when the prompt was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the author who created the prompt.
@@ -44,6 +49,7 @@ public sealed class McpPrompt : CatalogItem, INameAwareModel, ICloneable<McpProm
             ItemId = ItemId,
             Name = Name,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             Author = Author,
             OwnerId = OwnerId,
             Properties = Properties,

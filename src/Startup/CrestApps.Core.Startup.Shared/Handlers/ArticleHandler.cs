@@ -28,8 +28,11 @@ public sealed class ArticleHandler : CatalogEntryHandlerBase<Article>
     public override Task InitializingAsync(InitializingContext<Article> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 
-    public override Task UpdatingAsync(UpdatingContext<Article> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data);
+    public override async Task UpdatingAsync(UpdatingContext<Article> context, CancellationToken cancellationToken = default)
+    {
+        await PopulateAsync(context.Model, context.Data);
+        context.Model.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+    }
 
     public override Task InitializedAsync(InitializedContext<Article> context, CancellationToken cancellationToken = default)
     {

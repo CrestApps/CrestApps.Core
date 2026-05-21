@@ -26,6 +26,8 @@ jobs:
       with:
         node-version: "20"
         registry-url: "https://registry.npmjs.org"
+        scope: "@crestapps"
+        always-auth: true
 
     - name: Build assets
       run: |
@@ -38,4 +40,4 @@ jobs:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       run: |
         npm version "${{ steps.get_version.outputs.VERSION }}" --no-git-tag-version --allow-same-version
-        npm publish --access public
+        npm publish --access public --tag latest

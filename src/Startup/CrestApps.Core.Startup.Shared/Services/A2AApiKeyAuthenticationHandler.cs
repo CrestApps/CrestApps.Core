@@ -4,11 +4,12 @@ using System.Text;
 using System.Text.Encodings.Web;
 using CrestApps.Core.AI.A2A.Models;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.Mvc.Web.Services;
+namespace CrestApps.Core.Startup.Shared.Services;
 
-internal sealed class A2AApiKeyAuthenticationHandler : AuthenticationHandler<A2AApiKeyAuthenticationOptions>
+public sealed class A2AApiKeyAuthenticationHandler : AuthenticationHandler<A2AApiKeyAuthenticationOptions>
 {
     private readonly IOptionsMonitor<A2AHostOptions> _hostOptionsMonitor;
 
@@ -96,11 +97,11 @@ internal sealed class A2AApiKeyAuthenticationHandler : AuthenticationHandler<A2A
     }
 }
 
-internal sealed class A2AApiKeyAuthenticationOptions : AuthenticationSchemeOptions
+public sealed class A2AApiKeyAuthenticationOptions : AuthenticationSchemeOptions
 {
 }
 
-internal static class A2AApiKeyAuthenticationDefaults
+public static class A2AApiKeyAuthenticationDefaults
 {
     public const string AuthenticationScheme = "A2AApiKey";
 }

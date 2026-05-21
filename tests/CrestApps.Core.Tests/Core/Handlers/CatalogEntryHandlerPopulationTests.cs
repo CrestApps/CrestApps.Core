@@ -196,6 +196,32 @@ public sealed class CatalogEntryHandlerPopulationTests
     }
 
     [Fact]
+    public async Task AIProfileHandler_UpdatingAsync_SetsModifiedUtc()
+    {
+        var modifiedUtc = new DateTimeOffset(2026, 4, 28, 10, 15, 0, TimeSpan.Zero);
+        var handler = new AIProfileHandler(
+            CreateHttpContextAccessor(),
+            new StubTimeProvider(modifiedUtc),
+            Mock.Of<IAIProfileStore>(),
+            Mock.Of<IAIDeploymentStore>(),
+            CreateStringLocalizer<AIProfileHandler>());
+        var profile = new AIProfile
+        {
+            Name = "agent-profile",
+            CreatedUtc = modifiedUtc.AddDays(-1).UtcDateTime,
+        };
+        JsonObject data = new()
+        {
+            [nameof(AIProfile.Description)] = "Updated description",
+        };
+
+        await handler.UpdatingAsync(new UpdatingContext<AIProfile>(profile, data), CancellationToken);
+
+        Assert.Equal("Updated description", profile.Description);
+        Assert.Equal(modifiedUtc.UtcDateTime, profile.ModifiedUtc);
+    }
+
+    [Fact]
     public async Task AIDataSourceHandler_MapsKnownPropertiesAndValidatesRequiredValues()
     {
         var queue = new Mock<IAIDataSourceIndexingQueue>();

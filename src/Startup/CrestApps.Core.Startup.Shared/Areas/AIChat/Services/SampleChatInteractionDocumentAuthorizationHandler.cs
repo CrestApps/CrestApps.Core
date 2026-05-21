@@ -3,7 +3,7 @@ using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
 
 public sealed class SampleChatInteractionDocumentAuthorizationHandler : AuthorizationHandler<OperationAuthorizationRequirement, ChatInteraction>
 {

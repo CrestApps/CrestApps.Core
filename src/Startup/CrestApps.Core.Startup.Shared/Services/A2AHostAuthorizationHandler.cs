@@ -2,9 +2,9 @@ using CrestApps.Core.AI.A2A.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.Mvc.Web.Services;
+namespace CrestApps.Core.Startup.Shared.Services;
 
-internal sealed class A2AHostAuthorizationHandler : AuthorizationHandler<A2AHostAuthorizationRequirement>
+public sealed class A2AHostAuthorizationHandler : AuthorizationHandler<A2AHostAuthorizationRequirement>
 {
     private readonly IOptionsMonitor<A2AHostOptions> _optionsMonitor;
 
@@ -49,6 +49,6 @@ internal sealed class A2AHostAuthorizationHandler : AuthorizationHandler<A2AHost
     }
 }
 
-internal sealed class A2AHostAuthorizationRequirement : IAuthorizationRequirement
+public sealed class A2AHostAuthorizationRequirement : IAuthorizationRequirement
 {
 }

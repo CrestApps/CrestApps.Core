@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Models;
 /// Represents a configured AI deployment that maps a technical name and capability type
 /// to a specific AI model via a registered client and optional provider connection.
 /// </summary>
-public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, ICloneable<AIDeployment>
+public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, IModifiedUtcAwareModel, ICloneable<AIDeployment>
 {
     private string _modelName;
 
@@ -68,6 +68,11 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     public DateTime CreatedUtc { get; set; }
 
     /// <summary>
+    /// Gets or sets the UTC timestamp when this deployment was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
+
+    /// <summary>
     /// Gets or sets the identifier of the user who created this deployment.
     /// </summary>
     public string Author { get; set; }
@@ -107,6 +112,7 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
             Type = Type,
             IsReadOnly = IsReadOnly,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             Author = Author,
             OwnerId = OwnerId,
             Properties = Properties.Clone(),

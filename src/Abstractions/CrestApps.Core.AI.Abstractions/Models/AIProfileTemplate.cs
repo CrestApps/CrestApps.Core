@@ -9,7 +9,7 @@ namespace CrestApps.Core.AI.Models;
 /// via metadata classes such as <see cref="ProfileTemplateMetadata"/> or
 /// <see cref="SystemPromptTemplateMetadata"/>.
 /// </summary>
-public sealed class AIProfileTemplate : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, ICloneable<AIProfileTemplate>
+public sealed class AIProfileTemplate : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIProfileTemplate>
 {
     /// <summary>
     /// Gets or sets the technical name of the template.
@@ -43,6 +43,11 @@ public sealed class AIProfileTemplate : SourceCatalogEntry, INameAwareModel, IDi
     public DateTime CreatedUtc { get; set; }
 
     /// <summary>
+    /// Gets or sets the UTC timestamp when the template was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
+
+    /// <summary>
     /// Gets or sets the identifier of the owner of this template.
     /// </summary>
     public string OwnerId { get; set; }
@@ -67,6 +72,7 @@ public sealed class AIProfileTemplate : SourceCatalogEntry, INameAwareModel, IDi
             Category = Category,
             IsListable = IsListable,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             OwnerId = OwnerId,
             Author = Author,
             Properties = new Dictionary<string, object>(Properties),

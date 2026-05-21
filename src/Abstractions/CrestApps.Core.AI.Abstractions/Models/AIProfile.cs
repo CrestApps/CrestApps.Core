@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Models;
 /// Represents an AI profile that encapsulates chat, agent, or embedding configuration
 /// used to drive AI completion behavior across sessions and interactions.
 /// </summary>
-public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, ICloneable<AIProfile>
+public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIProfile>
 {
     /// <summary>
     /// Gets or sets the technical name of the profile.
@@ -136,6 +136,11 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
     public DateTime CreatedUtc { get; set; }
 
     /// <summary>
+    /// Gets or sets the UTC timestamp when the profile was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
+
+    /// <summary>
     /// Gets or sets the identifier of the owner of this profile.
     /// </summary>
     public string OwnerId { get; set; }
@@ -187,6 +192,7 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
             PromptSubject = PromptSubject,
             PromptTemplate = PromptTemplate,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             OwnerId = OwnerId,
             Author = Author,
             Properties = Properties?.Clone() ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase),

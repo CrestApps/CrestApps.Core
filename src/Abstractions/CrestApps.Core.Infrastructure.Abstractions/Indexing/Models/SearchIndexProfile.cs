@@ -8,7 +8,7 @@ namespace CrestApps.Core.Infrastructure.Indexing.Models;
 /// Represents an index profile that defines how a search index is configured
 /// and which provider manages it (e.g., Elasticsearch, Azure AI Search).
 /// </summary>
-public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAwareModel, IDisplayTextAwareModel, ICloneable<SearchIndexProfile>
+public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAwareModel, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<SearchIndexProfile>
 {
     /// <summary>
     /// Gets or sets the unique name for this index profile.
@@ -62,6 +62,11 @@ public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAw
     public DateTime CreatedUtc { get; set; }
 
     /// <summary>
+    /// Gets or sets the UTC timestamp when this index profile was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
+
+    /// <summary>
     /// Gets or sets the owner identifier.
     /// </summary>
     public string OwnerId { get; set; }
@@ -98,6 +103,7 @@ public sealed class SearchIndexProfile : CatalogItem, IIndexProfileInfo, INameAw
             Type = Type,
             EmbeddingDeploymentName = EmbeddingDeploymentName,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             OwnerId = OwnerId,
             Author = Author,
             Properties = Properties.Clone(),
