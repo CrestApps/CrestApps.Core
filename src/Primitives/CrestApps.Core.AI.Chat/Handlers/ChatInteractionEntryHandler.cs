@@ -41,7 +41,11 @@ internal sealed class ChatInteractionEntryHandler : CatalogEntryHandlerBase<Chat
     /// <param name="context">The context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public override Task UpdatingAsync(UpdatingContext<ChatInteraction> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data);
+    {
+        context.Model.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// Initializeds the operation.

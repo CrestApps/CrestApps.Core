@@ -47,7 +47,11 @@ public sealed class DefaultSearchIndexProfileHandler : IndexProfileHandlerBase
     /// <param name="context">The context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public override Task UpdatingAsync(UpdatingContext<SearchIndexProfile> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data);
+    {
+        context.Model.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// Initializeds the operation.

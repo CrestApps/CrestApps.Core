@@ -3,7 +3,7 @@ namespace CrestApps.Core.AI.Chat.Models;
 /// <summary>
 /// Represents a cached entry for tabular batch processing results.
 /// </summary>
-public sealed class TabularBatchCacheEntry
+public sealed class TabularBatchCacheEntry : IModifiedUtcAwareModel
 {
     /// <summary>
     /// Gets or sets the cached batch processing results.
@@ -34,6 +34,11 @@ public sealed class TabularBatchCacheEntry
     /// Gets or sets when this entry was created (UTC).
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets when this entry was last modified (UTC).
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the prompt that was used to generate these results.

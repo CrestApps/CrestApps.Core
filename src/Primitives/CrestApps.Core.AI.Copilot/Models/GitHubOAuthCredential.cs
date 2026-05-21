@@ -3,7 +3,7 @@ namespace CrestApps.Core.AI.Copilot.Models;
 /// <summary>
 /// Represents GitHub OAuth credentials for a user.
 /// </summary>
-public sealed class GitHubOAuthCredential
+public sealed class GitHubOAuthCredential : IModifiedUtcAwareModel
 {
     /// <summary>
     /// The unique identifier for this credential.
@@ -44,4 +44,14 @@ public sealed class GitHubOAuthCredential
     /// When this credential was last updated.
     /// </summary>
     public DateTime? UpdatedUtc { get; set; }
+
+    /// <summary>
+    /// When this credential was last modified.
+    /// Maps to <see cref="UpdatedUtc"/> for backward compatibility.
+    /// </summary>
+    public DateTime? ModifiedUtc
+    {
+        get => UpdatedUtc;
+        set => UpdatedUtc = value;
+    }
 }

@@ -6,7 +6,7 @@ namespace CrestApps.Core.AI.Mcp.Models;
 /// <summary>
 /// Represents the MCP Connection.
 /// </summary>
-public sealed class McpConnection : SourceCatalogEntry, IDisplayTextAwareModel, ICloneable<McpConnection>
+public sealed class McpConnection : SourceCatalogEntry, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<McpConnection>
 {
     /// <summary>
     /// Gets or sets the display Text.
@@ -17,6 +17,11 @@ public sealed class McpConnection : SourceCatalogEntry, IDisplayTextAwareModel, 
     /// Gets or sets the created Utc.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the modified Utc.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the author.
@@ -39,6 +44,7 @@ public sealed class McpConnection : SourceCatalogEntry, IDisplayTextAwareModel, 
             Source = Source,
             DisplayText = DisplayText,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             Author = Author,
             OwnerId = OwnerId,
             Properties = Properties,

@@ -40,7 +40,11 @@ internal sealed class AIProviderConnectionCatalogHandler : CatalogEntryHandlerBa
         => PopulateAsync(context.Model, context.Data, true);
 
     public override Task UpdatingAsync(UpdatingContext<AIProviderConnection> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data, false);
+    {
+        context.Model.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        return Task.CompletedTask;
+    }
 
     public override Task InitializedAsync(InitializedContext<AIProviderConnection> context, CancellationToken cancellationToken = default)
     {

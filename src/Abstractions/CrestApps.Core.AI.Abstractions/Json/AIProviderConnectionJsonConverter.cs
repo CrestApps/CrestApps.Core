@@ -37,6 +37,7 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
             DisplayText = GetString(node, nameof(AIProviderConnection.DisplayText)),
             IsReadOnly = GetBoolean(node, nameof(AIProviderConnection.IsReadOnly)),
             CreatedUtc = GetDateTime(node, nameof(AIProviderConnection.CreatedUtc)),
+            ModifiedUtc = GetNullableDateTime(node, nameof(AIProviderConnection.ModifiedUtc)),
             Author = GetString(node, nameof(AIProviderConnection.Author)),
             OwnerId = GetString(node, nameof(AIProviderConnection.OwnerId)),
         };
@@ -78,6 +79,7 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
         WriteString(writer, nameof(AIProviderConnection.DisplayText), value.DisplayText);
         writer.WriteBoolean(nameof(AIProviderConnection.IsReadOnly), value.IsReadOnly);
         writer.WriteString(nameof(AIProviderConnection.CreatedUtc), value.CreatedUtc);
+        WriteDateTime(writer, nameof(AIProviderConnection.ModifiedUtc), value.ModifiedUtc);
         WriteString(writer, nameof(AIProviderConnection.Author), value.Author);
         WriteString(writer, nameof(AIProviderConnection.OwnerId), value.OwnerId);
 
@@ -126,11 +128,33 @@ public sealed class AIProviderConnectionJsonConverter : JsonConverter<AIProvider
         return default;
     }
 
+    private static DateTime? GetNullableDateTime(JsonObject node, string name)
+    {
+        if (node.TryGetPropertyValue(name, out var value) && value != null)
+        {
+            return value.GetValue<DateTime>();
+        }
+
+        return null;
+    }
+
     private static void WriteString(Utf8JsonWriter writer, string name, string value)
     {
         if (value != null)
         {
             writer.WriteString(name, value);
+        }
+        else
+        {
+            writer.WriteNull(name);
+        }
+    }
+
+    private static void WriteDateTime(Utf8JsonWriter writer, string name, DateTime? value)
+    {
+        if (value.HasValue)
+        {
+            writer.WriteString(name, value.Value);
         }
         else
         {

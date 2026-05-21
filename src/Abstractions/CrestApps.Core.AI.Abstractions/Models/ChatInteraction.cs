@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Models;
 /// Represents a chat interaction which combines AI profile configuration and chat session state.
 /// This enables ad-hoc creation and execution of chat profiles without predefined AI Profiles.
 /// </summary>
-public sealed class ChatInteraction : CatalogItem
+public sealed class ChatInteraction : CatalogItem, IModifiedUtcAwareModel
 {
     /// <summary>
     /// Gets or sets the title of the chat interaction.
@@ -176,6 +176,11 @@ public sealed class ChatInteraction : CatalogItem
     /// Gets or sets the UTC date and time when the interaction was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC date and time when the interaction was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the last document index.

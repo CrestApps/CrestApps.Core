@@ -31,8 +31,10 @@ public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry
     public override Task InitializingAsync(InitializingContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
         => PopulateAsync(context.Model, context.Data);
 
-    public override Task UpdatingAsync(UpdatingContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data);
+    public override async Task UpdatingAsync(UpdatingContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
+    {
+        await PopulateAsync(context.Model, context.Data);
+    }
 
     public override Task InitializedAsync(InitializedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
     {

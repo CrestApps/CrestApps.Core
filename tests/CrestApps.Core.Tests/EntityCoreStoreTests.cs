@@ -36,6 +36,7 @@ public sealed class EntityCoreStoreTests
             Source = "OpenAI",
             DisplayText = "Support agent",
             CreatedUtc = DateTime.UtcNow,
+            ModifiedUtc = DateTime.UtcNow.AddMinutes(1),
         };
 
         await catalog.CreateAsync(profile, TestContext.Current.CancellationToken);
@@ -57,6 +58,11 @@ public sealed class EntityCoreStoreTests
         Assert.Equal(profile.ItemId, byComposite?.ItemId);
         Assert.Single(page.Entries);
         Assert.Equal(profile.ItemId, page.Entries.Single().ItemId);
+        Assert.Equal(profile.ModifiedUtc, await scope.ServiceProvider.GetRequiredService<CrestAppsEntityDbContext>()
+            .CatalogRecords
+            .Where(x => x.ItemId == profile.ItemId)
+            .Select(x => x.UpdatedUtc)
+            .SingleAsync(cancellationToken));
     }
 
     [Fact]

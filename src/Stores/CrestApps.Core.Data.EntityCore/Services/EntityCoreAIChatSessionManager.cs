@@ -78,12 +78,18 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
         var skip = (page - 1) * pageSize;
         var total = await query.CountAsync(cancellationToken);
-        var records = await query.OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.LastActivityUtc).Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
+        var records = await query
+            .Include(x => x.Document)
+            .OrderByDescending(x => x.CreatedUtc)
+            .ThenByDescending(x => x.LastActivityUtc)
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
 
         return new AIChatSessionResult
         {
             Count = total,
-            Sessions = records.Select(s => new AIChatSessionEntry { SessionId = s.SessionId, ProfileId = s.ProfileId, Title = s.Title, UserId = s.UserId, ClientId = s.ClientId, Status = s.Status, CreatedUtc = s.CreatedUtc, LastActivityUtc = s.LastActivityUtc, }),
+            Sessions = records.Select(s => new AIChatSessionEntry { SessionId = s.SessionId, ProfileId = s.ProfileId, Title = s.Title, UserId = s.UserId, ClientId = s.ClientId, Status = s.Status, CreatedUtc = s.CreatedUtc, ModifiedUtc = EntityCoreStoreSerializer.Deserialize<AIChatSession>(s.Document.Content).ModifiedUtc, LastActivityUtc = s.LastActivityUtc, }),
         };
     }
 

@@ -46,6 +46,7 @@ internal static class CatalogRecordFactory
             Name = (model as INameAwareModel)?.Name,
             DisplayText = (model as IDisplayTextAwareModel)?.DisplayText,
             Source = (model as ISourceAwareModel)?.Source,
+            UpdatedUtc = (model as IModifiedUtcAwareModel)?.ModifiedUtc,
         };
 
         switch (model)
@@ -75,8 +76,8 @@ internal static class CatalogRecordFactory
             case AIMemoryEntry memory:
                 record.UserId = memory.UserId;
                 record.Name = memory.Name;
-                record.UpdatedUtc = memory.UpdatedUtc;
                 record.CreatedUtc = memory.CreatedUtc;
+                record.UpdatedUtc = memory.UpdatedUtc;
                 break;
             case SearchIndexProfile indexProfile:
                 record.Type = indexProfile.Type;

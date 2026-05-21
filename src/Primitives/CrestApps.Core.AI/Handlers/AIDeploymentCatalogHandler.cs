@@ -44,7 +44,11 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
         => PopulateAsync(context.Model, context.Data);
 
     public override Task UpdatingAsync(UpdatingContext<AIDeployment> context, CancellationToken cancellationToken = default)
-        => PopulateAsync(context.Model, context.Data);
+    {
+        context.Model.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        return Task.CompletedTask;
+    }
 
     public override Task InitializedAsync(InitializedContext<AIDeployment> context, CancellationToken cancellationToken = default)
     {

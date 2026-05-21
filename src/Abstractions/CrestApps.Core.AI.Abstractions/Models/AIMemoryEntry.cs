@@ -36,4 +36,5 @@ public sealed class AIMemoryEntry : CatalogItem
     /// Gets or sets the UTC timestamp when this memory entry was last updated.
     /// </summary>
     public DateTime UpdatedUtc { get; set; }
+
 }
