@@ -122,20 +122,29 @@ public sealed class YesSqlAIChatSessionStore : IAIChatSessionStore
         destination.Title = source.Title;
         destination.UserId = source.UserId;
         destination.ClientId = source.ClientId;
-        destination.Documents = source.Documents == null ? [] : [.. source.Documents];
+        destination.Documents = source.Documents == null
+            ? []
+            : [.. source.Documents];
         destination.CreatedUtc = source.CreatedUtc;
+        destination.ModifiedUtc = source.ModifiedUtc;
         destination.LastActivityUtc = source.LastActivityUtc;
         destination.ClosedAtUtc = source.ClosedAtUtc;
         destination.Status = source.Status;
         destination.ResponseHandlerName = source.ResponseHandlerName;
-        destination.ExtractedData = source.ExtractedData == null ? [] : new Dictionary<string, ExtractedFieldState>(source.ExtractedData);
-        destination.PostSessionResults = source.PostSessionResults == null ? [] : new Dictionary<string, PostSessionResult>(source.PostSessionResults);
+        destination.ExtractedData = source.ExtractedData == null
+            ? []
+            : new Dictionary<string, ExtractedFieldState>(source.ExtractedData);
+        destination.PostSessionResults = source.PostSessionResults == null
+            ? []
+            : new Dictionary<string, PostSessionResult>(source.PostSessionResults);
         destination.PostSessionProcessingStatus = source.PostSessionProcessingStatus;
         destination.PostSessionProcessingAttempts = source.PostSessionProcessingAttempts;
         destination.PostSessionProcessingLastAttemptUtc = source.PostSessionProcessingLastAttemptUtc;
         destination.IsPostSessionTasksProcessed = source.IsPostSessionTasksProcessed;
         destination.IsAnalyticsRecorded = source.IsAnalyticsRecorded;
         destination.IsConversionGoalsEvaluated = source.IsConversionGoalsEvaluated;
-        destination.Properties = source.Properties == null ? [] : new Dictionary<string, object>(source.Properties);
+        destination.Properties = source.Properties == null
+            ? []
+            : new Dictionary<string, object>(source.Properties);
     }
 }

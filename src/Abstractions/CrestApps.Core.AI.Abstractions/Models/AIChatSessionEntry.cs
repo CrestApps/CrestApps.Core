@@ -4,7 +4,7 @@ namespace CrestApps.Core.AI.Models;
 /// A lightweight representation of an AI chat session used for listing purposes.
 /// Contains only the fields needed to display session summaries without loading the full document.
 /// </summary>
-public sealed class AIChatSessionEntry
+public sealed class AIChatSessionEntry : IModifiedUtcAwareModel
 {
     /// <summary>
     /// Gets or sets the unique identifier for the chat session.
@@ -40,6 +40,11 @@ public sealed class AIChatSessionEntry
     /// Gets or sets the UTC timestamp when this session was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC timestamp when this session was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the UTC timestamp of the most recent activity in this session.

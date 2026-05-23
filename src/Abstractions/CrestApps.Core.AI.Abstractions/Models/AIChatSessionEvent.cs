@@ -4,7 +4,7 @@ namespace CrestApps.Core.AI.Models;
 /// Tracks a chat session event for analytics purposes.
 /// One record is created per chat session to capture usage metrics.
 /// </summary>
-public sealed class AIChatSessionEvent : ExtensibleEntity
+public sealed class AIChatSessionEvent : ExtensibleEntity, IModifiedUtcAwareModel
 {
     /// <summary>
     /// Gets or sets the unique identifier for the chat session this event is associated with.
@@ -117,4 +117,9 @@ public sealed class AIChatSessionEvent : ExtensibleEntity
     /// Gets or sets the UTC timestamp when this event record was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC timestamp when this event record was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 }

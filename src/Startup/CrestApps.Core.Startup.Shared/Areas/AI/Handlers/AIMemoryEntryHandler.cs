@@ -6,8 +6,10 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Support;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.Blazor.Web.Areas.AI.Handlers;
+namespace CrestApps.Core.Startup.Shared.Areas.AI.Handlers;
 
 public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry>
 {

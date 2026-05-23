@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
 
 public interface ISampleAIChatDocumentIndexingQueue
 {

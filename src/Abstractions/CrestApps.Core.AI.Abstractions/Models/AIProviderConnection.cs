@@ -10,7 +10,7 @@ namespace CrestApps.Core.AI.Models;
 /// with its credentials and settings used to reach an AI backend.
 /// </summary>
 [JsonConverter(typeof(AIProviderConnectionJsonConverter))]
-public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, ICloneable<AIProviderConnection>
+public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIProviderConnection>
 {
     /// <summary>
     /// Gets or sets the unique technical name used to identify this connection in settings and deployments.
@@ -50,6 +50,11 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
     public DateTime CreatedUtc { get; set; }
 
     /// <summary>
+    /// Gets or sets the UTC timestamp when this connection was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
+
+    /// <summary>
     /// Gets or sets the identifier of the user who created this connection.
     /// </summary>
     public string Author { get; set; }
@@ -78,6 +83,7 @@ public sealed class AIProviderConnection : SourceCatalogEntry, INameAwareModel, 
             DisplayText = DisplayText,
             IsReadOnly = IsReadOnly,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             Author = Author,
             OwnerId = OwnerId,
             Properties = Properties.Clone(),

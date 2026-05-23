@@ -7,12 +7,17 @@ namespace CrestApps.Core.AI.Mcp.Models;
 /// <summary>
 /// Represents an MCP resource entry that wraps the SDK's Resource class and adds catalog metadata.
 /// </summary>
-public sealed class McpResource : SourceCatalogEntry, IDisplayTextAwareModel, ICloneable<McpResource>
+public sealed class McpResource : SourceCatalogEntry, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<McpResource>
 {
     /// <summary>
     /// Gets or sets the UTC date and time when the resource was created.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC date and time when the resource was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the author who created the resource.
@@ -45,6 +50,7 @@ public sealed class McpResource : SourceCatalogEntry, IDisplayTextAwareModel, IC
             Source = Source,
             DisplayText = DisplayText,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             Author = Author,
             OwnerId = OwnerId,
             Properties = Properties,

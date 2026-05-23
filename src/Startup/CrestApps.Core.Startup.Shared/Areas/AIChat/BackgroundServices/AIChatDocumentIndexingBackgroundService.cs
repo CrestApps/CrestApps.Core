@@ -1,7 +1,10 @@
 using CrestApps.Core.AI.Documents.Services;
-using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
+using CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.Mvc.Web.Areas.AIChat.BackgroundServices;
+namespace CrestApps.Core.Startup.Shared.Areas.AIChat.BackgroundServices;
 
 public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
 {

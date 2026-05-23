@@ -615,7 +615,9 @@ else
             Title = interaction.Title,
             SystemMessage = interaction.SystemMessage,
             ChatDeploymentName = interaction.ChatDeploymentName,
-            OrchestratorName = interaction.OrchestratorName,
+            OrchestratorName = string.Equals(interaction.OrchestratorName, OrchestratorOptionsAccessor.Value.DefaultOrchestratorName, StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : interaction.OrchestratorName,
             PastMessagesCount = interaction.PastMessagesCount,
             MaxTokens = interaction.MaxTokens,
             Temperature = interaction.Temperature,
@@ -682,8 +684,10 @@ else
                 d.Name))
             .ToList();
 
-        var orchestrators = OrchestratorOptionsAccessor.Value.GetOrchestratorDescriptors();
+        var orchestratorOptions = OrchestratorOptionsAccessor.Value;
+        var orchestrators = orchestratorOptions.GetOrchestratorDescriptors();
         model.Orchestrators = orchestrators
+            .Where(o => !string.Equals(o.Key, orchestratorOptions.DefaultOrchestratorName, StringComparison.OrdinalIgnoreCase))
             .Select(o => new SelectOption(o.Value.Title ?? o.Key, o.Key))
             .ToList();
 

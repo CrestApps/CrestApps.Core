@@ -98,6 +98,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
                 ClientId = s.ClientId,
                 Status = s.Status,
                 CreatedUtc = s.CreatedUtc,
+                ModifiedUtc = s.ModifiedUtc,
                 LastActivityUtc = s.LastActivityUtc,
             }),
         };
@@ -246,6 +247,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         destination.ClientId = source.ClientId;
         destination.Documents = source.Documents == null ? [] : [.. source.Documents];
         destination.CreatedUtc = source.CreatedUtc;
+        destination.ModifiedUtc = source.ModifiedUtc;
         destination.LastActivityUtc = source.LastActivityUtc;
         destination.ClosedAtUtc = source.ClosedAtUtc;
         destination.Status = source.Status;

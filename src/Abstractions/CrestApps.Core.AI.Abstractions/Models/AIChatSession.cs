@@ -6,7 +6,7 @@ namespace CrestApps.Core.AI.Models;
 /// Represents the full state of an AI chat session, including its configuration, document attachments,
 /// extracted data fields, and post-session processing results.
 /// </summary>
-public sealed class AIChatSession : ExtensibleEntity
+public sealed class AIChatSession : ExtensibleEntity, IModifiedUtcAwareModel
 {
     /// <summary>
     /// Gets or sets the unique identifier for the chat session.
@@ -49,6 +49,11 @@ public sealed class AIChatSession : ExtensibleEntity
     /// This property helps track the start time of the session in a standardized format (UTC).
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC date and time when the session was last modified.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the UTC date and time of the last activity in this session.

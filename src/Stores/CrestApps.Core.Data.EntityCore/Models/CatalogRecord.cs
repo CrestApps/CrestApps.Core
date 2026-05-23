@@ -92,4 +92,14 @@ public sealed class CatalogRecord
     /// Gets or sets the UTC date and time when the record was last updated, if tracked.
     /// </summary>
     public DateTime? UpdatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC date and time when the record was last modified, if tracked.
+    /// Maps to <see cref="UpdatedUtc"/> for compatibility with the existing persistence column.
+    /// </summary>
+    public DateTime? ModifiedUtc
+    {
+        get => UpdatedUtc;
+        set => UpdatedUtc = value;
+    }
 }

@@ -1,11 +1,12 @@
 using System.Threading.Channels;
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.Core.Blazor.Web.Areas.AIChat.Services;
+namespace CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
 
 public sealed class SampleAIChatDocumentIndexingQueue : ISampleAIChatDocumentIndexingQueue
 {
     private readonly Channel<SampleAIChatDocumentIndexingWorkItem> _channel = Channel.CreateUnbounded<SampleAIChatDocumentIndexingWorkItem>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false, });
+
     public ValueTask QueueIndexAsync(AIDocument document, IReadOnlyCollection<AIDocumentChunk> chunks, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);

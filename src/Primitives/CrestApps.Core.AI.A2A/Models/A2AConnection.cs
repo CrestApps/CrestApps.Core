@@ -4,9 +4,9 @@ using CrestApps.Core.Services;
 namespace CrestApps.Core.AI.A2A.Models;
 
 /// <summary>
-/// Represents the A 2 A Connection.
+/// Represents the Agent 2 Agent Connection.
 /// </summary>
-public sealed class A2AConnection : CatalogItem, IDisplayTextAwareModel, ICloneable<A2AConnection>
+public sealed class A2AConnection : CatalogItem, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<A2AConnection>
 {
     /// <summary>
     /// Gets or sets the display Text.
@@ -22,6 +22,11 @@ public sealed class A2AConnection : CatalogItem, IDisplayTextAwareModel, IClonea
     /// Gets or sets the created Utc.
     /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the modified Utc.
+    /// </summary>
+    public DateTime? ModifiedUtc { get; set; }
 
     /// <summary>
     /// Gets or sets the author.
@@ -44,6 +49,7 @@ public sealed class A2AConnection : CatalogItem, IDisplayTextAwareModel, IClonea
             DisplayText = DisplayText,
             Endpoint = Endpoint,
             CreatedUtc = CreatedUtc,
+            ModifiedUtc = ModifiedUtc,
             Author = Author,
             OwnerId = OwnerId,
             Properties = Properties,
