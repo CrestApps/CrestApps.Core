@@ -20,10 +20,12 @@ public static class McpConnectionIndexSchemaBuilderExtensions
             .Column<string>(nameof(McpConnectionIndex.Source), column => column.WithLength(50)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<McpConnectionIndex>(table =>
-        {
-            table.CreateIndex("IDX_McpConnection_DocumentId", "DocumentId");
-            table.CreateIndex("IDX_McpConnection_Source", "DocumentId", nameof(McpConnectionIndex.Source));
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<McpConnectionIndex>(
+            table => table.CreateIndex("IDX_McpConnection_DocumentId", "DocumentId"),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<McpConnectionIndex>(
+            table => table.CreateIndex("IDX_McpConnection_Source", "DocumentId", nameof(McpConnectionIndex.Source)),
+            collection: options?.AICollectionName);
     }
 }

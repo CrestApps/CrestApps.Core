@@ -23,10 +23,12 @@ public static class SearchIndexProfileIndexSchemaBuilderExtensions
             .Column<string>(nameof(SearchIndexProfileIndex.Type), column => column.WithLength(50)),
             collection: options?.DefaultCollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<SearchIndexProfileIndex>(table =>
-        {
-            table.CreateIndex("IDX_SearchIndexProfile_DocumentId", "DocumentId", nameof(SearchIndexProfileIndex.Name));
-            table.CreateIndex("IDX_SearchIndexProfile_Type", "DocumentId", nameof(SearchIndexProfileIndex.Type));
-        }, collection: options?.DefaultCollectionName);
+        await schemaBuilder.AlterIndexTableAsync<SearchIndexProfileIndex>(
+            table => table.CreateIndex("IDX_SearchIndexProfile_DocumentId", "DocumentId", nameof(SearchIndexProfileIndex.Name)),
+            collection: options?.DefaultCollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<SearchIndexProfileIndex>(
+            table => table.CreateIndex("IDX_SearchIndexProfile_Type", "DocumentId", nameof(SearchIndexProfileIndex.Type)),
+            collection: options?.DefaultCollectionName);
     }
 }

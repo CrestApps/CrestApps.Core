@@ -22,10 +22,12 @@ public static class AIDocumentChunkIndexSchemaBuilderExtensions
             .Column<int>(nameof(AIDocumentChunkIndex.Index)),
             collection: options?.AIDocsCollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AIDocumentChunkIndex>(table =>
-        {
-            table.CreateIndex("IDX_AIDocumentChunk_DocumentId", "DocumentId", nameof(AIDocumentChunkIndex.AIDocumentId));
-            table.CreateIndex("IDX_AIDocumentChunk_Reference", "DocumentId", nameof(AIDocumentChunkIndex.ReferenceId), nameof(AIDocumentChunkIndex.ReferenceType));
-        }, collection: options?.AIDocsCollectionName);
+        await schemaBuilder.AlterIndexTableAsync<AIDocumentChunkIndex>(
+            table => table.CreateIndex("IDX_AIDocumentChunk_DocumentId", "DocumentId", nameof(AIDocumentChunkIndex.AIDocumentId)),
+            collection: options?.AIDocsCollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIDocumentChunkIndex>(
+            table => table.CreateIndex("IDX_AIDocumentChunk_Reference", "DocumentId", nameof(AIDocumentChunkIndex.ReferenceId), nameof(AIDocumentChunkIndex.ReferenceType)),
+            collection: options?.AIDocsCollectionName);
     }
 }

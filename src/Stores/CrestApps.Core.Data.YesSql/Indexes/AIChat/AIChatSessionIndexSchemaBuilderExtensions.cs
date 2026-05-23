@@ -23,10 +23,12 @@ public static class AIChatSessionIndexSchemaBuilderExtensions
             .Column<DateTime>(nameof(AIChatSessionIndex.LastActivityUtc)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AIChatSessionIndex>(table =>
-        {
-            table.CreateIndex("IDX_AIChatSession_DocumentId", "DocumentId", nameof(AIChatSessionIndex.SessionId));
-            table.CreateIndex("IDX_AIChatSession_ProfileId", "DocumentId", nameof(AIChatSessionIndex.ProfileId));
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<AIChatSessionIndex>(
+            table => table.CreateIndex("IDX_AIChatSession_DocumentId", "DocumentId", nameof(AIChatSessionIndex.SessionId)),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIChatSessionIndex>(
+            table => table.CreateIndex("IDX_AIChatSession_ProfileId", "DocumentId", nameof(AIChatSessionIndex.ProfileId)),
+            collection: options?.AICollectionName);
     }
 }
