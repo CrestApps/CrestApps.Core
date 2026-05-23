@@ -20,10 +20,12 @@ public static class AIProfileTemplateIndexSchemaBuilderExtensions
             .Column<string>(nameof(AIProfileTemplateIndex.Source), column => column.WithLength(255)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AIProfileTemplateIndex>(table =>
-        {
-            table.CreateIndex("IDX_AIProfileTemplate_DocumentId", "DocumentId", nameof(AIProfileTemplateIndex.Name));
-            table.CreateIndex("IDX_AIProfileTemplate_Source", "DocumentId", nameof(AIProfileTemplateIndex.Source));
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<AIProfileTemplateIndex>(
+            table => table.CreateIndex("IDX_AIProfileTemplate_DocumentId", "DocumentId", nameof(AIProfileTemplateIndex.Name)),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIProfileTemplateIndex>(
+            table => table.CreateIndex("IDX_AIProfileTemplate_Source", "DocumentId", nameof(AIProfileTemplateIndex.Source)),
+            collection: options?.AICollectionName);
     }
 }

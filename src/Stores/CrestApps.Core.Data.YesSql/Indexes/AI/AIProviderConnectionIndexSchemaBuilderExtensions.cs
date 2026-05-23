@@ -20,10 +20,12 @@ public static class AIProviderConnectionIndexSchemaBuilderExtensions
             .Column<string>(nameof(AIProviderConnectionIndex.Source), column => column.WithLength(255)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AIProviderConnectionIndex>(table =>
-        {
-            table.CreateIndex("IDX_AIProviderConnection_DocumentId", "DocumentId", nameof(AIProviderConnectionIndex.Name));
-            table.CreateIndex("IDX_AIProviderConnection_Source", "DocumentId", nameof(AIProviderConnectionIndex.Source));
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<AIProviderConnectionIndex>(
+            table => table.CreateIndex("IDX_AIProviderConnection_DocumentId", "DocumentId", nameof(AIProviderConnectionIndex.Name)),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIProviderConnectionIndex>(
+            table => table.CreateIndex("IDX_AIProviderConnection_Source", "DocumentId", nameof(AIProviderConnectionIndex.Source)),
+            collection: options?.AICollectionName);
     }
 }

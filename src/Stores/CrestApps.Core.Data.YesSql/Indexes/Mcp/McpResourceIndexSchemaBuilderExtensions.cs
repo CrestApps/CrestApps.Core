@@ -20,10 +20,12 @@ public static class McpResourceIndexSchemaBuilderExtensions
             .Column<string>(nameof(McpResourceIndex.Source), column => column.WithLength(50)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<McpResourceIndex>(table =>
-        {
-            table.CreateIndex("IDX_McpResource_DocumentId", "DocumentId");
-            table.CreateIndex("IDX_McpResource_Source", "DocumentId", nameof(McpResourceIndex.Source));
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<McpResourceIndex>(
+            table => table.CreateIndex("IDX_McpResource_DocumentId", "DocumentId"),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<McpResourceIndex>(
+            table => table.CreateIndex("IDX_McpResource_Source", "DocumentId", nameof(McpResourceIndex.Source)),
+            collection: options?.AICollectionName);
     }
 }

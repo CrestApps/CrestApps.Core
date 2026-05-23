@@ -20,10 +20,12 @@ public static class AIDeploymentIndexSchemaBuilderExtensions
             .Column<string>(nameof(AIDeploymentIndex.Source), column => column.WithLength(255)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AIDeploymentIndex>(table =>
-        {
-            table.CreateIndex("IDX_AIDeployment_DocumentId", "DocumentId", nameof(AIDeploymentIndex.Name));
-            table.CreateIndex("IDX_AIDeployment_Source", "DocumentId", nameof(AIDeploymentIndex.Source));
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<AIDeploymentIndex>(
+            table => table.CreateIndex("IDX_AIDeployment_DocumentId", "DocumentId", nameof(AIDeploymentIndex.Name)),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIDeploymentIndex>(
+            table => table.CreateIndex("IDX_AIDeployment_Source", "DocumentId", nameof(AIDeploymentIndex.Source)),
+            collection: options?.AICollectionName);
     }
 }

@@ -20,12 +20,17 @@ public static class AIProfileIndexSchemaBuilderExtensions
             .Column<string>(nameof(AIProfileIndex.Type), column => column.WithLength(50)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AIProfileIndex>(table =>
-        {
-            table.CreateIndex("IDX_AIProfile_DocumentId", "DocumentId", nameof(AIProfileIndex.Name));
-            table.CreateIndex("IDX_AIProfile_Source", "DocumentId", nameof(AIProfileIndex.Source));
-            table.CreateIndex("IDX_AIProfile_Type", "DocumentId", nameof(AIProfileIndex.Type));
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<AIProfileIndex>(
+            table => table.CreateIndex("IDX_AIProfile_DocumentId", "DocumentId", nameof(AIProfileIndex.Name)),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIProfileIndex>(
+            table => table.CreateIndex("IDX_AIProfile_Source", "DocumentId", nameof(AIProfileIndex.Source)),
+            collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIProfileIndex>(
+            table => table.CreateIndex("IDX_AIProfile_Type", "DocumentId", nameof(AIProfileIndex.Type)),
+            collection: options?.AICollectionName);
     }
 
     /// <summary>
@@ -33,14 +38,17 @@ public static class AIProfileIndexSchemaBuilderExtensions
     /// </summary>
     /// <param name="schemaBuilder">The schema builder.</param>
     /// <param name="options">The options.</param>
-    public static Task AddAIProfileIndexTypeColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
+    public static async Task AddAIProfileIndexTypeColumnAsync(this ISchemaBuilder schemaBuilder, YesSqlStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(schemaBuilder);
 
-        return schemaBuilder.AlterIndexTableAsync<AIProfileIndex>(table =>
+        await schemaBuilder.AlterIndexTableAsync<AIProfileIndex>(table =>
         {
             table.AddColumn<string>(nameof(AIProfileIndex.Type), column => column.WithLength(50));
-            table.CreateIndex("IDX_AIProfile_Type", "DocumentId", nameof(AIProfileIndex.Type));
         }, collection: options?.AICollectionName);
+
+        await schemaBuilder.AlterIndexTableAsync<AIProfileIndex>(
+            table => table.CreateIndex("IDX_AIProfile_Type", "DocumentId", nameof(AIProfileIndex.Type)),
+            collection: options?.AICollectionName);
     }
 }

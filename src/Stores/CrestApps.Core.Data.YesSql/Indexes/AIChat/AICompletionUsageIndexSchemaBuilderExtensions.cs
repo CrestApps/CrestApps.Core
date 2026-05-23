@@ -37,16 +37,17 @@ public static class AICompletionUsageIndexSchemaBuilderExtensions
             .Column<DateTime>(nameof(AICompletionUsageIndex.CreatedUtc)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AICompletionUsageIndex>(table =>
-        {
-            table.CreateIndex("IDX_AICompletionUsage_DocumentId", "DocumentId",
+        await schemaBuilder.AlterIndexTableAsync<AICompletionUsageIndex>(
+            table => table.CreateIndex("IDX_AICompletionUsage_DocumentId", "DocumentId",
                 nameof(AICompletionUsageIndex.SessionId),
-                nameof(AICompletionUsageIndex.ProfileId));
+                nameof(AICompletionUsageIndex.ProfileId)),
+            collection: options?.AICollectionName);
 
-            table.CreateIndex("IDX_AICompletionUsage_UserId",
+        await schemaBuilder.AlterIndexTableAsync<AICompletionUsageIndex>(
+            table => table.CreateIndex("IDX_AICompletionUsage_UserId",
                 "DocumentId",
                 nameof(AICompletionUsageIndex.UserId),
-                nameof(AICompletionUsageIndex.CreatedUtc));
-        }, collection: options?.AICollectionName);
+                nameof(AICompletionUsageIndex.CreatedUtc)),
+            collection: options?.AICollectionName);
     }
 }
