@@ -53,6 +53,7 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
         }
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(profile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -74,25 +75,27 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
 
                 foreach (var field in document.Fields)
                 {
-                    var columnName = field.Key;
+                    var rawColumnName = field.Key;
+                    var columnName = PostgreSQLHelpers.SanitizeColumnName(rawColumnName);
                     var paramName = $"@p{paramIndex}";
-                    columns.Add($"\"{columnName}\"");
+                    columns.Add(columnName);
                     paramNames.Add(paramName);
 
-                    if (!string.Equals(columnName, keyColumnName, StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(rawColumnName, keyColumnName, StringComparison.OrdinalIgnoreCase))
                     {
-                        updateClauses.Add($"\"{columnName}\" = {paramName}");
+                        updateClauses.Add($"""{columnName} = {paramName}""");
                     }
 
-                    var parameter = CreateParameter(paramName, columnName, field.Value);
+                    var parameter = CreateParameter(paramName, rawColumnName, field.Value);
                     parameters.Add(parameter);
                     paramIndex++;
                 }
 
-                var conflictColumn = !string.IsNullOrEmpty(keyColumnName) ? keyColumnName : columns[0].Trim('"');
+                var conflictColumn = !string.IsNullOrEmpty(keyColumnName)
+                    ? PostgreSQLHelpers.SanitizeColumnName(keyColumnName)
+                    : columns[0];
 
-                var sql = $"INSERT INTO \"{tableName}\" ({string.Join(", ", columns)}) VALUES ({string.Join(", ", paramNames)}) " +
-                          $"ON CONFLICT (\"{conflictColumn}\") DO UPDATE SET {string.Join(", ", updateClauses)}";
+                var sql = $"""INSERT INTO {quotedTableName} ({string.Join(", ", columns)}) VALUES ({string.Join(", ", paramNames)}) ON CONFLICT ({conflictColumn}) DO UPDATE SET {string.Join(", ", updateClauses)}""";
 
                 await using var command = connection.CreateCommand();
                 command.CommandText = sql;
@@ -130,6 +133,7 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
         }
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(profile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -154,7 +158,7 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
                 command.Parameters.AddWithValue(paramName, ids[i]);
             }
 
-            command.CommandText = $"DELETE FROM \"{tableName}\" WHERE \"{keyColumnName}\" IN ({string.Join(", ", paramNames)})";
+            command.CommandText = $"""DELETE FROM {quotedTableName} WHERE {PostgreSQLHelpers.SanitizeColumnName(keyColumnName)} IN ({string.Join(", ", paramNames)})""";
             await command.ExecuteNonQueryAsync(cancellationToken);
 
             await NotifyDocumentsDeletedAsync(profile, ids, cancellationToken);
@@ -175,6 +179,7 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
         ArgumentNullException.ThrowIfNull(profile);
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(profile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -182,7 +187,7 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
 
-            command.CommandText = $"TRUNCATE TABLE \"{tableName}\"";
+            command.CommandText = $"""TRUNCATE TABLE {quotedTableName}""";
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
         catch (Exception ex)
@@ -274,7 +279,7 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
         }
 
         await using var command = connection.CreateCommand();
-        command.CommandText = $"ALTER TABLE \"{tableName}\" ADD COLUMN IF NOT EXISTS \"{DataSourceConstants.ColumnNames.Filters}\" JSONB";
+        command.CommandText = $"""ALTER TABLE {PostgreSQLHelpers.QuoteIdentifier(tableName)} ADD COLUMN IF NOT EXISTS {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Filters)} JSONB""";
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 

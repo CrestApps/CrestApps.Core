@@ -1,35 +1,82 @@
+using System.Text.RegularExpressions;
+
 namespace CrestApps.Core.PostgreSQL;
 
 /// <summary>
 /// Provides shared helper methods for PostgreSQL identifier sanitization.
 /// </summary>
-public static class PostgreSQLHelpers
+public static partial class PostgreSQLHelpers
 {
     /// <summary>
-    /// Sanitizes a table name by removing dangerous characters and lowercasing.
+    /// Validates and normalizes a table name for quoted PostgreSQL usage.
     /// </summary>
     /// <param name="name">The raw table name.</param>
     public static string SanitizeTableName(string name)
     {
-        return name?.Replace("\"", "").Replace("'", "").Replace(";", "").ToLowerInvariant();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var trimmedName = name.Trim();
+        if (!SafeTableNameRegex().IsMatch(trimmedName))
+        {
+            throw new InvalidOperationException($"The PostgreSQL table name '{trimmedName}' contains unsupported characters.");
+        }
+
+        return trimmedName.ToLowerInvariant();
     }
 
     /// <summary>
-    /// Sanitizes a name for use as an unquoted PostgreSQL identifier (e.g., index names)
-    /// by replacing characters that are invalid in unquoted identifiers with underscores.
+    /// Validates and normalizes a name for use as an unquoted PostgreSQL identifier.
     /// </summary>
     /// <param name="name">The raw identifier name.</param>
     public static string SanitizeIdentifier(string name)
     {
-        return name?.Replace("\"", "").Replace("'", "").Replace(";", "").Replace("-", "_").Replace(" ", "_").ToLowerInvariant();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var trimmedName = name.Trim();
+        if (!SafeIdentifierRegex().IsMatch(trimmedName))
+        {
+            throw new InvalidOperationException($"The PostgreSQL identifier '{trimmedName}' contains unsupported characters.");
+        }
+
+        return trimmedName
+            .Replace("-", "_", StringComparison.Ordinal)
+            .ToLowerInvariant();
     }
 
     /// <summary>
-    /// Sanitizes and double-quotes a column name for use in SQL statements.
+    /// Validates and double-quotes a column name for use in SQL statements.
     /// </summary>
     /// <param name="name">The raw column name.</param>
     public static string SanitizeColumnName(string name)
     {
-        return $"\"{name?.Replace("\"", "").Replace("'", "").Replace(";", "")}\"";
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var trimmedName = name.Trim();
+        if (!SafeColumnNameRegex().IsMatch(trimmedName))
+        {
+            throw new InvalidOperationException($"The PostgreSQL column name '{trimmedName}' contains unsupported characters.");
+        }
+
+        return QuoteIdentifier(trimmedName);
     }
+
+    /// <summary>
+    /// Quotes a validated PostgreSQL identifier for use in SQL statements.
+    /// </summary>
+    /// <param name="name">The identifier name.</param>
+    public static string QuoteIdentifier(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        return $""""{name}"""";
+    }
+
+    [GeneratedRegex("^[A-Za-z0-9_-]+$")]
+    private static partial Regex SafeTableNameRegex();
+
+    [GeneratedRegex("^[A-Za-z0-9_-]+$")]
+    private static partial Regex SafeIdentifierRegex();
+
+    [GeneratedRegex("^[A-Za-z0-9_]+$")]
+    private static partial Regex SafeColumnNameRegex();
 }

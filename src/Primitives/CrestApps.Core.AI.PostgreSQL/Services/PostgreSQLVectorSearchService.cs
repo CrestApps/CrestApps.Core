@@ -59,6 +59,7 @@ internal sealed class PostgreSQLVectorSearchService : IVectorSearchService
         }
 
         var tableName = PostgreSQLHelpers.SanitizeTableName(indexProfile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -66,16 +67,18 @@ internal sealed class PostgreSQLVectorSearchService : IVectorSearchService
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
 
-            command.CommandText = $"SELECT \"{DocumentIndexConstants.ColumnNames.Content}\", " +
-                                 $"\"{DocumentIndexConstants.ColumnNames.ChunkIndex}\", " +
-                                 $"\"{DocumentIndexConstants.ColumnNames.DocumentId}\", " +
-                                 $"\"{DocumentIndexConstants.ColumnNames.FileName}\", " +
-                                 $"1 - (\"{DocumentIndexConstants.ColumnNames.Embedding}\" <=> @embedding) AS score " +
-                                 $"FROM \"{tableName}\" " +
-                                 $"WHERE \"{DocumentIndexConstants.ColumnNames.ReferenceId}\" = @referenceId " +
-                                 $"AND \"{DocumentIndexConstants.ColumnNames.ReferenceType}\" = @referenceType " +
-                                 $"ORDER BY \"{DocumentIndexConstants.ColumnNames.Embedding}\" <=> @embedding " +
-                                 $"LIMIT @topN";
+            command.CommandText = $"""
+                SELECT {PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.Content)},
+                       {PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.ChunkIndex)},
+                       {PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.DocumentId)},
+                       {PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.FileName)},
+                       1 - ({PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.Embedding)} <=> @embedding) AS score
+                FROM {quotedTableName}
+                WHERE {PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.ReferenceId)} = @referenceId
+                    AND {PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.ReferenceType)} = @referenceType
+                ORDER BY {PostgreSQLHelpers.SanitizeColumnName(DocumentIndexConstants.ColumnNames.Embedding)} <=> @embedding
+                LIMIT @topN
+                """;
 
             command.Parameters.Add(new NpgsqlParameter("embedding", new Pgvector.Vector(embedding)));
             command.Parameters.AddWithValue("referenceId", referenceId);

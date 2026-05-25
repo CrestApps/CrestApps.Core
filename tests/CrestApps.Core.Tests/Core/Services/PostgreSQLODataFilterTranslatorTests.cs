@@ -128,14 +128,9 @@ public sealed class PostgreSQLODataFilterTranslatorTests
     }
 
     [Fact]
-    public void SanitizeTableName_RemovesDangerousCharacters()
+    public void SanitizeTableName_InvalidCharacters_Throws()
     {
-        var result = PostgreSQLHelpers.SanitizeTableName("my\"table';DROP--");
-
-        Assert.DoesNotContain("\"", result);
-        Assert.DoesNotContain("'", result);
-        Assert.DoesNotContain(";", result);
-        Assert.Equal("mytabledrop--", result);
+        Assert.Throws<InvalidOperationException>(() => PostgreSQLHelpers.SanitizeTableName("my\"table';DROP--"));
     }
 
     [Fact]
@@ -144,5 +139,11 @@ public sealed class PostgreSQLODataFilterTranslatorTests
         var result = PostgreSQLHelpers.SanitizeTableName("MyTableName");
 
         Assert.Equal("mytablename", result);
+    }
+
+    [Fact]
+    public void SanitizeColumnName_InvalidCharacters_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => PostgreSQLHelpers.SanitizeColumnName("my\"column"));
     }
 }

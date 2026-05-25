@@ -96,6 +96,7 @@ internal sealed class PostgreSQLSearchIndexManager : ISearchIndexManager
         ArgumentNullException.ThrowIfNull(fields);
 
         var tableName = SanitizeTableName(profile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -133,16 +134,16 @@ internal sealed class PostgreSQLSearchIndexManager : ISearchIndexManager
                 if (field.FieldType == SearchFieldType.Vector)
                 {
                     indexStatements.Add(
-                        $"CREATE INDEX IF NOT EXISTS ix_{safeIndexPrefix}_{safeColumnName}_vector ON \"{tableName}\" USING ivfflat ({columnName} vector_cosine_ops) WITH (lists = 100)");
+                        $"""CREATE INDEX IF NOT EXISTS ix_{safeIndexPrefix}_{safeColumnName}_vector ON {quotedTableName} USING ivfflat ({columnName} vector_cosine_ops) WITH (lists = 100)""");
                 }
                 else if (field.IsFilterable && field.FieldType != SearchFieldType.Text)
                 {
                     indexStatements.Add(
-                        $"CREATE INDEX IF NOT EXISTS ix_{safeIndexPrefix}_{safeColumnName} ON \"{tableName}\" ({columnName})");
+                    $"""CREATE INDEX IF NOT EXISTS ix_{safeIndexPrefix}_{safeColumnName} ON {quotedTableName} ({columnName})""");
                 }
             }
 
-            var createTableSql = $"CREATE TABLE IF NOT EXISTS \"{tableName}\" ({string.Join(", ", columnDefinitions)})";
+            var createTableSql = $"""CREATE TABLE IF NOT EXISTS {quotedTableName} ({string.Join(", ", columnDefinitions)})""";
 
             await using var command = connection.CreateCommand();
             command.CommandText = createTableSql;
@@ -192,7 +193,7 @@ internal sealed class PostgreSQLSearchIndexManager : ISearchIndexManager
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
 
-            command.CommandText = $"DROP TABLE IF EXISTS \"{tableName}\"";
+            command.CommandText = $"""DROP TABLE IF EXISTS {PostgreSQLHelpers.QuoteIdentifier(tableName)}""";
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
         catch (Exception ex)

@@ -47,6 +47,7 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
         }
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(indexProfile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
         var offset = 0;
 
         while (!cancellationToken.IsCancellationRequested)
@@ -55,7 +56,7 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
 
-            command.CommandText = $"SELECT * FROM \"{tableName}\" ORDER BY \"{PostgreSQLHelpers.SanitizeTableName(keyFieldName)}\" LIMIT @limit OFFSET @offset";
+            command.CommandText = $"""SELECT * FROM {quotedTableName} ORDER BY {PostgreSQLHelpers.SanitizeColumnName(keyFieldName)} LIMIT @limit OFFSET @offset""";
             command.Parameters.AddWithValue("limit", BatchSize);
             command.Parameters.AddWithValue("offset", offset);
 
@@ -110,6 +111,7 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
         }
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(indexProfile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
         var dataSource = _clientFactory.Create();
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
@@ -122,7 +124,7 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
             command.Parameters.AddWithValue(paramName, idList[i]);
         }
 
-        command.CommandText = $"SELECT * FROM \"{tableName}\" WHERE \"{PostgreSQLHelpers.SanitizeTableName(keyFieldName)}\" IN ({string.Join(", ", paramNames)})";
+        command.CommandText = $"""SELECT * FROM {quotedTableName} WHERE {PostgreSQLHelpers.SanitizeColumnName(keyFieldName)} IN ({string.Join(", ", paramNames)})""";
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 

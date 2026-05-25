@@ -52,6 +52,7 @@ internal sealed class PostgreSQLMemoryVectorSearchService : IMemoryVectorSearchS
         }
 
         var tableName = PostgreSQLHelpers.SanitizeTableName(indexProfile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -59,16 +60,18 @@ internal sealed class PostgreSQLMemoryVectorSearchService : IMemoryVectorSearchS
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
 
-            command.CommandText = $"SELECT \"{MemoryConstants.ColumnNames.MemoryId}\", " +
-                                 $"\"{MemoryConstants.ColumnNames.Name}\", " +
-                                 $"\"{MemoryConstants.ColumnNames.Description}\", " +
-                                 $"\"{MemoryConstants.ColumnNames.Content}\", " +
-                                 $"\"{MemoryConstants.ColumnNames.UpdatedUtc}\", " +
-                                 $"1 - (\"{MemoryConstants.ColumnNames.Embedding}\" <=> @embedding) AS score " +
-                                 $"FROM \"{tableName}\" " +
-                                 $"WHERE \"{MemoryConstants.ColumnNames.UserId}\" = @userId " +
-                                 $"ORDER BY \"{MemoryConstants.ColumnNames.Embedding}\" <=> @embedding " +
-                                 $"LIMIT @topN";
+            command.CommandText = $"""
+                SELECT {PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.MemoryId)},
+                       {PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.Name)},
+                       {PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.Description)},
+                       {PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.Content)},
+                       {PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.UpdatedUtc)},
+                       1 - ({PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.Embedding)} <=> @embedding) AS score
+                FROM {quotedTableName}
+                WHERE {PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.UserId)} = @userId
+                ORDER BY {PostgreSQLHelpers.SanitizeColumnName(MemoryConstants.ColumnNames.Embedding)} <=> @embedding
+                LIMIT @topN
+                """;
 
             command.Parameters.Add(new NpgsqlParameter("embedding", new Pgvector.Vector(embedding)));
             command.Parameters.AddWithValue("userId", userId);

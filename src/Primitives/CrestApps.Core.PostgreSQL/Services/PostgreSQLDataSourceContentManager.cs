@@ -56,6 +56,7 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
         }
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(indexProfile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -64,22 +65,22 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
             await using var command = connection.CreateCommand();
 
             var sql = $"""
-            SELECT "{DataSourceConstants.ColumnNames.ReferenceId}",
-                   "{DataSourceConstants.ColumnNames.Title}",
-                   "{DataSourceConstants.ColumnNames.Content}",
-                   "{DataSourceConstants.ColumnNames.ChunkIndex}",
-                   "{DataSourceConstants.ColumnNames.ReferenceType}",
-                   1 - ("{DataSourceConstants.ColumnNames.Embedding}" <=> @embedding) AS score
-            FROM "{tableName}"
-            WHERE "{DataSourceConstants.ColumnNames.DataSourceId}" = @dataSourceId
-            """;
+                SELECT {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.ReferenceId)},
+                       {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Title)},
+                       {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Content)},
+                       {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.ChunkIndex)},
+                       {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.ReferenceType)},
+                       1 - ({PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Embedding)} <=> @embedding) AS score
+                FROM {quotedTableName}
+                WHERE {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.DataSourceId)} = @dataSourceId
+                """;
 
             if (!string.IsNullOrWhiteSpace(filter))
             {
                 sql += $" AND ({filter})";
             }
 
-            sql += $""" ORDER BY "{DataSourceConstants.ColumnNames.Embedding}" <=> @embedding LIMIT @topN """;
+            sql += $""" ORDER BY {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Embedding)} <=> @embedding LIMIT @topN """;
 
             command.CommandText = sql;
             command.Parameters.Add(new NpgsqlParameter("embedding", new Pgvector.Vector(embedding)));
@@ -134,6 +135,7 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
         ArgumentException.ThrowIfNullOrWhiteSpace(dataSourceId);
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(indexProfile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
         try
         {
@@ -141,7 +143,7 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
 
-            command.CommandText = $"DELETE FROM \"{tableName}\" WHERE \"{DataSourceConstants.ColumnNames.DataSourceId}\" = @dataSourceId";
+            command.CommandText = $"""DELETE FROM {quotedTableName} WHERE {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.DataSourceId)} = @dataSourceId""";
             command.Parameters.AddWithValue("dataSourceId", dataSourceId);
 
             var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
