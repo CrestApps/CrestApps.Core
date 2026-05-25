@@ -68,7 +68,13 @@ public static partial class PostgreSQLHelpers
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return $""""{name}"""";
+        var trimmedName = name.Trim();
+        if (!SafeIdentifierRegex().IsMatch(trimmedName))
+        {
+            throw new InvalidOperationException($"The PostgreSQL identifier '{trimmedName}' contains unsupported characters.");
+        }
+
+        return $""""{trimmedName.Replace("\"", "\"\"", StringComparison.Ordinal)}"""";
     }
 
     [GeneratedRegex("^[A-Za-z0-9_-]+$")]
