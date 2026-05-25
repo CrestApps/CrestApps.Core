@@ -6,7 +6,6 @@ namespace CrestApps.Core.AI.Services;
 
 internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
 {
-    private readonly AIDataSourceIndexingQueue _queue;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AIDataSourceIndexingBackgroundService> _logger;
 
@@ -17,11 +16,9 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
     /// <param name="serviceProvider">The scope factory.</param>
     /// <param name="logger">The logger.</param>
     public AIDataSourceIndexingBackgroundService(
-        AIDataSourceIndexingQueue queue,
         IServiceProvider serviceProvider,
         ILogger<AIDataSourceIndexingBackgroundService> logger)
     {
-        _queue = queue;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -32,7 +29,9 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
     /// <param name="stoppingToken">The cancellation token.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var workItem in _queue.ReadAllAsync(stoppingToken))
+        var queue = _serviceProvider.GetRequiredService<AIDataSourceIndexingQueue>();
+
+        await foreach (var workItem in queue.ReadAllAsync(stoppingToken))
         {
             try
             {
@@ -41,7 +40,8 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
                     _logger.LogTrace("Dequeued data-source work item {WorkItemType}. DataSourceId={DataSourceId}, SourceIndexProfileName={SourceIndexProfileName}, DocumentCount={DocumentCount}.", workItem.Type, workItem.DataSource?.ItemId, workItem.SourceIndexProfileName, workItem.DocumentIds.Count);
                 }
 
-                var indexingService = _serviceProvider.GetRequiredService<IAIDataSourceIndexingService>();
+                using var scope = _serviceProvider.CreateScope();
+                var indexingService = scope.ServiceProvider.GetRequiredService<IAIDataSourceIndexingService>();
 
                 switch (workItem.Type)
                 {

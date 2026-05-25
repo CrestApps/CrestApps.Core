@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.PostgreSQL</RootNamespace>
+    <Title>CrestApps AI PostgreSQL</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      PostgreSQL integration for CrestApps AI documents, memory, and data sources using pgvector.
+    </Description>
+    <PackageTags>$(PackageTags) postgresql pgvector ai memory data-sources indexing rag</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="../CrestApps.Core.PostgreSQL/CrestApps.Core.PostgreSQL.csproj" />
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Infrastructure.Abstractions/CrestApps.Core.Infrastructure.Abstractions.csproj" />
+    <ProjectReference Include="../CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

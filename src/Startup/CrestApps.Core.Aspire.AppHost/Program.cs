@@ -56,9 +56,15 @@ ollama.AddModel(ollamaModelName);
 
 var redis = builder.AddRedis("Redis");
 
+var postgres = builder.AddPostgres("PostgreSQL")
+    .WithImage("pgvector/pgvector", "pg16")
+    .WithDataVolume()
+    .AddDatabase("vectordb");
+
 var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
     .WithReference(redis)
     .WithReference(ollama)
+    .WithReference(postgres)
     .WaitFor(redis)
     .WithHttpsEndpoint(5001, name: "HttpsMvcWeb")
     .WithEnvironment((options) =>
@@ -69,6 +75,7 @@ var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
         options.EnvironmentVariables.Add("CrestApps__MvcApp__MCP__Server__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__ExposeAgentsAsSkill", "true");
+        options.EnvironmentVariables.Add("CrestApps__PostgreSQL__ConnectionString", postgres.Resource.ConnectionStringExpression);
 
         // Prevent VS-injected startup hooks (BrowserRefresh, DeltaApplier, BrowserLink)
         // from loading into child processes. These middlewares can interfere with
@@ -80,6 +87,7 @@ var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
 var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWeb")
     .WithReference(redis)
     .WithReference(ollama)
+    .WithReference(postgres)
     .WaitFor(redis)
     .WithHttpsEndpoint(5201, name: "HttpsBlazorWeb")
     .WithEnvironment((options) =>
@@ -90,6 +98,7 @@ var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWe
         options.EnvironmentVariables.Add("CrestApps__BlazorApp__MCP__Server__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__AuthenticationType", "None");
         options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__ExposeAgentsAsSkill", "true");
+        options.EnvironmentVariables.Add("CrestApps__PostgreSQL__ConnectionString", postgres.Resource.ConnectionStringExpression);
 
         // Prevent VS-injected startup hooks (BrowserRefresh, DeltaApplier, BrowserLink)
         // from loading into child processes. These middlewares can interfere with
