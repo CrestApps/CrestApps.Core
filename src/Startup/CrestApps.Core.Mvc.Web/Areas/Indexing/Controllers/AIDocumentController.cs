@@ -61,7 +61,7 @@ public sealed class AIDocumentController : Controller
             return NotFound(new { error = "Profile not found." });
         }
 
-        var embeddingDeployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Embedding);
+        var embeddingDeployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding);
         var embeddingGenerator = embeddingDeployment == null
             ? null
             : await _aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);

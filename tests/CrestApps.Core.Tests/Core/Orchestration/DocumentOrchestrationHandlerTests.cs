@@ -1,3 +1,4 @@
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents;
@@ -18,6 +19,7 @@ public sealed class DocumentOrchestrationHandlerTests
 {
     private static DocumentOrchestrationHandler CreateHandler(
         AIToolDefinitionOptions toolOptions = null,
+        ITemplateService templateService = null,
         IAIDocumentStore documentStore = null,
         IDocumentFileStore fileStore = null,
         IAIDeploymentManager deploymentManager = null)
@@ -26,7 +28,7 @@ public sealed class DocumentOrchestrationHandlerTests
 
         return new DocumentOrchestrationHandler(
             Options.Create(toolOptions),
-            new FakeAITemplateService(),
+            templateService ?? new FakeAITemplateService(),
             documentStore ?? Mock.Of<IAIDocumentStore>(),
             fileStore ?? Mock.Of<IDocumentFileStore>(),
             deploymentManager ?? Mock.Of<IAIDeploymentManager>(),
@@ -274,14 +276,14 @@ public sealed class DocumentOrchestrationHandlerTests
 
         deploymentManager
             .Setup(manager => manager.ResolveOrDefaultAsync(
-                AIDeploymentCapability.Chat,
+                AIDeploymentPurpose.Chat,
                 "vision-chat",
                 null,
                 It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<AIDeployment>(new AIDeployment
             {
                 Name = "vision-chat",
-                Capability = AIDeploymentCapability.Chat | AIDeploymentCapability.Vision,
+                Purpose = AIDeploymentPurpose.Chat | AIDeploymentPurpose.Vision,
             }));
 
         documentStore
@@ -302,6 +304,7 @@ public sealed class DocumentOrchestrationHandlerTests
 
         var handler = CreateHandler(
             CreateToolOptionsWithDocTools(),
+            null,
             documentStore.Object,
             fileStore.Object,
             deploymentManager.Object);
@@ -337,6 +340,52 @@ public sealed class DocumentOrchestrationHandlerTests
         Assert.Equal([1, 2, 3], imageContent.Data.ToArray());
     }
 
+    [Fact]
+    public async Task BuiltAsync_WithMixedUserUploads_SplitsVisionAndSearchableDocumentsInTemplateArguments()
+    {
+        var templateService = new CaptureTemplateService();
+        var handler = CreateHandler(CreateToolOptionsWithDocTools(), templateService);
+        var interaction = new ChatInteraction
+        {
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "image-doc",
+                    FileName = "players_logo.jpg",
+                    ContentType = "image/jpeg",
+                    FileSize = 8974,
+                },
+                new ChatDocumentInfo
+                {
+                    DocumentId = "pdf-doc",
+                    FileName = "rules.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 4096,
+                },
+            ],
+        };
+        var context = new OrchestrationContext
+        {
+            CompletionContext = new AICompletionContext(),
+            Documents = interaction.Documents,
+        };
+
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(interaction, context), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(templateService.Arguments);
+
+        var searchableDocuments = Assert.IsAssignableFrom<IEnumerable<ChatDocumentInfo>>(templateService.Arguments["userSuppliedDocuments"]);
+        var visionDocuments = Assert.IsAssignableFrom<IEnumerable<ChatDocumentInfo>>(templateService.Arguments["visionUserSuppliedDocuments"]);
+
+        Assert.Collection(
+            searchableDocuments,
+            document => Assert.Equal("pdf-doc", document.DocumentId));
+        Assert.Collection(
+            visionDocuments,
+            document => Assert.Equal("image-doc", document.DocumentId));
+    }
+
     private sealed class FakeAITemplateService : ITemplateService
     {
         public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
@@ -351,6 +400,11 @@ public sealed class DocumentOrchestrationHandlerTests
 
         public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
         {
+            var hasVisionUserSuppliedDocuments = arguments != null &&
+                arguments.TryGetValue("visionUserSuppliedDocuments", out var visionDocumentsObj) &&
+                visionDocumentsObj is IEnumerable<object> visionDocuments &&
+                visionDocuments.Any();
+
             if (arguments != null && arguments.TryGetValue("tools", out var toolsObj) && toolsObj is IEnumerable<object> tools)
             {
                 var isInScope = arguments.TryGetValue("isInScope", out var isInScopeObj) && isInScopeObj is true;
@@ -361,10 +415,18 @@ public sealed class DocumentOrchestrationHandlerTests
                     hasKnowledgeBaseDocuments ? "Background knowledge is available for this profile." : "The user has uploaded the following documents as supplementary context.",
                     $"Scope mode: {(isInScope ? "strict" : "relaxed")}",
                     "",
-                    hasKnowledgeBaseDocuments ? "Search the profile knowledge documents first using the available document tools before answering." : "Search the uploaded documents first using the document tools before answering.",
-                    "",
-                    "Available document tools:",
                 };
+
+                if (hasVisionUserSuppliedDocuments)
+                {
+                    lines.Add("The current user message already includes uploaded image attachments as multimodal inputs.");
+                    lines.Add(string.Empty);
+                }
+
+                lines.Add(hasKnowledgeBaseDocuments ? "Search the profile knowledge documents first using the available document tools before answering." : "Search the uploaded documents first using the document tools before answering.");
+                lines.Add(string.Empty);
+                lines.Add("Available document tools:");
+
                 foreach (dynamic tool in tools)
                 {
                     lines.Add($"- {tool.Name}: {tool.Description}");
@@ -389,6 +451,35 @@ public sealed class DocumentOrchestrationHandlerTests
         public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
         {
             return Task.FromResult(string.Join(separator, ids.Select(id => $"[Template: {id}]")));
+        }
+    }
+
+    private sealed class CaptureTemplateService : ITemplateService
+    {
+        public Dictionary<string, object> Arguments { get; private set; }
+
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Template>>([]);
+        }
+
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<Template>(null);
+        }
+
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
+        {
+            Arguments = arguments == null
+                ? null
+                : new Dictionary<string, object>(arguments);
+
+            return Task.FromResult(string.Empty);
+        }
+
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(string.Empty);
         }
     }
 }

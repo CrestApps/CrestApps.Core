@@ -41,7 +41,7 @@ public abstract class AICompletionServiceBase
     /// <param name="providerName">The provider name.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected virtual async ValueTask<AIDeployment> ResolveDeploymentAsync(
-        AIDeploymentCapability capability,
+        AIDeploymentPurpose capability,
         string providerName,
         string deploymentName = null)
     {
@@ -73,7 +73,7 @@ public abstract class AICompletionServiceBase
         string providerName,
         string deploymentName = null)
     {
-        return ResolveDeploymentAsync(type.ToCapability(), providerName, deploymentName);
+        return ResolveDeploymentAsync(type.ToPurpose(), providerName, deploymentName);
     }
 
     /// <summary>

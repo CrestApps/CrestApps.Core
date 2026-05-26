@@ -153,6 +153,13 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             return;
         }
 
+        var searchableUserSuppliedDocuments = userSuppliedDocuments?
+            .Where(document => !IsVisionDocument(document))
+            .ToArray();
+        var visionUserSuppliedDocuments = userSuppliedDocuments?
+            .Where(IsVisionDocument)
+            .ToArray();
+
         context.OrchestrationContext.Documents ??= [];
         context.OrchestrationContext.Documents.Clear();
 
@@ -182,7 +189,8 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             ["tools"] = docTools,
             ["availableDocuments"] = context.OrchestrationContext.Documents,
             ["knowledgeBaseDocuments"] = hasKnowledgeBaseDocuments ? knowledgeBaseDocuments : Array.Empty<ChatDocumentInfo>(),
-            ["userSuppliedDocuments"] = hasUserSuppliedDocuments ? userSuppliedDocuments : Array.Empty<ChatDocumentInfo>(),
+            ["userSuppliedDocuments"] = searchableUserSuppliedDocuments ?? Array.Empty<ChatDocumentInfo>(),
+            ["visionUserSuppliedDocuments"] = visionUserSuppliedDocuments ?? Array.Empty<ChatDocumentInfo>(),
             ["isInScope"] = ragMetadata?.IsInScope == true,
         };
 
@@ -231,7 +239,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
 
         var deployment = await ResolveChatDeploymentAsync(context, cancellationToken);
 
-        if (deployment?.Capability.Supports(AIDeploymentCapability.Vision) != true)
+        if (deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) != true)
         {
             return [];
         }
@@ -305,7 +313,22 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             };
         }
 
-        return await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: deploymentName, cancellationToken: cancellationToken);
+        return await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: deploymentName, cancellationToken: cancellationToken);
+    }
+
+    private static bool IsVisionDocument(ChatDocumentInfo document)
+    {
+        if (document == null)
+        {
+            return false;
+        }
+
+        if (MediaTypeHelper.IsVisionImageMediaType(document.ContentType))
+        {
+            return true;
+        }
+
+        return MediaTypeHelper.IsVisionImageExtension(Path.GetExtension(document.FileName));
     }
 
     private static (string ReferenceId, string ReferenceType)? GetVisionDocumentReference(object resource, AIChatSession session)

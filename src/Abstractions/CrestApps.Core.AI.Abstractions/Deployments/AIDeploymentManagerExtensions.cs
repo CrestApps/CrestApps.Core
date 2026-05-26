@@ -23,11 +23,11 @@ public static class AIDeploymentManagerExtensions
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
         return await deploymentManager.ResolveOrDefaultAsync(
-                    AIDeploymentCapability.Utility,
+                    AIDeploymentPurpose.Utility,
                     utilityDeploymentName,
                     clientName)
             ?? await deploymentManager.ResolveOrDefaultAsync(
-                    AIDeploymentCapability.Chat,
+                    AIDeploymentPurpose.Chat,
                     chatDeploymentName,
                     clientName);
     }
@@ -36,21 +36,21 @@ public static class AIDeploymentManagerExtensions
     /// Resolves the operation.
     /// </summary>
     /// <param name="deploymentManager">The deployment manager.</param>
-    /// <param name="capability">The capability.</param>
+    /// <param name="purpose">The purpose.</param>
     /// <param name="deploymentName">The deployment name.</param>
     /// <param name="clientName">The client name.</param>
     public static async ValueTask<AIDeployment> ResolveAsync(
         this IAIDeploymentManager deploymentManager,
-        AIDeploymentCapability capability,
+        AIDeploymentPurpose purpose,
         string deploymentName = null,
         string clientName = null)
     {
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
-        var deployment = await deploymentManager.ResolveOrDefaultAsync(capability, deploymentName, clientName);
+        var deployment = await deploymentManager.ResolveOrDefaultAsync(purpose, deploymentName, clientName);
 
         return deployment
-            ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for capability '{capability}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
+            ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for purpose '{purpose}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ public static class AIDeploymentManagerExtensions
         string deploymentName = null,
         string clientName = null)
     {
-        return deploymentManager.ResolveAsync(type.ToCapability(), deploymentName, clientName);
+        return deploymentManager.ResolveAsync(type.ToPurpose(), deploymentName, clientName);
     }
 
     /// <summary>

@@ -144,7 +144,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
         var deployment = await ResolveDeploymentAsync(
-            AIDeploymentCapability.Chat,
+            AIDeploymentPurpose.Chat,
             ClientName,
             deploymentName: context.ChatDeploymentName);
 
@@ -197,7 +197,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
         var deployment = await ResolveDeploymentAsync(
-            AIDeploymentCapability.Chat,
+            AIDeploymentPurpose.Chat,
             ClientName,
             deploymentName: context.ChatDeploymentName);
 

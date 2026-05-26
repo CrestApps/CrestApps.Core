@@ -144,7 +144,7 @@ public static class UploadChatSessionDocument
             }
 
             var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
-            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Embedding, clientName: deployment?.ClientName);
+            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding, clientName: deployment?.ClientName);
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
             var allowVisionImages = SupportsVisionUploads(deployment);
             var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");

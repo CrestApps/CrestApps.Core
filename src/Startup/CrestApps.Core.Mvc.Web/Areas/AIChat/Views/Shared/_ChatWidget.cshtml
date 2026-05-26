@@ -48,9 +48,9 @@
     var supportsVisionUploads = false;
     if (selectedProfile != null)
     {
-        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: selectedProfile.ChatDeploymentName)
-            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Utility, deploymentName: selectedProfile.UtilityDeploymentName);
-        supportsVisionUploads = deployment?.Capability.Supports(AIDeploymentCapability.Vision) == true;
+        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: selectedProfile.ChatDeploymentName)
+            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: selectedProfile.UtilityDeploymentName);
+        supportsVisionUploads = deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 
     var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(supportsVisionUploads);

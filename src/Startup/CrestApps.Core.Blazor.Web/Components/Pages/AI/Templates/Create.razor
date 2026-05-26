@@ -658,8 +658,8 @@
     private async Task PopulateDropdownsAsync()
     {
         var allDeployments = await DeploymentCatalog.GetAllAsync();
-        _model.ChatDeployments = allDeployments.Where(d => d.Capability.Supports(AIDeploymentCapability.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
-        _model.UtilityDeployments = allDeployments.Where(d => d.Capability.Supports(AIDeploymentCapability.Utility) || d.Capability.Supports(AIDeploymentCapability.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
         _model.Orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors().Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
 
         var hasAnthropicOptions = ClaudeOpts.TryGetValidValue(out ClaudeOptions anthropicOptions);

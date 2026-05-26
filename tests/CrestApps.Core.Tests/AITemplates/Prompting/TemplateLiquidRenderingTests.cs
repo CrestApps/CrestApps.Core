@@ -120,6 +120,43 @@ The user has uploaded documents as supplementary context.
     }
 
     [Fact]
+    public async Task DocumentAvailability_EmptySections_DoNotRenderHeaders()
+    {
+        var template = """
+        {% assign hasDocumentTools = tools.size > 0 %}
+        {% assign hasVisionUserSuppliedDocuments = visionUserSuppliedDocuments.size > 0 %}
+        {% assign hasUserSuppliedDocuments = userSuppliedDocuments.size > 0 %}
+        {% assign hasKnowledgeBaseDocuments = knowledgeBaseDocuments.size > 0 %}
+        {% if hasVisionUserSuppliedDocuments %}
+        ### Available image attachments:
+        {% endif %}
+        {% if hasUserSuppliedDocuments and hasDocumentTools %}
+        ### Available document tools:
+        {% endif %}
+        {% if hasUserSuppliedDocuments %}
+        ### Available documents:
+        {% endif %}
+        {% if hasKnowledgeBaseDocuments and hasDocumentTools %}
+        ### Available document tools:
+        {% endif %}
+        """;
+
+        var arguments = new Dictionary<string, object>
+        {
+            ["tools"] = Array.Empty<AIToolDefinitionEntry>(),
+            ["visionUserSuppliedDocuments"] = Array.Empty<ChatDocumentInfo>(),
+            ["userSuppliedDocuments"] = Array.Empty<ChatDocumentInfo>(),
+            ["knowledgeBaseDocuments"] = Array.Empty<ChatDocumentInfo>(),
+        };
+
+        var result = await _engine.RenderAsync(template, arguments, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain("Available image attachments", result);
+        Assert.DoesNotContain("Available document tools", result);
+        Assert.DoesNotContain("Available documents", result);
+    }
+
+    [Fact]
     public async Task TaskPlanning_WithToolRegistryEntries_RendersCorrectly()
     {
         var template = """

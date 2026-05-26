@@ -302,14 +302,14 @@ public sealed class AIChatSessionPostCloseProcessorTests
 
         var mockDeploymentManager = new Mock<IAIDeploymentManager>();
         mockDeploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentCapability>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentPurpose>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "deployment-1",
                 Name = TestDeploymentName,
                 ClientName = TestProviderName,
                 ConnectionName = TestConnectionName,
-                Capability = AIDeploymentCapability.Chat,
+                Purpose = AIDeploymentPurpose.Chat,
             });
 
         var mockTemplateService = new Mock<ITemplateService>();

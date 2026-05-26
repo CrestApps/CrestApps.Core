@@ -2,10 +2,10 @@ namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Legacy flags enumeration defining AI deployment types.
-/// Use <see cref="AIDeploymentCapability"/> for new code.
+/// Use <see cref="AIDeploymentPurpose"/> for new code.
 /// </summary>
 [Flags]
-[Obsolete("Use AIDeploymentCapability instead. Retained for backward compatibility.")]
+[Obsolete("Use AIDeploymentPurpose instead. Retained for backward compatibility.")]
 public enum AIDeploymentType
 {
     /// <summary>

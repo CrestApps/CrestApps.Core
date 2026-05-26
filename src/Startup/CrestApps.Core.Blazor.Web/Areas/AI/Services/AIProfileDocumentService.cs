@@ -230,7 +230,7 @@ public sealed class AIProfileDocumentService
             !string.IsNullOrWhiteSpace(profileDeployment.ClientName))
         {
             var scopedEmbeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(
-                AIDeploymentCapability.Embedding,
+                AIDeploymentPurpose.Embedding,
                 clientName: profileDeployment.ClientName);
 
             if (scopedEmbeddingDeployment != null)
@@ -239,7 +239,7 @@ public sealed class AIProfileDocumentService
             }
         }
 
-        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Embedding);
+        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding);
     }
 
     private static async Task<AIDeployment> ResolveProfileDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
@@ -247,7 +247,7 @@ public sealed class AIProfileDocumentService
         if (!string.IsNullOrWhiteSpace(profile.ChatDeploymentName))
         {
             var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(
-                AIDeploymentCapability.Chat,
+                AIDeploymentPurpose.Chat,
                 deploymentName: profile.ChatDeploymentName);
 
             if (chatDeployment != null)
@@ -259,7 +259,7 @@ public sealed class AIProfileDocumentService
         if (!string.IsNullOrWhiteSpace(profile.UtilityDeploymentName))
         {
             var utilityDeployment = await deploymentManager.ResolveOrDefaultAsync(
-                AIDeploymentCapability.Utility,
+                AIDeploymentPurpose.Utility,
                 deploymentName: profile.UtilityDeploymentName);
 
             if (utilityDeployment != null)

@@ -20,29 +20,33 @@
   </Folder>
   <Folder Name="/src/Primitives/">
     <Project Path="src/Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Azure.AISearch/CrestApps.Core.AI.Azure.AISearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.AzureAIInference/CrestApps.Core.AI.AzureAIInference.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Claude/CrestApps.Core.AI.Claude.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Claude/CrestApps.Core.AI.Claude.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Ollama/CrestApps.Core.AI.Ollama.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.OpenAI.Azure/CrestApps.Core.AI.OpenAI.Azure.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.OpenAI/CrestApps.Core.AI.OpenAI.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Azure.AISearch/CrestApps.Core.AI.Azure.AISearch.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.PostgreSQL/CrestApps.Core.AI.PostgreSQL.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.PostgreSQL/CrestApps.Core.AI.PostgreSQL.csproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
     <Project Path="src/Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure/CrestApps.Core.Azure.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.PostgreSQL/CrestApps.Core.PostgreSQL.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.PostgreSQL/CrestApps.Core.PostgreSQL.csproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
     <Project Path="src/Primitives/CrestApps.Core.SignalR/CrestApps.Core.SignalR.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
     <Project Path="src/Primitives/CrestApps.Core/CrestApps.Core.csproj" />
@@ -52,9 +56,9 @@
   </Folder>
   <Folder Name="/src/Startup/">
     <Project Path="src/Startup/CrestApps.Core.Aspire.AppHost/CrestApps.Core.Aspire.AppHost.csproj" />
+    <Project Path="src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Samples.A2AClient/CrestApps.Core.Mvc.Samples.A2AClient.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Samples.McpClient/CrestApps.Core.Mvc.Samples.McpClient.csproj" />
-    <Project Path="src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
     <Project Path="src/Startup/CrestApps.Core.Startup.Shared/CrestApps.Core.Startup.Shared.csproj" />
   </Folder>

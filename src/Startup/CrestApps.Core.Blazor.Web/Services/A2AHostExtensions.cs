@@ -199,7 +199,7 @@ internal static class A2AHostExtensions
             var context = await contextBuilder.BuildAsync(targetProfile, cancellationToken: cancellationToken);
             context.DisableTools = true;
 
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: context.ChatDeploymentName, cancellationToken: cancellationToken)
+            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: context.ChatDeploymentName, cancellationToken: cancellationToken)
                 ?? throw new InvalidOperationException($"Unable to resolve a chat deployment for profile '{targetProfile.Name}'.");
 
             var messages = new List<ChatMessage>

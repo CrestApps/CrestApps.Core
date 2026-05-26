@@ -17,7 +17,7 @@ public sealed class AIDeploymentViewModel
     public string ModelName { get; set; }
 
     public string TechnicalName { get; set; }
-    public string[] SelectedCapabilities { get; set; } = [];
+    public string[] SelectedPurposes { get; set; } = [];
     public string ConnectionName { get; set; }
 
     public string ClientName { get; set; }
@@ -41,7 +41,7 @@ public sealed class AIDeploymentViewModel
     public IEnumerable<SelectListItem> AuthenticationTypes { get; set; } = [];
 
     [BindNever]
-    public IEnumerable<SelectListItem> Capabilities { get; set; } = [];
+    public IEnumerable<SelectListItem> Purposes { get; set; } = [];
 
     public static AIDeploymentViewModel FromDeployment(AIDeployment deployment)
     {
@@ -50,8 +50,8 @@ public sealed class AIDeploymentViewModel
             ItemId = deployment.ItemId,
             ModelName = deployment.ModelName,
             TechnicalName = deployment.Name,
-            SelectedCapabilities = deployment.Capability.GetSupportedCapabilities()
-                .Select(static capability => capability.ToString())
+            SelectedPurposes = deployment.Purpose.GetSupportedPurposes()
+                .Select(static purpose => purpose.ToString())
             .ToArray(),
             ConnectionName = deployment.ConnectionName,
             ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
@@ -71,7 +71,7 @@ public sealed class AIDeploymentViewModel
     {
         deployment.Name = TechnicalName;
         deployment.ModelName = ModelName;
-        deployment.Capability = GetDeploymentCapability();
+        deployment.Purpose = GetDeploymentPurpose();
         deployment.ConnectionName = ConnectionName;
         deployment.ClientName = AIProviderNameNormalizer.Normalize(ClientName);
 
@@ -101,25 +101,25 @@ public sealed class AIDeploymentViewModel
         }
     }
 
-    public AIDeploymentCapability GetDeploymentCapability()
+    public AIDeploymentPurpose GetDeploymentPurpose()
     {
-        var deploymentCapability = AIDeploymentCapability.None;
+        var deploymentPurpose = AIDeploymentPurpose.None;
 
-        if (SelectedCapabilities is null)
+        if (SelectedPurposes is null)
         {
-            return deploymentCapability;
+            return deploymentPurpose;
         }
 
-        foreach (var capabilityName in SelectedCapabilities.Where(static value => !string.IsNullOrWhiteSpace(value)))
+        foreach (var purposeName in SelectedPurposes.Where(static value => !string.IsNullOrWhiteSpace(value)))
         {
-            if (Enum.TryParse<AIDeploymentCapability>(capabilityName, ignoreCase: true, out var parsedCapability)
-                && parsedCapability != AIDeploymentCapability.None)
+            if (Enum.TryParse<AIDeploymentPurpose>(purposeName, ignoreCase: true, out var parsedPurpose)
+                && parsedPurpose != AIDeploymentPurpose.None)
             {
-                deploymentCapability |= parsedCapability;
+                deploymentPurpose |= parsedPurpose;
             }
         }
 
-        return deploymentCapability;
+        return deploymentPurpose;
     }
 
     public bool UsesStandaloneProvider()

@@ -75,9 +75,9 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
             context.Result.Fail(new ValidationResult(S["Model name is required."], [nameof(AIDeployment.ModelName)]));
         }
 
-        if (!context.Model.Capability.IsValidSelection())
+        if (!context.Model.Purpose.IsValidSelection())
         {
-            context.Result.Fail(new ValidationResult(S["The deployment capability '{0}' is not valid.", context.Model.Capability], [nameof(AIDeployment.Capability)]));
+            context.Result.Fail(new ValidationResult(S["The deployment purpose '{0}' is not valid.", context.Model.Purpose], [nameof(AIDeployment.Purpose)]));
         }
 
         if (!string.IsNullOrWhiteSpace(context.Model.ClientName) && !_aiOptions.Deployments.ContainsKey(context.Model.ClientName))
@@ -177,9 +177,9 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
             deployment.CreatedUtc = createdUtc;
         }
 
-        if (TryGetDeploymentCapability(json, out var capability))
+        if (TryGetDeploymentCapability(json, out var purpose))
         {
-            deployment.Capability = capability;
+            deployment.Purpose = purpose;
         }
 
         MergeProperties(deployment, json);
@@ -187,49 +187,52 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
         return Task.CompletedTask;
     }
 
-    private static bool TryGetDeploymentCapability(JsonObject json, out AIDeploymentCapability capability)
+    private static bool TryGetDeploymentCapability(JsonObject json, out AIDeploymentPurpose capability)
     {
-        capability = AIDeploymentCapability.None;
+        capability = AIDeploymentPurpose.None;
 
         if (json is null)
         {
             return false;
         }
 
-        JsonNode capabilityNode = null;
+        JsonNode purposeNode = null;
 
-        if (!json.TryGetPropertyValue(nameof(AIDeployment.Capability), out capabilityNode) || capabilityNode is null)
+        if (!json.TryGetPropertyValue(nameof(AIDeployment.Purpose), out purposeNode) || purposeNode is null)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            if (!json.TryGetPropertyValue(nameof(AIDeployment.Type), out capabilityNode) || capabilityNode is null)
-#pragma warning restore CS0618 // Type or member is obsolete
+            if (!json.TryGetPropertyValue("Capability", out purposeNode) || purposeNode is null)
             {
-                return false;
+#pragma warning disable CS0618 // Type or member is obsolete
+                if (!json.TryGetPropertyValue(nameof(AIDeployment.Type), out purposeNode) || purposeNode is null)
+#pragma warning restore CS0618 // Type or member is obsolete
+                {
+                    return false;
+                }
             }
         }
 
-        if (capabilityNode is JsonArray array)
+        if (purposeNode is JsonArray array)
         {
             foreach (var item in array)
             {
                 if (item is null ||
                     item.GetStringValue() is not { Length: > 0 } itemText ||
-                    !Enum.TryParse(itemText, true, out AIDeploymentCapability parsedCapability) ||
-                    parsedCapability == AIDeploymentCapability.None)
+                    !Enum.TryParse(itemText, true, out AIDeploymentPurpose parsedPurpose) ||
+                    parsedPurpose == AIDeploymentPurpose.None)
                 {
-                    capability = AIDeploymentCapability.None;
+                    capability = AIDeploymentPurpose.None;
 
                     return false;
                 }
 
-                capability |= parsedCapability;
+                capability |= parsedPurpose;
             }
 
             return capability.IsValidSelection();
         }
 
-        return capabilityNode.GetStringValue() is { Length: > 0 } capabilityText &&
-            Enum.TryParse(capabilityText, true, out capability) &&
+        return purposeNode.GetStringValue() is { Length: > 0 } purposeText &&
+            Enum.TryParse(purposeText, true, out capability) &&
             capability.IsValidSelection();
     }
 

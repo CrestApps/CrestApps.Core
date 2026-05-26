@@ -679,9 +679,9 @@ else
                 d.Name))
             .ToList();
         model.DeploymentVisionSupport = deployments
-            .Where(d => d.Capability.Supports(AIDeploymentCapability.Chat))
-            .ToDictionary(d => d.Name, d => d.Capability.Supports(AIDeploymentCapability.Vision), StringComparer.OrdinalIgnoreCase);
-        model.DefaultChatDeploymentSupportsVision = (await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat))?.Capability.Supports(AIDeploymentCapability.Vision) == true;
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+            .ToDictionary(d => d.Name, d => d.Purpose.Supports(AIDeploymentPurpose.Vision), StringComparer.OrdinalIgnoreCase);
+        model.DefaultChatDeploymentSupportsVision = (await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat))?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
 
         var orchestratorOptions = OrchestratorOptionsAccessor.Value;
         var orchestrators = orchestratorOptions.GetOrchestratorDescriptors();

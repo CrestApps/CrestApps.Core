@@ -157,6 +157,36 @@ public sealed class DefaultOrchestratorTests
     }
 
     [Fact]
+    public async Task ExecuteStreamingAsync_WithVisionUserContents_SendsImageContentToCompletionService()
+    {
+        var completionService = new FakeCompletionService("Vision response");
+        var orchestrator = CreateOrchestrator(completionService);
+        var context = CreateContext("Describe the attached image");
+        context.Properties["VisionUserContents"] = new List<AIContent>
+        {
+            new DataContent(new byte[] { 1, 2, 3 }, "image/jpeg"),
+        };
+
+        _ = await CollectStreamAsync(orchestrator, context);
+
+        Assert.NotNull(completionService.LastStreamingMessages);
+
+        var sentMessages = completionService.LastStreamingMessages;
+        var currentMessage = Assert.IsType<ChatMessage>(sentMessages.Last());
+        Assert.Equal(ChatRole.User, currentMessage.Role);
+
+        Assert.NotNull(currentMessage.Contents);
+
+        var contents = currentMessage.Contents;
+        Assert.Equal(2, contents.Count);
+        Assert.Equal("Describe the attached image", Assert.IsType<TextContent>(contents[0]).Text);
+
+        var imageContent = Assert.IsType<DataContent>(contents[1]);
+        Assert.Equal("image/jpeg", imageContent.MediaType);
+        Assert.Equal([1, 2, 3], imageContent.Data.ToArray());
+    }
+
+    [Fact]
     public async Task ScopeToolsAsync_NullPlan_FallsBackToAll()
     {
         var tools = CreateToolEntries(5);
@@ -364,7 +394,7 @@ public sealed class DefaultOrchestratorTests
     {
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager.Setup(d => d
-            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentCapability>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentPurpose>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "test-dep",
@@ -432,6 +462,7 @@ public sealed class DefaultOrchestratorTests
         public Exception PlanningException { get; set; }
         public int CompleteCallCount { get; private set; }
         public int StreamCallCount { get; private set; }
+        public List<ChatMessage> LastStreamingMessages { get; private set; }
 
         public Task<ChatResponse> CompleteAsync(AIDeployment deployment, IEnumerable<ChatMessage> messages, AICompletionContext context, CancellationToken cancellationToken = default)
         {
@@ -450,6 +481,7 @@ public sealed class DefaultOrchestratorTests
         public async IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingAsync(AIDeployment deployment, IEnumerable<ChatMessage> messages, AICompletionContext context, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             StreamCallCount++;
+            LastStreamingMessages = messages.ToList();
             await Task.CompletedTask;
             yield return new ChatResponseUpdate
             {

@@ -114,7 +114,7 @@ public sealed class DataExtractionServiceTests
         profile.UtilityDeploymentName = "utility";
 
         deploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(AIDeploymentCapability.Utility, "utility", null))
+            .ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, "utility", null))
             .ReturnsAsync(new AIDeployment
             {
                 ClientName = "OpenAI",
@@ -122,7 +122,7 @@ public sealed class DataExtractionServiceTests
                 ModelName = "gpt-4.1",
             });
         deploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(AIDeploymentCapability.Chat, null, null))
+            .ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, null, null))
             .ReturnsAsync(new AIDeployment
             {
                 ClientName = "OpenAI",
@@ -204,7 +204,7 @@ public sealed class DataExtractionServiceTests
         profile.UtilityDeploymentName = "utility";
 
         deploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(AIDeploymentCapability.Utility, "utility", null))
+            .ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, "utility", null))
             .ReturnsAsync(new AIDeployment
             {
                 ClientName = "OpenAI",
@@ -283,7 +283,7 @@ public sealed class DataExtractionServiceTests
         profile.UtilityDeploymentName = "utility";
 
         deploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(AIDeploymentCapability.Utility, "utility", null))
+            .ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, "utility", null))
             .ReturnsAsync(new AIDeployment
             {
                 ClientName = "OpenAI",
@@ -360,7 +360,7 @@ public sealed class DataExtractionServiceTests
         profile.UtilityDeploymentName = "utility";
 
         deploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(AIDeploymentCapability.Utility, "utility", null))
+            .ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, "utility", null))
             .ReturnsAsync(new AIDeployment
             {
                 ClientName = "OpenAI",
@@ -446,7 +446,7 @@ public sealed class DataExtractionServiceTests
         profile.UtilityDeploymentName = "utility";
 
         deploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(AIDeploymentCapability.Utility, "utility", null))
+            .ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, "utility", null))
             .ReturnsAsync(new AIDeployment
             {
                 ClientName = "OpenAI",
@@ -546,7 +546,7 @@ public sealed class DataExtractionServiceTests
         profile.UtilityDeploymentName = "utility";
 
         deploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(AIDeploymentCapability.Utility, "utility", null))
+            .ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, "utility", null))
             .ReturnsAsync(new AIDeployment
             {
                 ClientName = "OpenAI",

@@ -30,22 +30,22 @@
                 </select>
             </div>
             <div class="mb-3">
-                <label class="form-label">Deployment capabilities <span class="text-danger">*</span></label>
-                @foreach (var capability in Model.Capabilities)
+                <label class="form-label">Deployment purposes <span class="text-danger">*</span></label>
+                @foreach (var purpose in Model.Purposes)
                 {
-                    var isChecked = Model.SelectedCapabilities?.Contains(capability.Value, StringComparer.OrdinalIgnoreCase) ?? false;
+                    var isChecked = Model.SelectedPurposes?.Contains(purpose.Value, StringComparer.OrdinalIgnoreCase) ?? false;
                     <div class="form-check">
-                        <input id="SelectedCapabilities_@capability.Value"
-                              name="SelectedCapabilities"
+                        <input id="SelectedPurposes_@purpose.Value"
+                             name="SelectedPurposes"
                                type="checkbox"
-                              value="@capability.Value"
+                             value="@purpose.Value"
                                class="form-check-input"
                         @(isChecked ? "checked" : "") />
-                        <label class="form-check-label" for="SelectedCapabilities_@capability.Value">@capability.Text</label>
+                        <label class="form-check-label" for="SelectedPurposes_@purpose.Value">@purpose.Text</label>
                     </div>
                 }
-                <span asp-validation-for="SelectedCapabilities" class="text-danger"></span>
-                <div class="form-text">Select one or more capabilities for this deployment.</div>
+                <span asp-validation-for="SelectedPurposes" class="text-danger"></span>
+                <div class="form-text">Select one or more purposes for this deployment.</div>
             </div>
             <div class="mb-3" id="connectionGroup">
                 <label asp-for="ConnectionName" class="form-label">Connection</label>

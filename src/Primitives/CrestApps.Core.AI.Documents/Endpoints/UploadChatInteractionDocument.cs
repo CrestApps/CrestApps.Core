@@ -110,13 +110,13 @@ public static class UploadChatInteractionDocument
                 logger.LogInformation("Chat interaction document upload authorized for interaction '{InteractionId}'.", interaction.ItemId);
             }
 
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: interaction.ChatDeploymentName);
+            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: interaction.ChatDeploymentName);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Resolved chat deployment '{DeploymentName}' for interaction '{InteractionId}'.", deployment?.Name, interaction.ItemId);
             }
 
-            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Embedding, clientName: deployment?.ClientName);
+            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding, clientName: deployment?.ClientName);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Resolved embedding deployment '{DeploymentName}' for interaction '{InteractionId}'.", embeddingDeployment?.Name, interaction.ItemId);

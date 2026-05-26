@@ -230,9 +230,9 @@ else
 
     private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
     {
-        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Utility, deploymentName: profile.UtilityDeploymentName);
+        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
 
-        return deployment?.Capability.Supports(AIDeploymentCapability.Vision) == true;
+        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 }

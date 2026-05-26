@@ -744,13 +744,13 @@ else
 
     private async Task PopulateDropdownsAsync()
     {
-        _model.ChatDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Chat);
-        _model.UtilityDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Utility);
-        _model.EmbeddingDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Embedding);
-        _model.ImageDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Image);
-        _model.VisionDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Vision);
-        _model.SpeechToTextDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.SpeechToText);
-        _model.TextToSpeechDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.TextToSpeech);
+        _model.ChatDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Chat);
+        _model.UtilityDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Utility);
+        _model.EmbeddingDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Embedding);
+        _model.ImageDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Image);
+        _model.VisionDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Vision);
+        _model.SpeechToTextDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.SpeechToText);
+        _model.TextToSpeechDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.TextToSpeech);
 
         _model.ChatInteractionModes =
         [
@@ -823,9 +823,9 @@ else
             .Build(models, _model.AnthropicDefaultModel, claudeSettings.DefaultModel);
     }
 
-    private async Task<List<KeyValuePair<string, string>>> BuildDeploymentItemsAsync(AIDeploymentCapability capability)
+    private async Task<List<KeyValuePair<string, string>>> BuildDeploymentItemsAsync(AIDeploymentPurpose capability)
     {
-        var deployments = await DeploymentManager.GetByCapabilityAsync(capability);
+        var deployments = await DeploymentManager.GetByPurposeAsync(capability);
 
         return deployments
             .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)

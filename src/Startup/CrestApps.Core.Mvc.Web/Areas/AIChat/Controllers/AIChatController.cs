@@ -154,9 +154,9 @@ public sealed class AIChatController : Controller
 
     private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
     {
-        var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Utility, deploymentName: profile.UtilityDeploymentName);
+        var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
 
-        return deployment?.Capability.Supports(AIDeploymentCapability.Vision) == true;
+        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 }

@@ -368,25 +368,25 @@ public sealed class SettingsController : Controller
     private async Task PopulateDeploymentDropdownsAsync(SettingsViewModel model)
     {
         model.ChatDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByCapabilityAsync(AIDeploymentCapability.Chat));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Chat));
 
         model.UtilityDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByCapabilityAsync(AIDeploymentCapability.Utility));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Utility));
 
         model.EmbeddingDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByCapabilityAsync(AIDeploymentCapability.Embedding));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Embedding));
 
         model.ImageDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByCapabilityAsync(AIDeploymentCapability.Image));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Image));
 
         model.VisionDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByCapabilityAsync(AIDeploymentCapability.Vision));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Vision));
 
         model.SpeechToTextDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByCapabilityAsync(AIDeploymentCapability.SpeechToText));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.SpeechToText));
 
         model.TextToSpeechDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByCapabilityAsync(AIDeploymentCapability.TextToSpeech));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.TextToSpeech));
 
         model.ChatInteractionModes =
         [

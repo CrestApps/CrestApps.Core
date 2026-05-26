@@ -42,7 +42,7 @@ public sealed class DocumentUploadController(
         string referenceType)
     {
         var embeddingDeployment =
-            await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Embedding);
+            await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding);
         var embeddingGenerator = embeddingDeployment is null
             ? null
             : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
@@ -68,7 +68,7 @@ Users upload documents (PDFs, Word files, spreadsheets, text files) and expect t
 
 The document processing system handles this full pipeline from upload to retrieval, while the built-in document tools make the content available to the AI during orchestration.
 
-When a chat deployment also supports the `Vision` capability, chat interaction and chat session uploads can include supported image formats (`.bmp`, `.gif`, `.jpeg`, `.jpg`, `.png`, `.webp`) alongside standard document files. Those images are stored as `AIDocument` records and attached to the current user message as multimodal content instead of going through text extraction and chunk embedding.
+When a chat deployment also supports the `Vision` purpose, chat interaction and chat session uploads can include supported image formats (`.bmp`, `.gif`, `.jpeg`, `.jpg`, `.png`, `.webp`) alongside standard document files. Those images are stored as `AIDocument` records and attached to the current user message as multimodal content instead of going through text extraction and chunk embedding. The shared document-availability prompt distinguishes image attachments from searchable documents so the model analyzes supported uploaded images directly instead of treating them like text-only document metadata.
 
 ## Architecture Overview
 

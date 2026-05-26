@@ -80,9 +80,9 @@ public sealed class AIDeploymentController : Controller
             ModelState.AddModelError(nameof(model.ClientName), "Provider is required.");
         }
 
-        if (!model.GetDeploymentCapability().IsValidSelection())
+        if (!model.GetDeploymentPurpose().IsValidSelection())
         {
-            ModelState.AddModelError(nameof(model.SelectedCapabilities), "At least one deployment capability is required.");
+            ModelState.AddModelError(nameof(model.SelectedPurposes), "At least one deployment purpose is required.");
         }
 
         if (!model.UsesStandaloneProvider() && string.IsNullOrWhiteSpace(model.ConnectionName))
@@ -160,9 +160,9 @@ public sealed class AIDeploymentController : Controller
             ModelState.AddModelError(nameof(model.ClientName), "Provider is required.");
         }
 
-        if (!model.GetDeploymentCapability().IsValidSelection())
+        if (!model.GetDeploymentPurpose().IsValidSelection())
         {
-            ModelState.AddModelError(nameof(model.SelectedCapabilities), "At least one deployment capability is required.");
+            ModelState.AddModelError(nameof(model.SelectedPurposes), "At least one deployment purpose is required.");
         }
 
         if (!model.UsesStandaloneProvider() && string.IsNullOrWhiteSpace(model.ConnectionName))
@@ -254,9 +254,9 @@ public sealed class AIDeploymentController : Controller
             .ToList();
         model.Providers = _providers;
         model.AuthenticationTypes = _authTypes;
-        model.Capabilities = Enum.GetValues<AIDeploymentCapability>()
-            .Where(static capability => capability != AIDeploymentCapability.None)
-            .Select(static capability => new SelectListItem(capability.ToString(), capability.ToString()))
+        model.Purposes = Enum.GetValues<AIDeploymentPurpose>()
+            .Where(static purpose => purpose != AIDeploymentPurpose.None)
+            .Select(static purpose => new SelectListItem(purpose.ToString(), purpose.ToString()))
             .ToList();
     }
 

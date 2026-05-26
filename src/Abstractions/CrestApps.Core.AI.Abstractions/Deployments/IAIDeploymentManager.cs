@@ -22,33 +22,33 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Asynchronously retrieves all deployments supporting the specified capability.
+    /// Asynchronously retrieves all deployments supporting the specified purpose.
     /// </summary>
-    /// <param name="capability">The deployment capability to filter by.</param>
+    /// <param name="purpose">The deployment purpose to filter by.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// A ValueTask that represents the asynchronous operation. The result is an <see cref="IEnumerable{AIDeployment}"/>
-    /// containing all deployments matching the specified capability.
+    /// containing all deployments matching the specified purpose.
     /// </returns>
-    ValueTask<IEnumerable<AIDeployment>> GetByCapabilityAsync(AIDeploymentCapability capability, CancellationToken cancellationToken = default);
+    ValueTask<IEnumerable<AIDeployment>> GetByPurposeAsync(AIDeploymentPurpose purpose, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously retrieves all deployments supporting the specified legacy type.
     /// </summary>
     /// <param name="type">The deployment type to filter by.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use GetByCapabilityAsync instead.")]
+    [Obsolete("Use GetByPurposeAsync instead.")]
     ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Resolves the default deployment of a given capability for a specific client.
+    /// Resolves the default deployment of a given purpose for a specific client.
     /// Returns the deployment marked as IsDefault for that type on the client,
     /// or the first deployment supporting that type on the client if none is marked as default.
     /// </summary>
     /// <param name="clientName">The name of the client to resolve the default deployment for.</param>
-    /// <param name="capability">The deployment capability to filter by.</param>
+    /// <param name="purpose">The deployment purpose to filter by.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentCapability capability, CancellationToken cancellationToken = default);
+    ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentPurpose purpose, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resolves the default deployment of a given legacy type for a specific client.
@@ -62,15 +62,15 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// <summary>
     /// Resolves a deployment using the full fallback chain:
     /// 1. If deploymentId is provided, returns that specific deployment.
-    /// 2. Falls back to the global default deployment for the given capability (from DefaultAIDeploymentSettings).
-    /// 3. Falls back to the first deployment supporting the requested capability within the current scope.
+    /// 2. Falls back to the global default deployment for the given purpose (from DefaultAIDeploymentSettings).
+    /// 3. Falls back to the first deployment supporting the requested purpose within the current scope.
     /// Returns <see langword="null"/> if no deployment can be resolved.
     /// </summary>
-    /// <param name="capability">The deployment capability to resolve.</param>
+    /// <param name="purpose">The deployment purpose to resolve.</param>
     /// <param name="deploymentName">The optional deployment name to look up directly.</param>
     /// <param name="clientName">The optional client name to scope the resolution.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentCapability capability, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default);
+    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentPurpose purpose, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resolves a deployment using the full fallback chain for a legacy type.
@@ -83,13 +83,13 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all deployments of a given capability, optionally filtered by client.
+    /// Gets all deployments of a given purpose, optionally filtered by client.
     /// Results are suitable for dropdown population, grouped by connection.
     /// </summary>
-    /// <param name="capability">The deployment capability to filter by.</param>
+    /// <param name="purpose">The deployment purpose to filter by.</param>
     /// <param name="clientName">The optional client name to further filter results.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    ValueTask<IEnumerable<AIDeployment>> GetAllByCapabilityAsync(AIDeploymentCapability capability, string clientName = null, CancellationToken cancellationToken = default);
+    ValueTask<IEnumerable<AIDeployment>> GetAllByPurposeAsync(AIDeploymentPurpose purpose, string clientName = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all deployments of a given legacy type, optionally filtered by client.
@@ -97,6 +97,6 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// <param name="type">The deployment type to filter by.</param>
     /// <param name="clientName">The optional client name to further filter results.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use GetAllByCapabilityAsync instead.")]
+    [Obsolete("Use GetAllByPurposeAsync instead.")]
     ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default);
 }

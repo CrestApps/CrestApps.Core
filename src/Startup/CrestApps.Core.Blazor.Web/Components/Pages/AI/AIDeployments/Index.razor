@@ -52,7 +52,7 @@ else
                             <tr>
                                 <th>Technical name</th>
                                 <th>Model name</th>
-                                <th>Capabilities</th>
+                                <th>Purposes</th>
                                 <th>Provider</th>
                                 <th>Connection</th>
                                 <th style="width: 180px;">Actions</th>
@@ -65,9 +65,9 @@ else
                                     <td><strong>@deployment.TechnicalName</strong></td>
                                     <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
                                     <td>
-                                        @foreach (var capability in deployment.GetDeploymentCapability().GetSupportedCapabilities())
+                                        @foreach (var purpose in deployment.GetDeploymentPurpose().GetSupportedPurposes())
                                         {
-                                            <span class="badge bg-secondary me-1">@capability</span>
+                                            <span class="badge bg-secondary me-1">@purpose</span>
                                         }
                                     </td>
                                     <td>
@@ -106,7 +106,7 @@ else
                             <tr>
                                 <th>Technical name</th>
                                 <th>Model name</th>
-                                <th>Capabilities</th>
+                                <th>Purposes</th>
                                 <th>Provider</th>
                                 <th>Connection</th>
                             </tr>
@@ -118,9 +118,9 @@ else
                                     <td><strong>@deployment.TechnicalName</strong></td>
                                     <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
                                     <td>
-                                        @foreach (var capability in deployment.GetDeploymentCapability().GetSupportedCapabilities())
+                                        @foreach (var purpose in deployment.GetDeploymentPurpose().GetSupportedPurposes())
                                         {
-                                            <span class="badge bg-secondary me-1">@capability</span>
+                                            <span class="badge bg-secondary me-1">@purpose</span>
                                         }
                                     </td>
                                     <td>

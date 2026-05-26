@@ -227,11 +227,11 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         var utilityDeploymentName = connectionSection["UtilityDeploymentName"]
             ?? connectionSection["DefaultUtilityDeploymentName"];
 
-        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, AIDeploymentCapability.Chat | AIDeploymentCapability.Utility, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, AIDeploymentCapability.Utility, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, AIDeploymentCapability.Embedding, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, AIDeploymentCapability.Image, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, AIDeploymentCapability.SpeechToText, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, AIDeploymentPurpose.Chat | AIDeploymentPurpose.Utility, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, AIDeploymentPurpose.Utility, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, AIDeploymentPurpose.Embedding, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, AIDeploymentPurpose.Image, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, AIDeploymentPurpose.SpeechToText, sectionPath);
     }
 
     private void AddConnectionDeployment(
@@ -240,7 +240,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         string clientName,
         string connectionName,
         string deploymentName,
-        AIDeploymentCapability capability,
+        AIDeploymentPurpose purpose,
         string sectionPath)
     {
         if (string.IsNullOrWhiteSpace(deploymentName))
@@ -255,7 +255,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             ModelName = deploymentName,
             Source = clientName,
             ConnectionName = connectionName,
-            Capability = capability,
+            Purpose = purpose,
             IsReadOnly = true,
             CreatedUtc = _timeProvider.GetUtcNow().DateTime,
         };
@@ -329,9 +329,9 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             Properties = BuildDeploymentProperties(deploymentObject),
         };
 
-        if (TryGetDeploymentCapability(deploymentObject["Capability"] ?? deploymentObject["Type"], out var deploymentCapability))
+        if (TryGetDeploymentCapability(deploymentObject["Purpose"] ?? deploymentObject["Capability"] ?? deploymentObject["Type"], out var deploymentPurpose))
         {
-            entry.Capability = deploymentCapability;
+            entry.Purpose = deploymentPurpose;
         }
 
         return entry;
@@ -344,11 +344,11 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "Parsed AI deployment configuration entry. Provider: {ProviderName}. Name: {DeploymentName}. Model: {ModelName}. Capability: {DeploymentCapability}. Property count: {PropertyCount}.",
+                "Parsed AI deployment configuration entry. Provider: {ProviderName}. Name: {DeploymentName}. Model: {ModelName}. Purpose: {DeploymentPurpose}. Property count: {PropertyCount}.",
                 entry.ClientName,
                 entry.Name,
                 entry.ModelName,
-                entry.Capability,
+                entry.Purpose,
                 entry.Properties?.Count ?? 0);
         }
 
@@ -373,9 +373,9 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             return null;
         }
 
-        if (!entry.Capability.IsValidSelection())
+        if (!entry.Purpose.IsValidSelection())
         {
-            _logger.LogWarning("Deployment entry '{Name}' for provider '{ProviderName}' has an invalid Capability. Skipping.", entry.Name, entry.ClientName);
+            _logger.LogWarning("Deployment entry '{Name}' for provider '{ProviderName}' has an invalid Purpose. Skipping.", entry.Name, entry.ClientName);
 
             return null;
         }
@@ -387,7 +387,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             ModelName = entry.ModelName,
             Source = entry.ClientName,
             ConnectionName = entry.ConnectionName,
-            Capability = entry.Capability,
+            Purpose = entry.Purpose,
             IsReadOnly = true,
             CreatedUtc = _timeProvider.GetUtcNow().DateTime,
             Properties = entry.Properties?.Count > 0 ? JsonSerializer.Deserialize<Dictionary<string, object>>(entry.Properties.DeepClone()) : null,
@@ -498,9 +498,9 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         return value;
     }
 
-    private static bool TryGetDeploymentCapability(JsonNode capabilityNode, out AIDeploymentCapability capability)
+    private static bool TryGetDeploymentCapability(JsonNode capabilityNode, out AIDeploymentPurpose capability)
     {
-        capability = AIDeploymentCapability.None;
+        capability = AIDeploymentPurpose.None;
         if (capabilityNode is null)
         {
             return false;
@@ -511,9 +511,9 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             foreach (var item in array)
             {
                 var capabilityName = item.GetStringValue();
-                if (string.IsNullOrWhiteSpace(capabilityName) || !Enum.TryParse<AIDeploymentCapability>(capabilityName, ignoreCase: true, out var parsedCapability) || parsedCapability == AIDeploymentCapability.None)
+                if (string.IsNullOrWhiteSpace(capabilityName) || !Enum.TryParse<AIDeploymentPurpose>(capabilityName, ignoreCase: true, out var parsedCapability) || parsedCapability == AIDeploymentPurpose.None)
                 {
-                    capability = AIDeploymentCapability.None;
+                    capability = AIDeploymentPurpose.None;
 
                     return false;
                 }

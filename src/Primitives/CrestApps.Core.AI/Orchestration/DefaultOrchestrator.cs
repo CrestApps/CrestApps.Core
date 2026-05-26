@@ -158,9 +158,10 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         // Execute the completion with the scoped tool set.
         var chatDeployment = await ResolveChatDeploymentAsync(context);
+        var executionMessages = GetExecutionMessages(context);
 
         await foreach (var chunk in _completionService.CompleteStreamingAsync(
-            chatDeployment, context.ConversationHistory, context.CompletionContext, cancellationToken))
+            chatDeployment, executionMessages, context.CompletionContext, cancellationToken))
         {
             yield return chunk;
         }
@@ -421,6 +422,40 @@ public sealed class DefaultOrchestrator : IOrchestrator
         return messages;
     }
 
+    private static List<ChatMessage> GetExecutionMessages(OrchestrationContext context)
+    {
+        var messages = context.ConversationHistory?.ToList() ?? [];
+        var currentUserMessage = CreateCurrentUserMessage(context);
+
+        if (messages.Count == 0)
+        {
+            messages.Add(currentUserMessage);
+
+            return messages;
+        }
+
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            if (messages[i].Role != ChatRole.User)
+            {
+                continue;
+            }
+
+            if (!string.Equals(messages[i].Text, context.UserMessage, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            messages[i] = currentUserMessage;
+
+            return messages;
+        }
+
+        messages.Add(currentUserMessage);
+
+        return messages;
+    }
+
     /// <summary>
     /// Builds a scoring context from the user's current message and recent conversation
     /// history for lightweight token-based tool scoping (no LLM call).
@@ -491,7 +526,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private async Task<AIDeployment> ResolveChatDeploymentAsync(OrchestrationContext context)
     {
         return await _deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentCapability.Chat,
+            AIDeploymentPurpose.Chat,
             deploymentName: context.CompletionContext?.ChatDeploymentName)
         ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the orchestration context.");
     }

@@ -420,7 +420,7 @@ omit optional fields, or split the operation into multiple smaller calls.
 
     private async ValueTask<(AIDeployment deployment, AIProviderConnectionEntry connection)> ResolveChatConfigurationAsync(string deploymentName)
     {
-        var deployment = await ResolveDeploymentAsync(AIDeploymentCapability.Chat, AzureOpenAIConstants.ClientName, deploymentName: deploymentName);
+        var deployment = await ResolveDeploymentAsync(AIDeploymentPurpose.Chat, AzureOpenAIConstants.ClientName, deploymentName: deploymentName);
 
         if (deployment == null)
         {

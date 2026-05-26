@@ -14,7 +14,7 @@ public sealed class AIDeploymentViewModelTests
             Name = "gpt-4.1",
             ModelName = "gpt-4.1",
             ClientName = "AzureOpenAI",
-            Capability = AIDeploymentCapability.Chat,
+            Purpose = AIDeploymentPurpose.Chat,
             IsReadOnly = true,
         };
 

@@ -89,7 +89,7 @@ public abstract class AIChatDocumentEndpointBase
     /// <param name="deployment">The deployment.</param>
     protected static bool SupportsVisionUploads(AIDeployment deployment)
     {
-        return deployment?.Capability.Supports(AIDeploymentCapability.Vision) == true;
+        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 
     /// <summary>
@@ -125,8 +125,8 @@ public abstract class AIChatDocumentEndpointBase
     /// <param name="deploymentManager">The deployment manager.</param>
     protected static async Task<AIDeployment> ResolveSessionDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
     {
-        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Utility, deploymentName: profile.UtilityDeploymentName);
+        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
     }
 
     /// <summary>
