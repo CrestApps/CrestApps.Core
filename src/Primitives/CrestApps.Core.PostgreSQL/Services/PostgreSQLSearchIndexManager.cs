@@ -193,7 +193,7 @@ internal sealed class PostgreSQLSearchIndexManager : ISearchIndexManager
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
 
-            var quotedTableName = NpgsqlCommandBuilder.QuoteIdentifier(tableName);
+            var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
             command.CommandText = $"DROP TABLE IF EXISTS {quotedTableName}";
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
