@@ -39,8 +39,10 @@
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Azure.AISearch/CrestApps.Core.AI.Azure.AISearch.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.PostgreSQL/CrestApps.Core.AI.PostgreSQL.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.PostgreSQL/CrestApps.Core.PostgreSQL.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.OpenAI/CrestApps.Core.AI.OpenAI.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.OpenAI.Azure/CrestApps.Core.AI.OpenAI.Azure.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Ollama/CrestApps.Core.AI.Ollama.csproj" />

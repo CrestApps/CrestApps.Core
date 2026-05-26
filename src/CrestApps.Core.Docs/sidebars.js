@@ -58,6 +58,7 @@ const sidebars = {
                         'data-sources/index',
                         'data-sources/azure-ai',
                         'data-sources/elasticsearch',
+                        'data-sources/postgresql',
                     ],
                 },
                 'core/data-storage',
