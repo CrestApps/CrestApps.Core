@@ -42,7 +42,7 @@ public sealed class DocumentUploadController(
         string referenceType)
     {
         var embeddingDeployment =
-            await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
+            await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Embedding);
         var embeddingGenerator = embeddingDeployment is null
             ? null
             : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
@@ -67,6 +67,8 @@ Users upload documents (PDFs, Word files, spreadsheets, text files) and expect t
 - **Tabular processing** — CSV and Excel files receive special treatment with structured, batch-oriented queries
 
 The document processing system handles this full pipeline from upload to retrieval, while the built-in document tools make the content available to the AI during orchestration.
+
+When a chat deployment also supports the `Vision` capability, chat interaction and chat session uploads can include supported image formats (`.bmp`, `.gif`, `.jpeg`, `.jpg`, `.png`, `.webp`) alongside standard document files. Those images are stored as `AIDocument` records and attached to the current user message as multimodal content instead of going through text extraction and chunk embedding.
 
 ## Architecture Overview
 

@@ -11,6 +11,7 @@ namespace CrestApps.Core.AI.Models;
 public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, IModifiedUtcAwareModel, ICloneable<AIDeployment>
 {
     private string _modelName;
+    private AIDeploymentCapability _capability;
 
     /// <summary>
     /// Gets or sets the technical name of the AI client implementation to use for this deployment.
@@ -57,10 +58,35 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     public string ConnectionName { get; set; }
 
     /// <summary>
-    /// Gets or sets the capability types of this deployment (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech).
+    /// Gets or sets the capabilities of this deployment (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech, Vision).
     /// A deployment can support one or more capabilities.
     /// </summary>
-    public AIDeploymentType Type { get; set; }
+    public AIDeploymentCapability Capability
+    {
+        get => _capability;
+        set => _capability = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the legacy deployment type flags.
+    /// Use <see cref="Capability"/> for new code.
+    /// </summary>
+#pragma warning disable CS0618 // Type or member is obsolete
+    [Obsolete("Use Capability instead. Retained for backward compatibility.")]
+    [JsonIgnore]
+    public AIDeploymentType Type
+    {
+        get => Capability.ToLegacyType();
+        set => Capability = value.ToCapability();
+    }
+
+    [JsonInclude]
+    [JsonPropertyName("Type")]
+    private AIDeploymentType LegacyType
+    {
+        set => Capability = value.ToCapability();
+    }
+#pragma warning restore CS0618 // Type or member is obsolete
 
     /// <summary>
     /// Gets or sets the UTC timestamp when this deployment was created.
@@ -89,12 +115,23 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     public bool IsReadOnly { get; set; }
 
     /// <summary>
-    /// Determines whether type.
+    /// Determines whether the deployment supports the specified legacy type.
     /// </summary>
     /// <param name="type">The type.</param>
+#pragma warning disable CS0618 // Type or member is obsolete
     public bool SupportsType(AIDeploymentType type)
     {
-        return Type.Supports(type);
+        return Capability.Supports(type.ToCapability());
+    }
+#pragma warning restore CS0618 // Type or member is obsolete
+
+    /// <summary>
+    /// Determines whether the deployment supports the specified capability.
+    /// </summary>
+    /// <param name="capability">The capability.</param>
+    public bool SupportsCapability(AIDeploymentCapability capability)
+    {
+        return Capability.Supports(capability);
     }
 
     /// <summary>
@@ -109,7 +146,7 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
             ModelName = _modelName,
             Source = Source,
             ConnectionName = ConnectionName,
-            Type = Type,
+            Capability = Capability,
             IsReadOnly = IsReadOnly,
             CreatedUtc = CreatedUtc,
             ModifiedUtc = ModifiedUtc,

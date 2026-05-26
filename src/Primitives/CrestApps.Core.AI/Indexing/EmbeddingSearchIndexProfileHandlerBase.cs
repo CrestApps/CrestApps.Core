@@ -66,7 +66,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
             return;
         }
 
-        if (!deployment.SupportsType(AIDeploymentType.Embedding))
+        if (!deployment.SupportsCapability(AIDeploymentCapability.Embedding))
         {
             result.Fail(new ValidationResult("The selected deployment does not support embeddings.", [nameof(SearchIndexProfile.EmbeddingDeploymentName)]));
 

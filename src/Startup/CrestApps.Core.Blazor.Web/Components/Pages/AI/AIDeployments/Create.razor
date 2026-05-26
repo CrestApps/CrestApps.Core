@@ -59,21 +59,21 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Deployment types <span class="text-danger">*</span></label>
-                @foreach (var type in _types)
+                <label class="form-label">Deployment capabilities <span class="text-danger">*</span></label>
+                @foreach (var capability in _capabilities)
                 {
-                    var typeName = type.Value;
-                    var isChecked = _model.SelectedTypes?.Contains(typeName, StringComparer.OrdinalIgnoreCase) ?? false;
+                    var capabilityName = capability.Value;
+                    var isChecked = _model.SelectedCapabilities?.Contains(capabilityName, StringComparer.OrdinalIgnoreCase) ?? false;
                     <div class="form-check">
-                        <input id="SelectedTypes_@typeName"
+                        <input id="SelectedCapabilities_@capabilityName"
                                type="checkbox"
                                class="form-check-input"
                                checked="@isChecked"
-                               @onchange="e => ToggleType(typeName, (bool)e.Value)" />
-                        <label class="form-check-label" for="SelectedTypes_@typeName">@type.Key</label>
+                               @onchange="e => ToggleCapability(capabilityName, (bool)e.Value)" />
+                        <label class="form-check-label" for="SelectedCapabilities_@capabilityName">@capability.Key</label>
                     </div>
                 }
-                <div class="form-text">Select one or more capability types for this deployment.</div>
+                <div class="form-text">Select one or more capabilities for this deployment.</div>
             </div>
 
             @if (!_isStandalone)
@@ -152,9 +152,9 @@
         new("Managed Identity", "ManagedIdentity"),
     ];
 
-    private static readonly List<KeyValuePair<string, string>> _types = Enum.GetValues<AIDeploymentType>()
-        .Where(static type => type != AIDeploymentType.None)
-        .Select(static t => new KeyValuePair<string, string>(t.ToString(), t.ToString()))
+    private static readonly List<KeyValuePair<string, string>> _capabilities = Enum.GetValues<AIDeploymentCapability>()
+        .Where(static capability => capability != AIDeploymentCapability.None)
+        .Select(static capability => new KeyValuePair<string, string>(capability.ToString(), capability.ToString()))
         .ToList();
 
     private bool _isStandalone => _model.UsesStandaloneProvider();
@@ -226,20 +226,20 @@
             .ToList();
     }
 
-    private void ToggleType(string typeName, bool isChecked)
+    private void ToggleCapability(string capabilityName, bool isChecked)
     {
-        var selected = new HashSet<string>(_model.SelectedTypes ?? [], StringComparer.OrdinalIgnoreCase);
+        var selected = new HashSet<string>(_model.SelectedCapabilities ?? [], StringComparer.OrdinalIgnoreCase);
 
         if (isChecked)
         {
-            selected.Add(typeName);
+            selected.Add(capabilityName);
         }
         else
         {
-            selected.Remove(typeName);
+            selected.Remove(capabilityName);
         }
 
-        _model.SelectedTypes = [.. selected];
+        _model.SelectedCapabilities = [.. selected];
     }
 
     private async Task HandleSubmitAsync()
@@ -256,9 +256,9 @@
             _validationErrors.Add("Technical name is required.");
         }
 
-        if (!_model.GetDeploymentType().IsValidSelection())
+        if (!_model.GetDeploymentCapability().IsValidSelection())
         {
-            _validationErrors.Add("At least one deployment type is required.");
+            _validationErrors.Add("At least one deployment capability is required.");
         }
 
         if (string.IsNullOrWhiteSpace(_model.ClientName))

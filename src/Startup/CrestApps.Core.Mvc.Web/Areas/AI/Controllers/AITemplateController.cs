@@ -190,8 +190,8 @@ public sealed class AITemplateController : Controller
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)
     {
         var allDeployments = await _deploymentCatalog.GetAllAsync();
-        model.ChatDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
-        model.UtilityDeployments = allDeployments.Where(d => d.Type.Supports(AIDeploymentType.Utility) || d.Type.Supports(AIDeploymentType.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.ChatDeployments = allDeployments.Where(d => d.Capability.Supports(AIDeploymentCapability.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.UtilityDeployments = allDeployments.Where(d => d.Capability.Supports(AIDeploymentCapability.Utility) || d.Capability.Supports(AIDeploymentCapability.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out ClaudeOptions anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();

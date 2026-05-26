@@ -55,6 +55,8 @@ public sealed class SettingsViewModel
 
     public string DefaultImageDeploymentName { get; set; }
 
+    public string DefaultVisionDeploymentName { get; set; }
+
     public string DefaultSpeechToTextDeploymentName { get; set; }
 
     public string DefaultTextToSpeechDeploymentName { get; set; }
@@ -110,6 +112,8 @@ public sealed class SettingsViewModel
     public List<KeyValuePair<string, string>> EmbeddingDeployments { get; set; } = [];
 
     public List<KeyValuePair<string, string>> ImageDeployments { get; set; } = [];
+
+    public List<KeyValuePair<string, string>> VisionDeployments { get; set; } = [];
 
     public List<KeyValuePair<string, string>> SpeechToTextDeployments { get; set; } = [];
 

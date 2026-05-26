@@ -12,8 +12,19 @@
     const string frequencyPenaltyHelp = "Penalizes tokens based on how frequently they appear in the response so far. Higher values reduce repetition of the same words and phrases.";
     const string presencePenaltyHelp = "Penalizes tokens based on whether they have appeared at all. Higher values encourage the AI to introduce new topics and ideas rather than staying on the same subjects.";
     const string pastMessagesHelp = "The number of previous messages from the conversation to include as context. More messages provide better context but increase token usage and costs.";
-    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
-    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+    var baseSupportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
+    var baseSupportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+    var visionSupportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(true);
+    var visionSupportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(true);
+    var supportsVisionUploads = Model.DefaultChatDeploymentSupportsVision;
+    if (!string.IsNullOrWhiteSpace(Model.ChatDeploymentName) &&
+        Model.DeploymentVisionSupport.TryGetValue(Model.ChatDeploymentName, out var selectedDeploymentSupportsVision))
+    {
+        supportsVisionUploads = selectedDeploymentSupportsVision;
+    }
+
+    var supportedExtensionsAccept = supportsVisionUploads ? visionSupportedExtensionsAccept : baseSupportedExtensionsAccept;
+    var supportedExtensionsDisplay = supportsVisionUploads ? visionSupportedExtensionsDisplay : baseSupportedExtensionsDisplay;
 }
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
@@ -529,7 +540,7 @@
                     }
 
                     <div class="mb-2">
-                        <label class="form-label"><i class="bi bi-paperclip"></i> Upload documents</label>
+                        <label class="form-label" id="chat-doc-upload-label"><i class="bi bi-paperclip"></i> @(supportsVisionUploads ? "Upload documents and images" : "Upload documents")</label>
                         <div class="document-drop-zone" id="chat-doc-drop-zone">
                             <input type="file" class="d-none" id="chat-doc-upload" multiple
                                    accept="@supportedExtensionsAccept" />
@@ -537,14 +548,14 @@
                                 <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
                                 <div>
                                     <div class="document-drop-zone__title">Drag and drop files here</div>
-                                    <div class="text-muted small">or browse for documents to upload into this chat interaction</div>
+                                    <div class="text-muted small" id="chat-doc-upload-description">@(supportsVisionUploads ? "or browse for documents and images to upload into this chat interaction" : "or browse for documents to upload into this chat interaction")</div>
                                 </div>
                                 <div class="document-drop-zone__actions">
                                     <button type="button" class="btn btn-outline-primary" id="chat-doc-browse" data-drop-zone-browse>
                                         <i class="bi bi-folder2-open"></i> Browse files
                                     </button>
                                 </div>
-                                <div class="form-text mb-0">Supported formats: @supportedExtensionsDisplay</div>
+                                <div class="form-text mb-0" id="chat-doc-upload-hint">Supported formats: @supportedExtensionsDisplay</div>
                             </div>
                         </div>
                         <div id="chat-doc-upload-status" class="small mt-2 d-none"></div>
@@ -639,11 +650,52 @@
             var interactionDocuments = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Documents));
             var uploadDocumentUrl = '@Url.Content("~/ai/chat-interactions/upload-document")';
             var removeDocumentUrl = '@Url.Content("~/ai/chat-interactions/remove-document")';
+            var deploymentVisionSupport = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DeploymentVisionSupport));
+            var defaultChatDeploymentSupportsVision = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DefaultChatDeploymentSupportsVision));
+            var baseSupportedExtensionsAccept = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(baseSupportedExtensionsAccept));
+            var baseSupportedExtensionsDisplay = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(baseSupportedExtensionsDisplay));
+            var visionSupportedExtensionsAccept = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(visionSupportedExtensionsAccept));
+            var visionSupportedExtensionsDisplay = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(visionSupportedExtensionsDisplay));
             var audioChunkIntervalMs = 250;
             var speechToTextEnabled = @Model.SpeechToTextEnabled.ToString().ToLowerInvariant();
             var conversationModeEnabled = @Model.ConversationModeEnabled.ToString().ToLowerInvariant();
             var textToSpeechEnabled = @Model.TextToSpeechEnabled.ToString().ToLowerInvariant();
             var ttsVoiceName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.TextToSpeechVoiceName));
+            var deploymentSelect = document.getElementById('setting-deployment');
+
+            function supportsVisionUploads() {
+                if (!deploymentSelect || !deploymentSelect.value) {
+                    return !!defaultChatDeploymentSupportsVision;
+                }
+
+                return !!deploymentVisionSupport[deploymentSelect.value];
+            }
+
+            function updateDocumentUploadUi() {
+                var includeImages = supportsVisionUploads();
+                var fileInput = document.getElementById('chat-doc-upload');
+                var label = document.getElementById('chat-doc-upload-label');
+                var description = document.getElementById('chat-doc-upload-description');
+                var hint = document.getElementById('chat-doc-upload-hint');
+
+                if (fileInput) {
+                    fileInput.accept = includeImages ? visionSupportedExtensionsAccept : baseSupportedExtensionsAccept;
+                }
+
+                if (label) {
+                    label.innerHTML = '<i class="bi bi-paperclip"></i> ' + (includeImages ? 'Upload documents and images' : 'Upload documents');
+                }
+
+                if (description) {
+                    description.textContent = includeImages
+                        ? 'or browse for documents and images to upload into this chat interaction'
+                        : 'or browse for documents to upload into this chat interaction';
+                }
+
+                if (hint) {
+                    hint.textContent = 'Supported formats: ' + (includeImages ? visionSupportedExtensionsDisplay : baseSupportedExtensionsDisplay);
+                }
+            }
 
             // --- Markdown rendering ---
             var renderer = new marked.Renderer();
@@ -659,6 +711,12 @@
                     return hljs.highlightAuto(code).value;
                 }
             });
+
+            if (deploymentSelect) {
+                deploymentSelect.addEventListener('change', updateDocumentUploadUi);
+            }
+
+            updateDocumentUploadUi();
 
             // --- Chart.js rendering support ---
             var _chartCounter = 0;

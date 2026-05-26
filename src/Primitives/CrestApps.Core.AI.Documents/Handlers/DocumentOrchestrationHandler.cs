@@ -1,9 +1,11 @@
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Services;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -23,8 +25,13 @@ namespace CrestApps.Core.AI.Documents.Handlers;
 /// </remarks>
 public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
+    private const string VisionUserContentsKey = "VisionUserContents";
+
     private readonly AIToolDefinitionOptions _toolDefinitions;
     private readonly ITemplateService _templateService;
+    private readonly IAIDocumentStore _documentStore;
+    private readonly IDocumentFileStore _fileStore;
+    private readonly IAIDeploymentManager _deploymentManager;
     private readonly ILogger<DocumentOrchestrationHandler> _logger;
 
     /// <summary>
@@ -36,10 +43,16 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
     public DocumentOrchestrationHandler(
         IOptions<AIToolDefinitionOptions> toolDefinitions,
         ITemplateService templateService,
+        IAIDocumentStore documentStore,
+        IDocumentFileStore fileStore,
+        IAIDeploymentManager deploymentManager,
         ILogger<DocumentOrchestrationHandler> logger)
     {
         _toolDefinitions = toolDefinitions.Value;
         _templateService = templateService;
+        _documentStore = documentStore;
+        _fileStore = fileStore;
+        _deploymentManager = deploymentManager;
         _logger = logger;
     }
 
@@ -180,6 +193,13 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             context.OrchestrationContext.SystemMessageBuilder.AppendLine();
             context.OrchestrationContext.SystemMessageBuilder.Append(header);
         }
+
+        var visionContents = await BuildVisionUserContentsAsync(context, userSuppliedDocuments, cancellationToken);
+
+        if (visionContents.Count > 0)
+        {
+            context.OrchestrationContext.Properties[VisionUserContentsKey] = visionContents;
+        }
     }
 
     private static AIDataSourceRagMetadata GetRagMetadata(object resource)
@@ -197,5 +217,104 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         }
 
         return null;
+    }
+
+    private async Task<List<AIContent>> BuildVisionUserContentsAsync(
+        OrchestrationContextBuiltContext context,
+        IEnumerable<ChatDocumentInfo> userSuppliedDocuments,
+        CancellationToken cancellationToken)
+    {
+        if (userSuppliedDocuments?.Any() != true)
+        {
+            return [];
+        }
+
+        var deployment = await ResolveChatDeploymentAsync(context, cancellationToken);
+
+        if (deployment?.Capability.Supports(AIDeploymentCapability.Vision) != true)
+        {
+            return [];
+        }
+
+        var session = context.OrchestrationContext.CompletionContext?.AdditionalProperties is not null
+            && context.OrchestrationContext.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.Session, out var sessionObject)
+            ? sessionObject as AIChatSession
+            : null;
+
+        var reference = GetVisionDocumentReference(context.Resource, session);
+
+        if (reference == null)
+        {
+            return [];
+        }
+
+        var visionDocuments = await _documentStore.GetDocumentsAsync(reference.Value.ReferenceId, reference.Value.ReferenceType);
+        var documentIds = new HashSet<string>(
+            userSuppliedDocuments
+                .Where(document => MediaTypeHelper.IsVisionImageMediaType(document.ContentType) || MediaTypeHelper.IsVisionImageExtension(Path.GetExtension(document.FileName)))
+                .Select(document => document.DocumentId),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (documentIds.Count == 0)
+        {
+            return [];
+        }
+
+        var contents = new List<AIContent>();
+
+        foreach (var document in visionDocuments.Where(document => documentIds.Contains(document.ItemId)))
+        {
+            if (string.IsNullOrWhiteSpace(document.StoredFilePath))
+            {
+                continue;
+            }
+
+            await using var stream = await _fileStore.GetFileAsync(document.StoredFilePath);
+
+            if (stream == null)
+            {
+                continue;
+            }
+
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream, cancellationToken);
+
+            if (memoryStream.Length == 0)
+            {
+                continue;
+            }
+
+            contents.Add(new DataContent(memoryStream.ToArray(), document.ContentType ?? MediaTypeHelper.InferMediaType(Path.GetExtension(document.FileName))));
+        }
+
+        return contents;
+    }
+
+    private async Task<AIDeployment> ResolveChatDeploymentAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken)
+    {
+        var completionContext = context.OrchestrationContext.CompletionContext;
+        var deploymentName = completionContext?.ChatDeploymentName;
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            deploymentName = context.Resource switch
+            {
+                ChatInteraction interaction => interaction.ChatDeploymentName,
+                AIProfile profile => profile.ChatDeploymentName,
+                _ => null,
+            };
+        }
+
+        return await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat, deploymentName: deploymentName, cancellationToken: cancellationToken);
+    }
+
+    private static (string ReferenceId, string ReferenceType)? GetVisionDocumentReference(object resource, AIChatSession session)
+    {
+        return resource switch
+        {
+            ChatInteraction interaction => (interaction.ItemId, AIReferenceTypes.Document.ChatInteraction),
+            AIProfile when session != null => (session.SessionId, AIReferenceTypes.Document.ChatSession),
+            _ => null,
+        };
     }
 }

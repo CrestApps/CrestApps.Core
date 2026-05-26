@@ -30,22 +30,22 @@
                 </select>
             </div>
             <div class="mb-3">
-                <label class="form-label">Deployment types <span class="text-danger">*</span></label>
-                @foreach (var type in Model.Types)
+                <label class="form-label">Deployment capabilities <span class="text-danger">*</span></label>
+                @foreach (var capability in Model.Capabilities)
                 {
-                    var isChecked = Model.SelectedTypes?.Contains(type.Value, StringComparer.OrdinalIgnoreCase) ?? false;
+                    var isChecked = Model.SelectedCapabilities?.Contains(capability.Value, StringComparer.OrdinalIgnoreCase) ?? false;
                     <div class="form-check">
-                        <input id="SelectedTypes_@type.Value"
-                               name="SelectedTypes"
+                        <input id="SelectedCapabilities_@capability.Value"
+                              name="SelectedCapabilities"
                                type="checkbox"
-                               value="@type.Value"
+                              value="@capability.Value"
                                class="form-check-input"
                         @(isChecked ? "checked" : "") />
-                        <label class="form-check-label" for="SelectedTypes_@type.Value">@type.Text</label>
+                        <label class="form-check-label" for="SelectedCapabilities_@capability.Value">@capability.Text</label>
                     </div>
                 }
-                <span asp-validation-for="SelectedTypes" class="text-danger"></span>
-                <div class="form-text">Select one or more capability types for this deployment.</div>
+                <span asp-validation-for="SelectedCapabilities" class="text-danger"></span>
+                <div class="form-text">Select one or more capabilities for this deployment.</div>
             </div>
             <div class="mb-3" id="connectionGroup">
                 <label asp-for="ConnectionName" class="form-label">Connection</label>

@@ -1,22 +1,36 @@
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Services;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 
 namespace CrestApps.Core.Tests.Core.Orchestration;
 
 public sealed class DocumentOrchestrationHandlerTests
 {
-    private static DocumentOrchestrationHandler CreateHandler(AIToolDefinitionOptions toolOptions = null)
+    private static DocumentOrchestrationHandler CreateHandler(
+        AIToolDefinitionOptions toolOptions = null,
+        IAIDocumentStore documentStore = null,
+        IDocumentFileStore fileStore = null,
+        IAIDeploymentManager deploymentManager = null)
     {
         toolOptions ??= new AIToolDefinitionOptions();
 
-        return new DocumentOrchestrationHandler(Options.Create(toolOptions), new FakeAITemplateService(), NullLogger<DocumentOrchestrationHandler>.Instance);
+        return new DocumentOrchestrationHandler(
+            Options.Create(toolOptions),
+            new FakeAITemplateService(),
+            documentStore ?? Mock.Of<IAIDocumentStore>(),
+            fileStore ?? Mock.Of<IDocumentFileStore>(),
+            deploymentManager ?? Mock.Of<IAIDeploymentManager>(),
+            NullLogger<DocumentOrchestrationHandler>.Instance);
     }
 
     private static AIToolDefinitionOptions CreateToolOptionsWithDocTools()
@@ -249,6 +263,78 @@ public sealed class DocumentOrchestrationHandlerTests
         };
         await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
         Assert.False(context.CompletionContext.AdditionalProperties.ContainsKey(AICompletionContextKeys.HasDocuments));
+    }
+
+    [Fact]
+    public async Task BuiltAsync_WithVisionImageDocuments_AddsVisionUserContents()
+    {
+        var documentStore = new Mock<IAIDocumentStore>();
+        var fileStore = new Mock<IDocumentFileStore>();
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+
+        deploymentManager
+            .Setup(manager => manager.ResolveOrDefaultAsync(
+                AIDeploymentCapability.Chat,
+                "vision-chat",
+                null,
+                It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<AIDeployment>(new AIDeployment
+            {
+                Name = "vision-chat",
+                Capability = AIDeploymentCapability.Chat | AIDeploymentCapability.Vision,
+            }));
+
+        documentStore
+            .Setup(store => store.GetDocumentsAsync("interaction1", AIReferenceTypes.Document.ChatInteraction))
+            .ReturnsAsync([
+                new AIDocument
+                {
+                    ItemId = "doc1",
+                    FileName = "image.png",
+                    ContentType = "image/png",
+                    StoredFilePath = "documents/interaction1/image.png",
+                },
+            ]);
+
+        fileStore
+            .Setup(store => store.GetFileAsync("documents/interaction1/image.png"))
+            .ReturnsAsync(new MemoryStream([1, 2, 3]));
+
+        var handler = CreateHandler(
+            CreateToolOptionsWithDocTools(),
+            documentStore.Object,
+            fileStore.Object,
+            deploymentManager.Object);
+        var interaction = new ChatInteraction
+        {
+            ItemId = "interaction1",
+            ChatDeploymentName = "vision-chat",
+        };
+        var context = new OrchestrationContext
+        {
+            CompletionContext = new AICompletionContext
+            {
+                ChatDeploymentName = "vision-chat",
+            },
+            Documents = [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc1",
+                    FileName = "image.png",
+                    ContentType = "image/png",
+                    FileSize = 3,
+                },
+            ],
+        };
+
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(interaction, context), TestContext.Current.CancellationToken);
+
+        Assert.True(context.Properties.TryGetValue("VisionUserContents", out var value));
+
+        var contents = Assert.IsType<List<AIContent>>(value);
+        var imageContent = Assert.IsType<DataContent>(Assert.Single(contents));
+        Assert.Equal("image/png", imageContent.MediaType);
+        Assert.Equal([1, 2, 3], imageContent.Data.ToArray());
     }
 
     private sealed class FakeAITemplateService : ITemplateService

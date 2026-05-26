@@ -38,6 +38,7 @@
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDocumentStore DocumentStore
+@inject IAIDeploymentManager DeploymentManager
 
 <PageTitle>Chat Interaction</PageTitle>
 
@@ -275,21 +276,21 @@ else
                                 }
 
                                 <div class="mt-3">
-                                    <label class="form-label"><i class="bi bi-paperclip"></i> Upload documents</label>
+                                    <label class="form-label"><i class="bi bi-paperclip"></i> @(SupportsVisionUploads ? "Upload documents and images" : "Upload documents")</label>
                                     <div class="document-drop-zone" id="chat-doc-drop-zone">
-                                        <input type="file" class="d-none" id="chat-doc-upload" multiple accept="@_supportedExtensionsAccept" />
+                                        <input type="file" class="d-none" id="chat-doc-upload" multiple accept="@SupportedExtensionsAccept" />
                                         <div class="document-drop-zone__body">
                                             <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
                                             <div>
                                                 <div class="document-drop-zone__title">Drag and drop files here</div>
-                                                <div class="text-muted small">or browse for documents to upload into this chat interaction</div>
+                                                <div class="text-muted small">@(SupportsVisionUploads ? "or browse for documents and images to upload into this chat interaction" : "or browse for documents to upload into this chat interaction")</div>
                                             </div>
                                             <div class="document-drop-zone__actions">
                                                 <button type="button" class="btn btn-outline-primary" id="chat-doc-browse" data-drop-zone-browse>
                                                     <i class="bi bi-folder2-open"></i> Browse files
                                                 </button>
                                             </div>
-                                            <div class="form-text mb-0">Supported formats: @_supportedExtensionsDisplay</div>
+                                            <div class="form-text mb-0">Supported formats: @SupportedExtensionsDisplay</div>
                                         </div>
                                     </div>
                                     <div id="chat-doc-upload-status" class="small mt-2 d-none"></div>
@@ -504,9 +505,6 @@ else
     private ChatInteractionChatViewModel _model;
     private IReadOnlyList<ChatMessageViewModel> _messages = [];
     private string _promptTemplateSearchTerm;
-    private string _supportedExtensionsAccept;
-    private string _supportedExtensionsDisplay;
-
     protected override async Task OnInitializedAsync()
     {
         await LoadChatAsync();
@@ -657,9 +655,6 @@ else
             _model.HasDocumentIndexConfiguration = documentIndexProfile != null;
         }
 
-        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
-        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
-
         await PopulateChatDropdownsAsync(_model, settings);
 
         _messages = (await PromptStore.GetPromptsAsync(Id))
@@ -683,6 +678,10 @@ else
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
             .ToList();
+        model.DeploymentVisionSupport = deployments
+            .Where(d => d.Capability.Supports(AIDeploymentCapability.Chat))
+            .ToDictionary(d => d.Name, d => d.Capability.Supports(AIDeploymentCapability.Vision), StringComparer.OrdinalIgnoreCase);
+        model.DefaultChatDeploymentSupportsVision = (await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Chat))?.Capability.Supports(AIDeploymentCapability.Vision) == true;
 
         var orchestratorOptions = OrchestratorOptionsAccessor.Value;
         var orchestrators = orchestratorOptions.GetOrchestratorDescriptors();
@@ -776,6 +775,24 @@ else
                 (!string.IsNullOrWhiteSpace(template.Category) && template.Category.Contains(_promptTemplateSearchTerm, StringComparison.OrdinalIgnoreCase)))
             .GroupBy(template => template.Category)
             .OrderBy(group => group.Key);
+
+    private bool SupportsVisionUploads => TrySupportsVision(_model?.ChatDeploymentName);
+
+    private string SupportedExtensionsAccept => ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(SupportsVisionUploads);
+
+    private string SupportedExtensionsDisplay => ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(SupportsVisionUploads);
+
+    private bool TrySupportsVision(string deploymentName)
+    {
+        if (_model?.DeploymentVisionSupport != null &&
+            !string.IsNullOrWhiteSpace(deploymentName) &&
+            _model.DeploymentVisionSupport.TryGetValue(deploymentName, out var supportsVision))
+        {
+            return supportsVision;
+        }
+
+        return _model?.DefaultChatDeploymentSupportsVision == true;
+    }
 
     private bool HasFilteredPromptTemplates => FilteredPromptTemplateGroups.Any();
 

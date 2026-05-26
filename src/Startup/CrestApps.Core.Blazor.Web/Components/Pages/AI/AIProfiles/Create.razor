@@ -1371,12 +1371,12 @@
         await PopulateVoiceOptionsAsync(allDeployments);
 
         _model.ChatDeployments = allDeployments
-            .Where(d => d.Type.Supports(AIDeploymentType.Chat))
+            .Where(d => d.Capability.Supports(AIDeploymentCapability.Chat))
             .Select(d => new KeyValuePair<string, string>(BuildDeploymentLabel(d), d.Name))
             .ToList();
 
         _model.UtilityDeployments = allDeployments
-            .Where(d => d.Type.Supports(AIDeploymentType.Utility) || d.Type.Supports(AIDeploymentType.Chat))
+            .Where(d => d.Capability.Supports(AIDeploymentCapability.Utility) || d.Capability.Supports(AIDeploymentCapability.Chat))
             .Select(d => new KeyValuePair<string, string>(BuildDeploymentLabel(d), d.Name))
             .ToList();
 

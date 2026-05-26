@@ -415,7 +415,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         // Ensure the current user message is always included as the last message.
         if (messages.Count == 0 || messages[^1].Text != context.UserMessage)
         {
-            messages.Add(new ChatMessage(ChatRole.User, context.UserMessage));
+            messages.Add(CreateCurrentUserMessage(context));
         }
 
         return messages;
@@ -446,6 +446,26 @@ public sealed class DefaultOrchestrator : IOrchestrator
         return sb.ToString();
     }
 
+    private static ChatMessage CreateCurrentUserMessage(OrchestrationContext context)
+    {
+        if (!context.Properties.TryGetValue("VisionUserContents", out var value) || value is not List<AIContent> visionContents || visionContents.Count == 0)
+        {
+            return new ChatMessage(ChatRole.User, context.UserMessage);
+        }
+
+        var contents = new List<AIContent>
+        {
+            new TextContent(context.UserMessage),
+        };
+
+        contents.AddRange(visionContents);
+
+        return new ChatMessage(ChatRole.User, context.UserMessage)
+        {
+            Contents = contents,
+        };
+    }
+
     /// <summary>
     /// Attempts to create a chat client using the utility deployment,
     /// falling back to the chat deployment if no utility deployment is configured.
@@ -471,7 +491,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private async Task<AIDeployment> ResolveChatDeploymentAsync(OrchestrationContext context)
     {
         return await _deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentType.Chat,
+            AIDeploymentCapability.Chat,
             deploymentName: context.CompletionContext?.ChatDeploymentName)
         ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the orchestration context.");
     }

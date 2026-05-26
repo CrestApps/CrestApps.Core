@@ -70,6 +70,7 @@ public static class UploadChatSessionDocument
             [FromServices] IAIDocumentChunkStore chunkStore,
             [FromServices] IDocumentFileStore fileStore,
             [FromServices] IAIDocumentProcessingService documentProcessingService,
+            [FromServices] TimeProvider timeProvider,
             [FromServices] IAuthorizationService authorizationService,
             [FromServices] IEnumerable<IAIChatDocumentEventHandler> eventHandlers,
             [FromServices] IOptions<ChatDocumentsOptions> documentOptions,
@@ -143,8 +144,9 @@ public static class UploadChatSessionDocument
             }
 
             var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
-            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding, clientName: deployment?.ClientName);
+            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentCapability.Embedding, clientName: deployment?.ClientName);
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
+            var allowVisionImages = SupportsVisionUploads(deployment);
             var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
             var S = localizerFactory.Create(typeof(AIChatDocumentEndpointBase));
             session.Documents ??= [];
@@ -172,6 +174,8 @@ public static class UploadChatSessionDocument
                     documentStore,
                     chunkStore,
                     fileStore,
+                    timeProvider,
+                    allowVisionImages,
                     logger,
                     S);
                 if (!result.Success)

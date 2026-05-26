@@ -114,6 +114,18 @@ else
                         </div>
 
                         <div class="mb-3">
+                            <label for="defaultVision" class="form-label">Default vision deployment</label>
+                            <select id="defaultVision" class="form-select" @bind="_model.DefaultVisionDeploymentName">
+                                <option value="">None</option>
+                                @foreach (var d in _model.VisionDeployments)
+                                {
+                                    <option value="@d.Key">@d.Value</option>
+                                }
+                            </select>
+                            <div class="form-text">The default deployment used for vision-capable chat and image understanding.</div>
+                        </div>
+
+                        <div class="mb-3">
                             <label for="defaultStt" class="form-label">Default speech-to-text deployment</label>
                             <select id="defaultStt" class="form-select" @bind="_model.DefaultSpeechToTextDeploymentName">
                                 <option value="">None</option>
@@ -691,6 +703,7 @@ else
             DefaultUtilityDeploymentName = deploymentDefaults.DefaultUtilityDeploymentName,
             DefaultEmbeddingDeploymentName = deploymentDefaults.DefaultEmbeddingDeploymentName,
             DefaultImageDeploymentName = deploymentDefaults.DefaultImageDeploymentName,
+            DefaultVisionDeploymentName = deploymentDefaults.DefaultVisionDeploymentName,
             DefaultSpeechToTextDeploymentName = deploymentDefaults.DefaultSpeechToTextDeploymentName,
             DefaultTextToSpeechDeploymentName = deploymentDefaults.DefaultTextToSpeechDeploymentName,
             DefaultTextToSpeechVoiceId = deploymentDefaults.DefaultTextToSpeechVoiceId,
@@ -731,12 +744,13 @@ else
 
     private async Task PopulateDropdownsAsync()
     {
-        _model.ChatDeployments = await BuildDeploymentItemsAsync(AIDeploymentType.Chat);
-        _model.UtilityDeployments = await BuildDeploymentItemsAsync(AIDeploymentType.Utility);
-        _model.EmbeddingDeployments = await BuildDeploymentItemsAsync(AIDeploymentType.Embedding);
-        _model.ImageDeployments = await BuildDeploymentItemsAsync(AIDeploymentType.Image);
-        _model.SpeechToTextDeployments = await BuildDeploymentItemsAsync(AIDeploymentType.SpeechToText);
-        _model.TextToSpeechDeployments = await BuildDeploymentItemsAsync(AIDeploymentType.TextToSpeech);
+        _model.ChatDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Chat);
+        _model.UtilityDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Utility);
+        _model.EmbeddingDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Embedding);
+        _model.ImageDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Image);
+        _model.VisionDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.Vision);
+        _model.SpeechToTextDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.SpeechToText);
+        _model.TextToSpeechDeployments = await BuildDeploymentItemsAsync(AIDeploymentCapability.TextToSpeech);
 
         _model.ChatInteractionModes =
         [
@@ -809,9 +823,9 @@ else
             .Build(models, _model.AnthropicDefaultModel, claudeSettings.DefaultModel);
     }
 
-    private async Task<List<KeyValuePair<string, string>>> BuildDeploymentItemsAsync(AIDeploymentType type)
+    private async Task<List<KeyValuePair<string, string>>> BuildDeploymentItemsAsync(AIDeploymentCapability capability)
     {
-        var deployments = await DeploymentManager.GetByTypeAsync(type);
+        var deployments = await DeploymentManager.GetByCapabilityAsync(capability);
 
         return deployments
             .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
@@ -942,6 +956,7 @@ else
             DefaultUtilityDeploymentName = _model.DefaultUtilityDeploymentName,
             DefaultEmbeddingDeploymentName = _model.DefaultEmbeddingDeploymentName,
             DefaultImageDeploymentName = _model.DefaultImageDeploymentName,
+            DefaultVisionDeploymentName = _model.DefaultVisionDeploymentName,
             DefaultSpeechToTextDeploymentName = _model.DefaultSpeechToTextDeploymentName,
             DefaultTextToSpeechDeploymentName = _model.DefaultTextToSpeechDeploymentName,
             DefaultTextToSpeechVoiceId = _model.DefaultTextToSpeechVoiceId?.Trim(),

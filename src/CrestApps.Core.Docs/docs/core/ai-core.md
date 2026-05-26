@@ -35,7 +35,9 @@ See [AI Profiles](./ai-profiles.md) for the full conceptual model and guidance.
 
 ### Deployment
 
-A **deployment** maps a logical name to a specific model on a specific provider connection. For example, deployment `"gpt-4o"` might map to the `gpt-4o` model on your OpenAI connection. The orchestrator resolves deployments at runtime using a fallback chain:
+A **deployment** maps a logical name to a specific model on a specific provider connection. For example, deployment `"gpt-4o"` might map to the `gpt-4o` model on your OpenAI connection. Deployments now advertise one or more **capabilities** through `AIDeploymentCapability` (`Chat`, `Utility`, `Embedding`, `Image`, `SpeechToText`, `TextToSpeech`, `Vision`) so the runtime can resolve the best deployment for each task while preserving the older legacy type API for backward compatibility.
+
+The orchestrator resolves deployments at runtime using a fallback chain:
 
 1. Profile-level deployment override
 2. Connection-level default deployment
@@ -164,12 +166,17 @@ Global default deployment settings, typically loaded from configuration:
 {
   "CrestApps": {
     "AI": {
-      "DefaultDeploymentName": "gpt-4o",
+      "DefaultChatDeploymentName": "gpt-4o",
+      "DefaultUtilityDeploymentName": "gpt-4o-mini",
+      "DefaultEmbeddingDeploymentName": "text-embedding-3-large",
+      "DefaultVisionDeploymentName": "gpt-4o",
       "DefaultConnectionName": "my-openai"
     }
   }
 }
 ```
+
+Use `DefaultVisionDeploymentName` when chat and document flows need a default deployment that can accept image inputs.
 
 ## Streaming Example
 

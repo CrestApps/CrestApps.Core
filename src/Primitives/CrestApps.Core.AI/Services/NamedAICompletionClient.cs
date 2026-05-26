@@ -144,7 +144,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
         var deployment = await ResolveDeploymentAsync(
-            AIDeploymentType.Chat,
+            AIDeploymentCapability.Chat,
             ClientName,
             deploymentName: context.ChatDeploymentName);
 
@@ -197,7 +197,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         // Use the deployment resolver with fallback to legacy dictionary-based resolution.
         var deployment = await ResolveDeploymentAsync(
-            AIDeploymentType.Chat,
+            AIDeploymentCapability.Chat,
             ClientName,
             deploymentName: context.ChatDeploymentName);
 
@@ -231,7 +231,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
     private static List<ChatMessage> GetPrompts(IEnumerable<ChatMessage> messages, AICompletionContext context)
     {
-        var chatMessages = messages.Where(x => (x.Role == ChatRole.User || x.Role == ChatRole.Assistant) && !string.IsNullOrEmpty(x.Text));
+        var chatMessages = messages.Where(static x =>
+            (x.Role == ChatRole.User || x.Role == ChatRole.Assistant) &&
+            (!string.IsNullOrEmpty(x.Text) || x.Contents is { Count: > 0 }));
 
         var prompts = new List<ChatMessage>();
 

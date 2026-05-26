@@ -16,7 +16,7 @@ public sealed class AIDeploymentViewModel
 
     public string TechnicalName { get; set; }
 
-    public string[] SelectedTypes { get; set; } = [];
+    public string[] SelectedCapabilities { get; set; } = [];
 
     public string ConnectionName { get; set; }
 
@@ -37,7 +37,7 @@ public sealed class AIDeploymentViewModel
 
     public List<KeyValuePair<string, string>> AuthenticationTypes { get; set; } = [];
 
-    public List<KeyValuePair<string, string>> Types { get; set; } = [];
+    public List<KeyValuePair<string, string>> Capabilities { get; set; } = [];
 
     public static AIDeploymentViewModel FromDeployment(AIDeployment deployment)
     {
@@ -46,8 +46,8 @@ public sealed class AIDeploymentViewModel
             ItemId = deployment.ItemId,
             ModelName = deployment.ModelName,
             TechnicalName = deployment.Name,
-            SelectedTypes = deployment.Type.GetSupportedTypes()
-                .Select(static type => type.ToString())
+            SelectedCapabilities = deployment.Capability.GetSupportedCapabilities()
+                .Select(static capability => capability.ToString())
             .ToArray(),
             ConnectionName = deployment.ConnectionName,
             ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
@@ -67,7 +67,7 @@ public sealed class AIDeploymentViewModel
     {
         deployment.Name = TechnicalName;
         deployment.ModelName = ModelName;
-        deployment.Type = GetDeploymentType();
+        deployment.Capability = GetDeploymentCapability();
         deployment.ConnectionName = ConnectionName;
         deployment.ClientName = AIProviderNameNormalizer.Normalize(ClientName);
 
@@ -97,25 +97,25 @@ public sealed class AIDeploymentViewModel
         }
     }
 
-    public AIDeploymentType GetDeploymentType()
+    public AIDeploymentCapability GetDeploymentCapability()
     {
-        var deploymentType = AIDeploymentType.None;
+        var deploymentCapability = AIDeploymentCapability.None;
 
-        if (SelectedTypes is null)
+        if (SelectedCapabilities is null)
         {
-            return deploymentType;
+            return deploymentCapability;
         }
 
-        foreach (var typeName in SelectedTypes.Where(static value => !string.IsNullOrWhiteSpace(value)))
+        foreach (var capabilityName in SelectedCapabilities.Where(static value => !string.IsNullOrWhiteSpace(value)))
         {
-            if (Enum.TryParse<AIDeploymentType>(typeName, ignoreCase: true, out var parsedType)
-                && parsedType != AIDeploymentType.None)
+            if (Enum.TryParse<AIDeploymentCapability>(capabilityName, ignoreCase: true, out var parsedCapability)
+                && parsedCapability != AIDeploymentCapability.None)
             {
-                deploymentType |= parsedType;
+                deploymentCapability |= parsedCapability;
             }
         }
 
-        return deploymentType;
+        return deploymentCapability;
     }
 
     public bool UsesStandaloneProvider()

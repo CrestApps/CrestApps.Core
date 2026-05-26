@@ -1,12 +1,11 @@
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
-/// Legacy flags enumeration defining AI deployment types.
-/// Use <see cref="AIDeploymentCapability"/> for new code.
+/// Flags enumeration defining the capabilities supported by an AI deployment.
+/// Multiple capabilities can be combined using bitwise OR.
 /// </summary>
 [Flags]
-[Obsolete("Use AIDeploymentCapability instead. Retained for backward compatibility.")]
-public enum AIDeploymentType
+public enum AIDeploymentCapability
 {
     /// <summary>
     /// No capabilities are assigned.
@@ -42,4 +41,9 @@ public enum AIDeploymentType
     /// Text-to-speech synthesis capability.
     /// </summary>
     TextToSpeech = 1 << 5,
+
+    /// <summary>
+    /// Vision capability for understanding image inputs in chat-style interactions.
+    /// </summary>
+    Vision = 1 << 6,
 }

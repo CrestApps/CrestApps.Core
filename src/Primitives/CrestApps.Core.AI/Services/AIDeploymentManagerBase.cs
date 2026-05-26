@@ -43,14 +43,14 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     }
 
     /// <summary>
-    /// Gets by type.
+    /// Gets by capability.
     /// </summary>
-    /// <param name="type">The type.</param>
+    /// <param name="capability">The capability.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default)
+    public async ValueTask<IEnumerable<AIDeployment>> GetByCapabilityAsync(AIDeploymentCapability capability, CancellationToken cancellationToken = default)
     {
         var deployments = (await Catalog.GetAllAsync(cancellationToken))
-            .Where(x => x.SupportsType(type));
+            .Where(x => x.SupportsCapability(capability));
 
         foreach (var deployment in deployments)
         {
@@ -61,43 +61,79 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     }
 
     /// <summary>
+    /// Gets by legacy type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use GetByCapabilityAsync instead.")]
+    public ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default)
+    {
+        return GetByCapabilityAsync(type.ToCapability(), cancellationToken);
+    }
+
+    /// <summary>
     /// Gets default.
     /// </summary>
     /// <param name="clientName">The client name.</param>
-    /// <param name="type">The type.</param>
+    /// <param name="capability">The capability.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
+    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentCapability capability, CancellationToken cancellationToken = default)
     {
         var deployments = await GetAllAsync(clientName, cancellationToken);
 
-        var candidates = deployments.Where(d => d.SupportsType(type));
+        var candidates = deployments.Where(d => d.SupportsCapability(capability));
 
         return candidates.FirstOrDefault();
     }
 
     /// <summary>
+    /// Gets default for a legacy type.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use the capability overload instead.")]
+    public ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
+    {
+        return GetDefaultAsync(clientName, type.ToCapability(), cancellationToken);
+    }
+
+    /// <summary>
     /// Resolves or default.
+    /// </summary>
+    /// <param name="capability">The capability.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentCapability capability, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
+    {
+        return ResolveByCapabilityAsync(capability, deploymentName, clientName, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves or default for a legacy type.
     /// </summary>
     /// <param name="type">The type.</param>
     /// <param name="deploymentName">The deployment name.</param>
     /// <param name="clientName">The client name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use the capability overload instead.")]
     public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
     {
-        return ResolveByTypeAsync(type, deploymentName, clientName, cancellationToken);
+        return ResolveOrDefaultAsync(type.ToCapability(), deploymentName, clientName, cancellationToken);
     }
 
     /// <summary>
-    /// Gets all by type.
+    /// Gets all by capability.
     /// </summary>
-    /// <param name="type">The type.</param>
+    /// <param name="capability">The capability.</param>
     /// <param name="clientName">The client name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default)
+    public async ValueTask<IEnumerable<AIDeployment>> GetAllByCapabilityAsync(AIDeploymentCapability capability, string clientName = null, CancellationToken cancellationToken = default)
     {
         var allDeployments = await GetAllAsync(cancellationToken);
 
-        var filtered = allDeployments.Where(d => d.SupportsType(type));
+        var filtered = allDeployments.Where(d => d.SupportsCapability(capability));
 
         if (!string.IsNullOrEmpty(clientName))
         {
@@ -107,7 +143,19 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return filtered;
     }
 
-    private async ValueTask<AIDeployment> ResolveByTypeAsync(AIDeploymentType type, string deploymentName, string clientName, CancellationToken cancellationToken)
+    /// <summary>
+    /// Gets all by legacy type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use GetAllByCapabilityAsync instead.")]
+    public ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default)
+    {
+        return GetAllByCapabilityAsync(type.ToCapability(), clientName, cancellationToken);
+    }
+
+    private async ValueTask<AIDeployment> ResolveByCapabilityAsync(AIDeploymentCapability capability, string deploymentName, string clientName, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrEmpty(deploymentName))
         {
@@ -119,7 +167,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
             }
         }
 
-        var globalDefaultId = await GetGlobalDefaultSelectorAsync(type);
+        var globalDefaultId = await GetGlobalDefaultSelectorAsync(capability);
 
         if (!string.IsNullOrEmpty(globalDefaultId))
         {
@@ -131,16 +179,16 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
             }
         }
 
-        return await GetFirstMatchingDeploymentAsync(type, clientName, cancellationToken);
+        return await GetFirstMatchingDeploymentAsync(capability, clientName, cancellationToken);
     }
 
-    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentType type, string clientName, CancellationToken cancellationToken)
+    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentCapability capability, string clientName, CancellationToken cancellationToken)
     {
         var deployments = await GetAllAsync(cancellationToken);
 
         return deployments.FirstOrDefault(deployment =>
                 {
-                    if (!deployment.SupportsType(type))
+                    if (!deployment.SupportsCapability(capability))
                     {
                         return false;
                     }
@@ -167,18 +215,19 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return await FindByNameAsync(selector, cancellationToken);
     }
 
-    private async ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentType type)
+    private async ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentCapability capability)
     {
         var settings = await GetDefaultAIDeploymentSettingsAsync();
 
-        return type switch
+        return capability switch
         {
-            AIDeploymentType.Chat => settings.DefaultChatDeploymentName,
-            AIDeploymentType.Utility => settings.DefaultUtilityDeploymentName,
-            AIDeploymentType.Embedding => settings.DefaultEmbeddingDeploymentName,
-            AIDeploymentType.Image => settings.DefaultImageDeploymentName,
-            AIDeploymentType.SpeechToText => settings.DefaultSpeechToTextDeploymentName,
-            AIDeploymentType.TextToSpeech => settings.DefaultTextToSpeechDeploymentName,
+            AIDeploymentCapability.Chat => settings.DefaultChatDeploymentName,
+            AIDeploymentCapability.Utility => settings.DefaultUtilityDeploymentName,
+            AIDeploymentCapability.Embedding => settings.DefaultEmbeddingDeploymentName,
+            AIDeploymentCapability.Image => settings.DefaultImageDeploymentName,
+            AIDeploymentCapability.Vision => settings.DefaultVisionDeploymentName,
+            AIDeploymentCapability.SpeechToText => settings.DefaultSpeechToTextDeploymentName,
+            AIDeploymentCapability.TextToSpeech => settings.DefaultTextToSpeechDeploymentName,
             _ => null,
         };
     }

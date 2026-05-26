@@ -577,10 +577,10 @@ public sealed class PostSessionProcessingServiceTests
                 Name = TestDeploymentName,
                 ClientName = TestProviderName,
                 ConnectionName = TestConnectionName,
-                Type = AIDeploymentType.Chat,
+                Capability = AIDeploymentCapability.Chat,
             };
             mockDeploymentManager.Setup(d => d
-                .ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>()))
+                .ResolveOrDefaultAsync(It.IsAny<AIDeploymentCapability>(), It.IsAny<string>(), It.IsAny<string>()))
                 .ReturnsAsync(deployment);
         }
 

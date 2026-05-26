@@ -364,7 +364,7 @@ public sealed class DefaultOrchestratorTests
     {
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager.Setup(d => d
-            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentType>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentCapability>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "test-dep",
