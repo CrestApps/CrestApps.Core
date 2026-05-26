@@ -19,6 +19,7 @@ using CrestApps.Core.AI.Mcp.Sftp;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
+using CrestApps.Core.AI.PostgreSQL;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Blazor.Web;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Endpoints;
@@ -29,6 +30,7 @@ using CrestApps.Core.Blazor.Web.Services;
 using CrestApps.Core.Blazor.Web.Tools;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Elasticsearch;
+using CrestApps.Core.PostgreSQL;
 using CrestApps.Core.SignalR;
 using CrestApps.Core.Startup.Shared.Areas.AIChat.BackgroundServices;
 using CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
@@ -132,6 +134,11 @@ builder.Services
             .AddAIMemory()
         )
         .AddAzureAISearch(builder.Configuration.GetSection("CrestApps:AzureAISearch"), azureAISearch => azureAISearch
+            .AddAIDocuments()
+            .AddAIDataSources()
+            .AddAIMemory()
+        )
+        .AddPostgreSQL(builder.Configuration.GetSection("CrestApps:PostgreSQL"), postgreSQL => postgreSQL
             .AddAIDocuments()
             .AddAIDataSources()
             .AddAIMemory()

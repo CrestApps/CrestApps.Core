@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.PostgreSQL</RootNamespace>
+    <Title>CrestApps PostgreSQL</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      PostgreSQL integration services for search index management, document indexing, vector search, and data source access using pgvector.
+    </Description>
+    <PackageTags>$(PackageTags) postgresql pgvector vector-search indexing rag</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Pgvector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Infrastructure.Abstractions/CrestApps.Core.Infrastructure.Abstractions.csproj" />
+    <ProjectReference Include="../CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Utilities\CrestApps.Core.Support\CrestApps.Core.Support.csproj" />
+  </ItemGroup>
+
+</Project>

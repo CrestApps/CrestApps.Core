@@ -18,8 +18,10 @@ using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
+using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.PostgreSQL;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
 using CrestApps.Core.Mvc.Web.Areas.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
@@ -100,10 +102,17 @@ internal static class YesSqlServiceCollectionExtensions
             })
         );
         services.Configure<IndexProfileSourceOptions>(options => options
-            .AddOrUpdate(ElasticsearchConstants.ProviderName, "Azure AI Search", IndexProfileTypes.Articles, descriptor =>
+            .AddOrUpdate(AISearchConstants.ProviderName, "Azure AI Search", IndexProfileTypes.Articles, descriptor =>
             {
                 descriptor.DisplayName = "Articles";
                 descriptor.Description = "Create an Azure AI Search index for sample article records managed in the MVC app.";
+            })
+        );
+        services.Configure<IndexProfileSourceOptions>(options => options
+            .AddOrUpdate(PostgreSQLConstants.ProviderName, "PostgreSQL", IndexProfileTypes.Articles, descriptor =>
+            {
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create a PostgreSQL index for sample article records managed in the MVC app.";
             })
         );
 
