@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Chat
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
@@ -14,6 +15,7 @@
 @inject IJSRuntime JS
 @inject SiteSettingsStore SiteSettings
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
+@inject IAIDeploymentManager DeploymentManager
 
 <PageTitle>Chat - @(_profileDisplayText ?? "AI Chat") - Blazor AI Integration Sample</PageTitle>
 
@@ -130,6 +132,7 @@ else
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
     private IReadOnlyList<ChatDocumentInfo> _existingDocuments = Array.Empty<ChatDocumentInfo>();
+    private bool _supportsVisionUploads;
 
     protected override async Task OnInitializedAsync()
     {
@@ -185,8 +188,9 @@ else
             _ => ChatMode.TextInput,
         };
 
-        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
-        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+        _supportsVisionUploads = await SupportsVisionUploadsAsync(_profile);
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_supportsVisionUploads);
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_supportsVisionUploads);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -222,5 +226,13 @@ else
                 supportedExtensionsText = _supportedExtensionsDisplay,
             });
         }
+    }
+
+    private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
+    {
+        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
+
+        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 }

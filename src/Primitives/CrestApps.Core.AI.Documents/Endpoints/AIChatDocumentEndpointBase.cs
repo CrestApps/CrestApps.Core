@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Localization;
@@ -29,6 +30,8 @@ public abstract class AIChatDocumentEndpointBase
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
+        TimeProvider timeProvider,
+        bool allowVisionImages,
         ILogger logger,
         IStringLocalizer S)
     {
@@ -44,7 +47,18 @@ public abstract class AIChatDocumentEndpointBase
 
         var extension = Path.GetExtension(file.FileName);
 
-        if (!documentOptions.AllowedFileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        if (MediaTypeHelper.IsVisionImageExtension(extension) && !allowVisionImages)
+        {
+            return (false, S["Image uploads require a vision-capable chat deployment."].Value, null);
+        }
+
+        if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension) &&
+            documentOptions.MaxVisionImageBytesPerFile > 0 && file.Length > documentOptions.MaxVisionImageBytesPerFile)
+        {
+            return (false, S["The uploaded image exceeds the maximum allowed size of {0} MB.", documentOptions.MaxVisionImageBytesPerFile / (1024 * 1024)].Value, null);
+        }
+
+        if (!documentOptions.IsAllowedFileExtension(extension, allowVisionImages))
         {
             return (false, S["File type '{0}' is not supported.", extension].Value, null);
         }
@@ -58,49 +72,14 @@ public abstract class AIChatDocumentEndpointBase
 
         try
         {
+            if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension))
+            {
+                return await ProcessVisionImageAsync(file, referenceId, referenceType, documentStore, fileStore, timeProvider);
+            }
+
             var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator);
-            if (result == null)
-            {
-                logger.LogError("Document processing returned no result for file {FileName}", file.FileName);
 
-                return (false, S["Failed to process file."].Value, null);
-            }
-
-            if (!result.Success)
-            {
-                return (false, result.Error, null);
-            }
-
-            if (result.Document == null || result.DocumentInfo == null)
-            {
-                logger.LogError("Document processing returned an incomplete result for file {FileName}", file.FileName);
-
-                return (false, S["Failed to process file."].Value, null);
-            }
-
-            var (storedFileName, storagePath) = DocumentFileStoragePath.Create(referenceType, referenceId, file.FileName);
-
-            using (var stream = file.OpenReadStream())
-            {
-                await fileStore.SaveFileAsync(storagePath, stream);
-            }
-
-            result.Document.StoredFileName = storedFileName;
-            result.Document.StoredFilePath = storagePath;
-
-            await documentStore.CreateAsync(result.Document);
-            foreach (var chunk in result.Chunks ?? [])
-            {
-                await chunkStore.CreateAsync(chunk);
-            }
-
-            return (true, null, new AIChatUploadedDocument
-            {
-                File = file,
-                Document = result.Document,
-                DocumentInfo = result.DocumentInfo,
-                Chunks = result.Chunks ?? [],
-            });
+            return await PersistProcessedDocumentAsync(file, referenceId, referenceType, result, documentStore, chunkStore, fileStore, logger, S);
         }
         catch (Exception ex)
         {
@@ -108,6 +87,15 @@ public abstract class AIChatDocumentEndpointBase
 
             return (false, S["Failed to process file."].Value, null);
         }
+    }
+
+    /// <summary>
+    /// Determines whether the deployment supports vision uploads.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    protected static bool SupportsVisionUploads(AIDeployment deployment)
+    {
+        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 
     /// <summary>
@@ -143,8 +131,8 @@ public abstract class AIChatDocumentEndpointBase
     /// <param name="deploymentManager">The deployment manager.</param>
     protected static async Task<AIDeployment> ResolveSessionDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
     {
-        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Utility, deploymentName: profile.UtilityDeploymentName);
+        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
     }
 
     /// <summary>
@@ -177,5 +165,115 @@ public abstract class AIChatDocumentEndpointBase
         {
             await handler.RemovedAsync(context, cancellationToken);
         }
+    }
+
+    private static async Task<(bool Success, string Error, AIChatUploadedDocument UploadedDocument)> PersistProcessedDocumentAsync(
+        IFormFile file,
+        string referenceId,
+        string referenceType,
+        DocumentProcessingResult result,
+        IAIDocumentStore documentStore,
+        IAIDocumentChunkStore chunkStore,
+        IDocumentFileStore fileStore,
+        ILogger logger,
+        IStringLocalizer S)
+    {
+        if (result == null)
+        {
+            logger.LogError("Document processing returned no result for file {FileName}", file.FileName);
+
+            return (false, S["Failed to process file."].Value, null);
+        }
+
+        if (!result.Success)
+        {
+            return (false, result.Error, null);
+        }
+
+        if (result.Document == null || result.DocumentInfo == null)
+        {
+            logger.LogError("Document processing returned an incomplete result for file {FileName}", file.FileName);
+
+            return (false, S["Failed to process file."].Value, null);
+        }
+
+        var (storedFileName, storagePath) = DocumentFileStoragePath.Create(referenceType, referenceId, file.FileName);
+
+        using (var stream = file.OpenReadStream())
+        {
+            await fileStore.SaveFileAsync(storagePath, stream);
+        }
+
+        result.Document.StoredFileName = storedFileName;
+        result.Document.StoredFilePath = storagePath;
+
+        await documentStore.CreateAsync(result.Document);
+
+        foreach (var chunk in result.Chunks ?? [])
+        {
+            await chunkStore.CreateAsync(chunk);
+        }
+
+        return (true, null, new AIChatUploadedDocument
+        {
+            File = file,
+            Document = result.Document,
+            DocumentInfo = result.DocumentInfo,
+            Chunks = result.Chunks ?? [],
+        });
+    }
+
+    private static async Task<(bool Success, string Error, AIChatUploadedDocument UploadedDocument)> ProcessVisionImageAsync(
+        IFormFile file,
+        string referenceId,
+        string referenceType,
+        IAIDocumentStore documentStore,
+        IDocumentFileStore fileStore,
+        TimeProvider timeProvider)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var contentType = MediaTypeHelper.InferMediaType(Path.GetExtension(file.FileName), file.ContentType);
+        var document = new AIDocument
+        {
+            ItemId = UniqueId.GenerateId(),
+            ReferenceId = referenceId,
+            ReferenceType = referenceType,
+            FileName = file.FileName,
+            ContentType = contentType,
+            FileSize = file.Length,
+            UploadedUtc = now,
+        };
+
+        var (storedFileName, storagePath) = DocumentFileStoragePath.Create(referenceType, referenceId, file.FileName);
+
+        using (var stream = file.OpenReadStream())
+        {
+            if (!MediaTypeHelper.HasValidImageSignature(stream))
+            {
+                return (false, "The uploaded file does not contain a valid image.", null);
+            }
+
+            await fileStore.SaveFileAsync(storagePath, stream);
+        }
+
+        document.StoredFileName = storedFileName;
+        document.StoredFilePath = storagePath;
+
+        var documentInfo = new ChatDocumentInfo
+        {
+            DocumentId = document.ItemId,
+            FileName = document.FileName,
+            FileSize = document.FileSize,
+            ContentType = document.ContentType,
+        };
+
+        await documentStore.CreateAsync(document);
+
+        return (true, null, new AIChatUploadedDocument
+        {
+            File = file,
+            Document = document,
+            DocumentInfo = documentInfo,
+        });
     }
 }

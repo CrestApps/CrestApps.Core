@@ -1,12 +1,12 @@
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
-/// Extension methods for the <see cref="AIDeploymentType"/> flags enum.
+/// Legacy extension methods for the <see cref="AIDeploymentType"/> flags enum.
+/// Use <see cref="AIDeploymentPurposeExtensions"/> for new code.
 /// </summary>
+[Obsolete("Use AIDeploymentPurposeExtensions instead.")]
 public static class AIDeploymentTypeExtensions
 {
-    private static readonly AIDeploymentType _allSupportedTypes = Enum.GetValues<AIDeploymentType>().Where(type => type != AIDeploymentType.None).Aggregate(AIDeploymentType.None, static (current, type) => current | type);
-
     /// <summary>
     /// Determines whether the condition is met.
     /// </summary>
@@ -14,7 +14,7 @@ public static class AIDeploymentTypeExtensions
     /// <param name="type">The type.</param>
     public static bool Supports(this AIDeploymentType value, AIDeploymentType type)
     {
-        return type != AIDeploymentType.None && (value & type) == type;
+        return value.ToPurpose().Supports(type.ToPurpose());
     }
 
     /// <summary>
@@ -23,7 +23,7 @@ public static class AIDeploymentTypeExtensions
     /// <param name="value">The value.</param>
     public static bool IsValidSelection(this AIDeploymentType value)
     {
-        return value != AIDeploymentType.None && (value & ~_allSupportedTypes) == 0;
+        return value.ToPurpose().IsValidSelection();
     }
 
     /// <summary>
@@ -32,6 +32,6 @@ public static class AIDeploymentTypeExtensions
     /// <param name="value">The value.</param>
     public static IEnumerable<AIDeploymentType> GetSupportedTypes(this AIDeploymentType value)
     {
-        return Enum.GetValues<AIDeploymentType>().Where(type => value.Supports(type));
+        return value.ToPurpose().GetSupportedPurposes().Select(static purpose => purpose.ToLegacyType());
     }
 }

@@ -1,5 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using Microsoft.AspNetCore.Authorization;
@@ -14,15 +15,18 @@ public sealed class AIChatController : Controller
     private readonly IAIProfileManager _profileManager;
     private readonly IAIChatSessionManager _sessionManager;
     private readonly IAIChatSessionPromptStore _promptStore;
+    private readonly IAIDeploymentManager _deploymentManager;
 
     public AIChatController(
         IAIProfileManager profileManager,
         IAIChatSessionManager sessionManager,
-        IAIChatSessionPromptStore promptStore)
+        IAIChatSessionPromptStore promptStore,
+        IAIDeploymentManager deploymentManager)
     {
         _profileManager = profileManager;
         _sessionManager = sessionManager;
         _promptStore = promptStore;
+        _deploymentManager = deploymentManager;
     }
 
     public async Task<IActionResult> Chat(string sessionId)
@@ -50,6 +54,7 @@ public sealed class AIChatController : Controller
 
         ViewData["Session"] = session;
         ViewData["Prompts"] = prompts;
+        ViewData["SupportsVisionUploads"] = await SupportsVisionUploadsAsync(profile);
 
         return View(profile);
     }
@@ -145,5 +150,13 @@ public sealed class AIChatController : Controller
         }
 
         return View(profile);
+    }
+
+    private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
+    {
+        var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
+
+        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 }

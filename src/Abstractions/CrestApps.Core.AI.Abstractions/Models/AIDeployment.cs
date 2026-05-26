@@ -5,12 +5,13 @@ using CrestApps.Core.Services;
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
-/// Represents a configured AI deployment that maps a technical name and capability type
+/// Represents a configured AI deployment that maps a technical name and deployment purpose
 /// to a specific AI model via a registered client and optional provider connection.
 /// </summary>
 public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, IModifiedUtcAwareModel, ICloneable<AIDeployment>
 {
     private string _modelName;
+    private AIDeploymentPurpose _purpose;
 
     /// <summary>
     /// Gets or sets the technical name of the AI client implementation to use for this deployment.
@@ -57,10 +58,42 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     public string ConnectionName { get; set; }
 
     /// <summary>
-    /// Gets or sets the capability types of this deployment (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech).
-    /// A deployment can support one or more capabilities.
+    /// Gets or sets the purposes of this deployment (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech, Vision).
+    /// A deployment can support one or more purposes.
     /// </summary>
-    public AIDeploymentType Type { get; set; }
+    public AIDeploymentPurpose Purpose
+    {
+        get => _purpose;
+        set => _purpose = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the legacy deployment type flags.
+    /// Use <see cref="Purpose"/> for new code.
+    /// </summary>
+#pragma warning disable CS0618 // Type or member is obsolete
+    [Obsolete("Use Purpose instead. Retained for backward compatibility.")]
+    [JsonIgnore]
+    public AIDeploymentType Type
+    {
+        get => Purpose.ToLegacyType();
+        set => Purpose = value.ToPurpose();
+    }
+
+    [JsonInclude]
+    [JsonPropertyName("Type")]
+    private AIDeploymentType LegacyType
+    {
+        set => Purpose = value.ToPurpose();
+    }
+
+    [JsonInclude]
+    [JsonPropertyName("Capability")]
+    private AIDeploymentPurpose CapabilityAlias
+    {
+        set => Purpose = value;
+    }
+#pragma warning restore CS0618 // Type or member is obsolete
 
     /// <summary>
     /// Gets or sets the UTC timestamp when this deployment was created.
@@ -89,12 +122,23 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     public bool IsReadOnly { get; set; }
 
     /// <summary>
-    /// Determines whether type.
+    /// Determines whether the deployment supports the specified legacy type.
     /// </summary>
     /// <param name="type">The type.</param>
+#pragma warning disable CS0618 // Type or member is obsolete
     public bool SupportsType(AIDeploymentType type)
     {
-        return Type.Supports(type);
+        return Purpose.Supports(type.ToPurpose());
+    }
+#pragma warning restore CS0618 // Type or member is obsolete
+
+    /// <summary>
+    /// Determines whether the deployment supports the specified purpose.
+    /// </summary>
+    /// <param name="purpose">The purpose.</param>
+    public bool SupportsPurpose(AIDeploymentPurpose purpose)
+    {
+        return Purpose.Supports(purpose);
     }
 
     /// <summary>
@@ -109,7 +153,7 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
             ModelName = _modelName,
             Source = Source,
             ConnectionName = ConnectionName,
-            Type = Type,
+            Purpose = Purpose,
             IsReadOnly = IsReadOnly,
             CreatedUtc = CreatedUtc,
             ModifiedUtc = ModifiedUtc,

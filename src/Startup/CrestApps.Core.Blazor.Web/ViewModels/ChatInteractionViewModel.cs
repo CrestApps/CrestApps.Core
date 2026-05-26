@@ -79,6 +79,8 @@ public sealed class ChatInteractionViewModel
     public List<SelectOption> Orchestrators { get; set; } = [];
     public List<SelectOption> CopilotAvailableModels { get; set; } = [];
     public List<SelectOption> AnthropicAvailableModels { get; set; } = [];
+    public Dictionary<string, bool> DeploymentVisionSupport { get; set; } = [];
+    public bool DefaultChatDeploymentSupportsVision { get; set; }
 }
 
 public sealed class SelectOption

@@ -59,6 +59,8 @@ public sealed class SettingsViewModel
 
     public string DefaultImageDeploymentName { get; set; }
 
+    public string DefaultVisionDeploymentName { get; set; }
+
     public string DefaultSpeechToTextDeploymentName { get; set; }
 
     public string DefaultTextToSpeechDeploymentName { get; set; }
@@ -121,6 +123,9 @@ public sealed class SettingsViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> ImageDeployments { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> VisionDeployments { get; set; } = [];
 
     [BindNever]
     public IEnumerable<SelectListItem> SpeechToTextDeployments { get; set; } = [];

@@ -1,10 +1,11 @@
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
-/// Flags enumeration defining the capability types supported by an AI deployment.
-/// Multiple capabilities can be combined using bitwise OR.
+/// Legacy flags enumeration defining AI deployment types.
+/// Use <see cref="AIDeploymentPurpose"/> for new code.
 /// </summary>
 [Flags]
+[Obsolete("Use AIDeploymentPurpose instead. Retained for backward compatibility.")]
 public enum AIDeploymentType
 {
     /// <summary>

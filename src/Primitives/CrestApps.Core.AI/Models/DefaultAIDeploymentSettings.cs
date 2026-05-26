@@ -37,6 +37,12 @@ public sealed class DefaultAIDeploymentSettings
     public string DefaultImageDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the default vision deployment technical name.
+    /// Used globally for image-aware chat interactions when no specific vision-capable deployment is configured.
+    /// </summary>
+    public string DefaultVisionDeploymentName { get; set; }
+
+    /// <summary>
     /// Gets or sets the default speech-to-text deployment technical name.
     /// Used globally for speech-to-text transcription when no specific deployment is configured.
     /// </summary>

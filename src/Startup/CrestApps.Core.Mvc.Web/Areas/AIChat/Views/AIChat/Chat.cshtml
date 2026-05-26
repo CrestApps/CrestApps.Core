@@ -22,8 +22,9 @@
     var placeholderMessage = !string.IsNullOrWhiteSpace(Model.WelcomeMessage)
         ? Model.WelcomeMessage
         : "What do you want to know?";
-    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
-    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+    var supportsVisionUploads = ViewData["SupportsVisionUploads"] as bool? == true;
+    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(supportsVisionUploads);
+    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(supportsVisionUploads);
     var allowSessionDocuments = Model.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocumentsMetadata) && sessionDocumentsMetadata.AllowSessionDocuments;
     var metricsEnabled = Model.TryGet<AnalyticsMetadata>(out var analyticsMetadataVal) && analyticsMetadataVal.EnableSessionMetrics;
     var existingDocuments = session?.Documents ?? [];

@@ -75,9 +75,9 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
             context.Result.Fail(new ValidationResult(S["Model name is required."], [nameof(AIDeployment.ModelName)]));
         }
 
-        if (!context.Model.Type.IsValidSelection())
+        if (!context.Model.Purpose.IsValidSelection())
         {
-            context.Result.Fail(new ValidationResult(S["The deployment type '{0}' is not valid.", context.Model.Type], [nameof(AIDeployment.Type)]));
+            context.Result.Fail(new ValidationResult(S["The deployment purpose '{0}' is not valid.", context.Model.Purpose], [nameof(AIDeployment.Purpose)]));
         }
 
         if (!string.IsNullOrWhiteSpace(context.Model.ClientName) && !_aiOptions.Deployments.ContainsKey(context.Model.ClientName))
@@ -177,9 +177,9 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
             deployment.CreatedUtc = createdUtc;
         }
 
-        if (TryGetDeploymentType(json, out var type))
+        if (TryGetDeploymentCapability(json, out var purpose))
         {
-            deployment.Type = type;
+            deployment.Purpose = purpose;
         }
 
         MergeProperties(deployment, json);
@@ -187,38 +187,53 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
         return Task.CompletedTask;
     }
 
-    private static bool TryGetDeploymentType(JsonObject json, out AIDeploymentType type)
+    private static bool TryGetDeploymentCapability(JsonObject json, out AIDeploymentPurpose capability)
     {
-        type = AIDeploymentType.None;
+        capability = AIDeploymentPurpose.None;
 
-        if (json is null || !json.TryGetPropertyValue(nameof(AIDeployment.Type), out var typeNode) || typeNode is null)
+        if (json is null)
         {
             return false;
         }
 
-        if (typeNode is JsonArray array)
+        JsonNode purposeNode = null;
+
+        if (!json.TryGetPropertyValue(nameof(AIDeployment.Purpose), out purposeNode) || purposeNode is null)
+        {
+            if (!json.TryGetPropertyValue("Capability", out purposeNode) || purposeNode is null)
+            {
+#pragma warning disable CS0618 // Type or member is obsolete
+                if (!json.TryGetPropertyValue(nameof(AIDeployment.Type), out purposeNode) || purposeNode is null)
+#pragma warning restore CS0618 // Type or member is obsolete
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (purposeNode is JsonArray array)
         {
             foreach (var item in array)
             {
                 if (item is null ||
                     item.GetStringValue() is not { Length: > 0 } itemText ||
-                    !Enum.TryParse(itemText, true, out AIDeploymentType parsedType) ||
-                    parsedType == AIDeploymentType.None)
+                    !Enum.TryParse(itemText, true, out AIDeploymentPurpose parsedPurpose) ||
+                    parsedPurpose == AIDeploymentPurpose.None)
                 {
-                    type = AIDeploymentType.None;
+                    capability = AIDeploymentPurpose.None;
 
                     return false;
                 }
 
-                type |= parsedType;
+                capability |= parsedPurpose;
             }
 
-            return type.IsValidSelection();
+            return capability.IsValidSelection();
         }
 
-        return typeNode.GetStringValue() is { Length: > 0 } typeText &&
-            Enum.TryParse(typeText, true, out type) &&
-            type.IsValidSelection();
+        return purposeNode.GetStringValue() is { Length: > 0 } purposeText &&
+            Enum.TryParse(purposeText, true, out capability) &&
+            capability.IsValidSelection();
     }
 
     private static void MergeProperties(AIDeployment deployment, JsonObject json)

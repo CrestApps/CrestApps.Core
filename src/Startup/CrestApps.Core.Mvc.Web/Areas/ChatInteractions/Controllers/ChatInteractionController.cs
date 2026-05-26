@@ -292,13 +292,17 @@ public sealed class ChatInteractionController : Controller
     {
         var deployments = await _deploymentCatalog.GetAllAsync();
         model.Deployments = deployments
-            .Where(d => d.Type.Supports(AIDeploymentType.Chat))
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
             .Select(d => new SelectListItem(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
         ? d.Name
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
+        model.DeploymentVisionSupport = deployments
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+            .ToDictionary(d => d.Name, d => d.Purpose.Supports(AIDeploymentPurpose.Vision), StringComparer.OrdinalIgnoreCase);
+        model.DefaultChatDeploymentSupportsVision = (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat))?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
 
         // Orchestrators
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
@@ -424,7 +428,7 @@ public sealed class ChatInteractionController : Controller
     {
         var deployments = await _deploymentCatalog.GetAllAsync();
         model.Deployments = deployments
-            .Where(d => d.Type.Supports(AIDeploymentType.Chat))
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
             .Select(d => new SelectListItem(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
         ? d.Name
@@ -432,6 +436,10 @@ public sealed class ChatInteractionController : Controller
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
+        model.DeploymentVisionSupport = deployments
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+            .ToDictionary(d => d.Name, d => d.Purpose.Supports(AIDeploymentPurpose.Vision), StringComparer.OrdinalIgnoreCase);
+        model.DefaultChatDeploymentSupportsVision = (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat))?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
 
         // Orchestrators
 
@@ -802,7 +810,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>> CreateEmbeddingGeneratorAsync()
     {
-        var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding);
+        var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding);
 
         return deployment == null
             ? null

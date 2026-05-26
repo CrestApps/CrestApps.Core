@@ -1216,7 +1216,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         var completionContext = await completionContextBuilder.BuildAsync(profile, cancellationToken: cancellationToken);
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
-        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName, cancellationToken: cancellationToken)
+        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: completionContext.ChatDeploymentName, cancellationToken: cancellationToken)
             ?? throw new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile.");
 
         using var builder = ZString.CreateStringBuilder();
@@ -1263,7 +1263,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
         var messageId = GenerateId();
         var completionContext = await completionContextBuilder.BuildAsync(profile, cancellationToken: cancellationToken);
-        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: completionContext.ChatDeploymentName, cancellationToken: cancellationToken)
+        var chatDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: completionContext.ChatDeploymentName, cancellationToken: cancellationToken)
             ?? throw new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile.");
         var references = new Dictionary<string, AICompletionReference>();
         await foreach (var chunk in completionService.CompleteStreamingAsync(chatDeployment, [new ChatMessage(ChatRole.User, prompt)], completionContext, cancellationToken))

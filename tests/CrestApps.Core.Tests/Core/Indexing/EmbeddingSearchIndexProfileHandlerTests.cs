@@ -67,7 +67,7 @@ public sealed class EmbeddingSearchIndexProfileHandlerTests
             ClientName = "openai",
             ConnectionName = "default",
             ModelName = "text-embedding-3-small",
-            Type = AIDeploymentType.Embedding,
+            Purpose = AIDeploymentPurpose.Embedding,
         };
     }
 

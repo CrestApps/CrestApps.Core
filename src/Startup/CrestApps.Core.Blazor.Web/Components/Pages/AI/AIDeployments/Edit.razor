@@ -69,21 +69,21 @@ else
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Deployment types <span class="text-danger">*</span></label>
-                    @foreach (var type in _types)
+                    <label class="form-label">Deployment purposes <span class="text-danger">*</span></label>
+                    @foreach (var purpose in _capabilities)
                     {
-                        var typeName = type.Value;
-                        var isChecked = _model.SelectedTypes?.Contains(typeName, StringComparer.OrdinalIgnoreCase) ?? false;
+                        var purposeName = purpose.Value;
+                        var isChecked = _model.SelectedPurposes?.Contains(purposeName, StringComparer.OrdinalIgnoreCase) ?? false;
                         <div class="form-check">
-                            <input id="SelectedTypes_@typeName"
+                            <input id="SelectedPurposes_@purposeName"
                                    type="checkbox"
                                    class="form-check-input"
                                    checked="@isChecked"
-                                   @onchange="e => ToggleType(typeName, (bool)e.Value)" />
-                            <label class="form-check-label" for="SelectedTypes_@typeName">@type.Key</label>
+                                   @onchange="e => TogglePurpose(purposeName, (bool)e.Value)" />
+                            <label class="form-check-label" for="SelectedPurposes_@purposeName">@purpose.Key</label>
                         </div>
                     }
-                    <div class="form-text">Select one or more capability types for this deployment.</div>
+                    <div class="form-text">Select one or more purposes for this deployment.</div>
                 </div>
 
                 @if (!_isStandalone)
@@ -167,9 +167,9 @@ else
         new("Managed Identity", "ManagedIdentity"),
     ];
 
-    private static readonly List<KeyValuePair<string, string>> _types = Enum.GetValues<AIDeploymentType>()
-        .Where(static type => type != AIDeploymentType.None)
-        .Select(static t => new KeyValuePair<string, string>(t.ToString(), t.ToString()))
+    private static readonly List<KeyValuePair<string, string>> _capabilities = Enum.GetValues<AIDeploymentPurpose>()
+        .Where(static capability => capability != AIDeploymentPurpose.None)
+        .Select(static capability => new KeyValuePair<string, string>(capability.ToString(), capability.ToString()))
         .ToList();
 
     private bool _isStandalone => _model?.UsesStandaloneProvider() ?? false;
@@ -248,20 +248,20 @@ else
             .ToList();
     }
 
-    private void ToggleType(string typeName, bool isChecked)
+    private void TogglePurpose(string purposeName, bool isChecked)
     {
-        var selected = new HashSet<string>(_model.SelectedTypes ?? [], StringComparer.OrdinalIgnoreCase);
+        var selected = new HashSet<string>(_model.SelectedPurposes ?? [], StringComparer.OrdinalIgnoreCase);
 
         if (isChecked)
         {
-            selected.Add(typeName);
+            selected.Add(purposeName);
         }
         else
         {
-            selected.Remove(typeName);
+            selected.Remove(purposeName);
         }
 
-        _model.SelectedTypes = [.. selected];
+        _model.SelectedPurposes = [.. selected];
     }
 
     private async Task HandleSubmitAsync()
@@ -278,9 +278,9 @@ else
             _validationErrors.Add("Technical name is required.");
         }
 
-        if (!_model.GetDeploymentType().IsValidSelection())
+        if (!_model.GetDeploymentPurpose().IsValidSelection())
         {
-            _validationErrors.Add("At least one deployment type is required.");
+            _validationErrors.Add("At least one deployment purpose is required.");
         }
 
         if (string.IsNullOrWhiteSpace(_model.ClientName))

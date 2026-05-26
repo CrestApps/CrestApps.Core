@@ -43,14 +43,14 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     }
 
     /// <summary>
-    /// Gets by type.
+    /// Gets by purpose.
     /// </summary>
-    /// <param name="type">The type.</param>
+    /// <param name="purpose">The purpose.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default)
+    public async ValueTask<IEnumerable<AIDeployment>> GetByPurposeAsync(AIDeploymentPurpose purpose, CancellationToken cancellationToken = default)
     {
         var deployments = (await Catalog.GetAllAsync(cancellationToken))
-            .Where(x => x.SupportsType(type));
+            .Where(x => x.SupportsPurpose(purpose));
 
         foreach (var deployment in deployments)
         {
@@ -61,43 +61,79 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     }
 
     /// <summary>
+    /// Gets by legacy type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use GetByPurposeAsync instead.")]
+    public ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default)
+    {
+        return GetByPurposeAsync(type.ToPurpose(), cancellationToken);
+    }
+
+    /// <summary>
     /// Gets default.
     /// </summary>
     /// <param name="clientName">The client name.</param>
-    /// <param name="type">The type.</param>
+    /// <param name="purpose">The purpose.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
+    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentPurpose purpose, CancellationToken cancellationToken = default)
     {
         var deployments = await GetAllAsync(clientName, cancellationToken);
 
-        var candidates = deployments.Where(d => d.SupportsType(type));
+        var candidates = deployments.Where(d => d.SupportsPurpose(purpose));
 
         return candidates.FirstOrDefault();
     }
 
     /// <summary>
+    /// Gets default for a legacy type.
+    /// </summary>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use the purpose overload instead.")]
+    public ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
+    {
+        return GetDefaultAsync(clientName, type.ToPurpose(), cancellationToken);
+    }
+
+    /// <summary>
     /// Resolves or default.
+    /// </summary>
+    /// <param name="purpose">The purpose.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentPurpose purpose, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
+    {
+        return ResolveByPurposeAsync(purpose, deploymentName, clientName, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves or default for a legacy type.
     /// </summary>
     /// <param name="type">The type.</param>
     /// <param name="deploymentName">The deployment name.</param>
     /// <param name="clientName">The client name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use the purpose overload instead.")]
     public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
     {
-        return ResolveByTypeAsync(type, deploymentName, clientName, cancellationToken);
+        return ResolveOrDefaultAsync(type.ToPurpose(), deploymentName, clientName, cancellationToken);
     }
 
     /// <summary>
-    /// Gets all by type.
+    /// Gets all by purpose.
     /// </summary>
-    /// <param name="type">The type.</param>
+    /// <param name="purpose">The purpose.</param>
     /// <param name="clientName">The client name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default)
+    public async ValueTask<IEnumerable<AIDeployment>> GetAllByPurposeAsync(AIDeploymentPurpose purpose, string clientName = null, CancellationToken cancellationToken = default)
     {
         var allDeployments = await GetAllAsync(cancellationToken);
 
-        var filtered = allDeployments.Where(d => d.SupportsType(type));
+        var filtered = allDeployments.Where(d => d.SupportsPurpose(purpose));
 
         if (!string.IsNullOrEmpty(clientName))
         {
@@ -107,7 +143,19 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return filtered;
     }
 
-    private async ValueTask<AIDeployment> ResolveByTypeAsync(AIDeploymentType type, string deploymentName, string clientName, CancellationToken cancellationToken)
+    /// <summary>
+    /// Gets all by legacy type.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    [Obsolete("Use GetAllByPurposeAsync instead.")]
+    public ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default)
+    {
+        return GetAllByPurposeAsync(type.ToPurpose(), clientName, cancellationToken);
+    }
+
+    private async ValueTask<AIDeployment> ResolveByPurposeAsync(AIDeploymentPurpose purpose, string deploymentName, string clientName, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrEmpty(deploymentName))
         {
@@ -119,7 +167,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
             }
         }
 
-        var globalDefaultId = await GetGlobalDefaultSelectorAsync(type);
+        var globalDefaultId = await GetGlobalDefaultSelectorAsync(purpose);
 
         if (!string.IsNullOrEmpty(globalDefaultId))
         {
@@ -131,16 +179,16 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
             }
         }
 
-        return await GetFirstMatchingDeploymentAsync(type, clientName, cancellationToken);
+        return await GetFirstMatchingDeploymentAsync(purpose, clientName, cancellationToken);
     }
 
-    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentType type, string clientName, CancellationToken cancellationToken)
+    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentPurpose purpose, string clientName, CancellationToken cancellationToken)
     {
         var deployments = await GetAllAsync(cancellationToken);
 
         return deployments.FirstOrDefault(deployment =>
                 {
-                    if (!deployment.SupportsType(type))
+                    if (!deployment.SupportsPurpose(purpose))
                     {
                         return false;
                     }
@@ -167,18 +215,19 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return await FindByNameAsync(selector, cancellationToken);
     }
 
-    private async ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentType type)
+    private async ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentPurpose purpose)
     {
         var settings = await GetDefaultAIDeploymentSettingsAsync();
 
-        return type switch
+        return purpose switch
         {
-            AIDeploymentType.Chat => settings.DefaultChatDeploymentName,
-            AIDeploymentType.Utility => settings.DefaultUtilityDeploymentName,
-            AIDeploymentType.Embedding => settings.DefaultEmbeddingDeploymentName,
-            AIDeploymentType.Image => settings.DefaultImageDeploymentName,
-            AIDeploymentType.SpeechToText => settings.DefaultSpeechToTextDeploymentName,
-            AIDeploymentType.TextToSpeech => settings.DefaultTextToSpeechDeploymentName,
+            AIDeploymentPurpose.Chat => settings.DefaultChatDeploymentName,
+            AIDeploymentPurpose.Utility => settings.DefaultUtilityDeploymentName,
+            AIDeploymentPurpose.Embedding => settings.DefaultEmbeddingDeploymentName,
+            AIDeploymentPurpose.Image => settings.DefaultImageDeploymentName,
+            AIDeploymentPurpose.Vision => settings.DefaultVisionDeploymentName,
+            AIDeploymentPurpose.SpeechToText => settings.DefaultSpeechToTextDeploymentName,
+            AIDeploymentPurpose.TextToSpeech => settings.DefaultTextToSpeechDeploymentName,
             _ => null,
         };
     }

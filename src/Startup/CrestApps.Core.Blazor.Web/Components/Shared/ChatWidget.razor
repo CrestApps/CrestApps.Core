@@ -1,4 +1,5 @@
 @using CrestApps.Core.AI
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
@@ -9,6 +10,7 @@
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject SiteSettingsStore SiteSettings
 @inject IJSRuntime JS
+@inject IAIDeploymentManager DeploymentManager
 
 @if (_profile != null)
 {
@@ -87,6 +89,7 @@
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
     private bool _initialized;
+    private bool _supportsVisionUploads;
 
     protected override async Task OnInitializedAsync()
     {
@@ -134,8 +137,9 @@
 
         _metricsEnabled = selectedProfile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics;
         _allowSessionDocuments = selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta) && sessionDocMeta.AllowSessionDocuments;
-        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
-        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+        _supportsVisionUploads = await SupportsVisionUploadsAsync(selectedProfile);
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_supportsVisionUploads);
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_supportsVisionUploads);
 
         var widgetStyle = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
             ? null
@@ -211,5 +215,13 @@
                 },
             });
         }
+    }
+
+    private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
+    {
+        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
+
+        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 }

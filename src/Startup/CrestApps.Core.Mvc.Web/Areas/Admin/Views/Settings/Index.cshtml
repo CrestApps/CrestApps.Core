@@ -63,6 +63,14 @@
                     </div>
 
                     <div class="mb-3">
+                        <label asp-for="DefaultVisionDeploymentName" class="form-label">Default vision deployment</label>
+                        <select asp-for="DefaultVisionDeploymentName" asp-items="Model.VisionDeployments" class="form-select">
+                            <option value="">None</option>
+                        </select>
+                        <div class="form-text">The default deployment used for vision-capable chat and image understanding.</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label asp-for="DefaultSpeechToTextDeploymentName" class="form-label">Default speech-to-text deployment</label>
                         <select asp-for="DefaultSpeechToTextDeploymentName" asp-items="Model.SpeechToTextDeployments" class="form-select">
                             <option value="">None</option>

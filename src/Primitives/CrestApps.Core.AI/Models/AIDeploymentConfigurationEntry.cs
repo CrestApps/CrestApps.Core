@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
 
 namespace CrestApps.Core.AI.Models;
@@ -31,9 +32,37 @@ public sealed class AIDeploymentConfigurationEntry
     public string ConnectionName { get; set; }
 
     /// <summary>
-    /// Gets or sets the deployment capability types (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech).
+    /// Gets or sets the deployment purposes (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech, Vision).
     /// </summary>
-    public AIDeploymentType Type { get; set; }
+    public AIDeploymentPurpose Purpose { get; set; }
+
+    /// <summary>
+    /// Gets or sets the legacy deployment type flags.
+    /// Use <see cref="Purpose"/> for new code.
+    /// </summary>
+#pragma warning disable CS0618 // Type or member is obsolete
+    [Obsolete("Use Purpose instead. Retained for backward compatibility.")]
+    [JsonIgnore]
+    public AIDeploymentType Type
+    {
+        get => Purpose.ToLegacyType();
+        set => Purpose = value.ToPurpose();
+    }
+
+    [JsonInclude]
+    [JsonPropertyName("Type")]
+    private AIDeploymentType LegacyType
+    {
+        set => Purpose = value.ToPurpose();
+    }
+
+    [JsonInclude]
+    [JsonPropertyName("Capability")]
+    private AIDeploymentPurpose CapabilityAlias
+    {
+        set => Purpose = value;
+    }
+#pragma warning restore CS0618 // Type or member is obsolete
 
     /// <summary>
     /// Gets or sets provider-specific properties for contained-connection deployments.

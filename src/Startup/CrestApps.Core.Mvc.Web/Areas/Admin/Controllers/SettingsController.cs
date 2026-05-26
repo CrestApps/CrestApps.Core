@@ -93,6 +93,7 @@ public sealed class SettingsController : Controller
             DefaultUtilityDeploymentName = deploymentDefaults.DefaultUtilityDeploymentName,
             DefaultEmbeddingDeploymentName = deploymentDefaults.DefaultEmbeddingDeploymentName,
             DefaultImageDeploymentName = deploymentDefaults.DefaultImageDeploymentName,
+            DefaultVisionDeploymentName = deploymentDefaults.DefaultVisionDeploymentName,
             DefaultSpeechToTextDeploymentName = deploymentDefaults.DefaultSpeechToTextDeploymentName,
             DefaultTextToSpeechDeploymentName = deploymentDefaults.DefaultTextToSpeechDeploymentName,
             DefaultTextToSpeechVoiceId = deploymentDefaults.DefaultTextToSpeechVoiceId,
@@ -257,6 +258,7 @@ public sealed class SettingsController : Controller
             DefaultUtilityDeploymentName = model.DefaultUtilityDeploymentName,
             DefaultEmbeddingDeploymentName = model.DefaultEmbeddingDeploymentName,
             DefaultImageDeploymentName = model.DefaultImageDeploymentName,
+            DefaultVisionDeploymentName = model.DefaultVisionDeploymentName,
             DefaultSpeechToTextDeploymentName = model.DefaultSpeechToTextDeploymentName,
             DefaultTextToSpeechDeploymentName = model.DefaultTextToSpeechDeploymentName,
             DefaultTextToSpeechVoiceId = model.DefaultTextToSpeechVoiceId?.Trim(),
@@ -366,22 +368,25 @@ public sealed class SettingsController : Controller
     private async Task PopulateDeploymentDropdownsAsync(SettingsViewModel model)
     {
         model.ChatDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByTypeAsync(AIDeploymentType.Chat));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Chat));
 
         model.UtilityDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByTypeAsync(AIDeploymentType.Utility));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Utility));
 
         model.EmbeddingDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByTypeAsync(AIDeploymentType.Embedding));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Embedding));
 
         model.ImageDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByTypeAsync(AIDeploymentType.Image));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Image));
+
+        model.VisionDeployments = BuildGroupedDeploymentItems(
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Vision));
 
         model.SpeechToTextDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByTypeAsync(AIDeploymentType.SpeechToText));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.SpeechToText));
 
         model.TextToSpeechDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByTypeAsync(AIDeploymentType.TextToSpeech));
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.TextToSpeech));
 
         model.ChatInteractionModes =
         [
@@ -459,6 +464,7 @@ public sealed class SettingsController : Controller
         model.DefaultUtilityDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultUtilityDeploymentName);
         model.DefaultEmbeddingDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultEmbeddingDeploymentName);
         model.DefaultImageDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultImageDeploymentName);
+        model.DefaultVisionDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultVisionDeploymentName);
         model.DefaultSpeechToTextDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultSpeechToTextDeploymentName);
         model.DefaultTextToSpeechDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultTextToSpeechDeploymentName);
     }

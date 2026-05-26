@@ -23,11 +23,11 @@ public static class AIDeploymentManagerExtensions
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
         return await deploymentManager.ResolveOrDefaultAsync(
-                    AIDeploymentType.Utility,
+                    AIDeploymentPurpose.Utility,
                     utilityDeploymentName,
                     clientName)
             ?? await deploymentManager.ResolveOrDefaultAsync(
-                    AIDeploymentType.Chat,
+                    AIDeploymentPurpose.Chat,
                     chatDeploymentName,
                     clientName);
     }
@@ -36,21 +36,38 @@ public static class AIDeploymentManagerExtensions
     /// Resolves the operation.
     /// </summary>
     /// <param name="deploymentManager">The deployment manager.</param>
-    /// <param name="type">The type.</param>
+    /// <param name="purpose">The purpose.</param>
     /// <param name="deploymentName">The deployment name.</param>
     /// <param name="clientName">The client name.</param>
     public static async ValueTask<AIDeployment> ResolveAsync(
         this IAIDeploymentManager deploymentManager,
-        AIDeploymentType type,
+        AIDeploymentPurpose purpose,
         string deploymentName = null,
         string clientName = null)
     {
         ArgumentNullException.ThrowIfNull(deploymentManager);
 
-        var deployment = await deploymentManager.ResolveOrDefaultAsync(type, deploymentName, clientName);
+        var deployment = await deploymentManager.ResolveOrDefaultAsync(purpose, deploymentName, clientName);
 
         return deployment
-            ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for type '{type}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
+            ?? throw new InvalidOperationException($"Unable to resolve an AI deployment for purpose '{purpose}' with deploymentName '{deploymentName ?? "(null)"}' and clientName '{clientName ?? "(null)"}'.");
+    }
+
+    /// <summary>
+    /// Resolves the operation for a legacy deployment type.
+    /// </summary>
+    /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    /// <param name="clientName">The client name.</param>
+    [Obsolete("Use the purpose overload instead.")]
+    public static ValueTask<AIDeployment> ResolveAsync(
+        this IAIDeploymentManager deploymentManager,
+        AIDeploymentType type,
+        string deploymentName = null,
+        string clientName = null)
+    {
+        return deploymentManager.ResolveAsync(type.ToPurpose(), deploymentName, clientName);
     }
 
     /// <summary>

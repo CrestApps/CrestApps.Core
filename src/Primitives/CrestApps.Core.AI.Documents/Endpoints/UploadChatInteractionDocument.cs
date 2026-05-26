@@ -67,6 +67,7 @@ public static class UploadChatInteractionDocument
             [FromServices] IAIDocumentChunkStore chunkStore,
             [FromServices] IDocumentFileStore fileStore,
             [FromServices] IAIDocumentProcessingService documentProcessingService,
+            [FromServices] TimeProvider timeProvider,
             [FromServices] IAuthorizationService authorizationService,
             [FromServices] IEnumerable<IAIChatDocumentEventHandler> eventHandlers,
             [FromServices] IOptions<ChatDocumentsOptions> documentOptions,
@@ -109,19 +110,20 @@ public static class UploadChatInteractionDocument
                 logger.LogInformation("Chat interaction document upload authorized for interaction '{InteractionId}'.", interaction.ItemId);
             }
 
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Chat, deploymentName: interaction.ChatDeploymentName);
+            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: interaction.ChatDeploymentName);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Resolved chat deployment '{DeploymentName}' for interaction '{InteractionId}'.", deployment?.Name, interaction.ItemId);
             }
 
-            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.Embedding, clientName: deployment?.ClientName);
+            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding, clientName: deployment?.ClientName);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Resolved embedding deployment '{DeploymentName}' for interaction '{InteractionId}'.", embeddingDeployment?.Name, interaction.ItemId);
             }
 
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
+            var allowVisionImages = SupportsVisionUploads(deployment);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Created embedding generator for interaction '{InteractionId}': {HasEmbeddingGenerator}.", interaction.ItemId, embeddingGenerator != null);
@@ -158,6 +160,8 @@ public static class UploadChatInteractionDocument
                     documentStore,
                     chunkStore,
                     fileStore,
+                    timeProvider,
+                    allowVisionImages,
                     logger,
                     S);
                 if (!result.Success)

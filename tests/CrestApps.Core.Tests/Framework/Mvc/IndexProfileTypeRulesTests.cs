@@ -255,8 +255,8 @@ public sealed class IndexProfileTypeRulesTests
         var serviceProvider = services.BuildServiceProvider();
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager
-            .Setup(manager => manager.GetByTypeAsync(AIDeploymentType.Embedding, It.IsAny<CancellationToken>()))
-            .Returns((AIDeploymentType _, CancellationToken _) => ValueTask.FromResult<IEnumerable<AIDeployment>>([]));
+            .Setup(manager => manager.GetByPurposeAsync(AIDeploymentPurpose.Embedding, It.IsAny<CancellationToken>()))
+            .Returns((AIDeploymentPurpose _, CancellationToken _) => ValueTask.FromResult<IEnumerable<AIDeployment>>([]));
         deploymentManager
             .Setup(manager => manager.FindByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns((string _, CancellationToken _) => ValueTask.FromResult<AIDeployment>(null));

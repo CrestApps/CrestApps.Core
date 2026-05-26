@@ -1,5 +1,6 @@
 @using CrestApps.Core
 @using CrestApps.Core.AI
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
@@ -7,6 +8,7 @@
 @using Microsoft.Extensions.Options
 
 @inject IAIProfileManager ProfileManager
+@inject IAIDeploymentManager DeploymentManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 
@@ -43,8 +45,16 @@
         _ => ChatMode.TextInput,
     };
 
-    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue();
-    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue();
+    var supportsVisionUploads = false;
+    if (selectedProfile != null)
+    {
+        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: selectedProfile.ChatDeploymentName)
+            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: selectedProfile.UtilityDeploymentName);
+        supportsVisionUploads = deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
+    }
+
+    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(supportsVisionUploads);
+    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(supportsVisionUploads);
     var profile = selectedProfile is null || selectedProfile.Type != AIProfileType.Chat
         ? null
         : new

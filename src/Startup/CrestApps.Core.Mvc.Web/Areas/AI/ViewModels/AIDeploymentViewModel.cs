@@ -17,7 +17,7 @@ public sealed class AIDeploymentViewModel
     public string ModelName { get; set; }
 
     public string TechnicalName { get; set; }
-    public string[] SelectedTypes { get; set; } = [];
+    public string[] SelectedPurposes { get; set; } = [];
     public string ConnectionName { get; set; }
 
     public string ClientName { get; set; }
@@ -41,7 +41,7 @@ public sealed class AIDeploymentViewModel
     public IEnumerable<SelectListItem> AuthenticationTypes { get; set; } = [];
 
     [BindNever]
-    public IEnumerable<SelectListItem> Types { get; set; } = [];
+    public IEnumerable<SelectListItem> Purposes { get; set; } = [];
 
     public static AIDeploymentViewModel FromDeployment(AIDeployment deployment)
     {
@@ -50,8 +50,8 @@ public sealed class AIDeploymentViewModel
             ItemId = deployment.ItemId,
             ModelName = deployment.ModelName,
             TechnicalName = deployment.Name,
-            SelectedTypes = deployment.Type.GetSupportedTypes()
-                .Select(static type => type.ToString())
+            SelectedPurposes = deployment.Purpose.GetSupportedPurposes()
+                .Select(static purpose => purpose.ToString())
             .ToArray(),
             ConnectionName = deployment.ConnectionName,
             ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
@@ -71,7 +71,7 @@ public sealed class AIDeploymentViewModel
     {
         deployment.Name = TechnicalName;
         deployment.ModelName = ModelName;
-        deployment.Type = GetDeploymentType();
+        deployment.Purpose = GetDeploymentPurpose();
         deployment.ConnectionName = ConnectionName;
         deployment.ClientName = AIProviderNameNormalizer.Normalize(ClientName);
 
@@ -101,25 +101,25 @@ public sealed class AIDeploymentViewModel
         }
     }
 
-    public AIDeploymentType GetDeploymentType()
+    public AIDeploymentPurpose GetDeploymentPurpose()
     {
-        var deploymentType = AIDeploymentType.None;
+        var deploymentPurpose = AIDeploymentPurpose.None;
 
-        if (SelectedTypes is null)
+        if (SelectedPurposes is null)
         {
-            return deploymentType;
+            return deploymentPurpose;
         }
 
-        foreach (var typeName in SelectedTypes.Where(static value => !string.IsNullOrWhiteSpace(value)))
+        foreach (var purposeName in SelectedPurposes.Where(static value => !string.IsNullOrWhiteSpace(value)))
         {
-            if (Enum.TryParse<AIDeploymentType>(typeName, ignoreCase: true, out var parsedType)
-                && parsedType != AIDeploymentType.None)
+            if (Enum.TryParse<AIDeploymentPurpose>(purposeName, ignoreCase: true, out var parsedPurpose)
+                && parsedPurpose != AIDeploymentPurpose.None)
             {
-                deploymentType |= parsedType;
+                deploymentPurpose |= parsedPurpose;
             }
         }
 
-        return deploymentType;
+        return deploymentPurpose;
     }
 
     public bool UsesStandaloneProvider()

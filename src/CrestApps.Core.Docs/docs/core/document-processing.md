@@ -179,6 +179,7 @@ services.Configure<ChatDocumentsOptions>(options =>
 
 - **AllowedFileExtensions** — Complete set of uploadable extensions
 - **EmbeddableFileExtensions** — Subset that gets vector-embedded (non-embeddable files use direct read tools instead)
+- **MaxVisionInputBytesPerRequest** — Caps the total uploaded image bytes attached to one multimodal chat request; set `0` or less to disable the limit
 
 Use the registered option values to drive your upload UI as well as validation:
 

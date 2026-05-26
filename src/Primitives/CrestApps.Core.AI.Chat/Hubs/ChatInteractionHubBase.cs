@@ -670,7 +670,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
                 var deploymentSettings = await GetDeploymentSettingsAsync(services);
 
-                var speechToTextDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.SpeechToText);
+                var speechToTextDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.SpeechToText);
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
@@ -678,7 +678,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     return;
                 }
 
-                var textToSpeechDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.TextToSpeech);
+                var textToSpeechDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.TextToSpeech);
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
@@ -769,7 +769,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     return;
                 }
 
-                var speechToTextDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.SpeechToText);
+                var speechToTextDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.SpeechToText);
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
@@ -859,7 +859,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 var deploymentSettings = await GetDeploymentSettingsAsync(services);
-                var textToSpeechDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentType.TextToSpeech);
+                var textToSpeechDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.TextToSpeech);
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());

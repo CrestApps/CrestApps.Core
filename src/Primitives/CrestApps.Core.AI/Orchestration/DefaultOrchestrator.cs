@@ -158,9 +158,10 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         // Execute the completion with the scoped tool set.
         var chatDeployment = await ResolveChatDeploymentAsync(context);
+        var executionMessages = GetExecutionMessages(context);
 
         await foreach (var chunk in _completionService.CompleteStreamingAsync(
-            chatDeployment, context.ConversationHistory, context.CompletionContext, cancellationToken))
+            chatDeployment, executionMessages, context.CompletionContext, cancellationToken))
         {
             yield return chunk;
         }
@@ -415,8 +416,41 @@ public sealed class DefaultOrchestrator : IOrchestrator
         // Ensure the current user message is always included as the last message.
         if (messages.Count == 0 || messages[^1].Text != context.UserMessage)
         {
-            messages.Add(new ChatMessage(ChatRole.User, context.UserMessage));
+            messages.Add(CreateCurrentUserMessage(context));
         }
+
+        return messages;
+    }
+
+    private static List<ChatMessage> GetExecutionMessages(OrchestrationContext context)
+    {
+        var messages = context.ConversationHistory?.ToList() ?? [];
+        var currentUserMessage = CreateCurrentUserMessage(context);
+
+        if (messages.Count == 0)
+        {
+            messages.Add(currentUserMessage);
+
+            return messages;
+        }
+
+        // Replace the last user message in history with the enriched version
+        // that includes vision content. We match by position (last user message)
+        // rather than text equality to avoid accidentally replacing a historical
+        // message when the user sends the same text twice.
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            if (messages[i].Role != ChatRole.User)
+            {
+                continue;
+            }
+
+            messages[i] = currentUserMessage;
+
+            return messages;
+        }
+
+        messages.Add(currentUserMessage);
 
         return messages;
     }
@@ -446,6 +480,26 @@ public sealed class DefaultOrchestrator : IOrchestrator
         return sb.ToString();
     }
 
+    private static ChatMessage CreateCurrentUserMessage(OrchestrationContext context)
+    {
+        if (!context.Properties.TryGetValue(OrchestrationPropertyKeys.VisionUserContents, out var value) || value is not IReadOnlyList<AIContent> visionContents || visionContents.Count == 0)
+        {
+            return new ChatMessage(ChatRole.User, context.UserMessage);
+        }
+
+        var contents = new List<AIContent>
+        {
+            new TextContent(context.UserMessage),
+        };
+
+        contents.AddRange(visionContents);
+
+        return new ChatMessage(ChatRole.User, context.UserMessage)
+        {
+            Contents = contents,
+        };
+    }
+
     /// <summary>
     /// Attempts to create a chat client using the utility deployment,
     /// falling back to the chat deployment if no utility deployment is configured.
@@ -471,7 +525,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private async Task<AIDeployment> ResolveChatDeploymentAsync(OrchestrationContext context)
     {
         return await _deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentType.Chat,
+            AIDeploymentPurpose.Chat,
             deploymentName: context.CompletionContext?.ChatDeploymentName)
         ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the orchestration context.");
     }
