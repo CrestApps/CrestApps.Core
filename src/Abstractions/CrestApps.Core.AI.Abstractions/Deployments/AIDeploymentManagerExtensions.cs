@@ -60,7 +60,7 @@ public static class AIDeploymentManagerExtensions
     /// <param name="type">The type.</param>
     /// <param name="deploymentName">The deployment name.</param>
     /// <param name="clientName">The client name.</param>
-    [Obsolete("Use the capability overload instead.")]
+    [Obsolete("Use the purpose overload instead.")]
     public static ValueTask<AIDeployment> ResolveAsync(
         this IAIDeploymentManager deploymentManager,
         AIDeploymentType type,

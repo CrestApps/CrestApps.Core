@@ -434,14 +434,13 @@ public sealed class DefaultOrchestrator : IOrchestrator
             return messages;
         }
 
+        // Replace the last user message in history with the enriched version
+        // that includes vision content. We match by position (last user message)
+        // rather than text equality to avoid accidentally replacing a historical
+        // message when the user sends the same text twice.
         for (var i = messages.Count - 1; i >= 0; i--)
         {
             if (messages[i].Role != ChatRole.User)
-            {
-                continue;
-            }
-
-            if (!string.Equals(messages[i].Text, context.UserMessage, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -483,7 +482,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
     private static ChatMessage CreateCurrentUserMessage(OrchestrationContext context)
     {
-        if (!context.Properties.TryGetValue("VisionUserContents", out var value) || value is not List<AIContent> visionContents || visionContents.Count == 0)
+        if (!context.Properties.TryGetValue(OrchestrationPropertyKeys.VisionUserContents, out var value) || value is not IReadOnlyList<AIContent> visionContents || visionContents.Count == 0)
         {
             return new ChatMessage(ChatRole.User, context.UserMessage);
         }

@@ -162,7 +162,7 @@ public sealed class DefaultOrchestratorTests
         var completionService = new FakeCompletionService("Vision response");
         var orchestrator = CreateOrchestrator(completionService);
         var context = CreateContext("Describe the attached image");
-        context.Properties["VisionUserContents"] = new List<AIContent>
+        context.Properties[OrchestrationPropertyKeys.VisionUserContents] = new List<AIContent>
         {
             new DataContent(new byte[] { 1, 2, 3 }, "image/jpeg"),
         };

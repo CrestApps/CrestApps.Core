@@ -5,8 +5,6 @@ namespace CrestApps.Core.AI.Documents.Models;
 /// </summary>
 public static class ChatDocumentsOptionsExtensions
 {
-    private static readonly string[] _visionImageExtensions = [".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"];
-
     /// <summary>
     /// Gets allowed file extensions accept value.
     /// </summary>
@@ -55,7 +53,7 @@ public static class ChatDocumentsOptionsExtensions
         var extensions = OrderExtensions(options?.AllowedFileExtensions);
 
         return includeVisionImages
-            ? OrderExtensions(extensions.Concat(_visionImageExtensions))
+            ? OrderExtensions(extensions.Concat(MediaTypeHelper.VisionImageExtensions))
             : extensions;
     }
 

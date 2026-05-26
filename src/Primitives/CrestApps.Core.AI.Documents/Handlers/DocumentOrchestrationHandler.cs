@@ -25,9 +25,8 @@ namespace CrestApps.Core.AI.Documents.Handlers;
 /// </remarks>
 public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
-    private const string VisionUserContentsKey = "VisionUserContents";
-
     private readonly AIToolDefinitionOptions _toolDefinitions;
+    private readonly ChatDocumentsOptions _documentOptions;
     private readonly ITemplateService _templateService;
     private readonly IAIDocumentStore _documentStore;
     private readonly IDocumentFileStore _fileStore;
@@ -38,10 +37,15 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
     /// Initializes a new instance of the <see cref="DocumentOrchestrationHandler"/> class.
     /// </summary>
     /// <param name="toolDefinitions">The tool definitions.</param>
+    /// <param name="documentOptions">The document options.</param>
     /// <param name="templateService">The template service.</param>
+    /// <param name="documentStore">The document store.</param>
+    /// <param name="fileStore">The document file store.</param>
+    /// <param name="deploymentManager">The deployment manager.</param>
     /// <param name="logger">The logger.</param>
     public DocumentOrchestrationHandler(
         IOptions<AIToolDefinitionOptions> toolDefinitions,
+        IOptions<ChatDocumentsOptions> documentOptions,
         ITemplateService templateService,
         IAIDocumentStore documentStore,
         IDocumentFileStore fileStore,
@@ -49,6 +53,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         ILogger<DocumentOrchestrationHandler> logger)
     {
         _toolDefinitions = toolDefinitions.Value;
+        _documentOptions = documentOptions.Value;
         _templateService = templateService;
         _documentStore = documentStore;
         _fileStore = fileStore;
@@ -153,11 +158,14 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             return;
         }
 
+        var visionContentResult = await BuildVisionUserContentsAsync(context, userSuppliedDocuments, cancellationToken);
+
         var searchableUserSuppliedDocuments = userSuppliedDocuments?
             .Where(document => !IsVisionDocument(document))
             .ToArray();
+
         var visionUserSuppliedDocuments = userSuppliedDocuments?
-            .Where(IsVisionDocument)
+            .Where(document => IsVisionDocument(document) && visionContentResult.IncludedDocumentIds.Contains(document.DocumentId))
             .ToArray();
 
         context.OrchestrationContext.Documents ??= [];
@@ -188,9 +196,9 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         {
             ["tools"] = docTools,
             ["availableDocuments"] = context.OrchestrationContext.Documents,
-            ["knowledgeBaseDocuments"] = hasKnowledgeBaseDocuments ? knowledgeBaseDocuments : Array.Empty<ChatDocumentInfo>(),
-            ["userSuppliedDocuments"] = searchableUserSuppliedDocuments ?? Array.Empty<ChatDocumentInfo>(),
-            ["visionUserSuppliedDocuments"] = visionUserSuppliedDocuments ?? Array.Empty<ChatDocumentInfo>(),
+            ["knowledgeBaseDocuments"] = hasKnowledgeBaseDocuments ? knowledgeBaseDocuments : [],
+            ["userSuppliedDocuments"] = searchableUserSuppliedDocuments ?? [],
+            ["visionUserSuppliedDocuments"] = visionUserSuppliedDocuments ?? [],
             ["isInScope"] = ragMetadata?.IsInScope == true,
         };
 
@@ -202,11 +210,9 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             context.OrchestrationContext.SystemMessageBuilder.Append(header);
         }
 
-        var visionContents = await BuildVisionUserContentsAsync(context, userSuppliedDocuments, cancellationToken);
-
-        if (visionContents.Count > 0)
+        if (visionContentResult.Contents.Count > 0)
         {
-            context.OrchestrationContext.Properties[VisionUserContentsKey] = visionContents;
+            context.OrchestrationContext.Properties[OrchestrationPropertyKeys.VisionUserContents] = visionContentResult.Contents;
         }
     }
 
@@ -227,21 +233,21 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         return null;
     }
 
-    private async Task<List<AIContent>> BuildVisionUserContentsAsync(
+    private async Task<VisionUserContentResult> BuildVisionUserContentsAsync(
         OrchestrationContextBuiltContext context,
         IEnumerable<ChatDocumentInfo> userSuppliedDocuments,
         CancellationToken cancellationToken)
     {
         if (userSuppliedDocuments?.Any() != true)
         {
-            return [];
+            return VisionUserContentResult.Empty;
         }
 
         var deployment = await ResolveChatDeploymentAsync(context, cancellationToken);
 
         if (deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) != true)
         {
-            return [];
+            return VisionUserContentResult.Empty;
         }
 
         var session = context.OrchestrationContext.CompletionContext?.AdditionalProperties is not null
@@ -253,7 +259,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
 
         if (reference == null)
         {
-            return [];
+            return VisionUserContentResult.Empty;
         }
 
         var visionDocuments = await _documentStore.GetDocumentsAsync(reference.Value.ReferenceId, reference.Value.ReferenceType);
@@ -265,14 +271,24 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
 
         if (documentIds.Count == 0)
         {
-            return [];
+            return VisionUserContentResult.Empty;
         }
 
+        var remainingBytes = _documentOptions.MaxVisionInputBytesPerRequest > 0
+            ? _documentOptions.MaxVisionInputBytesPerRequest
+            : long.MaxValue;
+
         var contents = new List<AIContent>();
+        var includedDocumentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var document in visionDocuments.Where(document => documentIds.Contains(document.ItemId)))
         {
             if (string.IsNullOrWhiteSpace(document.StoredFilePath))
+            {
+                continue;
+            }
+
+            if (ShouldSkipVisionDocument(document, remainingBytes))
             {
                 continue;
             }
@@ -284,36 +300,27 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
                 continue;
             }
 
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream, cancellationToken);
+            var data = await ReadVisionDocumentBytesAsync(document, stream, cancellationToken);
 
-            if (memoryStream.Length == 0)
+            if (data == null || data.Length == 0)
             {
                 continue;
             }
 
-            contents.Add(new DataContent(memoryStream.ToArray(), document.ContentType ?? MediaTypeHelper.InferMediaType(Path.GetExtension(document.FileName))));
+            contents.Add(new DataContent(data, document.ContentType ?? MediaTypeHelper.InferMediaType(Path.GetExtension(document.FileName))));
+            includedDocumentIds.Add(document.ItemId);
+            remainingBytes -= data.Length;
         }
 
-        return contents;
+        return new VisionUserContentResult(contents, includedDocumentIds);
     }
 
     private async Task<AIDeployment> ResolveChatDeploymentAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken)
     {
-        var completionContext = context.OrchestrationContext.CompletionContext;
-        var deploymentName = completionContext?.ChatDeploymentName;
-
-        if (string.IsNullOrWhiteSpace(deploymentName))
-        {
-            deploymentName = context.Resource switch
-            {
-                ChatInteraction interaction => interaction.ChatDeploymentName,
-                AIProfile profile => profile.ChatDeploymentName,
-                _ => null,
-            };
-        }
-
-        return await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: deploymentName, cancellationToken: cancellationToken);
+        return await _deploymentManager.ResolveOrDefaultAsync(
+            AIDeploymentPurpose.Chat,
+            deploymentName: context.OrchestrationContext.CompletionContext?.ChatDeploymentName,
+            cancellationToken: cancellationToken);
     }
 
     private static bool IsVisionDocument(ChatDocumentInfo document)
@@ -339,5 +346,100 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             AIProfile when session != null => (session.SessionId, AIReferenceTypes.Document.ChatSession),
             _ => null,
         };
+    }
+
+    private bool ShouldSkipVisionDocument(AIDocument document, long remainingBytes)
+    {
+        if (document.FileSize <= 0)
+        {
+            _logger.LogWarning(
+                "Skipping vision document '{DocumentId}' because its file size metadata is missing or invalid.",
+                document.ItemId);
+
+            return true;
+        }
+
+        if (document.FileSize > int.MaxValue)
+        {
+            _logger.LogWarning(
+                "Skipping vision document '{DocumentId}' because its size ({FileSize} bytes) exceeds the supported in-memory limit.",
+                document.ItemId,
+                document.FileSize);
+
+            return true;
+        }
+
+        if (_documentOptions.MaxVisionImageBytesPerFile > 0 && document.FileSize > _documentOptions.MaxVisionImageBytesPerFile)
+        {
+            _logger.LogWarning(
+                "Skipping vision document '{DocumentId}' because its size ({FileSize} bytes) exceeds the per-file limit of {MaxBytesPerFile} bytes.",
+                document.ItemId,
+                document.FileSize,
+                _documentOptions.MaxVisionImageBytesPerFile);
+
+            return true;
+        }
+
+        if (document.FileSize > remainingBytes)
+        {
+            _logger.LogWarning(
+                "Skipping vision document '{DocumentId}' because it would exceed the configured multimodal image budget of {MaxBytes} bytes for a single request.",
+                document.ItemId,
+                _documentOptions.MaxVisionInputBytesPerRequest);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static async Task<byte[]> ReadVisionDocumentBytesAsync(
+        AIDocument document,
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        var data = GC.AllocateUninitializedArray<byte>((int)document.FileSize);
+        var totalRead = 0;
+
+        while (totalRead < data.Length)
+        {
+            var bytesRead = await stream.ReadAsync(data.AsMemory(totalRead), cancellationToken);
+
+            if (bytesRead == 0)
+            {
+                break;
+            }
+
+            totalRead += bytesRead;
+        }
+
+        if (totalRead == 0)
+        {
+            return null;
+        }
+
+        if (totalRead == data.Length)
+        {
+            return data;
+        }
+
+        return data[..totalRead];
+    }
+
+    private sealed class VisionUserContentResult
+    {
+        public static readonly VisionUserContentResult Empty = new([], new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        public VisionUserContentResult(
+            IReadOnlyList<AIContent> contents,
+            IReadOnlySet<string> includedDocumentIds)
+        {
+            Contents = contents;
+            IncludedDocumentIds = includedDocumentIds;
+        }
+
+        public IReadOnlyList<AIContent> Contents { get; }
+
+        public IReadOnlySet<string> IncludedDocumentIds { get; }
     }
 }

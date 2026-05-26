@@ -56,7 +56,7 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// <param name="clientName">The name of the client to resolve the default deployment for.</param>
     /// <param name="type">The deployment type to filter by.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use the capability overload instead.")]
+    [Obsolete("Use the purpose overload instead.")]
     ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -79,7 +79,7 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     /// <param name="deploymentName">The optional deployment name to look up directly.</param>
     /// <param name="clientName">The optional client name to scope the resolution.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use the capability overload instead.")]
+    [Obsolete("Use the purpose overload instead.")]
     ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default);
 
     /// <summary>

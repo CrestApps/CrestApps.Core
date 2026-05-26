@@ -92,7 +92,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     /// <param name="clientName">The client name.</param>
     /// <param name="type">The type.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    [Obsolete("Use the capability overload instead.")]
+    [Obsolete("Use the purpose overload instead.")]
     public ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
     {
         return GetDefaultAsync(clientName, type.ToPurpose(), cancellationToken);
@@ -117,7 +117,7 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     /// <param name="deploymentName">The deployment name.</param>
     /// <param name="clientName">The client name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    [Obsolete("Use the capability overload instead.")]
+    [Obsolete("Use the purpose overload instead.")]
     public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
     {
         return ResolveOrDefaultAsync(type.ToPurpose(), deploymentName, clientName, cancellationToken);

@@ -37,18 +37,18 @@ public abstract class AICompletionServiceBase
     /// <summary>
     /// Resolves a deployment using the <see cref="IAIDeploymentManager"/>.
     /// </summary>
-    /// <param name="capability">The capability.</param>
+    /// <param name="purpose">The purpose.</param>
     /// <param name="providerName">The provider name.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected virtual async ValueTask<AIDeployment> ResolveDeploymentAsync(
-        AIDeploymentPurpose capability,
+        AIDeploymentPurpose purpose,
         string providerName,
         string deploymentName = null)
     {
         if (DeploymentResolver != null)
         {
             var deployment = await DeploymentResolver.ResolveOrDefaultAsync(
-                capability,
+                purpose,
                 deploymentName: deploymentName,
                 clientName: providerName);
 
@@ -67,7 +67,7 @@ public abstract class AICompletionServiceBase
     /// <param name="type">The type.</param>
     /// <param name="providerName">The provider name.</param>
     /// <param name="deploymentName">The deployment name.</param>
-    [Obsolete("Use the capability overload instead.")]
+    [Obsolete("Use the purpose overload instead.")]
     protected ValueTask<AIDeployment> ResolveDeploymentAsync(
         AIDeploymentType type,
         string providerName,

@@ -52,6 +52,12 @@ public abstract class AIChatDocumentEndpointBase
             return (false, S["Image uploads require a vision-capable chat deployment."].Value, null);
         }
 
+        if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension) &&
+            documentOptions.MaxVisionImageBytesPerFile > 0 && file.Length > documentOptions.MaxVisionImageBytesPerFile)
+        {
+            return (false, S["The uploaded image exceeds the maximum allowed size of {0} MB.", documentOptions.MaxVisionImageBytesPerFile / (1024 * 1024)].Value, null);
+        }
+
         if (!documentOptions.IsAllowedFileExtension(extension, allowVisionImages))
         {
             return (false, S["File type '{0}' is not supported.", extension].Value, null);
@@ -242,6 +248,11 @@ public abstract class AIChatDocumentEndpointBase
 
         using (var stream = file.OpenReadStream())
         {
+            if (!MediaTypeHelper.HasValidImageSignature(stream))
+            {
+                return (false, "The uploaded file does not contain a valid image.", null);
+            }
+
             await fileStore.SaveFileAsync(storagePath, stream);
         }
 

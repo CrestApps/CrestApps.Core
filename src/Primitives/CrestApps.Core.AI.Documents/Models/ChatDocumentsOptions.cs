@@ -5,6 +5,12 @@ namespace CrestApps.Core.AI.Documents.Models;
 /// </summary>
 public sealed class ChatDocumentsOptions
 {
+    // 20 MB default limit for vision input to prevent excessive memory usage. This can be adjusted based on expected use cases and system capabilities.
+    private const long DefaultMaxVisionInputBytesPerRequest = 20 * 1024 * 1024;
+
+    // 10 MB default per-file limit to prevent a single image from consuming excessive memory.
+    private const long DefaultMaxVisionImageBytesPerFile = 10 * 1024 * 1024;
+
     private readonly HashSet<string> _allowedFileExtensions = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _embeddableFileExtensions = new(StringComparer.OrdinalIgnoreCase);
 
@@ -17,6 +23,19 @@ public sealed class ChatDocumentsOptions
     /// Gets the embeddable File Extensions.
     /// </summary>
     public IReadOnlySet<string> EmbeddableFileExtensions => _embeddableFileExtensions;
+
+    /// <summary>
+    /// Gets or sets the maximum total number of image bytes loaded into a single multimodal chat request.
+    /// Set to <c>0</c> or a negative value to disable the limit.
+    /// </summary>
+    public long MaxVisionInputBytesPerRequest { get; set; } = DefaultMaxVisionInputBytesPerRequest;
+
+    /// <summary>
+    /// Gets or sets the maximum number of bytes for a single vision image file.
+    /// Images exceeding this limit are skipped during orchestration.
+    /// Set to <c>0</c> or a negative value to disable the per-file limit.
+    /// </summary>
+    public long MaxVisionImageBytesPerFile { get; set; } = DefaultMaxVisionImageBytesPerFile;
 
     internal void Add(string extension, bool embeddable = true)
     {

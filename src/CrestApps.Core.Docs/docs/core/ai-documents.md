@@ -70,6 +70,52 @@ The document processing system handles this full pipeline from upload to retriev
 
 When a chat deployment also supports the `Vision` purpose, chat interaction and chat session uploads can include supported image formats (`.bmp`, `.gif`, `.jpeg`, `.jpg`, `.png`, `.webp`) alongside standard document files. Those images are stored as `AIDocument` records and attached to the current user message as multimodal content instead of going through text extraction and chunk embedding. The shared document-availability prompt distinguishes image attachments from searchable documents so the model analyzes supported uploaded images directly instead of treating them like text-only document metadata.
 
+`DocumentOrchestrationHandler` still has to materialize image bytes before building `DataContent`, but it now reads directly into the target byte buffer and honors `ChatDocumentsOptions.MaxVisionInputBytesPerRequest` so a single request cannot pull an unbounded batch of uploaded images into memory.
+
+### Creating a chat client to describe an image
+
+When you want to call a vision-capable model directly, resolve the deployment, create an `IChatClient`, and send a multimodal user message:
+
+```csharp
+public sealed class ImageDescriptionService(
+    IAIDeploymentManager deploymentManager,
+    IAIClientFactory clientFactory)
+{
+    public async Task<string> DescribeImageAsync(
+        string imagePath,
+        string chatDeploymentName,
+        CancellationToken cancellationToken = default)
+    {
+        var deployment = await deploymentManager.ResolveOrDefaultAsync(
+            AIDeploymentPurpose.Chat,
+            deploymentName: chatDeploymentName,
+            cancellationToken: cancellationToken);
+
+        if (deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) != true)
+        {
+            throw new InvalidOperationException("The selected chat deployment does not support vision.");
+        }
+
+        var chatClient = await clientFactory.CreateChatClientAsync(deployment);
+        var imageBytes = await File.ReadAllBytesAsync(imagePath, cancellationToken);
+        var mediaType = MediaTypeHelper.InferMediaType(Path.GetExtension(imagePath));
+
+        var response = await chatClient.GetResponseAsync(
+            [
+                new ChatMessage(
+                    ChatRole.User,
+                    [
+                        new TextContent("Describe this image in detail."),
+                        new DataContent(imageBytes, mediaType),
+                    ]),
+            ],
+            cancellationToken: cancellationToken);
+
+        return response.Text;
+    }
+}
+```
+
 ## Architecture Overview
 
 ```text
@@ -526,6 +572,7 @@ services.Configure<ChatDocumentsOptions>(options =>
 |----------|------|-------------|
 | `AllowedFileExtensions` | `IReadOnlySet<string>` | Complete set of uploadable file extensions |
 | `EmbeddableFileExtensions` | `IReadOnlySet<string>` | Subset that gets vector-embedded |
+| `MaxVisionInputBytesPerRequest` | `long` | Maximum total image bytes attached to one multimodal request; set `0` or less to disable the limit |
 
 Extensions not in `EmbeddableFileExtensions` are still allowed for upload and can be read by `ReadDocumentTool` or `ReadTabularDataTool`, but they are not chunked and embedded.
 
