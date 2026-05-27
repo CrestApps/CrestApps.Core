@@ -100,7 +100,7 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
                 profile.IndexFullName.SanitizeForLog(),
                 profile.ProviderName.SanitizeForLog());
 
-            return Fail($"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.", nameof(SearchIndexProfile.IndexName));
+            return Fail(GetRemoteIndexValidationErrorMessage(profile, ex), nameof(SearchIndexProfile.IndexName));
         }
 
         try
@@ -140,5 +140,42 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
         result.Fail(new ValidationResult(message, memberNames));
 
         return result;
+    }
+
+    private static string GetRemoteIndexValidationErrorMessage(SearchIndexProfile profile, Exception ex)
+    {
+        if (TryGetRequestFailedStatusCode(ex, out var statusCode) && (statusCode == 401 || statusCode == 403))
+        {
+            return $"Unable to validate whether the remote index '{profile.IndexFullName}' already exists because the remote search provider rejected the configured credentials. Verify the endpoint and use credentials with index management permissions.";
+        }
+
+        return $"Unable to validate whether the remote index '{profile.IndexFullName}' already exists.";
+    }
+
+    private static bool TryGetRequestFailedStatusCode(Exception ex, out int statusCode)
+    {
+        statusCode = default;
+
+        var exceptionType = ex.GetType();
+        if (!string.Equals(exceptionType.FullName, "Azure.RequestFailedException", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var statusProperty = exceptionType.GetProperty("Status");
+        if (statusProperty?.PropertyType != typeof(int))
+        {
+            return false;
+        }
+
+        var value = statusProperty.GetValue(ex);
+        if (value is not int typedStatusCode)
+        {
+            return false;
+        }
+
+        statusCode = typedStatusCode;
+
+        return true;
     }
 }

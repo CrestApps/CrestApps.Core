@@ -90,9 +90,9 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
                     _lastRunDateUtc != runDateUtc;
     }
 
-    private async Task AlignDataSourcesAsync(IServiceProvider services, CancellationToken cancellationToken)
+    private async Task AlignDataSourcesAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken)
     {
-        var dataSourceStore = services.GetService<IAIDataSourceStore>();
+        var dataSourceStore = serviceProvider.GetService<IAIDataSourceStore>();
         if (dataSourceStore == null)
         {
             if (_logger.IsEnabled(LogLevel.Trace))
@@ -112,7 +112,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
             return;
         }
 
-        var indexingService = services.GetRequiredService<IAIDataSourceIndexingService>();
+        var indexingService = serviceProvider.GetRequiredService<IAIDataSourceIndexingService>();
 
         if (_logger.IsEnabled(LogLevel.Information))
         {

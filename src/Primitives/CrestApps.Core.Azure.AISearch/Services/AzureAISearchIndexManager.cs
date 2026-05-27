@@ -42,13 +42,18 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
     public string ComposeIndexFullName(IIndexProfileInfo profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
+
         var normalizedIndexName = profile.IndexName?.Trim();
         if (string.IsNullOrWhiteSpace(normalizedIndexName))
         {
             return normalizedIndexName;
         }
 
-        return string.IsNullOrWhiteSpace(_options.IndexPrefix) ? normalizedIndexName : string.Concat(_options.IndexPrefix.Trim(), normalizedIndexName);
+        var indexPrefix = _options.GetResolvedIndexPrefix();
+
+        return string.IsNullOrWhiteSpace(indexPrefix)
+            ? normalizedIndexName
+            : string.Concat(indexPrefix.Trim(), normalizedIndexName);
     }
 
     /// <summary>
@@ -59,6 +64,7 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
     public async Task<bool> ExistsAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
+
         var indexFullName = profile.IndexFullName ?? ComposeIndexFullName(profile);
         if (string.IsNullOrEmpty(indexFullName))
         {
@@ -97,6 +103,7 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(fields);
+
         try
         {
             var azureFields = new List<SearchField>();
@@ -106,7 +113,9 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
                 {
                     var vectorField = new SearchField(field.Name, SearchFieldDataType.Collection(SearchFieldDataType.Single))
                     {
+                        IsHidden = false,
                         IsSearchable = true,
+                        IsStored = true,
                         VectorSearchDimensions = field.VectorDimensions ?? 1536,
                         VectorSearchProfileName = "default-profile",
                     };
@@ -164,8 +173,10 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
     public async Task DeleteAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
+
         var indexFullName = !string.IsNullOrWhiteSpace(profile.IndexFullName) ? profile.IndexFullName : ComposeIndexFullName(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexFullName);
+
         try
         {
             await _searchIndexClient.DeleteIndexAsync(indexFullName, cancellationToken);

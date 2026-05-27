@@ -1,8 +1,11 @@
 using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Azure.AISearch.Services;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Elasticsearch.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -84,5 +87,77 @@ public sealed class SearchProviderClientFactoryTests
         }));
 
         Assert.Throws<ArgumentException>(() => factory.CreateSearchClient(" "));
+    }
+
+    [Fact]
+    public void AzureCreateSearchIndexClient_ShouldRequireApiKeyWhenApiKeyAuthenticationIsConfigured()
+    {
+        var factory = new AzureAISearchClientFactory(Options.Create(new AzureAISearchConnectionOptions
+        {
+            Endpoint = "https://example.search.windows.net",
+            AuthenticationType = "ApiKey",
+        }));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateSearchIndexClient());
+
+        Assert.Contains("admin API key", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AzureCreateSearchIndexClient_ShouldAllowDefaultAuthenticationWithoutApiKey()
+    {
+        var factory = new AzureAISearchClientFactory(Options.Create(new AzureAISearchConnectionOptions
+        {
+            Endpoint = "https://example.search.windows.net",
+            AuthenticationType = "Default",
+        }));
+
+        var client = factory.CreateSearchIndexClient();
+
+        Assert.NotNull(client);
+    }
+
+    [Fact]
+    public void AzureCreateSearchIndexClient_ShouldAllowManagedIdentityAuthenticationWithoutApiKey()
+    {
+        var factory = new AzureAISearchClientFactory(Options.Create(new AzureAISearchConnectionOptions
+        {
+            Endpoint = "https://example.search.windows.net",
+            AuthenticationType = "ManagedIdentity",
+            IdentityClientId = "11111111-1111-1111-1111-111111111111",
+        }));
+
+        var client = factory.CreateSearchIndexClient();
+
+        Assert.NotNull(client);
+    }
+
+    [Fact]
+    public void AddCoreAzureAISearchServices_ShouldBindConfiguredOptions()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AzureAISearch:Endpoint"] = "https://example.search.windows.net",
+                ["CrestApps:AzureAISearch:IndexPrefix"] = "legacy-",
+                ["CrestApps:AzureAISearch:AuthenticationType"] = "ApiKey",
+                ["CrestApps:AzureAISearch:ApiKey"] = "test-key",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddCoreAzureAISearchServices(configuration.GetSection("CrestApps:AzureAISearch"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var options = serviceProvider.GetRequiredService<IOptions<AzureAISearchConnectionOptions>>().Value;
+        var client = serviceProvider.GetRequiredService<SearchIndexClient>();
+
+        Assert.Equal("test-key", options.ApiKey);
+        Assert.Equal("legacy-", options.GetResolvedIndexPrefix());
+        Assert.True(options.UsesApiKeyAuthentication());
+        Assert.Equal("ApiKey", options.AuthenticationType);
+        Assert.NotNull(client);
     }
 }

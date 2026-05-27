@@ -433,21 +433,22 @@ All six services must be registered with the same `providerName` key. The framew
 
 ## Configuration Guide
 
-Data source backends are configured in `appsettings.json` under the `CrestApps:Search` section. Each backend has its own configuration section:
+Data source backends are configured in `appsettings.json` under the `CrestApps` section. Each backend has its own configuration subsection:
 
 ```json
 {
   "CrestApps": {
-    "Search": {
-      "Elasticsearch": {
-        "Url": "https://localhost:9200",
-        "Username": "elastic",
-        "Password": "your-password"
-      },
-      "AzureAISearch": {
-        "Endpoint": "https://my-search.search.windows.net",
-        "ApiKey": "your-admin-api-key"
-      }
+    "Elasticsearch": {
+      "Url": "https://localhost:9200",
+      "Username": "elastic",
+      "Password": "your-password"
+    },
+    "AzureAISearch": {
+      "Endpoint": "https://my-search.search.windows.net",
+      "AuthenticationType": "ApiKey",
+      "ApiKey": "your-admin-api-key",
+      "IdentityClientId": "",
+      "IndexPrefix": ""
     }
   }
 }

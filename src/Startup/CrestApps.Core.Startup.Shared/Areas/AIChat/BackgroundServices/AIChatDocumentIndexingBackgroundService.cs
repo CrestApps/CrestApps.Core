@@ -28,7 +28,8 @@ public sealed class AIChatDocumentIndexingBackgroundService : BackgroundService
         {
             try
             {
-                var indexingService = _serviceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
+                using var scope = _serviceProvider.CreateScope();
+                var indexingService = scope.ServiceProvider.GetRequiredService<DefaultAIDocumentIndexingService>();
 
                 switch (workItem.Type)
                 {
