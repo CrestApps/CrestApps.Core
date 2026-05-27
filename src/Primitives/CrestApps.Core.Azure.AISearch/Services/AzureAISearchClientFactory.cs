@@ -75,8 +75,39 @@ public sealed class AzureAISearchClientFactory : IAzureAISearchClientFactory
             throw new InvalidOperationException("The Azure AI Search endpoint is invalid.");
         }
 
-        return !string.IsNullOrWhiteSpace(configuration.ApiKey)
-            ? new SearchIndexClient(endpoint, new AzureKeyCredential(configuration.ApiKey.Trim()))
-            : new SearchIndexClient(endpoint, new DefaultAzureCredential());
+        return configuration.GetAuthenticationType() switch
+        {
+            AzureAISearchConnectionOptions.ApiKeyAuthenticationType => CreateApiKeyClient(configuration, endpoint),
+            AzureAISearchConnectionOptions.ManagedIdentityAuthenticationType => CreateManagedIdentityClient(configuration, endpoint),
+            _ => CreateDefaultCredentialClient(configuration, endpoint),
+        };
+    }
+
+    private static SearchIndexClient CreateApiKeyClient(AzureAISearchConnectionOptions configuration, Uri endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(configuration.ApiKey))
+        {
+            throw new InvalidOperationException("Azure AI Search API key authentication is configured, but no admin API key was provided.");
+        }
+
+        return new SearchIndexClient(endpoint, new AzureKeyCredential(configuration.ApiKey.Trim()));
+    }
+
+    private static SearchIndexClient CreateManagedIdentityClient(AzureAISearchConnectionOptions configuration, Uri endpoint)
+    {
+        return string.IsNullOrWhiteSpace(configuration.IdentityClientId)
+            ? new SearchIndexClient(endpoint, new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned))
+            : new SearchIndexClient(endpoint, new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(configuration.IdentityClientId.Trim())));
+    }
+
+    private static SearchIndexClient CreateDefaultCredentialClient(AzureAISearchConnectionOptions configuration, Uri endpoint)
+    {
+        var credentialOptions = new DefaultAzureCredentialOptions();
+        if (!string.IsNullOrWhiteSpace(configuration.IdentityClientId))
+        {
+            credentialOptions.ManagedIdentityClientId = configuration.IdentityClientId.Trim();
+        }
+
+        return new SearchIndexClient(endpoint, new DefaultAzureCredential(credentialOptions));
     }
 }

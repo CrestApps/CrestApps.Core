@@ -29,11 +29,12 @@ builder.Services.AddCoreAzureAISearchServices();
 ```json
 {
   "CrestApps": {
-    "Search": {
-      "AzureAISearch": {
-        "Endpoint": "https://my-search.search.windows.net",
-        "ApiKey": "your-admin-api-key"
-      }
+    "AzureAISearch": {
+      "Endpoint": "https://my-search.search.windows.net",
+      "AuthenticationType": "Default",
+      "ApiKey": "",
+      "IdentityClientId": "",
+      "IndexPrefix": ""
     }
   }
 }
@@ -44,7 +45,10 @@ builder.Services.AddCoreAzureAISearchServices();
 | Property | Type | Description |
 |----------|------|-------------|
 | `Endpoint` | `string` | Azure AI Search endpoint URL |
-| `ApiKey` | `string` | Admin API key. If empty, uses `DefaultAzureCredential` |
+| `AuthenticationType` | `string` | Authentication mode. Supported values: `Default`, `ApiKey`, `ManagedIdentity` |
+| `ApiKey` | `string` | Admin API key. Required when `AuthenticationType` is `ApiKey` |
+| `IdentityClientId` | `string` | Optional managed identity client ID used by `DefaultAzureCredential` or `ManagedIdentityCredential` |
+| `IndexPrefix` | `string` | Optional prefix applied to framework-managed Azure AI Search index names |
 
 ## Services Registered (Keyed by `"AzureAISearch"`)
 
@@ -74,8 +78,11 @@ Override `IAIDataSourceIndexingQueue` when you need a durable or distributed que
 
 ## Authentication
 
-- **API Key** — Provide the `ApiKey` property
-- **Azure AD** — Leave `ApiKey` empty and the service uses `DefaultAzureCredential` (Managed Identity, VS credentials, etc.)
+Set `AuthenticationType` to one of these values:
+
+- **`Default`** — Uses `DefaultAzureCredential`. This is the default when `AuthenticationType` is omitted or invalid.
+- **`ApiKey`** — Uses the admin API key from `ApiKey`.
+- **`ManagedIdentity`** — Uses `ManagedIdentityCredential`. Set `IdentityClientId` when you need a user-assigned managed identity.
 
 ## Azure Setup
 
@@ -104,11 +111,12 @@ The simplest approach — provide the admin API key directly:
 ```json title="appsettings.json"
 {
   "CrestApps": {
-    "Search": {
-      "AzureAISearch": {
-        "Endpoint": "https://myapp-search.search.windows.net",
-        "ApiKey": "your-admin-api-key"
-      }
+    "AzureAISearch": {
+      "Endpoint": "https://myapp-search.search.windows.net",
+      "AuthenticationType": "ApiKey",
+      "ApiKey": "your-admin-api-key",
+      "IdentityClientId": "",
+      "IndexPrefix": ""
     }
   }
 }
@@ -125,10 +133,12 @@ Leave `ApiKey` empty and the service uses `DefaultAzureCredential`, which automa
 ```json title="appsettings.json"
 {
   "CrestApps": {
-    "Search": {
-      "AzureAISearch": {
-        "Endpoint": "https://myapp-search.search.windows.net"
-      }
+    "AzureAISearch": {
+      "Endpoint": "https://myapp-search.search.windows.net",
+      "AuthenticationType": "Default",
+      "ApiKey": "",
+      "IdentityClientId": "",
+      "IndexPrefix": ""
     }
   }
 }
@@ -140,6 +150,28 @@ Leave `ApiKey` empty and the service uses `DefaultAzureCredential`, which automa
 2. **Managed Identity** (when running in Azure App Service, Azure Functions, etc.)
 3. **Visual Studio / VS Code credentials** (for local development)
 4. **Azure CLI** (`az login`)
+
+If you want to prefer a specific user-assigned managed identity while still using `DefaultAzureCredential`, set `IdentityClientId`.
+
+### Option 3: Managed Identity Only
+
+Set `AuthenticationType` to `ManagedIdentity` when you want Azure AI Search to authenticate only with managed identity credentials:
+
+```json title="appsettings.json"
+{
+  "CrestApps": {
+    "AzureAISearch": {
+      "Endpoint": "https://myapp-search.search.windows.net",
+      "AuthenticationType": "ManagedIdentity",
+      "ApiKey": "",
+      "IdentityClientId": "",
+      "IndexPrefix": ""
+    }
+  }
+}
+```
+
+Leave `IdentityClientId` empty for a system-assigned managed identity, or set it to the client ID of a user-assigned managed identity.
 
 To use Managed Identity:
 1. Enable system-assigned managed identity on your Azure App Service.
@@ -153,11 +185,12 @@ To use Managed Identity:
 ```json
 {
   "CrestApps": {
-    "Search": {
-      "AzureAISearch": {
-        "Endpoint": "https://myapp-search.search.windows.net",
-        "ApiKey": "your-admin-api-key"
-      }
+    "AzureAISearch": {
+      "Endpoint": "https://myapp-search.search.windows.net",
+      "AuthenticationType": "Default",
+      "ApiKey": "",
+      "IdentityClientId": "",
+      "IndexPrefix": ""
     }
   }
 }
@@ -168,7 +201,10 @@ To use Managed Identity:
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `Endpoint` | `string` | Yes | — | Azure AI Search endpoint URL. Format: `https://{service-name}.search.windows.net` |
-| `ApiKey` | `string` | No | — | Admin API key. When empty, `DefaultAzureCredential` is used for authentication. |
+| `AuthenticationType` | `string` | No | `Default` | Supported values: `Default`, `ApiKey`, `ManagedIdentity`. |
+| `ApiKey` | `string` | No | — | Admin API key. Required when `AuthenticationType` is `ApiKey`. |
+| `IdentityClientId` | `string` | No | — | Optional managed identity client ID used by `DefaultAzureCredential` or `ManagedIdentityCredential`. |
+| `IndexPrefix` | `string` | No | — | Optional prefix applied to framework-managed index names. |
 
 :::info
 When `Endpoint` is provided, the framework registers a `SearchIndexClient` singleton that all keyed services share. If `Endpoint` is empty or null, no client is registered and the data source is effectively disabled.
@@ -186,6 +222,10 @@ curl -H "api-key: your-admin-api-key" \
 ```
 
 A successful response returns a JSON list of indexes (possibly empty).
+
+:::info
+The framework writes embeddings into the `embedding` vector field for AI Documents, AI Memory, and AI Data Sources. In Azure Search Explorer, make sure the vector field is retrievable and clear **Hide vector values in search results** if you want the raw float array to appear in the portal response.
+:::
 
 ### 2. Verify from the Application
 

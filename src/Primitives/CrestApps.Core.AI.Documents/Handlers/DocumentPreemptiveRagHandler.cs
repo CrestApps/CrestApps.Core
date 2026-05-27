@@ -260,15 +260,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
             return [];
         }
 
-        if (!indexProfile.TryGet(out DataSourceIndexProfileMetadata metadata))
-        {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Unable to retrieve embedding configuration from index profile '{IndexProfileName}'.", settings.IndexProfileName);
-            }
-
-            return [];
-        }
+        indexProfile.TryGet(out DataSourceIndexProfileMetadata metadata);
 
         var deploymentName = metadata?.EmbeddingDeploymentName ?? indexProfile.EmbeddingDeploymentName;
 
