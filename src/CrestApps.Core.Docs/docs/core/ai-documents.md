@@ -68,9 +68,11 @@ Users upload documents (PDFs, Word files, spreadsheets, text files) and expect t
 
 The document processing system handles this full pipeline from upload to retrieval, while the built-in document tools make the content available to the AI during orchestration.
 
-When a chat deployment also supports the `Vision` purpose, chat interaction and chat session uploads can include supported image formats (`.bmp`, `.gif`, `.jpeg`, `.jpg`, `.png`, `.webp`) alongside standard document files. Those images are stored as `AIDocument` records and attached to the current user message as multimodal content instead of going through text extraction and chunk embedding. The shared document-availability prompt distinguishes image attachments from searchable documents so the model analyzes supported uploaded images directly instead of treating them like text-only document metadata.
+When a chat deployment also supports the `Vision` purpose, chat interaction and chat session uploads can include supported image formats (`.bmp`, `.gif`, `.jpeg`, `.jpg`, `.png`, `.webp`) alongside standard document files. Those images are stored as `AIDocument` records, analyzed at upload time by `IImageAnalysisService` to extract a structured summary (caption, OCR text, detected entities), and the results are persisted as `AIDocumentChunk` records — exactly like text documents. This makes image content available through the same `read_document` and `search_documents` tools used for regular documents.
 
-`DocumentOrchestrationHandler` still has to materialize image bytes before building `DataContent`, but it now reads directly into the target byte buffer and honors `ChatDocumentsOptions.MaxVisionInputBytesPerRequest` so a single request cannot pull an unbounded batch of uploaded images into memory.
+For cases where the text analysis is insufficient (e.g., reading fine text, comparing visual elements, or understanding spatial layout), the `inspect_image` tool provides on-demand raw image inspection by sending the original bytes to a vision model in a one-shot call. This approach eliminates the cost of attaching raw image bytes to every chat request while preserving full visual inspection capability when needed.
+
+The `ChatDocumentsOptions.AnalyzeImagesAtUpload` setting controls whether analysis runs at upload time, and `MaxInspectImageCallsPerRequest` limits how many costly raw-image inspections the model can perform per turn.
 
 ### Creating a chat client to describe an image
 
@@ -144,6 +146,7 @@ public sealed class ImageDescriptionService(
        │  • SearchDocumentsTool (vector RAG)  │
        │  • ReadDocumentTool (full text read) │
        │  • ReadTabularDataTool (CSV/Excel)   │
+       │  • InspectImageTool (vision on-demand)│
        └──────────────┬──────────────────────┘
                       ▼
        ┌─────────────────────────────────────┐

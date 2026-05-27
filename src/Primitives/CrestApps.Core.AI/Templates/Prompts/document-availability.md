@@ -5,7 +5,7 @@ Parameters:
   - tools: array of AIToolDefinitionEntry objects for document processing tools available.
   - knowledgeBaseDocuments: array of profile-level ChatDocumentInfo objects that are hidden background knowledge.
   - userSuppliedDocuments: array of non-image session/user-level ChatDocumentInfo objects that are user-visible uploads/attachments.
-  - visionUserSuppliedDocuments: array of supported image session/user-level ChatDocumentInfo objects that are attached to the current user message as multimodal inputs.
+  - visionUserSuppliedDocuments: array of image session/user-level ChatDocumentInfo objects with text analysis available via document tools.
 IsListable: false
 Category: Documents
 ---
@@ -18,10 +18,11 @@ Category: Documents
 {% assign hasKnowledgeBaseDocuments = knowledgeBaseDocuments.size > 0 %}
 
 {% if hasVisionUserSuppliedDocuments %}
-The user has uploaded the following image attachments as supplementary context.
-These supported image attachments are already attached to the current user message as multimodal inputs.
-When the user asks what is shown in one of these images, inspect the image directly and answer from its visual content.
-Do not say that you cannot view images or ask the user to upload the image again unless the image input is actually unavailable.
+The user has uploaded the following image attachments.
+Each image has been analyzed and its content (caption, OCR text, detected entities) is available as document text.
+Use `read_document` with the image's document ID to retrieve the full analysis.
+Use `search_documents` to find image content by semantic search.
+Use `inspect_image` only when you need pixel-level detail that the text analysis does not provide (e.g., fine text, color comparison, spatial layout, or visual elements not captured in the summary).
 
 ### Available image attachments:
 {% for doc in visionUserSuppliedDocuments %}

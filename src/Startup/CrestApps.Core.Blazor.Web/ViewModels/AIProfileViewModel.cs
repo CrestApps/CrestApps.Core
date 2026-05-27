@@ -122,6 +122,8 @@ public sealed class AIProfileViewModel
 
     public bool AllowSessionDocuments { get; set; }
 
+    public bool AllowSessionImageUploads { get; set; }
+
     public bool HasDocumentIndexConfiguration { get; set; }
 
     public string DocumentIndexProfileName { get; set; }
@@ -330,6 +332,7 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata))
         {
             vm.AllowSessionDocuments = sessionDocMetadata.AllowSessionDocuments;
+            vm.AllowSessionImageUploads = sessionDocMetadata.AllowSessionImageUploads;
         }
 
         if (profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata))
@@ -496,6 +499,7 @@ public sealed class AIProfileViewModel
         profile.Alter<AIProfileSessionDocumentsMetadata>(metadata =>
         {
             metadata.AllowSessionDocuments = AllowSessionDocuments;
+            metadata.AllowSessionImageUploads = AllowSessionImageUploads;
         });
 
         profile.AlterSettings<AIProfileDataExtractionSettings>(s =>

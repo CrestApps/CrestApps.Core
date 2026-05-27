@@ -13,4 +13,11 @@ public sealed class AIProfileSessionDocumentsMetadata
     /// to chat sessions that use this profile.
     /// </summary>
     public bool AllowSessionDocuments { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether users are allowed to upload image files
+    /// to chat sessions that use this profile. When enabled, image uploads
+    /// are processed using the global vision deployment.
+    /// </summary>
+    public bool AllowSessionImageUploads { get; set; }
 }

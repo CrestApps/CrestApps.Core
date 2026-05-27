@@ -1,6 +1,7 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using Microsoft.AspNetCore.Authorization;
@@ -54,7 +55,7 @@ public sealed class AIChatController : Controller
 
         ViewData["Session"] = session;
         ViewData["Prompts"] = prompts;
-        ViewData["SupportsVisionUploads"] = await SupportsVisionUploadsAsync(profile);
+        ViewData["AllowImageUploads"] = await AllowSessionImageUploadsAsync(profile);
 
         return View(profile);
     }
@@ -152,11 +153,15 @@ public sealed class AIChatController : Controller
         return View(profile);
     }
 
-    private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
+    private async Task<bool> AllowSessionImageUploadsAsync(AIProfile profile)
     {
-        var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
+        if (!profile.TryGet<AIProfileSessionDocumentsMetadata>(out var metadata) || !metadata.AllowSessionImageUploads)
+        {
+            return false;
+        }
 
-        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
+        var visionDeployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+
+        return visionDeployment != null;
     }
 }

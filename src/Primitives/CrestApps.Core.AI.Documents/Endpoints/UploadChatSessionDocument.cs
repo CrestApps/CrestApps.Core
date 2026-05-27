@@ -55,6 +55,7 @@ public static class UploadChatSessionDocument
         /// <param name="chunkStore">The chunk store.</param>
         /// <param name="fileStore">The file store.</param>
         /// <param name="documentProcessingService">The document processing service.</param>
+        /// <param name="imageAnalysisService">The image analysis service.</param>
         /// <param name="authorizationService">The authorization service.</param>
         /// <param name="eventHandlers">The event handlers.</param>
         /// <param name="documentOptions">The document options.</param>
@@ -70,6 +71,7 @@ public static class UploadChatSessionDocument
             [FromServices] IAIDocumentChunkStore chunkStore,
             [FromServices] IDocumentFileStore fileStore,
             [FromServices] IAIDocumentProcessingService documentProcessingService,
+            [FromServices] IImageAnalysisService imageAnalysisService,
             [FromServices] TimeProvider timeProvider,
             [FromServices] IAuthorizationService authorizationService,
             [FromServices] IEnumerable<IAIChatDocumentEventHandler> eventHandlers,
@@ -112,9 +114,9 @@ public static class UploadChatSessionDocument
                     return TypedResults.NotFound();
                 }
 
-                if (!IsSessionDocumentUploadEnabled(profile))
+                if (!IsSessionUploadEnabled(profile))
                 {
-                    return TypedResults.BadRequest("Session document uploads are not enabled for this AI profile.");
+                    return TypedResults.BadRequest("Session document or image uploads are not enabled for this AI profile.");
                 }
 
                 session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
@@ -129,9 +131,9 @@ public static class UploadChatSessionDocument
                 return TypedResults.NotFound();
             }
 
-            if (!IsSessionDocumentUploadEnabled(profile))
+            if (!IsSessionUploadEnabled(profile))
             {
-                return TypedResults.BadRequest("Session document uploads are not enabled for this AI profile.");
+                return TypedResults.BadRequest("Session document or image uploads are not enabled for this AI profile.");
             }
 
             var authorization = await authorizationService.AuthorizeAsync(
@@ -146,7 +148,10 @@ public static class UploadChatSessionDocument
             var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
             var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding, clientName: deployment?.ClientName);
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
-            var allowVisionImages = SupportsVisionUploads(deployment);
+
+            profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata);
+            var visionDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+            var allowVisionImages = sessionDocMetadata?.AllowSessionImageUploads == true && visionDeployment != null;
             var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
             var S = localizerFactory.Create(typeof(AIChatDocumentEndpointBase));
             session.Documents ??= [];
@@ -170,12 +175,14 @@ public static class UploadChatSessionDocument
                     AIReferenceTypes.Document.ChatSession,
                     documentOptions.Value,
                     documentProcessingService,
+                    imageAnalysisService,
                     embeddingGenerator,
                     documentStore,
                     chunkStore,
                     fileStore,
                     timeProvider,
                     allowVisionImages,
+                    visionDeployment?.Name,
                     logger,
                     S);
                 if (!result.Success)

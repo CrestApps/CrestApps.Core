@@ -588,6 +588,14 @@
                             </div>
                             <div class="form-text">Allow users to upload documents during chat sessions with profiles created from this template.</div>
                         </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="AllowSessionImageUploads" class="form-check-input" type="checkbox" />
+                                <label asp-for="AllowSessionImageUploads" class="form-check-label">Allow session image uploads</label>
+                            </div>
+                            <div class="form-text">Allow users to upload images during chat sessions. Requires a vision deployment to be configured in the global AI settings.</div>
+                        </div>
                     </div>
 
                     <!-- Data Processing & Metrics Tab -->

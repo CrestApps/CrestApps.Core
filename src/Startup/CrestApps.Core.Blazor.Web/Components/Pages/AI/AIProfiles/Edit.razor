@@ -740,6 +740,14 @@ else if (_model != null)
                             <div class="form-text">Allow users to upload documents during chat sessions with this profile.</div>
                         </div>
 
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionImageUploads" />
+                                <label class="form-check-label">Allow session image uploads</label>
+                            </div>
+                            <div class="form-text">Allow users to upload images during chat sessions. Requires a vision deployment to be configured in the global AI settings.</div>
+                        </div>
+
                         <div class="attached-documents-panel mt-3">
                             <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                                 <div>

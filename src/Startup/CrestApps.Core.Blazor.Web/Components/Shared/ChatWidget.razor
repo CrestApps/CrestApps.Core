@@ -1,5 +1,4 @@
 @using CrestApps.Core.AI
-@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
@@ -10,7 +9,6 @@
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject SiteSettingsStore SiteSettings
 @inject IJSRuntime JS
-@inject IAIDeploymentManager DeploymentManager
 
 @if (_profile != null)
 {
@@ -89,7 +87,7 @@
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
     private bool _initialized;
-    private bool _supportsVisionUploads;
+    private bool _allowImageUploads;
 
     protected override async Task OnInitializedAsync()
     {
@@ -137,9 +135,10 @@
 
         _metricsEnabled = selectedProfile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics;
         _allowSessionDocuments = selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta) && sessionDocMeta.AllowSessionDocuments;
-        _supportsVisionUploads = await SupportsVisionUploadsAsync(selectedProfile);
-        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_supportsVisionUploads);
-        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_supportsVisionUploads);
+        _allowImageUploads = sessionDocMeta?.AllowSessionImageUploads == true
+            && !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultVisionDeploymentName);
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads);
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads);
 
         var widgetStyle = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
             ? null
@@ -176,7 +175,7 @@
                     chatMode = _chatMode.ToString(),
                     ttsVoiceName = _ttsVoiceName,
                     enableSessionMetrics = _metricsEnabled,
-                    allowSessionDocuments = _allowSessionDocuments,
+                    allowSessionDocuments = _allowSessionDocuments || _allowImageUploads,
                 },
                 chatConfig = new
                 {
@@ -193,7 +192,7 @@
                     micButtonElementSelector = "#widget-mic-btn",
                     conversationButtonElementSelector = "#widget-conversation-btn",
                     ttsVoiceName = _ttsVoiceName,
-                    sessionDocumentsEnabled = _allowSessionDocuments,
+                    sessionDocumentsEnabled = _allowSessionDocuments || _allowImageUploads,
                     existingDocuments = Array.Empty<object>(),
                     documentBarSelector = "#widget-chat-document-bar",
                     uploadDocumentUrl = "/ai/chat-sessions/upload-document",
@@ -217,11 +216,4 @@
         }
     }
 
-    private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
-    {
-        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
-
-        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
-    }
 }

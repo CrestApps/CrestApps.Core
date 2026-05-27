@@ -38,6 +38,7 @@
 @inject IOptionsMonitor<CopilotOptions> CopilotOptionsAccessor
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDeploymentManager DeploymentManager
+@inject IOptions<InteractionDocumentOptions> InteractionDocumentOptionsAccessor
 
 <PageTitle>New Chat Interaction - Blazor AI Integration Sample</PageTitle>
 
@@ -410,9 +411,9 @@
 
                     @if (_model.HasDocumentIndexConfiguration)
                     {
-                        <h6 class="mt-3 mb-2"><i class="bi bi-paperclip"></i> @(SupportsVisionUploads ? "Attach Documents and Images" : "Attach Documents")</h6>
+                        <h6 class="mt-3 mb-2"><i class="bi bi-paperclip"></i> @(_model.AllowImageUploads ? "Attach Documents and Images" : "Attach Documents")</h6>
                         <div class="mb-3">
-                            <label class="form-label">@(SupportsVisionUploads ? "Upload documents and images" : "Upload documents")</label>
+                            <label class="form-label">@(_model.AllowImageUploads ? "Upload documents and images" : "Upload documents")</label>
                             <InputFile class="form-control" OnChange="OnDocumentsSelected" multiple accept="@SupportedExtensionsAccept" />
                             <div class="form-text">Supported formats: @SupportedExtensionsDisplay</div>
                         </div>
@@ -453,10 +454,9 @@
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
             .ToList();
-        _model.DeploymentVisionSupport = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
-            .ToDictionary(d => d.Name, d => d.Purpose.Supports(AIDeploymentPurpose.Vision), StringComparer.OrdinalIgnoreCase);
-        _model.DefaultChatDeploymentSupportsVision = (await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat))?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
+        var interactionDocOptions = InteractionDocumentOptionsAccessor.Value;
+        var visionDeployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+        _model.AllowImageUploads = interactionDocOptions.AllowImageUploads && visionDeployment != null;
 
         var orchestratorOptions = OrchestratorOptionsAccessor.Value;
         var orchestrators = orchestratorOptions.GetOrchestratorDescriptors();
@@ -583,22 +583,9 @@
         _selectedDocuments = e.GetMultipleFiles().ToList();
     }
 
-    private bool SupportsVisionUploads => TrySupportsVision(_model.ChatDeploymentName);
+    private string SupportedExtensionsAccept => ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_model.AllowImageUploads);
 
-    private string SupportedExtensionsAccept => ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(SupportsVisionUploads);
-
-    private string SupportedExtensionsDisplay => ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(SupportsVisionUploads);
-
-    private bool TrySupportsVision(string deploymentName)
-    {
-        if (!string.IsNullOrWhiteSpace(deploymentName) &&
-            _model.DeploymentVisionSupport.TryGetValue(deploymentName, out var supportsVision))
-        {
-            return supportsVision;
-        }
-
-        return _model.DefaultChatDeploymentSupportsVision;
-    }
+    private string SupportedExtensionsDisplay => ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_model.AllowImageUploads);
 
     private async Task HandleSubmitAsync()
     {

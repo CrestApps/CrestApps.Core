@@ -13,4 +13,5 @@ public static class SystemToolNames
     public const string ReadTabularData = "read_tabular_data";
     public const string GenerateImage = "generate_image";
     public const string GenerateChart = "generate_chart";
+    public const string InspectImage = "inspect_image";
 }

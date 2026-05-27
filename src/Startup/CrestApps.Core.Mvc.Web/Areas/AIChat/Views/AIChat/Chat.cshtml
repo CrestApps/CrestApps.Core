@@ -22,9 +22,9 @@
     var placeholderMessage = !string.IsNullOrWhiteSpace(Model.WelcomeMessage)
         ? Model.WelcomeMessage
         : "What do you want to know?";
-    var supportsVisionUploads = ViewData["SupportsVisionUploads"] as bool? == true;
-    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(supportsVisionUploads);
-    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(supportsVisionUploads);
+    var allowImageUploads = ViewData["AllowImageUploads"] as bool? == true;
+    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(allowImageUploads);
+    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads);
     var allowSessionDocuments = Model.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocumentsMetadata) && sessionDocumentsMetadata.AllowSessionDocuments;
     var metricsEnabled = Model.TryGet<AnalyticsMetadata>(out var analyticsMetadataVal) && analyticsMetadataVal.EnableSessionMetrics;
     var existingDocuments = session?.Documents ?? [];
@@ -195,7 +195,7 @@
                 <div id="chat-app"></div>
             </div>
 
-            <div id="chat-document-bar" class="border-top bg-light flex-shrink-0 @(allowSessionDocuments ? string.Empty : "d-none")"></div>
+            <div id="chat-document-bar" class="border-top bg-light flex-shrink-0 @(allowSessionDocuments || allowImageUploads ? string.Empty : "d-none")"></div>
             <div class="border-top p-3 flex-shrink-0">
                 <div class="d-flex gap-2">
                     <textarea id="chat-input"
@@ -253,7 +253,7 @@
                 conversationButtonElementSelector: '#chat-conversation-btn',
                 ttsVoiceName: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ttsVoiceName)),
                 textToSpeechEnabled: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(textToSpeechEnabled)),
-                sessionDocumentsEnabled: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allowSessionDocuments)),
+                sessionDocumentsEnabled: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allowSessionDocuments || allowImageUploads)),
                 existingDocuments: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(existingDocuments)),
                 documentBarSelector: '#chat-document-bar',
                 uploadDocumentUrl: '@Url.Content("~/ai/chat-sessions/upload-document")',

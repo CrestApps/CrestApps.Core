@@ -129,8 +129,5 @@ internal sealed class ChatInteractionChatViewModel
     public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
 
     [BindNever]
-    public Dictionary<string, bool> DeploymentVisionSupport { get; set; } = [];
-
-    [BindNever]
-    public bool DefaultChatDeploymentSupportsVision { get; set; }
+    public bool AllowImageUploads { get; set; }
 }

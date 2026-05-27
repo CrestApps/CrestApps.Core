@@ -56,4 +56,6 @@ public static class AITemplateIds
     public const string AgentAvailability = "agent-availability";
 
     public const string TabularBatchProcessing = "tabular-batch-processing";
+
+    public const string ImageAnalysis = "image-analysis";
 }

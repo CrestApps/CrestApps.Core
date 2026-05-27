@@ -62,6 +62,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
+    private readonly InteractionDocumentOptions _interactionDocumentOptions;
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
@@ -88,7 +89,8 @@ public sealed class ChatInteractionController : Controller
         ClaudeClientService anthropicClientService,
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
-        IOptions<AIToolDefinitionOptions> toolOptions)
+        IOptions<AIToolDefinitionOptions> toolOptions,
+        IOptions<InteractionDocumentOptions> interactionDocumentOptions)
     {
         _interactionManager = interactionManager;
         _interactionCatalog = interactionCatalog;
@@ -116,6 +118,7 @@ public sealed class ChatInteractionController : Controller
 
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
+        _interactionDocumentOptions = interactionDocumentOptions.Value;
     }
 
     public async Task<IActionResult> Index()
@@ -299,10 +302,8 @@ public sealed class ChatInteractionController : Controller
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
-        model.DeploymentVisionSupport = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
-            .ToDictionary(d => d.Name, d => d.Purpose.Supports(AIDeploymentPurpose.Vision), StringComparer.OrdinalIgnoreCase);
-        model.DefaultChatDeploymentSupportsVision = (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat))?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
+        model.AllowImageUploads = _interactionDocumentOptions.AllowImageUploads
+            && (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision)) != null;
 
         // Orchestrators
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
@@ -436,10 +437,8 @@ public sealed class ChatInteractionController : Controller
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
-        model.DeploymentVisionSupport = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
-            .ToDictionary(d => d.Name, d => d.Purpose.Supports(AIDeploymentPurpose.Vision), StringComparer.OrdinalIgnoreCase);
-        model.DefaultChatDeploymentSupportsVision = (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat))?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
+        model.AllowImageUploads = _interactionDocumentOptions.AllowImageUploads
+            && (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision)) != null;
 
         // Orchestrators
 
