@@ -66,9 +66,7 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
                     _logger.LogTrace("Starting scheduled AI data-source alignment for UTC date {RunDateUtc}.", runDateUtc);
                 }
 
-                await using var scope = _serviceProvider.CreateAsyncScope();
-
-                await AlignDataSourcesAsync(scope.ServiceProvider, stoppingToken);
+                await AlignDataSourcesAsync(_serviceProvider, stoppingToken);
                 _lastRunDateUtc = runDateUtc;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
