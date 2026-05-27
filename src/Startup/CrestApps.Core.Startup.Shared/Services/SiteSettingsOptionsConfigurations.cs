@@ -120,6 +120,8 @@ internal static class SiteSettingsInteractionDocumentOptionsMapper
         options.IndexProfileName = settings.IndexProfileName;
         options.TopN = settings.TopN;
         options.RetrievalMode = settings.RetrievalMode;
+        options.AllowDocumentUploads = settings.AllowDocumentUploads;
+        options.AllowImageUploads = settings.AllowImageUploads;
     }
 }
 
@@ -232,6 +234,7 @@ internal static class SiteSettingsDefaultAIDeploymentOptionsMapper
         options.DefaultUtilityDeploymentName = settings.DefaultUtilityDeploymentName;
         options.DefaultEmbeddingDeploymentName = settings.DefaultEmbeddingDeploymentName;
         options.DefaultImageDeploymentName = settings.DefaultImageDeploymentName;
+        options.DefaultVisionDeploymentName = settings.DefaultVisionDeploymentName;
         options.DefaultSpeechToTextDeploymentName = settings.DefaultSpeechToTextDeploymentName;
         options.DefaultTextToSpeechDeploymentName = settings.DefaultTextToSpeechDeploymentName;
         options.DefaultTextToSpeechVoiceId = settings.DefaultTextToSpeechVoiceId;

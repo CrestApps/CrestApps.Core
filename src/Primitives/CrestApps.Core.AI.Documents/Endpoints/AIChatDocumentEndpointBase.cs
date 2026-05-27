@@ -26,12 +26,15 @@ public abstract class AIChatDocumentEndpointBase
         string referenceType,
         ChatDocumentsOptions documentOptions,
         IAIDocumentProcessingService documentProcessingService,
+        IImageAnalysisService imageAnalysisService,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
         TimeProvider timeProvider,
         bool allowVisionImages,
+        bool allowDocumentUploads,
+        string chatDeploymentName,
         ILogger logger,
         IStringLocalizer S)
     {
@@ -49,7 +52,12 @@ public abstract class AIChatDocumentEndpointBase
 
         if (MediaTypeHelper.IsVisionImageExtension(extension) && !allowVisionImages)
         {
-            return (false, S["Image uploads require a vision-capable chat deployment."].Value, null);
+            return (false, S["Image uploads are not enabled or no vision deployment is configured."].Value, null);
+        }
+
+        if (!MediaTypeHelper.IsVisionImageExtension(extension) && !allowDocumentUploads)
+        {
+            return (false, S["Document uploads are not enabled."].Value, null);
         }
 
         if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension) &&
@@ -58,7 +66,7 @@ public abstract class AIChatDocumentEndpointBase
             return (false, S["The uploaded image exceeds the maximum allowed size of {0} MB.", documentOptions.MaxVisionImageBytesPerFile / (1024 * 1024)].Value, null);
         }
 
-        if (!documentOptions.IsAllowedFileExtension(extension, allowVisionImages))
+        if (!documentOptions.IsAllowedFileExtension(extension, allowVisionImages, allowDocumentUploads))
         {
             return (false, S["File type '{0}' is not supported.", extension].Value, null);
         }
@@ -74,7 +82,19 @@ public abstract class AIChatDocumentEndpointBase
         {
             if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension))
             {
-                return await ProcessVisionImageAsync(file, referenceId, referenceType, documentStore, fileStore, timeProvider);
+                return await ProcessVisionImageAsync(
+                    file,
+                    referenceId,
+                    referenceType,
+                    documentOptions,
+                    imageAnalysisService,
+                    embeddingGenerator,
+                    documentStore,
+                    chunkStore,
+                    fileStore,
+                    timeProvider,
+                    chatDeploymentName,
+                    logger);
             }
 
             var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator);
@@ -87,15 +107,6 @@ public abstract class AIChatDocumentEndpointBase
 
             return (false, S["Failed to process file."].Value, null);
         }
-    }
-
-    /// <summary>
-    /// Determines whether the deployment supports vision uploads.
-    /// </summary>
-    /// <param name="deployment">The deployment.</param>
-    protected static bool SupportsVisionUploads(AIDeployment deployment)
-    {
-        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
     }
 
     /// <summary>
@@ -113,6 +124,17 @@ public abstract class AIChatDocumentEndpointBase
         var singleFile = form.Files.GetFile("file");
 
         return singleFile == null ? [] : [singleFile];
+    }
+
+    /// <summary>
+    /// Determines whether session document upload is enabled for the profile.
+    /// Returns <c>true</c> when either document uploads or image uploads are allowed.
+    /// </summary>
+    /// <param name="profile">The profile.</param>
+    protected static bool IsSessionUploadEnabled(AIProfile profile)
+    {
+        return profile.TryGet<AIProfileSessionDocumentsMetadata>(out var metadata)
+            && (metadata.AllowSessionDocuments || metadata.AllowSessionImageUploads);
     }
 
     /// <summary>
@@ -227,9 +249,15 @@ public abstract class AIChatDocumentEndpointBase
         IFormFile file,
         string referenceId,
         string referenceType,
+        ChatDocumentsOptions documentOptions,
+        IImageAnalysisService imageAnalysisService,
+        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
         IAIDocumentStore documentStore,
+        IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        string chatDeploymentName,
+        ILogger logger)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var contentType = MediaTypeHelper.InferMediaType(Path.GetExtension(file.FileName), file.ContentType);
@@ -269,11 +297,137 @@ public abstract class AIChatDocumentEndpointBase
 
         await documentStore.CreateAsync(document);
 
+        // Analyze the image at upload time to create searchable text chunks.
+        IReadOnlyList<AIDocumentChunk> chunks = [];
+
+        if (documentOptions.AnalyzeImagesAtUpload && imageAnalysisService != null)
+        {
+            chunks = await AnalyzeAndStoreImageChunksAsync(
+                file,
+                document,
+                imageAnalysisService,
+                embeddingGenerator,
+                chunkStore,
+                chatDeploymentName,
+                logger);
+        }
+
         return (true, null, new AIChatUploadedDocument
         {
             File = file,
             Document = document,
             DocumentInfo = documentInfo,
+            Chunks = chunks,
         });
+    }
+
+    private static async Task<IReadOnlyList<AIDocumentChunk>> AnalyzeAndStoreImageChunksAsync(
+        IFormFile file,
+        AIDocument document,
+        IImageAnalysisService imageAnalysisService,
+        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+        IAIDocumentChunkStore chunkStore,
+        string chatDeploymentName,
+        ILogger logger)
+    {
+        try
+        {
+            ImageAnalysisResult analysis;
+
+            using (var stream = file.OpenReadStream())
+            {
+                analysis = await imageAnalysisService.AnalyzeAsync(
+                    stream,
+                    document.ContentType,
+                    document.FileName,
+                    chatDeploymentName);
+            }
+
+            if (!analysis.Success)
+            {
+                logger.LogWarning(
+                    "Image analysis failed for document '{DocumentId}' ({FileName}): {Error}",
+                    document.ItemId,
+                    document.FileName,
+                    analysis.Error);
+
+                return [];
+            }
+
+            var chunks = BuildImageAnalysisChunks(document, analysis);
+
+            if (embeddingGenerator != null && chunks.Count > 0)
+            {
+                var textsToEmbed = chunks.Select(c => c.Content).ToList();
+                var embeddings = await embeddingGenerator.GenerateAsync(textsToEmbed);
+
+                for (var i = 0; i < chunks.Count && i < embeddings.Count; i++)
+                {
+                    chunks[i].Embedding = embeddings[i].Vector.ToArray();
+                }
+            }
+
+            foreach (var chunk in chunks)
+            {
+                await chunkStore.CreateAsync(chunk);
+            }
+
+            return chunks;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to analyze image '{FileName}' for document '{DocumentId}'.", document.FileName, document.ItemId);
+
+            return [];
+        }
+    }
+
+    private static List<AIDocumentChunk> BuildImageAnalysisChunks(AIDocument document, ImageAnalysisResult analysis)
+    {
+        var chunks = new List<AIDocumentChunk>();
+        var index = 0;
+
+        if (!string.IsNullOrWhiteSpace(analysis.Caption))
+        {
+            chunks.Add(CreateChunk(document, $"[Image Caption]\n{analysis.Caption}", index++));
+        }
+
+        if (!string.IsNullOrWhiteSpace(analysis.Description))
+        {
+            chunks.Add(CreateChunk(document, $"[Image Description]\n{analysis.Description}", index++));
+        }
+
+        if (!string.IsNullOrWhiteSpace(analysis.OcrText) &&
+            !string.Equals(analysis.OcrText, "None", StringComparison.OrdinalIgnoreCase))
+        {
+            chunks.Add(CreateChunk(document, $"[OCR Text]\n{analysis.OcrText}", index++));
+        }
+
+        if (!string.IsNullOrWhiteSpace(analysis.DetectedEntities) &&
+            !string.Equals(analysis.DetectedEntities, "None", StringComparison.OrdinalIgnoreCase))
+        {
+            chunks.Add(CreateChunk(document, $"[Detected Entities]\n{analysis.DetectedEntities}", index++));
+        }
+
+        // If no structured sections were produced, store the raw analysis as a single chunk.
+        if (chunks.Count == 0 && !string.IsNullOrWhiteSpace(analysis.RawAnalysis))
+        {
+            chunks.Add(CreateChunk(document, analysis.RawAnalysis, index));
+        }
+
+        return chunks;
+    }
+
+    private static AIDocumentChunk CreateChunk(AIDocument document, string content, int index)
+    {
+        return new AIDocumentChunk
+        {
+            ItemId = UniqueId.GenerateId(),
+            AIDocumentId = document.ItemId,
+            ReferenceId = document.ReferenceId,
+            ReferenceType = document.ReferenceType,
+            Content = content,
+            Index = index,
+        };
     }
 }

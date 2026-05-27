@@ -104,6 +104,8 @@ public sealed class AITemplateViewModel
     // Documents.
     public bool AllowSessionDocuments { get; set; }
 
+    public bool AllowSessionImageUploads { get; set; }
+
     public int? DocumentTopN { get; set; }
 
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
@@ -266,6 +268,7 @@ public sealed class AITemplateViewModel
             if (template.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata))
             {
                 model.AllowSessionDocuments = sessionDocMetadata.AllowSessionDocuments;
+                model.AllowSessionImageUploads = sessionDocMetadata.AllowSessionImageUploads;
             }
 
             if (template.TryGet<DocumentsMetadata>(out var docMetadata))
@@ -463,6 +466,7 @@ public sealed class AITemplateViewModel
             template.Put(new AIProfileSessionDocumentsMetadata
             {
                 AllowSessionDocuments = AllowSessionDocuments,
+                AllowSessionImageUploads = AllowSessionImageUploads,
             });
 
             template.Put(new DocumentsMetadata

@@ -157,7 +157,7 @@ public sealed class DefaultOrchestratorTests
     }
 
     [Fact]
-    public async Task ExecuteStreamingAsync_WithVisionUserContents_SendsImageContentToCompletionService()
+    public async Task ExecuteStreamingAsync_WithVisionUserContents_DoesNotInjectImageIntoUserMessage()
     {
         var completionService = new FakeCompletionService("Vision response");
         var orchestrator = CreateOrchestrator(completionService);
@@ -175,15 +175,9 @@ public sealed class DefaultOrchestratorTests
         var currentMessage = Assert.IsType<ChatMessage>(sentMessages.Last());
         Assert.Equal(ChatRole.User, currentMessage.Role);
 
-        Assert.NotNull(currentMessage.Contents);
-
-        var contents = currentMessage.Contents;
-        Assert.Equal(2, contents.Count);
-        Assert.Equal("Describe the attached image", Assert.IsType<TextContent>(contents[0]).Text);
-
-        var imageContent = Assert.IsType<DataContent>(contents[1]);
-        Assert.Equal("image/jpeg", imageContent.MediaType);
-        Assert.Equal([1, 2, 3], imageContent.Data.ToArray());
+        // Image bytes are no longer injected into the user message.
+        // The message should contain only the text content.
+        Assert.Equal("Describe the attached image", currentMessage.Text);
     }
 
     [Fact]

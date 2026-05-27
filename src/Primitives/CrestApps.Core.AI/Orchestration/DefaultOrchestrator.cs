@@ -416,7 +416,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         // Ensure the current user message is always included as the last message.
         if (messages.Count == 0 || messages[^1].Text != context.UserMessage)
         {
-            messages.Add(CreateCurrentUserMessage(context));
+            messages.Add(new ChatMessage(ChatRole.User, context.UserMessage));
         }
 
         return messages;
@@ -425,7 +425,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private static List<ChatMessage> GetExecutionMessages(OrchestrationContext context)
     {
         var messages = context.ConversationHistory?.ToList() ?? [];
-        var currentUserMessage = CreateCurrentUserMessage(context);
+        var currentUserMessage = new ChatMessage(ChatRole.User, context.UserMessage);
 
         if (messages.Count == 0)
         {
@@ -480,26 +480,6 @@ public sealed class DefaultOrchestrator : IOrchestrator
         return sb.ToString();
     }
 
-    private static ChatMessage CreateCurrentUserMessage(OrchestrationContext context)
-    {
-        if (!context.Properties.TryGetValue(OrchestrationPropertyKeys.VisionUserContents, out var value) || value is not IReadOnlyList<AIContent> visionContents || visionContents.Count == 0)
-        {
-            return new ChatMessage(ChatRole.User, context.UserMessage);
-        }
-
-        var contents = new List<AIContent>
-        {
-            new TextContent(context.UserMessage),
-        };
-
-        contents.AddRange(visionContents);
-
-        return new ChatMessage(ChatRole.User, context.UserMessage)
-        {
-            Contents = contents,
-        };
-    }
-
     /// <summary>
     /// Attempts to create a chat client using the utility deployment,
     /// falling back to the chat deployment if no utility deployment is configured.
@@ -527,6 +507,6 @@ public sealed class DefaultOrchestrator : IOrchestrator
         return await _deploymentManager.ResolveOrDefaultAsync(
             AIDeploymentPurpose.Chat,
             deploymentName: context.CompletionContext?.ChatDeploymentName)
-        ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the orchestration context.");
+            ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the orchestration context.");
     }
 }

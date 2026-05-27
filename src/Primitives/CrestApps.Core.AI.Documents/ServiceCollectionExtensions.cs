@@ -73,6 +73,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IAIDocumentProcessingService, DefaultAIDocumentProcessingService>();
+        services.TryAddScoped<IImageAnalysisService, DefaultImageAnalysisService>();
         services.TryAddScoped<DefaultAIDocumentIndexingService>();
         services.TryAddScoped<ITabularBatchProcessor, TabularBatchProcessor>();
         services.TryAddSingleton<ITabularBatchResultCache, TabularBatchResultCache>();
@@ -106,6 +107,11 @@ public static class ServiceCollectionExtensions
         services.AddCoreAITool<ReadTabularDataTool>(ReadTabularDataTool.TheName)
             .WithTitle("Read Tabular Data")
             .WithDescription("Reads and parses tabular data (CSV, TSV, Excel) from a document.")
+            .WithPurpose(AIToolPurposes.DocumentProcessing);
+
+        services.AddCoreAITool<InspectImageTool>(InspectImageTool.TheName)
+            .WithTitle("Inspect Image")
+            .WithDescription("Performs detailed visual inspection of an uploaded image when text summaries are insufficient.")
             .WithPurpose(AIToolPurposes.DocumentProcessing);
 
         return services;

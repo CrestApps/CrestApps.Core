@@ -2,7 +2,6 @@
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Chat
-@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
@@ -15,7 +14,6 @@
 @inject IJSRuntime JS
 @inject SiteSettingsStore SiteSettings
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
-@inject IAIDeploymentManager DeploymentManager
 
 <PageTitle>Chat - @(_profileDisplayText ?? "AI Chat") - Blazor AI Integration Sample</PageTitle>
 
@@ -80,7 +78,7 @@ else
                     <div id="chat-app"></div>
                 </div>
 
-                <div id="chat-document-bar" class="border-top bg-light @(_allowSessionDocuments ? string.Empty : "d-none")"></div>
+                <div id="chat-document-bar" class="border-top bg-light @(_allowSessionDocuments || _allowImageUploads ? string.Empty : "d-none")"></div>
 
                 <div class="border-top p-3 flex-shrink-0">
                     <div class="d-flex gap-2">
@@ -132,7 +130,7 @@ else
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
     private IReadOnlyList<ChatDocumentInfo> _existingDocuments = Array.Empty<ChatDocumentInfo>();
-    private bool _supportsVisionUploads;
+    private bool _allowImageUploads;
 
     protected override async Task OnInitializedAsync()
     {
@@ -188,9 +186,10 @@ else
             _ => ChatMode.TextInput,
         };
 
-        _supportsVisionUploads = await SupportsVisionUploadsAsync(_profile);
-        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_supportsVisionUploads);
-        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_supportsVisionUploads);
+        _allowImageUploads = sessionDocMeta?.AllowSessionImageUploads == true
+            && !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultVisionDeploymentName);
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads, _allowSessionDocuments);
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads, _allowSessionDocuments);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -217,7 +216,7 @@ else
                 conversationButtonElementSelector = "#chat-conversation-btn",
                 ttsVoiceName = _ttsVoiceName,
                 textToSpeechEnabled = _textToSpeechEnabled,
-                sessionDocumentsEnabled = _allowSessionDocuments,
+                sessionDocumentsEnabled = _allowSessionDocuments || _allowImageUploads,
                 existingDocuments = _existingDocuments,
                 documentBarSelector = "#chat-document-bar",
                 uploadDocumentUrl = "/ai/chat-sessions/upload-document",
@@ -228,11 +227,4 @@ else
         }
     }
 
-    private async Task<bool> SupportsVisionUploadsAsync(AIProfile profile)
-    {
-        var deployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
-
-        return deployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true;
-    }
 }

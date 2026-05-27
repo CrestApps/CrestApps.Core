@@ -37,6 +37,20 @@ public sealed class ChatDocumentsOptions
     /// </summary>
     public long MaxVisionImageBytesPerFile { get; set; } = DefaultMaxVisionImageBytesPerFile;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether images should be analyzed at upload time
+    /// using a vision model to extract caption, OCR text, and detected entities.
+    /// When enabled, analysis results are stored as document chunks so the model can
+    /// access image information via text-based tools instead of raw byte injection.
+    /// </summary>
+    public bool AnalyzeImagesAtUpload { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the maximum number of <c>inspect_image</c> tool invocations
+    /// allowed per chat request. This limits the cost of on-demand raw image inspection.
+    /// </summary>
+    public int MaxInspectImageCallsPerRequest { get; set; } = 2;
+
     internal void Add(string extension, bool embeddable = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);

@@ -25,6 +25,7 @@
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IDataProtectionProvider DataProtectionProvider
 @inject ClaudeClientService ClaudeClientService
+@inject SiteSettingsChangedNotifier SettingsChangedNotifier
 
 <PageTitle>AI Settings - Blazor AI Integration Sample</PageTitle>
 
@@ -370,6 +371,26 @@ else
                             <div class="form-text">Controls whether document retrieval returns matching chunks directly or expands results hierarchically by parent document.</div>
                         </div>
 
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.AllowInteractionDocumentUploads" />
+                                <label class="form-check-label">Allow uploading documents in chat interactions</label>
+                            </div>
+                            <div class="form-text">When enabled, users can upload document files in chat interactions. Documents are indexed and used as background knowledge.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.AllowInteractionImageUploads" />
+                                <label class="form-check-label">Allow uploading images in chat interactions</label>
+                            </div>
+                            <div class="form-text">When enabled, users can upload images in chat interactions. Images will be analyzed using the configured vision deployment.</div>
+                            @if (string.IsNullOrWhiteSpace(_model.DefaultVisionDeploymentName))
+                            {
+                                <div class="alert alert-warning mt-2 mb-0 py-2 px-3 small"><i class="bi bi-exclamation-triangle"></i> No vision deployment is configured. Image uploads will not be processed until a vision deployment is selected in the Deployments section above.</div>
+                            }
+                        </div>
+
                     </div>
                 </div>
 
@@ -711,6 +732,8 @@ else
             DocumentIndexProfileName = documentSettings.IndexProfileName,
             DocumentTopN = documentSettings.TopN,
             DocumentRetrievalMode = documentSettings.RetrievalMode,
+            AllowInteractionImageUploads = documentSettings.AllowImageUploads,
+            AllowInteractionDocumentUploads = documentSettings.AllowDocumentUploads,
             DataSourceDefaultStrictness = dataSourceSettings.DefaultStrictness,
             DataSourceDefaultTopNDocuments = dataSourceSettings.DefaultTopNDocuments,
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
@@ -975,6 +998,8 @@ else
             IndexProfileName = _model.DocumentIndexProfileName?.Trim(),
             TopN = _model.DocumentTopN,
             RetrievalMode = _model.DocumentRetrievalMode,
+            AllowDocumentUploads = _model.AllowInteractionDocumentUploads,
+            AllowImageUploads = _model.AllowInteractionImageUploads,
         });
 
         SiteSettings.Set(new AIDataSourceSettings
@@ -1056,6 +1081,7 @@ else
         });
 
         await SiteSettings.SaveChangesAsync();
+        await SettingsChangedNotifier.NotifyAsync();
 
         _successMessage = "Settings saved successfully.";
     }
