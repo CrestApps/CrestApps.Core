@@ -13,8 +13,10 @@
     const string presencePenaltyHelp = "Penalizes tokens based on whether they have appeared at all. Higher values encourage the AI to introduce new topics and ideas rather than staying on the same subjects.";
     const string pastMessagesHelp = "The number of previous messages from the conversation to include as context. More messages provide better context but increase token usage and costs.";
     var allowImageUploads = Model.AllowImageUploads;
-    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(allowImageUploads);
-    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads);
+    var allowDocumentUploads = Model.AllowDocumentUploads;
+    var allowUploads = allowDocumentUploads || allowImageUploads;
+    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(allowImageUploads, allowDocumentUploads);
+    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads, allowDocumentUploads);
 }
 
 <h2><i class="bi bi-plus-lg"></i> New Chat Interaction</h2>
@@ -485,14 +487,24 @@
                         </div>
                     }
 
-                    <h6 class="mt-3 mb-2" id="doc-add-heading"><i class="bi bi-paperclip"></i> @(allowImageUploads ? "Attach Documents and Images" : "Attach Documents")</h6>
-                    <div id="pending-docs-list" class="mb-3"></div>
-                    <label class="form-label" for="doc-add-input" id="doc-add-label">@(allowImageUploads ? "Upload documents and images" : "Upload documents")</label>
-                    <div class="input-group">
-                        <input type="file" class="form-control" id="doc-add-input" name="Documents" multiple
-                               accept="@supportedExtensionsAccept" />
-                    </div>
-                    <div class="form-text" id="doc-add-hint">Supported formats: @supportedExtensionsDisplay</div>
+                    @if (allowUploads)
+                    {
+                        var uploadHeading = allowImageUploads && allowDocumentUploads
+                            ? "Attach Documents and Images"
+                            : allowImageUploads ? "Attach Images" : "Attach Documents";
+                        var uploadLabel = allowImageUploads && allowDocumentUploads
+                            ? "Upload documents and images"
+                            : allowImageUploads ? "Upload images" : "Upload documents";
+
+                        <h6 class="mt-3 mb-2" id="doc-add-heading"><i class="bi bi-paperclip"></i> @uploadHeading</h6>
+                        <div id="pending-docs-list" class="mb-3"></div>
+                        <label class="form-label" for="doc-add-input" id="doc-add-label">@uploadLabel</label>
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="doc-add-input" name="Documents" multiple
+                                   accept="@supportedExtensionsAccept" />
+                        </div>
+                        <div class="form-text" id="doc-add-hint">Supported formats: @supportedExtensionsDisplay</div>
+                    }
                 </div>
             </div>
 

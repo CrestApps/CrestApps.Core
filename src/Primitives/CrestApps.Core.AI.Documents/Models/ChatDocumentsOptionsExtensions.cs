@@ -10,9 +10,10 @@ public static class ChatDocumentsOptionsExtensions
     /// </summary>
     /// <param name="options">The options.</param>
     /// <param name="includeVisionImages">Whether to include supported vision image extensions.</param>
-    public static string GetAllowedFileExtensionsAcceptValue(this ChatDocumentsOptions options, bool includeVisionImages = false)
+    /// <param name="includeDocuments">Whether to include document extensions.</param>
+    public static string GetAllowedFileExtensionsAcceptValue(this ChatDocumentsOptions options, bool includeVisionImages = false, bool includeDocuments = true)
     {
-        return BuildAcceptValue(GetAllowedFileExtensions(options, includeVisionImages));
+        return BuildAcceptValue(GetAllowedFileExtensions(options, includeVisionImages, includeDocuments));
     }
 
     /// <summary>
@@ -20,9 +21,10 @@ public static class ChatDocumentsOptionsExtensions
     /// </summary>
     /// <param name="options">The options.</param>
     /// <param name="includeVisionImages">Whether to include supported vision image extensions.</param>
-    public static string GetAllowedFileExtensionsDisplayValue(this ChatDocumentsOptions options, bool includeVisionImages = false)
+    /// <param name="includeDocuments">Whether to include document extensions.</param>
+    public static string GetAllowedFileExtensionsDisplayValue(this ChatDocumentsOptions options, bool includeVisionImages = false, bool includeDocuments = true)
     {
-        return BuildDisplayValue(GetAllowedFileExtensions(options, includeVisionImages));
+        return BuildDisplayValue(GetAllowedFileExtensions(options, includeVisionImages, includeDocuments));
     }
 
     /// <summary>
@@ -48,13 +50,22 @@ public static class ChatDocumentsOptionsExtensions
     /// </summary>
     /// <param name="options">The options.</param>
     /// <param name="includeVisionImages">Whether to include supported vision image extensions.</param>
-    public static IReadOnlyList<string> GetAllowedFileExtensions(this ChatDocumentsOptions options, bool includeVisionImages = false)
+    /// <param name="includeDocuments">Whether to include document extensions.</param>
+    public static IReadOnlyList<string> GetAllowedFileExtensions(this ChatDocumentsOptions options, bool includeVisionImages = false, bool includeDocuments = true)
     {
-        var extensions = OrderExtensions(options?.AllowedFileExtensions);
+        IEnumerable<string> extensions = [];
 
-        return includeVisionImages
-            ? OrderExtensions(extensions.Concat(MediaTypeHelper.VisionImageExtensions))
-            : extensions;
+        if (includeDocuments)
+        {
+            extensions = OrderExtensions(options?.AllowedFileExtensions);
+        }
+
+        if (includeVisionImages)
+        {
+            extensions = extensions.Concat(MediaTypeHelper.VisionImageExtensions);
+        }
+
+        return OrderExtensions(extensions);
     }
 
     /// <summary>
@@ -63,14 +74,15 @@ public static class ChatDocumentsOptionsExtensions
     /// <param name="options">The options.</param>
     /// <param name="extension">The file extension.</param>
     /// <param name="includeVisionImages">Whether to include supported vision image extensions.</param>
-    public static bool IsAllowedFileExtension(this ChatDocumentsOptions options, string extension, bool includeVisionImages = false)
+    /// <param name="includeDocuments">Whether to include document extensions.</param>
+    public static bool IsAllowedFileExtension(this ChatDocumentsOptions options, string extension, bool includeVisionImages = false, bool includeDocuments = true)
     {
         if (string.IsNullOrWhiteSpace(extension))
         {
             return false;
         }
 
-        return GetAllowedFileExtensions(options, includeVisionImages)
+        return GetAllowedFileExtensions(options, includeVisionImages, includeDocuments)
             .Contains(extension.StartsWith('.') ? extension : '.' + extension, StringComparer.OrdinalIgnoreCase);
     }
 

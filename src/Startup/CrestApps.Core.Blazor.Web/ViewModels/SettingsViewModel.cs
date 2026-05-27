@@ -38,6 +38,8 @@ public sealed class SettingsViewModel
 
     public bool AllowInteractionImageUploads { get; set; }
 
+    public bool AllowInteractionDocumentUploads { get; set; } = true;
+
     public int DataSourceDefaultStrictness { get; set; } = AIDataSourceSettings.MinStrictness;
 
     public int DataSourceDefaultTopNDocuments { get; set; } = AIDataSourceSettings.MinTopNDocuments;

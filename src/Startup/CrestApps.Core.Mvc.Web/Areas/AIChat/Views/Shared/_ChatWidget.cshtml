@@ -44,15 +44,16 @@
     };
 
     var allowImageUploads = false;
-    if (selectedProfile != null)
+    var allowSessionDocuments = false;
+    if (selectedProfile != null && selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta))
     {
-        allowImageUploads = selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta)
-            && sessionDocMeta.AllowSessionImageUploads
+        allowImageUploads = sessionDocMeta.AllowSessionImageUploads
             && !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultVisionDeploymentName);
+        allowSessionDocuments = sessionDocMeta.AllowSessionDocuments;
     }
 
-    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(allowImageUploads);
-    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads);
+    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(allowImageUploads, allowSessionDocuments);
+    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads, allowSessionDocuments);
     var profile = selectedProfile is null || selectedProfile.Type != AIProfileType.Chat
         ? null
         : new
@@ -64,7 +65,7 @@
             displayText = selectedProfile.DisplayText ?? selectedProfile.Name,
             welcomeMessage = selectedProfile.WelcomeMessage,
             enableSessionMetrics = selectedProfile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics,
-            allowSessionDocuments = (selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata) && sessionDocMetadata.AllowSessionDocuments) || allowImageUploads,
+            allowSessionDocuments = allowSessionDocuments || allowImageUploads,
         };
 
     if (profile == null)

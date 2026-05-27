@@ -182,6 +182,7 @@ public static class UploadChatSessionDocument
                     fileStore,
                     timeProvider,
                     allowVisionImages,
+                    sessionDocMetadata?.AllowSessionDocuments == true,
                     visionDeployment?.Name,
                     logger,
                     S);

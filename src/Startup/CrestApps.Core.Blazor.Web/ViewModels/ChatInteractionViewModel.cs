@@ -80,6 +80,7 @@ public sealed class ChatInteractionViewModel
     public List<SelectOption> CopilotAvailableModels { get; set; } = [];
     public List<SelectOption> AnthropicAvailableModels { get; set; } = [];
     public bool AllowImageUploads { get; set; }
+    public bool AllowDocumentUploads { get; set; } = true;
 }
 
 public sealed class SelectOption

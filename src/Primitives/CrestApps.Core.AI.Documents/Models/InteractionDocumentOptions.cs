@@ -22,6 +22,12 @@ public sealed class InteractionDocumentOptions
     public DocumentRetrievalMode RetrievalMode { get; set; } = DocumentRetrievalMode.Chunk;
 
     /// <summary>
+    /// Gets or sets whether users are allowed to upload document files in chat interactions.
+    /// Default is <see langword="true"/>.
+    /// </summary>
+    public bool AllowDocumentUploads { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets whether users are allowed to upload image files in chat interactions.
     /// When enabled, image uploads are processed using the global vision deployment.
     /// </summary>

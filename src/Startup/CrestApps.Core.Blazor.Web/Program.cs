@@ -177,6 +177,7 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 builder.Services.AddSingleton<SampleAIChatDocumentIndexingQueue>();
 builder.Services.AddSingleton<ISampleAIChatDocumentIndexingQueue>(sp => sp.GetRequiredService<SampleAIChatDocumentIndexingQueue>());
 builder.Services.AddHostedService<AIChatDocumentIndexingBackgroundService>();
+builder.Services.AddScoped<SiteSettingsChangedNotifier>();
 
 var app = builder.Build();
 

@@ -279,8 +279,16 @@
 
                     <div class="mb-3">
                         <div class="form-check form-switch">
+                            <input asp-for="AllowInteractionDocumentUploads" class="form-check-input" type="checkbox" />
+                            <label asp-for="AllowInteractionDocumentUploads" class="form-check-label">Allow uploading documents in chat interactions</label>
+                        </div>
+                        <div class="form-text">When enabled, users can upload document files in chat interactions. Documents are indexed and used as background knowledge.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
                             <input asp-for="AllowInteractionImageUploads" class="form-check-input" type="checkbox" />
-                            <label asp-for="AllowInteractionImageUploads" class="form-check-label">Allow uploading images</label>
+                            <label asp-for="AllowInteractionImageUploads" class="form-check-label">Allow uploading images in chat interactions</label>
                         </div>
                         <div class="form-text">When enabled, users can upload image files in chat interactions. Images are analyzed using the global vision deployment.</div>
                         @if (string.IsNullOrWhiteSpace(Model.DefaultVisionDeploymentName))

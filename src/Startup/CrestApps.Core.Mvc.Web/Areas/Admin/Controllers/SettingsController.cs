@@ -101,6 +101,7 @@ public sealed class SettingsController : Controller
             DocumentTopN = documentSettings.TopN,
             DocumentRetrievalMode = documentSettings.RetrievalMode,
             AllowInteractionImageUploads = documentSettings.AllowImageUploads,
+            AllowInteractionDocumentUploads = documentSettings.AllowDocumentUploads,
             DataSourceDefaultStrictness = dataSourceSettings.DefaultStrictness,
             DataSourceDefaultTopNDocuments = dataSourceSettings.DefaultTopNDocuments,
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
@@ -278,6 +279,7 @@ public sealed class SettingsController : Controller
             IndexProfileName = model.DocumentIndexProfileName?.Trim(),
             TopN = model.DocumentTopN,
             RetrievalMode = model.DocumentRetrievalMode,
+            AllowDocumentUploads = model.AllowInteractionDocumentUploads,
             AllowImageUploads = model.AllowInteractionImageUploads,
         });
 

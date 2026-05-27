@@ -127,7 +127,9 @@ public static class UploadChatInteractionDocument
 
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
             var visionDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
-            var allowVisionImages = interactionDocumentOptions.Value.AllowImageUploads && visionDeployment != null;
+            var interactionDocOptions = interactionDocumentOptions.Value;
+            var allowVisionImages = interactionDocOptions.AllowImageUploads && visionDeployment != null;
+            var allowDocumentUploads = interactionDocOptions.AllowDocumentUploads;
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Created embedding generator for interaction '{InteractionId}': {HasEmbeddingGenerator}.", interaction.ItemId, embeddingGenerator != null);
@@ -167,6 +169,7 @@ public static class UploadChatInteractionDocument
                     fileStore,
                     timeProvider,
                     allowVisionImages,
+                    allowDocumentUploads,
                     visionDeployment?.Name,
                     logger,
                     S);

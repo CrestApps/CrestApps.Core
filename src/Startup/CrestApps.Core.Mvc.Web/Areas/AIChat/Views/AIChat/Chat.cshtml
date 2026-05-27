@@ -23,9 +23,9 @@
         ? Model.WelcomeMessage
         : "What do you want to know?";
     var allowImageUploads = ViewData["AllowImageUploads"] as bool? == true;
-    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(allowImageUploads);
-    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads);
     var allowSessionDocuments = Model.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocumentsMetadata) && sessionDocumentsMetadata.AllowSessionDocuments;
+    var supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(allowImageUploads, allowSessionDocuments);
+    var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads, allowSessionDocuments);
     var metricsEnabled = Model.TryGet<AnalyticsMetadata>(out var analyticsMetadataVal) && analyticsMetadataVal.EnableSessionMetrics;
     var existingDocuments = session?.Documents ?? [];
     var defaultDeploymentSettings = SiteSettings.Get<DefaultAIDeploymentSettings>();

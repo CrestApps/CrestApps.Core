@@ -188,8 +188,8 @@ else
 
         _allowImageUploads = sessionDocMeta?.AllowSessionImageUploads == true
             && !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultVisionDeploymentName);
-        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads);
-        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads);
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads, _allowSessionDocuments);
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads, _allowSessionDocuments);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

@@ -34,12 +34,10 @@
 @inject IOptionsMonitor<AIDataSourceOptions> DataSourceOptions
 @inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
 @inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
-@inject IOptionsMonitor<InteractionDocumentOptions> InteractionDocumentOptionsAccessor
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDocumentStore DocumentStore
 @inject IAIDeploymentManager DeploymentManager
-@inject IOptions<InteractionDocumentOptions> InteractionDocumentOptionsAccessor
 
 <PageTitle>Chat Interaction</PageTitle>
 
@@ -276,30 +274,40 @@ else
                                     </div>
                                 }
 
-                                <div class="mt-3">
-                                    <label class="form-label"><i class="bi bi-paperclip"></i> @(_model.AllowImageUploads ? "Upload documents and images" : "Upload documents")</label>
-                                    <div class="document-drop-zone" id="chat-doc-drop-zone">
-                                        <input type="file" class="d-none" id="chat-doc-upload" multiple accept="@SupportedExtensionsAccept" />
-                                        <div class="document-drop-zone__body">
-                                            <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
-                                            <div>
-                                                <div class="document-drop-zone__title">Drag and drop files here</div>
-                                                <div class="text-muted small">@(_model.AllowImageUploads ? "or browse for documents and images to upload into this chat interaction" : "or browse for documents to upload into this chat interaction")</div>
+                                @if (_model.AllowDocumentUploads || _model.AllowImageUploads)
+                                {
+                                    var uploadLabel = _model.AllowImageUploads && _model.AllowDocumentUploads
+                                        ? "Upload documents and images"
+                                        : _model.AllowImageUploads ? "Upload images" : "Upload documents";
+                                    var uploadDescription = _model.AllowImageUploads && _model.AllowDocumentUploads
+                                        ? "or browse for documents and images to upload into this chat interaction"
+                                        : _model.AllowImageUploads ? "or browse for images to upload into this chat interaction" : "or browse for documents to upload into this chat interaction";
+
+                                    <div class="mt-3">
+                                        <label class="form-label"><i class="bi bi-paperclip"></i> @uploadLabel</label>
+                                        <div class="document-drop-zone" id="chat-doc-drop-zone">
+                                            <input type="file" class="d-none" id="chat-doc-upload" multiple accept="@SupportedExtensionsAccept" />
+                                            <div class="document-drop-zone__body">
+                                                <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
+                                                <div>
+                                                    <div class="document-drop-zone__title">Drag and drop files here</div>
+                                                    <div class="text-muted small">@uploadDescription</div>
+                                                </div>
+                                                <div class="document-drop-zone__actions">
+                                                    <button type="button" class="btn btn-outline-primary" id="chat-doc-browse" data-drop-zone-browse>
+                                                        <i class="bi bi-folder2-open"></i> Browse files
+                                                    </button>
+                                                </div>
+                                                <div class="form-text mb-0">Supported formats: @SupportedExtensionsDisplay</div>
                                             </div>
-                                            <div class="document-drop-zone__actions">
-                                                <button type="button" class="btn btn-outline-primary" id="chat-doc-browse" data-drop-zone-browse>
-                                                    <i class="bi bi-folder2-open"></i> Browse files
-                                                </button>
-                                            </div>
-                                            <div class="form-text mb-0">Supported formats: @SupportedExtensionsDisplay</div>
                                         </div>
+                                        <div id="chat-doc-upload-status" class="small mt-2 d-none"></div>
+                                        <div id="chat-doc-upload-progress" class="progress mt-2 d-none" role="progressbar" aria-label="Document upload progress" aria-valuemin="0" aria-valuemax="100">
+                                            <div id="chat-doc-upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%">0%</div>
+                                        </div>
+                                        <div id="chat-doc-upload-queue" class="d-flex flex-column gap-2 mt-2"></div>
                                     </div>
-                                    <div id="chat-doc-upload-status" class="small mt-2 d-none"></div>
-                                    <div id="chat-doc-upload-progress" class="progress mt-2 d-none" role="progressbar" aria-label="Document upload progress" aria-valuemin="0" aria-valuemax="100">
-                                        <div id="chat-doc-upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%">0%</div>
-                                    </div>
-                                    <div id="chat-doc-upload-queue" class="d-flex flex-column gap-2 mt-2"></div>
-                                </div>
+                                }
                                 <div id="chat-documents-list" class="d-flex flex-column gap-2 mt-2">
                                     @if (_model.Documents.Any())
                                     {
@@ -679,9 +687,10 @@ else
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
             .ToList();
-        var interactionDocOptions = InteractionDocumentOptionsAccessor.Value;
+        var interactionDocSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
         var visionDeployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
-        model.AllowImageUploads = interactionDocOptions.AllowImageUploads && visionDeployment != null;
+        model.AllowImageUploads = interactionDocSettings.AllowImageUploads && visionDeployment != null;
+        model.AllowDocumentUploads = interactionDocSettings.AllowDocumentUploads;
 
         var orchestratorOptions = OrchestratorOptionsAccessor.Value;
         var orchestrators = orchestratorOptions.GetOrchestratorDescriptors();
@@ -776,9 +785,9 @@ else
             .GroupBy(template => template.Category)
             .OrderBy(group => group.Key);
 
-    private string SupportedExtensionsAccept => ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_model?.AllowImageUploads == true);
+    private string SupportedExtensionsAccept => ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_model?.AllowImageUploads == true, _model?.AllowDocumentUploads != false);
 
-    private string SupportedExtensionsDisplay => ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_model?.AllowImageUploads == true);
+    private string SupportedExtensionsDisplay => ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_model?.AllowImageUploads == true, _model?.AllowDocumentUploads != false);
 
     private bool HasFilteredPromptTemplates => FilteredPromptTemplateGroups.Any();
 

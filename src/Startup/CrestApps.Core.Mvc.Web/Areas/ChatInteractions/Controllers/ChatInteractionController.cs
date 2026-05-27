@@ -62,7 +62,6 @@ public sealed class ChatInteractionController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-    private readonly InteractionDocumentOptions _interactionDocumentOptions;
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
@@ -89,8 +88,7 @@ public sealed class ChatInteractionController : Controller
         ClaudeClientService anthropicClientService,
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
-        IOptions<AIToolDefinitionOptions> toolOptions,
-        IOptions<InteractionDocumentOptions> interactionDocumentOptions)
+        IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _interactionManager = interactionManager;
         _interactionCatalog = interactionCatalog;
@@ -118,7 +116,6 @@ public sealed class ChatInteractionController : Controller
 
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
-        _interactionDocumentOptions = interactionDocumentOptions.Value;
     }
 
     public async Task<IActionResult> Index()
@@ -302,8 +299,10 @@ public sealed class ChatInteractionController : Controller
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
-        model.AllowImageUploads = _interactionDocumentOptions.AllowImageUploads
+        var interactionDocSettings = _siteSettings.Get<InteractionDocumentSettings>();
+        model.AllowImageUploads = interactionDocSettings.AllowImageUploads
             && (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision)) != null;
+        model.AllowDocumentUploads = interactionDocSettings.AllowDocumentUploads;
 
         // Orchestrators
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
@@ -437,8 +436,10 @@ public sealed class ChatInteractionController : Controller
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
-        model.AllowImageUploads = _interactionDocumentOptions.AllowImageUploads
+        var interactionDocSettings = _siteSettings.Get<InteractionDocumentSettings>();
+        model.AllowImageUploads = interactionDocSettings.AllowImageUploads
             && (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision)) != null;
+        model.AllowDocumentUploads = interactionDocSettings.AllowDocumentUploads;
 
         // Orchestrators
 

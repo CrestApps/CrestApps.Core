@@ -120,6 +120,7 @@ internal static class SiteSettingsInteractionDocumentOptionsMapper
         options.IndexProfileName = settings.IndexProfileName;
         options.TopN = settings.TopN;
         options.RetrievalMode = settings.RetrievalMode;
+        options.AllowDocumentUploads = settings.AllowDocumentUploads;
         options.AllowImageUploads = settings.AllowImageUploads;
     }
 }

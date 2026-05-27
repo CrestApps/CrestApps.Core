@@ -3,12 +3,16 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.Blazor.Web.Models
+@using CrestApps.Core.Blazor.Web.Services
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
+@implements IDisposable
 @inject IAIProfileManager ProfileManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject SiteSettingsStore SiteSettings
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+@inject SiteSettingsChangedNotifier SettingsChangedNotifier
 
 @if (_profile != null)
 {
@@ -88,20 +92,50 @@
     private string _supportedExtensionsDisplay;
     private bool _initialized;
     private bool _allowImageUploads;
+    private string _lastProfileId;
 
     protected override async Task OnInitializedAsync()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+        SettingsChangedNotifier.SettingsChanged += OnSettingsChangedAsync;
+        await RefreshWidgetStateAsync();
+    }
+
+    private async void OnLocationChanged(object sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await RefreshWidgetStateAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnSettingsChangedAsync()
+    {
+        await RefreshWidgetStateAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshWidgetStateAsync()
     {
         var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
         var deploymentDefaults = SiteSettings.Get<DefaultAIDeploymentSettings>();
 
         if (string.IsNullOrWhiteSpace(adminWidgetSettings.ProfileId))
         {
+            _profile = null;
+
             return;
+        }
+
+        if (!string.Equals(_lastProfileId, adminWidgetSettings.ProfileId, StringComparison.Ordinal))
+        {
+            _lastProfileId = adminWidgetSettings.ProfileId;
+            _initialized = false;
         }
 
         var selectedProfile = await ProfileManager.FindByIdAsync(adminWidgetSettings.ProfileId);
         if (selectedProfile == null || selectedProfile.Type != AIProfileType.Chat)
         {
+            _profile = null;
+
             return;
         }
 
@@ -137,8 +171,8 @@
         _allowSessionDocuments = selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta) && sessionDocMeta.AllowSessionDocuments;
         _allowImageUploads = sessionDocMeta?.AllowSessionImageUploads == true
             && !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultVisionDeploymentName);
-        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads);
-        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads);
+        _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads, _allowSessionDocuments);
+        _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads, _allowSessionDocuments);
 
         var widgetStyle = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
             ? null
@@ -148,7 +182,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _profile != null && !_initialized)
+        if (_profile != null && !_initialized)
         {
             _initialized = true;
 
@@ -214,6 +248,12 @@
                 },
             });
         }
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+        SettingsChangedNotifier.SettingsChanged -= OnSettingsChangedAsync;
     }
 
 }

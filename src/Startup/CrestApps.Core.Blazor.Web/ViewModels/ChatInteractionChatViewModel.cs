@@ -94,4 +94,5 @@ public sealed class ChatInteractionChatViewModel
     public List<SelectOption> CopilotAvailableModels { get; set; } = [];
     public List<SelectOption> AnthropicAvailableModels { get; set; } = [];
     public bool AllowImageUploads { get; set; }
+    public bool AllowDocumentUploads { get; set; } = true;
 }

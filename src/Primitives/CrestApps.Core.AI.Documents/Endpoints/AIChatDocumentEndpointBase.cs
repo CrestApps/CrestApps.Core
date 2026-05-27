@@ -33,6 +33,7 @@ public abstract class AIChatDocumentEndpointBase
         IDocumentFileStore fileStore,
         TimeProvider timeProvider,
         bool allowVisionImages,
+        bool allowDocumentUploads,
         string chatDeploymentName,
         ILogger logger,
         IStringLocalizer S)
@@ -54,13 +55,18 @@ public abstract class AIChatDocumentEndpointBase
             return (false, S["Image uploads are not enabled or no vision deployment is configured."].Value, null);
         }
 
+        if (!MediaTypeHelper.IsVisionImageExtension(extension) && !allowDocumentUploads)
+        {
+            return (false, S["Document uploads are not enabled."].Value, null);
+        }
+
         if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension) &&
             documentOptions.MaxVisionImageBytesPerFile > 0 && file.Length > documentOptions.MaxVisionImageBytesPerFile)
         {
             return (false, S["The uploaded image exceeds the maximum allowed size of {0} MB.", documentOptions.MaxVisionImageBytesPerFile / (1024 * 1024)].Value, null);
         }
 
-        if (!documentOptions.IsAllowedFileExtension(extension, allowVisionImages))
+        if (!documentOptions.IsAllowedFileExtension(extension, allowVisionImages, allowDocumentUploads))
         {
             return (false, S["File type '{0}' is not supported.", extension].Value, null);
         }

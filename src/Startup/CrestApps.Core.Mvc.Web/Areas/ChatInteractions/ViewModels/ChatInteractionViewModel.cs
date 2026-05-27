@@ -104,6 +104,9 @@ public sealed class ChatInteractionViewModel
 
     [BindNever]
     public bool AllowImageUploads { get; set; }
+
+    [BindNever]
+    public bool AllowDocumentUploads { get; set; } = true;
 }
 
 public sealed class AgentSelectionItem

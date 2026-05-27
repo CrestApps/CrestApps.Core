@@ -130,4 +130,7 @@ internal sealed class ChatInteractionChatViewModel
 
     [BindNever]
     public bool AllowImageUploads { get; set; }
+
+    [BindNever]
+    public bool AllowDocumentUploads { get; set; } = true;
 }
