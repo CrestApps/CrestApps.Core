@@ -10,6 +10,7 @@
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>AI Connections - Blazor AI Integration Sample</PageTitle>
 
@@ -19,13 +20,6 @@
         <i class="bi bi-plus-lg"></i> Create New Connection
     </a>
 </div>
-
-@if (!string.IsNullOrEmpty(_errorMessage))
-{
-    <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
-    </div>
-}
 
 @if (_connections == null)
 {
@@ -123,7 +117,6 @@ else
     private List<AIConnectionViewModel> _connections;
     private List<AIConnectionViewModel> _userDefinedConnections = [];
     private List<AIConnectionViewModel> _configuredConnections = [];
-    private string _errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,14 +148,14 @@ else
         var connection = await Catalog.FindByIdAsync(id);
         if (connection == null)
         {
-            _errorMessage = "Connection not found.";
+            ToastNotifications.ShowError("Connection not found.");
 
             return;
         }
 
         if (connection.IsReadOnly)
         {
-            _errorMessage = "Connections defined in appsettings are read-only and cannot be deleted from the UI.";
+            ToastNotifications.ShowError("Connections defined in appsettings are read-only and cannot be deleted from the UI.");
 
             return;
         }

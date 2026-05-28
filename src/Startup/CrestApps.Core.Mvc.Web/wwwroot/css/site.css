@@ -88,3 +88,26 @@ main.app-content {
     margin-bottom: 0;
     padding-left: 1.25rem;
 }
+
+.app-toast-container {
+    z-index: 1080;
+    width: min(24rem, calc(100vw - 1.5rem));
+}
+
+.app-toast {
+    width: 100%;
+    box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.15);
+}
+
+.app-toast + .app-toast {
+    margin-top: 0.75rem;
+}
+
+.app-toast-icon {
+    margin-top: 0.125rem;
+}
+
+.app-toast-message {
+    min-width: 0;
+    word-break: break-word;
+}

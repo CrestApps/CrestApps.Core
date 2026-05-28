@@ -10,6 +10,7 @@
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>AI Deployments - Blazor AI Integration Sample</PageTitle>
 
@@ -19,13 +20,6 @@
         <i class="bi bi-plus-lg"></i> Create New Deployment
     </a>
 </div>
-
-@if (!string.IsNullOrEmpty(_errorMessage))
-{
-    <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
-    </div>
-}
 
 @if (_deployments == null)
 {
@@ -141,7 +135,6 @@ else
     private List<AIDeploymentViewModel> _deployments;
     private List<AIDeploymentViewModel> _userDefinedDeployments = [];
     private List<AIDeploymentViewModel> _configuredDeployments = [];
-    private string _errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -173,14 +166,14 @@ else
         var deployment = await Catalog.FindByIdAsync(id);
         if (deployment == null)
         {
-            _errorMessage = "Deployment not found.";
+            ToastNotifications.ShowError("Deployment not found.");
 
             return;
         }
 
         if (deployment.IsReadOnly)
         {
-            _errorMessage = "Deployments defined in appsettings are read-only and cannot be deleted from the UI.";
+            ToastNotifications.ShowError("Deployments defined in appsettings are read-only and cannot be deleted from the UI.");
 
             return;
         }

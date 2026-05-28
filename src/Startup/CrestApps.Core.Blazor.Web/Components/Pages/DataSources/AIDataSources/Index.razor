@@ -8,6 +8,7 @@
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>Data Sources</PageTitle>
 
@@ -17,22 +18,6 @@
         <i class="bi bi-plus-lg"></i> Create New Data Source
     </a>
 </div>
-
-@if (!string.IsNullOrEmpty(_successMessage))
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @_successMessage
-        <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
-    </div>
-}
-
-@if (!string.IsNullOrEmpty(_errorMessage))
-{
-    <div class="alert alert-danger alert-dismissible fade show">
-        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
-        <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
-    </div>
-}
 
 @if (_dataSources == null)
 {
@@ -84,8 +69,6 @@ else
 
 @code {
     private List<AIDataSource> _dataSources;
-    private string _errorMessage;
-    private string _successMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -105,13 +88,13 @@ else
 
         if (dataSource == null)
         {
-            _errorMessage = "Data source not found.";
+            ToastNotifications.ShowError("Data source not found.");
 
             return;
         }
 
         await IndexingQueue.QueueSyncDataSourceAsync(dataSource);
-        _successMessage = "Data source synchronization has been queued.";
+        ToastNotifications.ShowSuccess("Data source synchronization has been queued.");
     }
 
     private async Task DeleteAsync(string id)
@@ -127,14 +110,14 @@ else
 
         if (dataSource == null)
         {
-            _errorMessage = "Data source not found.";
+            ToastNotifications.ShowError("Data source not found.");
 
             return;
         }
 
         await Manager.DeleteAsync(dataSource);
         await StoreCommitter.CommitAsync();
-        _successMessage = "Data source deleted successfully. Knowledge-base cleanup has been queued.";
+        ToastNotifications.ShowSuccess("Data source deleted successfully. Knowledge-base cleanup has been queued.");
         await LoadAsync();
     }
 }

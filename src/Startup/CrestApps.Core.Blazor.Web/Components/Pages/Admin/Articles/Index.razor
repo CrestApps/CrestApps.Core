@@ -13,6 +13,7 @@
 @inject SiteSettingsStore SiteSettingsStore
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>Articles - Blazor AI Integration Sample</PageTitle>
 
@@ -22,14 +23,6 @@
         <i class="bi bi-plus-lg"></i> Create New Article
     </a>
 </div>
-
-@if (!string.IsNullOrEmpty(_successMessage))
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @_successMessage
-        <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
-    </div>
-}
 
 @if (_model == null)
 {
@@ -91,7 +84,6 @@ else
 
 @code {
     private ArticleIndexViewModel _model;
-    private string _successMessage;
     private int _currentPage = 1;
 
     protected override async Task OnInitializedAsync()
@@ -150,7 +142,7 @@ else
             await StoreCommitter.CommitAsync();
         }
 
-        _successMessage = "Article deleted successfully.";
+        ToastNotifications.ShowSuccess("Article deleted successfully.");
         _currentPage = 1;
         await LoadArticlesAsync();
     }

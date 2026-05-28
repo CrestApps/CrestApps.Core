@@ -1,8 +1,4 @@
 @inherits LayoutComponentBase
-@inject NavigationManager Navigation
-
-<PageTitle>@(Title ?? "Blazor AI Integration Sample")</PageTitle>
-
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="/">
@@ -57,35 +53,14 @@
     </AuthorizeView>
 
     <main class="flex-grow-1 p-4 app-content">
-        @if (!string.IsNullOrEmpty(ErrorMessage))
-        {
-            <div class="alert alert-danger" role="alert">
-                <i class="bi bi-exclamation-triangle-fill"></i> @ErrorMessage
-            </div>
-        }
-
-        @if (!string.IsNullOrEmpty(SuccessMessage))
-        {
-            <div class="alert alert-success" role="alert">
-                <i class="bi bi-check-circle-fill"></i> @SuccessMessage
-            </div>
-        }
-
         @Body
     </main>
 </div>
+
+<ToastContainer />
 
 <AuthorizeView>
     <Authorized>
         <ChatWidget />
     </Authorized>
 </AuthorizeView>
-
-@code {
-    private string Title { get; set; }
-    private string ErrorMessage { get; set; }
-    private string SuccessMessage { get; set; }
-
-    [CascadingParameter]
-    private Task<AuthenticationState> AuthState { get; set; }
-}

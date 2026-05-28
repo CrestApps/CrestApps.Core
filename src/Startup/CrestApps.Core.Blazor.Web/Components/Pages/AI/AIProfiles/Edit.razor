@@ -66,11 +66,6 @@ else if (_model != null)
         <input type="hidden" name="_model.ItemId" value="@_model.ItemId" />
         <div class="row">
             <div class="col-md-8">
-                @if (!string.IsNullOrEmpty(_errorMessage))
-                {
-                    <div class="alert alert-danger">@_errorMessage</div>
-                }
-
                 <!-- Tab Navigation -->
                 <ul class="nav nav-tabs" role="tablist">
                     <li class="nav-item">
@@ -1067,7 +1062,6 @@ else if (_model != null)
     private bool _notFound;
     private string _activeTab = "basic";
     private string _nameError;
-    private string _errorMessage;
     private string _promptTemplateSearchTerm;
     private IReadOnlyList<SpeechVoice> _availableVoices = [];
     private List<string> _removedDocumentIds = [];
@@ -1106,7 +1100,6 @@ else if (_model != null)
     private async Task HandleSubmitAsync()
     {
         _nameError = null;
-        _errorMessage = null;
 
         if (string.IsNullOrWhiteSpace(_model.Name))
         {

@@ -6,6 +6,7 @@
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>MCP Prompts</PageTitle>
 
@@ -15,14 +16,6 @@
         <i class="bi bi-plus-lg"></i> Add Prompt
     </a>
 </div>
-
-@if (!string.IsNullOrEmpty(_errorMessage))
-{
-    <div class="alert alert-danger alert-dismissible fade show">
-        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
-        <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
-    </div>
-}
 
 @if (_prompts == null)
 {
@@ -68,7 +61,6 @@ else
 
 @code {
     private List<McpPrompt> _prompts;
-    private string _errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -97,7 +89,7 @@ else
 
         if (prompt == null)
         {
-            _errorMessage = "Prompt not found.";
+            ToastNotifications.ShowError("Prompt not found.");
 
             return;
         }

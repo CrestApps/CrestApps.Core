@@ -26,19 +26,12 @@
 @inject IDataProtectionProvider DataProtectionProvider
 @inject ClaudeClientService ClaudeClientService
 @inject SiteSettingsChangedNotifier SettingsChangedNotifier
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>AI Settings - Blazor AI Integration Sample</PageTitle>
 
 <h2><i class="bi bi-gear"></i> AI Settings</h2>
 <hr />
-
-@if (!string.IsNullOrEmpty(_successMessage))
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @_successMessage
-        <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
-    </div>
-}
 
 @if (_model == null)
 {
@@ -682,7 +675,6 @@ else
     private const string AnthropicProtectorPurpose = "CrestApps.Core.Blazor.Web.ClaudeSettings";
 
     private SettingsViewModel _model;
-    private string _successMessage;
     private Dictionary<string, string> _errors = new();
 
     protected override async Task OnInitializedAsync()
@@ -1083,6 +1075,6 @@ else
         await SiteSettings.SaveChangesAsync();
         await SettingsChangedNotifier.NotifyAsync();
 
-        _successMessage = "Settings saved successfully.";
+        ToastNotifications.ShowSuccess("Settings saved successfully.");
     }
 }

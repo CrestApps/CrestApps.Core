@@ -51,7 +51,7 @@ public sealed class CopilotAuthController : Controller
         if (!string.IsNullOrEmpty(error))
         {
             _logger.LogWarning("GitHub OAuth error: {Error}", error.SanitizeForLog());
-            TempData["ErrorMessage"] = "GitHub authentication failed. Please try again.";
+            SetNotificationMessage(validatedReturnUrl, "ErrorMessage", "GitHub authentication failed. Please try again.");
 
             return HandleOAuthReturn(validatedReturnUrl, success: false, username: null);
         }
@@ -59,7 +59,7 @@ public sealed class CopilotAuthController : Controller
         if (string.IsNullOrEmpty(code))
         {
             _logger.LogWarning("No authorization code received from GitHub.");
-            TempData["ErrorMessage"] = "No authorization code received from GitHub.";
+            SetNotificationMessage(validatedReturnUrl, "ErrorMessage", "No authorization code received from GitHub.");
 
             return HandleOAuthReturn(validatedReturnUrl, success: false, username: null);
         }
@@ -75,14 +75,14 @@ public sealed class CopilotAuthController : Controller
         {
             var credential = await _oauthService.ExchangeCodeForTokenAsync(code, userId);
 
-            TempData["SuccessMessage"] = $"Successfully connected to GitHub as {credential.GitHubUsername}.";
+            SetNotificationMessage(validatedReturnUrl, "SuccessMessage", $"Successfully connected to GitHub as {credential.GitHubUsername}.");
 
             return HandleOAuthReturn(validatedReturnUrl, success: true, username: credential.GitHubUsername);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to exchange GitHub authorization code for tokens.");
-            TempData["ErrorMessage"] = "Failed to connect to GitHub. Please try again.";
+            SetNotificationMessage(validatedReturnUrl, "ErrorMessage", "Failed to connect to GitHub. Please try again.");
         }
 
         return HandleOAuthReturn(validatedReturnUrl, success: false, username: null);
@@ -184,6 +184,16 @@ public sealed class CopilotAuthController : Controller
         }
 
         return RedirectToAction("Index", "Settings", new { area = "Admin" });
+    }
+
+    private void SetNotificationMessage(string returnUrl, string key, string message)
+    {
+        if (string.Equals(returnUrl, "__popup__", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        TempData[key] = message;
     }
 
     private string GetUserId() => User.FindFirstValue(ClaimTypes.Name);

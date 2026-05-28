@@ -10,6 +10,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ILogger<CrestApps.Core.Blazor.Web.Components.Pages.Indexing.IndexProfiles.Index> Logger
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>Index Profiles</PageTitle>
 
@@ -19,22 +20,6 @@
         <i class="bi bi-plus-lg"></i> Create New Index Profile
     </a>
 </div>
-
-@if (!string.IsNullOrEmpty(_successMessage))
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @_successMessage
-        <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
-    </div>
-}
-
-@if (!string.IsNullOrEmpty(_errorMessage))
-{
-    <div class="alert alert-danger alert-dismissible fade show">
-        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
-        <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
-    </div>
-}
 
 @if (_profiles == null)
 {
@@ -93,8 +78,6 @@ else
 
 @code {
     private List<SearchIndexProfile> _profiles;
-    private string _errorMessage;
-    private string _successMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -121,8 +104,7 @@ else
 
         if (profile == null)
         {
-            _errorMessage = "Index profile not found.";
-            _successMessage = null;
+            ToastNotifications.ShowError("Index profile not found.");
 
             return;
         }
@@ -131,8 +113,7 @@ else
 
         if (indexManager == null)
         {
-            _errorMessage = $"The search provider '{profile.ProviderName}' is not configured for remote index provisioning.";
-            _successMessage = null;
+            ToastNotifications.ShowError($"The search provider '{profile.ProviderName}' is not configured for remote index provisioning.");
 
             return;
         }
@@ -150,28 +131,24 @@ else
 
             if (fields == null)
             {
-                _errorMessage = $"The index type '{profile.Type}' does not support rebuild.";
-                _successMessage = null;
+                ToastNotifications.ShowError($"The index type '{profile.Type}' does not support rebuild.");
 
                 return;
             }
 
             await indexManager.CreateAsync(profile, fields);
             await IndexProfileManager.SynchronizeAsync(profile);
-            _successMessage = $"The index '{GetIndexDisplayName(profile)}' was rebuilt successfully.";
-            _errorMessage = null;
+            ToastNotifications.ShowSuccess($"The index '{GetIndexDisplayName(profile)}' was rebuilt successfully.");
         }
         catch (ArgumentException ex)
         {
             Logger.LogWarning(ex, "Unable to rebuild index profile '{IndexProfileId}' because the resolved remote index name is invalid.", profile.ItemId);
-            _errorMessage = "Unable to rebuild the index because the remote index name is invalid.";
-            _successMessage = null;
+            ToastNotifications.ShowError("Unable to rebuild the index because the remote index name is invalid.");
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to rebuild remote index '{IndexName}' for provider '{ProviderName}'.", GetIndexDisplayName(profile), profile.ProviderName);
-            _errorMessage = $"Unable to rebuild the remote index '{GetIndexDisplayName(profile)}'.";
-            _successMessage = null;
+            ToastNotifications.ShowError($"Unable to rebuild the remote index '{GetIndexDisplayName(profile)}'.");
         }
     }
 
@@ -188,8 +165,7 @@ else
 
         if (profile == null)
         {
-            _errorMessage = "Index profile not found.";
-            _successMessage = null;
+            ToastNotifications.ShowError("Index profile not found.");
 
             return;
         }
@@ -198,14 +174,12 @@ else
         {
             await IndexProfileManager.ResetAsync(profile);
             await IndexProfileManager.SynchronizeAsync(profile);
-            _successMessage = $"The index '{GetIndexDisplayName(profile)}' was reindexed successfully.";
-            _errorMessage = null;
+            ToastNotifications.ShowSuccess($"The index '{GetIndexDisplayName(profile)}' was reindexed successfully.");
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to reindex remote index '{IndexName}' for provider '{ProviderName}'.", GetIndexDisplayName(profile), profile.ProviderName);
-            _errorMessage = $"Unable to reindex the remote index '{GetIndexDisplayName(profile)}'.";
-            _successMessage = null;
+            ToastNotifications.ShowError($"Unable to reindex the remote index '{GetIndexDisplayName(profile)}'.");
         }
     }
 
@@ -222,8 +196,7 @@ else
 
         if (profile == null)
         {
-            _errorMessage = "Index profile not found.";
-            _successMessage = null;
+            ToastNotifications.ShowError("Index profile not found.");
 
             return;
         }
@@ -235,8 +208,7 @@ else
             Logger.LogWarning("Skipping remote delete for index profile '{IndexProfileId}' because provider '{ProviderName}' is not registered.", profile.ItemId, profile.ProviderName);
             await IndexProfileManager.DeleteAsync(profile);
             await StoreCommitter.CommitAsync();
-            _successMessage = "Index profile deleted successfully.";
-            _errorMessage = null;
+            ToastNotifications.ShowSuccess("Index profile deleted successfully.");
             await LoadAsync();
 
             return;
@@ -264,8 +236,7 @@ else
             catch (Exception ex)
             {
                 Logger.LogError(ex, "Failed to delete remote index '{IndexName}' for provider '{ProviderName}'.", profile.IndexFullName, profile.ProviderName);
-                _errorMessage = $"Unable to delete the remote index '{profile.IndexFullName}'. The index profile was not removed.";
-                _successMessage = null;
+                ToastNotifications.ShowError($"Unable to delete the remote index '{profile.IndexFullName}'. The index profile was not removed.");
 
                 return;
             }
@@ -273,8 +244,7 @@ else
 
         await IndexProfileManager.DeleteAsync(profile);
         await StoreCommitter.CommitAsync();
-        _successMessage = "Index profile deleted successfully.";
-        _errorMessage = null;
+        ToastNotifications.ShowSuccess("Index profile deleted successfully.");
         await LoadAsync();
     }
 
