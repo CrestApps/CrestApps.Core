@@ -47,11 +47,6 @@
 <EditForm FormName="ai-aitemplates-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
     <div class="row">
         <div class="col-md-8">
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <div class="alert alert-danger">@_errorMessage</div>
-            }
-
             <div class="mb-3">
                 <label class="form-label">Title <span class="text-danger">*</span></label>
                 <input id="templateTitle" class="form-control" value="@_model.DisplayText" @oninput="OnDisplayTextInput" placeholder="e.g., Customer Support Template" />
@@ -562,7 +557,6 @@
     private string _activeTab = "basic";
     private string _nameError;
     private string _sourceError;
-    private string _errorMessage;
     private string _promptTemplateSearchTerm;
     private bool _nameWasManuallyEdited;
 
@@ -575,7 +569,6 @@
     {
         _nameError = null;
         _sourceError = null;
-        _errorMessage = null;
 
         if (string.IsNullOrWhiteSpace(_model.Name)) _nameError = "Technical name is required.";
         if (string.IsNullOrWhiteSpace(_model.Source)) _sourceError = "Source is required.";

@@ -1,0 +1,62 @@
+@{
+    var successMessage = TempData["SuccessMessage"] as string;
+    var errorMessage = TempData["ErrorMessage"] as string;
+
+    static int GetSuccessDelay(string message)
+    {
+        return message.Length switch
+        {
+            > 240 => 15000,
+            > 180 => 12000,
+            > 120 => 9000,
+            > 80 => 7000,
+            _ => 5000,
+        };
+    }
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage) || !string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="toast-container position-fixed top-0 end-0 p-3 app-toast-container" aria-live="polite" aria-atomic="true">
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="toast app-toast text-bg-success border-0"
+                 role="alert"
+                 aria-live="polite"
+                 aria-atomic="true"
+                 data-bs-autohide="true"
+                 data-bs-delay="@GetSuccessDelay(successMessage)">
+                <div class="d-flex">
+                    <div class="toast-body d-flex align-items-start gap-2">
+                        <i class="bi bi-check-circle-fill app-toast-icon" aria-hidden="true"></i>
+                        <div class="app-toast-message">@successMessage</div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="toast app-toast text-bg-danger border-0"
+                 role="alert"
+                 aria-live="assertive"
+                 aria-atomic="true"
+                 data-bs-autohide="false">
+                <div class="d-flex">
+                    <div class="toast-body d-flex align-items-start gap-2">
+                        <i class="bi bi-exclamation-triangle-fill app-toast-icon" aria-hidden="true"></i>
+                        <div class="app-toast-message">@errorMessage</div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <script>
+        document.querySelectorAll('.app-toast').forEach(function (toastElement) {
+            bootstrap.Toast.getOrCreateInstance(toastElement).show();
+        });
+    </script>
+}

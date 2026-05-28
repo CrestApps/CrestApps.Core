@@ -1,0 +1,98 @@
+@implements IDisposable
+@inject ToastNotificationService ToastNotifications
+
+@if (_toasts.Count > 0)
+{
+    <div class="toast-container position-fixed top-0 end-0 p-3 app-toast-container" aria-live="polite" aria-atomic="true">
+        @foreach (var toast in _toasts)
+        {
+            <div class="toast show app-toast @toast.ColorClass border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body d-flex align-items-start gap-2">
+                        <i class="@toast.IconClass app-toast-icon" aria-hidden="true"></i>
+                        <div class="app-toast-message">@toast.Message</div>
+                    </div>
+                    <button type="button"
+                            class="btn-close @toast.CloseButtonClass me-2 m-auto"
+                            aria-label="Close"
+                            @onclick="() => Dismiss(toast.Id)"></button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private readonly List<ToastNotification> _toasts = [];
+    private readonly Dictionary<Guid, CancellationTokenSource> _dismissalTokens = [];
+
+    protected override void OnInitialized()
+    {
+        ToastNotifications.ToastAdded += OnToastAdded;
+    }
+
+    public void Dispose()
+    {
+        ToastNotifications.ToastAdded -= OnToastAdded;
+
+        foreach (var tokenSource in _dismissalTokens.Values)
+        {
+            tokenSource.Cancel();
+            tokenSource.Dispose();
+        }
+
+        _dismissalTokens.Clear();
+    }
+
+    private void OnToastAdded(ToastNotification toast)
+    {
+        _ = InvokeAsync(() =>
+        {
+            _toasts.Insert(0, toast);
+
+            if (toast.AutoHide && toast.Delay.HasValue)
+            {
+                ScheduleDismissal(toast);
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private void Dismiss(Guid toastId)
+    {
+        var removed = _toasts.RemoveAll(toast => toast.Id == toastId) > 0;
+
+        if (_dismissalTokens.Remove(toastId, out var tokenSource))
+        {
+            tokenSource.Cancel();
+            tokenSource.Dispose();
+        }
+
+        if (removed)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ScheduleDismissal(ToastNotification toast)
+    {
+        var tokenSource = new CancellationTokenSource();
+        _dismissalTokens[toast.Id] = tokenSource;
+        _ = DismissLaterAsync(toast.Id, toast.Delay!.Value, tokenSource.Token);
+    }
+
+    private async Task DismissLaterAsync(Guid toastId, int delay, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(delay, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await InvokeAsync(() => Dismiss(toastId));
+    }
+}

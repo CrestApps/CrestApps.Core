@@ -52,11 +52,6 @@
 <EditForm FormName="ai-aitemplates-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
     <div class="row">
         <div class="col-md-8">
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <div class="alert alert-danger">@_errorMessage</div>
-            }
-
             <div class="mb-3">
                 <label class="form-label">Title <span class="text-danger">*</span></label>
                 <InputText class="form-control" @bind-Value="_model.DisplayText" placeholder="e.g., Customer Support Template" />
@@ -583,7 +578,6 @@
     private AITemplateViewModel _model = new();
     private string _activeTab = "basic";
     private string _sourceError;
-    private string _errorMessage;
     private string _promptTemplateSearchTerm;
 
     protected override async Task OnInitializedAsync()
@@ -602,7 +596,6 @@
     private async Task HandleSubmitAsync()
     {
         _sourceError = null;
-        _errorMessage = null;
 
         if (string.IsNullOrWhiteSpace(_model.Source)) _sourceError = "Source is required.";
         if (_sourceError != null) return;

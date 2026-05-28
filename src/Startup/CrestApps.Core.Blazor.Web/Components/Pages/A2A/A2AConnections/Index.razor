@@ -6,6 +6,7 @@
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
 
 <PageTitle>Agent to Agent Hosts</PageTitle>
 
@@ -15,14 +16,6 @@
         <i class="bi bi-plus-lg"></i> Add Connection
     </a>
 </div>
-
-@if (!string.IsNullOrEmpty(_errorMessage))
-{
-    <div class="alert alert-danger alert-dismissible fade show">
-        <i class="bi bi-exclamation-triangle-fill"></i> @_errorMessage
-        <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
-    </div>
-}
 
 @if (_connections == null)
 {
@@ -71,7 +64,6 @@ else
 
 @code {
     private List<A2AConnection> _connections;
-    private string _errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -100,7 +92,7 @@ else
 
         if (connection == null)
         {
-            _errorMessage = "Connection not found.";
+            ToastNotifications.ShowError("Connection not found.");
 
             return;
         }

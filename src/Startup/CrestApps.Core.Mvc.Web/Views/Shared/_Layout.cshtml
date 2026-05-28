@@ -163,14 +163,6 @@
         }
 
         <main class="flex-grow-1 p-4 app-content">
-            @if (TempData["ErrorMessage"] is string errorMessage)
-            {
-                <div class="alert alert-danger app-alert" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill app-alert-icon" aria-hidden="true"></i>
-                    <div class="app-alert-content">@errorMessage</div>
-                </div>
-            }
-
             @if (!ViewData.ModelState.IsValid)
             {
                 <div class="alert alert-danger app-alert" role="alert">
@@ -188,6 +180,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/_content/CrestApps.AI.Resources/scripts/technical-name-generator.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
+    @await Html.PartialAsync("_ToastNotifications")
 
     @if (User.Identity.IsAuthenticated && !string.Equals(ViewContext.RouteData.Values["area"]?.ToString(), "AIChat", StringComparison.OrdinalIgnoreCase))
     {

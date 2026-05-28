@@ -70,6 +70,7 @@ builder.Services.AddLocalization();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ToastNotificationService>();
 
 // =============================================================================
 // 5. AUTHENTICATION & AUTHORIZATION

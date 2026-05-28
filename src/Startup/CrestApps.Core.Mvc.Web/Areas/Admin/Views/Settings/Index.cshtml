@@ -8,14 +8,6 @@
 <h2><i class="bi bi-gear"></i> AI Settings</h2>
 <hr />
 
-@if (TempData["SuccessMessage"] is string message)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @message
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
 <form asp-action="Save" method="post">
     <div class="row">
         <div class="col-md-8">
