@@ -73,9 +73,20 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
 
         foreach (var entry in orderedEntries)
         {
-            if (entry.Source == ToolRegistryEntrySource.Local &&
-                !await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
+            // Evaluate authorization for all tool sources exposed through the local orchestrator.
+            // Although this handler only runs for the local orchestrator (external orchestrators
+            // like Claude/Copilot manage their own tool selection), MCP tools surfaced here should
+            // still be subject to the same per-user access policy as Local tools to prevent
+            // unauthorized invocation via prompt injection.
+            if (!await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
             {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Tool '{ToolName}' from {Source} ({Id}) denied by access evaluator.",
+                        entry.Name, entry.Source, entry.Id);
+                }
+
                 continue;
             }
 

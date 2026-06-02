@@ -64,6 +64,8 @@ It also chains `AddCoreAITemplating()` and `AddCoreServices()` automatically. `I
 
 Optional format-specific packages stay opt-in. For example, Markdown-aware normalization lives in `CrestApps.Core.AI.Markdown`, so hosts that want Markdig-backed RAG normalization should register `AddCoreAIMarkdown()` explicitly instead of expecting `AddCoreAIServices()` to pull it in automatically.
 
+The AI services layer also registers the shared prompt-security services used by AI Profile chat experiences, including normalization, weighted regex-rule evaluation, output filtering, and audit logging. See [Prompt Security](./prompt-security.md) for the security model and configuration guidance.
+
 ## Key Interfaces
 
 ### `IAIClientFactory`

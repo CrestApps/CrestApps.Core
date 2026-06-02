@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
 
@@ -107,6 +108,23 @@ public sealed class SettingsViewModel
     public string AdminWidgetProfileId { get; set; }
 
     public string AdminWidgetPrimaryColor { get; set; }
+
+    // Prompt security settings.
+    public bool SecurityEnabled { get; set; } = true;
+
+    public bool SecurityEnableInjectionDetection { get; set; } = true;
+
+    public bool SecurityEnableOutputFiltering { get; set; } = true;
+
+    public bool SecurityEnableSecurityPreamble { get; set; } = true;
+
+    public bool SecurityEnableInputDelimiters { get; set; } = true;
+
+    public bool SecurityEnableAuditLogging { get; set; } = true;
+
+    public int SecurityMaxPromptLength { get; set; } = 8000;
+
+    public PromptRiskLevel SecurityBlockingThreshold { get; set; } = PromptRiskLevel.High;
 
     // Dropdown items populated at load time.
     public List<KeyValuePair<string, string>> ChatDeployments { get; set; } = [];

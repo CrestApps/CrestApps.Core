@@ -204,6 +204,82 @@
 
             <div class="card mb-4">
                 <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="bi bi-shield-lock"></i> Prompt Security</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Controls the defense-in-depth security layer that protects AI chat profiles from prompt injection,
+                        system prompt disclosure, and data exfiltration. Individual AI Profiles can override these defaults.
+                    </p>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input asp-for="SecurityEnabled" class="form-check-input" type="checkbox" data-security-toggle="true" />
+                            <label asp-for="SecurityEnabled" class="form-check-label">Enable prompt security layer</label>
+                        </div>
+                        <div class="form-text">Master switch for all prompt security features. When disabled, none of the security defenses below are active.</div>
+                    </div>
+
+                    <div data-security-options="true">
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="SecurityEnableInjectionDetection" class="form-check-input" type="checkbox" />
+                                <label asp-for="SecurityEnableInjectionDetection" class="form-check-label">Enable injection detection</label>
+                            </div>
+                            <div class="form-text">Detects and blocks known prompt injection patterns such as "ignore previous instructions", persona hijacking, and role impersonation.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="SecurityEnableOutputFiltering" class="form-check-input" type="checkbox" />
+                                <label asp-for="SecurityEnableOutputFiltering" class="form-check-label">Enable output filtering</label>
+                            </div>
+                            <div class="form-text">Scans AI responses for leaked system prompts, tool configurations, or internal data before delivering to the user.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="SecurityEnableSecurityPreamble" class="form-check-input" type="checkbox" />
+                                <label asp-for="SecurityEnableSecurityPreamble" class="form-check-label">Enable security preamble</label>
+                            </div>
+                            <div class="form-text">Prepends a hardened security instruction to system prompts that instructs the model to never reveal its configuration.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="SecurityEnableInputDelimiters" class="form-check-input" type="checkbox" />
+                                <label asp-for="SecurityEnableInputDelimiters" class="form-check-label">Enable input delimiters</label>
+                            </div>
+                            <div class="form-text">Wraps user messages with boundary markers to help the model distinguish user content from system instructions.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input asp-for="SecurityEnableAuditLogging" class="form-check-input" type="checkbox" />
+                                <label asp-for="SecurityEnableAuditLogging" class="form-check-label">Enable security audit logging</label>
+                            </div>
+                            <div class="form-text">Logs blocked prompts and security events for forensic investigation of injection attempts.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityMaxPromptLength" class="form-label">Maximum prompt length (characters)</label>
+                            <input asp-for="SecurityMaxPromptLength" class="form-control" type="number" min="100" max="100000" style="max-width: 200px;" />
+                            <span asp-validation-for="SecurityMaxPromptLength" class="text-danger"></span>
+                            <div class="form-text">Prompts exceeding this length are automatically blocked. Default is 8,000 characters.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityBlockingThreshold" class="form-label">Blocking threshold</label>
+                            <select asp-for="SecurityBlockingThreshold" asp-items="Model.BlockingThresholds" class="form-select" style="max-width: 400px;">
+                            </select>
+                            <div class="form-text">Controls the minimum risk level at which prompts are blocked. Lower thresholds are stricter.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
                     <h5 class="card-title mb-0">Admin widget</h5>
                 </div>
                 <div class="card-body">
@@ -736,5 +812,20 @@
         });
 
         loadVoiceOptions();
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const securityToggle = document.querySelector('[data-security-toggle]');
+        const securityOptions = document.querySelector('[data-security-options]');
+
+        if (securityToggle && securityOptions) {
+            function updateSecurityVisibility() {
+                securityOptions.style.display = securityToggle.checked ? '' : 'none';
+            }
+
+            updateSecurityVisibility();
+            securityToggle.addEventListener('change', updateSecurityVisibility);
+        }
     });
 </script>

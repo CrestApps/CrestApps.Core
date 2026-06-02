@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
@@ -76,6 +77,7 @@ public static class SharedWebApplicationBuilderExtensions
         services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
         services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
         services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
+        services.AddSingleton<IConfigureOptions<PromptSecurityOptions>, SiteSettingsConfigureStoredOptions<PromptSecurityOptions>>();
 
         return services;
     }

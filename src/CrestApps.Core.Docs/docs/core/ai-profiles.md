@@ -123,6 +123,18 @@ Profiles can opt into user memory so experiences can carry durable context forwa
 
 That toggle is stored directly as `MemoryMetadata`, so profile and template consumers read and write one shared metadata shape instead of carrying legacy memory-setting aliases forward.
 
+### 8. Prompt security
+
+Profiles can also override the site-level prompt security defaults through `PromptSecurityProfileSettings`.
+
+That lets you keep a strong global baseline while adjusting individual profile behavior for cases such as:
+
+- stricter blocking for high-sensitivity assistants
+- longer prompt limits for carefully managed internal workflows
+- disabling the security layer for intentionally operator-controlled profiles
+
+See [Prompt Security](./prompt-security.md) for the full option set, scoring model, and limitations.
+
 ## Profile types
 
 `AIProfile.Type` lets one model support different runtime roles.
@@ -184,6 +196,7 @@ That profile can then serve as a reusable internal assistant instead of rebuildi
 - Use **profiles** to capture reusable behavior and lifecycle rules.
 - Use **Chat Interactions** for fast testing and experimentation.
 - Use **AI Chat** when you want repeatable session-based experiences built on top of a profile.
+- Use **Prompt Security overrides** when a specific profile needs tighter or looser enforcement than the site default.
 
 ## Related docs
 
@@ -191,4 +204,5 @@ That profile can then serve as a reusable internal assistant instead of rebuildi
 - [Chat Interactions](./chat.md)
 - [AI Templates](./ai-templates.md)
 - [AI Agents](./agents.md)
+- [Prompt Security](./prompt-security.md)
 - [MVC Example](./mvc-example.md)

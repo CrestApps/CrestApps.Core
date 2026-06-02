@@ -11,6 +11,7 @@
 @using CrestApps.Core.AI.Memory
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Security
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models
 @using CrestApps.Core.Blazor.Web.Models
@@ -276,6 +277,91 @@ else
                             }
                             <div class="form-text">Controls pagination size for admin lists throughout the Blazor application.</div>
                         </div>
+                    </div>
+                </div>
+
+                @* ── Prompt Security ── *@
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-shield-lock"></i> Prompt Security</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">
+                            Controls the defense-in-depth security layer that protects AI chat profiles from prompt injection,
+                            system prompt disclosure, and data exfiltration. Individual AI Profiles can override these defaults.
+                        </p>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input id="securityEnabled" class="form-check-input" type="checkbox" @bind="_model.SecurityEnabled" />
+                                <label for="securityEnabled" class="form-check-label">Enable prompt security layer</label>
+                            </div>
+                            <div class="form-text">Master switch for all prompt security features. When disabled, none of the security defenses below are active.</div>
+                        </div>
+
+                        @if (_model.SecurityEnabled)
+                        {
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input id="securityInjection" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableInjectionDetection" />
+                                    <label for="securityInjection" class="form-check-label">Enable injection detection</label>
+                                </div>
+                                <div class="form-text">Detects and blocks known prompt injection patterns such as "ignore previous instructions", persona hijacking, and role impersonation.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input id="securityOutput" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableOutputFiltering" />
+                                    <label for="securityOutput" class="form-check-label">Enable output filtering</label>
+                                </div>
+                                <div class="form-text">Scans AI responses for leaked system prompts, tool configurations, or internal data before delivering to the user.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input id="securityPreamble" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableSecurityPreamble" />
+                                    <label for="securityPreamble" class="form-check-label">Enable security preamble</label>
+                                </div>
+                                <div class="form-text">Prepends a hardened security instruction to system prompts that instructs the model to never reveal its configuration.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input id="securityDelimiters" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableInputDelimiters" />
+                                    <label for="securityDelimiters" class="form-check-label">Enable input delimiters</label>
+                                </div>
+                                <div class="form-text">Wraps user messages with boundary markers to help the model distinguish user content from system instructions.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input id="securityAudit" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableAuditLogging" />
+                                    <label for="securityAudit" class="form-check-label">Enable security audit logging</label>
+                                </div>
+                                <div class="form-text">Logs blocked prompts and security events for forensic investigation of injection attempts.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityMaxLength" class="form-label">Maximum prompt length (characters)</label>
+                                <input id="securityMaxLength" class="form-control" type="number" min="100" max="100000" style="max-width: 200px;" @bind="_model.SecurityMaxPromptLength" />
+                                @if (_errors.TryGetValue(nameof(_model.SecurityMaxPromptLength), out var maxLenErr))
+                                {
+                                    <span class="text-danger">@maxLenErr</span>
+                                }
+                                <div class="form-text">Prompts exceeding this length are automatically blocked. Default is 8,000 characters.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityThreshold" class="form-label">Blocking threshold</label>
+                                <select id="securityThreshold" class="form-select" style="max-width: 400px;" @bind="_model.SecurityBlockingThreshold">
+                                    <option value="@PromptRiskLevel.Low">Low — Block low-risk and above</option>
+                                    <option value="@PromptRiskLevel.Medium">Medium — Block medium-risk and above</option>
+                                    <option value="@PromptRiskLevel.High">High — Block high-risk only (Recommended)</option>
+                                    <option value="@PromptRiskLevel.Critical">Critical — Block critical only</option>
+                                </select>
+                                <div class="form-text">Controls the minimum risk level at which prompts are blocked. Lower thresholds are stricter.</div>
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -697,6 +783,7 @@ else
         var anthropicSettings = SiteSettings.Get<ClaudeSettings>();
         var paginationSettings = SiteSettings.Get<PaginationSettings>();
         var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
+        var promptSecuritySettings = SiteSettings.Get<PromptSecurityOptions>();
 
         _model = new SettingsViewModel
         {
@@ -752,6 +839,14 @@ else
             AdminWidgetPrimaryColor = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
                 ? AIChatAdminWidgetSettings.DefaultSecondaryColor
                 : adminWidgetSettings.PrimaryColor,
+            SecurityEnabled = promptSecuritySettings.EnableInjectionDetection || promptSecuritySettings.EnableOutputFiltering || promptSecuritySettings.EnableSecurityPreamble || promptSecuritySettings.EnableInputDelimiters,
+            SecurityEnableInjectionDetection = promptSecuritySettings.EnableInjectionDetection,
+            SecurityEnableOutputFiltering = promptSecuritySettings.EnableOutputFiltering,
+            SecurityEnableSecurityPreamble = promptSecuritySettings.EnableSecurityPreamble,
+            SecurityEnableInputDelimiters = promptSecuritySettings.EnableInputDelimiters,
+            SecurityEnableAuditLogging = promptSecuritySettings.EnableAuditLogging,
+            SecurityMaxPromptLength = promptSecuritySettings.MaxPromptLength,
+            SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
         };
 
         await PopulateDropdownsAsync();
@@ -905,6 +1000,11 @@ else
         if (_model.AdminPageSize < 1 || _model.AdminPageSize > 200)
         {
             _errors[nameof(_model.AdminPageSize)] = "Page size must be between 1 and 200.";
+        }
+
+        if (_model.SecurityMaxPromptLength < 100 || _model.SecurityMaxPromptLength > 100000)
+        {
+            _errors[nameof(_model.SecurityMaxPromptLength)] = "Must be between 100 and 100,000.";
         }
 
         if (!string.IsNullOrWhiteSpace(_model.AdminWidgetPrimaryColor) &&
@@ -1070,6 +1170,17 @@ else
             PrimaryColor = string.IsNullOrWhiteSpace(_model.AdminWidgetPrimaryColor)
                 ? AIChatAdminWidgetSettings.DefaultSecondaryColor
                 : _model.AdminWidgetPrimaryColor.Trim(),
+        });
+
+        SiteSettings.Set(new PromptSecurityOptions
+        {
+            EnableInjectionDetection = _model.SecurityEnabled && _model.SecurityEnableInjectionDetection,
+            EnableOutputFiltering = _model.SecurityEnabled && _model.SecurityEnableOutputFiltering,
+            EnableSecurityPreamble = _model.SecurityEnabled && _model.SecurityEnableSecurityPreamble,
+            EnableInputDelimiters = _model.SecurityEnabled && _model.SecurityEnableInputDelimiters,
+            EnableAuditLogging = _model.SecurityEnabled && _model.SecurityEnableAuditLogging,
+            MaxPromptLength = _model.SecurityMaxPromptLength,
+            BlockingThreshold = _model.SecurityBlockingThreshold,
         });
 
         await SiteSettings.SaveChangesAsync();

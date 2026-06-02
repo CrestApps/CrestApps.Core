@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Extensions;
 using CrestApps.Core.Services;
@@ -245,6 +246,52 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     protected virtual string GetSpeechSynthesisErrorMessage(Exception ex = null)
     {
         return IsSpeechAuthenticationFailure(ex) ? "Text-to-speech authentication failed. Check the configured speech deployment credentials and region." : "An error occurred while synthesizing speech. Please try again.";
+    }
+
+    /// <summary>
+    /// Gets the message returned to users when their prompt is blocked by security validation.
+    /// </summary>
+    protected virtual string GetPromptBlockedMessage()
+    {
+        return "Your message could not be processed. Please rephrase and try again.";
+    }
+
+    /// <summary>
+    /// Gets the message returned to users when the AI-generated output is blocked by security filtering.
+    /// </summary>
+    protected virtual string GetOutputBlockedMessage()
+    {
+        return "I'm unable to provide a response to that request. Please try a different question.";
+    }
+
+    /// <summary>
+    /// Validates the user prompt against the security service.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="profile">The AI profile.</param>
+    /// <param name="sessionId">The session identifier.</param>
+    /// <param name="prompt">The user prompt.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    protected virtual async Task<PromptSecurityResult> ValidatePromptSecurityAsync(IServiceProvider services, AIProfile profile, string sessionId, string prompt, CancellationToken cancellationToken)
+    {
+        var securityService = services.GetService<IPromptSecurityService>();
+
+        if (securityService == null)
+        {
+            return PromptSecurityResult.Safe;
+        }
+
+        var context = new PromptSecurityContext
+        {
+            Prompt = prompt,
+            SessionId = sessionId,
+            ProfileId = profile.ItemId,
+            Profile = profile,
+            User = Context.User,
+            ConnectionId = Context.ConnectionId,
+        };
+
+        return await securityService.ValidateInputAsync(context, cancellationToken);
     }
 
     /// <summary>
@@ -1006,9 +1053,32 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
+                // Validate prompt security before processing.
+                var utilitySecurityResult = await ValidatePromptSecurityAsync(services, profile, sessionId, prompt, cancellationToken);
+
+                if (utilitySecurityResult.IsBlocked)
+                {
+                    await Clients.Caller.ReceiveError(GetPromptBlockedMessage());
+
+                    return;
+                }
+
                 await ProcessUtilityAsync(writer, services, profile, prompt.Trim(), cancellationToken);
 
                 return;
+            }
+
+            // Validate prompt security before processing chat messages.
+            if (!string.IsNullOrWhiteSpace(prompt))
+            {
+                var securityResult = await ValidatePromptSecurityAsync(services, profile, sessionId, prompt, cancellationToken);
+
+                if (securityResult.IsBlocked)
+                {
+                    await Clients.Caller.ReceiveError(GetPromptBlockedMessage());
+
+                    return;
+                }
             }
 
             await ProcessChatPromptAsync(writer, services, profile, sessionId, prompt?.Trim(), cancellationToken);
@@ -1167,7 +1237,46 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         stopwatch.Stop();
         if (builder.Length > 0)
         {
-            assistantMessage.Content = builder.ToString();
+            var fullResponse = builder.ToString();
+
+            // Validate the complete response through output security filter.
+            var outputFilter = services.GetService<IOutputSecurityFilter>();
+
+            if (outputFilter != null)
+            {
+                var outputContext = new OutputSecurityContext
+                {
+                    Output = fullResponse,
+                    OriginalPrompt = prompt,
+                    SessionId = chatSession.SessionId,
+                    SystemMessage = handlerContext.Properties.TryGetValue("SystemMessage", out var sysMsg)
+                        ? sysMsg as string
+                        : null,
+                };
+                var outputResult = await outputFilter.ValidateOutputAsync(outputContext, cancellationToken);
+
+                if (outputResult.IsBlocked)
+                {
+                    Logger.LogWarning(
+                        "Output blocked by security filter: Rule={Rule}, Session={SessionId}",
+                        outputResult.DetectionRule,
+                        chatSession.SessionId);
+
+                    // Do not persist the blocked response; notify the user with a safe message.
+                    var blockedMessage = new CompletionPartialMessage
+                    {
+                        SessionId = chatSession.SessionId,
+                        MessageId = assistantMessage.ItemId,
+                        Content = GetOutputBlockedMessage(),
+                    };
+                    await writer.WriteAsync(blockedMessage, cancellationToken);
+                    await SaveChatSessionAsync(sessionManager, chatSession);
+
+                    return;
+                }
+            }
+
+            assistantMessage.Content = fullResponse;
             assistantMessage.ContentItemIds = contentItemIds.ToList();
             assistantMessage.References = references;
             await promptStore.CreateAsync(assistantMessage, cancellationToken);

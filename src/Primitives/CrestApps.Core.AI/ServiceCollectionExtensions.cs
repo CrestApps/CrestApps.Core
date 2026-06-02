@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
@@ -447,6 +448,8 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAIToolAccessEvaluator, DefaultAIToolAccessEvaluator>();
         services.TryAddScoped<PreemptiveSearchQueryProvider>();
 
+        services.AddPromotSecurityLayer();
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, SystemToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, ProfileToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, AgentToolRegistryProvider>());
@@ -509,5 +512,44 @@ public static class ServiceCollectionExtensions
         });
 
         return new OrchestratorBuilder<TOrchestrator>(entry);
+    }
+
+    private static void AddPromotSecurityLayer(this IServiceCollection services)
+    {
+        // Prompt security services.
+        services.AddOptions<PromptSecurityOptions>();
+        services.TryAddSingleton<PromptSecurityRiskScoringEngine>();
+        services.TryAddSingleton<IChatRateLimiter, DefaultChatRateLimiter>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, SystemRoleInjectionRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, InstructionOverrideRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, PersonaJailbreakRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, PrivilegeEscalationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, PromptLeakageRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, IndirectPromptProbeRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, HiddenContextDisclosureRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, ConversationHistoryExtractionRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, MemoryExtractionRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, ConfigurationDisclosureRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, ToolEnumerationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, AgentOrchestrationDiscoveryRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, FunctionSchemaExtractionRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, DataExfiltrationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, EncodedExfiltrationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, DelimiterManipulationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, RagDocumentInjectionRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, AuthorityImpersonationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, HarmfulContentGenerationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, SensitiveDataProbeRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, HypotheticalScenarioBypassRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, OutputFormatManipulationRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, VirtualizationAttackRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, ContextPoisoningRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, CompletionAttackRule>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, CustomBlockedPatternsRule>());
+        services.TryAddSingleton<PromptInjectionPatternDetector>();
+        services.TryAddScoped<IPromptSecurityService, DefaultPromptSecurityService>();
+        services.TryAddScoped<IOutputSecurityFilter, DefaultOutputSecurityFilter>();
+        services.TryAddScoped<IAIChatSecurityAuditService, DefaultAIChatSecurityAuditService>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, SecurityPromptOrchestrationHandler>());
     }
 }

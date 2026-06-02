@@ -13,6 +13,7 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Security
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.AI.Speech
 @using CrestApps.Core.AI.Tooling
@@ -1041,6 +1042,75 @@ else if (_model != null)
                                 <label class="form-check-label">Lock system message</label>
                             </div>
                             <div class="form-text">Prevent modification of the system message after creation.</div>
+                        </div>
+
+                        <hr />
+                        <h6 class="text-muted"><i class="bi bi-shield-lock"></i> Prompt Security Override</h6>
+                        <p class="text-muted small">
+                            Override the site-level prompt security defaults for this profile. Leave options at "Use default" to inherit the global settings.
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label">Security layer</label>
+                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityIsEnabled">
+                                <option value="">Use default</option>
+                                <option value="True">Enabled</option>
+                                <option value="False">Disabled</option>
+                            </InputSelect>
+                            <div class="form-text">Override whether the security layer is active for this profile.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Injection detection</label>
+                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableInjectionDetection">
+                                <option value="">Use default</option>
+                                <option value="True">Enabled</option>
+                                <option value="False">Disabled</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Output filtering</label>
+                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableOutputFiltering">
+                                <option value="">Use default</option>
+                                <option value="True">Enabled</option>
+                                <option value="False">Disabled</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Security preamble</label>
+                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableSecurityPreamble">
+                                <option value="">Use default</option>
+                                <option value="True">Enabled</option>
+                                <option value="False">Disabled</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Input delimiters</label>
+                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableInputDelimiters">
+                                <option value="">Use default</option>
+                                <option value="True">Enabled</option>
+                                <option value="False">Disabled</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Max prompt length</label>
+                            <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxPromptLength" />
+                            <div class="form-text">Leave empty to use the site default.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Blocking threshold</label>
+                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityBlockingThreshold">
+                                <option value="">Use default</option>
+                                <option value="@PromptRiskLevel.Low">Low</option>
+                                <option value="@PromptRiskLevel.Medium">Medium</option>
+                                <option value="@PromptRiskLevel.High">High</option>
+                                <option value="@PromptRiskLevel.Critical">Critical</option>
+                            </InputSelect>
                         </div>
                     </div>
                 </div>

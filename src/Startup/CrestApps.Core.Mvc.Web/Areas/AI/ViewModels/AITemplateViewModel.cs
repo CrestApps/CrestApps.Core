@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
@@ -147,6 +148,21 @@ public sealed class AITemplateViewModel
     public string CopilotGitHubUsername { get; set; }
 
     public CopilotAuthenticationType CopilotAuthenticationType { get; set; }
+
+    // Prompt Security override (per-profile).
+    public bool? SecurityIsEnabled { get; set; }
+
+    public bool? SecurityEnableInjectionDetection { get; set; }
+
+    public bool? SecurityEnableOutputFiltering { get; set; }
+
+    public bool? SecurityEnableSecurityPreamble { get; set; }
+
+    public bool? SecurityEnableInputDelimiters { get; set; }
+
+    public int? SecurityMaxPromptLength { get; set; }
+
+    public PromptRiskLevel? SecurityBlockingThreshold { get; set; }
 
     [BindNever]
     public IEnumerable<SelectListItem> ChatDeployments { get; set; } = [];
@@ -328,6 +344,17 @@ public sealed class AITemplateViewModel
             {
                 model.ClaudeModel = anthropicMetadata.ClaudeModel;
                 model.ClaudeEffortLevel = anthropicMetadata.EffortLevel;
+            }
+
+            if (template.TryGet<PromptSecurityProfileSettings>(out var securitySettings))
+            {
+                model.SecurityIsEnabled = securitySettings.IsEnabled;
+                model.SecurityEnableInjectionDetection = securitySettings.EnableInjectionDetection;
+                model.SecurityEnableOutputFiltering = securitySettings.EnableOutputFiltering;
+                model.SecurityEnableSecurityPreamble = securitySettings.EnableSecurityPreamble;
+                model.SecurityEnableInputDelimiters = securitySettings.EnableInputDelimiters;
+                model.SecurityMaxPromptLength = securitySettings.MaxPromptLength;
+                model.SecurityBlockingThreshold = securitySettings.BlockingThreshold;
             }
         }
 
@@ -553,6 +580,17 @@ public sealed class AITemplateViewModel
             {
                 template.Remove<CopilotSessionMetadata>();
             }
+
+            template.Put(new PromptSecurityProfileSettings
+            {
+                IsEnabled = SecurityIsEnabled,
+                EnableInjectionDetection = SecurityEnableInjectionDetection,
+                EnableOutputFiltering = SecurityEnableOutputFiltering,
+                EnableSecurityPreamble = SecurityEnableSecurityPreamble,
+                EnableInputDelimiters = SecurityEnableInputDelimiters,
+                MaxPromptLength = SecurityMaxPromptLength,
+                BlockingThreshold = SecurityBlockingThreshold,
+            });
         }
         else
         {
