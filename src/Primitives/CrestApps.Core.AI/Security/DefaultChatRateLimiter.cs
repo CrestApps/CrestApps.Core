@@ -1,10 +1,9 @@
 using System.Collections.Concurrent;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Services;
+namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Default implementation of <see cref="IChatRateLimiter"/> that enforces a sliding window

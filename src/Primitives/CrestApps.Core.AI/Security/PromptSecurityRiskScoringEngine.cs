@@ -1,8 +1,6 @@
-using System.Linq;
-using CrestApps.Core.AI.Security;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Services;
+namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Aggregates rule matches into a weighted prompt security result.

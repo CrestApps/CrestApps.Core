@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using CrestApps.Core.AI.Security;
+using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Services;
+namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Detects prompt injection patterns in user input using normalized regex-based heuristics and weighted scoring.

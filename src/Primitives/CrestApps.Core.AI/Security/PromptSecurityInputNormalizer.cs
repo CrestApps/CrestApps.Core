@@ -1,9 +1,8 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
-using CrestApps.Core.AI.Security;
 
-namespace CrestApps.Core.AI.Services;
+namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Normalizes prompt input before regex evaluation to reduce common obfuscation bypasses.

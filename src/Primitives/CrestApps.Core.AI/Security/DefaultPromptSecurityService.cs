@@ -1,9 +1,8 @@
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Services;
+namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Default implementation of <see cref="IPromptSecurityService"/> that validates user prompts

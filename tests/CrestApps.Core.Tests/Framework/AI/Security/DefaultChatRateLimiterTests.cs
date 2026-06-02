@@ -1,9 +1,7 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Security;
-using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
 
 namespace CrestApps.Core.Tests.Framework.AI.Security;
 

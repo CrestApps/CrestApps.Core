@@ -1,11 +1,10 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
-using CrestApps.Core.AI.Security;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Handlers;
+namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Orchestration handler that prepends a hardened security preamble to the system message

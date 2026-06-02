@@ -1,7 +1,6 @@
-using CrestApps.Core.AI.Security;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Services;
+namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Default implementation of <see cref="IAIChatSecurityAuditService"/> that records

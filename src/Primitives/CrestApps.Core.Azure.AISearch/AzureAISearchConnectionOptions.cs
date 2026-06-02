@@ -1,5 +1,3 @@
-using System;
-
 namespace CrestApps.Core.Azure.AISearch;
 
 /// <summary>

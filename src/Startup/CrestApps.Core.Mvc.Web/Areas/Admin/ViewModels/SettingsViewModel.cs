@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Documents.Models;
