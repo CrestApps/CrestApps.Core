@@ -406,6 +406,91 @@ Because of those limits, keep this detector paired with:
 - retrieval hardening
 - tenant-aware auditing and monitoring
 
+## File upload security scanning
+
+CrestApps.Core provides an extensibility point for scanning uploaded files (documents and images) before they are stored or processed. This helps protect against malicious file uploads in AI chat sessions.
+
+### How it works
+
+All file uploads (via both `UploadChatSessionDocument` and `UploadChatInteractionDocument` endpoints) pass through `IUploadedFileScanner.ScanAsync()` **before** any storage or processing occurs. If the scan returns anything other than `Clean`, the upload is rejected immediately.
+
+### Default behavior
+
+The framework ships with `NoOpUploadedFileScanner`, which always returns `Clean`. This means uploads are unrestricted by default — the infrastructure is in place for consumers to add real scanning without modifying framework code.
+
+### Implementing a custom scanner
+
+Create a class that implements `IUploadedFileScanner`:
+
+```csharp
+using CrestApps.Core.AI.Documents;
+using Microsoft.AspNetCore.Http;
+
+public sealed class ClamAvFileScanner : IUploadedFileScanner
+{
+    private readonly IClamAvClient _client;
+
+    public ClamAvFileScanner(IClamAvClient client)
+    {
+        _client = client;
+    }
+
+    public async Task<FileScanResult> ScanAsync(
+        IFormFile file,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var result = await _client.ScanAsync(stream, cancellationToken);
+
+            if (result.IsInfected)
+            {
+                return FileScanResult.Infected(
+                    result.VirusName,
+                    $"ClamAV detected: {result.VirusName}");
+            }
+
+            return FileScanResult.Clean;
+        }
+        catch (Exception ex)
+        {
+            // Fail-closed: treat scanner errors as unsafe.
+            return FileScanResult.Error($"Scan failed: {ex.Message}");
+        }
+    }
+}
+```
+
+### Registering a custom scanner
+
+Replace the default no-op scanner in your DI configuration:
+
+```csharp
+services.AddSingleton<IUploadedFileScanner, ClamAvFileScanner>();
+```
+
+Because the framework uses `TryAddSingleton`, registering your implementation **before** calling `AddCoreAIDocumentProcessing()` ensures your scanner takes precedence.
+
+### `FileScanResult` states
+
+| Status | `IsSafe` | Meaning |
+|--------|----------|---------|
+| `Clean` | `true` | No threats detected; upload proceeds |
+| `Infected` | `false` | Malicious content detected; upload rejected |
+| `Error` | `false` | Scan failed (timeout, unavailable); upload rejected |
+
+### Fail-closed vs fail-open
+
+The default behavior is **fail-closed**: if the scanner returns `Error`, the upload is rejected. This is the safest default for production deployments. If you need fail-open behavior (allow uploads when the scanner is unavailable), implement that logic in your custom scanner by returning `FileScanResult.Clean` on error conditions.
+
+### Best practices
+
+- **Scan before storage** — the framework guarantees the scan runs before any file touches disk or object storage.
+- **Keep scans fast** — uploads block on scan completion. Consider async queuing for large files if latency is critical.
+- **Log rejections** — the framework logs rejected uploads at `Warning` level with file name and threat details.
+- **Test with EICAR** — use the EICAR test file to verify your scanner integration without real malware.
+
 ## Related docs
 
 - [AI Core](./ai-core.md)

@@ -61,6 +61,7 @@ public static class UploadChatSessionDocument
         /// <param name="documentOptions">The document options.</param>
         /// <param name="loggerFactory">The logger factory.</param>
         /// <param name="localizerFactory">The localizer factory.</param>
+        /// <param name="fileScanner">The uploaded file security scanner.</param>
         public static async Task<IResult> HandleAsync(
             HttpRequest request,
             [FromServices] IAIChatSessionManager sessionManager,
@@ -77,7 +78,8 @@ public static class UploadChatSessionDocument
             [FromServices] IEnumerable<IAIChatDocumentEventHandler> eventHandlers,
             [FromServices] IOptions<ChatDocumentsOptions> documentOptions,
             [FromServices] ILoggerFactory loggerFactory,
-            [FromServices] IStringLocalizerFactory localizerFactory)
+            [FromServices] IStringLocalizerFactory localizerFactory,
+            [FromServices] IUploadedFileScanner fileScanner)
         {
             var form = await request.ReadFormAsync();
             var sessionId = form["sessionId"].ToString();
@@ -180,6 +182,7 @@ public static class UploadChatSessionDocument
                     documentStore,
                     chunkStore,
                     fileStore,
+                    fileScanner,
                     timeProvider,
                     allowVisionImages,
                     sessionDocMetadata?.AllowSessionDocuments == true,

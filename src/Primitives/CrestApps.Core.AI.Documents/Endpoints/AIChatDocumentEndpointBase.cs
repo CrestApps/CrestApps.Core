@@ -30,6 +30,7 @@ public abstract class AIChatDocumentEndpointBase
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
+        IUploadedFileScanner fileScanner,
         TimeProvider timeProvider,
         bool allowVisionImages,
         bool allowDocumentUploads,
@@ -45,6 +46,20 @@ public abstract class AIChatDocumentEndpointBase
         if (file.Length > DefaultMaxFileSizeBytes)
         {
             return (false, S["The uploaded file exceeds the maximum allowed size of {0} MB.", DefaultMaxFileSizeBytes / (1024 * 1024)].Value, null);
+        }
+
+        // Scan file for malicious content before any storage or processing.
+        var scanResult = await fileScanner.ScanAsync(file);
+
+        if (!scanResult.IsSafe)
+        {
+            logger.LogWarning(
+                "File upload rejected by security scan: FileName={FileName}, Status={Status}, Threat={Threat}",
+                file.FileName,
+                scanResult.Status,
+                scanResult.ThreatName ?? "unknown");
+
+            return (false, S["The uploaded file was rejected by the security scanner."].Value, null);
         }
 
         var extension = Path.GetExtension(file.FileName);

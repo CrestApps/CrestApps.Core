@@ -65,6 +65,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<DocumentFileSystemFileStoreOptions>, DocumentFileSystemFileStoreOptionsConfiguration>());
         services.AddCoreAIDocumentIndexProfileHandler();
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
+        services.TryAddSingleton<IUploadedFileScanner, NoOpUploadedFileScanner>();
         services.TryAddSingleton<IDocumentFileStore>(sp =>
         {
             var basePath = sp.GetRequiredService<IOptions<DocumentFileSystemFileStoreOptions>>().Value.BasePath;
