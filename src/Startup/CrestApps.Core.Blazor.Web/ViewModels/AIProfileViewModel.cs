@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Templates.Models;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
@@ -178,6 +179,21 @@ public sealed class AIProfileViewModel
     public string CopilotGitHubUsername { get; set; }
 
     public int CopilotAuthenticationType { get; set; }
+
+    // Prompt Security override (per-profile)
+    public string SecurityIsEnabled { get; set; } = string.Empty;
+
+    public string SecurityEnableInjectionDetection { get; set; } = string.Empty;
+
+    public string SecurityEnableOutputFiltering { get; set; } = string.Empty;
+
+    public string SecurityEnableSecurityPreamble { get; set; } = string.Empty;
+
+    public string SecurityEnableInputDelimiters { get; set; } = string.Empty;
+
+    public int? SecurityMaxPromptLength { get; set; }
+
+    public string SecurityBlockingThreshold { get; set; } = string.Empty;
 
     // Dropdown options (populated at load time)
     public List<KeyValuePair<string, string>> DataSources { get; set; } = [];
@@ -362,6 +378,17 @@ public sealed class AIProfileViewModel
         {
             vm.ClaudeModel = anthropicMeta.ClaudeModel;
             vm.ClaudeEffortLevel = anthropicMeta.EffortLevel;
+        }
+
+        if (profile.TryGetSettings<PromptSecurityProfileSettings>(out var securitySettings))
+        {
+            vm.SecurityIsEnabled = securitySettings.IsEnabled?.ToString() ?? string.Empty;
+            vm.SecurityEnableInjectionDetection = securitySettings.EnableInjectionDetection?.ToString() ?? string.Empty;
+            vm.SecurityEnableOutputFiltering = securitySettings.EnableOutputFiltering?.ToString() ?? string.Empty;
+            vm.SecurityEnableSecurityPreamble = securitySettings.EnableSecurityPreamble?.ToString() ?? string.Empty;
+            vm.SecurityEnableInputDelimiters = securitySettings.EnableInputDelimiters?.ToString() ?? string.Empty;
+            vm.SecurityMaxPromptLength = securitySettings.MaxPromptLength;
+            vm.SecurityBlockingThreshold = securitySettings.BlockingThreshold?.ToString() ?? string.Empty;
         }
 
         return vm;
@@ -588,6 +615,18 @@ public sealed class AIProfileViewModel
         {
             profile.Remove<CopilotSessionMetadata>();
         }
+
+        // Per-profile prompt security override.
+        profile.WithSettings(new PromptSecurityProfileSettings
+        {
+            IsEnabled = bool.TryParse(SecurityIsEnabled, out var se) ? se : null,
+            EnableInjectionDetection = bool.TryParse(SecurityEnableInjectionDetection, out var sid) ? sid : null,
+            EnableOutputFiltering = bool.TryParse(SecurityEnableOutputFiltering, out var sof) ? sof : null,
+            EnableSecurityPreamble = bool.TryParse(SecurityEnableSecurityPreamble, out var ssp) ? ssp : null,
+            EnableInputDelimiters = bool.TryParse(SecurityEnableInputDelimiters, out var sdl) ? sdl : null,
+            MaxPromptLength = SecurityMaxPromptLength,
+            BlockingThreshold = Enum.TryParse<PromptRiskLevel>(SecurityBlockingThreshold, out var sbt) ? sbt : null,
+        });
     }
 }
 

@@ -1,8 +1,10 @@
+using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
@@ -112,6 +114,23 @@ public sealed class SettingsViewModel
 
     public string AdminWidgetPrimaryColor { get; set; }
 
+    // Prompt security settings.
+    public bool SecurityEnabled { get; set; } = true;
+
+    public bool SecurityEnableInjectionDetection { get; set; } = true;
+
+    public bool SecurityEnableOutputFiltering { get; set; } = true;
+
+    public bool SecurityEnableSecurityPreamble { get; set; } = true;
+
+    public bool SecurityEnableInputDelimiters { get; set; } = true;
+
+    public bool SecurityEnableAuditLogging { get; set; } = true;
+
+    public int SecurityMaxPromptLength { get; set; } = 8000;
+
+    public PromptRiskLevel SecurityBlockingThreshold { get; set; } = PromptRiskLevel.High;
+
     [BindNever]
     public string CopilotCallbackUrl { get; set; }
 
@@ -151,4 +170,7 @@ public sealed class SettingsViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> BlockingThresholds { get; set; } = [];
 }

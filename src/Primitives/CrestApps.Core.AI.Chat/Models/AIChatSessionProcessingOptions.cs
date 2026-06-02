@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Models;
+namespace CrestApps.Core.AI.Chat.Models;
 
 /// <summary>
 /// Global site settings for shared AI chat session lifecycle processing.

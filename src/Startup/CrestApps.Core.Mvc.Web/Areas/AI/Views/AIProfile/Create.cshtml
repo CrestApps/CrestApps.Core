@@ -846,6 +846,75 @@
                         </div>
                         <div class="form-text">Prevent modification of the system message after creation.</div>
                     </div>
+
+                    <hr />
+                    <h6 class="text-muted"><i class="bi bi-shield-lock"></i> Prompt Security Override</h6>
+                    <p class="text-muted small">
+                        Override the site-level prompt security defaults for this profile. Leave options at "Use default" to inherit the global settings.
+                    </p>
+
+                    <div class="mb-3">
+                        <label asp-for="SecurityIsEnabled" class="form-label">Security layer</label>
+                        <select asp-for="SecurityIsEnabled" class="form-select" style="max-width: 300px;">
+                            <option value="">Use default</option>
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                        <div class="form-text">Override whether the security layer is active for this profile.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SecurityEnableInjectionDetection" class="form-label">Injection detection</label>
+                        <select asp-for="SecurityEnableInjectionDetection" class="form-select" style="max-width: 300px;">
+                            <option value="">Use default</option>
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SecurityEnableOutputFiltering" class="form-label">Output filtering</label>
+                        <select asp-for="SecurityEnableOutputFiltering" class="form-select" style="max-width: 300px;">
+                            <option value="">Use default</option>
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SecurityEnableSecurityPreamble" class="form-label">Security preamble</label>
+                        <select asp-for="SecurityEnableSecurityPreamble" class="form-select" style="max-width: 300px;">
+                            <option value="">Use default</option>
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SecurityEnableInputDelimiters" class="form-label">Input delimiters</label>
+                        <select asp-for="SecurityEnableInputDelimiters" class="form-select" style="max-width: 300px;">
+                            <option value="">Use default</option>
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SecurityMaxPromptLength" class="form-label">Max prompt length</label>
+                        <input asp-for="SecurityMaxPromptLength" class="form-control" type="number" min="100" max="100000" placeholder="Use default" style="max-width: 200px;" />
+                        <div class="form-text">Leave empty to use the site default.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SecurityBlockingThreshold" class="form-label">Blocking threshold</label>
+                        <select asp-for="SecurityBlockingThreshold" class="form-select" style="max-width: 300px;">
+                            <option value="">Use default</option>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 

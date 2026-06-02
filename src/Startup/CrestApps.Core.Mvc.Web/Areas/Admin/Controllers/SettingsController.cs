@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
@@ -9,6 +10,7 @@ using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels;
@@ -74,6 +76,7 @@ public sealed class SettingsController : Controller
         var paginationSettings = _siteSettings.Get<PaginationSettings>();
         var adminWidgetSettings = _siteSettings.Get<AIChatAdminWidgetSettings>();
         var chatSessionProcessingSettings = _siteSettings.Get<AIChatSessionProcessingOptions>();
+        var promptSecuritySettings = _siteSettings.Get<PromptSecurityOptions>();
 
         var model = new SettingsViewModel
         {
@@ -126,12 +129,21 @@ public sealed class SettingsController : Controller
             AdminWidgetPrimaryColor = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
                 ? AIChatAdminWidgetSettings.DefaultSecondaryColor
                 : adminWidgetSettings.PrimaryColor,
+            SecurityEnabled = promptSecuritySettings.EnableInjectionDetection || promptSecuritySettings.EnableOutputFiltering || promptSecuritySettings.EnableSecurityPreamble || promptSecuritySettings.EnableInputDelimiters,
+            SecurityEnableInjectionDetection = promptSecuritySettings.EnableInjectionDetection,
+            SecurityEnableOutputFiltering = promptSecuritySettings.EnableOutputFiltering,
+            SecurityEnableSecurityPreamble = promptSecuritySettings.EnableSecurityPreamble,
+            SecurityEnableInputDelimiters = promptSecuritySettings.EnableInputDelimiters,
+            SecurityEnableAuditLogging = promptSecuritySettings.EnableAuditLogging,
+            SecurityMaxPromptLength = promptSecuritySettings.MaxPromptLength,
+            SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
         };
 
         await NormalizeDeploymentSelectorsAsync(model);
         await PopulateDeploymentDropdownsAsync(model);
         await PopulateAdminWidgetProfilesAsync(model);
         await PopulateClaudeModelsAsync(model);
+        PopulateBlockingThresholds(model);
 
         return View(model);
     }
@@ -189,6 +201,11 @@ public sealed class SettingsController : Controller
             ModelState.AddModelError(nameof(model.AdminPageSize), "Page size must be between 1 and 200.");
         }
 
+        if (model.SecurityMaxPromptLength < 100 || model.SecurityMaxPromptLength > 100000)
+        {
+            ModelState.AddModelError(nameof(model.SecurityMaxPromptLength), "Must be between 100 and 100,000.");
+        }
+
         if (!string.IsNullOrWhiteSpace(model.AdminWidgetPrimaryColor) &&
             !Regex.IsMatch(
                 model.AdminWidgetPrimaryColor,
@@ -224,6 +241,7 @@ public sealed class SettingsController : Controller
             await PopulateDeploymentDropdownsAsync(model);
             await PopulateAdminWidgetProfilesAsync(model);
             await PopulateClaudeModelsAsync(model);
+            PopulateBlockingThresholds(model);
 
             return View(nameof(Index), model);
         }
@@ -359,6 +377,17 @@ public sealed class SettingsController : Controller
             PrimaryColor = string.IsNullOrWhiteSpace(model.AdminWidgetPrimaryColor)
                 ? AIChatAdminWidgetSettings.DefaultSecondaryColor
                 : model.AdminWidgetPrimaryColor.Trim(),
+        });
+
+        _siteSettings.Set(new PromptSecurityOptions
+        {
+            EnableInjectionDetection = model.SecurityEnabled && model.SecurityEnableInjectionDetection,
+            EnableOutputFiltering = model.SecurityEnabled && model.SecurityEnableOutputFiltering,
+            EnableSecurityPreamble = model.SecurityEnabled && model.SecurityEnableSecurityPreamble,
+            EnableInputDelimiters = model.SecurityEnabled && model.SecurityEnableInputDelimiters,
+            EnableAuditLogging = model.SecurityEnabled && model.SecurityEnableAuditLogging,
+            MaxPromptLength = model.SecurityMaxPromptLength,
+            BlockingThreshold = model.SecurityBlockingThreshold,
         });
 
         // Persist everything to disk in a single atomic file write.
@@ -530,5 +559,16 @@ public sealed class SettingsController : Controller
         {
             return language;
         }
+    }
+
+    private static void PopulateBlockingThresholds(SettingsViewModel model)
+    {
+        model.BlockingThresholds =
+        [
+            new SelectListItem("Low — Block low-risk and above", nameof(PromptRiskLevel.Low)),
+            new SelectListItem("Medium — Block medium-risk and above", nameof(PromptRiskLevel.Medium)),
+            new SelectListItem("High — Block high-risk only (Recommended)", nameof(PromptRiskLevel.High)),
+            new SelectListItem("Critical — Block critical only", nameof(PromptRiskLevel.Critical)),
+        ];
     }
 }

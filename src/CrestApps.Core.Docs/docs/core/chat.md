@@ -11,6 +11,10 @@ description: Chat session management, interaction handlers, and response routing
 
 If you want the easiest playground-style UI for a new host, start here after you have one provider connection and one deployment configured. Unlike AI Chat, Chat Interactions do not require an AI Profile to get started.
 
+:::note
+The prompt security layer documented in [Prompt Security](./prompt-security.md) is designed for **AI Profile-based chat**. Chat Interactions remain intentionally operator-controlled and do not enable that profile security layer by default.
+:::
+
 ## Quick Start
 
 ```csharp

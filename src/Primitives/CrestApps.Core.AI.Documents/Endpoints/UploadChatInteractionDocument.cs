@@ -57,8 +57,10 @@ public static class UploadChatInteractionDocument
         /// <param name="authorizationService">The authorization service.</param>
         /// <param name="eventHandlers">The event handlers.</param>
         /// <param name="documentOptions">The document options.</param>
+        /// <param name="interactionDocumentOptions">The interaction document options.</param>
         /// <param name="loggerFactory">The logger factory.</param>
         /// <param name="localizerFactory">The localizer factory.</param>
+        /// <param name="fileScanner">The uploaded file security scanner.</param>
         public static async Task<IResult> HandleAsync(
             HttpRequest request,
             [FromServices] ICatalogManager<ChatInteraction> interactionManager,
@@ -75,7 +77,8 @@ public static class UploadChatInteractionDocument
             [FromServices] IOptions<ChatDocumentsOptions> documentOptions,
             [FromServices] IOptions<InteractionDocumentOptions> interactionDocumentOptions,
             [FromServices] ILoggerFactory loggerFactory,
-            [FromServices] IStringLocalizerFactory localizerFactory)
+            [FromServices] IStringLocalizerFactory localizerFactory,
+            [FromServices] IUploadedFileScanner fileScanner)
         {
             var form = await request.ReadFormAsync();
             var interactionId = form["chatInteractionId"].ToString();
@@ -167,6 +170,7 @@ public static class UploadChatInteractionDocument
                     documentStore,
                     chunkStore,
                     fileStore,
+                    fileScanner,
                     timeProvider,
                     allowVisionImages,
                     allowDocumentUploads,
