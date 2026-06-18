@@ -41,6 +41,7 @@ internal sealed class DefaultToolRegistry : IToolRegistry
         CancellationToken cancellationToken = default)
     {
         var allEntries = new List<ToolRegistryEntry>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var provider in _providers)
         {
@@ -50,7 +51,15 @@ internal sealed class DefaultToolRegistry : IToolRegistry
 
                 if (entries is not null && entries.Count > 0)
                 {
-                    allEntries.AddRange(entries);
+                    foreach (var entry in entries)
+                    {
+                        var deduplicationKey = entry.Id ?? entry.Name;
+
+                        if (string.IsNullOrWhiteSpace(deduplicationKey) || seen.Add(deduplicationKey))
+                        {
+                            allEntries.Add(entry);
+                        }
+                    }
                 }
             }
             catch (OperationCanceledException)

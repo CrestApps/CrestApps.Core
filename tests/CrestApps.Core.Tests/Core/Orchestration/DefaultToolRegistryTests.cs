@@ -65,6 +65,32 @@ public sealed class DefaultToolRegistryTests
     }
 
     [Fact]
+    public async Task GetAllAsync_DuplicateIdsAcrossProviders_ReturnsFirstEntryOnce()
+    {
+        var firstEntries = new List<ToolRegistryEntry>
+        {
+            new() { Id = "shared-tool", Name = "shared-tool", Description = "First copy", Source = ToolRegistryEntrySource.System },
+        };
+        var duplicateEntries = new List<ToolRegistryEntry>
+        {
+            new() { Id = "shared-tool", Name = "shared-tool", Description = "Duplicate copy", Source = ToolRegistryEntrySource.Local },
+        };
+
+        var registry = CreateRegistry(
+        [
+            new TestToolRegistryProvider(firstEntries),
+            new TestToolRegistryProvider(duplicateEntries),
+        ]);
+
+        var result = await registry.GetAllAsync(new AICompletionContext(), TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(result);
+        Assert.Equal("First copy", entry.Description);
+        Assert.Equal(ToolRegistryEntrySource.System, entry.Source);
+
+    }
+
+    [Fact]
     public async Task GetAllAsync_ProviderThrows_SkipsAndContinues()
     {
         var goodEntries = new List<ToolRegistryEntry>

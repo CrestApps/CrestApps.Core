@@ -7,9 +7,9 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.Orchestration;
 
 /// <summary>
-/// Provides user-selected (non-system) tools from <see cref="AIToolDefinitionOptions"/>
-/// to the tool registry. Tools are filtered by the <see cref="AICompletionContext.ToolNames"/>
-/// configured on the AI profile.
+/// Provides profile-selected tools from <see cref="AIToolDefinitionOptions"/>
+/// to the tool registry. Tool dependencies are expanded from the
+/// <see cref="AICompletionContext.ToolNames"/> configured on the AI profile.
 /// </summary>
 internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
 {
@@ -40,34 +40,34 @@ internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
             return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>([]);
         }
 
-        var toolDefinitions = _toolDefinitions.Value.Tools;
+        var toolOptions = _toolDefinitions.Value;
+        var toolDefinitions = toolOptions.Tools;
         var entries = new List<ToolRegistryEntry>();
 
-        foreach (var toolName in configuredToolNames)
+        foreach (var toolName in toolOptions.ExpandToolNames(configuredToolNames))
         {
             if (!toolDefinitions.TryGetValue(toolName, out var definition))
             {
                 continue;
             }
 
-            // Skip system tools - they are provided by SystemToolRegistryProvider.
-            if (definition.IsSystemTool)
-            {
-                continue;
-            }
-
-            var name = toolName;
-
-            entries.Add(new ToolRegistryEntry
-            {
-                Id = name,
-                Name = name,
-                Description = definition.Description ?? definition.Title ?? name,
-                Source = ToolRegistryEntrySource.Local,
-                CreateAsync = (sp) => ValueTask.FromResult(sp.GetKeyedService<AITool>(name)),
-            });
+            entries.Add(CreateEntry(toolName, definition));
         }
 
         return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>(entries);
+    }
+
+    private static ToolRegistryEntry CreateEntry(string toolName, AIToolDefinitionEntry definition)
+    {
+        return new ToolRegistryEntry
+        {
+            Id = toolName,
+            Name = toolName,
+            Description = definition.Description ?? definition.Title ?? toolName,
+            Source = definition.IsSystemTool
+                ? ToolRegistryEntrySource.System
+                : ToolRegistryEntrySource.Local,
+            CreateAsync = (sp) => ValueTask.FromResult(sp.GetKeyedService<AITool>(toolName)),
+        };
     }
 }

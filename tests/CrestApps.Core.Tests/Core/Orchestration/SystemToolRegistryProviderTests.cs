@@ -275,6 +275,97 @@ public sealed class SystemToolRegistryProviderTests
     }
 
     [Fact]
+    public async Task GetToolsAsync_SelectedSystemToolIncludesDependencies()
+    {
+        var options = new AIToolDefinitionOptions();
+        options.SetTool("search_documents", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "search_documents",
+            IsSystemTool = true,
+            Description = "Search uploaded documents",
+            Purpose = AIToolPurposes.DocumentProcessing,
+        });
+        options.SetTool("read_document", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "read_document",
+            IsSystemTool = true,
+            Description = "Read a document",
+            Purpose = AIToolPurposes.DataSourceSearch,
+        });
+        options.SetTool("format_document_result", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "format_document_result",
+            IsSystemTool = false,
+            Description = "Format document output",
+        });
+        options.Tools["search_documents"].AddDependency("read_document");
+        options.Tools["read_document"].AddDependency("format_document_result");
+
+        var provider = new SystemToolRegistryProvider(Options.Create(options));
+        var context = new AICompletionContext();
+
+        context.AdditionalProperties[AICompletionContextKeys.HasDocuments] = true;
+
+        var result = await provider.GetToolsAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+        [
+            "search_documents",
+            "read_document",
+            "format_document_result",
+        ],
+        result.Select(entry => entry.Name));
+        Assert.Collection(
+            result,
+            entry => Assert.Equal(ToolRegistryEntrySource.System, entry.Source),
+            entry => Assert.Equal(ToolRegistryEntrySource.System, entry.Source),
+            entry => Assert.Equal(ToolRegistryEntrySource.Local, entry.Source));
+
+    }
+
+    [Fact]
+    public async Task GetToolsAsync_ExplicitlyRequestedDependencies_AreLeftToProfileProvider()
+    {
+        var options = new AIToolDefinitionOptions();
+        options.SetTool("create_content_item", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "create_content_item",
+            Description = "Create a content item",
+            IsSystemTool = false,
+        });
+        options.SetTool("read_document", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "read_document",
+            IsSystemTool = true,
+            Description = "Read a document",
+            Purpose = AIToolPurposes.DataSourceSearch,
+        });
+        options.SetTool("search_documents", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "search_documents",
+            IsSystemTool = true,
+            Description = "Search uploaded documents",
+            Purpose = AIToolPurposes.DocumentProcessing,
+        });
+        options.Tools["create_content_item"].AddDependency("read_document");
+        options.Tools["search_documents"].AddDependency("read_document");
+
+        var provider = new SystemToolRegistryProvider(Options.Create(options));
+        var context = new AICompletionContext
+        {
+            ToolNames = ["create_content_item"],
+        };
+
+        context.AdditionalProperties[AICompletionContextKeys.HasDocuments] = true;
+
+        var result = await provider.GetToolsAsync(context, TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(result);
+        Assert.Equal("search_documents", entry.Name);
+
+    }
+
+    [Fact]
     public async Task GetToolsAsync_NoPurpose_AlwaysIncluded()
     {
 
