@@ -94,6 +94,8 @@ Profiles can select:
 
 This is why profiles are broader than plain chat presets. They can define how the AI experience coordinates work, not just how it talks.
 
+If a selected tool has registered dependencies, CrestApps.Core automatically includes those dependent tools at runtime. That lets profiles keep only the top-level tool selection while helper tools remain hidden or system-managed.
+
 ### 5. Knowledge and retrieval
 
 Profiles can be linked to:

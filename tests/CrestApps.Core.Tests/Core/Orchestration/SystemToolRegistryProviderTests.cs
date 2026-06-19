@@ -275,6 +275,37 @@ public sealed class SystemToolRegistryProviderTests
     }
 
     [Fact]
+    public async Task GetToolsAsync_DependenciesAreNotExpandedByProvider()
+    {
+        var options = new AIToolDefinitionOptions();
+        options.SetTool("search_documents", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "search_documents",
+            IsSystemTool = true,
+            Description = "Search uploaded documents",
+            Purpose = AIToolPurposes.DocumentProcessing,
+        });
+        options.SetTool("read_document", new AIToolDefinitionEntry(typeof(AIFunction))
+        {
+            Name = "read_document",
+            IsSystemTool = true,
+            Description = "Read a document",
+            Purpose = AIToolPurposes.DataSourceSearch,
+        });
+        options.Tools["search_documents"].AddDependency("read_document");
+
+        var provider = new SystemToolRegistryProvider(Options.Create(options));
+        var context = new AICompletionContext();
+
+        context.AdditionalProperties[AICompletionContextKeys.HasDocuments] = true;
+
+        var result = await provider.GetToolsAsync(context, TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(result);
+        Assert.Equal("search_documents", entry.Name);
+    }
+
+    [Fact]
     public async Task GetToolsAsync_NoPurpose_AlwaysIncluded()
     {
 

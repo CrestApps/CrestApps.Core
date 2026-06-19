@@ -89,6 +89,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         // Get the full tool registry for this context.
         var allTools = await _toolRegistry.GetAllAsync(context.CompletionContext, cancellationToken);
+        MergeDependencyToolNames(context);
 
         // Determine the total configured tool count.
         var profileToolCount = allTools.Count;
@@ -164,6 +165,23 @@ public sealed class DefaultOrchestrator : IOrchestrator
             chatDeployment, executionMessages, context.CompletionContext, cancellationToken))
         {
             yield return chunk;
+        }
+    }
+
+    private static void MergeDependencyToolNames(OrchestrationContext context)
+    {
+        if (!context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.DependencyToolNames, out var dependencyToolNames) ||
+            dependencyToolNames is not IEnumerable<string> names)
+        {
+            return;
+        }
+
+        foreach (var name in names)
+        {
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                context.MustIncludeTools.Add(name);
+            }
         }
     }
 

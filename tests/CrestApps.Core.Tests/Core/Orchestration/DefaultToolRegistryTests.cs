@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Tests.Core.Orchestration;
 
@@ -61,6 +62,32 @@ public sealed class DefaultToolRegistryTests
         Assert.Equal(2, result.Count);
         Assert.Contains(result, t => t.Name == "localTool" && t.Source == ToolRegistryEntrySource.Local);
         Assert.Contains(result, t => t.Name == "mcpTool" && t.Source == ToolRegistryEntrySource.McpServer);
+
+    }
+
+    [Fact]
+    public async Task GetAllAsync_DuplicateIdsAcrossProviders_ReturnsFirstEntryOnce()
+    {
+        var firstEntries = new List<ToolRegistryEntry>
+        {
+            new() { Id = "shared-tool", Name = "shared-tool", Description = "First copy", Source = ToolRegistryEntrySource.System },
+        };
+        var duplicateEntries = new List<ToolRegistryEntry>
+        {
+            new() { Id = "shared-tool", Name = "shared-tool", Description = "Duplicate copy", Source = ToolRegistryEntrySource.Local },
+        };
+
+        var registry = CreateRegistry(
+        [
+            new TestToolRegistryProvider(firstEntries),
+            new TestToolRegistryProvider(duplicateEntries),
+        ]);
+
+        var result = await registry.GetAllAsync(new AICompletionContext(), TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(result);
+        Assert.Equal("First copy", entry.Description);
+        Assert.Equal(ToolRegistryEntrySource.System, entry.Source);
 
     }
 
@@ -160,7 +187,11 @@ public sealed class DefaultToolRegistryTests
 
     private static DefaultToolRegistry CreateRegistry(IToolRegistryProvider[] providers)
     {
-        return new DefaultToolRegistry(providers, new LuceneTextTokenizer(), NullLogger<DefaultToolRegistry>.Instance);
+        return new DefaultToolRegistry(
+            providers,
+            Options.Create(new AIToolDefinitionOptions()),
+            new LuceneTextTokenizer(),
+            NullLogger<DefaultToolRegistry>.Instance);
 
     }
 

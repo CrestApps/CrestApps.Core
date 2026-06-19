@@ -5,6 +5,8 @@ namespace CrestApps.Core.AI.Tooling;
 /// </summary>
 public sealed class AIToolDefinitionEntry
 {
+    private readonly HashSet<string> _dependencies = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="AIToolDefinitionEntry"/> class.
     /// </summary>
@@ -55,6 +57,36 @@ public sealed class AIToolDefinitionEntry
     /// (e.g., document processing tools for enriching system messages).
     /// </summary>
     public string Purpose { get; set; }
+
+    /// <summary>
+    /// Gets the registered tool dependencies that should be included when this tool is selected.
+    /// Missing dependencies are ignored by dependency expansion helpers.
+    /// </summary>
+    public IReadOnlyCollection<string> Dependencies => _dependencies;
+
+    /// <summary>
+    /// Adds a tool dependency that should be included when this tool is selected.
+    /// </summary>
+    /// <param name="toolName">The registered tool name of the dependency.</param>
+    /// <returns><see langword="true"/> when the dependency was added; otherwise <see langword="false"/>.</returns>
+    public bool AddDependency(string toolName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(toolName);
+
+        return _dependencies.Add(toolName);
+    }
+
+    /// <summary>
+    /// Removes a previously registered tool dependency.
+    /// </summary>
+    /// <param name="toolName">The registered tool name of the dependency to remove.</param>
+    /// <returns><see langword="true"/> when the dependency was removed; otherwise <see langword="false"/>.</returns>
+    public bool RemoveDependency(string toolName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(toolName);
+
+        return _dependencies.Remove(toolName);
+    }
 
     /// <summary>
     /// Determines whether purpose.

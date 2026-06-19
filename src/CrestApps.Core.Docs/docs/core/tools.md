@@ -52,6 +52,8 @@ Returns an `AIToolBuilder<TTool>` for fluent configuration:
 | `.WithDescription(string)` | Description shown to the AI model |
 | `.WithCategory(string)` | UI grouping category |
 | `.WithPurpose(string)` | Semantic purpose tag (see below) |
+| `.WithDependency(string)` / `.WithDependencies(params string[])` | Registers dependency tools that should be added automatically |
+| `.WithoutDependency(string)` / `.WithoutDependencies(params string[])` | Removes previously registered dependency tools |
 | `.Selectable()` | Makes the tool visible in UI and assignable to profiles |
 
 ### Tool Purposes
@@ -63,6 +65,33 @@ Purpose tags allow the orchestrator to include tools automatically based on cont
 | `AIToolPurposes.ContentGeneration` | `"ContentGeneration"` | When the model wants to generate images or charts |
 | `AIToolPurposes.DocumentProcessing` | `"DocumentProcessing"` | When documents are attached to the session |
 | `AIToolPurposes.DataSourceSearch` | `"DataSourceSearch"` | When data sources are configured |
+
+## Tool Dependencies
+
+Use dependencies when one tool expects another tool to be present in the same completion.
+
+```csharp
+builder.Services
+    .AddCoreAITool<CreateContentItemTool>("create_content_item")
+        .WithTitle("Create Content Item")
+        .WithDescription("Creates a content item from validated structured input.")
+        .WithDependency("get_content_item_schema")
+        .Selectable();
+
+builder.Services
+    .AddCoreAITool<GetContentItemSchemaTool>("get_content_item_schema")
+        .WithTitle("Get Content Item Schema")
+        .WithDescription("Returns the schema and required fields for a content type.");
+```
+
+When `create_content_item` is selected, CrestApps.Core automatically expands the tool set to include `get_content_item_schema` when that dependency is registered. The same dependency expansion is also applied when built-in system-tool selection brings in a tool with registered dependencies.
+
+Dependency behavior:
+
+- missing dependencies are ignored safely
+- shared and circular dependency graphs are deduplicated
+- profiles and chat interactions only need to store the top-level tool name
+- dependency tools can stay hidden system tools when they should not be assigned directly in the UI
 
 ## Implementing a Tool
 

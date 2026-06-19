@@ -47,7 +47,6 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
         var hasMemory = context?.AdditionalProperties is not null
             && context.AdditionalProperties.TryGetValue(AICompletionContextKeys.HasMemory, out var hasMemoryValue)
                 && hasMemoryValue is true;
-
         var entries = new List<ToolRegistryEntry>();
 
         foreach (var (name, entry) in _toolOptions.Tools)
@@ -57,31 +56,52 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
                 continue;
             }
 
-            if (entry.HasPurpose(AIToolPurposes.DataSourceSearch) && !hasDataSource)
+            if (!IsAvailableInContext(entry, hasDataSource, hasDocuments, hasMemory))
             {
                 continue;
             }
 
-            if (entry.HasPurpose(AIToolPurposes.DocumentProcessing) && !hasDocuments)
-            {
-                continue;
-            }
-
-            if (entry.HasPurpose(AIToolPurposes.Memory) && !hasMemory)
-            {
-                continue;
-            }
-
-            entries.Add(new ToolRegistryEntry
-            {
-                Id = name,
-                Name = name,
-                Description = entry.Description ?? entry.Title ?? name,
-                Source = ToolRegistryEntrySource.System,
-                CreateAsync = (sp) => ValueTask.FromResult(sp.GetKeyedService<AITool>(name)),
-            });
+            entries.Add(CreateEntry(name, entry));
         }
 
         return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>(entries);
+    }
+
+    private static bool IsAvailableInContext(
+        AIToolDefinitionEntry entry,
+        bool hasDataSource,
+        bool hasDocuments,
+        bool hasMemory)
+    {
+        if (entry.HasPurpose(AIToolPurposes.DataSourceSearch) && !hasDataSource)
+        {
+            return false;
+        }
+
+        if (entry.HasPurpose(AIToolPurposes.DocumentProcessing) && !hasDocuments)
+        {
+            return false;
+        }
+
+        if (entry.HasPurpose(AIToolPurposes.Memory) && !hasMemory)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static ToolRegistryEntry CreateEntry(string toolName, AIToolDefinitionEntry definition)
+    {
+        return new ToolRegistryEntry
+        {
+            Id = toolName,
+            Name = toolName,
+            Description = definition.Description ?? definition.Title ?? toolName,
+            Source = definition.IsSystemTool
+                ? ToolRegistryEntrySource.System
+                : ToolRegistryEntrySource.Local,
+            CreateAsync = (sp) => ValueTask.FromResult(sp.GetKeyedService<AITool>(toolName)),
+        };
     }
 }

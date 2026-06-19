@@ -33,4 +33,10 @@ public static class AICompletionContextKeys
     /// memory-related system tools to be included in the tool registry.
     /// </summary>
     public const string HasMemory = "HasMemory";
+
+    /// <summary>
+    /// Stores tool names that were included to satisfy declared tool dependencies for the current request.
+    /// Orchestrators can use this to keep required helper tools available during tool scoping.
+    /// </summary>
+    public const string DependencyToolNames = "DependencyToolNames";
 }

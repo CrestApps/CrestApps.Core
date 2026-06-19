@@ -64,6 +64,60 @@ public sealed class AIToolBuilder<TTool>
     }
 
     /// <summary>
+    /// Adds a tool dependency that should be included when this tool is selected.
+    /// </summary>
+    /// <param name="toolName">The registered tool name of the dependency.</param>
+    public AIToolBuilder<TTool> WithDependency(string toolName)
+    {
+        _entry.AddDependency(toolName);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Adds tool dependencies that should be included when this tool is selected.
+    /// </summary>
+    /// <param name="toolNames">The registered tool names of the dependencies.</param>
+    public AIToolBuilder<TTool> WithDependencies(params string[] toolNames)
+    {
+        ArgumentNullException.ThrowIfNull(toolNames);
+
+        foreach (var toolName in toolNames)
+        {
+            _entry.AddDependency(toolName);
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Removes a previously registered tool dependency.
+    /// </summary>
+    /// <param name="toolName">The registered tool name of the dependency to remove.</param>
+    public AIToolBuilder<TTool> WithoutDependency(string toolName)
+    {
+        _entry.RemoveDependency(toolName);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Removes previously registered tool dependencies.
+    /// </summary>
+    /// <param name="toolNames">The registered tool names of the dependencies to remove.</param>
+    public AIToolBuilder<TTool> WithoutDependencies(params string[] toolNames)
+    {
+        ArgumentNullException.ThrowIfNull(toolNames);
+
+        foreach (var toolName in toolNames)
+        {
+            _entry.RemoveDependency(toolName);
+        }
+
+        return this;
+    }
+
+    /// <summary>
     /// Makes this tool visible in the UI for user selection.
     /// By default, tools are system tools managed by the orchestrator and are not shown in the UI.
     /// </summary>
