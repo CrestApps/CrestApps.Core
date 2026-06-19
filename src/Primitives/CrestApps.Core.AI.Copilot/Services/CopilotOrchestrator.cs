@@ -12,7 +12,8 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
 using Cysharp.Text;
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
@@ -159,7 +160,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         // CopilotClientOptions.GithubToken inside BuildClientOptions below.
         if (tools.Count > 0)
         {
-            sessionConfig.Tools = tools;
+            sessionConfig.Tools = [.. tools];
         }
 
         // The system message is fully built by the orchestration context handler pipeline
@@ -175,12 +176,13 @@ public sealed class CopilotOrchestrator : IOrchestrator
 
         // Configure MCP servers so Copilot can manage MCP tools natively.
         await ConfigureMcpServersAsync(context, sessionConfig);
-        // Build client options with authentication and CLI flags.
+
+        // Build client options with authentication settings.
         var clientOptions = await BuildClientOptionsAsync(context, metadata, settings);
         string responseText;
         try
         {
-            responseText = await RunCopilotSessionAsync(clientOptions, sessionConfig, context, cancellationToken);
+            responseText = await RunCopilotSessionAsync(clientOptions, sessionConfig, context, metadata?.IsAllowAll == true, cancellationToken);
         }
         catch (IOException ex)
         {
@@ -203,7 +205,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
     /// <summary>
     /// Builds client options from the metadata and context, using the SDK's
     /// <c>GithubToken</c> property for GitHub OAuth or <c>UseLoggedInUser = false</c>
-    /// for BYOK authentication, and <c>CliArgs</c> for Copilot execution flags.
+    /// for BYOK authentication.
     /// </summary>
     private async Task<CopilotClientOptions> BuildClientOptionsAsync(OrchestrationContext context, CopilotSessionMetadata metadata, CopilotOptions settings)
     {
@@ -272,12 +274,6 @@ public sealed class CopilotOrchestrator : IOrchestrator
             }
         }
 
-        // Pass the --allow-all flag as a CLI argument when enabled.
-        if (metadata is not null && metadata.IsAllowAll)
-        {
-            clientOptions.CliArgs = ["--allow-all"];
-        }
-
         return clientOptions;
     }
 
@@ -291,15 +287,17 @@ public sealed class CopilotOrchestrator : IOrchestrator
         };
     }
 
-    private static PermissionRequestHandler CreatePermissionRequestHandler(bool allowAll = true)
+#pragma warning disable GHCP001
+    private static Func<PermissionRequest, PermissionInvocation, Task<GitHub.Copilot.Rpc.PermissionDecision>> CreatePermissionRequestHandler(bool allowAll = true)
     {
         if (allowAll)
         {
             return PermissionHandler.ApproveAll;
         }
 
-        return (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable, });
+        return (request, invocation) => Task.FromResult(GitHub.Copilot.Rpc.PermissionDecision.UserNotAvailable());
     }
+#pragma warning restore GHCP001
 
     private static string GetReasoningEffortValue(CopilotReasoningEffort reasoningEffort)
     {
@@ -323,7 +321,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             sessionConfig.Model = settings.DefaultModel;
         }
 
-        var providerConfig = new ProviderConfig
+        var providerConfig = new GitHub.Copilot.ProviderConfig
         {
             Type = settings.ProviderType ?? "openai",
             BaseUrl = settings.BaseUrl,
@@ -358,14 +356,22 @@ public sealed class CopilotOrchestrator : IOrchestrator
     /// Runs a Copilot session and returns the complete response text.
     /// Isolated into its own method so the caller can wrap with error handling.
     /// </summary>
-    private async Task<string> RunCopilotSessionAsync(CopilotClientOptions clientOptions, SessionConfig sessionConfig, OrchestrationContext context, CancellationToken cancellationToken)
+    /// <param name="clientOptions">The Copilot client options.</param>
+    /// <param name="sessionConfig">The Copilot session configuration.</param>
+    /// <param name="context">The orchestration context.</param>
+    /// <param name="allowAll">Whether allow-all permissions should be enabled for the session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async Task<string> RunCopilotSessionAsync(CopilotClientOptions clientOptions, SessionConfig sessionConfig, OrchestrationContext context, bool allowAll, CancellationToken cancellationToken)
     {
         await using var client = new CopilotClient(clientOptions);
         await using var session = await client.CreateSessionAsync(sessionConfig, cancellationToken);
+
+        await ApplyAllowAllPermissionsAsync(session, allowAll, cancellationToken);
+
         var responseBuilder = new StringBuilder();
         var completionSource = new TaskCompletionSource<bool>();
         string errorMessage = null;
-        using var subscription = session.On(ev =>
+        using var subscription = session.On<SessionEvent>(ev =>
         {
             if (ev is AssistantMessageDeltaEvent deltaEvent)
             {
@@ -402,6 +408,24 @@ public sealed class CopilotOrchestrator : IOrchestrator
 
         return responseText;
     }
+
+    /// <summary>
+    /// Applies the requested allow-all permission posture to the Copilot session.
+    /// </summary>
+    /// <param name="session">The active Copilot session.</param>
+    /// <param name="allowAll">Whether allow-all permissions should be enabled.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+#pragma warning disable GHCP001
+    private static async Task ApplyAllowAllPermissionsAsync(CopilotSession session, bool allowAll, CancellationToken cancellationToken)
+    {
+        if (!allowAll)
+        {
+            return;
+        }
+
+        await session.Rpc.Permissions.SetAllowAllAsync(true, GitHub.Copilot.Rpc.PermissionsSetAllowAllSource.Rpc, cancellationToken);
+    }
+#pragma warning restore GHCP001
 
     /// <summary>
     /// Builds a user-facing error message from the Copilot session error data.
