@@ -8,8 +8,8 @@ namespace CrestApps.Core.AI.Orchestration;
 
 /// <summary>
 /// Provides profile-selected tools from <see cref="AIToolDefinitionOptions"/>
-/// to the tool registry. Tool dependencies are expanded from the
-/// <see cref="AICompletionContext.ToolNames"/> configured on the AI profile.
+/// to the tool registry. Dependency expansion is handled centrally by the
+/// tool registry coordinator after all providers have contributed their entries.
 /// </summary>
 internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
 {
@@ -40,13 +40,17 @@ internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
             return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>([]);
         }
 
-        var toolOptions = _toolDefinitions.Value;
-        var toolDefinitions = toolOptions.Tools;
+        var toolDefinitions = _toolDefinitions.Value.Tools;
         var entries = new List<ToolRegistryEntry>();
 
-        foreach (var toolName in toolOptions.ExpandToolNames(configuredToolNames))
+        foreach (var toolName in configuredToolNames)
         {
             if (!toolDefinitions.TryGetValue(toolName, out var definition))
+            {
+                continue;
+            }
+
+            if (definition.IsSystemTool)
             {
                 continue;
             }

@@ -40,9 +40,6 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
         AICompletionContext context,
         CancellationToken cancellationToken = default)
     {
-        var explicitlyRequestedToolNames = context?.ToolNames is { Length: > 0 }
-            ? new HashSet<string>(_toolOptions.ExpandToolNames(context.ToolNames), StringComparer.OrdinalIgnoreCase)
-            : [];
         var hasDataSource = !string.IsNullOrEmpty(context?.DataSourceId);
         var hasDocuments = context?.AdditionalProperties is not null
             && context.AdditionalProperties.TryGetValue(AICompletionContextKeys.HasDocuments, out var val)
@@ -50,12 +47,11 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
         var hasMemory = context?.AdditionalProperties is not null
             && context.AdditionalProperties.TryGetValue(AICompletionContextKeys.HasMemory, out var hasMemoryValue)
                 && hasMemoryValue is true;
-
-        var selectedToolNames = new List<string>();
+        var entries = new List<ToolRegistryEntry>();
 
         foreach (var (name, entry) in _toolOptions.Tools)
         {
-            if (!entry.IsSystemTool || explicitlyRequestedToolNames.Contains(name))
+            if (!entry.IsSystemTool)
             {
                 continue;
             }
@@ -65,20 +61,7 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
                 continue;
             }
 
-            selectedToolNames.Add(name);
-        }
-
-        var entries = new List<ToolRegistryEntry>();
-
-        foreach (var toolName in _toolOptions.ExpandToolNames(selectedToolNames))
-        {
-            if (explicitlyRequestedToolNames.Contains(toolName) ||
-                !_toolOptions.Tools.TryGetValue(toolName, out var definition))
-            {
-                continue;
-            }
-
-            entries.Add(CreateEntry(toolName, definition));
+            entries.Add(CreateEntry(name, entry));
         }
 
         return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>(entries);

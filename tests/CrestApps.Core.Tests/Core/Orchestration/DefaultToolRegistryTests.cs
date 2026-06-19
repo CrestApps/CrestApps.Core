@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Tests.Core.Orchestration;
 
@@ -186,7 +187,11 @@ public sealed class DefaultToolRegistryTests
 
     private static DefaultToolRegistry CreateRegistry(IToolRegistryProvider[] providers)
     {
-        return new DefaultToolRegistry(providers, new LuceneTextTokenizer(), NullLogger<DefaultToolRegistry>.Instance);
+        return new DefaultToolRegistry(
+            providers,
+            Options.Create(new AIToolDefinitionOptions()),
+            new LuceneTextTokenizer(),
+            NullLogger<DefaultToolRegistry>.Instance);
 
     }
 
