@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Web;
 using CrestApps.Core.AI.Copilot.Models;
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
