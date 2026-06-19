@@ -88,5 +88,7 @@
     <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.9" />
     <PackageVersion Include="Nerdbank.MessagePack" Version="1.2.4" />
     <PackageVersion Include="MessagePack" Version="3.1.7" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
   </ItemGroup>
 </Project>
