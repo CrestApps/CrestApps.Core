@@ -149,12 +149,12 @@ public interface IAICompletionClient
 
 ### `AIOptions`
 
-Central options class for registering profile sources, deployment providers, connection sources, and template sources. By default, connections are loaded from `CrestApps:AI:Connections` and deployments are loaded from `CrestApps:AI:Deployments`.
+Central options class for registering completion clients, deployment providers, connection sources, and template sources. By default, connections are loaded from `CrestApps:AI:Connections` and deployments are loaded from `CrestApps:AI:Deployments`.
 
 ```csharp
 services.Configure<AIOptions>(options =>
 {
-    options.AddProfileSource("MySource", configure => { /* ... */ });
+    options.AddCompletionClient("MySource", configure => { /* ... */ });
     options.AddDeploymentProvider("MyProvider", configure => { /* ... */ });
     options.AddConnectionSource("MySource", configure => { /* ... */ });
 });

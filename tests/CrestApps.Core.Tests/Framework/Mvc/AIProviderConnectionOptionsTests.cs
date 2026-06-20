@@ -496,7 +496,7 @@ public sealed class AIProviderConnectionConfigurationTests
     }
 
     [Fact]
-    public void AddCoreAIProviders_ShouldRegisterDeploymentProvidersUsedByTheDeploymentCatalog()
+    public void AddCoreAIProviders_ShouldRegisterCompletionClientsAndDeploymentProvidersUsedByTheDeploymentCatalog()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -509,12 +509,17 @@ public sealed class AIProviderConnectionConfigurationTests
 
         var options = serviceProvider.GetRequiredService<IOptions<AIOptions>>().Value;
 
+        Assert.True(options.CompletionClients.ContainsKey(OpenAIConstants.ClientName));
+        Assert.True(options.CompletionClients.ContainsKey(AzureOpenAIConstants.ClientName));
+        Assert.True(options.CompletionClients.ContainsKey(OllamaConstants.ClientName));
+        Assert.True(options.CompletionClients.ContainsKey(AzureAIInferenceConstants.ClientName));
         Assert.True(options.Deployments.ContainsKey(OpenAIConstants.ClientName));
         Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.ClientName));
         Assert.True(options.Deployments.ContainsKey(AzureOpenAIConstants.AzureSpeechClientName));
         Assert.True(options.Deployments.ContainsKey(OllamaConstants.ClientName));
         Assert.True(options.Deployments.ContainsKey(AzureAIInferenceConstants.ClientName));
         Assert.True(options.Deployments[AzureOpenAIConstants.AzureSpeechClientName].UseContainedConnection);
+        Assert.Equal(OpenAIConstants.ClientName, options.CompletionClients[OpenAIConstants.ClientName].ClientName);
     }
 
     [Fact]

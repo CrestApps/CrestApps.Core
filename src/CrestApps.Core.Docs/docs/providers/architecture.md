@@ -226,7 +226,7 @@ public sealed class AIProviderRegistration
 {
     public string Name { get; init; }
     public AIProviderCapability Capabilities { get; init; }
-    public Action<AIProfileOptions> ConfigureProfile { get; init; }
+    public Action<AICompletionClientEntry> ConfigureCompletionClient { get; init; }
     public Action<AIConnectionSourceOptions> ConfigureConnectionSource { get; init; }
 }
 
@@ -241,7 +241,7 @@ public static class AIProviderServiceCollectionExtensions
         configure(registration);
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProvider, TProvider>());
-        services.AddCoreAIProfile(registration.Name, registration.ConfigureProfile);
+        services.AddCoreAICompletionClient(registration.Name, registration.ConfigureCompletionClient);
         services.AddCoreAIConnectionSource(registration.Name, registration.ConfigureConnectionSource);
         services.TryAddSingleton<IProviderCredentialResolverSelector, DefaultProviderCredentialResolverSelector>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IProviderCredentialResolver, DefaultProviderCredentialResolver>());
@@ -261,7 +261,7 @@ public static IServiceCollection AddCoreAIOllama(this IServiceCollection service
     {
         r.Name = OllamaConstants.ClientName;
         r.Capabilities = AIProviderCapability.Chat | AIProviderCapability.Embeddings;
-        r.ConfigureProfile = profile => { /* Ollama-specific profile defaults */ };
+        r.ConfigureCompletionClient = client => { /* Ollama-specific completion-client metadata */ };
         r.ConfigureConnectionSource = source => { /* Ollama-specific connection metadata */ };
     });
 
@@ -270,7 +270,7 @@ public static IServiceCollection AddCoreAIOllama(this IServiceCollection service
 }
 ```
 
-Compared to today, the only thing the package owns is the `OllamaProvider` itself, the `OllamaClientFactory`, and any provider-specific completion / response handler. The registration helper covers the boilerplate that today every package re-implements (profile source, connection source, default credential resolver wiring).
+Compared to today, the only thing the package owns is the `OllamaProvider` itself, the `OllamaClientFactory`, and any provider-specific completion / response handler. The registration helper covers the boilerplate that today every package re-implements (completion-client metadata, connection source, default credential resolver wiring).
 
 ### 6. Reference port: Ollama
 
