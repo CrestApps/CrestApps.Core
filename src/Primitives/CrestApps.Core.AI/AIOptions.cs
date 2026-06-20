@@ -9,7 +9,7 @@ namespace CrestApps.Core.AI;
 public sealed class AIOptions
 {
     private readonly Dictionary<string, Type> _clients = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, AIProfileProviderEntry> _profileSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AICompletionClientEntry> _completionClients = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AIDeploymentProviderEntry> _deployments = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AIProviderConnectionOptionsEntry> _connectionSources = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AITemplateSourceEntry> _templateSources = new(StringComparer.OrdinalIgnoreCase);
@@ -26,13 +26,13 @@ public sealed class AIOptions
     }
 
     /// <summary>
-    /// Gets the profile Sources.
+    /// Gets the registered completion clients.
     /// </summary>
-    public IReadOnlyDictionary<string, AIProfileProviderEntry> ProfileSources
+    public IReadOnlyDictionary<string, AICompletionClientEntry> CompletionClients
     {
         get
         {
-            return _profileSources;
+            return _completionClients;
         }
     }
 
@@ -77,16 +77,17 @@ public sealed class AIOptions
     }
 
     /// <summary>
-    /// Adds profile source.
+    /// Adds a completion client.
     /// </summary>
     /// <param name="clientName">The client name.</param>
-    /// <param name="configure">The configure.</param>
-    public void AddProfileSource(string clientName, Action<AIProfileProviderEntry> configure = null)
+    /// <param name="configure">The configuration action.</param>
+    public void AddCompletionClient(string clientName, Action<AICompletionClientEntry> configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(clientName);
-        if (!_profileSources.TryGetValue(clientName, out var entry))
+
+        if (!_completionClients.TryGetValue(clientName, out var entry))
         {
-            entry = new AIProfileProviderEntry(clientName);
+            entry = new AICompletionClientEntry(clientName);
         }
 
         if (configure != null)
@@ -99,7 +100,7 @@ public sealed class AIOptions
             entry.DisplayName = new LocalizedString(clientName, clientName);
         }
 
-        _profileSources[clientName] = entry;
+        _completionClients[clientName] = entry;
     }
 
     /// <summary>

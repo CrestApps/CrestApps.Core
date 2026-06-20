@@ -219,9 +219,12 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds core ai profile.
+    /// Adds a core AI completion client and its registration metadata.
     /// </summary>
-    public static IServiceCollection AddCoreAIProfile<TClient>(this IServiceCollection services, string clientName, Action<AIProfileProviderEntry> configure = null)
+    /// <param name="services">The service collection.</param>
+    /// <param name="clientName">The client name.</param>
+    /// <param name="configure">The configuration action.</param>
+    public static IServiceCollection AddCoreAICompletionClient<TClient>(this IServiceCollection services, string clientName, Action<AICompletionClientEntry> configure = null)
         where TClient : class, IAICompletionClient
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -230,7 +233,7 @@ public static class ServiceCollectionExtensions
         return services
                     .Configure<AIOptions>(o =>
                     {
-                        o.AddProfileSource(clientName, configure);
+                        o.AddCompletionClient(clientName, configure);
                     })
                     .AddCoreAICompletionClient<TClient>(clientName);
     }
@@ -256,9 +259,13 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds core ai completion client.
+    /// Adds a core AI completion client.
     /// </summary>
-    public static IServiceCollection AddCoreAICompletionClient<TClient>(this IServiceCollection services, string clientName)
+    /// <param name="services">The service collection.</param>
+    /// <param name="clientName">The client name.</param>
+    public static IServiceCollection AddCoreAICompletionClient<TClient>(
+        this IServiceCollection services,
+        string clientName)
         where TClient : class, IAICompletionClient
     {
         ArgumentNullException.ThrowIfNull(services);
