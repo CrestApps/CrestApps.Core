@@ -109,6 +109,12 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         }
 
         text = await _textNormalizer.NormalizeContentAsync(text);
+        var textChunks = await _textNormalizer.NormalizeAndChunkAsync(text);
+
+        if (textChunks.Count == 0)
+        {
+            return DocumentProcessingResult.Failed("Could not extract text content from the document.");
+        }
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var document = new AIDocument
@@ -123,43 +129,22 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         };
 
         var chunks = new List<AIDocumentChunk>();
+        GeneratedEmbeddings<Embedding<float>> embeddings = null;
 
         if (ShouldGenerateEmbeddings(extension, text.Length, embeddingGenerator, options))
         {
-            var textChunks = await _textNormalizer.NormalizeAndChunkAsync(text);
-            textChunks = LimitChunksForEmbedding(textChunks);
+            var chunksToEmbed = LimitChunksForEmbedding(textChunks);
 
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Document processing: generated {ChunkCount} chunk(s) for '{FileName}'.", textChunks.Count, file.FileName);
-            }
-
-            GeneratedEmbeddings<Embedding<float>> embeddings = null;
-
-            if (embeddingGenerator != null && textChunks.Count > 0)
+            if (embeddingGenerator != null && chunksToEmbed.Count > 0)
             {
                 try
                 {
-                    embeddings = await embeddingGenerator.GenerateAsync(textChunks);
+                    embeddings = await embeddingGenerator.GenerateAsync(chunksToEmbed);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to generate embeddings for '{FileName}'. Chunks will be stored without embeddings.", file.FileName);
                 }
-            }
-
-            for (var i = 0; i < textChunks.Count; i++)
-            {
-                chunks.Add(new AIDocumentChunk
-                {
-                    ItemId = UniqueId.GenerateId(),
-                    AIDocumentId = document.ItemId,
-                    ReferenceId = referenceId,
-                    ReferenceType = referenceType,
-                    Content = textChunks[i],
-                    Embedding = embeddings != null && i < embeddings.Count ? embeddings[i].Vector.ToArray() : null,
-                    Index = i,
-                });
             }
         }
         else if (_logger.IsEnabled(LogLevel.Debug))
@@ -170,6 +155,20 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 extension,
                 text.Length,
                 embeddingGenerator != null);
+        }
+
+        for (var i = 0; i < textChunks.Count; i++)
+        {
+            chunks.Add(new AIDocumentChunk
+            {
+                ItemId = UniqueId.GenerateId(),
+                AIDocumentId = document.ItemId,
+                ReferenceId = referenceId,
+                ReferenceType = referenceType,
+                Content = textChunks[i],
+                Embedding = embeddings != null && i < embeddings.Count ? embeddings[i].Vector.ToArray() : null,
+                Index = i,
+            });
         }
 
         var documentInfo = new ChatDocumentInfo
