@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -7,10 +6,8 @@ using CrestApps.Core.AI.Tooling;
 using Cysharp.Text;
 
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Tools;
 
@@ -158,9 +155,6 @@ public sealed class ReadTabularDataTool : AIFunction
             return $"Document '{document.FileName}' is not a recognized tabular format. Use 'read_document' instead.";
         }
 
-        var extension = Path.GetExtension(document.FileName);
-        var options = arguments.Services.GetRequiredService<IOptions<ChatDocumentsOptions>>().Value;
-
         // Reconstruct full text from chunks.
         var chunkStore = arguments.Services.GetService<IAIDocumentChunkStore>();
 
@@ -175,69 +169,6 @@ public sealed class ReadTabularDataTool : AIFunction
 
         if (chunks.Count == 0)
         {
-            if (!options.EmbeddableFileExtensions.Contains(extension))
-            {
-                var fileStore = arguments.Services.GetService<IDocumentFileStore>();
-
-                if (fileStore is null || string.IsNullOrWhiteSpace(document.StoredFilePath))
-                {
-                    logger.LogWarning("AI tool '{ToolName}' failed: file store is not available or file path is missing for non-embeddable tabular document '{FileName}'.", Name, document.FileName);
-
-                    return $"Document '{document.FileName}' has no extractable text content.";
-                }
-
-                var reader = arguments.Services.GetKeyedService<IngestionDocumentReader>(extension);
-
-                if (reader is null)
-                {
-                    logger.LogWarning("AI tool '{ToolName}' failed: no document reader registered for non-embeddable tabular document '{FileName}'.", Name, document.FileName);
-
-                    return $"Document '{document.FileName}' has no extractable text content.";
-                }
-
-                await using var stream = await fileStore.GetFileAsync(document.StoredFilePath);
-
-                if (stream is null)
-                {
-                    logger.LogWarning("AI tool '{ToolName}' failed: tabular document file not found at path '{Path}'.", Name, document.StoredFilePath);
-
-                    return $"Document '{document.FileName}' has no extractable text content.";
-                }
-
-                try
-                {
-                    var mediaType = MediaTypeHelper.InferMediaType(extension, document.ContentType);
-
-                    var ingestionDoc = await reader.ReadAsync(stream, document.FileName, mediaType, cancellationToken);
-
-                    var tabularText = string.Join(Environment.NewLine, ingestionDoc.EnumerateContent()
-                        .Select(element => element.Text)
-                        .Where(content => !string.IsNullOrWhiteSpace(content)));
-
-                    if (string.IsNullOrWhiteSpace(tabularText))
-                    {
-                        logger.LogWarning("AI tool '{ToolName}' failed: extracted text is empty for non-embeddable tabular document '{FileName}'.", Name, document.FileName);
-
-                        return $"Document '{document.FileName}' has no extractable text content.";
-                    }
-
-                    var tabularContent = LimitTabularRows(tabularText, maxRows);
-
-                    if (logger.IsEnabled(LogLevel.Debug))
-                    {
-                        logger.LogDebug("AI tool '{ToolName}' completed.", Name);
-                    }
-
-                    return $"[Tabular data from: {document.FileName}]\n\n{tabularContent}";
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "AI tool '{ToolName}' failed: unable to read non-embeddable tabular document '{FileName}' from stored file.", Name, document.FileName);
-
-                    return $"Document '{document.FileName}' has no extractable text content.";
-                }
-            }
-
             logger.LogWarning("AI tool '{ToolName}' failed: no chunks found for document '{FileName}'.", Name, document.FileName);
 
             return $"Document '{document.FileName}' has no extractable text content.";
