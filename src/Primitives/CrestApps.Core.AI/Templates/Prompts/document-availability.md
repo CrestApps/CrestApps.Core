@@ -33,7 +33,7 @@ Use `inspect_image` only when you need pixel-level detail that the text analysis
 {% if hasUserSuppliedDocuments %}
 {% if hasDocumentTools %}
 The user has uploaded the following documents as supplementary context.
-Use the document tools before answering: prefer semantic search for targeted lookups, and read a full document when the task requires whole-file context such as summarizing, reviewing, rewriting, translating, or extracting complete information from an uploaded file.
+Use the document tools before answering: prefer semantic search for targeted lookups, use `read_tabular_data` for CSV, TSV, and Excel uploads, and read a full document when the task requires whole-file context such as summarizing, reviewing, rewriting, translating, or extracting complete information from an uploaded file.
 {% if isInScope %}
 Answer only from the uploaded documents and retrieved document context.
 If the documents do not contain the answer, clearly say that the answer is not available in the uploaded documents.

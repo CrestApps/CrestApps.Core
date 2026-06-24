@@ -157,7 +157,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 embeddingGenerator != null);
         }
 
-        var chunks = new List<AIDocumentChunk>();
+        var chunks = new List<AIDocumentChunk>(textChunks.Count);
 
         for (var i = 0; i < textChunks.Count; i++)
         {
