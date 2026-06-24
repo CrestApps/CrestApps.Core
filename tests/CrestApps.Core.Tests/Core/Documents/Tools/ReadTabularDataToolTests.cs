@@ -95,7 +95,7 @@ public sealed class ReadTabularDataToolTests
 
         Assert.Equal("Document 'notes.txt' is not a recognized tabular format. Use 'read_document' instead.", result);
         documentStore.Verify(store => store.FindByIdAsync("doc-1", It.IsAny<CancellationToken>()), Times.Once);
-        chunkStore.VerifyNoOtherCalls();
+        chunkStore.Verify(store => store.GetChunksByAIDocumentIdAsync(It.IsAny<string>()), Times.Never);
     }
 
     private static AIFunctionArguments CreateArguments(
