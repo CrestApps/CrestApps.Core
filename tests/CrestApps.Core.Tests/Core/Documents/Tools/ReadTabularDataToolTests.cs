@@ -106,7 +106,7 @@ public sealed class ReadTabularDataToolTests
         var services = new ServiceCollection()
             .AddSingleton(documentStore)
             .AddSingleton(chunkStore)
-            .AddSingleton<ILogger<ReadTabularDataTool>>(_ => NullLogger<ReadTabularDataTool>.Instance)
+            .AddSingleton<ILogger<ReadTabularDataTool>>(NullLogger<ReadTabularDataTool>.Instance)
             .BuildServiceProvider();
 
         return new AIFunctionArguments(new Dictionary<string, object>
