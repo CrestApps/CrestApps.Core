@@ -67,6 +67,8 @@ public sealed class DefaultAIDocumentProcessingServiceTests
                 Assert.Equal("Alice\t42", chunk.Content);
                 Assert.Null(chunk.Embedding);
             });
+
+        embeddingGenerator.VerifyNoOtherCalls();
     }
 
     private static MemoryStream CreateExcelDocument(params string[][] rows)

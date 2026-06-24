@@ -172,7 +172,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 Index = i,
             });
         }
-        
+
         var documentInfo = new ChatDocumentInfo
         {
             DocumentId = document.ItemId,
