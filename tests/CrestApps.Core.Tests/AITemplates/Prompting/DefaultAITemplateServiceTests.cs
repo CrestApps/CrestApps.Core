@@ -1,4 +1,8 @@
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Models;
+using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Providers;
 using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
@@ -220,13 +224,60 @@ public sealed class DefaultAITemplateServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.MergeAsync(["missing1", "missing2"], cancellationToken: TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task RenderAsync_FrameworkDocumentAvailabilityTemplate_InstructsTabularUploadsToUseTabularTool()
+    {
+        var provider = new EmbeddedResourceTemplateProvider(
+            typeof(AITemplateIds).Assembly,
+            [new DefaultMarkdownTemplateParser()]);
+        var service = CreateService([provider]);
+
+        var result = await service.RenderAsync(
+            AITemplateIds.DocumentAvailability,
+            new Dictionary<string, object>
+            {
+                ["tools"] = new AIToolDefinitionEntry[]
+                {
+                    new AIToolDefinitionEntry(typeof(object))
+                    {
+                        Name = "read_document",
+                        Description = "Reads the full text content of a specific document.",
+                    },
+                    new AIToolDefinitionEntry(typeof(object))
+                    {
+                        Name = "read_tabular_data",
+                        Description = "Reads and parses tabular data (CSV, TSV, Excel) from a document.",
+                    },
+                },
+                ["knowledgeBaseDocuments"] = Array.Empty<ChatDocumentInfo>(),
+                ["userSuppliedDocuments"] = new ChatDocumentInfo[]
+                {
+                    new ChatDocumentInfo
+                    {
+                        DocumentId = "doc-1",
+                        FileName = "survey.xlsx",
+                        ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        FileSize = 128,
+                    },
+                },
+                ["visionUserSuppliedDocuments"] = Array.Empty<ChatDocumentInfo>(),
+                ["isInScope"] = false,
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("use `read_tabular_data` for CSV, TSV, and Excel uploads", result);
+    }
+
     private static DefaultTemplateService CreateService(ITemplateProvider[] providers)
     {
         var sp = new ServiceCollection().BuildServiceProvider();
+        var templateOptions = new Fluid.TemplateOptions();
+        Fluid.MemberAccessStrategyExtensions.Register<AIToolDefinitionEntry>(templateOptions.MemberAccessStrategy);
+        Fluid.MemberAccessStrategyExtensions.Register<ChatDocumentInfo>(templateOptions.MemberAccessStrategy);
         var renderer = new FluidTemplateEngine(
-        sp,
-        Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptions()),
-        NullLogger<FluidTemplateEngine>.Instance);
+            sp,
+            Microsoft.Extensions.Options.Options.Create(templateOptions),
+            NullLogger<FluidTemplateEngine>.Instance);
 
         return new DefaultTemplateService(providers, renderer);
     }
