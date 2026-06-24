@@ -2,7 +2,7 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Models;
-using CrestApps.Core.Templates.Parsers;
+using CrestApps.Core.Templates.Parsing;
 using CrestApps.Core.Templates.Providers;
 using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
@@ -236,8 +236,8 @@ public sealed class DefaultAITemplateServiceTests
             AITemplateIds.DocumentAvailability,
             new Dictionary<string, object>
             {
-                ["tools"] =
-                [
+                ["tools"] = new AIToolDefinitionEntry[]
+                {
                     new AIToolDefinitionEntry(typeof(object))
                     {
                         Name = "read_document",
@@ -248,10 +248,10 @@ public sealed class DefaultAITemplateServiceTests
                         Name = "read_tabular_data",
                         Description = "Reads and parses tabular data (CSV, TSV, Excel) from a document.",
                     },
-                ],
+                },
                 ["knowledgeBaseDocuments"] = Array.Empty<ChatDocumentInfo>(),
-                ["userSuppliedDocuments"] =
-                [
+                ["userSuppliedDocuments"] = new ChatDocumentInfo[]
+                {
                     new ChatDocumentInfo
                     {
                         DocumentId = "doc-1",
@@ -259,7 +259,7 @@ public sealed class DefaultAITemplateServiceTests
                         ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         FileSize = 128,
                     },
-                ],
+                },
                 ["visionUserSuppliedDocuments"] = Array.Empty<ChatDocumentInfo>(),
                 ["isInScope"] = false,
             },

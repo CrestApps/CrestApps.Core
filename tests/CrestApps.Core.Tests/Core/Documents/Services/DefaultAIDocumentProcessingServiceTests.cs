@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Services;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Http;
