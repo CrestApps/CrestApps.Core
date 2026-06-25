@@ -34,7 +34,9 @@ public sealed class MarkdownAITextNormalizer : IAITextNormalizer
     {
         if (preserveTabular)
         {
-            var rows = string.IsNullOrEmpty(text) ? [] : text.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+            var rows = string.IsNullOrEmpty(text)
+                ? []
+                : text.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
 
             return Task.FromResult(rows);
         }

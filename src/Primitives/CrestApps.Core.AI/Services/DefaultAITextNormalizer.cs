@@ -49,7 +49,7 @@ public sealed partial class DefaultAITextNormalizer : IAITextNormalizer
             // Tab-delimited grids are chunked by row so each row keeps its columns intact.
             return string.IsNullOrEmpty(text)
                 ? []
-                : text.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+                : text.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
         }
 
         var normalized = await NormalizeContentAsync(text, preserveTabular, cancellationToken);

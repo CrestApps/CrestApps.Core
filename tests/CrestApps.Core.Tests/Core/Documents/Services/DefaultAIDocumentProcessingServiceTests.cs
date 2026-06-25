@@ -224,6 +224,47 @@ public sealed class DefaultAIDocumentProcessingServiceTests
         embeddingGenerator.VerifyNoOtherCalls();
     }
 
+    [Fact]
+    public async Task ProcessFileAsync_TabularFileWithWindowsLineEndings_DoesNotLeaveCarriageReturnsInRows()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<IngestionDocumentReader>(".csv", new PlainTextIngestionDocumentReader());
+
+        var serviceProvider = services.BuildServiceProvider();
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".csv", false));
+
+        var embeddingGenerator = new Mock<IEmbeddingGenerator<string, Embedding<float>>>(MockBehavior.Strict);
+        var service = new DefaultAIDocumentProcessingService(
+            serviceProvider,
+            new MarkdownAITextNormalizer(),
+            Options.Create(options),
+            TimeProvider.System,
+            NullLogger<DefaultAIDocumentProcessingService>.Instance);
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Name,Score\r\nAlice,42"));
+        var file = new FormFile(stream, 0, stream.Length, "files", "scores.csv")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "text/csv",
+        };
+
+        var result = await service.ProcessFileAsync(
+            file,
+            "chat-1",
+            "ChatInteraction",
+            embeddingGenerator.Object);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Chunks.Count);
+        Assert.Collection(
+            result.Chunks.OrderBy(chunk => chunk.Index),
+            chunk => Assert.Equal("Name,Score", chunk.Content),
+            chunk => Assert.Equal("Alice,42", chunk.Content));
+
+        embeddingGenerator.VerifyNoOtherCalls();
+    }
+
     private static GeneratedEmbeddings<Embedding<float>> CreateEmbeddings(params float[][] vectors)
     {
         var embeddings = new GeneratedEmbeddings<Embedding<float>>();
