@@ -1,3 +1,4 @@
+using System.Text;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Documents.Services;
@@ -18,6 +19,69 @@ namespace CrestApps.Core.Tests.Core.Documents.Services;
 public sealed class DefaultAIDocumentProcessingServiceTests
 {
     private const string ExcelMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    private const string PlainTextMediaType = "text/plain";
+
+    [Fact]
+    public async Task ProcessFileAsync_EmbeddableTextFile_GeneratesEmbeddingsForEachChunk()
+    {
+        var expectedChunks = new[] { "First line", "Second line" };
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<IngestionDocumentReader>(".txt", new PlainTextIngestionDocumentReader());
+
+        var serviceProvider = services.BuildServiceProvider();
+        var options = new ChatDocumentsOptions();
+        options.Add(".txt");
+
+        var embeddingGenerator = new Mock<IEmbeddingGenerator<string, Embedding<float>>>(MockBehavior.Strict);
+        embeddingGenerator.Setup(generator => generator.GenerateAsync(
+                It.Is<IEnumerable<string>>(values => values.SequenceEqual(expectedChunks)),
+                It.IsAny<EmbeddingGenerationOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateEmbeddings([1f, 2f], [3f, 4f]));
+
+        var service = new DefaultAIDocumentProcessingService(
+            serviceProvider,
+            new TestTextNormalizer(),
+            Options.Create(options),
+            TimeProvider.System,
+            NullLogger<DefaultAIDocumentProcessingService>.Instance);
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("First line\nSecond line"));
+        var file = new FormFile(stream, 0, stream.Length, "files", "notes.txt")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = PlainTextMediaType,
+        };
+
+        var result = await service.ProcessFileAsync(
+            file,
+            "chat-1",
+            "ChatInteraction",
+            embeddingGenerator.Object);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Document);
+        Assert.Equal("notes.txt", result.Document.FileName);
+        Assert.Equal(2, result.Chunks.Count);
+        Assert.Collection(
+            result.Chunks.OrderBy(chunk => chunk.Index),
+            chunk =>
+            {
+                Assert.Equal("First line", chunk.Content);
+                Assert.Equal([1f, 2f], chunk.Embedding);
+            },
+            chunk =>
+            {
+                Assert.Equal("Second line", chunk.Content);
+                Assert.Equal([3f, 4f], chunk.Embedding);
+            });
+
+        embeddingGenerator.Verify(generator => generator.GenerateAsync(
+            It.IsAny<IEnumerable<string>>(),
+            It.IsAny<EmbeddingGenerationOptions>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        embeddingGenerator.VerifyNoOtherCalls();
+    }
 
     [Fact]
     public async Task ProcessFileAsync_NonEmbeddableSpreadsheet_StoresChunksWithoutGeneratingEmbeddings()
@@ -70,6 +134,18 @@ public sealed class DefaultAIDocumentProcessingServiceTests
             });
 
         embeddingGenerator.VerifyNoOtherCalls();
+    }
+
+    private static GeneratedEmbeddings<Embedding<float>> CreateEmbeddings(params float[][] vectors)
+    {
+        var embeddings = new GeneratedEmbeddings<Embedding<float>>();
+
+        foreach (var vector in vectors)
+        {
+            embeddings.Add(new Embedding<float>(vector));
+        }
+
+        return embeddings;
     }
 
     private static MemoryStream CreateExcelDocument(params string[][] rows)
