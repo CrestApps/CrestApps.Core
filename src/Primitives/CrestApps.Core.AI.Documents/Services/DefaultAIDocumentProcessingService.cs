@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.Tools;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.Http;
@@ -108,7 +109,9 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 extension);
         }
 
-        text = await _textNormalizer.NormalizeContentAsync(text);
+        var isTabular = ReadTabularDataTool.IsTabularFile(file.FileName);
+
+        text = await _textNormalizer.NormalizeContentAsync(text, isTabular);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var document = new AIDocument
@@ -122,18 +125,23 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
             UploadedUtc = now,
         };
 
-        var textChunks = await _textNormalizer.NormalizeAndChunkAsync(text);
+        var textChunks = await _textNormalizer.NormalizeAndChunkAsync(text, isTabular);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Document processing: '{FileName}' chunked via the {Path} path into {ChunkCount} chunk(s), preserving {TabCount} tab delimiter(s).",
+                file.FileName,
+                isTabular ? "tabular" : "text",
+                textChunks.Count,
+                textChunks.Sum(chunk => chunk.Count(c => c == '\t')));
+        }
 
         GeneratedEmbeddings<Embedding<float>> embeddings = null;
 
         if (ShouldGenerateEmbeddings(extension, text.Length, embeddingGenerator, options))
         {
             var embeddingChunks = LimitChunksForEmbedding(textChunks);
-
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Document processing: generated {ChunkCount} chunk(s) for '{FileName}'.", textChunks.Count, file.FileName);
-            }
 
             if (embeddingChunks.Count > 0)
             {

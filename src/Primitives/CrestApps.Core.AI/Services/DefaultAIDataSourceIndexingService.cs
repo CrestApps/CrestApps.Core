@@ -216,7 +216,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             }
 
             var normalizedTitle = _textNormalizer.NormalizeTitle(sourceDocument.Title);
-            var chunkTexts = await _textNormalizer.NormalizeAndChunkAsync(sourceDocument.Content, cancellationToken);
+            var chunkTexts = await _textNormalizer.NormalizeAndChunkAsync(sourceDocument.Content, cancellationToken: cancellationToken);
             if (chunkTexts.Count == 0)
             {
                 continue;

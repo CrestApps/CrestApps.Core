@@ -2,6 +2,7 @@ using System.Text;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Markdown.Services;
 using CrestApps.Core.AI.Services;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -136,6 +137,93 @@ public sealed class DefaultAIDocumentProcessingServiceTests
         embeddingGenerator.VerifyNoOtherCalls();
     }
 
+    [Fact]
+    public async Task ProcessFileAsync_Spreadsheet_KeepsTabDelimitedRowsWhenNormalizerWouldFlattenThem()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<IngestionDocumentReader>(".xlsx", new OpenXmlIngestionDocumentReader());
+
+        var serviceProvider = services.BuildServiceProvider();
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".xlsx", false));
+
+        var embeddingGenerator = new Mock<IEmbeddingGenerator<string, Embedding<float>>>(MockBehavior.Strict);
+
+        // The markdown normalizer collapses tabs into spaces. A spreadsheet must bypass it
+        // so the columns survive, which is why this test uses the real normalizer rather than a fake.
+        var service = new DefaultAIDocumentProcessingService(
+            serviceProvider,
+            new MarkdownAITextNormalizer(),
+            Options.Create(options),
+            TimeProvider.System,
+            NullLogger<DefaultAIDocumentProcessingService>.Instance);
+
+        using var stream = CreateExcelDocument(
+            ["Name", "Score"],
+            ["Alice", "42"]);
+        var file = new FormFile(stream, 0, stream.Length, "files", "survey.xlsx")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = ExcelMediaType,
+        };
+
+        var result = await service.ProcessFileAsync(
+            file,
+            "chat-1",
+            "ChatInteraction",
+            embeddingGenerator.Object);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Chunks.Count);
+        Assert.Collection(
+            result.Chunks.OrderBy(chunk => chunk.Index),
+            chunk => Assert.Equal("Name\tScore", chunk.Content),
+            chunk => Assert.Equal("Alice\t42", chunk.Content));
+
+        embeddingGenerator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ProcessFileAsync_TextFile_StillNormalizesContentThroughTheNormalizer()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<IngestionDocumentReader>(".txt", new PlainTextIngestionDocumentReader());
+
+        var serviceProvider = services.BuildServiceProvider();
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".txt", false));
+
+        var embeddingGenerator = new Mock<IEmbeddingGenerator<string, Embedding<float>>>(MockBehavior.Strict);
+
+        // A plain text file is not tabular, so it keeps going through the normalizer and its
+        // tab is collapsed to a space. This guards the bypass from leaking to non-tabular files.
+        var service = new DefaultAIDocumentProcessingService(
+            serviceProvider,
+            new MarkdownAITextNormalizer(),
+            Options.Create(options),
+            TimeProvider.System,
+            NullLogger<DefaultAIDocumentProcessingService>.Instance);
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Name\tScore"));
+        var file = new FormFile(stream, 0, stream.Length, "files", "notes.txt")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = PlainTextMediaType,
+        };
+
+        var result = await service.ProcessFileAsync(
+            file,
+            "chat-1",
+            "ChatInteraction",
+            embeddingGenerator.Object);
+
+        Assert.True(result.Success);
+        var chunk = Assert.Single(result.Chunks);
+        Assert.Equal("Name Score", chunk.Content);
+
+        embeddingGenerator.VerifyNoOtherCalls();
+    }
+
     private static GeneratedEmbeddings<Embedding<float>> CreateEmbeddings(params float[][] vectors)
     {
         var embeddings = new GeneratedEmbeddings<Embedding<float>>();
@@ -194,12 +282,12 @@ public sealed class DefaultAIDocumentProcessingServiceTests
 
     private sealed class TestTextNormalizer : IAITextNormalizer
     {
-        public Task<string> NormalizeContentAsync(string text, CancellationToken cancellationToken = default)
+        public Task<string> NormalizeContentAsync(string text, bool preserveTabular = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(text);
         }
 
-        public Task<List<string>> NormalizeAndChunkAsync(string text, CancellationToken cancellationToken = default)
+        public Task<List<string>> NormalizeAndChunkAsync(string text, bool preserveTabular = false, CancellationToken cancellationToken = default)
         {
             var chunks = text
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
