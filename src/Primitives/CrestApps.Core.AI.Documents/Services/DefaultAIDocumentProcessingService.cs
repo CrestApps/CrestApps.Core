@@ -16,6 +16,7 @@ namespace CrestApps.Core.AI.Documents.Services;
 public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingService
 {
     private const int MaxEmbeddingTotalChars = 25000;
+    private const int MaxStoredChunkLength = 16000;
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IAITextNormalizer _textNormalizer;
@@ -64,8 +65,10 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
 
         var extension = Path.GetExtension(file.FileName);
         var options = _extractorOptions.Value;
+        var isTabular = options.IsTabularFileExtension(extension);
 
         var reader = _serviceProvider.GetKeyedService<IngestionDocumentReader>(extension);
+
         if (reader == null)
         {
             return DocumentProcessingResult.Failed($"No document reader registered for extension '{extension}'.");
@@ -108,7 +111,24 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 extension);
         }
 
-        text = await _textNormalizer.NormalizeContentAsync(text);
+        var textChunks = isTabular
+            ? ChunkRawContent(text)
+            : await NormalizeDocumentChunksAsync(text);
+
+        if (textChunks.Count == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Document processing: no normalized text content remained for file '{FileName}'.", file.FileName);
+            }
+
+            return DocumentProcessingResult.Failed("Could not extract text content from the document.");
+        }
+
+        if (!isTabular)
+        {
+            text = string.Join('\n', textChunks);
+        }
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var document = new AIDocument
@@ -123,43 +143,29 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         };
 
         var chunks = new List<AIDocumentChunk>();
+        GeneratedEmbeddings<Embedding<float>> embeddings = null;
+        var embeddedChunkCount = 0;
 
         if (ShouldGenerateEmbeddings(extension, text.Length, embeddingGenerator, options))
         {
-            var textChunks = await _textNormalizer.NormalizeAndChunkAsync(text);
-            textChunks = LimitChunksForEmbedding(textChunks);
+            var chunksForEmbedding = LimitChunksForEmbedding(textChunks);
 
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug("Document processing: generated {ChunkCount} chunk(s) for '{FileName}'.", textChunks.Count, file.FileName);
             }
 
-            GeneratedEmbeddings<Embedding<float>> embeddings = null;
-
-            if (embeddingGenerator != null && textChunks.Count > 0)
+            if (embeddingGenerator != null && chunksForEmbedding.Count > 0)
             {
                 try
                 {
-                    embeddings = await embeddingGenerator.GenerateAsync(textChunks);
+                    embeddings = await embeddingGenerator.GenerateAsync(chunksForEmbedding);
+                    embeddedChunkCount = chunksForEmbedding.Count;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to generate embeddings for '{FileName}'. Chunks will be stored without embeddings.", file.FileName);
                 }
-            }
-
-            for (var i = 0; i < textChunks.Count; i++)
-            {
-                chunks.Add(new AIDocumentChunk
-                {
-                    ItemId = UniqueId.GenerateId(),
-                    AIDocumentId = document.ItemId,
-                    ReferenceId = referenceId,
-                    ReferenceType = referenceType,
-                    Content = textChunks[i],
-                    Embedding = embeddings != null && i < embeddings.Count ? embeddings[i].Vector.ToArray() : null,
-                    Index = i,
-                });
             }
         }
         else if (_logger.IsEnabled(LogLevel.Debug))
@@ -172,6 +178,22 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 embeddingGenerator != null);
         }
 
+        for (var i = 0; i < textChunks.Count; i++)
+        {
+            chunks.Add(new AIDocumentChunk
+            {
+                ItemId = UniqueId.GenerateId(),
+                AIDocumentId = document.ItemId,
+                ReferenceId = referenceId,
+                ReferenceType = referenceType,
+                Content = textChunks[i],
+                Embedding = embeddings != null && i < embeddedChunkCount && i < embeddings.Count
+                    ? embeddings[i].Vector.ToArray()
+                    : null,
+                Index = i,
+            });
+        }
+
         var documentInfo = new ChatDocumentInfo
         {
             DocumentId = document.ItemId,
@@ -181,6 +203,29 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         };
 
         return DocumentProcessingResult.Succeeded(document, documentInfo, chunks);
+    }
+
+    private async Task<List<string>> NormalizeDocumentChunksAsync(string text)
+    {
+        return await _textNormalizer.NormalizeAndChunkAsync(text);
+    }
+
+    private static List<string> ChunkRawContent(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        var chunks = new List<string>();
+
+        for (var start = 0; start < text.Length; start += MaxStoredChunkLength)
+        {
+            var length = Math.Min(MaxStoredChunkLength, text.Length - start);
+            chunks.Add(text.Substring(start, length));
+        }
+
+        return chunks;
     }
 
     private static bool ShouldGenerateEmbeddings(

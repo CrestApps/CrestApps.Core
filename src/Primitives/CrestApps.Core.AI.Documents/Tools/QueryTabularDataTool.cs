@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
@@ -140,9 +141,19 @@ public sealed class QueryTabularDataTool : AIFunction
 
         foreach (var row in result.Rows)
         {
-            builder.AppendLine(string.Join(" | ", row.Select(cell => cell ?? string.Empty)));
+            builder.AppendLine(string.Join(" | ", row.Select(FormatCell)));
         }
 
         return builder.ToString();
+    }
+
+    private static string FormatCell(object cell)
+    {
+        return cell switch
+        {
+            null => string.Empty,
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => cell.ToString(),
+        };
     }
 }

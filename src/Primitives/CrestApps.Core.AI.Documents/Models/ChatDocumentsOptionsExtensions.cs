@@ -87,9 +87,9 @@ public static class ChatDocumentsOptionsExtensions
     }
 
     /// <summary>
-    /// Determines whether the supplied file (or extension) is a tabular file — an allowed document
-    /// extension that is not embeddable (for example CSV or XLSX). Tabular files are loaded into the
-    /// in-memory tabular workspace and queried with SQL instead of being vector-indexed.
+    /// Determines whether the supplied file (or extension) is a tabular file registered by the
+    /// ingestion process. Tabular files are loaded into the in-memory tabular workspace and queried
+    /// with SQL instead of being vector-indexed.
     /// </summary>
     /// <param name="options">The options.</param>
     /// <param name="fileNameOrExtension">The file name or extension to test.</param>
@@ -107,8 +107,7 @@ public static class ChatDocumentsOptionsExtensions
             extension = fileNameOrExtension.StartsWith('.') ? fileNameOrExtension : '.' + fileNameOrExtension;
         }
 
-        return options.AllowedFileExtensions.Contains(extension)
-            && !options.EmbeddableFileExtensions.Contains(extension);
+        return options.TabularFileExtensions.Contains(extension);
     }
 
     private static string BuildAcceptValue(IEnumerable<string> extensions)

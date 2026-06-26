@@ -9,11 +9,11 @@ namespace CrestApps.Core.Tests.Core.Documents.Tabular;
 public class TabularDataAgentProviderTests
 {
     [Fact]
-    public async Task GetAgentsAsync_ReturnsAlwaysAvailableSystemToolCapableAgent()
+    public async Task GetProfilesAsync_ReturnsAlwaysAvailableSystemToolCapableAgent()
     {
         var provider = new TabularDataAgentProvider(new StubTemplateService("You are the Tabular Data Agent."));
 
-        var agents = await provider.GetAgentsAsync(TestContext.Current.CancellationToken);
+        var agents = await provider.GetProfilesAsync(AIProfileType.Agent, TestContext.Current.CancellationToken);
 
         var agent = Assert.Single(agents);
         Assert.Equal(AIProfileType.Agent, agent.Type);
@@ -27,11 +27,11 @@ public class TabularDataAgentProviderTests
     }
 
     [Fact]
-    public async Task GetAgentsAsync_AgentIsAlwaysAvailableSystemAndNotUserSelectable()
+    public async Task GetProfilesAsync_AgentIsAlwaysAvailableSystemAndNotUserSelectable()
     {
         var provider = new TabularDataAgentProvider(new StubTemplateService("You are the Tabular Data Agent."));
 
-        var agents = await provider.GetAgentsAsync(TestContext.Current.CancellationToken);
+        var agents = await provider.GetProfilesAsync(AIProfileType.Agent, TestContext.Current.CancellationToken);
         var agent = Assert.Single(agents);
 
         Assert.True(agent.IsAlwaysAvailableAgent());
@@ -42,12 +42,12 @@ public class TabularDataAgentProviderTests
     }
 
     [Fact]
-    public async Task GetAgentsAsync_AgentReferencesTabularToolsAndTemplateSystemPrompt()
+    public async Task GetProfilesAsync_AgentReferencesTabularToolsAndTemplateSystemPrompt()
     {
         const string prompt = "You are the Tabular Data Agent. Use SQL.";
         var provider = new TabularDataAgentProvider(new StubTemplateService(prompt));
 
-        var agents = await provider.GetAgentsAsync(TestContext.Current.CancellationToken);
+        var agents = await provider.GetProfilesAsync(AIProfileType.Agent, TestContext.Current.CancellationToken);
         var agent = Assert.Single(agents);
 
         Assert.True(agent.TryGet<FunctionInvocationMetadata>(out var functionMetadata));
@@ -61,6 +61,16 @@ public class TabularDataAgentProviderTests
 
         Assert.True(agent.TryGet<AIProfileMetadata>(out var profileMetadata));
         Assert.Equal(prompt, profileMetadata.SystemMessage);
+    }
+
+    [Fact]
+    public async Task GetProfilesAsync_NonAgentType_ReturnsEmpty()
+    {
+        var provider = new TabularDataAgentProvider(new StubTemplateService("You are the Tabular Data Agent."));
+
+        var profiles = await provider.GetProfilesAsync(AIProfileType.Chat, TestContext.Current.CancellationToken);
+
+        Assert.Empty(profiles);
     }
 
     private sealed class StubTemplateService : ITemplateService

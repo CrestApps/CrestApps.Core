@@ -13,7 +13,7 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IAIProfileManager
 {
     private readonly IAIProfileStore _store;
-    private readonly IEnumerable<ISystemAIAgentProvider> _systemAgentProviders;
+    private readonly IEnumerable<IAIProfileProvider> _profileProviders;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
@@ -21,19 +21,19 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
     /// </summary>
     /// <param name="store">The profile catalog.</param>
     /// <param name="handlers">The catalog entry handlers.</param>
-    /// <param name="systemAgentProviders">The system (virtual) agent providers.</param>
+    /// <param name="profileProviders">The code-defined profile providers.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public DefaultAIProfileManager(
         IAIProfileStore store,
         IEnumerable<ICatalogEntryHandler<AIProfile>> handlers,
-        IEnumerable<ISystemAIAgentProvider> systemAgentProviders,
+        IEnumerable<IAIProfileProvider> profileProviders,
         TimeProvider timeProvider,
         ILogger<DefaultAIProfileManager> logger)
         : base(store, handlers, logger)
     {
         _store = store;
-        _systemAgentProviders = systemAgentProviders;
+        _profileProviders = profileProviders;
         _timeProvider = timeProvider;
     }
 
@@ -51,38 +51,36 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
             await LoadAsync(profile, cancellationToken);
         }
 
-        if (type != AIProfileType.Agent)
-        {
-            return profiles;
-        }
-
-        return await MergeSystemAgentsAsync(profiles, cancellationToken);
+        return await MergeProvidedProfilesAsync(type, profiles, cancellationToken);
     }
 
-    private async ValueTask<IEnumerable<AIProfile>> MergeSystemAgentsAsync(IEnumerable<AIProfile> storedProfiles, CancellationToken cancellationToken)
+    private async ValueTask<IEnumerable<AIProfile>> MergeProvidedProfilesAsync(
+        AIProfileType type,
+        IEnumerable<AIProfile> storedProfiles,
+        CancellationToken cancellationToken)
     {
         var merged = new List<AIProfile>(storedProfiles);
         var existingNames = new HashSet<string>(merged.Where(p => !string.IsNullOrEmpty(p.Name)).Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
 
-        foreach (var provider in _systemAgentProviders)
+        foreach (var provider in _profileProviders)
         {
-            var systemAgents = await provider.GetAgentsAsync(cancellationToken);
+            var providedProfiles = await provider.GetProfilesAsync(type, cancellationToken);
 
-            if (systemAgents is null)
+            if (providedProfiles is null)
             {
                 continue;
             }
 
-            foreach (var agent in systemAgents)
+            foreach (var profile in providedProfiles)
             {
-                // System agents are fully formed in code and are not run through the
+                // Provided profiles are fully formed in code and are not run through the
                 // load pipeline. A stored profile with the same name takes precedence.
-                if (agent is null || string.IsNullOrEmpty(agent.Name) || !existingNames.Add(agent.Name))
+                if (profile is null || profile.Type != type || string.IsNullOrEmpty(profile.Name) || !existingNames.Add(profile.Name))
                 {
                     continue;
                 }
 
-                merged.Add(agent);
+                merged.Add(profile);
             }
         }
 

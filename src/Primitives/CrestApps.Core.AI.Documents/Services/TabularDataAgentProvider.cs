@@ -11,7 +11,7 @@ namespace CrestApps.Core.AI.Documents.Services;
 /// hidden from the user-facing agent selection list. Its system prompt is sourced from the
 /// embedded <c>tabular-data-agent</c> AI template so the prompt text stays decoupled from code.
 /// </summary>
-internal sealed class TabularDataAgentProvider : ISystemAIAgentProvider
+internal sealed class TabularDataAgentProvider : IAIProfileProvider
 {
     /// <summary>
     /// The technical name of the system tabular data agent.
@@ -42,9 +42,17 @@ internal sealed class TabularDataAgentProvider : ISystemAIAgentProvider
     /// <summary>
     /// Gets the system tabular data agent.
     /// </summary>
+    /// <param name="type">The profile type.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<IReadOnlyList<AIProfile>> GetAgentsAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<IReadOnlyList<AIProfile>> GetProfilesAsync(
+        AIProfileType type,
+        CancellationToken cancellationToken = default)
     {
+        if (type != AIProfileType.Agent)
+        {
+            return [];
+        }
+
         var systemPrompt = await _templateService.RenderAsync(SystemPromptTemplateId, cancellationToken: cancellationToken);
 
         return [BuildAgent(systemPrompt)];

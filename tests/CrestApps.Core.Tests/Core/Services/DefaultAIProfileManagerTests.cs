@@ -66,7 +66,7 @@ public sealed class DefaultAIProfileManagerTests
     }
 
     [Fact]
-    public async Task GetAsync_Agent_MergesSystemAgents()
+    public async Task GetAsync_Agent_MergesProvidedAgents()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new Mock<IAIProfileStore>();
@@ -80,7 +80,7 @@ public sealed class DefaultAIProfileManagerTests
         var manager = new DefaultAIProfileManager(
             store.Object,
             [],
-            [new StubSystemAgentProvider(systemAgent)],
+            [new StubProfileProvider(systemAgent)],
             TimeProvider.System,
             NullLogger<DefaultAIProfileManager>.Instance);
 
@@ -92,7 +92,7 @@ public sealed class DefaultAIProfileManagerTests
     }
 
     [Fact]
-    public async Task GetAsync_Agent_StoredProfileWinsNameConflictWithSystem()
+    public async Task GetAsync_Agent_StoredProfileWinsNameConflictWithProvidedProfile()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new Mock<IAIProfileStore>();
@@ -106,7 +106,7 @@ public sealed class DefaultAIProfileManagerTests
         var manager = new DefaultAIProfileManager(
             store.Object,
             [],
-            [new StubSystemAgentProvider(systemAgent)],
+            [new StubProfileProvider(systemAgent)],
             TimeProvider.System,
             NullLogger<DefaultAIProfileManager>.Instance);
 
@@ -117,30 +117,35 @@ public sealed class DefaultAIProfileManagerTests
     }
 
     [Fact]
-    public async Task GetAsync_NonAgentType_IgnoresSystemAgents()
+    public async Task GetAsync_NonAgentType_MergesMatchingProvidedProfiles()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new Mock<IAIProfileStore>();
         store.Setup(catalog => catalog.GetByTypeAsync(AIProfileType.Chat, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var systemAgent = new AIProfile { ItemId = "b1", Name = "system-agent", Type = AIProfileType.Agent };
+        var providedChat = new AIProfile { ItemId = "b1", Name = "provided-chat", Type = AIProfileType.Chat };
         var manager = new DefaultAIProfileManager(
             store.Object,
             [],
-            [new StubSystemAgentProvider(systemAgent)],
+            [new StubProfileProvider(providedChat)],
             TimeProvider.System,
             NullLogger<DefaultAIProfileManager>.Instance);
 
-        var results = await manager.GetAsync(AIProfileType.Chat, cancellationToken);
+        var results = (await manager.GetAsync(AIProfileType.Chat, cancellationToken)).ToList();
 
-        Assert.Empty(results);
+        var result = Assert.Single(results);
+        Assert.Equal("provided-chat", result.Name);
     }
 
-    private sealed class StubSystemAgentProvider(params AIProfile[] agents) : ISystemAIAgentProvider
+    private sealed class StubProfileProvider(params AIProfile[] profiles) : IAIProfileProvider
     {
-        public ValueTask<IReadOnlyList<AIProfile>> GetAgentsAsync(CancellationToken cancellationToken = default)
-            => ValueTask.FromResult<IReadOnlyList<AIProfile>>(agents);
+        public ValueTask<IReadOnlyList<AIProfile>> GetProfilesAsync(
+            AIProfileType type,
+            CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<IReadOnlyList<AIProfile>>(profiles.Where(profile => profile.Type == type).ToArray());
+        }
     }
 
     private sealed class StubTimeProvider(DateTimeOffset utcNow) : TimeProvider

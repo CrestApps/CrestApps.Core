@@ -42,8 +42,33 @@ internal sealed class TabularWorkspace : IDisposable
         Func<string, CancellationToken, Task<string>> contentLoader,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(contentLoader);
+
+        return await EnsureReadyAsync(
+            documents,
+            async (document, token) => TabularDocumentArtifact.FromDelimitedContent(
+                await contentLoader(document.DocumentId, token),
+                document.FileName),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Ensures the in-memory database is built and contains a table for each supplied document.
+    /// Loading is lazy: <paramref name="artifactLoader"/> is only invoked for documents that do not
+    /// yet have a table. Calling this multiple times within the same workspace reuses the
+    /// already-built tables rather than recreating them.
+    /// </summary>
+    /// <param name="documents">The tabular documents that should be available in the workspace.</param>
+    /// <param name="artifactLoader">A delegate that loads the parsed tabular artifact for a document.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The tables available in the workspace after synchronization.</returns>
+    public async Task<IReadOnlyList<TabularTableInfo>> EnsureReadyAsync(
+        IReadOnlyList<TabularDocumentRef> documents,
+        Func<TabularDocumentRef, CancellationToken, Task<TabularDocumentArtifact>> artifactLoader,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+        ArgumentNullException.ThrowIfNull(artifactLoader);
 
         await _gate.WaitAsync(cancellationToken);
 
@@ -53,7 +78,7 @@ internal sealed class TabularWorkspace : IDisposable
 
             var desiredTableNames = ComputeTableNames(documents);
 
-            await SynchronizeTablesAsync(documents, desiredTableNames, contentLoader, cancellationToken);
+            await SynchronizeTablesAsync(documents, desiredTableNames, artifactLoader, cancellationToken);
 
             return BuildTableInfos();
         }
@@ -123,7 +148,7 @@ internal sealed class TabularWorkspace : IDisposable
                 columns[i] = reader.GetName(i);
             }
 
-            var rows = new List<string[]>();
+            var rows = new List<object[]>();
             var truncated = false;
 
             while (await reader.ReadAsync(cancellationToken))
@@ -135,11 +160,11 @@ internal sealed class TabularWorkspace : IDisposable
                     break;
                 }
 
-                var row = new string[reader.FieldCount];
+                var row = new object[reader.FieldCount];
 
                 for (var i = 0; i < reader.FieldCount; i++)
                 {
-                    row[i] = reader.IsDBNull(i) ? null : Truncate(reader.GetValue(i)?.ToString());
+                    row[i] = reader.IsDBNull(i) ? null : TruncateValue(reader.GetValue(i));
                 }
 
                 rows.Add(row);
@@ -216,7 +241,7 @@ internal sealed class TabularWorkspace : IDisposable
     private async Task SynchronizeTablesAsync(
         IReadOnlyList<TabularDocumentRef> documents,
         Dictionary<string, string> desiredTableNames,
-        Func<string, CancellationToken, Task<string>> contentLoader,
+        Func<TabularDocumentRef, CancellationToken, Task<TabularDocumentArtifact>> artifactLoader,
         CancellationToken cancellationToken)
     {
         foreach (var document in documents)
@@ -227,10 +252,11 @@ internal sealed class TabularWorkspace : IDisposable
             }
 
             var tableName = desiredTableNames[document.DocumentId];
-            var content = await contentLoader(document.DocumentId, cancellationToken);
+            var artifact = await artifactLoader(document, cancellationToken);
 
-            CreateTable(_connection, tableName, content);
-            _tables[document.DocumentId] = new LoadedTable(tableName, document.FileName);
+            var columns = CreateTable(_connection, tableName, artifact);
+            var sourceNames = columns.ToDictionary(c => c.Name, c => c.SourceName, StringComparer.OrdinalIgnoreCase);
+            _tables[document.DocumentId] = new LoadedTable(tableName, document.FileName, sourceNames);
         }
     }
 
@@ -242,9 +268,11 @@ internal sealed class TabularWorkspace : IDisposable
         return connection;
     }
 
-    private static void CreateTable(SqliteConnection connection, string tableName, string content)
+    private static List<TabularColumnInfo> CreateTable(SqliteConnection connection, string tableName, TabularDocumentArtifact artifact)
     {
-        var (header, rows) = DelimitedDataParser.Parse(content, null);
+        artifact ??= new TabularDocumentArtifact();
+        var header = artifact.Header ?? [];
+        var rows = artifact.Rows ?? [];
 
         if (header.Count == 0)
         {
@@ -253,24 +281,27 @@ internal sealed class TabularWorkspace : IDisposable
             emptyCommand.CommandText = $"CREATE TABLE {QuoteIdentifier(tableName)} (\"value\" TEXT)";
             emptyCommand.ExecuteNonQuery();
 
-            return;
+            return [new TabularColumnInfo("value", "TEXT")];
         }
 
-        var columns = BuildColumnNames(header);
+        var columns = BuildColumns(header);
+        var columnNames = columns.Select(c => c.Name).ToList();
 
         using (var createCommand = connection.CreateCommand())
         {
-            var columnDefinitions = string.Join(", ", columns.Select(c => $"{QuoteIdentifier(c)} TEXT"));
+            var columnDefinitions = string.Join(", ", columnNames.Select(c => $"{QuoteIdentifier(c)} TEXT"));
             createCommand.CommandText = $"CREATE TABLE {QuoteIdentifier(tableName)} ({columnDefinitions})";
             createCommand.ExecuteNonQuery();
         }
 
         if (rows.Count == 0)
         {
-            return;
+            return columns;
         }
 
-        InsertRows(connection, tableName, columns, rows);
+        InsertRows(connection, tableName, columnNames, rows);
+
+        return columns;
     }
 
     private static void InsertRows(SqliteConnection connection, string tableName, List<string> columns, IReadOnlyList<IReadOnlyList<string>> rows)
@@ -323,7 +354,8 @@ internal sealed class TabularWorkspace : IDisposable
                 {
                     var name = reader["name"]?.ToString() ?? string.Empty;
                     var type = reader["type"]?.ToString() ?? "TEXT";
-                    columns.Add(new TabularColumnInfo(name, type));
+                    table.SourceNames.TryGetValue(name, out var sourceName);
+                    columns.Add(new TabularColumnInfo(name, type, sourceName));
                 }
             }
 
@@ -378,14 +410,15 @@ internal sealed class TabularWorkspace : IDisposable
         return result;
     }
 
-    private static List<string> BuildColumnNames(IReadOnlyList<string> header)
+    private static List<TabularColumnInfo> BuildColumns(List<string> header)
     {
-        var columns = new List<string>(header.Count);
+        var columns = new List<TabularColumnInfo>(header.Count);
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         for (var i = 0; i < header.Count; i++)
         {
-            var name = SanitizeIdentifier(header[i], $"column_{i + 1}");
+            var sourceName = header[i];
+            var name = SanitizeIdentifier(GetPreferredHeaderName(sourceName), $"column_{i + 1}");
             var candidate = name;
             var suffix = 2;
 
@@ -395,10 +428,43 @@ internal sealed class TabularWorkspace : IDisposable
                 suffix++;
             }
 
-            columns.Add(candidate);
+            columns.Add(new TabularColumnInfo(candidate, "TEXT", sourceName));
         }
 
         return columns;
+    }
+
+    private static string GetPreferredHeaderName(string header)
+    {
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            return header;
+        }
+
+        var trimmed = header.Trim();
+        var slashIndex = trimmed.IndexOf('/');
+
+        if (slashIndex > 0)
+        {
+            var prefix = trimmed[..slashIndex].Trim();
+
+            if (IsCompactHeaderCode(prefix))
+            {
+                return prefix;
+            }
+        }
+
+        return trimmed;
+    }
+
+    private static bool IsCompactHeaderCode(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 64)
+        {
+            return false;
+        }
+
+        return value.All(c => char.IsLetterOrDigit(c) || c == '_');
     }
 
     private static string SanitizeIdentifier(string value, string fallback)
@@ -435,26 +501,32 @@ internal sealed class TabularWorkspace : IDisposable
         return "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
 
-    private string Truncate(string value)
+    private object TruncateValue(object value)
     {
-        if (value is null || value.Length <= _options.MaxCellLength)
+        if (value is not string text || text.Length <= _options.MaxCellLength)
         {
             return value;
         }
 
-        return string.Concat(value.AsSpan(0, _options.MaxCellLength), "…");
+        return string.Concat(text.AsSpan(0, _options.MaxCellLength), "…");
     }
 
     private sealed class LoadedTable
     {
-        public LoadedTable(string tableName, string fileName)
+        public LoadedTable(
+            string tableName,
+            string fileName,
+            IReadOnlyDictionary<string, string> sourceNames)
         {
             TableName = tableName;
             FileName = fileName;
+            SourceNames = sourceNames;
         }
 
         public string TableName { get; }
 
         public string FileName { get; }
+
+        public IReadOnlyDictionary<string, string> SourceNames { get; }
     }
 }

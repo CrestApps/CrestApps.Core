@@ -14,7 +14,7 @@ public sealed class TabularQueryResult
     /// Gets or sets the result rows. Each row is an array of cell values aligned to
     /// <see cref="Columns"/>; a <see langword="null"/> cell represents a SQL <c>NULL</c>.
     /// </summary>
-    public IReadOnlyList<string[]> Rows { get; set; } = [];
+    public IReadOnlyList<object[]> Rows { get; set; } = [];
 
     /// <summary>
     /// Gets or sets a value indicating whether the result was truncated to the configured

@@ -5,16 +5,19 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Documents.Tools;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Extensions;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents;
@@ -83,16 +86,23 @@ public static class ServiceCollectionExtensions
 
         // Per-prompt in-memory tabular workspace options + the system tabular data agent that queries it.
         services.AddOptions<TabularWorkspaceOptions>();
+        services.TryAddSingleton<ITabularDocumentArtifactStore, DocumentFileStoreTabularDocumentArtifactStore>();
+        services.TryAddSingleton<TabularWorkspaceCache>();
+        services.TryAddSingleton<ITabularWorkspaceInvalidator>(sp => sp.GetRequiredService<TabularWorkspaceCache>());
+        services.TryAddSingleton<ITabularWorkspaceInvalidationPublisher, LocalTabularWorkspaceInvalidationPublisher>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TabularWorkspaceCleanupBackgroundService>());
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ISystemAIAgentProvider, TabularDataAgentProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProfileProvider, TabularDataAgentProvider>());
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, TabularWorkspaceChatInteractionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatDocumentEventHandler, TabularWorkspaceDocumentEventHandler>());
 
         services.AddCoreAIIngestionDocumentReader<PlainTextIngestionDocumentReader>(
             ".txt",
-            new ExtractorExtension(".csv", false),
+            new ExtractorExtension(".csv", embeddable: false, isTabular: true),
             ".md",
             ".json",
             ".xml",

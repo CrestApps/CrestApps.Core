@@ -15,19 +15,29 @@ namespace CrestApps.Core.AI.Documents.Tabular;
 internal sealed class TabularToolContext
 {
     private readonly IAIDocumentChunkStore _chunkStore;
+    private readonly ITabularDocumentArtifactStore _artifactStore;
 
     private TabularToolContext(
         IReadOnlyList<TabularDocumentRef> documents,
-        IAIDocumentChunkStore chunkStore)
+        IAIDocumentChunkStore chunkStore,
+        ITabularDocumentArtifactStore artifactStore,
+        TabularWorkspaceCacheKey cacheKey)
     {
         Documents = documents;
         _chunkStore = chunkStore;
+        _artifactStore = artifactStore;
+        CacheKey = cacheKey;
     }
 
     /// <summary>
     /// Gets the tabular documents available to the active conversation.
     /// </summary>
     public IReadOnlyList<TabularDocumentRef> Documents { get; }
+
+    /// <summary>
+    /// Gets the cache key used to reuse the tabular workspace across active prompts in the same scope.
+    /// </summary>
+    public TabularWorkspaceCacheKey CacheKey { get; }
 
     /// <summary>
     /// Loads the reconstructed text content of a document from its stored chunks.
@@ -45,20 +55,36 @@ internal sealed class TabularToolContext
         }
 
         using var builder = ZString.CreateStringBuilder();
-        var first = true;
-
         foreach (var chunk in chunks.OrderBy(c => c.Index))
         {
-            if (!first)
-            {
-                builder.Append('\n');
-            }
-
             builder.Append(chunk.Content);
-            first = false;
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Loads the parsed artifact for a document, creating and storing it durably when it is missing.
+    /// </summary>
+    /// <param name="document">The tabular document reference.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The parsed tabular artifact.</returns>
+    public async Task<TabularDocumentArtifact> LoadArtifactAsync(TabularDocumentRef document, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var artifact = await _artifactStore.GetAsync(document.DocumentId, cancellationToken);
+
+        if (artifact is not null)
+        {
+            return artifact;
+        }
+
+        var content = await LoadContentAsync(document.DocumentId, cancellationToken);
+        artifact = TabularDocumentArtifact.FromDelimitedContent(content, document.FileName);
+        await _artifactStore.SaveAsync(document.DocumentId, artifact, cancellationToken);
+
+        return artifact;
     }
 
     /// <summary>
@@ -79,8 +105,9 @@ internal sealed class TabularToolContext
 
         var documentStore = services.GetService<IAIDocumentStore>();
         var chunkStore = services.GetService<IAIDocumentChunkStore>();
+        var artifactStore = services.GetService<ITabularDocumentArtifactStore>();
 
-        if (documentStore is null || chunkStore is null)
+        if (documentStore is null || chunkStore is null || artifactStore is null)
         {
             return null;
         }
@@ -88,19 +115,25 @@ internal sealed class TabularToolContext
         var documentOptions = services.GetRequiredService<IOptions<ChatDocumentsOptions>>().Value;
         var session = ResolveSession();
         var scopes = new List<(string ReferenceId, string ReferenceType)>();
+        string chatInteractionId = null;
+        string chatSessionId = null;
+        string profileId = null;
 
         switch (executionContext.Resource)
         {
             case ChatInteraction interaction:
                 scopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
+                chatInteractionId = interaction.ItemId;
                 break;
 
             case AIProfile profile:
                 scopes.Add((profile.ItemId, AIReferenceTypes.Document.Profile));
+                profileId = profile.ItemId;
 
                 if (session is not null && !string.IsNullOrEmpty(session.SessionId))
                 {
                     scopes.Add((session.SessionId, AIReferenceTypes.Document.ChatSession));
+                    chatSessionId = session.SessionId;
                 }
 
                 break;
@@ -130,7 +163,32 @@ internal sealed class TabularToolContext
             }
         }
 
-        return new TabularToolContext(documents, chunkStore);
+        var cacheKey = BuildCacheKey(documents, scopes, chatInteractionId, chatSessionId, profileId);
+
+        return new TabularToolContext(documents, chunkStore, artifactStore, cacheKey);
+    }
+
+    private static TabularWorkspaceCacheKey BuildCacheKey(
+        IReadOnlyList<TabularDocumentRef> documents,
+        IReadOnlyList<(string ReferenceId, string ReferenceType)> scopes,
+        string chatInteractionId,
+        string chatSessionId,
+        string profileId)
+    {
+        var references = scopes
+            .Where(scope => !string.IsNullOrEmpty(scope.ReferenceId) && !string.IsNullOrEmpty(scope.ReferenceType))
+            .Select(scope => (scope.ReferenceType, scope.ReferenceId))
+            .ToArray();
+        var scopePart = string.Join('|', references
+            .OrderBy(reference => reference.ReferenceType, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(reference => reference.ReferenceId, StringComparer.OrdinalIgnoreCase)
+            .Select(reference => $"{reference.ReferenceType}:{reference.ReferenceId}"));
+        var documentPart = string.Join('|', documents
+            .OrderBy(document => document.DocumentId, StringComparer.OrdinalIgnoreCase)
+            .Select(document => $"{document.DocumentId}:{document.FileName}"));
+        var key = $"{scopePart}::documents:{documentPart}";
+
+        return new TabularWorkspaceCacheKey(key, chatInteractionId, chatSessionId, profileId, references);
     }
 
     private static AIChatSession ResolveSession()

@@ -10,10 +10,12 @@ public sealed class TabularColumnInfo
     /// </summary>
     /// <param name="name">The column name.</param>
     /// <param name="declaredType">The declared SQLite storage type of the column.</param>
-    public TabularColumnInfo(string name, string declaredType)
+    /// <param name="sourceName">The original source header name, when different from the SQL column name.</param>
+    public TabularColumnInfo(string name, string declaredType, string sourceName = null)
     {
         Name = name;
         DeclaredType = declaredType;
+        SourceName = sourceName;
     }
 
     /// <summary>
@@ -25,4 +27,9 @@ public sealed class TabularColumnInfo
     /// Gets the declared SQLite storage type of the column.
     /// </summary>
     public string DeclaredType { get; }
+
+    /// <summary>
+    /// Gets the original source header name, when different from the SQL column name.
+    /// </summary>
+    public string SourceName { get; }
 }

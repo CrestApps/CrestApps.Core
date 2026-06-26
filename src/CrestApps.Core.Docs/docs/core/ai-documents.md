@@ -308,12 +308,12 @@ public interface IVectorSearchService
 
 The user's query is embedded, and the resulting vector is compared against indexed chunks using cosine similarity.
 
-For uploaded chat-interaction and chat-session documents, the framework now switches between two context-loading strategies automatically:
+For uploaded chat-interaction and chat-session text documents, the framework now switches between two context-loading strategies automatically:
 
 - targeted questions continue to use semantic chunk retrieval (`SearchDocumentsTool` and preemptive RAG)
 - whole-document tasks such as summarizing, reviewing, rewriting, translating, or extracting complete information from an attached file inject the full document text instead of a few chunks
 
-That keeps RAG efficient for lookup-style questions while avoiding partial-context answers for requests that depend on the entire uploaded file.
+That keeps RAG efficient for lookup-style questions while avoiding partial-context answers for requests that depend on the entire uploaded file. Tabular uploads are excluded from raw full-document injection and routed to the Tabular Data Agent instead.
 
 ## Built-in Document Readers
 
@@ -325,7 +325,7 @@ That keeps RAG efficient for lookup-style questions while avoiding partial-conte
 | `OpenXmlIngestionDocumentReader` | `.xlsx` | No | Tabular — handled by the Tabular Data Agent |
 | `PdfIngestionDocumentReader` | `.pdf` | Yes | Uses `UglyToad.PdfPig` with DocstrumBoundingBoxes |
 
-**Embeddable** means the content is chunked and vector-embedded for semantic search. **Non-embeddable** (tabular) formats are instead handled by the Tabular Data Agent, which loads them into an in-memory SQL database for querying.
+**Embeddable** means the content is chunked and vector-embedded for semantic search. **Tabular** formats are chunked for retrieval by the tabular SQL workspace but not vector-embedded; the Tabular Data Agent loads them into an in-memory SQL database for querying.
 
 ## Custom Document Reader
 
@@ -363,15 +363,16 @@ public sealed class RtfIngestionDocumentReader : IngestionDocumentReader
 
 ### `ExtractorExtension`
 
-The `ExtractorExtension` type defines a file extension and whether its content is embeddable:
+The `ExtractorExtension` type defines a file extension, whether its content is embeddable, and whether it is tabular:
 
 ```csharp
 public sealed class ExtractorExtension
 {
     public string Extension { get; }   // Normalized with leading dot (e.g., ".rtf")
     public bool Embeddable { get; }    // Whether embeddings should be generated
+    public bool IsTabular { get; }     // Whether the extension is loaded into the tabular SQL workspace
 
-    public ExtractorExtension(string extension, bool embeddable = true);
+    public ExtractorExtension(string extension, bool embeddable = true, bool isTabular = false);
 }
 ```
 
@@ -384,6 +385,10 @@ services.AddCrestAppsIngestionDocumentReader<MyReader>(new ExtractorExtension(".
 
 // For non-embeddable extensions, use the explicit constructor:
 services.AddCrestAppsIngestionDocumentReader<MyReader>(new ExtractorExtension(".tsv", false));
+
+// For tabular extensions, mark the extension as tabular:
+services.AddCrestAppsIngestionDocumentReader<MyReader>(
+    new ExtractorExtension(".tsv", embeddable: false, isTabular: true));
 ```
 
 ### `AddCrestAppsIngestionDocumentReader<T>`
@@ -449,15 +454,22 @@ name only by the agent itself, never selectable in another profile:
 | `QueryTabularDataTool` | `query_tabular_data` | Runs a read-only `SELECT` and returns a compact result |
 | `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies an `INSERT`/`UPDATE`/`DELETE`/`ALTER` to the in-memory copy |
 
-The in-memory database is **per-prompt**: it is built lazily on the first tabular tool call in a
-prompt, reused for every tool call in that same prompt (so the agent never creates duplicate tables
-when it runs several times in one cycle), and disposed as soon as the prompt completes — stored on
-the `AIInvocationContext` and torn down when its scope ends. Each prompt rebuilds a fresh database
-from the uploaded files, so any in-memory manipulation is naturally discarded when the prompt ends.
-See `TabularWorkspaceOptions` for the tunable row, cell, and command-timeout limits.
+The in-memory database is cached per active tabular scope: chat interaction, chat session, or profile
+document set. It is built lazily on the first tabular tool call, reused by later prompts while the
+same user/session remains active, and disposed after a sliding idle timeout
+(`TabularWorkspaceOptions.WorkspaceSlidingExpiration`, five minutes by default). The parsed tabular
+document artifact is also stored through `ITabularDocumentArtifactStore` using the configured
+`IDocumentFileStore`, so another application instance can hydrate from the shared artifact instead of
+reparsing the uploaded chunks. A hosted cleanup service scans for idle workspaces
+(`WorkspaceCleanupInterval`, one minute by default), and document uploads/removals plus chat
+interaction/session deletion invalidate matching workspaces immediately. Distributed hosts can replace
+`ITabularWorkspaceInvalidationPublisher` to broadcast those invalidations through a backplane
+(Redis, Service Bus, etc.); the default publisher clears only the local instance. Concurrent users and
+sessions do not share a workspace; the cache key includes the scoped reference and attached tabular
+document IDs.
 
-**Supported extensions:** any allowed document extension that is **not embeddable** (by default
-`.csv` and `.xlsx`). See [Built-in Document Readers](#built-in-document-readers).
+**Supported extensions:** any allowed document extension registered with `ExtractorExtension.IsTabular`
+(by default `.csv` and `.xlsx`). See [Built-in Document Readers](#built-in-document-readers).
 
 See the [AI Agents](./agents.md) guide for how always-available agents work.
 
@@ -587,7 +599,7 @@ services.Configure<ChatDocumentsOptions>(options =>
     options.Add(".rtf", embeddable: true);
 
     // Add a tabular (non-embeddable) extension
-    options.Add(".tsv", embeddable: false);
+    options.Add(".tsv", embeddable: false, isTabular: true);
 });
 ```
 
@@ -595,9 +607,10 @@ services.Configure<ChatDocumentsOptions>(options =>
 |----------|------|-------------|
 | `AllowedFileExtensions` | `IReadOnlySet<string>` | Complete set of uploadable file extensions |
 | `EmbeddableFileExtensions` | `IReadOnlySet<string>` | Subset that gets vector-embedded |
+| `TabularFileExtensions` | `IReadOnlySet<string>` | Subset that is loaded into the Tabular Data Agent SQL workspace |
 | `MaxVisionInputBytesPerRequest` | `long` | Maximum total image bytes attached to one multimodal request; set `0` or less to disable the limit |
 
-Extensions not in `EmbeddableFileExtensions` are still allowed for upload and can be read by `ReadDocumentTool` or, for tabular files, queried through the Tabular Data Agent, but they are not chunked and embedded.
+Extensions not in `EmbeddableFileExtensions` are still allowed for upload and can be read by `ReadDocumentTool` or, for tabular files, queried through the Tabular Data Agent, but they are not vector-embedded.
 
 ### `InteractionDocumentSettings`
 
@@ -616,6 +629,7 @@ public sealed class InteractionDocumentSettings
 - Maximum **25,000 characters** total for embedding per session
 - `ReadDocumentTool` truncates output to **50 KB**
 - The Tabular Data Agent returns at most **100 rows** per query by default (`TabularWorkspaceOptions.MaxRowsPerQuery`)
+- Cached tabular workspaces expire after **5 idle minutes** by default (`TabularWorkspaceOptions.WorkspaceSlidingExpiration`)
 
 ## Services Registered by `AddCoreAIDocumentProcessing()`
 
@@ -630,6 +644,10 @@ public sealed class InteractionDocumentSettings
 | `PdfIngestionDocumentReader` | — | Singleton | `.pdf` |
 | `SearchDocumentsTool` | — | System tool | Semantic vector search |
 | `ReadDocumentTool` | — | System tool | Full document read |
-| `TabularWorkspace` | — | Per-prompt | In-memory tabular database stored on `AIInvocationContext`, built lazily and disposed when the prompt ends |
-| `ISystemAIAgentProvider` | `TabularDataAgentProvider` | Scoped | Contributes the system Tabular Data Agent |
+| `ITabularDocumentArtifactStore` | `DocumentFileStoreTabularDocumentArtifactStore` | Singleton | Stores parsed tabular document artifacts in shared document storage |
+| `TabularWorkspaceCache` | — | Singleton | Reuses in-memory tabular databases per active chat scope with sliding expiration |
+| `TabularWorkspaceCleanupBackgroundService` | — | Singleton hosted service | Disposes idle cached tabular workspaces |
+| `ITabularWorkspaceInvalidator` | `TabularWorkspaceCache` | Singleton | Invalidates cached workspaces when source chat scopes change or are deleted |
+| `ITabularWorkspaceInvalidationPublisher` | `LocalTabularWorkspaceInvalidationPublisher` | Singleton | Publishes workspace invalidation events; replace for distributed fan-out |
+| `IAIProfileProvider` | `TabularDataAgentProvider` | Scoped | Contributes the system Tabular Data Agent |
 | `list_tabular_data` / `query_tabular_data` / `execute_tabular_command` | — | Hidden tools | Tabular Data Agent SQL tools (referenced by the agent, hidden from the picker) |

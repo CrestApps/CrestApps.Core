@@ -20,7 +20,7 @@ public static class OpenXmlServiceCollectionExtensions
 
         services.AddCoreAIIngestionDocumentReader<OpenXmlIngestionDocumentReader>(
             ".docx",
-            new ExtractorExtension(".xlsx", false),
+            new ExtractorExtension(".xlsx", embeddable: false, isTabular: true),
             ".pptx");
 
         return services;

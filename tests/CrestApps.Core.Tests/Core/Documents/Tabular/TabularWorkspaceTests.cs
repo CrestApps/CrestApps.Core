@@ -35,9 +35,31 @@ public class TabularWorkspaceTests
 
         Assert.Equal(["region", "total"], result.Columns);
         Assert.Equal(2, result.Rows.Count);
-        Assert.Equal(["North", "150"], result.Rows[0]);
-        Assert.Equal(["South", "200"], result.Rows[1]);
+        Assert.Equal("North", result.Rows[0][0]);
+        Assert.Equal(150L, result.Rows[0][1]);
+        Assert.Equal("South", result.Rows[1][0]);
+        Assert.Equal(200L, result.Rows[1][1]);
         Assert.False(result.Truncated);
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_SurveyHeader_UsesQuestionCodeAsSqlColumnName()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "Respondent,Q3_C28/What fast food or quick service restaurants have you visited?\n1,1\n2,975";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var result = await workspace.QueryAsync(
+            "SELECT COUNT(*) AS visitors FROM sales WHERE Q3_C28 = '1'",
+            100,
+            cancellationToken);
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+        var column = Assert.Single(Assert.Single(tables).Columns, c => c.Name == "Q3_C28");
+
+        Assert.Equal("Q3_C28/What fast food or quick service restaurants have you visited?", column.SourceName);
+        Assert.Equal(1L, Assert.Single(result.Rows)[0]);
     }
 
     [Fact]

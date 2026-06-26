@@ -104,7 +104,7 @@ public sealed class ListTabularDataTool : AIFunction
             builder.AppendLine(table.RowCount == 1 ? " row" : " rows");
 
             builder.Append("  Columns: ");
-            builder.AppendLine(string.Join(", ", table.Columns.Select(c => c.Name)));
+            builder.AppendLine(string.Join(", ", table.Columns.Select(FormatColumn)));
         }
 
         builder.AppendLine();
@@ -120,5 +120,16 @@ public sealed class ListTabularDataTool : AIFunction
         }
 
         return builder.ToString();
+    }
+
+    private static string FormatColumn(TabularColumnInfo column)
+    {
+        if (string.IsNullOrWhiteSpace(column.SourceName) ||
+            string.Equals(column.Name, column.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            return column.Name;
+        }
+
+        return $"{column.Name} (source header: {column.SourceName})";
     }
 }
