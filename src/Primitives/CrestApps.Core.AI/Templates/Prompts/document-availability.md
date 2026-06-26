@@ -57,6 +57,7 @@ Answer only from the uploaded documents.
 If the uploaded documents do not contain the answer, say so instead of using general knowledge.
 {% endif %}
 {% endif %}
+{% endif %}
 
 {% if hasUserSuppliedDocuments %}
 ### Available documents:
