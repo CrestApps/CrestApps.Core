@@ -49,11 +49,11 @@ public class AIAgentProfileExtensionsTests
     }
 
     [Fact]
-    public void IsBuiltInAgent_ReturnsTrue_WhenBuiltIn()
+    public void IsSystemAgent_ReturnsTrue_WhenSystem()
     {
         var profile = new AIProfile { Name = "a", Description = "d", Type = AIProfileType.Agent };
-        profile.Put(new AgentMetadata { IsBuiltIn = true });
+        profile.Put(new AgentMetadata { IsSystem = true });
 
-        Assert.True(profile.IsBuiltInAgent());
+        Assert.True(profile.IsSystemAgent());
     }
 }

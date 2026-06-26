@@ -502,7 +502,7 @@
         // AI Tools
         var toolOptions = ToolOptionsAccessor.Value;
         _model.AvailableTools = toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,

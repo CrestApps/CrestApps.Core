@@ -11,6 +11,7 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Templates.Extensions;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -80,11 +81,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ITabularBatchProcessor, TabularBatchProcessor>();
         services.TryAddSingleton<ITabularBatchResultCache, TabularBatchResultCache>();
 
-        // In-memory tabular workspace + the built-in tabular data agent that queries it.
+        // Per-prompt in-memory tabular workspace options + the system tabular data agent that queries it.
         services.AddOptions<TabularWorkspaceOptions>();
-        services.TryAddSingleton<ITabularWorkspaceManager, TabularWorkspaceManager>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IBuiltInAIAgentProvider, TabularDataAgentProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatDocumentEventHandler, TabularWorkspaceDocumentEventHandler>());
+        services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ISystemAIAgentProvider, TabularDataAgentProvider>());
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
@@ -114,21 +114,21 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAITool<ListTabularDataTool>(ListTabularDataTool.TheName)
             .WithTitle("List Tabular Data")
-            .WithDescription("Lists the tabular tables (CSV, TSV, Excel) available in the conversation with their columns and row counts.")
+            .WithDescription("Lists the tabular tables available in the conversation with their columns and row counts.")
             .WithCategory("Tabular Data")
-            .Selectable();
+            .Hidden();
 
         services.AddCoreAITool<QueryTabularDataTool>(QueryTabularDataTool.TheName)
             .WithTitle("Query Tabular Data")
             .WithDescription("Runs a read-only SQL query against uploaded tabular data and returns a compact result.")
             .WithCategory("Tabular Data")
-            .Selectable();
+            .Hidden();
 
         services.AddCoreAITool<ExecuteTabularCommandTool>(ExecuteTabularCommandTool.TheName)
             .WithTitle("Execute Tabular Command")
             .WithDescription("Applies a SQL manipulation (INSERT, UPDATE, DELETE, ALTER) to the in-memory copy of uploaded tabular data, preserving the original file.")
             .WithCategory("Tabular Data")
-            .Selectable();
+            .Hidden();
 
         services.AddCoreAITool<InspectImageTool>(InspectImageTool.TheName)
             .WithTitle("Inspect Image")

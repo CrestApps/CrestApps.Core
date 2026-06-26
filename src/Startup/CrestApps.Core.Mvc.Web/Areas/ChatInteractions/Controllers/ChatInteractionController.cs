@@ -351,7 +351,7 @@ public sealed class ChatInteractionController : Controller
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableTools = _toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -492,7 +492,7 @@ public sealed class ChatInteractionController : Controller
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableTools = _toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,

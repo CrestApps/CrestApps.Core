@@ -64,7 +64,7 @@ Users upload documents (PDFs, Word files, spreadsheets, text files) and expect t
 - **Embedding** — Convert each chunk into a vector representation using a configured embedding model
 - **Indexing** — Store embeddings in a vector search index (Elasticsearch or Azure AI Search)
 - **Searching** — At query time, perform semantic similarity search to find the most relevant chunks
-- **Tabular processing** — CSV, TSV, and Excel files are delegated to the built-in **Tabular Data Agent**, which loads them lazily into an in-memory SQLite database and queries them with SQL
+- **Tabular processing** — Non-embeddable files (such as CSV and Excel) are delegated to the system **Tabular Data Agent**, which loads them lazily into an in-memory SQLite database and queries them with SQL
 
 The document processing system handles this full pipeline from upload to retrieval, while the built-in document tools make the content available to the AI during orchestration.
 
@@ -152,7 +152,7 @@ public sealed class ImageDescriptionService(
        │  AI Model calls tools as needed      │
        │  to answer user questions about      │
        │  the uploaded documents.             │
-       │  Tabular files (CSV/TSV/Excel) are   │
+       │  Tabular files (e.g. CSV/Excel) are  │
        │  delegated to the always-available   │
        │  Tabular Data Agent, which queries   │
        │  them with SQL in-memory.            │
@@ -431,15 +431,17 @@ Reads the full text content of a specific uploaded document. Truncates output to
 
 ### Tabular Data Agent
 
-Tabular files (CSV, TSV, Excel) are **not** read row-by-row into the prompt. Instead they are
-handled by the always-available, built-in **Tabular Data Agent**, which the primary model can
+Tabular files (such as CSV and Excel) are **not** read row-by-row into the prompt. Instead they are
+handled by the always-available, system **Tabular Data Agent**, which the primary model can
 delegate to like any other agent. The agent loads each file lazily into an in-memory SQLite
 database and exposes SQL tools so it can answer questions, run calculations, and manipulate the
 data while returning only minimal results to the model — keeping token usage low even for very
 large files. The originally uploaded file is always preserved; manipulations apply to the
-in-memory copy only.
+in-memory copy only. Its system prompt is sourced from the embedded `tabular-data-agent` AI
+template, so the wording stays decoupled from the code.
 
-The agent uses three user-selectable tools:
+The agent uses three tools that are hidden from the user-facing tool picker — they are referenced by
+name only by the agent itself, never selectable in another profile:
 
 | Tool | Name | Purpose |
 |------|------|---------|
@@ -447,17 +449,15 @@ The agent uses three user-selectable tools:
 | `QueryTabularDataTool` | `query_tabular_data` | Runs a read-only `SELECT` and returns a compact result |
 | `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies an `INSERT`/`UPDATE`/`DELETE`/`ALTER` to the in-memory copy |
 
-The in-memory database is **request-scoped**: it is built lazily on the first tabular tool call in a
-request, reused for every tool call in that same prompt (so the agent never creates duplicate
-tables when it runs several times in one cycle), and disposed as soon as the prompt completes — so
-the data is not kept in memory between prompts. Asking about the same file again in a later prompt
-rebuilds a fresh database. A lightweight, replayable journal of any manipulations is retained per
-conversation and replayed on rebuild, so the dataset comes back with its latest state without
-holding the heavy database in memory. A background sweep evicts stale journals and acts as a
-backstop for any request that fails to release. See `TabularWorkspaceOptions` for the tunable
-limits and timeouts.
+The in-memory database is **per-prompt**: it is built lazily on the first tabular tool call in a
+prompt, reused for every tool call in that same prompt (so the agent never creates duplicate tables
+when it runs several times in one cycle), and disposed as soon as the prompt completes — stored on
+the `AIInvocationContext` and torn down when its scope ends. Each prompt rebuilds a fresh database
+from the uploaded files, so any in-memory manipulation is naturally discarded when the prompt ends.
+See `TabularWorkspaceOptions` for the tunable row, cell, and command-timeout limits.
 
-**Supported extensions:** `.csv`, `.tsv`, `.xlsx`, `.xls`
+**Supported extensions:** any allowed document extension that is **not embeddable** (by default
+`.csv` and `.xlsx`). See [Built-in Document Readers](#built-in-document-readers).
 
 See the [AI Agents](./agents.md) guide for how always-available agents work.
 
@@ -535,7 +535,7 @@ This means document tools are **only** injected when the session actually has do
 
 ## Tabular Data
 
-CSV, TSV, and Excel files are marked as **non-embeddable** and receive special processing.
+Non-embeddable files (such as CSV and Excel) receive special processing.
 
 ### `ITabularBatchProcessor`
 
@@ -630,6 +630,6 @@ public sealed class InteractionDocumentSettings
 | `PdfIngestionDocumentReader` | — | Singleton | `.pdf` |
 | `SearchDocumentsTool` | — | System tool | Semantic vector search |
 | `ReadDocumentTool` | — | System tool | Full document read |
-| `ITabularWorkspaceManager` | `TabularWorkspaceManager` | Singleton | Owns in-memory tabular databases (lazy, request-scoped, disposed when the prompt ends) |
-| `IBuiltInAIAgentProvider` | `TabularDataAgentProvider` | Singleton | Contributes the built-in Tabular Data Agent |
-| `list_tabular_data` / `query_tabular_data` / `execute_tabular_command` | — | Selectable tools | Tabular Data Agent SQL tools |
+| `TabularWorkspace` | — | Per-prompt | In-memory tabular database stored on `AIInvocationContext`, built lazily and disposed when the prompt ends |
+| `ISystemAIAgentProvider` | `TabularDataAgentProvider` | Scoped | Contributes the system Tabular Data Agent |
+| `list_tabular_data` / `query_tabular_data` / `execute_tabular_command` | — | Hidden tools | Tabular Data Agent SQL tools (referenced by the agent, hidden from the picker) |

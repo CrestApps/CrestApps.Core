@@ -744,7 +744,7 @@
 
         var toolOpts = ToolOpts.Value;
         var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableTools = toolOpts.Tools.Where(kvp => !kvp.Value.IsSystemTool)
+        _model.AvailableTools = toolOpts.Tools.Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
             .Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key) })
             .OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
 

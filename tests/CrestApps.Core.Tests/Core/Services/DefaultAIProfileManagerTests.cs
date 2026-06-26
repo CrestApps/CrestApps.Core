@@ -66,7 +66,7 @@ public sealed class DefaultAIProfileManagerTests
     }
 
     [Fact]
-    public async Task GetAsync_Agent_MergesBuiltInAgents()
+    public async Task GetAsync_Agent_MergesSystemAgents()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new Mock<IAIProfileStore>();
@@ -76,11 +76,11 @@ public sealed class DefaultAIProfileManagerTests
                 new AIProfile { ItemId = "a1", Name = "stored-agent", Type = AIProfileType.Agent },
             ]);
 
-        var builtIn = new AIProfile { ItemId = "b1", Name = "builtin-agent", Type = AIProfileType.Agent };
+        var systemAgent = new AIProfile { ItemId = "b1", Name = "system-agent", Type = AIProfileType.Agent };
         var manager = new DefaultAIProfileManager(
             store.Object,
             [],
-            [new StubBuiltInAgentProvider(builtIn)],
+            [new StubSystemAgentProvider(systemAgent)],
             TimeProvider.System,
             NullLogger<DefaultAIProfileManager>.Instance);
 
@@ -88,11 +88,11 @@ public sealed class DefaultAIProfileManagerTests
 
         Assert.Equal(2, results.Count);
         Assert.Contains(results, profile => profile.Name == "stored-agent");
-        Assert.Contains(results, profile => profile.Name == "builtin-agent");
+        Assert.Contains(results, profile => profile.Name == "system-agent");
     }
 
     [Fact]
-    public async Task GetAsync_Agent_StoredProfileWinsNameConflictWithBuiltIn()
+    public async Task GetAsync_Agent_StoredProfileWinsNameConflictWithSystem()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new Mock<IAIProfileStore>();
@@ -102,11 +102,11 @@ public sealed class DefaultAIProfileManagerTests
                 new AIProfile { ItemId = "a1", Name = "shared", Type = AIProfileType.Agent },
             ]);
 
-        var builtIn = new AIProfile { ItemId = "b1", Name = "shared", Type = AIProfileType.Agent };
+        var systemAgent = new AIProfile { ItemId = "b1", Name = "shared", Type = AIProfileType.Agent };
         var manager = new DefaultAIProfileManager(
             store.Object,
             [],
-            [new StubBuiltInAgentProvider(builtIn)],
+            [new StubSystemAgentProvider(systemAgent)],
             TimeProvider.System,
             NullLogger<DefaultAIProfileManager>.Instance);
 
@@ -117,18 +117,18 @@ public sealed class DefaultAIProfileManagerTests
     }
 
     [Fact]
-    public async Task GetAsync_NonAgentType_IgnoresBuiltInAgents()
+    public async Task GetAsync_NonAgentType_IgnoresSystemAgents()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new Mock<IAIProfileStore>();
         store.Setup(catalog => catalog.GetByTypeAsync(AIProfileType.Chat, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var builtIn = new AIProfile { ItemId = "b1", Name = "builtin-agent", Type = AIProfileType.Agent };
+        var systemAgent = new AIProfile { ItemId = "b1", Name = "system-agent", Type = AIProfileType.Agent };
         var manager = new DefaultAIProfileManager(
             store.Object,
             [],
-            [new StubBuiltInAgentProvider(builtIn)],
+            [new StubSystemAgentProvider(systemAgent)],
             TimeProvider.System,
             NullLogger<DefaultAIProfileManager>.Instance);
 
@@ -137,7 +137,7 @@ public sealed class DefaultAIProfileManagerTests
         Assert.Empty(results);
     }
 
-    private sealed class StubBuiltInAgentProvider(params AIProfile[] agents) : IBuiltInAIAgentProvider
+    private sealed class StubSystemAgentProvider(params AIProfile[] agents) : ISystemAIAgentProvider
     {
         public ValueTask<IReadOnlyList<AIProfile>> GetAgentsAsync(CancellationToken cancellationToken = default)
             => ValueTask.FromResult<IReadOnlyList<AIProfile>>(agents);

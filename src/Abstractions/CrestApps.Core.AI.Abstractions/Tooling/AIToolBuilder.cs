@@ -124,6 +124,20 @@ public sealed class AIToolBuilder<TTool>
     public AIToolBuilder<TTool> Selectable()
     {
         _entry.IsSystemTool = false;
+        _entry.Hidden = false;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Registers this tool so it can be referenced by name from a profile (for example by a system
+    /// agent) but is hidden from the user-facing tool picker. Unlike a system tool, a hidden tool is
+    /// not auto-included by the orchestrator; it is only included when a profile explicitly names it.
+    /// </summary>
+    public AIToolBuilder<TTool> Hidden()
+    {
+        _entry.IsSystemTool = false;
+        _entry.Hidden = true;
 
         return this;
     }

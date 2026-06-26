@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Documents.Tools;
 /// Tool that runs a single data-manipulation or schema statement (for example
 /// <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c>, or <c>ALTER TABLE</c>) against the in-memory
 /// tabular workspace. The originally uploaded file is never modified; changes apply only to the
-/// in-memory copy and are recorded so they survive eviction.
+/// in-memory copy and are discarded when the prompt completes.
 /// </summary>
 public sealed class ExecuteTabularCommandTool : AIFunction
 {
@@ -87,7 +87,7 @@ public sealed class ExecuteTabularCommandTool : AIFunction
 
         try
         {
-            var result = await preparation.Manager.ExecuteAsync(preparation.Context.ConversationKey, sql, cancellationToken);
+            var result = await preparation.Workspace.ExecuteAsync(sql, cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {

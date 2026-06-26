@@ -123,26 +123,26 @@ agent.Put(new AgentMetadata
 });
 ```
 
-When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the built-in [Tabular Data Agent](./ai-documents.md#tabular-data-agent) runs its SQL tools.
+When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the system [Tabular Data Agent](./ai-documents.md#tabular-data-agent) runs its SQL tools.
 
-### Built-in (system) agents
+### System agents
 
-Implement `IBuiltInAIAgentProvider` to contribute **virtual** agents that are not persisted in the profile store. Built-in agents are merged into `IAIProfileManager.GetAsync(AIProfileType.Agent)`, so they automatically flow to every consumer — the tool registry, `AgentProxyTool`, and the A2A host — while remaining read-only and hidden from the user-facing selection list. Mark them `AlwaysAvailable` (and optionally `AllowToolInvocation`) and set `IsBuiltIn = true`:
+Implement `ISystemAIAgentProvider` to contribute **virtual** agents that are not persisted in the profile store. System agents are merged into `IAIProfileManager.GetAsync(AIProfileType.Agent)`, so they automatically flow to every consumer — the tool registry, `AgentProxyTool`, and the A2A host — while remaining read-only and hidden from the user-facing selection list. Mark them `AlwaysAvailable` (and optionally `AllowToolInvocation`) and set `IsSystem = true`:
 
 ```csharp
-internal sealed class MyAgentProvider : IBuiltInAIAgentProvider
+internal sealed class MyAgentProvider : ISystemAIAgentProvider
 {
     public ValueTask<IReadOnlyList<AIProfile>> GetAgentsAsync(CancellationToken cancellationToken = default)
     {
         var agent = new AIProfile { Type = AIProfileType.Agent, Name = "my-agent", Description = "…" };
-        agent.Put(new AgentMetadata { Availability = AgentAvailability.AlwaysAvailable, IsBuiltIn = true });
+        agent.Put(new AgentMetadata { Availability = AgentAvailability.AlwaysAvailable, IsSystem = true });
 
         return ValueTask.FromResult<IReadOnlyList<AIProfile>>([agent]);
     }
 }
 ```
 
-Register it with `services.TryAddEnumerable(ServiceDescriptor.Singleton<IBuiltInAIAgentProvider, MyAgentProvider>())`.
+Register it with `services.TryAddEnumerable(ServiceDescriptor.Scoped<ISystemAIAgentProvider, MyAgentProvider>())`.
 
 ## Creating Agent Profiles
 

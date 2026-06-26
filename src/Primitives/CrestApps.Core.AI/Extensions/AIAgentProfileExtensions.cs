@@ -20,16 +20,16 @@ public static class AIAgentProfileExtensions
     }
 
     /// <summary>
-    /// Determines whether the agent profile is a built-in (virtual) system agent contributed
+    /// Determines whether the agent profile is a system (virtual) agent contributed
     /// in code rather than persisted in the profile store.
     /// </summary>
     /// <param name="profile">The agent profile.</param>
-    /// <returns><see langword="true"/> when the agent is built-in; otherwise <see langword="false"/>.</returns>
-    public static bool IsBuiltInAgent(this AIProfile profile)
+    /// <returns><see langword="true"/> when the agent is a system agent; otherwise <see langword="false"/>.</returns>
+    public static bool IsSystemAgent(this AIProfile profile)
     {
         return profile is not null
             && profile.TryGet<AgentMetadata>(out var metadata)
-            && metadata.IsBuiltIn;
+            && metadata.IsSystem;
     }
 
     /// <summary>

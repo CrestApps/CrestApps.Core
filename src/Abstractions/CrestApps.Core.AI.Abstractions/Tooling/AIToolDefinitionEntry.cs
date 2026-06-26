@@ -51,6 +51,14 @@ public sealed class AIToolDefinitionEntry
     public bool IsSystemTool { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this tool is hidden from the user-facing tool picker. Hidden tools are
+    /// not system tools — they are not auto-included by the orchestrator — but can still be
+    /// referenced by name from a profile (for example by a system agent), so they never appear in
+    /// the selectable tool list while remaining available to the profiles that opt into them.
+    /// </summary>
+    public bool Hidden { get; set; }
+
+    /// <summary>
     /// Gets or sets the purpose tag for this tool. Use well-known constants from
     /// <see cref="AIToolPurposes"/> or custom strings for domain-specific grouping.
     /// The orchestrator uses this to dynamically discover tools by purpose

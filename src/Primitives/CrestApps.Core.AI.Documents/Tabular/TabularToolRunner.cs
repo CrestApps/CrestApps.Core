@@ -1,85 +1,85 @@
 using CrestApps.Core.AI.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Tabular;
 
 /// <summary>
-/// Shared preparation logic for the tabular data tools. Resolves the conversation context, ensures
-/// the in-memory workspace is built for the current request (lazily loading and, when needed,
-/// rebuilding it), registers an end-of-request release so the in-memory database is disposed when
-/// the prompt completes, and surfaces a descriptive message when the operation cannot proceed.
+/// Shared preparation logic for the tabular data tools. Resolves the conversation documents, builds
+/// (or reuses) the per-prompt in-memory workspace stored on the current <see cref="AIInvocationContext"/>,
+/// registers its disposal at the end of the prompt, and surfaces a descriptive message when the
+/// operation cannot proceed.
 /// </summary>
 internal static class TabularToolRunner
 {
+    private const string WorkspaceItemKey = "TabularWorkspace";
+
     /// <summary>
     /// Represents the outcome of preparing a tabular tool invocation.
     /// </summary>
-    /// <param name="Context">The resolved tabular context, when available.</param>
-    /// <param name="Manager">The workspace manager, when available.</param>
+    /// <param name="Workspace">The per-prompt workspace, when available.</param>
     /// <param name="Tables">The synchronized tables, when the workspace was built.</param>
     /// <param name="Error">A descriptive message when preparation could not complete; otherwise <see langword="null"/>.</param>
     public readonly record struct PreparationResult(
-        TabularToolContext Context,
-        ITabularWorkspaceManager Manager,
+        TabularWorkspace Workspace,
         IReadOnlyList<TabularTableInfo> Tables,
         string Error);
 
     /// <summary>
-    /// Resolves the tabular context and ensures the workspace is ready for the active request.
+    /// Resolves the tabular documents and ensures the per-prompt workspace is ready.
     /// </summary>
     /// <param name="services">The request services.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The preparation result.</returns>
-    public static async Task<PreparationResult> PrepareAsync(IServiceProvider services, CancellationToken cancellationToken)
+    public static async Task<PreparationResult> PrepareAsync(IServiceProvider services, CancellationToken cancellationToken = default)
     {
         var context = await TabularToolContext.ResolveAsync(services, cancellationToken);
 
         if (context is null)
         {
-            return new PreparationResult(null, null, null, "Tabular data is only available within an active chat session or AI profile.");
+            return new PreparationResult(null, null, "Tabular data is only available within an active chat session or AI profile.");
         }
 
         if (context.Documents.Count == 0)
         {
-            return new PreparationResult(context, null, null, "No tabular files (CSV, TSV, or Excel) are attached to this conversation.");
+            return new PreparationResult(null, null, "No tabular files are attached to this conversation.");
         }
 
-        var manager = services.GetService<ITabularWorkspaceManager>();
+        var workspace = GetOrCreateWorkspace(services);
 
-        if (manager is null)
+        if (workspace is null)
         {
-            return new PreparationResult(context, null, null, "The tabular workspace service is not available.");
+            return new PreparationResult(null, null, "The tabular workspace is only available within an active prompt.");
         }
 
-        RegisterRequestRelease(manager, context);
+        var tables = await workspace.EnsureReadyAsync(context.Documents, context.LoadContentAsync, cancellationToken);
 
-        var tables = await manager.EnsureReadyAsync(context.ConversationKey, context.RequestKey, context.Documents, context.LoadContentAsync, cancellationToken);
-
-        return new PreparationResult(context, manager, tables, null);
+        return new PreparationResult(workspace, tables, null);
     }
 
-    private static void RegisterRequestRelease(ITabularWorkspaceManager manager, TabularToolContext context)
+    private static TabularWorkspace GetOrCreateWorkspace(IServiceProvider services)
     {
         var invocationContext = AIInvocationScope.Current;
 
         if (invocationContext is null)
         {
-            return;
+            return null;
         }
 
-        // Register the end-of-request release exactly once per request so the in-memory database is
-        // disposed when the prompt completes, even if multiple tabular tools run in the same cycle.
-        var registrationKey = "TabularReleaseRegistered:" + context.ConversationKey;
-
-        if (!invocationContext.Items.TryAdd(registrationKey, true))
+        if (invocationContext.Items.TryGetValue(WorkspaceItemKey, out var existing) && existing is TabularWorkspace workspace)
         {
-            return;
+            return workspace;
         }
 
-        var conversationKey = context.ConversationKey;
-        var requestKey = context.RequestKey;
+        var options = services.GetRequiredService<IOptions<TabularWorkspaceOptions>>().Value;
+        workspace = new TabularWorkspace(options);
 
-        invocationContext.RegisterDisposeCallback(() => manager.ReleaseRequest(conversationKey, requestKey));
+        invocationContext.Items[WorkspaceItemKey] = workspace;
+
+        // Dispose the in-memory database when the prompt completes so it is never retained
+        // between prompts; the next prompt rebuilds a fresh copy from the uploaded files.
+        invocationContext.RegisterDisposeCallback(workspace.Dispose);
+
+        return workspace;
     }
 }
-

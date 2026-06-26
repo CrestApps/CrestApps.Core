@@ -1,9 +1,9 @@
 namespace CrestApps.Core.AI.Documents.Tabular;
 
 /// <summary>
-/// Well-known registered names for the tabular data tools used by the built-in tabular data agent.
-/// These are user-selectable tools rather than always-on system tools, so they are only included
-/// when a profile (such as the tabular data agent) explicitly references them.
+/// Well-known registered names for the tabular data tools used by the system tabular data agent.
+/// These tools are hidden from the user-facing tool picker; they are only included when a profile
+/// (the system tabular data agent) explicitly references them by name.
 /// </summary>
 public static class TabularToolNames
 {

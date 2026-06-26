@@ -25,10 +25,10 @@ public sealed class AgentMetadata
     public bool AllowToolInvocation { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether this agent is a built-in (virtual) system
-    /// agent contributed by an <c>IBuiltInAIAgentProvider</c> rather than a stored profile.
-    /// Built-in agents are always available to the model and exposed through A2A, but are not
+    /// Gets or sets a value indicating whether this agent is a system (virtual) agent
+    /// contributed by an <c>ISystemAIAgentProvider</c> rather than a stored profile.
+    /// System agents are always available to the model and exposed through A2A, but are not
     /// editable and are hidden from the user-facing agent selection list.
     /// </summary>
-    public bool IsBuiltIn { get; set; }
+    public bool IsSystem { get; set; }
 }

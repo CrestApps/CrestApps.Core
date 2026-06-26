@@ -1,41 +1,28 @@
+using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using Cysharp.Text;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Tabular;
 
 /// <summary>
-/// Resolves the tabular documents and workspace key for the active AI invocation, and loads the
-/// reconstructed text content for a document on demand. Shared by the tabular AI tools so they
-/// all scope to the same conversation and never reach documents from another session.
+/// Resolves the tabular documents for the active AI invocation and loads the reconstructed text
+/// content for a document on demand. Shared by the tabular AI tools so they all scope to the same
+/// conversation and never reach documents from another session.
 /// </summary>
 internal sealed class TabularToolContext
 {
     private readonly IAIDocumentChunkStore _chunkStore;
 
     private TabularToolContext(
-        string conversationKey,
-        string requestKey,
         IReadOnlyList<TabularDocumentRef> documents,
         IAIDocumentChunkStore chunkStore)
     {
-        ConversationKey = conversationKey;
-        RequestKey = requestKey;
         Documents = documents;
         _chunkStore = chunkStore;
     }
-
-    /// <summary>
-    /// Gets the stable conversation key (chat session/interaction/profile) for the active request.
-    /// </summary>
-    public string ConversationKey { get; }
-
-    /// <summary>
-    /// Gets the unique request/prompt key used to scope the in-memory database lifetime, so it is
-    /// reused within a request and rebuilt fresh on the next request.
-    /// </summary>
-    public string RequestKey { get; }
 
     /// <summary>
     /// Gets the tabular documents available to the active conversation.
@@ -98,14 +85,13 @@ internal sealed class TabularToolContext
             return null;
         }
 
+        var documentOptions = services.GetRequiredService<IOptions<ChatDocumentsOptions>>().Value;
         var session = ResolveSession();
         var scopes = new List<(string ReferenceId, string ReferenceType)>();
-        string conversationKey;
 
         switch (executionContext.Resource)
         {
             case ChatInteraction interaction:
-                conversationKey = TabularWorkspaceKey.ForInteraction(interaction.ItemId);
                 scopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
                 break;
 
@@ -114,12 +100,7 @@ internal sealed class TabularToolContext
 
                 if (session is not null && !string.IsNullOrEmpty(session.SessionId))
                 {
-                    conversationKey = TabularWorkspaceKey.ForSession(session.SessionId);
                     scopes.Add((session.SessionId, AIReferenceTypes.Document.ChatSession));
-                }
-                else
-                {
-                    conversationKey = TabularWorkspaceKey.ForProfile(profile.ItemId);
                 }
 
                 break;
@@ -142,16 +123,14 @@ internal sealed class TabularToolContext
 
             foreach (var document in found)
             {
-                if (TabularFileTypes.IsTabular(document.FileName) && seen.Add(document.ItemId))
+                if (documentOptions.IsTabularFileExtension(document.FileName) && seen.Add(document.ItemId))
                 {
                     documents.Add(new TabularDocumentRef(document.ItemId, document.FileName));
                 }
             }
         }
 
-        var requestKey = invocationContext.Id.ToString("N");
-
-        return new TabularToolContext(conversationKey, requestKey, documents, chunkStore);
+        return new TabularToolContext(documents, chunkStore);
     }
 
     private static AIChatSession ResolveSession()

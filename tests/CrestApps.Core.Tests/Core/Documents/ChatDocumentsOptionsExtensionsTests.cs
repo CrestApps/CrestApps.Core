@@ -29,4 +29,22 @@ public sealed class ChatDocumentsOptionsExtensionsTests
         Assert.False(options.IsAllowedFileExtension(".png"));
         Assert.True(options.IsAllowedFileExtension(".png", includeVisionImages: true));
     }
+
+    [Fact]
+    public void IsTabularFileExtension_ReturnsTrue_ForAllowedNonEmbeddableExtension()
+    {
+        var options = new ChatDocumentsOptions();
+        options.Add(".csv", embeddable: false);
+        options.Add(".pdf");
+
+        Assert.True(options.IsTabularFileExtension("sales.csv"));
+        Assert.True(options.IsTabularFileExtension(".csv"));
+
+        // Embeddable documents are not tabular.
+        Assert.False(options.IsTabularFileExtension("report.pdf"));
+
+        // Unknown extensions and images are not tabular.
+        Assert.False(options.IsTabularFileExtension("photo.png"));
+        Assert.False(options.IsTabularFileExtension(null));
+    }
 }

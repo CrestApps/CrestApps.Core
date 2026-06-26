@@ -33,14 +33,6 @@ public sealed class AIInvocationContext
     private List<Action> _disposeCallbacks;
 
     /// <summary>
-    /// Gets the unique identifier for this invocation. A new value is generated for every
-    /// invocation scope, so it is stable for the lifetime of a single request/prompt and
-    /// differs across requests. Request-scoped resources (such as in-memory tabular workspaces)
-    /// use it to reuse state within a request while rebuilding fresh on the next request.
-    /// </summary>
-    public Guid Id { get; } = Guid.NewGuid();
-
-    /// <summary>
     /// Gets or sets the <see cref="AIToolExecutionContext"/> for the current invocation,
     /// providing provider, connection, and resource information.
     /// </summary>

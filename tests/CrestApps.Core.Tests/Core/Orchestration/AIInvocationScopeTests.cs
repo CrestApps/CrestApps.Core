@@ -34,24 +34,4 @@ public sealed class AIInvocationScopeTests
         // A throwing cleanup callback must not prevent the others from running or fail teardown.
         Assert.True(ran);
     }
-
-    [Fact]
-    public void Begin_AssignsUniqueIdPerInvocation()
-    {
-        Guid first;
-        Guid second;
-
-        using (var scope = AIInvocationScope.Begin())
-        {
-            first = scope.Context.Id;
-        }
-
-        using (var scope = AIInvocationScope.Begin())
-        {
-            second = scope.Context.Id;
-        }
-
-        Assert.NotEqual(Guid.Empty, first);
-        Assert.NotEqual(first, second);
-    }
 }

@@ -1,15 +1,17 @@
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Templates.Models;
+using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.Tests.Core.Documents.Tabular;
 
 public class TabularDataAgentProviderTests
 {
     [Fact]
-    public async Task GetAgentsAsync_ReturnsAlwaysAvailableBuiltInToolCapableAgent()
+    public async Task GetAgentsAsync_ReturnsAlwaysAvailableSystemToolCapableAgent()
     {
-        var provider = new TabularDataAgentProvider();
+        var provider = new TabularDataAgentProvider(new StubTemplateService("You are the Tabular Data Agent."));
 
         var agents = await provider.GetAgentsAsync(TestContext.Current.CancellationToken);
 
@@ -21,28 +23,29 @@ public class TabularDataAgentProviderTests
         Assert.True(agent.TryGet<AgentMetadata>(out var metadata));
         Assert.Equal(AgentAvailability.AlwaysAvailable, metadata.Availability);
         Assert.True(metadata.AllowToolInvocation);
-        Assert.True(metadata.IsBuiltIn);
+        Assert.True(metadata.IsSystem);
     }
 
     [Fact]
-    public async Task GetAgentsAsync_AgentIsAlwaysAvailableBuiltInAndNotUserSelectable()
+    public async Task GetAgentsAsync_AgentIsAlwaysAvailableSystemAndNotUserSelectable()
     {
-        var provider = new TabularDataAgentProvider();
+        var provider = new TabularDataAgentProvider(new StubTemplateService("You are the Tabular Data Agent."));
 
         var agents = await provider.GetAgentsAsync(TestContext.Current.CancellationToken);
         var agent = Assert.Single(agents);
 
         Assert.True(agent.IsAlwaysAvailableAgent());
-        Assert.True(agent.IsBuiltInAgent());
+        Assert.True(agent.IsSystemAgent());
 
         // Always-available system agents are hidden from the user-facing agent selection list.
         Assert.False(agent.IsUserSelectableAgent());
     }
 
     [Fact]
-    public async Task GetAgentsAsync_AgentReferencesTabularToolsAndSystemPrompt()
+    public async Task GetAgentsAsync_AgentReferencesTabularToolsAndTemplateSystemPrompt()
     {
-        var provider = new TabularDataAgentProvider();
+        const string prompt = "You are the Tabular Data Agent. Use SQL.";
+        var provider = new TabularDataAgentProvider(new StubTemplateService(prompt));
 
         var agents = await provider.GetAgentsAsync(TestContext.Current.CancellationToken);
         var agent = Assert.Single(agents);
@@ -57,6 +60,28 @@ public class TabularDataAgentProviderTests
             functionMetadata.Names);
 
         Assert.True(agent.TryGet<AIProfileMetadata>(out var profileMetadata));
-        Assert.False(string.IsNullOrWhiteSpace(profileMetadata.SystemMessage));
+        Assert.Equal(prompt, profileMetadata.SystemMessage);
+    }
+
+    private sealed class StubTemplateService : ITemplateService
+    {
+        private readonly string _rendered;
+
+        public StubTemplateService(string rendered)
+        {
+            _rendered = rendered;
+        }
+
+        public Task<IReadOnlyList<Template>> ListAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Template>>([]);
+
+        public Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
+            => Task.FromResult<Template>(null);
+
+        public Task<string> RenderAsync(string id, IDictionary<string, object> arguments = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(_rendered);
+
+        public Task<string> MergeAsync(IEnumerable<string> ids, IDictionary<string, object> arguments = null, string separator = "\n\n", CancellationToken cancellationToken = default)
+            => Task.FromResult(_rendered);
     }
 }

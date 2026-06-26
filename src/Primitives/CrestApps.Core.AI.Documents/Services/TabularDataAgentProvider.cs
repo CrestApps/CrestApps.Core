@@ -1,61 +1,56 @@
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Documents.Services;
 
 /// <summary>
-/// Contributes the built-in tabular data agent. The agent is always available to the primary
+/// Contributes the system tabular data agent. The agent is always available to the primary
 /// model and exposed through A2A, runs its own SQL tools over an in-memory database, and is
-/// hidden from the user-facing agent selection list.
+/// hidden from the user-facing agent selection list. Its system prompt is sourced from the
+/// embedded <c>tabular-data-agent</c> AI template so the prompt text stays decoupled from code.
 /// </summary>
-internal sealed class TabularDataAgentProvider : IBuiltInAIAgentProvider
+internal sealed class TabularDataAgentProvider : ISystemAIAgentProvider
 {
     /// <summary>
-    /// The technical name of the built-in tabular data agent.
+    /// The technical name of the system tabular data agent.
     /// </summary>
     public const string AgentName = "tabular-data-agent";
 
-    private const string AgentItemId = "builtin-tabular-data-agent";
+    /// <summary>
+    /// The identifier of the embedded AI template that supplies the agent's system prompt.
+    /// </summary>
+    public const string SystemPromptTemplateId = "tabular-data-agent";
+
+    private const string AgentItemId = "system-tabular-data-agent";
 
     private const string AgentDescription =
-        "Answers questions and performs analysis, calculations, filtering, aggregation, and transformations over uploaded tabular files (CSV, TSV, Excel) by querying an in-memory SQL database instead of reading raw rows. Delegate any request that involves reading, computing over, comparing, or modifying spreadsheet/table data to this agent, passing the user's request in the prompt.";
+        "Answers questions and performs analysis, calculations, filtering, aggregation, and transformations over uploaded tabular files (such as CSV and Excel) by querying an in-memory SQL database instead of reading raw rows. Delegate any request that involves reading, computing over, comparing, or modifying spreadsheet/table data to this agent, passing the user's request in the prompt.";
 
-    private const string SystemPrompt =
-        """
-        You are the Tabular Data Agent. You answer questions and perform tasks over tabular files
-        (CSV, TSV, and Excel) that the user uploaded to the conversation. The data is loaded into an
-        in-memory SQLite database so you can work with very large files efficiently.
-
-        How to work:
-        1. Call list_tabular_data first to discover the available tables, their columns, and row counts.
-        2. Use query_tabular_data to run read-only SQL (SQLite dialect) that directly answers the request.
-           Prefer aggregation, filtering, GROUP BY, and small LIMITs. Never try to read every row into your
-           answer — push the computation into SQL and return only the result the user needs.
-        3. Use execute_tabular_command only when the user asks to modify the data (for example adding or
-           removing a column, updating values, or inserting rows). These changes apply to the in-memory copy
-           only; the originally uploaded file is always preserved.
-
-        Guidelines:
-        - All columns are stored as TEXT. CAST values when you need numeric or date comparisons or math.
-        - Quote identifiers with double quotes when they contain spaces or special characters.
-        - If a query fails, read the error, correct the SQL, and try again.
-        - If there are no tabular files in the conversation, say so plainly.
-        - Report results concisely and reference the relevant table and column names.
-        """;
-
-    private static readonly IReadOnlyList<AIProfile> _agents = [BuildAgent()];
+    private readonly ITemplateService _templateService;
 
     /// <summary>
-    /// Gets the built-in tabular data agent.
+    /// Initializes a new instance of the <see cref="TabularDataAgentProvider"/> class.
     /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    public ValueTask<IReadOnlyList<AIProfile>> GetAgentsAsync(CancellationToken cancellationToken = default)
+    /// <param name="templateService">The template service used to load the agent's system prompt.</param>
+    public TabularDataAgentProvider(ITemplateService templateService)
     {
-        return ValueTask.FromResult(_agents);
+        _templateService = templateService;
     }
 
-    private static AIProfile BuildAgent()
+    /// <summary>
+    /// Gets the system tabular data agent.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async ValueTask<IReadOnlyList<AIProfile>> GetAgentsAsync(CancellationToken cancellationToken = default)
+    {
+        var systemPrompt = await _templateService.RenderAsync(SystemPromptTemplateId, cancellationToken: cancellationToken);
+
+        return [BuildAgent(systemPrompt)];
+    }
+
+    private static AIProfile BuildAgent(string systemPrompt)
     {
         var profile = new AIProfile
         {
@@ -63,7 +58,7 @@ internal sealed class TabularDataAgentProvider : IBuiltInAIAgentProvider
             Name = AgentName,
             DisplayText = "Tabular Data Agent",
             Type = AIProfileType.Agent,
-            Source = "BuiltIn",
+            Source = "System",
             Description = AgentDescription,
         };
 
@@ -71,7 +66,7 @@ internal sealed class TabularDataAgentProvider : IBuiltInAIAgentProvider
         {
             Availability = AgentAvailability.AlwaysAvailable,
             AllowToolInvocation = true,
-            IsBuiltIn = true,
+            IsSystem = true,
         });
 
         profile.Put(new FunctionInvocationMetadata
@@ -86,7 +81,7 @@ internal sealed class TabularDataAgentProvider : IBuiltInAIAgentProvider
 
         profile.Put(new AIProfileMetadata
         {
-            SystemMessage = SystemPrompt,
+            SystemMessage = systemPrompt,
             Temperature = 0f,
         });
 

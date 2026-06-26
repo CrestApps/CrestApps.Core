@@ -92,7 +92,7 @@ public sealed class QueryTabularDataTool : AIFunction
 
         try
         {
-            var result = await preparation.Manager.QueryAsync(preparation.Context.ConversationKey, sql, maxRows, cancellationToken);
+            var result = await preparation.Workspace.QueryAsync(sql, maxRows, cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {

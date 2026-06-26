@@ -284,7 +284,7 @@ public sealed class AIProfileController : Controller
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
+        model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();
         var selectedConnectionIds = new HashSet<string>(model.SelectedA2AConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableA2AConnections = connections.OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).Select(connection => new A2AConnectionSelectionItem { ItemId = connection.ItemId, DisplayText = connection.DisplayText, Endpoint = connection.Endpoint, IsSelected = selectedConnectionIds.Contains(connection.ItemId), }).ToList();
