@@ -21,12 +21,16 @@ internal sealed class TabularToolContext
         IReadOnlyList<TabularDocumentRef> documents,
         IAIDocumentChunkStore chunkStore,
         ITabularDocumentArtifactStore artifactStore,
-        TabularWorkspaceCacheKey cacheKey)
+        TabularWorkspaceCacheKey cacheKey,
+        string exportReferenceId,
+        string exportReferenceType)
     {
         Documents = documents;
         _chunkStore = chunkStore;
         _artifactStore = artifactStore;
         CacheKey = cacheKey;
+        ExportReferenceId = exportReferenceId;
+        ExportReferenceType = exportReferenceType;
     }
 
     /// <summary>
@@ -38,6 +42,16 @@ internal sealed class TabularToolContext
     /// Gets the cache key used to reuse the tabular workspace across active prompts in the same scope.
     /// </summary>
     public TabularWorkspaceCacheKey CacheKey { get; }
+
+    /// <summary>
+    /// Gets the reference id that generated tabular files should be attached to for download.
+    /// </summary>
+    public string ExportReferenceId { get; }
+
+    /// <summary>
+    /// Gets the reference type that generated tabular files should be attached to for download.
+    /// </summary>
+    public string ExportReferenceType { get; }
 
     /// <summary>
     /// Loads the reconstructed text content of a document from its stored chunks.
@@ -118,12 +132,16 @@ internal sealed class TabularToolContext
         string chatInteractionId = null;
         string chatSessionId = null;
         string profileId = null;
+        string exportReferenceId = null;
+        string exportReferenceType = null;
 
         switch (executionContext.Resource)
         {
             case ChatInteraction interaction:
                 scopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
                 chatInteractionId = interaction.ItemId;
+                exportReferenceId = interaction.ItemId;
+                exportReferenceType = AIReferenceTypes.Document.ChatInteraction;
                 break;
 
             case AIProfile profile:
@@ -134,6 +152,8 @@ internal sealed class TabularToolContext
                 {
                     scopes.Add((session.SessionId, AIReferenceTypes.Document.ChatSession));
                     chatSessionId = session.SessionId;
+                    exportReferenceId = session.SessionId;
+                    exportReferenceType = AIReferenceTypes.Document.ChatSession;
                 }
 
                 break;
@@ -165,7 +185,13 @@ internal sealed class TabularToolContext
 
         var cacheKey = BuildCacheKey(documents, scopes, chatInteractionId, chatSessionId, profileId);
 
-        return new TabularToolContext(documents, chunkStore, artifactStore, cacheKey);
+        return new TabularToolContext(
+            documents,
+            chunkStore,
+            artifactStore,
+            cacheKey,
+            exportReferenceId,
+            exportReferenceType);
     }
 
     private static TabularWorkspaceCacheKey BuildCacheKey(

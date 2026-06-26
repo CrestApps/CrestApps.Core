@@ -21,4 +21,9 @@ public static class TabularToolNames
     /// The tool that runs a manipulation or schema statement against the tabular workspace.
     /// </summary>
     public const string ExecuteTabularCommand = "execute_tabular_command";
+
+    /// <summary>
+    /// The tool that exports a read-only query result from the tabular workspace as a downloadable CSV file.
+    /// </summary>
+    public const string ExportTabularData = "export_tabular_data";
 }

@@ -14,10 +14,12 @@ internal static class TabularToolRunner
     /// </summary>
     /// <param name="Workspace">The per-prompt workspace, when available.</param>
     /// <param name="Tables">The synchronized tables, when the workspace was built.</param>
+    /// <param name="Context">The resolved tabular tool context.</param>
     /// <param name="Error">A descriptive message when preparation could not complete; otherwise <see langword="null"/>.</param>
     public readonly record struct PreparationResult(
         TabularWorkspace Workspace,
         IReadOnlyList<TabularTableInfo> Tables,
+        TabularToolContext Context,
         string Error);
 
     /// <summary>
@@ -32,17 +34,17 @@ internal static class TabularToolRunner
 
         if (context is null)
         {
-            return new PreparationResult(null, null, "Tabular data is only available within an active chat session or AI profile.");
+            return new PreparationResult(null, null, null, "Tabular data is only available within an active chat session or AI profile.");
         }
 
         if (context.Documents.Count == 0)
         {
-            return new PreparationResult(null, null, "No tabular files are attached to this conversation.");
+            return new PreparationResult(null, null, null, "No tabular files are attached to this conversation.");
         }
 
         var workspace = services.GetRequiredService<TabularWorkspaceCache>().GetOrCreate(context.CacheKey);
         var tables = await workspace.EnsureReadyAsync(context.Documents, context.LoadArtifactAsync, cancellationToken);
 
-        return new PreparationResult(workspace, tables, null);
+        return new PreparationResult(workspace, tables, context, null);
     }
 }

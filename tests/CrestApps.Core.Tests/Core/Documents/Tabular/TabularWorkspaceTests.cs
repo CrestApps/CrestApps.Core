@@ -126,6 +126,59 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task ExportCsvAsync_WritesReadOnlyQueryResult()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        await using var stream = new MemoryStream();
+        var export = await workspace.ExportCsvAsync(
+            "SELECT region, amount FROM sales ORDER BY CAST(amount AS INTEGER) DESC",
+            stream,
+            cancellationToken);
+
+        stream.Position = 0;
+        using var reader = new StreamReader(stream);
+        var csv = await reader.ReadToEndAsync(cancellationToken);
+
+        Assert.Equal(3, export.RowCount);
+        Assert.Equal(["region", "amount"], export.Artifact.Header);
+        Assert.Equal("region,amount\nSouth,200\nNorth,100\nNorth,50\n", NormalizeLineEndings(csv));
+    }
+
+    [Fact]
+    public async Task ExportCsvAsync_EscapesCsvValues()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "name,note\nNorth,\"Hello, world\"\nSouth,\"He said \"\"yes\"\"\"";
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        await using var stream = new MemoryStream();
+        await workspace.ExportCsvAsync("SELECT name, note FROM sales ORDER BY name", stream, cancellationToken);
+
+        stream.Position = 0;
+        using var reader = new StreamReader(stream);
+        var exported = await reader.ReadToEndAsync(cancellationToken);
+
+        Assert.Equal("name,note\nNorth,\"Hello, world\"\nSouth,\"He said \"\"yes\"\"\"\n", NormalizeLineEndings(exported));
+    }
+
+    [Fact]
+    public async Task ExportCsvAsync_RejectsManipulationStatement()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        await using var stream = new MemoryStream();
+
+        await Assert.ThrowsAsync<TabularSqlException>(
+            () => workspace.ExportCsvAsync("UPDATE sales SET amount = '1'", stream, cancellationToken));
+    }
+
+    [Fact]
     public async Task EnsureReadyAsync_SamePrompt_ReusesDatabaseWithoutReloading()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -179,5 +232,10 @@ public class TabularWorkspaceTests
 
             return Task.FromResult(content);
         };
+    }
+
+    private static string NormalizeLineEndings(string value)
+    {
+        return value.Replace("\r\n", "\n", StringComparison.Ordinal);
     }
 }

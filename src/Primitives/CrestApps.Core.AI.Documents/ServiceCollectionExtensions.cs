@@ -140,6 +140,12 @@ public static class ServiceCollectionExtensions
             .WithCategory("Tabular Data")
             .Hidden();
 
+        services.AddCoreAITool<ExportTabularDataTool>(ExportTabularDataTool.TheName)
+            .WithTitle("Export Tabular Data")
+            .WithDescription("Creates a downloadable CSV file from a read-only SQL query over the active in-memory tabular workspace.")
+            .WithCategory("Tabular Data")
+            .Hidden();
+
         services.AddCoreAITool<InspectImageTool>(InspectImageTool.TheName)
             .WithTitle("Inspect Image")
             .WithDescription("Performs detailed visual inspection of an uploaded image when text summaries are insufficient.")

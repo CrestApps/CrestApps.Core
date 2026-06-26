@@ -154,8 +154,9 @@ public sealed class ImageDescriptionService(
        │  the uploaded documents.             │
        │  Tabular files (e.g. CSV/Excel) are  │
        │  delegated to the always-available   │
-       │  Tabular Data Agent, which queries   │
-       │  them with SQL in-memory.            │
+       │  Tabular Data Agent, which queries,  │
+       │  mutates, and exports them from an   │
+       │  in-memory SQL workspace.            │
        └─────────────────────────────────────┘
 ```
 
@@ -445,7 +446,7 @@ large files. The originally uploaded file is always preserved; manipulations app
 in-memory copy only. Its system prompt is sourced from the embedded `tabular-data-agent` AI
 template, so the wording stays decoupled from the code.
 
-The agent uses three tools that are hidden from the user-facing tool picker — they are referenced by
+The agent uses four tools that are hidden from the user-facing tool picker — they are referenced by
 name only by the agent itself, never selectable in another profile:
 
 | Tool | Name | Purpose |
@@ -453,6 +454,16 @@ name only by the agent itself, never selectable in another profile:
 | `ListTabularDataTool` | `list_tabular_data` | Lists the tabular tables, their columns, and row counts |
 | `QueryTabularDataTool` | `query_tabular_data` | Runs a read-only `SELECT` and returns a compact result |
 | `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies an `INSERT`/`UPDATE`/`DELETE`/`ALTER` to the in-memory copy |
+| `ExportTabularDataTool` | `export_tabular_data` | Writes a read-only `SELECT` result from the in-memory workspace to a generated CSV download |
+
+When the user asks for a new version of a tabular file — for example "sort by column A" or
+"add column ABC and give me the file" — the agent applies any requested workspace changes with
+`execute_tabular_command`, then calls `export_tabular_data` with a read-only `SELECT` that shapes
+the exported result. The generated CSV is stored as a new `AIDocument` under the current chat
+session or chat interaction and returned through the same authenticated `AddDownloadAIDocumentEndpoint()`
+link path as uploaded-document citations. Export SQL is still validated by `TabularSqlGuard`, so it
+cannot use `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, extension loading, or batched statements to reach
+host files or data outside the scoped in-memory tabular workspace.
 
 The in-memory database is cached per active tabular scope: chat interaction, chat session, or profile
 document set. It is built lazily on the first tabular tool call, reused by later prompts while the
@@ -629,6 +640,7 @@ public sealed class InteractionDocumentSettings
 - Maximum **25,000 characters** total for embedding per session
 - `ReadDocumentTool` truncates output to **50 KB**
 - The Tabular Data Agent returns at most **100 rows** per query by default (`TabularWorkspaceOptions.MaxRowsPerQuery`)
+- Tabular exports write at most **1,000,000 rows** by default (`TabularWorkspaceOptions.MaxRowsPerExport`)
 - Cached tabular workspaces expire after **5 idle minutes** by default (`TabularWorkspaceOptions.WorkspaceSlidingExpiration`)
 
 ## Services Registered by `AddCoreAIDocumentProcessing()`
@@ -650,4 +662,4 @@ public sealed class InteractionDocumentSettings
 | `ITabularWorkspaceInvalidator` | `TabularWorkspaceCache` | Singleton | Invalidates cached workspaces when source chat scopes change or are deleted |
 | `ITabularWorkspaceInvalidationPublisher` | `LocalTabularWorkspaceInvalidationPublisher` | Singleton | Publishes workspace invalidation events; replace for distributed fan-out |
 | `IAIProfileProvider` | `TabularDataAgentProvider` | Scoped | Contributes the system Tabular Data Agent |
-| `list_tabular_data` / `query_tabular_data` / `execute_tabular_command` | — | Hidden tools | Tabular Data Agent SQL tools (referenced by the agent, hidden from the picker) |
+| `list_tabular_data` / `query_tabular_data` / `execute_tabular_command` / `export_tabular_data` | — | Hidden tools | Tabular Data Agent SQL tools (referenced by the agent, hidden from the picker) |

@@ -110,9 +110,11 @@ public sealed class ListTabularDataTool : AIFunction
         builder.AppendLine();
         builder.Append("Use ");
         builder.Append(TabularToolNames.QueryTabularData);
-        builder.Append(" to run SELECT statements (aggregate or filter to keep results small), and ");
+        builder.Append(" to run SELECT statements (aggregate or filter to keep results small), ");
         builder.Append(TabularToolNames.ExecuteTabularCommand);
-        builder.AppendLine(" to modify the in-memory copy. The originally uploaded file is always preserved.");
+        builder.Append(" to modify the in-memory copy, and ");
+        builder.Append(TabularToolNames.ExportTabularData);
+        builder.AppendLine(" to create a downloadable CSV from a SELECT query. The originally uploaded file is always preserved.");
 
         if (logger.IsEnabled(LogLevel.Debug))
         {

@@ -28,6 +28,12 @@ public sealed class TabularWorkspaceOptions
     public int CommandTimeoutSeconds { get; set; } = 30;
 
     /// <summary>
+    /// Gets or sets the maximum number of rows that can be written to a generated tabular export.
+    /// Default is 1,000,000.
+    /// </summary>
+    public int MaxRowsPerExport { get; set; } = 1_000_000;
+
+    /// <summary>
     /// Gets or sets the idle time after which a cached tabular workspace is disposed.
     /// Default is five minutes.
     /// </summary>

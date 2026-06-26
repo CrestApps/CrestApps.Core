@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.Data.Sqlite;
 
@@ -207,6 +208,88 @@ internal sealed class TabularWorkspace : IDisposable
             var affected = await command.ExecuteNonQueryAsync(cancellationToken);
 
             return new TabularCommandResult(affected);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Writes the result of a single read-only SQL query to <paramref name="destination"/> as CSV.
+    /// The query can only read from the already-loaded in-memory tabular workspace.
+    /// </summary>
+    /// <param name="sql">The read-only SQL query to export.</param>
+    /// <param name="destination">The destination stream that receives CSV content.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The export result.</returns>
+    public async Task<TabularExportResult> ExportCsvAsync(
+        string sql,
+        Stream destination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        var statement = TabularSqlGuard.EnsureReadOnlyQuery(sql);
+
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            EnsureLoaded();
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = statement;
+            command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            var columns = new string[reader.FieldCount];
+
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                columns[i] = reader.GetName(i);
+            }
+
+            var rows = new List<List<string>>();
+
+            using (var writer = new StreamWriter(
+                destination,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                leaveOpen: true))
+            {
+                await WriteCsvRowAsync(writer, columns, cancellationToken);
+
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    if (_options.MaxRowsPerExport > 0 && rows.Count >= _options.MaxRowsPerExport)
+                    {
+                        throw new TabularSqlException($"The export exceeds the configured limit of {_options.MaxRowsPerExport} rows. Refine the query before exporting.");
+                    }
+
+                    var row = new string[reader.FieldCount];
+
+                    for (var i = 0; i < reader.FieldCount; i++)
+                    {
+                        row[i] = reader.IsDBNull(i)
+                            ? string.Empty
+                            : FormatExportValue(reader.GetValue(i));
+                    }
+
+                    rows.Add(row.ToList());
+                    await WriteCsvRowAsync(writer, row, cancellationToken);
+                }
+
+                await writer.FlushAsync(cancellationToken);
+            }
+
+            return new TabularExportResult(
+                rows.Count,
+                new TabularDocumentArtifact
+                {
+                    Header = columns.ToList(),
+                    Rows = rows,
+                });
         }
         finally
         {
@@ -509,6 +592,52 @@ internal sealed class TabularWorkspace : IDisposable
         }
 
         return string.Concat(text.AsSpan(0, _options.MaxCellLength), "…");
+    }
+
+    private static string FormatExportValue(object value)
+    {
+        return value switch
+        {
+            null => string.Empty,
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString(),
+        };
+    }
+
+    private static async Task WriteCsvRowAsync(
+        StreamWriter writer,
+        string[] values,
+        CancellationToken cancellationToken)
+    {
+        for (var i = 0; i < values.Length; i++)
+        {
+            if (i > 0)
+            {
+                await writer.WriteAsync(",".AsMemory(), cancellationToken);
+            }
+
+            await writer.WriteAsync(EscapeCsvValue(values[i]).AsMemory(), cancellationToken);
+        }
+
+        await writer.WriteAsync(Environment.NewLine.AsMemory(), cancellationToken);
+    }
+
+    private static string EscapeCsvValue(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        if (!value.Contains('"', StringComparison.Ordinal) &&
+            !value.Contains(',', StringComparison.Ordinal) &&
+            !value.Contains('\r', StringComparison.Ordinal) &&
+            !value.Contains('\n', StringComparison.Ordinal))
+        {
+            return value;
+        }
+
+        return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
 
     private sealed class LoadedTable

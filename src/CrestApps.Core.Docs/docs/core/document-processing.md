@@ -115,7 +115,7 @@ These tools are automatically available to the orchestrator when documents are a
 | `SearchDocumentsTool` | Semantic vector search across uploaded documents |
 | `ReadDocumentTool` | Reads full text of a specific document |
 
-Tabular files (such as CSV and Excel) are marked with `ExtractorExtension.IsTabular` and handled separately by the always-available **Tabular Data Agent**, which loads them into a cached per-chat-scope in-memory SQL database rather than reading rows into the prompt. See [AI Documents](./ai-documents.md#tabular-data-agent) and [AI Agents](./agents.md).
+Tabular files (such as CSV and Excel) are marked with `ExtractorExtension.IsTabular` and handled separately by the always-available **Tabular Data Agent**, which loads them into a cached per-chat-scope in-memory SQL database rather than reading rows into the prompt. The agent can also create downloadable CSV versions by exporting a read-only query from that same scoped in-memory workspace, so generated files never read from host files or unrelated data. See [AI Documents](./ai-documents.md#tabular-data-agent) and [AI Agents](./agents.md).
 
 For chat-interaction and chat-session text uploads, the orchestration layer now chooses between chunked retrieval and full-document injection automatically. Lookup-style questions still use semantic search, while whole-document requests such as summaries, reviews, rewrites, translations, or complete extraction tasks preload the full uploaded file content into context. Tabular uploads are excluded from raw full-document injection and routed to the Tabular Data Agent instead.
 
