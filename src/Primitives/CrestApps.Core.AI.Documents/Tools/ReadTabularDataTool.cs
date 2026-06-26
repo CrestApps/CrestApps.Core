@@ -193,7 +193,7 @@ public sealed class ReadTabularDataTool : AIFunction
         return $"[Tabular data from: {document.FileName}]\n\n{content}";
     }
 
-    internal static bool IsTabularFile(string fileName)
+    private static bool IsTabularFile(string fileName)
     {
         if (string.IsNullOrEmpty(fileName))
         {

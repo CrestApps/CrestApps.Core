@@ -10,17 +10,15 @@ public interface IAITextNormalizer
     /// Normalize contents content.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="preserveTabular">When <c>true</c>, the tab-delimited layout is preserved instead of being normalized as prose.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    Task<string> NormalizeContentAsync(string text, bool preserveTabular = false, CancellationToken cancellationToken = default);
+    Task<string> NormalizeContentAsync(string text, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Normalize and chunks and chunk.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="preserveTabular">When <c>true</c>, the content is chunked by row to preserve the tab-delimited layout.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    Task<List<string>> NormalizeAndChunkAsync(string text, bool preserveTabular = false, CancellationToken cancellationToken = default);
+    Task<List<string>> NormalizeAndChunkAsync(string text, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Normalize titles title.

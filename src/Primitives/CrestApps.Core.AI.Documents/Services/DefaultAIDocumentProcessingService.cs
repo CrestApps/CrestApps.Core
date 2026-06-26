@@ -1,5 +1,4 @@
 using CrestApps.Core.AI.Documents.Models;
-using CrestApps.Core.AI.Documents.Tools;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.Http;
@@ -109,9 +108,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 extension);
         }
 
-        var isTabular = ReadTabularDataTool.IsTabularFile(file.FileName);
-
-        text = await _textNormalizer.NormalizeContentAsync(text, isTabular);
+        text = await _textNormalizer.NormalizeContentAsync(text);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var document = new AIDocument
@@ -125,34 +122,44 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
             UploadedUtc = now,
         };
 
-        var textChunks = await _textNormalizer.NormalizeAndChunkAsync(text, isTabular);
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogDebug(
-                "Document processing: '{FileName}' chunked via the {Path} path into {ChunkCount} chunk(s), preserving {TabCount} tab delimiter(s).",
-                file.FileName,
-                isTabular ? "tabular" : "text",
-                textChunks.Count,
-                textChunks.Sum(chunk => chunk.Count(c => c == '\t')));
-        }
-
-        GeneratedEmbeddings<Embedding<float>> embeddings = null;
+        var chunks = new List<AIDocumentChunk>();
 
         if (ShouldGenerateEmbeddings(extension, text.Length, embeddingGenerator, options))
         {
-            var embeddingChunks = LimitChunksForEmbedding(textChunks);
+            var textChunks = await _textNormalizer.NormalizeAndChunkAsync(text);
+            textChunks = LimitChunksForEmbedding(textChunks);
 
-            if (embeddingChunks.Count > 0)
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Document processing: generated {ChunkCount} chunk(s) for '{FileName}'.", textChunks.Count, file.FileName);
+            }
+
+            GeneratedEmbeddings<Embedding<float>> embeddings = null;
+
+            if (embeddingGenerator != null && textChunks.Count > 0)
             {
                 try
                 {
-                    embeddings = await embeddingGenerator.GenerateAsync(embeddingChunks);
+                    embeddings = await embeddingGenerator.GenerateAsync(textChunks);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to generate embeddings for '{FileName}'. Chunks will be stored without embeddings.", file.FileName);
                 }
+            }
+
+            for (var i = 0; i < textChunks.Count; i++)
+            {
+                chunks.Add(new AIDocumentChunk
+                {
+                    ItemId = UniqueId.GenerateId(),
+                    AIDocumentId = document.ItemId,
+                    ReferenceId = referenceId,
+                    ReferenceType = referenceType,
+                    Content = textChunks[i],
+                    Embedding = embeddings != null && i < embeddings.Count ? embeddings[i].Vector.ToArray() : null,
+                    Index = i,
+                });
             }
         }
         else if (_logger.IsEnabled(LogLevel.Debug))
@@ -163,22 +170,6 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 extension,
                 text.Length,
                 embeddingGenerator != null);
-        }
-
-        var chunks = new List<AIDocumentChunk>(textChunks.Count);
-
-        for (var i = 0; i < textChunks.Count; i++)
-        {
-            chunks.Add(new AIDocumentChunk
-            {
-                ItemId = UniqueId.GenerateId(),
-                AIDocumentId = document.ItemId,
-                ReferenceId = referenceId,
-                ReferenceType = referenceType,
-                Content = textChunks[i],
-                Embedding = embeddings != null && i < embeddings.Count ? embeddings[i].Vector.ToArray() : null,
-                Index = i,
-            });
         }
 
         var documentInfo = new ChatDocumentInfo

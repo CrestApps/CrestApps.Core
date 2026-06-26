@@ -17,13 +17,12 @@ public sealed partial class DefaultAITextNormalizer : IAITextNormalizer
     /// Normalize contents content.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="preserveTabular">When <c>true</c>, the tab-delimited layout is preserved instead of being normalized as prose.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public Task<string> NormalizeContentAsync(string text, bool preserveTabular = false, CancellationToken cancellationToken = default)
+    public Task<string> NormalizeContentAsync(string text, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (preserveTabular || string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(text))
         {
             return Task.FromResult(text);
         }
@@ -40,19 +39,10 @@ public sealed partial class DefaultAITextNormalizer : IAITextNormalizer
     /// Normalizes and chunk.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="preserveTabular">When <c>true</c>, the content is chunked by row to preserve the tab-delimited layout.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async Task<List<string>> NormalizeAndChunkAsync(string text, bool preserveTabular = false, CancellationToken cancellationToken = default)
+    public async Task<List<string>> NormalizeAndChunkAsync(string text, CancellationToken cancellationToken = default)
     {
-        if (preserveTabular)
-        {
-            // Tab-delimited grids are chunked by row so each row keeps its columns intact.
-            return string.IsNullOrEmpty(text)
-                ? []
-                : text.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
-        }
-
-        var normalized = await NormalizeContentAsync(text, preserveTabular, cancellationToken);
+        var normalized = await NormalizeContentAsync(text, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(normalized))
         {

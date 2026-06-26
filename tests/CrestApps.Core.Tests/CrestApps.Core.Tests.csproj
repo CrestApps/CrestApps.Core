@@ -39,4 +39,8 @@
     <EmbeddedResource Include="Templates\**\*.md" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Core\Documents\Tools\" />
+  </ItemGroup>
+
 </Project>
