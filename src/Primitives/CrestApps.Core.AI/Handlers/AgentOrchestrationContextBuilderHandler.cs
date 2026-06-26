@@ -51,6 +51,13 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
             return;
         }
 
+        // When running inside a sub-agent (depth > 0), agents are not exposed, so there is
+        // no need to enrich the system message with agent descriptions.
+        if (AIInvocationScope.Current?.AgentInvocationDepth > 0)
+        {
+            return;
+        }
+
         var requestedAgentNames = completionContext.AgentNames;
         var agents = await _profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
         if (!agents.Any())

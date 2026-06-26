@@ -1531,7 +1531,7 @@
         var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(_model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         _model.AvailableAgents = allAgents
-            .Where(a => !string.IsNullOrEmpty(a.Description))
+            .Where(a => a.IsUserSelectableAgent())
             .OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(a => new AgentSelectionItem
             {
@@ -1650,9 +1650,21 @@
         if (metadata.TitleType.HasValue) profile.TitleType = metadata.TitleType.Value;
         if (!string.IsNullOrWhiteSpace(metadata.Description)) profile.Description = metadata.Description;
 
-        if (metadata.AgentAvailability.HasValue)
+        if (metadata.AgentAvailability.HasValue || metadata.AllowToolInvocation.HasValue)
         {
-            profile.Put(new AgentMetadata { Availability = metadata.AgentAvailability.Value });
+            var agentMetadata = profile.GetOrCreate<AgentMetadata>();
+
+            if (metadata.AgentAvailability.HasValue)
+            {
+                agentMetadata.Availability = metadata.AgentAvailability.Value;
+            }
+
+            if (metadata.AllowToolInvocation.HasValue)
+            {
+                agentMetadata.AllowToolInvocation = metadata.AllowToolInvocation.Value;
+            }
+
+            profile.Put(agentMetadata);
         }
 
         var profileMetadata = profile.GetOrCreateSettings<AIProfileMetadata>();

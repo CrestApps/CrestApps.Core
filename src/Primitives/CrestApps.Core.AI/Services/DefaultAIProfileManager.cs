@@ -13,6 +13,7 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IAIProfileManager
 {
     private readonly IAIProfileStore _store;
+    private readonly IEnumerable<IBuiltInAIAgentProvider> _builtInAgentProviders;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
@@ -20,16 +21,19 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
     /// </summary>
     /// <param name="store">The profile catalog.</param>
     /// <param name="handlers">The catalog entry handlers.</param>
+    /// <param name="builtInAgentProviders">The built-in (virtual) agent providers.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public DefaultAIProfileManager(
         IAIProfileStore store,
         IEnumerable<ICatalogEntryHandler<AIProfile>> handlers,
+        IEnumerable<IBuiltInAIAgentProvider> builtInAgentProviders,
         TimeProvider timeProvider,
         ILogger<DefaultAIProfileManager> logger)
         : base(store, handlers, logger)
     {
         _store = store;
+        _builtInAgentProviders = builtInAgentProviders;
         _timeProvider = timeProvider;
     }
 
@@ -47,7 +51,42 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
             await LoadAsync(profile, cancellationToken);
         }
 
-        return profiles;
+        if (type != AIProfileType.Agent)
+        {
+            return profiles;
+        }
+
+        return await MergeBuiltInAgentsAsync(profiles, cancellationToken);
+    }
+
+    private async ValueTask<IEnumerable<AIProfile>> MergeBuiltInAgentsAsync(IEnumerable<AIProfile> storedProfiles, CancellationToken cancellationToken)
+    {
+        var merged = new List<AIProfile>(storedProfiles);
+        var existingNames = new HashSet<string>(merged.Where(p => !string.IsNullOrEmpty(p.Name)).Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var provider in _builtInAgentProviders)
+        {
+            var builtInAgents = await provider.GetAgentsAsync(cancellationToken);
+
+            if (builtInAgents is null)
+            {
+                continue;
+            }
+
+            foreach (var agent in builtInAgents)
+            {
+                // Built-in agents are fully formed in code and are not run through the
+                // load pipeline. A stored profile with the same name takes precedence.
+                if (agent is null || string.IsNullOrEmpty(agent.Name) || !existingNames.Add(agent.Name))
+                {
+                    continue;
+                }
+
+                merged.Add(agent);
+            }
+        }
+
+        return merged;
     }
 
     /// <summary>

@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Indexing;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Documents.Tools;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
@@ -79,6 +80,12 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ITabularBatchProcessor, TabularBatchProcessor>();
         services.TryAddSingleton<ITabularBatchResultCache, TabularBatchResultCache>();
 
+        // In-memory tabular workspace + the built-in tabular data agent that queries it.
+        services.AddOptions<TabularWorkspaceOptions>();
+        services.TryAddSingleton<ITabularWorkspaceManager, TabularWorkspaceManager>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IBuiltInAIAgentProvider, TabularDataAgentProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatDocumentEventHandler, TabularWorkspaceDocumentEventHandler>());
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
@@ -105,10 +112,23 @@ public static class ServiceCollectionExtensions
             .WithDescription("Reads the full text content of a specific document.")
             .WithPurpose(AIToolPurposes.DocumentProcessing);
 
-        services.AddCoreAITool<ReadTabularDataTool>(ReadTabularDataTool.TheName)
-            .WithTitle("Read Tabular Data")
-            .WithDescription("Reads and parses tabular data (CSV, TSV, Excel) from a document.")
-            .WithPurpose(AIToolPurposes.DocumentProcessing);
+        services.AddCoreAITool<ListTabularDataTool>(ListTabularDataTool.TheName)
+            .WithTitle("List Tabular Data")
+            .WithDescription("Lists the tabular tables (CSV, TSV, Excel) available in the conversation with their columns and row counts.")
+            .WithCategory("Tabular Data")
+            .Selectable();
+
+        services.AddCoreAITool<QueryTabularDataTool>(QueryTabularDataTool.TheName)
+            .WithTitle("Query Tabular Data")
+            .WithDescription("Runs a read-only SQL query against uploaded tabular data and returns a compact result.")
+            .WithCategory("Tabular Data")
+            .Selectable();
+
+        services.AddCoreAITool<ExecuteTabularCommandTool>(ExecuteTabularCommandTool.TheName)
+            .WithTitle("Execute Tabular Command")
+            .WithDescription("Applies a SQL manipulation (INSERT, UPDATE, DELETE, ALTER) to the in-memory copy of uploaded tabular data, preserving the original file.")
+            .WithCategory("Tabular Data")
+            .Selectable();
 
         services.AddCoreAITool<InspectImageTool>(InspectImageTool.TheName)
             .WithTitle("Inspect Image")

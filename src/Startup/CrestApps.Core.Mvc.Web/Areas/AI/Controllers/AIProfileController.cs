@@ -293,7 +293,7 @@ public sealed class AIProfileController : Controller
         model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId), }).ToList();
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableAgents = allAgents.Where(a => !string.IsNullOrEmpty(a.Description)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
+        model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
         var allDataSources = await _dataSourceStore.GetAllAsync();
         model.DataSources = allDataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId)).ToList();
         var documentSettings = _interactionDocumentOptions.CurrentValue;
@@ -411,9 +411,21 @@ public sealed class AIProfileController : Controller
             profile.TitleType = metadata.TitleType.Value;
         }
 
-        if (metadata.AgentAvailability.HasValue)
+        if (metadata.AgentAvailability.HasValue || metadata.AllowToolInvocation.HasValue)
         {
-            profile.Put(new AgentMetadata { Availability = metadata.AgentAvailability.Value, });
+            var agentMetadata = profile.GetOrCreate<AgentMetadata>();
+
+            if (metadata.AgentAvailability.HasValue)
+            {
+                agentMetadata.Availability = metadata.AgentAvailability.Value;
+            }
+
+            if (metadata.AllowToolInvocation.HasValue)
+            {
+                agentMetadata.AllowToolInvocation = metadata.AllowToolInvocation.Value;
+            }
+
+            profile.Put(agentMetadata);
         }
 
         var profileMetadata = profile.GetOrCreate<AIProfileMetadata>();

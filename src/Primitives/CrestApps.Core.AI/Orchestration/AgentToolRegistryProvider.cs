@@ -36,6 +36,14 @@ internal sealed class AgentToolRegistryProvider : IToolRegistryProvider
         AICompletionContext context,
         CancellationToken cancellationToken = default)
     {
+        // Prevent agents from being exposed as tools to other agents. When already running
+        // inside a sub-agent (depth > 0), agent tools are suppressed so an agent can never
+        // invoke another agent (or itself), which bounds recursion.
+        if (AIInvocationScope.Current?.AgentInvocationDepth > 0)
+        {
+            return [];
+        }
+
         var agents = await _profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
         var entries = new List<ToolRegistryEntry>();
 

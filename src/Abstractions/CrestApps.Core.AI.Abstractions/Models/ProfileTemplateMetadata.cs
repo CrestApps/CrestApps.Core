@@ -158,6 +158,13 @@ public sealed class ProfileTemplateMetadata
     public AgentAvailability? AgentAvailability { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether agent profiles created from this template may
+    /// execute their own tools when invoked as a sub-agent (controlled recursion).
+    /// Applies only to <see cref="AIProfileType.Agent"/> templates.
+    /// </summary>
+    public bool? AllowToolInvocation { get; set; }
+
+    /// <summary>
     /// Gets or sets the name of the initial <see cref="IChatResponseHandler"/>
     /// for new sessions created from profiles based on this template.
     /// When <see langword="null"/> or empty, the default AI handler is used.

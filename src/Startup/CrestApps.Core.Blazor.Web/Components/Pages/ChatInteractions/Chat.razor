@@ -746,6 +746,7 @@ else
 
         var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
         model.AvailableAgents = agentProfiles
+            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {

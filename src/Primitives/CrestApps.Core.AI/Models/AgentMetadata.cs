@@ -14,4 +14,21 @@ public sealed class AgentMetadata
     /// user-selectable agent list.
     /// </summary>
     public AgentAvailability Availability { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this agent may execute its own tools when
+    /// invoked as a sub-agent. By default sub-agents run with tools disabled to prevent
+    /// runaway recursion. When set to <see langword="true"/>, the agent runs through the
+    /// orchestrator with its configured tools enabled, guarded by a recursion-depth limit
+    /// that prevents the agent from invoking other agents.
+    /// </summary>
+    public bool AllowToolInvocation { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this agent is a built-in (virtual) system
+    /// agent contributed by an <c>IBuiltInAIAgentProvider</c> rather than a stored profile.
+    /// Built-in agents are always available to the model and exposed through A2A, but are not
+    /// editable and are hidden from the user-facing agent selection list.
+    /// </summary>
+    public bool IsBuiltIn { get; set; }
 }

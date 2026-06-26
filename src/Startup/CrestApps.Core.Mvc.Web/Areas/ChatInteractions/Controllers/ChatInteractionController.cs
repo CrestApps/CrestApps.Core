@@ -369,6 +369,7 @@ public sealed class ChatInteractionController : Controller
         var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = agentProfiles
+            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {
@@ -509,6 +510,7 @@ public sealed class ChatInteractionController : Controller
         var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = agentProfiles
+            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {

@@ -1384,7 +1384,7 @@ else if (_model != null)
 
         var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(_model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableAgents = allAgents.Where(a => !string.IsNullOrEmpty(a.Description)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
+        _model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name) }).ToList();
 
         var allDataSources = await DataSourceStore.GetAllAsync();

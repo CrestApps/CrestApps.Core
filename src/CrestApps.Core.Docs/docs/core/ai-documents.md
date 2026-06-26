@@ -64,7 +64,7 @@ Users upload documents (PDFs, Word files, spreadsheets, text files) and expect t
 - **Embedding** — Convert each chunk into a vector representation using a configured embedding model
 - **Indexing** — Store embeddings in a vector search index (Elasticsearch or Azure AI Search)
 - **Searching** — At query time, perform semantic similarity search to find the most relevant chunks
-- **Tabular processing** — CSV and Excel files receive special treatment with structured, batch-oriented queries
+- **Tabular processing** — CSV, TSV, and Excel files are delegated to the built-in **Tabular Data Agent**, which loads them lazily into an in-memory SQLite database and queries them with SQL
 
 The document processing system handles this full pipeline from upload to retrieval, while the built-in document tools make the content available to the AI during orchestration.
 
@@ -145,14 +145,17 @@ public sealed class ImageDescriptionService(
        │                                      │
        │  • SearchDocumentsTool (vector RAG)  │
        │  • ReadDocumentTool (full text read) │
-       │  • ReadTabularDataTool (CSV/Excel)   │
        │  • InspectImageTool (vision on-demand)│
        └──────────────┬──────────────────────┘
                       ▼
        ┌─────────────────────────────────────┐
        │  AI Model calls tools as needed      │
        │  to answer user questions about      │
-       │  the uploaded documents              │
+       │  the uploaded documents.             │
+       │  Tabular files (CSV/TSV/Excel) are   │
+       │  delegated to the always-available   │
+       │  Tabular Data Agent, which queries   │
+       │  them with SQL in-memory.            │
        └─────────────────────────────────────┘
 ```
 
@@ -317,12 +320,12 @@ That keeps RAG efficient for lookup-style questions while avoiding partial-conte
 | Reader | Extensions | Embeddable | Notes |
 |--------|-----------|------------|-------|
 | `PlainTextIngestionDocumentReader` | `.txt`, `.md`, `.json`, `.xml`, `.html`, `.htm`, `.log`, `.yaml`, `.yml` | Yes | UTF-8 stream reader |
-| `PlainTextIngestionDocumentReader` | `.csv` | No | Tabular — processed via `ReadTabularDataTool` |
+| `PlainTextIngestionDocumentReader` | `.csv` | No | Tabular — handled by the Tabular Data Agent |
 | `OpenXmlIngestionDocumentReader` | `.docx`, `.pptx` | Yes | Uses `DocumentFormat.OpenXml` SDK |
-| `OpenXmlIngestionDocumentReader` | `.xlsx` | No | Tabular — processed via `ReadTabularDataTool` |
+| `OpenXmlIngestionDocumentReader` | `.xlsx` | No | Tabular — handled by the Tabular Data Agent |
 | `PdfIngestionDocumentReader` | `.pdf` | Yes | Uses `UglyToad.PdfPig` with DocstrumBoundingBoxes |
 
-**Embeddable** means the content is chunked and vector-embedded for semantic search. **Non-embeddable** (tabular) formats are instead handled by the `ReadTabularDataTool` which reads and parses them directly.
+**Embeddable** means the content is chunked and vector-embedded for semantic search. **Non-embeddable** (tabular) formats are instead handled by the Tabular Data Agent, which loads them into an in-memory SQL database for querying.
 
 ## Custom Document Reader
 
@@ -426,20 +429,37 @@ Reads the full text content of a specific uploaded document. Truncates output to
 |-----------|------|----------|-------------|
 | `document_id` | `string` | Yes | The unique identifier of the document to read |
 
-### `ReadTabularDataTool`
+### Tabular Data Agent
 
-**Name:** `read_tabular_data` (`SystemToolNames.ReadTabularData`)
+Tabular files (CSV, TSV, Excel) are **not** read row-by-row into the prompt. Instead they are
+handled by the always-available, built-in **Tabular Data Agent**, which the primary model can
+delegate to like any other agent. The agent loads each file lazily into an in-memory SQLite
+database and exposes SQL tools so it can answer questions, run calculations, and manipulate the
+data while returning only minimal results to the model — keeping token usage low even for very
+large files. The originally uploaded file is always preserved; manipulations apply to the
+in-memory copy only.
 
-Reads tabular data from CSV, TSV, or Excel files and returns formatted rows suitable for analysis.
+The agent uses three user-selectable tools:
 
-**Parameters:**
+| Tool | Name | Purpose |
+|------|------|---------|
+| `ListTabularDataTool` | `list_tabular_data` | Lists the tabular tables, their columns, and row counts |
+| `QueryTabularDataTool` | `query_tabular_data` | Runs a read-only `SELECT` and returns a compact result |
+| `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies an `INSERT`/`UPDATE`/`DELETE`/`ALTER` to the in-memory copy |
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `document_id` | `string` | Yes | The unique identifier of the tabular document |
-| `max_rows` | `integer` | No | Maximum number of data rows to return (default: 100) |
+The in-memory database is **request-scoped**: it is built lazily on the first tabular tool call in a
+request, reused for every tool call in that same prompt (so the agent never creates duplicate
+tables when it runs several times in one cycle), and disposed as soon as the prompt completes — so
+the data is not kept in memory between prompts. Asking about the same file again in a later prompt
+rebuilds a fresh database. A lightweight, replayable journal of any manipulations is retained per
+conversation and replayed on rebuild, so the dataset comes back with its latest state without
+holding the heavy database in memory. A background sweep evicts stale journals and acts as a
+backstop for any request that fails to release. See `TabularWorkspaceOptions` for the tunable
+limits and timeouts.
 
 **Supported extensions:** `.csv`, `.tsv`, `.xlsx`, `.xls`
+
+See the [AI Agents](./agents.md) guide for how always-available agents work.
 
 ## Implementing Stores
 
@@ -577,7 +597,7 @@ services.Configure<ChatDocumentsOptions>(options =>
 | `EmbeddableFileExtensions` | `IReadOnlySet<string>` | Subset that gets vector-embedded |
 | `MaxVisionInputBytesPerRequest` | `long` | Maximum total image bytes attached to one multimodal request; set `0` or less to disable the limit |
 
-Extensions not in `EmbeddableFileExtensions` are still allowed for upload and can be read by `ReadDocumentTool` or `ReadTabularDataTool`, but they are not chunked and embedded.
+Extensions not in `EmbeddableFileExtensions` are still allowed for upload and can be read by `ReadDocumentTool` or, for tabular files, queried through the Tabular Data Agent, but they are not chunked and embedded.
 
 ### `InteractionDocumentSettings`
 
@@ -595,7 +615,7 @@ public sealed class InteractionDocumentSettings
 
 - Maximum **25,000 characters** total for embedding per session
 - `ReadDocumentTool` truncates output to **50 KB**
-- `ReadTabularDataTool` defaults to **100 rows** maximum
+- The Tabular Data Agent returns at most **100 rows** per query by default (`TabularWorkspaceOptions.MaxRowsPerQuery`)
 
 ## Services Registered by `AddCoreAIDocumentProcessing()`
 
@@ -610,4 +630,6 @@ public sealed class InteractionDocumentSettings
 | `PdfIngestionDocumentReader` | — | Singleton | `.pdf` |
 | `SearchDocumentsTool` | — | System tool | Semantic vector search |
 | `ReadDocumentTool` | — | System tool | Full document read |
-| `ReadTabularDataTool` | — | System tool | Tabular data queries |
+| `ITabularWorkspaceManager` | `TabularWorkspaceManager` | Singleton | Owns in-memory tabular databases (lazy, request-scoped, disposed when the prompt ends) |
+| `IBuiltInAIAgentProvider` | `TabularDataAgentProvider` | Singleton | Contributes the built-in Tabular Data Agent |
+| `list_tabular_data` / `query_tabular_data` / `execute_tabular_command` | — | Selectable tools | Tabular Data Agent SQL tools |
