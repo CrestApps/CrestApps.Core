@@ -84,6 +84,8 @@ app.AddChatApiEndpoints()
     .AddDownloadAIDocumentEndpoint();
 ```
 
+References produced by tools as a generated deliverable (such as a [tabular export](./ai-documents.md#tabular-data-agent)) set `AICompletionReference.IsGenerated`. The chat UI always surfaces those as a download, even when the model does not echo the `[doc:n]` marker in its reply, so a generated file is never lost behind a non-clickable link.
+
 If you prefer the raw service surface instead of the builder API:
 
 ```csharp

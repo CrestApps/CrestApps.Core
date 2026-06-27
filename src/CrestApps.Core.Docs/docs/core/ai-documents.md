@@ -461,7 +461,10 @@ When the user asks for a new version of a tabular file — for example "sort by 
 `execute_tabular_command`, then calls `export_tabular_data` with a read-only `SELECT` that shapes
 the exported result. The generated CSV is stored as a new `AIDocument` under the current chat
 session or chat interaction and returned through the same authenticated `AddDownloadAIDocumentEndpoint()`
-link path as uploaded-document citations. Export SQL is still validated by `TabularSqlGuard`, so it
+link path as uploaded-document citations. Because the export runs inside the Tabular Data Agent and
+the primary model may not echo the `[doc:n]` marker in its final reply, the generated file is flagged
+with `AICompletionReference.IsGenerated`, so the chat UI always surfaces it as a download even when it
+is not cited inline. Export SQL is still validated by `TabularSqlGuard`, so it
 cannot use `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, extension loading, or batched statements to reach
 host files or data outside the scoped in-memory tabular workspace.
 

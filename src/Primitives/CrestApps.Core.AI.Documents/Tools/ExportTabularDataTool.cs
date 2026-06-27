@@ -207,6 +207,7 @@ public sealed class ExportTabularDataTool : AIFunction
             Index = referenceIndex,
             ReferenceId = document.ItemId,
             ReferenceType = AIReferenceTypes.DataSource.Document,
+            IsGenerated = true,
         });
 
         return template;
