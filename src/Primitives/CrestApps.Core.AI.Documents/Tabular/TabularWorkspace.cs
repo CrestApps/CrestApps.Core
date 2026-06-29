@@ -5,11 +5,11 @@ using Microsoft.Data.Sqlite;
 namespace CrestApps.Core.AI.Documents.Tabular;
 
 /// <summary>
-/// A request-scoped, in-memory SQLite database that holds the tabular files for a single AI prompt.
-/// The workspace is built lazily on the first tabular tool call, reused across every tabular tool
-/// call within that same prompt, and disposed when the invocation scope ends. Each prompt rebuilds a
-/// fresh copy from the uploaded files, so any in-memory manipulation is naturally discarded when the
-/// prompt completes — the originally uploaded file is never modified.
+/// An in-memory SQLite database that holds the tabular files for an active conversation scope. The
+/// workspace is built lazily on the first tabular tool call and reused across tabular tool calls while
+/// the scope stays active. In-memory manipulations (added or removed columns, updated values, inserted
+/// or deleted rows) are applied to this copy and can be snapshotted to durable storage so they survive
+/// a rebuild; the originally uploaded file is never modified.
 /// </summary>
 internal sealed class TabularWorkspace : IDisposable
 {
@@ -322,43 +322,142 @@ internal sealed class TabularWorkspace : IDisposable
             command.CommandText = statement;
             command.CommandTimeout = _options.CommandTimeoutSeconds;
 
-            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            return await ReadExportAsync(command, mapHeader: null, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 
-            var columns = new List<string>(reader.FieldCount);
+    /// <summary>
+    /// Exports the complete, current contents of the in-memory tabular workspace, including every
+    /// in-memory manipulation applied so far (added or removed columns, updated values, inserted or
+    /// deleted rows). The export reflects the live in-memory data rather than the originally uploaded
+    /// file, and the header row uses the original source column names where available. This is the
+    /// export used when the user asks for "the file" with the updated data.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The export result for the full current table.</returns>
+    public async Task<TabularExportResult> ExportFullAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            EnsureLoaded();
+
+            if (_tables.Count == 0)
+            {
+                throw new TabularSqlException("There is no tabular data loaded to export.");
+            }
+
+            if (_tables.Count > 1)
+            {
+                throw new TabularSqlException("Multiple tabular tables are loaded. Provide an explicit SELECT query to choose what to export.");
+            }
+
+            var table = _tables.Values.First();
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = $"SELECT * FROM {QuoteIdentifier(table.TableName)}";
+            command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+            return await ReadExportAsync(
+                command,
+                sqlName => table.SourceNames.TryGetValue(sqlName, out var sourceName) && !string.IsNullOrEmpty(sourceName)
+                    ? sourceName
+                    : sqlName,
+                cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<TabularExportResult> ReadExportAsync(
+        SqliteCommand command,
+        Func<string, string> mapHeader,
+        CancellationToken cancellationToken)
+    {
+        using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var columns = new List<string>(reader.FieldCount);
+
+        for (var i = 0; i < reader.FieldCount; i++)
+        {
+            var name = reader.GetName(i);
+            columns.Add(mapHeader is null
+                ? name
+                : mapHeader(name));
+        }
+
+        var rows = new List<List<string>>();
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            if (_options.MaxRowsPerExport > 0 && rows.Count >= _options.MaxRowsPerExport)
+            {
+                throw new TabularSqlException($"The export exceeds the configured limit of {_options.MaxRowsPerExport} rows. Refine the query before exporting.");
+            }
+
+            var row = new List<string>(reader.FieldCount);
 
             for (var i = 0; i < reader.FieldCount; i++)
             {
-                columns.Add(reader.GetName(i));
+                row.Add(reader.IsDBNull(i)
+                    ? string.Empty
+                    : FormatExportValue(reader.GetValue(i)));
             }
 
-            var rows = new List<List<string>>();
+            rows.Add(row);
+        }
 
-            while (await reader.ReadAsync(cancellationToken))
+        return new TabularExportResult(
+            rows.Count,
+            new TabularDocumentArtifact
             {
-                if (_options.MaxRowsPerExport > 0 && rows.Count >= _options.MaxRowsPerExport)
-                {
-                    throw new TabularSqlException($"The export exceeds the configured limit of {_options.MaxRowsPerExport} rows. Refine the query before exporting.");
-                }
+                Header = columns,
+                Rows = rows,
+            });
+    }
 
-                var row = new List<string>(reader.FieldCount);
+    /// <summary>
+    /// Captures the current state of every loaded table as a durable artifact keyed by document id,
+    /// using the original source column names where available. Callers persist these artifacts so the
+    /// workspace can be rebuilt with the in-memory changes intact after it is evicted, the process
+    /// restarts, or the request is served by another application instance.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A map of document id to the current artifact for that document's table.</returns>
+    public async Task<IReadOnlyDictionary<string, TabularDocumentArtifact>> SnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
 
-                for (var i = 0; i < reader.FieldCount; i++)
-                {
-                    row.Add(reader.IsDBNull(i)
-                        ? string.Empty
-                        : FormatExportValue(reader.GetValue(i)));
-                }
+        try
+        {
+            EnsureLoaded();
 
-                rows.Add(row);
+            var snapshots = new Dictionary<string, TabularDocumentArtifact>(StringComparer.Ordinal);
+
+            foreach (var (documentId, table) in _tables)
+            {
+                using var command = _connection.CreateCommand();
+                command.CommandText = $"SELECT * FROM {QuoteIdentifier(table.TableName)}";
+                command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                var export = await ReadExportAsync(
+                    command,
+                    sqlName => table.SourceNames.TryGetValue(sqlName, out var sourceName) && !string.IsNullOrEmpty(sourceName)
+                        ? sourceName
+                        : sqlName,
+                    cancellationToken);
+
+                snapshots[documentId] = export.Artifact;
             }
 
-            return new TabularExportResult(
-                rows.Count,
-                new TabularDocumentArtifact
-                {
-                    Header = columns,
-                    Rows = rows,
-                });
+            return snapshots;
         }
         finally
         {

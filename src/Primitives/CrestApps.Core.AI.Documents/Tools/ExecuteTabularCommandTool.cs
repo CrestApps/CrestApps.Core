@@ -11,8 +11,9 @@ namespace CrestApps.Core.AI.Documents.Tools;
 /// <summary>
 /// Tool that runs a single data-manipulation or schema statement (for example
 /// <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c>, or <c>ALTER TABLE</c>) against the in-memory
-/// tabular workspace. The originally uploaded file is never modified; changes apply only to the
-/// in-memory copy and are discarded when the prompt completes.
+/// tabular workspace. The originally uploaded file is never modified; changes apply to the in-memory
+/// copy and are persisted as the conversation's working copy so they survive workspace rebuilds and
+/// can be exported later.
 /// </summary>
 public sealed class ExecuteTabularCommandTool : AIFunction
 {
@@ -89,6 +90,8 @@ public sealed class ExecuteTabularCommandTool : AIFunction
         {
             var result = await preparation.Workspace.ExecuteAsync(sql, cancellationToken);
 
+            await PersistWorkspaceSnapshotAsync(arguments.Services, preparation.Workspace, logger, cancellationToken);
+
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug("AI tool '{ToolName}' completed.", Name);
@@ -108,6 +111,40 @@ public sealed class ExecuteTabularCommandTool : AIFunction
             }
 
             return $"The statement could not be executed: {ex.Message}";
+        }
+    }
+
+    private static async Task PersistWorkspaceSnapshotAsync(
+        IServiceProvider services,
+        TabularWorkspace workspace,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        // Persist the mutated in-memory state so the changes survive workspace eviction, a process
+        // restart, or being served by another application instance. This is best-effort: a failure to
+        // snapshot must not fail the command, since the live workspace still holds the changes.
+        try
+        {
+            var artifactStore = services.GetService<ITabularDocumentArtifactStore>();
+
+            if (artifactStore is null)
+            {
+                return;
+            }
+
+            var snapshots = await workspace.SnapshotAsync(cancellationToken);
+
+            foreach (var (documentId, artifact) in snapshots)
+            {
+                await artifactStore.SaveAsync(documentId, artifact, cancellationToken);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(ex, "Failed to persist the in-memory tabular workspace snapshot for tool '{ToolName}'.", TheName);
+            }
         }
     }
 }

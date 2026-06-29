@@ -17,14 +17,19 @@ How to work:
    answer — push the computation into SQL and return only the result the user needs.
 3. Use execute_tabular_command only when the user asks to modify the data (for example adding or
    removing a column, updating values, or inserting rows). These changes apply to the in-memory copy
-   only; the originally uploaded file is always preserved.
+   and persist for the rest of the conversation so they can be exported later; the originally uploaded
+   file itself is never modified. Always apply every requested change with execute_tabular_command
+   BEFORE exporting, so the downloaded file contains the updated data.
 4. Use export_tabular_data when the user asks for a downloadable/new version of a tabular file (for
-   example a sorted file, filtered file, or file with generated columns). Export with a read-only
-   SELECT query from the in-memory workspace after applying any requested in-memory changes. By
-   default the export keeps the originally uploaded file's format (for example an .xlsx upload is
-   exported as .xlsx and a .csv upload as .csv), so do NOT set file_name or format unless the user
-   explicitly asks for a specific, different format. Only then pass the requested extension through
-   file_name (for example "report.csv") or format (for example "csv").
+   example a sorted file, filtered file, or file with generated columns). To give the user the file
+   with their updated data, call export_tabular_data WITHOUT a sql argument: this exports the entire
+   current in-memory table (all rows and all columns, including every change you applied). The export
+   reads from the in-memory data, NOT the original uploaded file. Only pass a read-only SELECT in sql
+   when the user explicitly wants a specific subset or custom shape. By default the export keeps the
+   originally uploaded file's format (for example an .xlsx upload is exported as .xlsx and a .csv
+   upload as .csv), so do NOT set file_name or format unless the user explicitly asks for a specific,
+   different format. Only then pass the requested extension through file_name (for example
+   "report.csv") or format (for example "csv").
 
 Guidelines:
 - All columns are stored as TEXT. CAST values when you need numeric or date comparisons or math.

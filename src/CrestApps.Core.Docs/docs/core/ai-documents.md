@@ -454,12 +454,16 @@ name only by the agent itself, never selectable in another profile:
 | `ListTabularDataTool` | `list_tabular_data` | Lists the tabular tables, their columns, and row counts |
 | `QueryTabularDataTool` | `query_tabular_data` | Runs a read-only `SELECT` and returns a compact result |
 | `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies an `INSERT`/`UPDATE`/`DELETE`/`ALTER` to the in-memory copy |
-| `ExportTabularDataTool` | `export_tabular_data` | Writes a read-only `SELECT` result from the in-memory workspace to a generated download in the original file's format |
+| `ExportTabularDataTool` | `export_tabular_data` | Exports the current in-memory workspace to a generated download in the original file's format; omit `sql` to export the entire current table, or pass a `SELECT` to shape a subset |
 
 When the user asks for a new version of a tabular file — for example "sort by column A" or
 "add column ABC and give me the file" — the agent applies any requested workspace changes with
-`execute_tabular_command`, then calls `export_tabular_data` with a read-only `SELECT` that shapes
-the exported result. **The export preserves the original upload format by default**: if the source
+`execute_tabular_command`, then calls `export_tabular_data`. **The export reflects the current
+in-memory data, including every applied mutation, not the originally uploaded file.** Omit the optional
+`sql` argument to export the entire current table (the common case when the user wants "the updated
+file"); pass a read-only `SELECT` only when the user wants a shaped subset. The exported header row uses
+the original source column names where available. **The export preserves the original upload format by
+default**: if the source
 file was an `.xlsx` workbook the download is an `.xlsx` workbook, and if it was a `.csv` the download
 is a `.csv`. Pass the optional `format` argument (for example `csv`, `xlsx`, or `pdf`) to override the
 target format when the user explicitly asks for a different one. The chosen format must have a
@@ -480,7 +484,10 @@ same user/session remains active, and disposed after a sliding idle timeout
 (`TabularWorkspaceOptions.WorkspaceSlidingExpiration`, five minutes by default). The parsed tabular
 document artifact is also stored through `ITabularDocumentArtifactStore` using the configured
 `IDocumentFileStore`, so another application instance can hydrate from the shared artifact instead of
-reparsing the uploaded chunks. A hosted cleanup service scans for idle workspaces
+reparsing the uploaded chunks. After each successful `execute_tabular_command`, the mutated table state
+is snapshotted back to `ITabularDocumentArtifactStore` (best-effort) so the in-memory edits survive
+workspace eviction, a process restart, or being served by another instance — a later export still
+returns the updated data. The originally uploaded file in `IDocumentFileStore` is never modified. A hosted cleanup service scans for idle workspaces
 (`WorkspaceCleanupInterval`, one minute by default), and document uploads/removals plus chat
 interaction/session deletion invalidate matching workspaces immediately. Distributed hosts can replace
 `ITabularWorkspaceInvalidationPublisher` to broadcast those invalidations through a backplane

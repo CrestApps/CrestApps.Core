@@ -29,7 +29,7 @@ public sealed class ExportTabularDataTool : AIFunction
       "properties": {
         "sql": {
           "type": "string",
-          "description": "A single read-only SQL query (SELECT or WITH ... SELECT) in SQLite dialect. The query result is written to the generated file."
+          "description": "Optional single read-only SQL query (SELECT or WITH ... SELECT) in SQLite dialect to shape the exported data. OMIT this to export the entire current in-memory table (all rows and columns, including every change applied with execute_tabular_command). Only provide it when the user wants a specific subset or custom shape."
         },
         "file_name": {
           "type": "string",
@@ -40,7 +40,7 @@ public sealed class ExportTabularDataTool : AIFunction
           "description": "Optional export format/extension (for example 'xlsx' or 'csv'). Used only when 'file_name' has no extension. Defaults to the format of the originally uploaded file."
         }
       },
-      "required": ["sql"],
+      "required": [],
       "additionalProperties": false
     }
     """);
@@ -53,7 +53,7 @@ public sealed class ExportTabularDataTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Creates a downloadable file from a read-only SQL query over the active in-memory copy of the uploaded tabular data. By default the export keeps the format of the originally uploaded file (for example xlsx stays xlsx); a different format can be requested. The export cannot read host files or data outside this tabular workspace.";
+    public override string Description => "Creates a downloadable file from the active in-memory copy of the uploaded tabular data, reflecting every change already applied with execute_tabular_command (the exported data comes from memory, not the original uploaded file). Omit 'sql' to export the entire current table; provide a read-only SELECT only to export a specific subset. By default the export keeps the format of the originally uploaded file (for example xlsx stays xlsx); a different format can be requested. The export cannot read host files or data outside this tabular workspace.";
 
     /// <summary>
     /// Gets the json Schema.
@@ -85,10 +85,7 @@ public sealed class ExportTabularDataTool : AIFunction
             logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
         }
 
-        if (!arguments.TryGetFirstString("sql", out var sql) || string.IsNullOrWhiteSpace(sql))
-        {
-            return "A 'sql' query is required.";
-        }
+        arguments.TryGetFirstString("sql", out var sql);
 
         var preparation = await TabularToolRunner.PrepareAsync(arguments.Services, cancellationToken);
 
@@ -124,7 +121,9 @@ public sealed class ExportTabularDataTool : AIFunction
 
         try
         {
-            var export = await preparation.Workspace.ExportAsync(sql, cancellationToken);
+            var export = string.IsNullOrWhiteSpace(sql)
+                ? await preparation.Workspace.ExportFullAsync(cancellationToken)
+                : await preparation.Workspace.ExportAsync(sql, cancellationToken);
 
             if (export.Artifact.Header.Count == 0)
             {

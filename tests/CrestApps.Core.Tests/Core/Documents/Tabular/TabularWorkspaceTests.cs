@@ -208,6 +208,82 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task ExportFullAsync_ReturnsEntireCurrentTableIncludingMutations()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        // Mutate the in-memory copy; the full export must reflect the updated data, not the original file.
+        await workspace.ExecuteAsync("UPDATE sales SET amount = '999' WHERE region = 'South'", cancellationToken);
+        await workspace.ExecuteAsync("INSERT INTO sales (region, amount) VALUES ('West', '5')", cancellationToken);
+
+        var export = await workspace.ExportFullAsync(cancellationToken);
+
+        Assert.Equal(4, export.RowCount);
+        Assert.Equal(["region", "amount"], export.Artifact.Header);
+        Assert.Contains(export.Artifact.Rows, row => row[0] == "South" && row[1] == "999");
+        Assert.Contains(export.Artifact.Rows, row => row[0] == "West" && row[1] == "5");
+    }
+
+    [Fact]
+    public async Task ExportFullAsync_UsesOriginalSourceHeaderNames()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "Respondent,Q3_C28/What restaurants have you visited?\n1,1\n2,975";
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var export = await workspace.ExportFullAsync(cancellationToken);
+
+        Assert.Equal(["Respondent", "Q3_C28/What restaurants have you visited?"], export.Artifact.Header);
+    }
+
+    [Fact]
+    public async Task ExportFullAsync_NoTablesLoaded_Throws()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync([], Loader(Csv), cancellationToken);
+
+        await Assert.ThrowsAsync<TabularSqlException>(
+            () => workspace.ExportFullAsync(cancellationToken));
+    }
+
+    [Fact]
+    public async Task ExportFullAsync_MultipleTablesLoaded_Throws()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        IReadOnlyList<TabularDocumentRef> documents =
+        [
+            new TabularDocumentRef("doc1", "sales.csv"),
+            new TabularDocumentRef("doc2", "more.csv"),
+        ];
+        await workspace.EnsureReadyAsync(documents, Loader(Csv), cancellationToken);
+
+        await Assert.ThrowsAsync<TabularSqlException>(
+            () => workspace.ExportFullAsync(cancellationToken));
+    }
+
+    [Fact]
+    public async Task SnapshotAsync_CapturesCurrentDataKeyedByDocumentId()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+        await workspace.ExecuteAsync("UPDATE sales SET amount = '999' WHERE region = 'South'", cancellationToken);
+
+        var snapshots = await workspace.SnapshotAsync(cancellationToken);
+
+        var snapshot = Assert.Single(snapshots);
+        Assert.Equal("doc1", snapshot.Key);
+        Assert.Equal(["region", "amount"], snapshot.Value.Header);
+        Assert.Equal(3, snapshot.Value.Rows.Count);
+        Assert.Contains(snapshot.Value.Rows, row => row[0] == "South" && row[1] == "999");
+    }
+
+    [Fact]
     public async Task EnsureReadyAsync_SamePrompt_ReusesDatabaseWithoutReloading()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
