@@ -179,6 +179,35 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task ExportAsync_ReturnsArtifactWithoutWriting()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        var export = await workspace.ExportAsync(
+            "SELECT region, amount FROM sales ORDER BY CAST(amount AS INTEGER) DESC",
+            cancellationToken);
+
+        Assert.Equal(3, export.RowCount);
+        Assert.Equal(["region", "amount"], export.Artifact.Header);
+        Assert.Equal(["South", "200"], export.Artifact.Rows[0]);
+        Assert.Equal(["North", "100"], export.Artifact.Rows[1]);
+        Assert.Equal(["North", "50"], export.Artifact.Rows[2]);
+    }
+
+    [Fact]
+    public async Task ExportAsync_RejectsManipulationStatement()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        await Assert.ThrowsAsync<TabularSqlException>(
+            () => workspace.ExportAsync("UPDATE sales SET amount = '1'", cancellationToken));
+    }
+
+    [Fact]
     public async Task EnsureReadyAsync_SamePrompt_ReusesDatabaseWithoutReloading()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

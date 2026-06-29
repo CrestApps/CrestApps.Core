@@ -298,6 +298,75 @@ internal sealed class TabularWorkspace : IDisposable
     }
 
     /// <summary>
+    /// Executes a read-only query and returns the result as an in-memory artifact (header and rows)
+    /// without writing to any specific file format. Callers pair this with a file writer to produce a
+    /// downloadable export in the desired format. The query can only read from the already-loaded
+    /// in-memory tabular workspace.
+    /// </summary>
+    /// <param name="sql">The read-only SQL query to export.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The export result.</returns>
+    public async Task<TabularExportResult> ExportAsync(
+        string sql,
+        CancellationToken cancellationToken = default)
+    {
+        var statement = TabularSqlGuard.EnsureReadOnlyQuery(sql);
+
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            EnsureLoaded();
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = statement;
+            command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            var columns = new List<string>(reader.FieldCount);
+
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                columns.Add(reader.GetName(i));
+            }
+
+            var rows = new List<List<string>>();
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (_options.MaxRowsPerExport > 0 && rows.Count >= _options.MaxRowsPerExport)
+                {
+                    throw new TabularSqlException($"The export exceeds the configured limit of {_options.MaxRowsPerExport} rows. Refine the query before exporting.");
+                }
+
+                var row = new List<string>(reader.FieldCount);
+
+                for (var i = 0; i < reader.FieldCount; i++)
+                {
+                    row.Add(reader.IsDBNull(i)
+                        ? string.Empty
+                        : FormatExportValue(reader.GetValue(i)));
+                }
+
+                rows.Add(row);
+            }
+
+            return new TabularExportResult(
+                rows.Count,
+                new TabularDocumentArtifact
+                {
+                    Header = columns,
+                    Rows = rows,
+                });
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
     /// Disposes the in-memory database and releases the concurrency gate.
     /// </summary>
     public void Dispose()

@@ -454,14 +454,20 @@ name only by the agent itself, never selectable in another profile:
 | `ListTabularDataTool` | `list_tabular_data` | Lists the tabular tables, their columns, and row counts |
 | `QueryTabularDataTool` | `query_tabular_data` | Runs a read-only `SELECT` and returns a compact result |
 | `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies an `INSERT`/`UPDATE`/`DELETE`/`ALTER` to the in-memory copy |
-| `ExportTabularDataTool` | `export_tabular_data` | Writes a read-only `SELECT` result from the in-memory workspace to a generated CSV download |
+| `ExportTabularDataTool` | `export_tabular_data` | Writes a read-only `SELECT` result from the in-memory workspace to a generated download in the original file's format |
 
 When the user asks for a new version of a tabular file — for example "sort by column A" or
 "add column ABC and give me the file" — the agent applies any requested workspace changes with
 `execute_tabular_command`, then calls `export_tabular_data` with a read-only `SELECT` that shapes
-the exported result. The generated CSV is stored as a new `AIDocument` under the current chat
-session or chat interaction and returned through the same authenticated `AddDownloadAIDocumentEndpoint()`
-link path as uploaded-document citations. Because the export runs inside the Tabular Data Agent and
+the exported result. **The export preserves the original upload format by default**: if the source
+file was an `.xlsx` workbook the download is an `.xlsx` workbook, and if it was a `.csv` the download
+is a `.csv`. Pass the optional `format` argument (for example `csv`, `xlsx`, or `pdf`) to override the
+target format when the user explicitly asks for a different one. The chosen format must have a
+registered [generated-file writer](#generated-file-downloads); when no writer matches the original
+extension the export falls back to `.csv`. The generated file is stored as a new `AIDocument` under the
+current chat session or chat interaction and returned through the same authenticated
+`AddDownloadAIDocumentEndpoint()` link path as uploaded-document citations. Because the export runs
+inside the Tabular Data Agent and
 the primary model may not echo the `[doc:n]` marker in its final reply, the generated file is flagged
 with `AICompletionReference.IsGenerated`, so the chat UI always surfaces it as a download even when it
 is not cited inline. Export SQL is still validated by `TabularSqlGuard`, so it
@@ -486,6 +492,69 @@ document IDs.
 (by default `.csv` and `.xlsx`). See [Built-in Document Readers](#built-in-document-readers).
 
 See the [AI Agents](./agents.md) guide for how always-available agents work.
+
+## Generated File Downloads
+
+Beyond tabular exports, the Documents module exposes a general **content-generation** capability that
+lets the primary model turn any generated content into a downloadable file — for example a PDF summary,
+a Word report, a Markdown document, an HTML page, or a CSV/Excel sheet. This works just like the
+[chart tool](./tools.md): the model calls a tool, the content is materialized, and the chat UI surfaces
+a download link.
+
+### `GenerateFileTool`
+
+`GenerateFileTool` (`generate_file`) is registered with `AIToolPurposes.ContentGeneration`, so — like
+the chart tool — it is **always available** and is not gated on documents being attached to the session.
+It accepts:
+
+| Argument | Required | Purpose |
+|----------|----------|---------|
+| `content` | Yes | The body to place in the file. Markdown/plain text for document formats; CSV text (with a header row) for spreadsheet/CSV formats |
+| `file_name` | No | File name shown to the user; its extension determines the output format (for example `summary.pdf`) |
+| `format` | No | Output format/extension used only when `file_name` has no extension (for example `pdf`, `docx`, `md`, `html`, `csv`, `xlsx`) |
+| `title` | No | Optional heading for the generated document |
+
+The tool resolves the target extension, validates that a writer is registered for it, materializes the
+file through `IGeneratedDocumentService`, stores it as a new generated `AIDocument` under the active
+conversation, and returns a `[doc:N]` marker that the UI renders as a download link. When the requested
+format is one of the tabular formats (`.csv`, `.tsv`, `.xlsx`), the supplied CSV `content` is parsed into
+header and rows so the spreadsheet/CSV writers can emit structured cells. The tool requires the Documents
+module so that the generated-download path is available; if no chat interaction or chat session scope is
+active it returns a friendly error instead of failing.
+
+### `IGeneratedFileWriter`
+
+File materialization is pluggable. Each format is handled by an `IGeneratedFileWriter` keyed by file
+extension and registered with `AddGeneratedFileWriter<T>(params extensions)`:
+
+```csharp
+public interface IGeneratedFileWriter
+{
+    Task WriteAsync(GeneratedFileContent content, Stream destination, CancellationToken cancellationToken = default);
+}
+```
+
+`GeneratedFileContent` is format-agnostic — writers consume whichever parts are relevant: document-style
+writers render `Title`/`Text`, while tabular writers render `Header`/`Rows`. `IGeneratedFileWriterResolver`
+resolves the writer for a normalized extension and exposes the set of `SupportedExtensions`.
+
+| Writer | Module | Extensions |
+|--------|--------|------------|
+| `DelimitedGeneratedFileWriter` | `CrestApps.Core.AI.Documents` | `.csv` |
+| `PlainTextGeneratedFileWriter` | `CrestApps.Core.AI.Documents` | `.txt`, `.md`, `.json`, `.xml`, `.html`, `.htm`, `.yaml`, `.yml`, `.log` |
+| `SpreadsheetGeneratedFileWriter` | `CrestApps.Core.AI.Documents.OpenXml` | `.xlsx` |
+| `WordGeneratedFileWriter` | `CrestApps.Core.AI.Documents.OpenXml` | `.docx` |
+| `PdfGeneratedFileWriter` | `CrestApps.Core.AI.Documents.Pdf` | `.pdf` |
+
+Register additional formats by implementing `IGeneratedFileWriter` and calling
+`services.AddGeneratedFileWriter<MyWriter>(".rtf")`. The `.xlsx`/`.docx` writers require the OpenXml
+module and the `.pdf` writer requires the Pdf module.
+
+:::note
+The PDF writer uses PDFsharp/MigraDoc. On Windows and WSL2 it relies on the installed system fonts.
+On a headless Linux container without fonts you must register a custom `IFontResolver` (via PDFsharp's
+`GlobalFontSettings.FontResolver`) so PDF generation can locate a usable font.
+:::
 
 ## Implementing Stores
 
@@ -659,6 +728,10 @@ public sealed class InteractionDocumentSettings
 | `PdfIngestionDocumentReader` | — | Singleton | `.pdf` |
 | `SearchDocumentsTool` | — | System tool | Semantic vector search |
 | `ReadDocumentTool` | — | System tool | Full document read |
+| `GenerateFileTool` | — | System tool | Always-available `generate_file` content-generation tool that produces downloadable files |
+| `IGeneratedDocumentService` | `DefaultGeneratedDocumentService` | Scoped | Materializes generated content into a downloadable `AIDocument` and emits a `[doc:N]` reference |
+| `IGeneratedFileWriterResolver` | `GeneratedFileWriterResolver` | Singleton | Resolves the `IGeneratedFileWriter` for a file extension |
+| `IGeneratedFileWriter` (keyed) | `DelimitedGeneratedFileWriter`, `PlainTextGeneratedFileWriter` | Singleton | Core writers for `.csv` and plain-text formats |
 | `ITabularDocumentArtifactStore` | `DocumentFileStoreTabularDocumentArtifactStore` | Singleton | Stores parsed tabular document artifacts in shared document storage |
 | `TabularWorkspaceCache` | — | Singleton | Reuses in-memory tabular databases per active chat scope with sliding expiration |
 | `TabularWorkspaceCleanupBackgroundService` | — | Singleton hosted service | Disposes idle cached tabular workspaces |

@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Indexing;
 using CrestApps.Core.AI.Documents.Models;
@@ -94,6 +95,23 @@ public static class ServiceCollectionExtensions
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProfileProvider, TabularDataAgentProvider>());
 
+        // Generated, downloadable files (tabular exports and chat file generation) share a writer
+        // abstraction keyed by file extension plus a service that stores the file as an AIDocument.
+        services.AddOptions<GeneratedFileWriterOptions>();
+        services.TryAddSingleton<IGeneratedFileWriterResolver, GeneratedFileWriterResolver>();
+        services.TryAddScoped<IGeneratedDocumentService, DefaultGeneratedDocumentService>();
+        services.AddGeneratedFileWriter<DelimitedGeneratedFileWriter>(".csv");
+        services.AddGeneratedFileWriter<PlainTextGeneratedFileWriter>(
+            ".txt",
+            ".md",
+            ".json",
+            ".xml",
+            ".html",
+            ".htm",
+            ".yaml",
+            ".yml",
+            ".log");
+
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
@@ -142,9 +160,14 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAITool<ExportTabularDataTool>(ExportTabularDataTool.TheName)
             .WithTitle("Export Tabular Data")
-            .WithDescription("Creates a downloadable CSV file from a read-only SQL query over the active in-memory tabular workspace.")
+            .WithDescription("Creates a downloadable file from a read-only SQL query over the active in-memory tabular workspace, preserving the original file format by default.")
             .WithCategory("Tabular Data")
             .Hidden();
+
+        services.AddCoreAITool<GenerateFileTool>(GenerateFileTool.TheName)
+            .WithTitle("Generate File")
+            .WithDescription("Creates a downloadable file (PDF, Word, Markdown, HTML, text, CSV, or spreadsheet) from generated content and attaches it to the conversation for download.")
+            .WithPurpose(AIToolPurposes.ContentGeneration);
 
         services.AddCoreAITool<InspectImageTool>(InspectImageTool.TheName)
             .WithTitle("Inspect Image")
