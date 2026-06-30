@@ -48,6 +48,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             new Mock<YesSql.ISession>().Object,
             promptStore.Object,
             [],
+            [],
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
@@ -83,6 +84,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             httpContextAccessor.Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
+            [],
             [],
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -123,6 +125,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
             [],
+            [],
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
@@ -156,6 +159,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             Mock.Of<IHttpContextAccessor>(accessor => accessor.HttpContext == null),
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
+            [],
             [],
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
@@ -198,6 +202,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             sessionStore.Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             [],
+            [],
             timeProvider.Object,
             Options.Create(new YesSqlStoreOptions()));
 
@@ -221,6 +226,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             [],
+            [],
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
@@ -235,6 +241,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             [],
+            [],
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));
 
@@ -248,6 +255,7 @@ public sealed class YesSqlAIChatSessionManagerTests
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
+            [],
             [],
             TimeProvider.System,
             Options.Create(new YesSqlStoreOptions()));

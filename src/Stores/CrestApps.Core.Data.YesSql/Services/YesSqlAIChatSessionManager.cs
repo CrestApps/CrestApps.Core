@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
@@ -19,6 +20,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     private readonly ISession _session;
     private readonly IAIChatSessionPromptStore _promptStore;
     private readonly IEnumerable<ITabularWorkspaceInvalidationPublisher> _tabularWorkspaceInvalidationPublishers;
+    private readonly IEnumerable<IConversationDocumentCleanupService> _documentCleanupServices;
     private readonly TimeProvider _timeProvider;
     private readonly string _collection;
 
@@ -29,6 +31,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     /// <param name="session">The session.</param>
     /// <param name="promptStore">The prompt store.</param>
     /// <param name="tabularWorkspaceInvalidationPublishers">The tabular workspace invalidation publishers.</param>
+    /// <param name="documentCleanupServices">The conversation document cleanup services.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="options">The options.</param>
     public YesSqlAIChatSessionManager(
@@ -36,6 +39,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         ISession session,
         IAIChatSessionPromptStore promptStore,
         IEnumerable<ITabularWorkspaceInvalidationPublisher> tabularWorkspaceInvalidationPublishers,
+        IEnumerable<IConversationDocumentCleanupService> documentCleanupServices,
         TimeProvider timeProvider,
         IOptions<YesSqlStoreOptions> options)
     {
@@ -43,6 +47,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         _session = session;
         _promptStore = promptStore;
         _tabularWorkspaceInvalidationPublishers = tabularWorkspaceInvalidationPublishers;
+        _documentCleanupServices = documentCleanupServices;
         _timeProvider = timeProvider;
         _collection = options.Value.AICollectionName;
     }
@@ -210,6 +215,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         await _tabularWorkspaceInvalidationPublishers.PublishAllAsync(
             TabularWorkspaceInvalidation.ForChatSession(sessionId),
             cancellationToken);
+        await CleanupSessionDocumentsAsync(sessionId, cancellationToken);
 
         return true;
     }
@@ -233,10 +239,19 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
             await _tabularWorkspaceInvalidationPublishers.PublishAllAsync(
                 TabularWorkspaceInvalidation.ForChatSession(s.SessionId),
                 cancellationToken);
+            await CleanupSessionDocumentsAsync(s.SessionId, cancellationToken);
             count++;
         }
 
         return count;
+    }
+
+    private async Task CleanupSessionDocumentsAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        foreach (var cleanupService in _documentCleanupServices)
+        {
+            await cleanupService.CleanupAsync(sessionId, AIReferenceTypes.Document.ChatSession, cancellationToken);
+        }
     }
 
     private async Task<AIChatSession> FindStoredSessionAsync(string sessionId, CancellationToken cancellationToken = default)

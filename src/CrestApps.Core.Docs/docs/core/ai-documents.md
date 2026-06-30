@@ -470,7 +470,14 @@ target format when the user explicitly asks for a different one. The chosen form
 registered [generated-file writer](#generated-file-downloads); when no writer matches the original
 extension the export falls back to `.csv`. The generated file is stored as a new `AIDocument` under the
 current chat session or chat interaction and returned through the same authenticated
-`AddDownloadAIDocumentEndpoint()` link path as uploaded-document citations. Because the export runs
+`AddDownloadAIDocumentEndpoint()` link path as uploaded-document citations. Because the file is
+persisted to the shared `IDocumentFileStore` (under a collision-free random storage name) rather than
+streamed from memory, it stays re-downloadable across workspace eviction and process restarts — the
+in-memory tabular database does not need to be rebuilt to serve the download again. The `[doc:n]`
+reference is saved with the assistant message, so reopening the session re-renders the same download
+link. The generated file lives in document storage until its owning chat session or chat interaction is
+deleted, at which point it is cleaned up automatically (see [Conversation Document
+Cleanup](#conversation-document-cleanup)). Because the export runs
 inside the Tabular Data Agent and
 the primary model may not echo the `[doc:n]` marker in its final reply, the generated file is flagged
 with `AICompletionReference.IsGenerated`, so the chat UI always surfaces it as a download even when it
@@ -562,6 +569,30 @@ The PDF writer uses PDFsharp/MigraDoc. On Windows and WSL2 it relies on the inst
 On a headless Linux container without fonts you must register a custom `IFontResolver` (via PDFsharp's
 `GlobalFontSettings.FontResolver`) so PDF generation can locate a usable font.
 :::
+
+### Conversation Document Cleanup
+
+Documents attached to a conversation — both uploaded files and AI-generated downloads such as tabular
+exports — are stored in the shared `IDocumentFileStore` and persisted as `AIDocument` records so they
+remain available long after the in-memory tabular workspace is evicted. They are bound to their owning
+conversation through the `AIReferenceTypes.Document.ChatSession` /
+`AIReferenceTypes.Document.ChatInteraction` reference type and removed automatically when that
+conversation is deleted.
+
+`IConversationDocumentCleanupService` (default `DefaultConversationDocumentCleanupService`) performs the
+removal. For every `AIDocument` returned by `IAIDocumentStore.GetDocumentsAsync(referenceId,
+referenceType)` it deletes the document chunks, the parsed tabular artifact in
+`ITabularDocumentArtifactStore`, the stored file in `IDocumentFileStore`, and the `AIDocument` record
+itself, so nothing is left orphaned in document storage.
+
+The cleanup is wired into the conversation lifecycle on both sides:
+
+- **Chat interactions** delete through the catalog manager, so `ChatInteractionDocumentCleanupHandler`
+  (an `ICatalogEntryHandler<ChatInteraction>`) runs the cleanup in its `DeletedAsync` callback.
+- **Chat sessions** are deleted by `IAIChatSessionManager`, whose YesSql and EntityCore implementations
+  invoke the cleanup service from `DeleteAsync` and `DeleteAllAsync`. The dependency is injected as an
+  `IEnumerable<IConversationDocumentCleanupService>` so hosts that register the data stores without the
+  Documents module simply perform no cleanup.
 
 ## Implementing Stores
 
@@ -737,6 +768,7 @@ public sealed class InteractionDocumentSettings
 | `ReadDocumentTool` | — | System tool | Full document read |
 | `GenerateFileTool` | — | System tool | Always-available `generate_file` content-generation tool that produces downloadable files |
 | `IGeneratedDocumentService` | `DefaultGeneratedDocumentService` | Scoped | Materializes generated content into a downloadable `AIDocument` and emits a `[doc:N]` reference |
+| `IConversationDocumentCleanupService` | `DefaultConversationDocumentCleanupService` | Scoped | Removes a conversation's documents, stored files, tabular artifacts, and chunks when the chat session or chat interaction is deleted |
 | `IGeneratedFileWriterResolver` | `GeneratedFileWriterResolver` | Singleton | Resolves the `IGeneratedFileWriter` for a file extension |
 | `IGeneratedFileWriter` (keyed) | `DelimitedGeneratedFileWriter`, `PlainTextGeneratedFileWriter` | Singleton | Core writers for `.csv` and plain-text formats |
 | `ITabularDocumentArtifactStore` | `DocumentFileStoreTabularDocumentArtifactStore` | Singleton | Stores parsed tabular document artifacts in shared document storage |

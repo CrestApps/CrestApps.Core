@@ -100,6 +100,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<GeneratedFileWriterOptions>();
         services.TryAddSingleton<IGeneratedFileWriterResolver, GeneratedFileWriterResolver>();
         services.TryAddScoped<IGeneratedDocumentService, DefaultGeneratedDocumentService>();
+        services.TryAddScoped<IConversationDocumentCleanupService, DefaultConversationDocumentCleanupService>();
         services.AddGeneratedFileWriter<DelimitedGeneratedFileWriter>(".csv");
         services.AddGeneratedFileWriter<PlainTextGeneratedFileWriter>(
             ".txt",
@@ -116,6 +117,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, TabularWorkspaceChatInteractionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, ChatInteractionDocumentCleanupHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatDocumentEventHandler, TabularWorkspaceDocumentEventHandler>());
 
         services.AddCoreAIIngestionDocumentReader<PlainTextIngestionDocumentReader>(

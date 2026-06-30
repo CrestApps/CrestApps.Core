@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
@@ -15,6 +17,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly CrestAppsEntityDbContext _dbContext;
     private readonly IEnumerable<ITabularWorkspaceInvalidationPublisher> _tabularWorkspaceInvalidationPublishers;
+    private readonly IEnumerable<IConversationDocumentCleanupService> _documentCleanupServices;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
@@ -23,16 +26,19 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     /// <param name="httpContextAccessor">The http context accessor.</param>
     /// <param name="dbContext">The db context.</param>
     /// <param name="tabularWorkspaceInvalidationPublishers">The tabular workspace invalidation publishers.</param>
+    /// <param name="documentCleanupServices">The conversation document cleanup services.</param>
     /// <param name="timeProvider">The time provider.</param>
     public EntityCoreAIChatSessionManager(
         IHttpContextAccessor httpContextAccessor,
         CrestAppsEntityDbContext dbContext,
         IEnumerable<ITabularWorkspaceInvalidationPublisher> tabularWorkspaceInvalidationPublishers,
+        IEnumerable<IConversationDocumentCleanupService> documentCleanupServices,
         TimeProvider timeProvider)
     {
         _httpContextAccessor = httpContextAccessor;
         _dbContext = dbContext;
         _tabularWorkspaceInvalidationPublishers = tabularWorkspaceInvalidationPublishers;
+        _documentCleanupServices = documentCleanupServices;
         _timeProvider = timeProvider;
     }
 
@@ -222,6 +228,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         await _tabularWorkspaceInvalidationPublishers.PublishAllAsync(
             TabularWorkspaceInvalidation.ForChatSession(sessionId),
             cancellationToken);
+        await CleanupSessionDocumentsAsync(sessionId, cancellationToken);
 
         return true;
     }
@@ -266,9 +273,18 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
             await _tabularWorkspaceInvalidationPublishers.PublishAllAsync(
                 TabularWorkspaceInvalidation.ForChatSession(sessionId),
                 cancellationToken);
+            await CleanupSessionDocumentsAsync(sessionId, cancellationToken);
         }
 
         return records.Count;
+    }
+
+    private async Task CleanupSessionDocumentsAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        foreach (var cleanupService in _documentCleanupServices)
+        {
+            await cleanupService.CleanupAsync(sessionId, AIReferenceTypes.Document.ChatSession, cancellationToken);
+        }
     }
 
     private static AIChatSession Materialize(AIChatSessionRecord record)
