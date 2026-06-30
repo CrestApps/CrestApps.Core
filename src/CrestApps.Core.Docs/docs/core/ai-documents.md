@@ -566,8 +566,11 @@ module and the `.pdf` writer requires the Pdf module.
 
 :::note
 The PDF writer uses PDFsharp/MigraDoc. On Windows and WSL2 it relies on the installed system fonts.
-On a headless Linux container without fonts you must register a custom `IFontResolver` (via PDFsharp's
-`GlobalFontSettings.FontResolver`) so PDF generation can locate a usable font.
+On other non-Windows hosts it automatically falls back to a sans-serif font discovered in the standard
+system font directories (such as DejaVu or Liberation), so PDF generation works out of the box on most
+Linux and macOS servers. In a truly font-less environment you can still register a custom `IFontResolver`
+(via PDFsharp's `GlobalFontSettings.FontResolver`) before generating PDFs; an application-supplied
+resolver always takes precedence over the built-in fallback.
 :::
 
 ### Conversation Document Cleanup

@@ -134,9 +134,17 @@ public sealed class PdfGeneratedFileWriter : IGeneratedFileWriter
             return;
         }
 
-        // Resolve fonts from the host operating system. On non-Windows hosts that lack these settings a
-        // custom IFontResolver should be registered by the application before generating PDFs.
+        // Resolve fonts from the host operating system. On non-Windows hosts that lack a custom resolver,
+        // fall back to a font discovered in the system font directories so PDF generation works out of the
+        // box on Linux/macOS servers. Truly font-less environments can still register their own resolver.
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;
         GlobalFontSettings.UseWindowsFontsUnderWsl2 = true;
+
+        if (!OperatingSystem.IsWindows() &&
+            GlobalFontSettings.FontResolver is null &&
+            SystemFontResolver.TryCreate(out var resolver))
+        {
+            GlobalFontSettings.FontResolver = resolver;
+        }
     }
 }
