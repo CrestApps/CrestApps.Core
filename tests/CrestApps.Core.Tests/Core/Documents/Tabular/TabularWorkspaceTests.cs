@@ -115,6 +115,45 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RunsMultipleStatementsInOneCall()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        var command = await workspace.ExecuteAsync(
+            "UPDATE sales SET amount = '300' WHERE region = 'South'; ALTER TABLE sales ADD COLUMN country TEXT; UPDATE sales SET country = 'US'",
+            cancellationToken);
+
+        Assert.Equal(3, command.StatementCount);
+        // At minimum the 1 updated South row and the 3 country updates are reflected.
+        Assert.True(command.AffectedRows >= 4);
+
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+        Assert.Contains(Assert.Single(tables).Columns, c => c.Name == "country");
+
+        var result = await workspace.QueryAsync("SELECT amount FROM sales WHERE region = 'South'", 100, cancellationToken);
+        Assert.Equal("300", Assert.Single(result.Rows)[0]);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RollsBackEntireBatchWhenAnyStatementFails()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        // The second statement references a missing column and must fail, rolling back the first.
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => workspace.ExecuteAsync(
+                "UPDATE sales SET amount = '777' WHERE region = 'South'; UPDATE sales SET missing_column = '1'",
+                cancellationToken));
+
+        var result = await workspace.QueryAsync("SELECT amount FROM sales WHERE region = 'South'", 100, cancellationToken);
+        Assert.Equal("200", Assert.Single(result.Rows)[0]);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_RejectsForbiddenStatement()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

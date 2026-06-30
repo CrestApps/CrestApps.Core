@@ -188,15 +188,18 @@ internal sealed class TabularWorkspace : IDisposable
     }
 
     /// <summary>
-    /// Runs a single data-manipulation or schema statement against the in-memory database. The change
-    /// applies only to the in-memory copy and is discarded when the prompt completes.
+    /// Runs one or more data-manipulation or schema statements against the in-memory database in a
+    /// single transaction. All statements are applied as one batch so the model can make every change
+    /// in a single tool call instead of many round-trips. The changes apply only to the in-memory copy
+    /// and are discarded when the prompt completes. If any statement fails, the whole batch is rolled
+    /// back.
     /// </summary>
-    /// <param name="sql">The manipulation or schema statement.</param>
+    /// <param name="sql">One or more manipulation or schema statements separated by semicolons.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The command result.</returns>
     public async Task<TabularCommandResult> ExecuteAsync(string sql, CancellationToken cancellationToken = default)
     {
-        var statement = TabularSqlGuard.EnsureCommand(sql);
+        var statements = TabularSqlGuard.EnsureCommandBatch(sql);
 
         await _gate.WaitAsync(cancellationToken);
 
@@ -204,13 +207,32 @@ internal sealed class TabularWorkspace : IDisposable
         {
             EnsureLoaded();
 
-            using var command = _connection.CreateCommand();
-            command.CommandText = statement;
-            command.CommandTimeout = _options.CommandTimeoutSeconds;
+            var affected = 0;
 
-            var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+            using var transaction = _connection.BeginTransaction();
 
-            return new TabularCommandResult(affected);
+            try
+            {
+                foreach (var statement in statements)
+                {
+                    using var command = _connection.CreateCommand();
+                    command.Transaction = transaction;
+                    command.CommandText = statement;
+                    command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                    affected += await command.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+
+                throw;
+            }
+
+            return new TabularCommandResult(affected, statements.Count);
         }
         finally
         {

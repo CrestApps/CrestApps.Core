@@ -9,11 +9,11 @@ using Microsoft.Extensions.Logging;
 namespace CrestApps.Core.AI.Documents.Tools;
 
 /// <summary>
-/// Tool that runs a single data-manipulation or schema statement (for example
+/// Tool that runs one or more data-manipulation or schema statements (for example
 /// <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c>, or <c>ALTER TABLE</c>) against the in-memory
-/// tabular workspace. The originally uploaded file is never modified; changes apply to the in-memory
-/// copy and are persisted as the conversation's working copy so they survive workspace rebuilds and
-/// can be exported later.
+/// tabular workspace in a single batch. The originally uploaded file is never modified; changes apply
+/// to the in-memory copy and are persisted as the conversation's working copy so they survive workspace
+/// rebuilds and can be exported later.
 /// </summary>
 public sealed class ExecuteTabularCommandTool : AIFunction
 {
@@ -26,7 +26,7 @@ public sealed class ExecuteTabularCommandTool : AIFunction
       "properties": {
         "sql": {
           "type": "string",
-          "description": "A single SQLite data-manipulation or schema statement (INSERT, UPDATE, DELETE, REPLACE, ALTER, CREATE, or DROP) to apply to the in-memory copy of the data."
+          "description": "One or more SQLite data-manipulation or schema statements (INSERT, UPDATE, DELETE, REPLACE, ALTER, CREATE, or DROP), separated by semicolons, to apply to the in-memory copy of the data. Submit every change needed in a single call using set-based statements rather than one statement per row or cell. All statements run in one transaction and roll back together if any fails."
         }
       },
       "required": ["sql"],
@@ -42,7 +42,7 @@ public sealed class ExecuteTabularCommandTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Applies a single SQL manipulation or schema change (INSERT, UPDATE, DELETE, ALTER TABLE, etc.) to the in-memory copy of the uploaded tabular data. The original file is preserved.";
+    public override string Description => "Applies one or more SQL manipulation or schema changes (INSERT, UPDATE, DELETE, ALTER TABLE, etc.) to the in-memory copy of the uploaded tabular data in a single transactional batch. Batch every change into one call using set-based statements instead of one statement per row or cell. The original file is preserved.";
 
     /// <summary>
     /// Gets the json Schema.
@@ -97,7 +97,7 @@ public sealed class ExecuteTabularCommandTool : AIFunction
                 logger.LogDebug("AI tool '{ToolName}' completed.", Name);
             }
 
-            return $"Statement executed against the in-memory copy. {result.AffectedRows} row(s) affected. The original uploaded file is unchanged.";
+            return $"Batch executed against the in-memory copy. {result.StatementCount} statement(s) ran and {result.AffectedRows} row(s) were affected. The original uploaded file is unchanged.";
         }
         catch (TabularSqlException ex)
         {

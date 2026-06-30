@@ -11,8 +11,19 @@ public sealed class TabularCommandResult
     /// </summary>
     /// <param name="affectedRows">The number of rows affected by the command.</param>
     public TabularCommandResult(int affectedRows)
+        : this(affectedRows, 1)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TabularCommandResult"/> class.
+    /// </summary>
+    /// <param name="affectedRows">The total number of rows affected across all statements.</param>
+    /// <param name="statementCount">The number of statements that were executed.</param>
+    public TabularCommandResult(int affectedRows, int statementCount)
     {
         AffectedRows = affectedRows;
+        StatementCount = statementCount;
     }
 
     /// <summary>
@@ -20,4 +31,9 @@ public sealed class TabularCommandResult
     /// <c>ALTER TABLE</c> report <c>0</c>.
     /// </summary>
     public int AffectedRows { get; }
+
+    /// <summary>
+    /// Gets the number of statements that were executed as part of the command batch.
+    /// </summary>
+    public int StatementCount { get; }
 }

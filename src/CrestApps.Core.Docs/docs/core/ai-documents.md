@@ -453,12 +453,15 @@ name only by the agent itself, never selectable in another profile:
 |------|------|---------|
 | `ListTabularDataTool` | `list_tabular_data` | Lists the tabular tables, their columns, and row counts |
 | `QueryTabularDataTool` | `query_tabular_data` | Runs a read-only `SELECT` and returns a compact result |
-| `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies an `INSERT`/`UPDATE`/`DELETE`/`ALTER` to the in-memory copy |
+| `ExecuteTabularCommandTool` | `execute_tabular_command` | Applies one or more `INSERT`/`UPDATE`/`DELETE`/`ALTER` statements to the in-memory copy in a single transactional batch |
 | `ExportTabularDataTool` | `export_tabular_data` | Exports the current in-memory workspace to a generated download in the original file's format; omit `sql` to export the entire current table, or pass a `SELECT` to shape a subset |
 
 When the user asks for a new version of a tabular file — for example "sort by column A" or
 "add column ABC and give me the file" — the agent applies any requested workspace changes with
-`execute_tabular_command`, then calls `export_tabular_data`. **The export reflects the current
+`execute_tabular_command`, then calls `export_tabular_data`. `execute_tabular_command` accepts one or
+more semicolon-separated data/schema statements and runs the whole batch in a single transaction (it
+rolls back together if any statement fails), so the agent makes every requested change in one tool call
+using set-based statements instead of many slow per-cell round-trips. **The export reflects the current
 in-memory data, including every applied mutation, not the originally uploaded file.** Omit the optional
 `sql` argument to export the entire current table (the common case when the user wants "the updated
 file"); pass a read-only `SELECT` only when the user wants a shaped subset. The exported header row uses

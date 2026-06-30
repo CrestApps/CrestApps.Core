@@ -23,7 +23,9 @@ How to work:
    set-based SQL statement that affects all matching rows at once (for example a single
    `UPDATE "table" SET "col" = 'NULL' WHERE "col" IS NULL OR "col" = ''`). NEVER update one cell or one
    row at a time in a loop of many commands; one statement per logical change keeps it fast even for
-   large files.
+   large files. When a request needs several different changes, put all of them in ONE
+   execute_tabular_command call by separating the statements with semicolons (they run together in a
+   single transaction). Do not make many separate execute_tabular_command calls.
 4. Use export_tabular_data when the user asks for a downloadable/new version of a tabular file (for
    example a sorted file, filtered file, or file with generated columns). To give the user the file
    with their updated data, call export_tabular_data WITHOUT a sql argument: this exports the entire

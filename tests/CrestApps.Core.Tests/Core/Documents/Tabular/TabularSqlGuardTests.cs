@@ -63,4 +63,61 @@ public class TabularSqlGuardTests
     {
         Assert.Throws<TabularSqlException>(() => TabularSqlGuard.EnsureCommand(sql));
     }
+
+    [Fact]
+    public void EnsureCommandBatch_AllowsMultipleStatements()
+    {
+        var statements = TabularSqlGuard.EnsureCommandBatch(
+            "UPDATE sales SET amount = '0' WHERE amount = ''; ALTER TABLE sales ADD COLUMN country TEXT; UPDATE sales SET country = 'US'");
+
+        Assert.Equal(3, statements.Count);
+        Assert.StartsWith("UPDATE", statements[0]);
+        Assert.StartsWith("ALTER", statements[1]);
+        Assert.StartsWith("UPDATE", statements[2]);
+    }
+
+    [Fact]
+    public void EnsureCommandBatch_AllowsTrailingSemicolonAndWhitespace()
+    {
+        var statements = TabularSqlGuard.EnsureCommandBatch("UPDATE sales SET amount = '1';  ");
+
+        Assert.Single(statements);
+        Assert.Equal("UPDATE sales SET amount = '1'", statements[0]);
+    }
+
+    [Fact]
+    public void EnsureCommandBatch_DoesNotSplitOnSemicolonInsideStringLiteral()
+    {
+        var statements = TabularSqlGuard.EnsureCommandBatch("UPDATE sales SET note = 'a;b;c' WHERE region = 'North'");
+
+        Assert.Single(statements);
+        Assert.Contains("'a;b;c'", statements[0]);
+    }
+
+    [Fact]
+    public void EnsureCommandBatch_IgnoresComments()
+    {
+        var statements = TabularSqlGuard.EnsureCommandBatch(
+            "UPDATE sales SET amount = '1'; -- a comment; with semicolon\nUPDATE sales SET amount = '2'");
+
+        Assert.Equal(2, statements.Count);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(";;")]
+    public void EnsureCommandBatch_RejectsEmptyInput(string sql)
+    {
+        Assert.Throws<TabularSqlException>(() => TabularSqlGuard.EnsureCommandBatch(sql));
+    }
+
+    [Theory]
+    [InlineData("UPDATE sales SET a = 1; ATTACH DATABASE 'x' AS y")]
+    [InlineData("UPDATE sales SET a = 1; SELECT load_extension('evil')")]
+    [InlineData("UPDATE sales SET a = 1; GRANT ALL ON sales")]
+    public void EnsureCommandBatch_RejectsUnsafeOrDisallowedStatements(string sql)
+    {
+        Assert.Throws<TabularSqlException>(() => TabularSqlGuard.EnsureCommandBatch(sql));
+    }
 }
