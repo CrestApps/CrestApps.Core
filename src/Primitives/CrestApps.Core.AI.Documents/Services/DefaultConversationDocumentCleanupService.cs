@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Tabular;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Services;
@@ -79,8 +80,8 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
             _logger.LogDebug(
                 "Removed {DocumentCount} document(s) for conversation '{ReferenceId}' of type '{ReferenceType}'.",
                 documents.Count,
-                referenceId,
-                referenceType);
+                referenceId.SanitizeForLog(),
+                referenceType.SanitizeForLog());
         }
     }
 }
