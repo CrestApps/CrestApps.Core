@@ -492,9 +492,13 @@ same user/session remains active, and disposed after a sliding idle timeout
 document artifact is also stored through `ITabularDocumentArtifactStore` using the configured
 `IDocumentFileStore`, so another application instance can hydrate from the shared artifact instead of
 reparsing the uploaded chunks. After each successful `execute_tabular_command`, the mutated table state
-is snapshotted back to `ITabularDocumentArtifactStore` (best-effort) so the in-memory edits survive
-workspace eviction, a process restart, or being served by another instance — a later export still
-returns the updated data. The originally uploaded file in `IDocumentFileStore` is never modified. A hosted cleanup service scans for idle workspaces
+is snapshotted back to `ITabularDocumentArtifactStore` through a coalesced background operation on the
+workspace (best-effort) so the in-memory edits survive workspace eviction, a process restart, or being
+served by another instance — a later export still returns the updated data — without blocking each
+command on a full-table snapshot, serialization, and write. Generated files (tabular exports and
+`generate_file` downloads) are flagged with `DefaultGeneratedDocumentService.GeneratedPropertyName` and
+excluded from the in-memory workspace, so an export produces a single downloadable file and is never
+re-ingested as a duplicate source table. The originally uploaded file in `IDocumentFileStore` is never modified. A hosted cleanup service scans for idle workspaces
 (`WorkspaceCleanupInterval`, one minute by default), and document uploads/removals plus chat
 interaction/session deletion invalidate matching workspaces immediately. Distributed hosts can replace
 `ITabularWorkspaceInvalidationPublisher` to broadcast those invalidations through a backplane
@@ -586,7 +590,9 @@ conversation is deleted.
 removal. For every `AIDocument` returned by `IAIDocumentStore.GetDocumentsAsync(referenceId,
 referenceType)` it deletes the document chunks, the parsed tabular artifact in
 `ITabularDocumentArtifactStore`, the stored file in `IDocumentFileStore`, and the `AIDocument` record
-itself, so nothing is left orphaned in document storage.
+itself, so nothing is left orphaned in document storage. The same service also exposes
+`CleanupGeneratedDocumentsAsync(documentIds)`, which deletes a specific set of AI-generated documents
+(and their stored content) while leaving uploaded source documents untouched.
 
 The cleanup is wired into the conversation lifecycle on both sides:
 
@@ -596,6 +602,13 @@ The cleanup is wired into the conversation lifecycle on both sides:
   invoke the cleanup service from `DeleteAsync` and `DeleteAllAsync`. The dependency is injected as an
   `IEnumerable<IConversationDocumentCleanupService>` so hosts that register the data stores without the
   Documents module simply perform no cleanup.
+
+Clearing a chat interaction's history (rather than deleting the interaction) keeps the uploaded
+documents but removes the AI-generated files attached to the cleared messages. The hub collects the
+generated `[doc:n]` references saved on each cleared `ChatInteractionPrompt` and dispatches them to
+`IChatInteractionHistoryHandler` implementations; the Documents module's
+`ChatInteractionGeneratedFileCleanupHandler` forwards those document ids to
+`CleanupGeneratedDocumentsAsync` so the generated exports do not linger in storage.
 
 ## Implementing Stores
 

@@ -55,6 +55,7 @@ public sealed class GeneratedFileToolReferencePersistenceTests
         Assert.Equal(AIReferenceTypes.Document.ChatInteraction, createdDocument.ReferenceType);
         Assert.False(string.IsNullOrEmpty(createdDocument.StoredFilePath));
         Assert.True(fileStore.Exists(createdDocument.StoredFilePath));
+        Assert.True(createdDocument.Get<bool>(DefaultGeneratedDocumentService.GeneratedPropertyName));
 
         var toolReference = Assert.Single(scope.Context.ToolReferences);
         Assert.Equal("[doc:1]", toolReference.Key);

@@ -53,7 +53,7 @@ public sealed class ExportTabularDataTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Creates a downloadable file from the active in-memory copy of the uploaded tabular data, reflecting every change already applied with execute_tabular_command (the exported data comes from memory, not the original uploaded file). Omit 'sql' to export the entire current table; provide a read-only SELECT only to export a specific subset. By default the export keeps the format of the originally uploaded file (for example xlsx stays xlsx); a different format can be requested. The export cannot read host files or data outside this tabular workspace.";
+    public override string Description => "Creates a downloadable file from the active in-memory copy of the uploaded tabular data, reflecting every change already applied with execute_tabular_command (the exported data comes from memory, not the original uploaded file). Omit 'sql' to export the entire current table; provide a read-only SELECT only to export a specific subset. By default the export keeps the format of the originally uploaded file (for example xlsx stays xlsx); a different format can be requested. The export cannot read host files or data outside this tabular workspace. Returns a [doc:N] marker that MUST be included exactly as-is in your response so the UI renders the download link; never write the file name in brackets or invent your own link.";
 
     /// <summary>
     /// Gets the json Schema.
@@ -145,10 +145,6 @@ public sealed class ExportTabularDataTool : AIFunction
                     content),
                 cancellationToken);
 
-            // Persist the artifact so the generated file can itself be re-queried as tabular data.
-            var artifactStore = arguments.Services.GetRequiredService<ITabularDocumentArtifactStore>();
-            await artifactStore.SaveAsync(result.Document.ItemId, export.Artifact, cancellationToken);
-
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug("AI tool '{ToolName}' completed.", Name);
@@ -156,7 +152,7 @@ public sealed class ExportTabularDataTool : AIFunction
 
             return string.IsNullOrEmpty(result.ReferenceToken)
                 ? $"Created \"{result.Document.FileName}\" with {export.RowCount} row(s). The generated document id is {result.Document.ItemId}."
-                : $"Created \"{result.Document.FileName}\" with {export.RowCount} row(s). Include the following marker exactly as-is in your response so the user can download it: {result.ReferenceToken}";
+                : $"Created \"{result.Document.FileName}\" with {export.RowCount} row(s). This returns a {result.ReferenceToken} marker that MUST be included exactly as-is in your response so the UI renders the download link. Do not write your own link or the file name in brackets; use the {result.ReferenceToken} marker.";
         }
         catch (TabularSqlException ex)
         {

@@ -15,4 +15,13 @@ public interface IConversationDocumentCleanupService
     /// <param name="referenceType">The owning conversation reference type (for example <c>chat-session</c> or <c>chat-interaction</c>).</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     Task CleanupAsync(string referenceId, string referenceType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes the specified AI-generated documents and their stored content (file, chunks, and tabular
+    /// artifacts). Documents that cannot be found, or that were not produced by the generation service,
+    /// are ignored so uploaded source documents are never removed by this method.
+    /// </summary>
+    /// <param name="documentIds">The identifiers of the generated documents to remove.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    Task CleanupGeneratedDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
 }

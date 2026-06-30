@@ -62,7 +62,7 @@ public sealed class GenerateFileTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Creates a downloadable file (PDF, Word, Markdown, HTML, text, CSV, or spreadsheet) from generated content and attaches it to the conversation. Use this whenever the user asks to generate, produce, or download a file. Returns a [doc:N] marker that MUST be included exactly as-is in your response so the UI renders the download link.";
+    public override string Description => "Creates a downloadable file (PDF, Word, Markdown, HTML, text, CSV, or spreadsheet) from generated content and attaches it to the conversation. Use this whenever the user asks to generate, produce, or download a file from NEW content you author. The 'content' you provide becomes the ENTIRE file verbatim, so never pass a description, summary, or status message about a file instead of its real contents. Do NOT use this tool to export, modify, or re-save an uploaded spreadsheet or tabular file (CSV/Excel); for any uploaded tabular data delegate to the Tabular Data Agent, which exports the actual rows from the in-memory table. Returns a [doc:N] marker that MUST be included exactly as-is in your response so the UI renders the download link.";
 
     /// <summary>
     /// Gets the json Schema.

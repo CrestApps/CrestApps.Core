@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
@@ -91,5 +92,58 @@ public sealed class ConversationDocumentCleanupServiceTests
         await service.CleanupAsync(referenceId, referenceType, TestContext.Current.CancellationToken);
 
         documentStore.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task CleanupGeneratedDocumentsAsync_RemovesOnlyGeneratedDocuments()
+    {
+        var documentStore = new Mock<IAIDocumentStore>();
+        var chunkStore = new Mock<IAIDocumentChunkStore>();
+        var fileStore = new Mock<IDocumentFileStore>();
+        var artifactStore = new Mock<ITabularDocumentArtifactStore>();
+
+        var generated = new AIDocument
+        {
+            ItemId = "gen-1",
+            StoredFilePath = "documents/chat-interaction/interaction-1/export.xlsx",
+        };
+        generated.Properties[DefaultGeneratedDocumentService.GeneratedPropertyName] = true;
+
+        var uploaded = new AIDocument
+        {
+            ItemId = "up-1",
+            StoredFilePath = "documents/chat-interaction/interaction-1/source.xlsx",
+        };
+
+        documentStore
+            .Setup(store => store.FindByIdAsync("gen-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(generated);
+        documentStore
+            .Setup(store => store.FindByIdAsync("up-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(uploaded);
+        documentStore
+            .Setup(store => store.FindByIdAsync("missing", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AIDocument)null);
+
+        var service = new DefaultConversationDocumentCleanupService(
+            documentStore.Object,
+            chunkStore.Object,
+            fileStore.Object,
+            artifactStore.Object,
+            NullLogger<DefaultConversationDocumentCleanupService>.Instance);
+
+        await service.CleanupGeneratedDocumentsAsync(
+            ["gen-1", "up-1", "missing", "gen-1"],
+            TestContext.Current.CancellationToken);
+
+        chunkStore.Verify(store => store.DeleteByDocumentIdAsync("gen-1"), Times.Once);
+        artifactStore.Verify(store => store.DeleteAsync("gen-1", It.IsAny<CancellationToken>()), Times.Once);
+        fileStore.Verify(store => store.DeleteFileAsync(generated.StoredFilePath), Times.Once);
+        documentStore.Verify(store => store.DeleteAsync(generated, It.IsAny<CancellationToken>()), Times.Once);
+
+        // The uploaded source document must never be removed.
+        chunkStore.Verify(store => store.DeleteByDocumentIdAsync("up-1"), Times.Never);
+        documentStore.Verify(store => store.DeleteAsync(uploaded, It.IsAny<CancellationToken>()), Times.Never);
+        fileStore.Verify(store => store.DeleteFileAsync(uploaded.StoredFilePath), Times.Never);
     }
 }

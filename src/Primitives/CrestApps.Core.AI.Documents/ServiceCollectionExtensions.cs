@@ -118,6 +118,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, TabularWorkspaceChatInteractionHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, ChatInteractionDocumentCleanupHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionHistoryHandler, ChatInteractionGeneratedFileCleanupHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatDocumentEventHandler, TabularWorkspaceDocumentEventHandler>());
 
         services.AddCoreAIIngestionDocumentReader<PlainTextIngestionDocumentReader>(

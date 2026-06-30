@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -176,6 +177,13 @@ internal sealed class TabularToolContext
 
             foreach (var document in found)
             {
+                // Skip files this conversation generated (for example a tabular export). They are
+                // outputs, not sources, so they must never be re-ingested as duplicate workspace tables.
+                if (document.Get<bool>(DefaultGeneratedDocumentService.GeneratedPropertyName))
+                {
+                    continue;
+                }
+
                 if (documentOptions.IsTabularFileExtension(document.FileName) && seen.Add(document.ItemId))
                 {
                     documents.Add(new TabularDocumentRef(document.ItemId, document.FileName));

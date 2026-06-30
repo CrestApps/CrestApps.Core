@@ -12,6 +12,13 @@ namespace CrestApps.Core.AI.Documents.Generation;
 /// </summary>
 public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
 {
+    /// <summary>
+    /// The <see cref="AIDocument.Properties"/> key set on documents produced by this service. Tabular
+    /// tooling uses it to exclude generated exports from the in-memory workspace so an exported file is
+    /// never re-ingested as a duplicate source table.
+    /// </summary>
+    public const string GeneratedPropertyName = "IsGenerated";
+
     private readonly IGeneratedFileWriterResolver _writerResolver;
     private readonly IAIDocumentStore _documentStore;
     private readonly IDocumentFileStore _fileStore;
@@ -76,6 +83,8 @@ public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
             FileSize = buffer.Length,
             UploadedUtc = _timeProvider.GetUtcNow().UtcDateTime,
         };
+
+        document.Properties[GeneratedPropertyName] = true;
 
         await _documentStore.CreateAsync(document, cancellationToken);
 

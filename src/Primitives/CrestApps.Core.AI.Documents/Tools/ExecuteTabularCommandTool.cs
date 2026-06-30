@@ -90,7 +90,7 @@ public sealed class ExecuteTabularCommandTool : AIFunction
         {
             var result = await preparation.Workspace.ExecuteAsync(sql, cancellationToken);
 
-            await PersistWorkspaceSnapshotAsync(arguments.Services, preparation.Workspace, logger, cancellationToken);
+            SchedulePersistWorkspaceSnapshot(arguments.Services, preparation.Workspace, logger);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
@@ -114,24 +114,34 @@ public sealed class ExecuteTabularCommandTool : AIFunction
         }
     }
 
-    private static async Task PersistWorkspaceSnapshotAsync(
+    private static void SchedulePersistWorkspaceSnapshot(
         IServiceProvider services,
         TabularWorkspace workspace,
+        ILogger logger)
+    {
+        // Persist the mutated in-memory state so the changes survive workspace eviction, a process
+        // restart, or being served by another application instance. This is scheduled as a coalesced
+        // background operation rather than awaited so that a burst of commands does not each block on a
+        // full-table snapshot, serialization, and write. The artifact store is a singleton, so it is
+        // safe to capture here and use after the request scope completes.
+        var artifactStore = services.GetService<ITabularDocumentArtifactStore>();
+
+        if (artifactStore is null)
+        {
+            return;
+        }
+
+        workspace.SchedulePersist(token => PersistWorkspaceSnapshotAsync(workspace, artifactStore, logger, token));
+    }
+
+    private static async Task PersistWorkspaceSnapshotAsync(
+        TabularWorkspace workspace,
+        ITabularDocumentArtifactStore artifactStore,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        // Persist the mutated in-memory state so the changes survive workspace eviction, a process
-        // restart, or being served by another application instance. This is best-effort: a failure to
-        // snapshot must not fail the command, since the live workspace still holds the changes.
         try
         {
-            var artifactStore = services.GetService<ITabularDocumentArtifactStore>();
-
-            if (artifactStore is null)
-            {
-                return;
-            }
-
             var snapshots = await workspace.SnapshotAsync(cancellationToken);
 
             foreach (var (documentId, artifact) in snapshots)

@@ -16,6 +16,9 @@ internal sealed class TabularWorkspace : IDisposable
     private readonly TabularWorkspaceOptions _options;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, LoadedTable> _tables = new(StringComparer.Ordinal);
+    private readonly object _persistLock = new();
+    private Func<CancellationToken, Task> _pendingPersist;
+    private bool _persisting;
     private SqliteConnection _connection;
     private bool _disposed;
 
@@ -466,19 +469,98 @@ internal sealed class TabularWorkspace : IDisposable
     }
 
     /// <summary>
+    /// Schedules a best-effort background persistence of the current in-memory state. Multiple rapid
+    /// calls are coalesced: at most one persist operation runs at a time and the most recently
+    /// scheduled operation always runs against the latest state. This keeps in-memory mutations off
+    /// the model's tool-call critical path so a burst of changes does not block on a full-table
+    /// snapshot, serialization, and write after every command.
+    /// </summary>
+    /// <param name="persistOperation">The persistence operation to run in the background.</param>
+    public void SchedulePersist(Func<CancellationToken, Task> persistOperation)
+    {
+        ArgumentNullException.ThrowIfNull(persistOperation);
+
+        lock (_persistLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _pendingPersist = persistOperation;
+
+            if (_persisting)
+            {
+                return;
+            }
+
+            _persisting = true;
+        }
+
+        _ = Task.Run(RunPersistLoopAsync);
+    }
+
+    private async Task RunPersistLoopAsync()
+    {
+        while (true)
+        {
+            Func<CancellationToken, Task> operation;
+
+            lock (_persistLock)
+            {
+                if (_pendingPersist is null || _disposed)
+                {
+                    _persisting = false;
+
+                    return;
+                }
+
+                operation = _pendingPersist;
+                _pendingPersist = null;
+            }
+
+            try
+            {
+                await operation(CancellationToken.None);
+            }
+            catch
+            {
+                // Persistence is best-effort: the live workspace still holds the changes, so a
+                // failure to snapshot must never surface from the background loop.
+            }
+        }
+    }
+
+    /// <summary>
     /// Disposes the in-memory database and releases the concurrency gate.
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
+        lock (_persistLock)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _pendingPersist = null;
         }
 
-        _disposed = true;
-        _connection?.Dispose();
-        _connection = null;
-        _gate.Dispose();
+        // Acquire the gate so the connection is never disposed while a background snapshot is still
+        // reading from it; the snapshot only holds the gate for the in-memory read, not the write.
+        _gate.Wait();
+
+        try
+        {
+            _connection?.Dispose();
+            _connection = null;
+        }
+        finally
+        {
+            _gate.Release();
+            _gate.Dispose();
+        }
     }
 
     private void EnsureLoaded()

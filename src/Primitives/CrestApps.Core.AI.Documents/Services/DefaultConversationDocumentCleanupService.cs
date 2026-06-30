@@ -1,4 +1,6 @@
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Tabular;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 
@@ -64,15 +66,7 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await _chunkStore.DeleteByDocumentIdAsync(document.ItemId);
-            await _artifactStore.DeleteAsync(document.ItemId, cancellationToken);
-
-            if (!string.IsNullOrWhiteSpace(document.StoredFilePath))
-            {
-                await _fileStore.DeleteFileAsync(document.StoredFilePath);
-            }
-
-            await _documentStore.DeleteAsync(document, cancellationToken);
+            await DeleteDocumentAsync(document, cancellationToken);
         }
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -83,5 +77,57 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
                 referenceId.SanitizeForLog(),
                 referenceType.SanitizeForLog());
         }
+    }
+
+    /// <summary>
+    /// Deletes the specified AI-generated documents and their stored content. Uploaded source documents
+    /// are never removed because only documents flagged as generated are deleted.
+    /// </summary>
+    /// <param name="documentIds">The identifiers of the generated documents to remove.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task CleanupGeneratedDocumentsAsync(IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(documentIds);
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var removed = 0;
+
+        foreach (var documentId in documentIds)
+        {
+            if (string.IsNullOrEmpty(documentId) || !seen.Add(documentId))
+            {
+                continue;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var document = await _documentStore.FindByIdAsync(documentId, cancellationToken);
+
+            if (document is null || !document.Get<bool>(DefaultGeneratedDocumentService.GeneratedPropertyName))
+            {
+                continue;
+            }
+
+            await DeleteDocumentAsync(document, cancellationToken);
+            removed++;
+        }
+
+        if (removed > 0 && _logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Removed {DocumentCount} generated document(s).", removed);
+        }
+    }
+
+    private async Task DeleteDocumentAsync(AIDocument document, CancellationToken cancellationToken)
+    {
+        await _chunkStore.DeleteByDocumentIdAsync(document.ItemId);
+        await _artifactStore.DeleteAsync(document.ItemId, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(document.StoredFilePath))
+        {
+            await _fileStore.DeleteFileAsync(document.StoredFilePath);
+        }
+
+        await _documentStore.DeleteAsync(document, cancellationToken);
     }
 }
