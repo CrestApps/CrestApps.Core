@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,14 @@ namespace CrestApps.Core.AI.Orchestration;
 /// </summary>
 internal sealed class AgentProxyTool : AIFunction
 {
+    /// <summary>
+    /// The maximum sub-agent depth at which an agent is allowed to run its own tools.
+    /// The top-level completion is depth <c>0</c>; a tool-capable agent runs at depth <c>1</c>.
+    /// Because agents are never exposed as tools to other agents, depth cannot exceed this value
+    /// in practice; the limit is a defensive backstop against runaway recursion.
+    /// </summary>
+    private const int MaxAgentToolInvocationDepth = 1;
+
     private readonly string _agentProfileName;
     private readonly string _description;
 
@@ -87,32 +96,12 @@ internal sealed class AgentProxyTool : AIFunction
                 return $"Agent '{_agentProfileName}' is not available.";
             }
 
-            var completionService = arguments.Services.GetRequiredService<IAICompletionService>();
-            var contextBuilder = arguments.Services.GetRequiredService<IAICompletionContextBuilder>();
-            var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-
-            var context = await contextBuilder.BuildAsync(agentProfile, cancellationToken: cancellationToken);
-
-            // Disable tools on the agent's context to prevent infinite recursion.
-            context.DisableTools = true;
-
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: context.ChatDeploymentName, cancellationToken: cancellationToken)
-            ?? throw new InvalidOperationException($"Unable to resolve a chat deployment for agent profile '{_agentProfileName}'.");
-
-            var messages = new List<ChatMessage>
+            if (ShouldRunWithTools(agentProfile))
             {
-                new(ChatRole.User, task),
-            };
+                return await RunWithToolsAsync(arguments.Services, agentProfile, task, cancellationToken);
+            }
 
-            var response = await completionService.CompleteAsync(
-                deployment,
-                messages,
-                context,
-                cancellationToken);
-
-            var result = response?.Messages?.FirstOrDefault(m => m.Role == ChatRole.Assistant)?.Text;
-
-            return result ?? "The agent did not produce a response.";
+            return await RunWithoutToolsAsync(arguments.Services, agentProfile, task, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -124,5 +113,117 @@ internal sealed class AgentProxyTool : AIFunction
 
             return $"An error occurred while executing agent '{_agentProfileName}'.";
         }
+    }
+
+    private static bool ShouldRunWithTools(AIProfile agentProfile)
+    {
+        if (!agentProfile.TryGet<AgentMetadata>(out var agentMetadata) || !agentMetadata.AllowToolInvocation)
+        {
+            return false;
+        }
+
+        var depth = AIInvocationScope.Current?.AgentInvocationDepth;
+
+        // A null scope means depth cannot be tracked, so we conservatively run without tools.
+        return depth is >= 0 and < MaxAgentToolInvocationDepth;
+    }
+
+    /// <summary>
+    /// Runs the agent through the orchestrator so its configured tools are available, while
+    /// suppressing nested agents and incrementing the recursion depth for the duration.
+    /// </summary>
+    private static async ValueTask<object> RunWithToolsAsync(
+        IServiceProvider services,
+        AIProfile agentProfile,
+        string task,
+        CancellationToken cancellationToken)
+    {
+        var orchestrationContextBuilder = services.GetRequiredService<IOrchestrationContextBuilder>();
+        var orchestratorResolver = services.GetRequiredService<IOrchestratorResolver>();
+        var invocationContext = AIInvocationScope.Current;
+
+        // Enter the sub-agent scope before building the context so that agent enrichment and
+        // agent tools are suppressed for the agent's own orchestration.
+        invocationContext.AgentInvocationDepth++;
+
+        try
+        {
+            var orchestrationContext = await orchestrationContextBuilder.BuildAsync(
+                agentProfile,
+                ctx =>
+                {
+                    ctx.UserMessage = task;
+
+                    if (ctx.CompletionContext is not null)
+                    {
+                        // Sub-agents never delegate to other agents.
+                        ctx.CompletionContext.AgentNames = [];
+                    }
+                },
+                cancellationToken);
+
+            var orchestrator = orchestratorResolver.Resolve(agentProfile.OrchestratorName);
+
+            using var builder = ZString.CreateStringBuilder();
+
+            await foreach (var update in orchestrator.ExecuteStreamingAsync(orchestrationContext, cancellationToken))
+            {
+                if (!string.IsNullOrEmpty(update.Text))
+                {
+                    builder.Append(update.Text);
+                }
+            }
+
+            var result = builder.ToString();
+
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                return "The agent did not produce a response.";
+            }
+
+            return result;
+        }
+        finally
+        {
+            invocationContext.AgentInvocationDepth--;
+        }
+    }
+
+    /// <summary>
+    /// Runs the agent as an isolated single completion with tools disabled. This is the default,
+    /// recursion-safe behavior used for agents that do not opt into tool invocation.
+    /// </summary>
+    private async ValueTask<object> RunWithoutToolsAsync(
+        IServiceProvider services,
+        AIProfile agentProfile,
+        string task,
+        CancellationToken cancellationToken)
+    {
+        var completionService = services.GetRequiredService<IAICompletionService>();
+        var contextBuilder = services.GetRequiredService<IAICompletionContextBuilder>();
+        var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
+
+        var context = await contextBuilder.BuildAsync(agentProfile, cancellationToken: cancellationToken);
+
+        // Disable tools on the agent's context to prevent infinite recursion.
+        context.DisableTools = true;
+
+        var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: context.ChatDeploymentName, cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException($"Unable to resolve a chat deployment for agent profile '{_agentProfileName}'.");
+
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, task),
+        };
+
+        var response = await completionService.CompleteAsync(
+            deployment,
+            messages,
+            context,
+            cancellationToken);
+
+        var result = response?.Messages?.FirstOrDefault(m => m.Role == ChatRole.Assistant)?.Text;
+
+        return result ?? "The agent did not produce a response.";
     }
 }

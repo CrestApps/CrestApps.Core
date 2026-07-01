@@ -15,12 +15,15 @@ public sealed class DocumentOrchestrationHandlerTests
 {
     private static DocumentOrchestrationHandler CreateHandler(
         AIToolDefinitionOptions toolOptions = null,
-        ITemplateService templateService = null)
+        ITemplateService templateService = null,
+        ChatDocumentsOptions documentOptions = null)
     {
         toolOptions ??= new AIToolDefinitionOptions();
+        documentOptions ??= new ChatDocumentsOptions();
 
         return new DocumentOrchestrationHandler(
             Options.Create(toolOptions),
+            Options.Create(documentOptions),
             templateService ?? new FakeAITemplateService(),
             NullLogger<DocumentOrchestrationHandler>.Instance);
     }
@@ -384,6 +387,60 @@ public sealed class DocumentOrchestrationHandlerTests
         Assert.Collection(
             visionDocuments,
             document => Assert.Equal("image-doc", document.DocumentId));
+    }
+
+    [Fact]
+    public async Task BuiltAsync_WithTabularDocuments_SplitsTabularDocumentsInTemplateArguments()
+    {
+        var templateService = new CaptureTemplateService();
+        var documentOptions = new ChatDocumentsOptions();
+        documentOptions.Add(new ExtractorExtension(".csv", embeddable: false, isTabular: true));
+
+        var handler = CreateHandler(
+            CreateToolOptionsWithDocTools(),
+            templateService,
+            documentOptions);
+        var interaction = new ChatInteraction
+        {
+            ItemId = "interaction-1",
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "csv-doc",
+                    FileName = "survey.csv",
+                    ContentType = "text/csv",
+                    FileSize = 8974,
+                },
+                new ChatDocumentInfo
+                {
+                    DocumentId = "pdf-doc",
+                    FileName = "rules.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 4096,
+                },
+            ],
+        };
+        var context = new OrchestrationContext
+        {
+            CompletionContext = new AICompletionContext(),
+            Documents = interaction.Documents,
+        };
+
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(interaction, context), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(templateService.Arguments);
+
+        var searchableDocuments = Assert.IsAssignableFrom<IEnumerable<ChatDocumentInfo>>(templateService.Arguments["userSuppliedDocuments"]);
+        var tabularDocuments = Assert.IsAssignableFrom<IEnumerable<ChatDocumentInfo>>(templateService.Arguments["tabularUserSuppliedDocuments"]);
+
+        Assert.Collection(
+            searchableDocuments,
+            document => Assert.Equal("pdf-doc", document.DocumentId));
+        Assert.Collection(
+            tabularDocuments,
+            document => Assert.Equal("csv-doc", document.DocumentId));
+        Assert.Equal("tabular-data-agent", templateService.Arguments["tabularAgentName"]);
     }
 
     [Fact]

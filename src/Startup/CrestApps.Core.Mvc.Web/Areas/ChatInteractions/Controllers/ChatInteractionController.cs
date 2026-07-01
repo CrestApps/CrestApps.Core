@@ -351,7 +351,7 @@ public sealed class ChatInteractionController : Controller
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableTools = _toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -369,6 +369,7 @@ public sealed class ChatInteractionController : Controller
         var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = agentProfiles
+            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {
@@ -491,7 +492,7 @@ public sealed class ChatInteractionController : Controller
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableTools = _toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -509,6 +510,7 @@ public sealed class ChatInteractionController : Controller
         var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = agentProfiles
+            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {

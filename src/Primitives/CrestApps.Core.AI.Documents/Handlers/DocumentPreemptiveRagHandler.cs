@@ -28,6 +28,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly ITemplateService _templateService;
     private readonly IAITextNormalizer _textNormalizer;
+    private readonly ChatDocumentsOptions _documentOptions;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DocumentPreemptiveRagHandler> _logger;
 
@@ -39,6 +40,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     /// <param name="indexProfileStore">The index profile store.</param>
     /// <param name="templateService">The template service.</param>
     /// <param name="textNormalizer">The text normalizer.</param>
+    /// <param name="documentOptions">The document options.</param>
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="logger">The logger.</param>
     public DocumentPreemptiveRagHandler(
@@ -47,6 +49,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         ISearchIndexProfileStore indexProfileStore,
         ITemplateService templateService,
         IAITextNormalizer textNormalizer,
+        IOptions<ChatDocumentsOptions> documentOptions,
         IServiceProvider serviceProvider,
         ILogger<DocumentPreemptiveRagHandler> logger)
     {
@@ -55,6 +58,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         _indexProfileStore = indexProfileStore;
         _templateService = templateService;
         _textNormalizer = textNormalizer;
+        _documentOptions = documentOptions.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -90,8 +94,8 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     public async Task HandleAsync(PreemptiveRagContext context)
     {
         var defaultSettings = _serviceProvider.GetRequiredService<IOptionsMonitor<InteractionDocumentOptions>>().CurrentValue;
-        var userSuppliedDocuments = DocumentContextInjectionModeResolver.ResolveUserSuppliedDocuments(context);
-        var fullUserDocumentMode = DocumentContextInjectionModeResolver.Resolve(context.OrchestrationContext, userSuppliedDocuments.Count);
+        var userSuppliedDocuments = ResolveTextUserSuppliedDocuments(context);
+        var fullUserDocumentMode = DocumentContextInjectionModeResolver.Resolve(context.OrchestrationContext, userSuppliedDocuments.Length);
 
         if (string.IsNullOrEmpty(defaultSettings.IndexProfileName) &&
             fullUserDocumentMode != DocumentContextInjectionMode.FullUserDocuments)
@@ -131,8 +135,8 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         var hasProfileScope = searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.Profile);
         var hasSessionScope = searchScopes.Any(scope => scope.ReferenceType == AIReferenceTypes.Document.ChatSession);
         var keepProfileDocumentAwareness = !(context.Resource is AIProfile && hasProfileScope && hasSessionScope);
-        var userSuppliedDocuments = DocumentContextInjectionModeResolver.ResolveUserSuppliedDocuments(context);
-        var fullUserDocumentMode = DocumentContextInjectionModeResolver.Resolve(context.OrchestrationContext, userSuppliedDocuments.Count);
+        var userSuppliedDocuments = ResolveTextUserSuppliedDocuments(context);
+        var fullUserDocumentMode = DocumentContextInjectionModeResolver.Resolve(context.OrchestrationContext, userSuppliedDocuments.Length);
         var userDocumentContext = string.Empty;
         var invocationContext = AIInvocationScope.Current;
         var seenDocuments = new Dictionary<string, (int Index, string FileName)>(StringComparer.OrdinalIgnoreCase);
@@ -365,6 +369,13 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
         return defaults;
     }
 
+    private ChatDocumentInfo[] ResolveTextUserSuppliedDocuments(PreemptiveRagContext context)
+    {
+        return DocumentContextInjectionModeResolver.ResolveUserSuppliedDocuments(context)
+            .Where(document => !_documentOptions.IsTabularFileExtension(document.FileName))
+            .ToArray();
+    }
+
     private static List<(string ResourceId, string ReferenceType)> ResolveSearchScopes(PreemptiveRagContext context)
     {
         var searchScopes = new List<(string ResourceId, string ReferenceType)>();
@@ -461,11 +472,11 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
     }
 
     private async Task<string> AppendFullUserDocumentContextAsync(
-        IReadOnlyCollection<ChatDocumentInfo> documents,
+        ChatDocumentInfo[] documents,
         AIInvocationContext invocationContext,
         Dictionary<string, (int Index, string FileName)> seenDocuments)
     {
-        if (documents.Count == 0)
+        if (documents.Length == 0)
         {
             return string.Empty;
         }

@@ -202,7 +202,7 @@ public sealed class AITemplateController : Controller
         model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
         await PopulateCopilotStatusAsync(model, copilotOptions);
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
+        model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();
         var selectedConnectionIds = new HashSet<string>(model.SelectedA2AConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableA2AConnections = connections.OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).Select(connection => new A2AConnectionSelectionItem { ItemId = connection.ItemId, DisplayText = connection.DisplayText, Endpoint = connection.Endpoint, IsSelected = selectedConnectionIds.Contains(connection.ItemId), }).ToList();
@@ -211,7 +211,7 @@ public sealed class AITemplateController : Controller
         model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId), }).ToList();
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableAgents = allAgents.Where(a => !string.IsNullOrEmpty(a.Description)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
+        model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
         model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
             .Where(template => template.Metadata.IsListable)
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)

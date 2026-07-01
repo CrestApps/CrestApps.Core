@@ -109,6 +109,48 @@ agent.Put(new AgentMetadata { Availability = AgentAvailability.AlwaysAvailable }
 
 **Token considerations:** `AlwaysAvailable` agents increase token usage on every request because their descriptions are always present in the system message and their tool definitions are always registered. Use `OnDemand` to minimize cost.
 
+`AlwaysAvailable` agents are **hidden from the user-facing agent selection list** (they are included automatically, so there is nothing to select), yet they remain discoverable and invocable — including through the A2A host — like any other agent.
+
+### Tool-capable agents (controlled recursion)
+
+By default a sub-agent runs as a single isolated completion with **tools disabled** (see [Recursion Prevention](#recursion-prevention)). Set `AllowToolInvocation` to let an agent run its own tools:
+
+```csharp
+agent.Put(new AgentMetadata
+{
+    Availability = AgentAvailability.AlwaysAvailable,
+    AllowToolInvocation = true,
+});
+```
+
+When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the system [Tabular Data Agent](./ai-documents.md#tabular-data-agent) runs its SQL tools.
+
+### Code-defined profiles and system agents
+
+Implement `IAIProfileProvider` to contribute code-defined profiles that are not persisted in the profile store. Provided profiles are merged into `IAIProfileManager.GetAsync(type)` for the requested profile type, and stored profiles with the same name take precedence. For system agents, return profiles when `type == AIProfileType.Agent`; they automatically flow to every consumer — the tool registry, `AgentProxyTool`, and the A2A host — while remaining read-only and hidden from the user-facing selection list. Mark them `AlwaysAvailable` (and optionally `AllowToolInvocation`) and set `IsSystem = true`:
+
+```csharp
+internal sealed class MyAgentProvider : IAIProfileProvider
+{
+    public ValueTask<IReadOnlyList<AIProfile>> GetProfilesAsync(
+        AIProfileType type,
+        CancellationToken cancellationToken = default)
+    {
+        if (type != AIProfileType.Agent)
+        {
+            return ValueTask.FromResult<IReadOnlyList<AIProfile>>([]);
+        }
+
+        var agent = new AIProfile { Type = AIProfileType.Agent, Name = "my-agent", Description = "…" };
+        agent.Put(new AgentMetadata { Availability = AgentAvailability.AlwaysAvailable, IsSystem = true });
+
+        return ValueTask.FromResult<IReadOnlyList<AIProfile>>([agent]);
+    }
+}
+```
+
+Register it with `services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProfileProvider, MyAgentProvider>())`.
+
 ## Creating Agent Profiles
 
 Agent profiles are standard `AIProfile` objects with `Type = AIProfileType.Agent`. They require a `Name` and `Description` at minimum — the description is what the primary model sees when deciding whether to invoke the agent.
@@ -203,6 +245,8 @@ Without safeguards, an agent could invoke other agents (or itself), creating an 
 ```csharp
 context.DisableTools = true;
 ```
+
+> **Exception:** agents with `AgentMetadata.AllowToolInvocation = true` run *with* their tools enabled (through the orchestrator). For those, recursion is bounded instead by the `AIInvocationContext.AgentInvocationDepth` guard, which suppresses agents-as-tools once execution is already inside a sub-agent — so an agent can use its own tools but can never call another agent.
 
 This means:
 

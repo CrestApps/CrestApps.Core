@@ -142,6 +142,7 @@ window.chatInteractionManager = function () {
         normalized.title = normalized.title ?? normalized.Title ?? null;
         normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
         normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
+        normalized.isGenerated = (normalized.isGenerated ?? normalized.IsGenerated) === true;
 
         return normalized;
     }
@@ -183,18 +184,21 @@ window.chatInteractionManager = function () {
     function buildCitationDisplay(content, references) {
         let processedContent = (content || '').trim();
         const messageReferences = normalizeReferences(references);
+        const referenceEntries = Object.entries(messageReferences);
 
-        if (!processedContent || !Object.keys(messageReferences).length) {
+        if (!referenceEntries.length) {
             return { content: processedContent, citations: [] };
         }
 
-        const citedRefs = Object.entries(messageReferences).filter(([key]) => processedContent.includes(key));
+        const citedRefs = referenceEntries.filter(([key]) => processedContent.includes(key));
+        const generatedRefs = referenceEntries.filter(([key, value]) => value.isGenerated && !processedContent.includes(key));
 
-        if (!citedRefs.length) {
+        if (!citedRefs.length && !generatedRefs.length) {
             return { content: processedContent, citations: [] };
         }
 
         citedRefs.sort(([, a], [, b]) => a.index - b.index);
+        generatedRefs.sort(([, a], [, b]) => a.index - b.index);
 
         const citations = [];
         let displayIndex = 1;
@@ -219,6 +223,21 @@ window.chatInteractionManager = function () {
         }
 
         processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+
+        // Generated files (such as exported tabular data) are always offered as a download even when
+        // the model does not cite them inline, so the user never loses access to the produced file.
+        for (const [key, value] of generatedRefs) {
+            citations.push({
+                referenceKey: key,
+                displayIndex: displayIndex,
+                label: getCitationLabel(value, key),
+                link: value.link || null,
+                isDownload: true,
+                placeholder: null,
+            });
+
+            displayIndex++;
+        }
 
         return {
             content: processedContent,

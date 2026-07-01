@@ -19,7 +19,7 @@ public sealed class DefaultAIProfileManagerTests
                 new AIProfile { ItemId = "agent-1", Name = "agent-profile", Type = AIProfileType.Agent },
             ]);
 
-        var manager = new DefaultAIProfileManager(store.Object, [], TimeProvider.System, NullLogger<DefaultAIProfileManager>.Instance);
+        var manager = new DefaultAIProfileManager(store.Object, [], [], TimeProvider.System, NullLogger<DefaultAIProfileManager>.Instance);
 
         var results = (await manager.GetAsync(AIProfileType.Agent, cancellationToken)).ToList();
 
@@ -38,7 +38,7 @@ public sealed class DefaultAIProfileManagerTests
             .Callback<AIProfile, CancellationToken>((profile, _) => captured = profile)
             .Returns(ValueTask.CompletedTask);
 
-        var manager = new DefaultAIProfileManager(store.Object, [], new StubTimeProvider(timestamp), NullLogger<DefaultAIProfileManager>.Instance);
+        var manager = new DefaultAIProfileManager(store.Object, [], [], new StubTimeProvider(timestamp), NullLogger<DefaultAIProfileManager>.Instance);
         var profile = new AIProfile { Name = "profile-1" };
 
         await ((IAIProfileManager)manager).CreateAsync(profile, cancellationToken);
@@ -55,6 +55,7 @@ public sealed class DefaultAIProfileManagerTests
         var manager = new DefaultAIProfileManager(
             Mock.Of<IAIProfileStore>(),
             [],
+            [],
             TimeProvider.System,
             NullLogger<DefaultAIProfileManager>.Instance);
 
@@ -62,6 +63,89 @@ public sealed class DefaultAIProfileManagerTests
 
         Assert.False(result.Succeeded);
         Assert.Contains(result.Errors, error => error.MemberNames.Contains(nameof(AIProfile.Name)));
+    }
+
+    [Fact]
+    public async Task GetAsync_Agent_MergesProvidedAgents()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var store = new Mock<IAIProfileStore>();
+        store.Setup(catalog => catalog.GetByTypeAsync(AIProfileType.Agent, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new AIProfile { ItemId = "a1", Name = "stored-agent", Type = AIProfileType.Agent },
+            ]);
+
+        var systemAgent = new AIProfile { ItemId = "b1", Name = "system-agent", Type = AIProfileType.Agent };
+        var manager = new DefaultAIProfileManager(
+            store.Object,
+            [],
+            [new StubProfileProvider(systemAgent)],
+            TimeProvider.System,
+            NullLogger<DefaultAIProfileManager>.Instance);
+
+        var results = (await manager.GetAsync(AIProfileType.Agent, cancellationToken)).ToList();
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, profile => profile.Name == "stored-agent");
+        Assert.Contains(results, profile => profile.Name == "system-agent");
+    }
+
+    [Fact]
+    public async Task GetAsync_Agent_StoredProfileWinsNameConflictWithProvidedProfile()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var store = new Mock<IAIProfileStore>();
+        store.Setup(catalog => catalog.GetByTypeAsync(AIProfileType.Agent, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new AIProfile { ItemId = "a1", Name = "shared", Type = AIProfileType.Agent },
+            ]);
+
+        var systemAgent = new AIProfile { ItemId = "b1", Name = "shared", Type = AIProfileType.Agent };
+        var manager = new DefaultAIProfileManager(
+            store.Object,
+            [],
+            [new StubProfileProvider(systemAgent)],
+            TimeProvider.System,
+            NullLogger<DefaultAIProfileManager>.Instance);
+
+        var results = (await manager.GetAsync(AIProfileType.Agent, cancellationToken)).ToList();
+
+        var single = Assert.Single(results);
+        Assert.Equal("a1", single.ItemId);
+    }
+
+    [Fact]
+    public async Task GetAsync_NonAgentType_MergesMatchingProvidedProfiles()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var store = new Mock<IAIProfileStore>();
+        store.Setup(catalog => catalog.GetByTypeAsync(AIProfileType.Chat, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var providedChat = new AIProfile { ItemId = "b1", Name = "provided-chat", Type = AIProfileType.Chat };
+        var manager = new DefaultAIProfileManager(
+            store.Object,
+            [],
+            [new StubProfileProvider(providedChat)],
+            TimeProvider.System,
+            NullLogger<DefaultAIProfileManager>.Instance);
+
+        var results = (await manager.GetAsync(AIProfileType.Chat, cancellationToken)).ToList();
+
+        var result = Assert.Single(results);
+        Assert.Equal("provided-chat", result.Name);
+    }
+
+    private sealed class StubProfileProvider(params AIProfile[] profiles) : IAIProfileProvider
+    {
+        public ValueTask<IReadOnlyList<AIProfile>> GetProfilesAsync(
+            AIProfileType type,
+            CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<IReadOnlyList<AIProfile>>(profiles.Where(profile => profile.Type == type).ToArray());
+        }
     }
 
     private sealed class StubTimeProvider(DateTimeOffset utcNow) : TimeProvider

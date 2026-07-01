@@ -80,6 +80,25 @@ public sealed class OpenXmlIngestionDocumentReaderTests
     }
 
     [Fact]
+    public async Task ReadAsync_ExcelWithSparseCells_PreservesColumnPositions()
+    {
+        using var stream = CreateExcelWithSparseCells();
+
+        var result = await _reader.ReadAsync(stream, "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TestContext.Current.CancellationToken);
+
+        Assert.Single(result.Sections);
+        Assert.Equal(2, result.Sections[0].Elements.Count);
+
+        var header = result.Sections[0].Elements[0].Text.Split('\t');
+        var row = result.Sections[0].Elements[1].Text.Split('\t');
+
+        Assert.Equal(34, header.Length);
+        Assert.Equal("Q3_C28/What fast food or quick service restaurants have you visited?", header[33]);
+        Assert.Equal(34, row.Length);
+        Assert.Equal("1", row[33]);
+    }
+
+    [Fact]
     public async Task ReadAsync_ExcelWithBooleanValues_ExtractsRows()
     {
         using var stream = CreateExcelWithBooleans(true, false);
@@ -359,6 +378,43 @@ public sealed class OpenXmlIngestionDocumentReaderTests
             }
 
             sheetData.AppendChild(row);
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.AppendChild(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Sheet1", });
+        }
+
+        stream.Position = 0;
+
+        return stream;
+    }
+
+    private static MemoryStream CreateExcelWithSparseCells()
+    {
+        var stream = new MemoryStream();
+
+        using (var doc = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
+        {
+            var workbookPart = doc.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+
+            var header = new Row
+            {
+                RowIndex = 1
+            };
+            header.AppendChild(new Cell { CellReference = "A1", DataType = CellValues.InlineString, InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text("Respondent")), });
+            header.AppendChild(new Cell { CellReference = "AH1", DataType = CellValues.InlineString, InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text("Q3_C28/What fast food or quick service restaurants have you visited?")), });
+            sheetData.AppendChild(header);
+
+            var row = new Row
+            {
+                RowIndex = 2
+            };
+            row.AppendChild(new Cell { CellReference = "A2", CellValue = new CellValue("1001"), });
+            row.AppendChild(new Cell { CellReference = "AH2", CellValue = new CellValue("1"), });
+            sheetData.AppendChild(row);
+
             worksheetPart.Worksheet = new Worksheet(sheetData);
             var sheets = workbookPart.Workbook.AppendChild(new Sheets());
             sheets.AppendChild(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Sheet1", });

@@ -528,7 +528,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     }
 
     /// <summary>
-    /// Clears the chat history (prompts) while keeping documents, parameters, and tools intact.
+    /// Clears the chat history (prompts) while keeping uploaded documents, parameters, and tools intact.
+    /// AI-generated downloadable files attached to the cleared messages are removed so they do not linger
+    /// in storage.
     /// </summary>
     /// <param name="itemId">The item id.</param>
     public virtual async Task ClearHistory(string itemId)
@@ -560,7 +562,17 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 return;
             }
 
+            var clearedPrompts = await promptStore.GetPromptsAsync(itemId);
+
             await promptStore.DeleteAllPromptsAsync(itemId);
+
+            var historyHandlers = services.GetRequiredService<IEnumerable<IChatInteractionHistoryHandler>>();
+
+            foreach (var handler in historyHandlers)
+            {
+                await handler.HistoryClearedAsync(interaction, clearedPrompts);
+            }
+
             await CommitChangesAsync(services);
             await Clients.Caller.HistoryCleared(interaction.ItemId);
         });

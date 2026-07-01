@@ -36,4 +36,11 @@ public sealed class AICompletionReference
     /// Used to determine how links should be generated.
     /// </summary>
     public string ReferenceType { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this reference points to a file that was generated
+    /// during the response (such as an exported tabular file). Generated references are always
+    /// surfaced to the user as a download, even when the model does not cite them inline.
+    /// </summary>
+    public bool IsGenerated { get; set; }
 }

@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Pdf.Services;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,9 @@ public static class PdfServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddCoreAIIngestionDocumentReader<PdfIngestionDocumentReader>(".pdf");
+
+        // Register the PDF output writer so generated files can be downloaded as PDF documents.
+        services.AddGeneratedFileWriter<PdfGeneratedFileWriter>(".pdf");
 
         return services;
     }

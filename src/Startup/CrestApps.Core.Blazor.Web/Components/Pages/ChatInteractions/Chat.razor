@@ -731,7 +731,7 @@ else
 
         var toolOptions = ToolOptionsAccessor.Value;
         model.AvailableTools = toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool)
+            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -746,6 +746,7 @@ else
 
         var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
         model.AvailableAgents = agentProfiles
+            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {

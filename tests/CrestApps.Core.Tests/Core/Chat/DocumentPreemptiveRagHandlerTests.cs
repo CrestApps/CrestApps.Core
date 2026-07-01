@@ -214,6 +214,73 @@ public sealed class DocumentPreemptiveRagHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_SummarizeTabularDocument_DoesNotInjectRawTabularContent()
+    {
+        var documentStore = new Mock<IAIDocumentStore>();
+        documentStore.Setup(store => store.FindByIdAsync("doc-1"))
+            .Returns(new ValueTask<AIDocument>(new AIDocument
+            {
+                ItemId = "doc-1",
+                FileName = "survey.csv",
+            }));
+        var chunkStore = new Mock<IAIDocumentChunkStore>();
+        chunkStore.Setup(store => store.GetChunksByAIDocumentIdAsync("doc-1"))
+            .ReturnsAsync((IReadOnlyCollection<AIDocumentChunk>)[
+                new AIDocumentChunk
+                {
+                    AIDocumentId = "doc-1",
+                    Index = 0,
+                    Content = "Respondent,Q3_C28\n1,1",
+                },
+            ]);
+        var services = new ServiceCollection()
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator([0.1f])))
+            .AddSingleton<IAIDeploymentManager>(Mock.Of<IAIDeploymentManager>())
+            .AddSingleton<ISearchIndexProfileStore>(Mock.Of<ISearchIndexProfileStore>())
+            .AddSingleton<IAIDocumentStore>(documentStore.Object)
+            .AddSingleton<IAIDocumentChunkStore>(chunkStore.Object)
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IOptionsMonitor<InteractionDocumentOptions>>(new TestOptionsMonitor<InteractionDocumentOptions>
+            {
+                CurrentValue = new InteractionDocumentOptions(),
+            })
+            .AddLogging()
+            .AddCoreAIDocumentProcessing()
+            .BuildServiceProvider();
+        var handler = services.GetServices<IPreemptiveRagHandler>().Single();
+        var interaction = new ChatInteraction
+        {
+            ItemId = "chat-1",
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "survey.csv",
+                },
+            ],
+        };
+        var context = new OrchestrationContext
+        {
+            UserMessage = "Summarize this file.",
+            CompletionContext = new AICompletionContext(),
+            Documents =
+            [
+                new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "survey.csv",
+                },
+            ],
+        };
+
+        await handler.HandleAsync(new PreemptiveRagContext(context, interaction, ["summarize the uploaded document"]));
+
+        Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
+        Assert.False(context.Properties.ContainsKey("DocumentReferences"));
+    }
+
+    [Fact]
     public async Task HandleAsync_SummarizeSessionDocument_InjectsFullSessionDocumentContent()
     {
         var documentStore = new Mock<IAIDocumentStore>();

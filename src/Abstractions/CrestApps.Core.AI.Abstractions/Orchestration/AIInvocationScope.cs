@@ -76,11 +76,13 @@ public static class AIInvocationScope
         }
 
         /// <summary>
-        /// Clears the current invocation context, preventing data from leaking
-        /// into subsequent operations on the same thread.
+        /// Runs any registered end-of-invocation cleanup callbacks and clears the current
+        /// invocation context, preventing data from leaking into subsequent operations on
+        /// the same thread.
         /// </summary>
         public void Dispose()
         {
+            Context?.RunDisposeCallbacks();
             _current.Value = null;
         }
     }

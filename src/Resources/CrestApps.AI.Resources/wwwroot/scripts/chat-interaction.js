@@ -96,7 +96,7 @@ window.chatInteractionManager = function () {
     return observer;
   }
   function normalizeReference(reference) {
-    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link, _ref5, _normalized$reference;
+    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link, _ref5, _normalized$reference, _normalized$isGenerat;
     if (!reference || _typeof(reference) !== 'object') {
       return null;
     }
@@ -106,6 +106,7 @@ window.chatInteractionManager = function () {
     normalized.title = (_ref3 = (_normalized$title = normalized.title) !== null && _normalized$title !== void 0 ? _normalized$title : normalized.Title) !== null && _ref3 !== void 0 ? _ref3 : null;
     normalized.link = sanitizeUrl((_ref4 = (_normalized$link = normalized.link) !== null && _normalized$link !== void 0 ? _normalized$link : normalized.Link) !== null && _ref4 !== void 0 ? _ref4 : null);
     normalized.referenceType = (_ref5 = (_normalized$reference = normalized.referenceType) !== null && _normalized$reference !== void 0 ? _normalized$reference : normalized.ReferenceType) !== null && _ref5 !== void 0 ? _ref5 : null;
+    normalized.isGenerated = ((_normalized$isGenerat = normalized.isGenerated) !== null && _normalized$isGenerat !== void 0 ? _normalized$isGenerat : normalized.IsGenerated) === true;
     return normalized;
   }
   function isDownloadCitationReference(reference) {
@@ -140,28 +141,42 @@ window.chatInteractionManager = function () {
   function buildCitationDisplay(content, references) {
     var processedContent = (content || '').trim();
     var messageReferences = normalizeReferences(references);
-    if (!processedContent || !Object.keys(messageReferences).length) {
+    var referenceEntries = Object.entries(messageReferences);
+    if (!referenceEntries.length) {
       return {
         content: processedContent,
         citations: []
       };
     }
-    var citedRefs = Object.entries(messageReferences).filter(function (_ref6) {
+    var citedRefs = referenceEntries.filter(function (_ref6) {
       var _ref7 = _slicedToArray(_ref6, 1),
         key = _ref7[0];
       return processedContent.includes(key);
     });
-    if (!citedRefs.length) {
+    var generatedRefs = referenceEntries.filter(function (_ref8) {
+      var _ref9 = _slicedToArray(_ref8, 2),
+        key = _ref9[0],
+        value = _ref9[1];
+      return value.isGenerated && !processedContent.includes(key);
+    });
+    if (!citedRefs.length && !generatedRefs.length) {
       return {
         content: processedContent,
         citations: []
       };
     }
-    citedRefs.sort(function (_ref8, _ref9) {
-      var _ref0 = _slicedToArray(_ref8, 2),
-        a = _ref0[1];
-      var _ref1 = _slicedToArray(_ref9, 2),
-        b = _ref1[1];
+    citedRefs.sort(function (_ref0, _ref1) {
+      var _ref10 = _slicedToArray(_ref0, 2),
+        a = _ref10[1];
+      var _ref11 = _slicedToArray(_ref1, 2),
+        b = _ref11[1];
+      return a.index - b.index;
+    });
+    generatedRefs.sort(function (_ref12, _ref13) {
+      var _ref14 = _slicedToArray(_ref12, 2),
+        a = _ref14[1];
+      var _ref15 = _slicedToArray(_ref13, 2),
+        b = _ref15[1];
       return a.index - b.index;
     });
     var citations = [];
@@ -195,11 +210,36 @@ window.chatInteractionManager = function () {
       processedContent = processedContent.replaceAll(citation.placeholder, "<sup>".concat(citation.displayIndex, "</sup>"));
     }
     processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+
+    // Generated files (such as exported tabular data) are always offered as a download even when
+    // the model does not cite them inline, so the user never loses access to the produced file.
+    var _iterator2 = _createForOfIteratorHelper(generatedRefs),
+      _step2;
+    try {
+      for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+        var _step2$value = _slicedToArray(_step2.value, 2),
+          _key = _step2$value[0],
+          _value = _step2$value[1];
+        citations.push({
+          referenceKey: _key,
+          displayIndex: displayIndex,
+          label: getCitationLabel(_value, _key),
+          link: _value.link || null,
+          isDownload: true,
+          placeholder: null
+        });
+        displayIndex++;
+      }
+    } catch (err) {
+      _iterator2.e(err);
+    } finally {
+      _iterator2.f();
+    }
     return {
       content: processedContent,
-      citations: citations.map(function (_ref10) {
-        var placeholder = _ref10.placeholder,
-          citation = _objectWithoutProperties(_ref10, _excluded);
+      citations: citations.map(function (_ref16) {
+        var placeholder = _ref16.placeholder,
+          citation = _objectWithoutProperties(_ref16, _excluded);
         return citation;
       })
     };
@@ -209,24 +249,24 @@ window.chatInteractionManager = function () {
     if (!copyContent || !Array.isArray(citations) || citations.length === 0) {
       return copyContent;
     }
-    var _iterator2 = _createForOfIteratorHelper(citations),
-      _step2;
-    try {
-      for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-        var citation = _step2.value;
-        copyContent = copyContent.replaceAll(citation.referenceKey, "[".concat(citation.displayIndex, "]"));
-      }
-    } catch (err) {
-      _iterator2.e(err);
-    } finally {
-      _iterator2.f();
-    }
-    copyContent += '\n\nReferences:\n';
     var _iterator3 = _createForOfIteratorHelper(citations),
       _step3;
     try {
       for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-        var _citation = _step3.value;
+        var citation = _step3.value;
+        copyContent = copyContent.replaceAll(citation.referenceKey, "[".concat(citation.displayIndex, "]"));
+      }
+    } catch (err) {
+      _iterator3.e(err);
+    } finally {
+      _iterator3.f();
+    }
+    copyContent += '\n\nReferences:\n';
+    var _iterator4 = _createForOfIteratorHelper(citations),
+      _step4;
+    try {
+      for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+        var _citation = _step4.value;
         copyContent += "".concat(_citation.displayIndex, ". ").concat(_citation.label);
         if (_citation.link) {
           copyContent += " - ".concat(_citation.link);
@@ -234,9 +274,9 @@ window.chatInteractionManager = function () {
         copyContent += '\n';
       }
     } catch (err) {
-      _iterator3.e(err);
+      _iterator4.e(err);
     } finally {
-      _iterator3.f();
+      _iterator4.f();
     }
     return copyContent.trimEnd();
   }
@@ -416,11 +456,11 @@ window.chatInteractionManager = function () {
     // Defer to requestAnimationFrame so the browser has fully laid out the
     // canvas elements before Chart.js reads their dimensions.
     requestAnimationFrame(function () {
-      var _iterator4 = _createForOfIteratorHelper(charts),
-        _step4;
+      var _iterator5 = _createForOfIteratorHelper(charts),
+        _step5;
       try {
-        for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
-          var c = _step4.value;
+        for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+          var c = _step5.value;
           var canvas = document.getElementById(c.chartId);
           if (!canvas) {
             continue;
@@ -453,9 +493,9 @@ window.chatInteractionManager = function () {
           }
         }
       } catch (err) {
-        _iterator4.e(err);
+        _iterator5.e(err);
       } finally {
-        _iterator4.f();
+        _iterator5.f();
       }
     });
   }
@@ -1035,9 +1075,9 @@ window.chatInteractionManager = function () {
           var _this6 = this;
           references = normalizeReferences(references);
           if (Object.keys(references).length) {
-            var _ref11, _message$rawContent2;
+            var _ref17, _message$rawContent2;
             var message = this.messages[messageIndex];
-            message.rawContent = (_ref11 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref11 !== void 0 ? _ref11 : '';
+            message.rawContent = (_ref17 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref17 !== void 0 ? _ref17 : '';
             updateMessagePresentation(message, references);
             this.messages[messageIndex] = message;
             this.$nextTick(function () {
@@ -1164,18 +1204,18 @@ window.chatInteractionManager = function () {
           }, 0);
           var combined = new Uint8Array(totalLength);
           var offset = 0;
-          var _iterator5 = _createForOfIteratorHelper(this.audioChunks),
-            _step5;
+          var _iterator6 = _createForOfIteratorHelper(this.audioChunks),
+            _step6;
           try {
-            for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
-              var chunk = _step5.value;
+            for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+              var chunk = _step6.value;
               combined.set(chunk, offset);
               offset += chunk.length;
             }
           } catch (err) {
-            _iterator5.e(err);
+            _iterator6.e(err);
           } finally {
-            _iterator5.f();
+            _iterator6.f();
           }
           this.audioChunks = [];
           var blob = new Blob([combined], {
@@ -2041,8 +2081,8 @@ window.chatInteractionManager = function () {
           this.isInteractionStarted = true;
         },
         copyResponse: function copyResponse(message) {
-          var _ref13, _message$copyContent;
-          var text = message && _typeof(message) === 'object' ? (_ref13 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref13 !== void 0 ? _ref13 : '' : message !== null && message !== void 0 ? message : '';
+          var _ref19, _message$copyContent;
+          var text = message && _typeof(message) === 'object' ? (_ref19 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref19 !== void 0 ? _ref19 : '' : message !== null && message !== void 0 ? message : '';
           navigator.clipboard.writeText(text);
         },
         startRecording: function startRecording() {
