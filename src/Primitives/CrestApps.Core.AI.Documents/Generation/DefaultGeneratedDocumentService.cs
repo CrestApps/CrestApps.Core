@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
-using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Documents.Generation;
 
@@ -12,6 +11,8 @@ namespace CrestApps.Core.AI.Documents.Generation;
 /// </summary>
 public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
 {
+    public const string GeneratedFilesSubfolderName = "generated";
+
     /// <summary>
     /// The <see cref="AIDocument.Properties"/> key set on documents produced by this service. Tabular
     /// tooling uses it to exclude generated exports from the in-memory workspace so an exported file is
@@ -67,7 +68,8 @@ public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
         var (storedFileName, storagePath) = DocumentFileStoragePath.Create(
             request.ReferenceType,
             request.ReferenceId,
-            request.FileName);
+            request.FileName,
+            GeneratedFilesSubfolderName);
 
         await _fileStore.SaveFileAsync(storagePath, buffer);
 

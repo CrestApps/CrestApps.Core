@@ -3,6 +3,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
+using CrestApps.Core.AI.Orchestration;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public sealed class GenerateFileTool : AIFunction
     public const string TheName = "generate_file";
 
     private const string DefaultExtension = ".md";
+    private const string InvocationCountKey = nameof(GenerateFileTool) + ".InvocationCount";
 
     private static readonly HashSet<string> _tabularExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -88,10 +90,11 @@ public sealed class GenerateFileTool : AIFunction
         CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<GenerateFileTool>>();
+        var invocationNumber = IncrementInvocationCount();
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
+            logger.LogDebug("AI tool '{ToolName}' invoked (call #{InvocationNumber}).", Name, invocationNumber);
         }
 
         if (!arguments.TryGetFirstString("content", out var content) || string.IsNullOrWhiteSpace(content))
@@ -105,6 +108,28 @@ public sealed class GenerateFileTool : AIFunction
         arguments.TryGetFirstString("title", out var title);
 
         var extension = ResolveExtension(fileName, format);
+
+        var statusMessageError = GetStatusMessageError(content);
+        if (!string.IsNullOrEmpty(statusMessageError))
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug("AI tool '{ToolName}' rejected status-only generated file content (call #{InvocationNumber}).", Name, invocationNumber);
+            }
+
+            return statusMessageError;
+        }
+
+        var tabularMisuseError = GetTabularMisuseError(content, extension, fileName);
+        if (!string.IsNullOrEmpty(tabularMisuseError))
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug("AI tool '{ToolName}' rejected conversational tabular file content (call #{InvocationNumber}).", Name, invocationNumber);
+            }
+
+            return tabularMisuseError;
+        }
 
         if (!resolver.IsSupported(extension))
         {
@@ -133,12 +158,18 @@ public sealed class GenerateFileTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug("AI tool '{ToolName}' completed.", Name);
+                logger.LogDebug(
+                    "AI tool '{ToolName}' completed (call #{InvocationNumber}). ReferenceType='{ReferenceType}', ReferenceId='{ReferenceId}', FileName='{FileName}'.",
+                    Name,
+                    invocationNumber,
+                    scope.Value.ReferenceType,
+                    scope.Value.ReferenceId,
+                    fileName);
             }
 
             return string.IsNullOrEmpty(result.ReferenceToken)
-                ? $"Created \"{result.Document.FileName}\". The generated document id is {result.Document.ItemId}."
-                : $"Created \"{result.Document.FileName}\". Include the following marker exactly as-is in your response so the user can download it: {result.ReferenceToken}";
+                ? $"Created \"{result.Document.FileName}\"."
+                : $"Return this download marker verbatim and do not create another file: {result.ReferenceToken}";
         }
         catch (NotSupportedException ex)
         {
@@ -150,6 +181,51 @@ public sealed class GenerateFileTool : AIFunction
 
             return "An error occurred while generating the file.";
         }
+    }
+
+    private static int IncrementInvocationCount()
+    {
+        var invocationContext = AIInvocationScope.Current;
+
+        if (invocationContext is null)
+        {
+            return 1;
+        }
+
+        if (!invocationContext.Items.TryGetValue(InvocationCountKey, out var countObject) ||
+            countObject is not int count)
+        {
+            count = 0;
+        }
+
+        count++;
+        invocationContext.Items[InvocationCountKey] = count;
+
+        return count;
+    }
+
+    private static string GetStatusMessageError(string content)
+    {
+        var invocationContext = AIInvocationScope.Current;
+
+        if (invocationContext is null ||
+            !invocationContext.ToolReferences.Values.Any(reference => reference.IsGenerated) ||
+            !LooksLikeDownloadStatusMessage(content))
+        {
+            return null;
+        }
+
+        return "A downloadable file was already created for this response. Do not generate another file from a status/update sentence; return the existing [doc:N] marker instead.";
+    }
+
+    private static string GetTabularMisuseError(string content, string extension, string fileName)
+    {
+        if (!_tabularExtensions.Contains(extension) || !LooksLikeConversationalTabularContent(content))
+        {
+            return null;
+        }
+
+        return "This looks like conversational text, not tabular rows. Do not use generate_file to produce or re-save an uploaded spreadsheet/tabular file from prose. Use export_tabular_data for updated uploaded files, or provide actual CSV row data when generating a brand-new tabular file.";
     }
 
     private static GeneratedFileContent BuildContent(string content, string title, string extension, string fileName)
@@ -172,6 +248,75 @@ public sealed class GenerateFileTool : AIFunction
         }
 
         return fileContent;
+    }
+
+    private static bool LooksLikeDownloadStatusMessage(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return false;
+        }
+
+        var normalized = content.Trim();
+
+        if (normalized.StartsWith('[') && normalized.EndsWith(']'))
+        {
+            normalized = normalized[1..^1].Trim();
+        }
+
+        if (normalized.Length == 0 || normalized.Length > 300)
+        {
+            return false;
+        }
+
+        return normalized.Contains("ready for download", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("available for download", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("download link", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("download marker", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("here is the file", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("i have updated the excel file", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("i have updated the csv file", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("i have updated the file", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("updated the excel file", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("updated the csv file", StringComparison.OrdinalIgnoreCase) ||
+            (normalized.Contains("processed", StringComparison.OrdinalIgnoreCase) &&
+             normalized.Contains("download", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool LooksLikeConversationalTabularContent(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return false;
+        }
+
+        var normalized = content.Trim();
+
+        if (normalized.StartsWith('[') && normalized.EndsWith(']'))
+        {
+            normalized = normalized[1..^1].Trim();
+        }
+
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        if (normalized.Contains("would you like me", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("ready to provide", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("generate and provide", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("updated excel file", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("updated csv file", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("download link", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("ready for download", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return normalized.Contains('?') &&
+            !normalized.Contains(',') &&
+            !normalized.Contains('\n') &&
+            !normalized.Contains('\t');
     }
 
     private static string ResolveExtension(string fileName, string format)

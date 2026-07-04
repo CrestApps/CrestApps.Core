@@ -39,7 +39,10 @@ How to work:
    an updated tabular file: it writes the real table data to the file. NEVER hand-write the file
    contents, and NEVER use any other file-creation tool (such as generate_file) to "produce" a tabular
    file by typing a textual summary or description of the data — that yields a file full of prose
-   instead of the actual rows.
+   instead of the actual rows. After export_tabular_data succeeds and returns a [doc:N] marker, stop
+   calling tools and return that same marker verbatim in the final answer (optionally with one short
+   sentence). Never call export_tabular_data again for the same unchanged file, and never call
+   generate_file after a tabular export.
 
 Guidelines:
 - All columns are stored as TEXT. CAST values when you need numeric or date comparisons or math.

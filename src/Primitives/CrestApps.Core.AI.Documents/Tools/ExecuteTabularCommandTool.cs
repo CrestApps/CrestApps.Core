@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
+using CrestApps.Core.AI.Orchestration;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ namespace CrestApps.Core.AI.Documents.Tools;
 public sealed class ExecuteTabularCommandTool : AIFunction
 {
     public const string TheName = TabularToolNames.ExecuteTabularCommand;
+    private const string InvocationCountKey = nameof(ExecuteTabularCommandTool) + ".InvocationCount";
 
     private static readonly JsonElement _jsonSchema = JsonSerializer.Deserialize<JsonElement>(
     """
@@ -68,10 +70,11 @@ public sealed class ExecuteTabularCommandTool : AIFunction
         CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<ExecuteTabularCommandTool>>();
+        var invocationNumber = IncrementInvocationCount();
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
+            logger.LogDebug("AI tool '{ToolName}' invoked (call #{InvocationNumber}).", Name, invocationNumber);
         }
 
         if (!arguments.TryGetFirstString("sql", out var sql) || string.IsNullOrWhiteSpace(sql))
@@ -94,7 +97,14 @@ public sealed class ExecuteTabularCommandTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug("AI tool '{ToolName}' completed.", Name);
+                logger.LogDebug(
+                    "AI tool '{ToolName}' completed (call #{InvocationNumber}). Documents={DocumentCount}, Tables={TableCount}, Statements={StatementCount}, AffectedRows={AffectedRows}.",
+                    Name,
+                    invocationNumber,
+                    preparation.Context.Documents.Count,
+                    preparation.Tables.Count,
+                    result.StatementCount,
+                    result.AffectedRows);
             }
 
             return $"Batch executed against the in-memory copy. {result.StatementCount} statement(s) ran and {result.AffectedRows} row(s) were affected. The original uploaded file is unchanged.";
@@ -112,6 +122,27 @@ public sealed class ExecuteTabularCommandTool : AIFunction
 
             return $"The statement could not be executed: {ex.Message}";
         }
+    }
+
+    private static int IncrementInvocationCount()
+    {
+        var invocationContext = AIInvocationScope.Current;
+
+        if (invocationContext is null)
+        {
+            return 1;
+        }
+
+        if (!invocationContext.Items.TryGetValue(InvocationCountKey, out var countObject) ||
+            countObject is not int count)
+        {
+            count = 0;
+        }
+
+        count++;
+        invocationContext.Items[InvocationCountKey] = count;
+
+        return count;
     }
 
     private static void SchedulePersistWorkspaceSnapshot(

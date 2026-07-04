@@ -49,8 +49,8 @@ public sealed class SpreadsheetGeneratedFileWriter : IGeneratedFileWriter
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var bytes = buffer.ToArray();
-        await destination.WriteAsync(bytes, cancellationToken);
+        buffer.Position = 0;
+        await buffer.CopyToAsync(destination, cancellationToken);
     }
 
     private static void WriteRows(SheetData sheetData, GeneratedFileContent content)

@@ -854,6 +854,36 @@
                 return reference.title || reference.text || key;
             }
 
+            function getDownloadReferences(messageReferences) {
+                return Object.entries(messageReferences).filter(function (entry) {
+                    return isDownloadCitationReference(entry[1]);
+                });
+            }
+
+            function replaceGeneratedMarkdownLinks(content, downloadReferences) {
+                if (!content || !Array.isArray(downloadReferences) || !downloadReferences.length) {
+                    return content;
+                }
+
+                var normalizedReferences = downloadReferences.map(function (entry) {
+                    return {
+                        key: entry[0],
+                        label: (getCitationLabel(entry[1], entry[0]) || '').trim().toLowerCase()
+                    };
+                });
+
+                return content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (match, label, url) {
+                    var normalizedLabel = (label || '').trim().toLowerCase();
+                    var normalizedUrl = (url || '').trim().toLowerCase();
+                    var matchedReference = normalizedReferences.find(function (entry) {
+                        return (normalizedLabel && normalizedLabel === entry.label) ||
+                            normalizedUrl.startsWith('sandbox:/mnt/data/');
+                    });
+
+                    return matchedReference ? matchedReference.key : label;
+                });
+            }
+
             function formatMessageContent(content, references) {
                 var processedContent = (content || '').trim();
                 var messageReferences = normalizeReferences(references);
@@ -862,12 +892,21 @@
                     return { content: processedContent, citations: [] };
                 }
 
+                var downloadReferences = getDownloadReferences(messageReferences);
+                processedContent = replaceGeneratedMarkdownLinks(processedContent, downloadReferences);
+
                 var citedRefs = Object.entries(messageReferences).filter(function (entry) {
                     return processedContent.includes(entry[0]);
                 });
 
                 if (!citedRefs.length) {
-                    return { content: processedContent, citations: [] };
+                    if (downloadReferences.length) {
+                        processedContent = (processedContent + ' ' + downloadReferences.map(function (entry) { return entry[0]; }).join(' ')).trim();
+                        citedRefs = downloadReferences;
+                    }
+                    else {
+                        return { content: processedContent, citations: [] };
+                    }
                 }
 
                 citedRefs.sort(function (a, b) {

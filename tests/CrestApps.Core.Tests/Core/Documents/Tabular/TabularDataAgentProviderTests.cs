@@ -56,6 +56,7 @@ public class TabularDataAgentProviderTests
                 TabularToolNames.ListTabularData,
                 TabularToolNames.QueryTabularData,
                 TabularToolNames.ExecuteTabularCommand,
+                TabularToolNames.FillEmptyTabularCells,
                 TabularToolNames.ExportTabularData,
             ],
             functionMetadata.Names);

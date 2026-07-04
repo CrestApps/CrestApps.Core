@@ -112,7 +112,9 @@ public sealed class ListTabularDataTool : AIFunction
         builder.Append(TabularToolNames.QueryTabularData);
         builder.Append(" to run SELECT statements (aggregate or filter to keep results small), ");
         builder.Append(TabularToolNames.ExecuteTabularCommand);
-        builder.Append(" to modify the in-memory copy, and ");
+        builder.Append(" to modify the in-memory copy, ");
+        builder.Append(TabularToolNames.FillEmptyTabularCells);
+        builder.Append(" to replace every blank/empty cell in a table with one value using one fast bulk update, and ");
         builder.Append(TabularToolNames.ExportTabularData);
         builder.AppendLine(" to create a downloadable CSV from a SELECT query. The originally uploaded file is always preserved.");
 

@@ -2,7 +2,6 @@ using System.Text;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DataIngestion;

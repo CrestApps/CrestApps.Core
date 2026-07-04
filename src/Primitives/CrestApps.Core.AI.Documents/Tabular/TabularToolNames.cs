@@ -23,6 +23,11 @@ public static class TabularToolNames
     public const string ExecuteTabularCommand = "execute_tabular_command";
 
     /// <summary>
+    /// The tool that replaces every empty cell in a table with a supplied value using one set-based update.
+    /// </summary>
+    public const string FillEmptyTabularCells = "fill_empty_tabular_cells";
+
+    /// <summary>
     /// The tool that exports a read-only query result from the tabular workspace as a downloadable CSV file.
     /// </summary>
     public const string ExportTabularData = "export_tabular_data";

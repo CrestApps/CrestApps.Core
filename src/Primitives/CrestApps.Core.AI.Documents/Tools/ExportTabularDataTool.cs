@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
+using CrestApps.Core.AI.Orchestration;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +23,8 @@ public sealed class ExportTabularDataTool : AIFunction
     public const string TheName = TabularToolNames.ExportTabularData;
 
     private const string DefaultExtension = ".csv";
+    private const string InvocationResultCacheKey = nameof(ExportTabularDataTool) + ".Results";
+    private const string InvocationCountKey = nameof(ExportTabularDataTool) + ".InvocationCount";
 
     private static readonly JsonElement _jsonSchema = JsonSerializer.Deserialize<JsonElement>(
     """
@@ -79,10 +83,11 @@ public sealed class ExportTabularDataTool : AIFunction
         CancellationToken cancellationToken)
     {
         var logger = arguments.Services.GetRequiredService<ILogger<ExportTabularDataTool>>();
+        var invocationNumber = IncrementInvocationCount();
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
+            logger.LogDebug("AI tool '{ToolName}' invoked (call #{InvocationNumber}).", Name, invocationNumber);
         }
 
         arguments.TryGetFirstString("sql", out var sql);
@@ -118,6 +123,30 @@ public sealed class ExportTabularDataTool : AIFunction
             : ResolveOriginalExtension(preparation.Context.Documents, resolver);
 
         fileName = NormalizeFileName(fileName, targetExtension);
+        var cachedResponse = TryGetCachedResponse(
+            preparation.Context.ExportReferenceType,
+            preparation.Context.ExportReferenceId,
+            fileName,
+            sql,
+            preparation.Workspace.MutationVersion);
+
+        if (!string.IsNullOrEmpty(cachedResponse))
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(
+                    "AI tool '{ToolName}' returned cached response (call #{InvocationNumber}). Documents={DocumentCount}, Tables={TableCount}, FullExport={IsFullExport}, FileName='{FileName}', MutationVersion={MutationVersion}.",
+                    Name,
+                    invocationNumber,
+                    preparation.Context.Documents.Count,
+                    preparation.Tables.Count,
+                    string.IsNullOrWhiteSpace(sql),
+                    fileName,
+                    preparation.Workspace.MutationVersion);
+            }
+
+            return cachedResponse;
+        }
 
         try
         {
@@ -147,12 +176,31 @@ public sealed class ExportTabularDataTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug("AI tool '{ToolName}' completed.", Name);
+                logger.LogDebug(
+                    "AI tool '{ToolName}' completed (call #{InvocationNumber}). Documents={DocumentCount}, Tables={TableCount}, FullExport={IsFullExport}, FileName='{FileName}', Rows={RowCount}, MutationVersion={MutationVersion}.",
+                    Name,
+                    invocationNumber,
+                    preparation.Context.Documents.Count,
+                    preparation.Tables.Count,
+                    string.IsNullOrWhiteSpace(sql),
+                    fileName,
+                    export.RowCount,
+                    preparation.Workspace.MutationVersion);
             }
 
-            return string.IsNullOrEmpty(result.ReferenceToken)
+            var response = string.IsNullOrEmpty(result.ReferenceToken)
                 ? $"Created \"{result.Document.FileName}\" with {export.RowCount} row(s). The generated document id is {result.Document.ItemId}."
-                : $"Created \"{result.Document.FileName}\" with {export.RowCount} row(s). This returns a {result.ReferenceToken} marker that MUST be included exactly as-is in your response so the UI renders the download link. Do not write your own link or the file name in brackets; use the {result.ReferenceToken} marker.";
+                : $"Return this download marker verbatim and do not call export_tabular_data or generate_file again for this file: {result.ReferenceToken}";
+
+            CacheResponse(
+                preparation.Context.ExportReferenceType,
+                preparation.Context.ExportReferenceId,
+                fileName,
+                sql,
+                preparation.Workspace.MutationVersion,
+                response);
+
+            return response;
         }
         catch (TabularSqlException ex)
         {
@@ -167,6 +215,89 @@ public sealed class ExportTabularDataTool : AIFunction
 
             return $"The export query could not be executed: {ex.Message}";
         }
+    }
+
+    private static int IncrementInvocationCount()
+    {
+        var invocationContext = AIInvocationScope.Current;
+
+        if (invocationContext is null)
+        {
+            return 1;
+        }
+
+        if (!invocationContext.Items.TryGetValue(InvocationCountKey, out var countObject) ||
+            countObject is not int count)
+        {
+            count = 0;
+        }
+
+        count++;
+        invocationContext.Items[InvocationCountKey] = count;
+
+        return count;
+    }
+
+    private static void CacheResponse(
+        string referenceType,
+        string referenceId,
+        string fileName,
+        string sql,
+        int mutationVersion,
+        string response)
+    {
+        var invocationContext = AIInvocationScope.Current;
+
+        if (invocationContext is null || string.IsNullOrEmpty(response))
+        {
+            return;
+        }
+
+        if (!invocationContext.Items.TryGetValue(InvocationResultCacheKey, out var cacheObject) ||
+            cacheObject is not Dictionary<string, string> cache)
+        {
+            cache = new Dictionary<string, string>(StringComparer.Ordinal);
+            invocationContext.Items[InvocationResultCacheKey] = cache;
+        }
+
+        cache[BuildCacheKey(referenceType, referenceId, fileName, sql, mutationVersion)] = response;
+    }
+
+    private static string TryGetCachedResponse(
+        string referenceType,
+        string referenceId,
+        string fileName,
+        string sql,
+        int mutationVersion)
+    {
+        var invocationContext = AIInvocationScope.Current;
+
+        if (invocationContext is null ||
+            !invocationContext.Items.TryGetValue(InvocationResultCacheKey, out var cacheObject) ||
+            cacheObject is not Dictionary<string, string> cache)
+        {
+            return null;
+        }
+
+        return cache.TryGetValue(BuildCacheKey(referenceType, referenceId, fileName, sql, mutationVersion), out var response)
+            ? response
+            : null;
+    }
+
+    private static string BuildCacheKey(
+        string referenceType,
+        string referenceId,
+        string fileName,
+        string sql,
+        int mutationVersion)
+    {
+        return string.Join(
+            "|",
+            referenceType ?? string.Empty,
+            referenceId ?? string.Empty,
+            fileName ?? string.Empty,
+            mutationVersion.ToString(CultureInfo.InvariantCulture),
+            sql?.Trim() ?? string.Empty);
     }
 
     private static string ResolveExplicitExtension(string fileName, string format)

@@ -54,6 +54,10 @@ public sealed class GeneratedFileToolReferencePersistenceTests
         Assert.Equal("interaction-1", createdDocument.ReferenceId);
         Assert.Equal(AIReferenceTypes.Document.ChatInteraction, createdDocument.ReferenceType);
         Assert.False(string.IsNullOrEmpty(createdDocument.StoredFilePath));
+        Assert.Contains(
+            $"/{DefaultGeneratedDocumentService.GeneratedFilesSubfolderName}/",
+            createdDocument.StoredFilePath,
+            StringComparison.Ordinal);
         Assert.True(fileStore.Exists(createdDocument.StoredFilePath));
         Assert.True(createdDocument.Get<bool>(DefaultGeneratedDocumentService.GeneratedPropertyName));
 
@@ -131,6 +135,106 @@ public sealed class GeneratedFileToolReferencePersistenceTests
 
         Assert.Contains("region,amount", content);
         Assert.Contains("North,100", content);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenStatusMessageWouldDuplicateExistingDownload_DoesNotCreateFile()
+    {
+        var fileStore = new InMemoryDocumentFileStore();
+        AIDocument createdDocument = null;
+        var documentStore = CreateDocumentStore(document => createdDocument = document);
+        var services = BuildServices(documentStore.Object, fileStore);
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        });
+        scope.Context.ToolReferences["[doc:1]"] = new AICompletionReference
+        {
+            ReferenceId = "generated-1",
+            ReferenceType = AIReferenceTypes.DataSource.Document,
+            IsGenerated = true,
+        };
+
+        var tool = new GenerateFileTool();
+        var arguments = CreateArguments(
+            services,
+            new Dictionary<string, object>
+            {
+                ["content"] = "[The updated Excel file with every empty cell replaced by \"NULL\" was processed and is ready for download.]",
+            });
+
+        var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+
+        Assert.Null(createdDocument);
+        Assert.Single(scope.Context.ToolReferences);
+        Assert.Contains("Do not generate another file", result.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenTabularFileContentIsConversationalQuestion_DoesNotCreateFile()
+    {
+        var fileStore = new InMemoryDocumentFileStore();
+        AIDocument createdDocument = null;
+        var documentStore = CreateDocumentStore(document => createdDocument = document);
+        var services = BuildServices(documentStore.Object, fileStore);
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        });
+
+        var tool = new GenerateFileTool();
+        var arguments = CreateArguments(
+            services,
+            new Dictionary<string, object>
+            {
+                ["content"] = "I'm ready to provide you the updated Excel file where every empty cell is replaced with the string \"NULL.\" Would you like me to generate and provide you with the download link for this modified file?",
+                ["file_name"] = "SkyLine95rows_Updated_with_NULL.xlsx",
+            });
+
+        var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+
+        Assert.Null(createdDocument);
+        Assert.Empty(scope.Context.ToolReferences);
+        Assert.Contains("conversational text", result.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenAnnouncementTextWouldDuplicateExistingDownload_DoesNotCreateFile()
+    {
+        var fileStore = new InMemoryDocumentFileStore();
+        AIDocument createdDocument = null;
+        var documentStore = CreateDocumentStore(document => createdDocument = document);
+        var services = BuildServices(documentStore.Object, fileStore);
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        });
+        scope.Context.ToolReferences["[doc:1]"] = new AICompletionReference
+        {
+            ReferenceId = "generated-1",
+            ReferenceType = AIReferenceTypes.DataSource.Document,
+            IsGenerated = true,
+        };
+
+        var tool = new GenerateFileTool();
+        var arguments = CreateArguments(
+            services,
+            new Dictionary<string, object>
+            {
+                ["content"] = "I have updated the Excel file to replace all empty or blank cells with the string \"NULL.\" Here is the file:",
+            });
+
+        var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+
+        Assert.Null(createdDocument);
+        Assert.Single(scope.Context.ToolReferences);
+        Assert.Contains("Do not generate another file", result.ToString(), StringComparison.Ordinal);
     }
 
     private static Mock<IAIDocumentStore> CreateDocumentStore(Action<AIDocument> onCreated)

@@ -4,7 +4,6 @@ using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Documents.Pdf.Services;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
-using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CrestApps.Core.Tests.Core.Documents.Generation;
 

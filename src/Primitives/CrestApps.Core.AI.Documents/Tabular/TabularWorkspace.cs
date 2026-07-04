@@ -19,6 +19,7 @@ internal sealed class TabularWorkspace : IDisposable
     private readonly object _persistLock = new();
     private Func<CancellationToken, Task> _pendingPersist;
     private bool _persisting;
+    private int _mutationVersion;
     private SqliteConnection _connection;
     private bool _disposed;
 
@@ -224,6 +225,7 @@ internal sealed class TabularWorkspace : IDisposable
                 }
 
                 await transaction.CommitAsync(cancellationToken);
+                Interlocked.Increment(ref _mutationVersion);
             }
             catch
             {
@@ -239,6 +241,8 @@ internal sealed class TabularWorkspace : IDisposable
             _gate.Release();
         }
     }
+
+    public int MutationVersion => Volatile.Read(ref _mutationVersion);
 
     /// <summary>
     /// Writes the result of a single read-only SQL query to <paramref name="destination"/> as CSV.

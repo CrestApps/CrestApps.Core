@@ -161,6 +161,12 @@ public static class ServiceCollectionExtensions
             .WithCategory("Tabular Data")
             .Hidden();
 
+        services.AddCoreAITool<FillEmptyTabularCellsTool>(FillEmptyTabularCellsTool.TheName)
+            .WithTitle("Fill Empty Tabular Cells")
+            .WithDescription("Replaces every empty cell in a loaded tabular table with a supplied value using one set-based update.")
+            .WithCategory("Tabular Data")
+            .Hidden();
+
         services.AddCoreAITool<ExportTabularDataTool>(ExportTabularDataTool.TheName)
             .WithTitle("Export Tabular Data")
             .WithDescription("Creates a downloadable file from a read-only SQL query over the active in-memory tabular workspace, preserving the original file format by default.")

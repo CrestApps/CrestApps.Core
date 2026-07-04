@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.Documents.Generation;
 using MigraDoc.DocumentObjectModel;
-using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
 using PdfSharp.Fonts;
 
