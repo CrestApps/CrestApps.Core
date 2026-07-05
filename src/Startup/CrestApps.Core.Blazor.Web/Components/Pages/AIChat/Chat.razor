@@ -1,5 +1,6 @@
 @page "/ai-chat/chat/{SessionId}"
 @attribute [Authorize(Policy = "Admin")]
+@using System.Text.Json
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Documents.Models
@@ -11,7 +12,6 @@
 @inject IAIChatSessionManager SessionManager
 @inject IAIChatSessionPromptStore PromptStore
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 @inject SiteSettingsStore SiteSettings
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 
@@ -59,7 +59,28 @@
 }
 else
 {
-    <div class="chat-page-shell">
+    <div class="chat-page-shell"
+         @key="_sessionId"
+         data-openai-chat-signalr-hub-url="/hubs/ai-chat"
+         data-openai-chat-app-element-selector="#chat-app"
+         data-openai-chat-container-element-selector="#chat-container"
+         data-openai-chat-input-element-selector="#chat-input"
+         data-openai-chat-send-button-element-selector="#send-btn"
+         data-openai-chat-placeholder-element-selector="#chat-placeholder"
+         data-openai-chat-messages="@_messagesJson"
+         data-openai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
+         data-openai-chat-mode="@_chatMode"
+         data-openai-chat-mic-button-element-selector="#chat-mic-btn"
+         data-openai-chat-conversation-button-element-selector="#chat-conversation-btn"
+         data-openai-chat-tts-voice-name="@_ttsVoiceName"
+         data-openai-chat-text-to-speech-enabled="@_textToSpeechEnabled.ToString().ToLowerInvariant()"
+         data-openai-chat-session-documents-enabled="@((_allowSessionDocuments || _allowImageUploads).ToString().ToLowerInvariant())"
+         data-openai-chat-existing-documents="@_existingDocumentsJson"
+         data-openai-chat-document-bar-selector="#chat-document-bar"
+         data-openai-chat-upload-document-url="/ai/chat-sessions/upload-document"
+         data-openai-chat-remove-document-url="/ai/chat-sessions/remove-document"
+         data-openai-chat-allowed-extensions="@_supportedExtensionsAccept"
+         data-openai-chat-supported-extensions-text="@_supportedExtensionsDisplay">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
             <h2><i class="bi bi-chat-dots"></i> @_profileDisplayText</h2>
             <a href="/ai/profiles" class="btn btn-outline-secondary">
@@ -131,6 +152,8 @@ else
     private string _supportedExtensionsDisplay;
     private IReadOnlyList<ChatDocumentInfo> _existingDocuments = Array.Empty<ChatDocumentInfo>();
     private bool _allowImageUploads;
+    private string _messagesJson = "[]";
+    private string _existingDocumentsJson = "[]";
 
     protected override async Task OnInitializedAsync()
     {
@@ -190,41 +213,14 @@ else
             && !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultVisionDeploymentName);
         _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads, _allowSessionDocuments);
         _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads, _allowSessionDocuments);
-    }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && _profile != null)
-        {
-            var prompts = await PromptStore.GetPromptsAsync(_sessionId);
-            var messages = prompts
-                .Select(m => new { role = m.Role.Value, content = m.Content, id = m.ItemId, title = m.Title, references = m.References })
-                .ToArray();
+        var prompts = await PromptStore.GetPromptsAsync(_sessionId);
+        var messages = prompts
+            .Select(m => new { role = m.Role.Value, content = m.Content, id = m.ItemId, title = m.Title, references = m.References })
+            .ToArray();
 
-            await JS.InvokeVoidAsync("window.openAIChatManager.initialize", new
-            {
-                signalRHubUrl = "/hubs/ai-chat",
-                appElementSelector = "#chat-app",
-                chatContainerElementSelector = "#chat-container",
-                inputElementSelector = "#chat-input",
-                sendButtonElementSelector = "#send-btn",
-                placeholderElementSelector = "#chat-placeholder",
-                messages,
-                metricsEnabled = _metricsEnabled,
-                chatMode = _chatMode.ToString(),
-                micButtonElementSelector = "#chat-mic-btn",
-                conversationButtonElementSelector = "#chat-conversation-btn",
-                ttsVoiceName = _ttsVoiceName,
-                textToSpeechEnabled = _textToSpeechEnabled,
-                sessionDocumentsEnabled = _allowSessionDocuments || _allowImageUploads,
-                existingDocuments = _existingDocuments,
-                documentBarSelector = "#chat-document-bar",
-                uploadDocumentUrl = "/ai/chat-sessions/upload-document",
-                removeDocumentUrl = "/ai/chat-sessions/remove-document",
-                allowedExtensions = _supportedExtensionsAccept,
-                supportedExtensionsText = _supportedExtensionsDisplay,
-            });
-        }
+        _messagesJson = JsonSerializer.Serialize(messages);
+        _existingDocumentsJson = JsonSerializer.Serialize(_existingDocuments);
     }
 
 }

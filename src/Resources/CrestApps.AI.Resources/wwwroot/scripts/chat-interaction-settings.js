@@ -230,5 +230,68 @@
       collectSettings: collectSettings
     };
   };
+  function parseJsonAttribute(element, attributeName) {
+    var rawValue = element.getAttribute(attributeName);
+    if (!rawValue) {
+      return null;
+    }
+    try {
+      return JSON.parse(rawValue);
+    } catch (error) {
+      console.error('Failed to parse chat interaction settings config JSON.', error);
+      return null;
+    }
+  }
+  function initializeFromElement(element) {
+    if (!element || element.dataset.chatInteractionSettingsInitialized === 'true') {
+      return element ? element.__chatInteractionSettingsState || null : null;
+    }
+    var config = parseJsonAttribute(element, 'data-chat-interaction-settings-config');
+    if (!config) {
+      return null;
+    }
+    var state = window.initializeChatInteractionSettings(config);
+    if (!state) {
+      return null;
+    }
+    element.dataset.chatInteractionSettingsInitialized = 'true';
+    element.__chatInteractionSettingsState = state;
+    return state;
+  }
+  function scanForAutoInitialization(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') {
+      return;
+    }
+    if (typeof root.matches === 'function' && root.matches('[data-chat-interaction-settings-config]')) {
+      initializeFromElement(root);
+    }
+    root.querySelectorAll('[data-chat-interaction-settings-config]').forEach(initializeFromElement);
+  }
+  function startAutoInitialization() {
+    scanForAutoInitialization(document);
+    if (typeof MutationObserver === 'undefined') {
+      return;
+    }
+    var observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        mutation.addedNodes.forEach(function (node) {
+          if (node && node.nodeType === 1) {
+            scanForAutoInitialization(node);
+          }
+        });
+      });
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAutoInitialization, {
+      once: true
+    });
+  } else {
+    startAutoInitialization();
+  }
 })();
 //# sourceMappingURL=chat-interaction-settings.js.map

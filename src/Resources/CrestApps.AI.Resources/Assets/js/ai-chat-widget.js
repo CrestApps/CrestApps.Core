@@ -734,6 +734,113 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
 }();
 
 window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
+    function getAttributeValue(element, attributeName) {
+        var value = element.getAttribute(attributeName);
+        return value === null || value === '' ? null : value;
+    }
+
+    function parseBooleanAttributeValue(value) {
+        if (value === null || value === undefined) {
+            return null;
+        }
+
+        if (typeof value === 'boolean') {
+            return value;
+        }
+
+        var normalized = String(value).trim().toLowerCase();
+        if (normalized === 'true') {
+            return true;
+        }
+
+        if (normalized === 'false') {
+            return false;
+        }
+
+        return null;
+    }
+
+    function parseJsonAttribute(element, attributeName, description) {
+        var rawValue = getAttributeValue(element, attributeName);
+        if (!rawValue) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(rawValue);
+        }
+        catch (error) {
+            console.error('Failed to parse ' + description + ' JSON.', error);
+            return null;
+        }
+    }
+
+    function buildOptionsFromDataAttributes(element) {
+        var widgetContainerSelector = getAttributeValue(element, 'data-openai-chat-widget-container-selector');
+        if (!widgetContainerSelector) {
+            return null;
+        }
+
+        var chatConfig = null;
+        if (window.openAIChatManager && typeof window.openAIChatManager.buildConfigFromElement === 'function') {
+            chatConfig = window.openAIChatManager.buildConfigFromElement(element, { allowWidgetHost: true });
+        }
+
+        var profileId = getAttributeValue(element, 'data-openai-chat-widget-profile-id');
+        var profileName = getAttributeValue(element, 'data-openai-chat-widget-profile-name');
+        var profileDisplayText = getAttributeValue(element, 'data-openai-chat-widget-profile-display-text');
+        var profileWelcomeMessage = getAttributeValue(element, 'data-openai-chat-widget-profile-welcome-message');
+        var profileChatMode = getAttributeValue(element, 'data-openai-chat-widget-profile-chat-mode');
+        var profileTtsVoiceName = getAttributeValue(element, 'data-openai-chat-widget-profile-tts-voice-name');
+        var profileMetricsEnabled = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-profile-enable-session-metrics'));
+        var profileSessionDocuments = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-profile-allow-session-documents'));
+        var profile = null;
+
+        if (profileId || profileName || profileDisplayText || profileWelcomeMessage || profileChatMode || profileTtsVoiceName || profileMetricsEnabled !== null || profileSessionDocuments !== null) {
+            profile = {
+                id: profileId,
+                name: profileName,
+                displayText: profileDisplayText,
+                welcomeMessage: profileWelcomeMessage,
+                chatMode: profileChatMode,
+                ttsVoiceName: profileTtsVoiceName,
+                enableSessionMetrics: profileMetricsEnabled === true,
+                allowSessionDocuments: profileSessionDocuments === true
+            };
+        }
+
+        var enableDragging = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-enable-dragging'));
+        var enableResizing = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-enable-resizing'));
+        var persistLayout = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-persist-layout'));
+
+        return {
+            shellSelector: getAttributeValue(element, 'data-openai-chat-widget-shell-selector'),
+            widgetContainerSelector: widgetContainerSelector,
+            toggleButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-toggle-button-selector'),
+            closeButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-close-button-selector'),
+            inputSelector: getAttributeValue(element, 'data-openai-chat-widget-input-selector'),
+            profile: profile,
+            widgetStateName: getAttributeValue(element, 'data-openai-chat-widget-state-name'),
+            openStateValue: getAttributeValue(element, 'data-openai-chat-widget-open-state-value'),
+            closedStateValue: getAttributeValue(element, 'data-openai-chat-widget-closed-state-value'),
+            openIconHtml: getAttributeValue(element, 'data-openai-chat-widget-open-icon-html'),
+            closedIconHtml: getAttributeValue(element, 'data-openai-chat-widget-closed-icon-html'),
+            chatConfig: chatConfig ? Object.assign({}, chatConfig, {
+                widget: Object.assign({}, chatConfig.widget || {}, {
+                    chatWidgetContainer: widgetContainerSelector,
+                    chatWidgetStateName: getAttributeValue(element, 'data-openai-chat-widget-state-name'),
+                    newChatButton: getAttributeValue(element, 'data-openai-chat-widget-new-chat-button-selector'),
+                    toggleButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-toggle-button-selector'),
+                    resetSizeButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-reset-size-button-selector'),
+                    dragHandleSelector: getAttributeValue(element, 'data-openai-chat-widget-drag-handle-selector'),
+                    enableDragging: enableDragging === null ? undefined : enableDragging,
+                    enableResizing: enableResizing === null ? undefined : enableResizing,
+                    persistLayout: persistLayout === null ? undefined : persistLayout,
+                })
+            }) : null
+        };
+    }
+
     function initialize(options) {
         if (!options) {
             return null;
@@ -742,7 +849,7 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
         var chatConfig = options.chatConfig;
         if (!chatConfig && options.configElementSelector) {
             var configElement = document.querySelector(options.configElementSelector);
-            chatConfig = configElement ? JSON.parse(configElement.getAttribute('data-config')) : null;
+            chatConfig = configElement ? parseJsonAttribute(configElement, 'data-config', 'AI chat widget config') : null;
         }
 
         if (!chatConfig) {
@@ -1010,7 +1117,73 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
         return widgetApp;
     }
 
+    function initializeFromElement(element) {
+        if (!element || element.dataset.openAiChatWidgetInitialized === 'true') {
+            return element ? element.__openAIChatWidgetApp || null : null;
+        }
+
+        var jsonOptions = parseJsonAttribute(element, 'data-openai-chat-widget-config', 'AI chat widget config');
+        var attributeOptions = buildOptionsFromDataAttributes(element);
+        if (!jsonOptions && !attributeOptions) {
+            return null;
+        }
+
+        var options = Object.assign({}, jsonOptions || {}, attributeOptions || {});
+
+        var widgetApp = initialize(options);
+        if (!widgetApp) {
+            return null;
+        }
+
+        element.dataset.openAiChatWidgetInitialized = 'true';
+        element.__openAIChatWidgetApp = widgetApp;
+
+        return widgetApp;
+    }
+
+    function scanForAutoInitialization(root) {
+        if (!root || typeof root.querySelectorAll !== 'function') {
+            return;
+        }
+
+        if (typeof root.matches === 'function' && root.matches('[data-openai-chat-widget-config],[data-openai-chat-widget-container-selector]')) {
+            initializeFromElement(root);
+        }
+
+        root.querySelectorAll('[data-openai-chat-widget-config],[data-openai-chat-widget-container-selector]').forEach(initializeFromElement);
+    }
+
+    function startAutoInitialization() {
+        scanForAutoInitialization(document);
+
+        if (typeof MutationObserver === 'undefined') {
+            return;
+        }
+
+        var observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node && node.nodeType === 1) {
+                        scanForAutoInitialization(node);
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startAutoInitialization, { once: true });
+    } else {
+        startAutoInitialization();
+    }
+
     return {
-        initialize: initialize
+        initialize: initialize,
+        initializeFromElement: initializeFromElement,
     };
 }();

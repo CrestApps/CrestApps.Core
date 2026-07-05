@@ -1,3 +1,4 @@
+@using System.Text.Json
 @using CrestApps.Core
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Services
@@ -11,6 +12,22 @@
     Model.TryGetSettings<ChatModeProfileSettings>(out chatModeSettings);
     var textToSpeechEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
     var ttsVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
+    var chatConfigJson = JsonSerializer.Serialize(new
+    {
+        signalRHubUrl = "/hubs/ai-chat",
+        appElementSelector = "#test-app",
+        chatContainerElementSelector = "#test-container",
+        inputElementSelector = "#test-input",
+        sendButtonElementSelector = "#test-send-btn",
+        placeholderElementSelector = "#test-placeholder",
+        messages = Array.Empty<object>(),
+        metricsEnabled = false,
+        chatMode = "TextInput",
+        textToSpeechEnabled,
+        ttsVoiceName,
+        singleResponseMode = true,
+        sessionDocumentsEnabled = false,
+    });
 }
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
@@ -96,7 +113,7 @@
     </a>
 </div>
 
-<div class="test-page-wrapper">
+<div class="test-page-wrapper" data-openai-chat-config="@chatConfigJson">
     <div class="border rounded flex-grow-1 d-flex flex-column">
         <div id="test-container" class="flex-grow-1 overflow-auto">
             <div id="test-placeholder">
@@ -129,23 +146,4 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="~/_content/CrestApps.AI.Resources/scripts/ai-chat.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            window.openAIChatManager.initialize({
-                signalRHubUrl: '/hubs/ai-chat',
-                appElementSelector: '#test-app',
-                chatContainerElementSelector: '#test-container',
-                inputElementSelector: '#test-input',
-                sendButtonElementSelector: '#test-send-btn',
-                placeholderElementSelector: '#test-placeholder',
-                messages: [],
-                metricsEnabled: false,
-                chatMode: 'TextInput',
-                textToSpeechEnabled: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(textToSpeechEnabled)),
-                ttsVoiceName: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ttsVoiceName)),
-                singleResponseMode: true,
-                sessionDocumentsEnabled: false
-            });
-        });
-    </script>
 }

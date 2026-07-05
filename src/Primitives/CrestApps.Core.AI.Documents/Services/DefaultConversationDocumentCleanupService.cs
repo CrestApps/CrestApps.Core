@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.AI.Documents.Services;
 
@@ -16,11 +17,12 @@ namespace CrestApps.Core.AI.Documents.Services;
 /// </summary>
 public sealed class DefaultConversationDocumentCleanupService : IConversationDocumentCleanupService
 {
+    private static readonly Regex _safePathSegmentExpression = new("^[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
+
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
     private readonly ITabularDocumentArtifactStore _artifactStore;
-    private readonly string _basePath;
     private readonly ILogger<DefaultConversationDocumentCleanupService> _logger;
 
     /// <summary>
@@ -44,7 +46,6 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
         _chunkStore = chunkStore;
         _fileStore = fileStore;
         _artifactStore = artifactStore;
-        _basePath = fileStoreOptions.Value.BasePath;
         _logger = logger;
     }
 
@@ -141,12 +142,12 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
 
     private void TryDeleteTabularDatabase(string referenceType, string referenceId)
     {
-        if (string.IsNullOrEmpty(_basePath))
+        var databasePath = BuildTabularDatabaseStoragePath(referenceType, referenceId);
+        if (databasePath is null)
         {
             return;
         }
 
-        var databasePath = Path.Combine(_basePath, "documents", referenceType, referenceId, "data", "tabular.db");
         TryDeleteFile(databasePath);
         TryDeleteFile(databasePath + "-wal");
         TryDeleteFile(databasePath + "-shm");
@@ -156,17 +157,33 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
     {
         try
         {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
+            _fileStore.DeleteFileAsync(path).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug(ex, "Failed to delete tabular database file '{Path}'.", path);
+                _logger.LogDebug(ex, "Failed to delete a tabular database file for conversation cleanup.");
             }
         }
+    }
+
+    private static string BuildTabularDatabaseStoragePath(string referenceType, string referenceId)
+    {
+        if (!IsSafePathSegment(referenceType) || !IsSafePathSegment(referenceId))
+        {
+            return null;
+        }
+
+        return Path.Combine("documents", referenceType, referenceId, "data", "tabular.db")
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
+    }
+
+    private static bool IsSafePathSegment(string value)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && value is not "." and not ".."
+            && _safePathSegmentExpression.IsMatch(value);
     }
 }

@@ -32,8 +32,11 @@ window.chatInteractionManager = function () {
     downloadChartTitle: 'Download chart as image',
     downloadChartButtonText: 'Download',
     codeCopiedText: 'Copied!',
+    copyTitle: 'Click here to copy response to clipboard.',
+    copiedTitle: 'Response copied to clipboard.',
+    copyResetDelayMs: 2000,
     assistantLabel: 'Assistant',
-    messageTemplate: "\n            <div class=\"ai-chat-messages\">\n                <div v-for=\"(message, index) in messages\" :key=\"index\" class=\"ai-chat-message-item\">\n                    <div>\n                        <div v-if=\"message.role === 'user'\" class=\"ai-chat-msg-role ai-chat-msg-role-user\">You</div>\n                        <div v-else-if=\"message.role !== 'indicator'\" :class=\"getAssistantRoleClasses(message)\">\n                            <span :class=\"getAssistantIconClasses(message, index)\"><i :class=\"getAssistantIcon(message)\"></i></span>\n                            {{ getAssistantLabel(message) }}\n                        </div>\n                        <div class=\"ai-chat-message-body lh-base\">\n                            <h4 v-if=\"message.title\">{{ message.title }}</h4>\n                            <div v-html=\"message.htmlContent\"></div>\n                            <ol v-if=\"message.citationReferences && message.citationReferences.length\" class=\"ai-chat-citation-list\">\n                                <li v-for=\"citation in message.citationReferences\" :key=\"'citation-' + (citation.referenceKey || citation.displayIndex)\" class=\"ai-chat-citation-item\">\n                                    <a v-if=\"citation.link\" :href=\"citation.link\" :target=\"citation.isDownload ? null : '_blank'\" :rel=\"citation.isDownload ? null : 'noopener noreferrer'\">{{ citation.label }}</a>\n                                    <span v-else>{{ citation.label }}</span>\n                                </li>\n                            </ol>\n                            <span class=\"message-buttons-container\" v-if=\"!isIndicator(message)\">\n                                <button v-if=\"textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming\" class=\"btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox\" :class=\"{ 'tts-playing': ttsPlayingMessageIndex === index }\" :data-tts-message-index=\"index\" @click=\"toggleMessageTts(message, index)\" :title=\"ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'\">\n                                    <i :class=\"ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'\"></i>\n                                </button>\n                                <button class=\"btn btn-sm btn-link text-secondary p-0 button-message-toolbox\" @click=\"copyResponse(message)\" title=\"Click here to copy response to clipboard.\">\n                                    <i class=\"fa-solid fa-copy\"></i>\n                                </button>\n                            </span>\n                        </div>\n                    </div>\n                </div>\n                <div v-for=\"notification in notifications\" :key=\"'notif-' + notification.type\" class=\"ai-chat-notification\" :class=\"'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')\">\n                    <div class=\"ai-chat-notification-content\">\n                        <i v-if=\"notification.icon\" :class=\"notification.icon\" class=\"ai-chat-notification-icon\"></i>\n                        <span class=\"ai-chat-notification-text\">{{ notification.content }}</span>\n                        <button v-if=\"notification.dismissible\" class=\"btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss\" @click=\"dismissNotification(notification.type)\" title=\"Dismiss\">\n                            <i class=\"fa-solid fa-xmark\"></i>\n                        </button>\n                    </div>\n                    <div v-if=\"notification.actions && notification.actions.length\" class=\"ai-chat-notification-actions\">\n                        <button v-for=\"action in notification.actions\" :key=\"action.name\" class=\"btn btn-sm\" :class=\"action.cssClass || 'btn-outline-secondary'\" @click=\"handleNotificationAction(notification.type, action.name)\">\n                            <i v-if=\"action.icon\" :class=\"action.icon\" class=\"me-1\"></i>\n                            {{ action.label }}\n                        </button>\n                    </div>\n                </div>\n            </div>\n        ",
+    messageTemplate: "\n            <div class=\"ai-chat-messages\">\n                <div v-for=\"(message, index) in messages\" :key=\"index\" class=\"ai-chat-message-item\">\n                    <div>\n                        <div v-if=\"message.role === 'user'\" class=\"ai-chat-msg-role ai-chat-msg-role-user\">You</div>\n                        <div v-else-if=\"message.role !== 'indicator'\" :class=\"getAssistantRoleClasses(message)\">\n                            <span :class=\"getAssistantIconClasses(message, index)\"><i :class=\"getAssistantIcon(message)\"></i></span>\n                            {{ getAssistantLabel(message) }}\n                        </div>\n                        <div class=\"ai-chat-message-body lh-base\">\n                            <h4 v-if=\"message.title\">{{ message.title }}</h4>\n                            <div v-html=\"message.htmlContent\"></div>\n                            <ol v-if=\"message.citationReferences && message.citationReferences.length\" class=\"ai-chat-citation-list\">\n                                <li v-for=\"citation in message.citationReferences\" :key=\"'citation-' + (citation.referenceKey || citation.displayIndex)\" class=\"ai-chat-citation-item\">\n                                    <a v-if=\"citation.link\" :href=\"citation.link\" :target=\"citation.isDownload ? null : '_blank'\" :rel=\"citation.isDownload ? null : 'noopener noreferrer'\">{{ citation.label }}</a>\n                                    <span v-else>{{ citation.label }}</span>\n                                </li>\n                            </ol>\n                            <span class=\"message-buttons-container\" v-if=\"!isIndicator(message)\">\n                                <button v-if=\"textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming\" class=\"btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox\" :class=\"{ 'tts-playing': ttsPlayingMessageIndex === index }\" :data-tts-message-index=\"index\" @click=\"toggleMessageTts(message, index)\" :title=\"ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'\">\n                                    <i :class=\"ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'\"></i>\n                                </button>\n                                <button type=\"button\" class=\"btn btn-sm btn-link p-0 button-message-toolbox ai-response-copy-btn\" :class=\"copiedMessageIndex === index ? 'text-success' : 'text-secondary'\" :data-copy-message-index=\"index\" @click=\"copyResponse(message, index, $event)\" :title=\"copiedMessageIndex === index ? copiedTitle : copyTitle\">\n                                    <i :class=\"copiedMessageIndex === index ? 'fa-solid fa-check' : 'fa-solid fa-copy'\"></i>\n                                </button>\n                            </span>\n                        </div>\n                    </div>\n                </div>\n                <div v-for=\"notification in notifications\" :key=\"'notif-' + notification.type\" class=\"ai-chat-notification\" :class=\"'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')\">\n                    <div class=\"ai-chat-notification-content\">\n                        <i v-if=\"notification.icon\" :class=\"notification.icon\" class=\"ai-chat-notification-icon\"></i>\n                        <span class=\"ai-chat-notification-text\">{{ notification.content }}</span>\n                        <button v-if=\"notification.dismissible\" class=\"btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss\" @click=\"dismissNotification(notification.type)\" title=\"Dismiss\">\n                            <i class=\"fa-solid fa-xmark\"></i>\n                        </button>\n                    </div>\n                    <div v-if=\"notification.actions && notification.actions.length\" class=\"ai-chat-notification-actions\">\n                        <button v-for=\"action in notification.actions\" :key=\"action.name\" class=\"btn btn-sm\" :class=\"action.cssClass || 'btn-outline-secondary'\" @click=\"handleNotificationAction(notification.type, action.name)\">\n                            <i v-if=\"action.icon\" :class=\"action.icon\" class=\"me-1\"></i>\n                            {{ action.label }}\n                        </button>\n                    </div>\n                </div>\n            </div>\n        ",
     indicatorTemplate: "\n            <div class=\"ai-chat-msg-role ai-chat-msg-role-assistant\">\n                <span class=\"ai-streaming-icon\"><i class=\"fa fa-robot\" style=\"display: inline-block;\"></i></span>\n                Assistant\n            </div>\n        ",
     // Localizable strings
     untitledText: 'Untitled',
@@ -514,8 +517,18 @@ window.chatInteractionManager = function () {
       ADD_ATTR: ['target']
     });
   }
+  function compactObject(source) {
+    if (!source || _typeof(source) !== 'object') {
+      return {};
+    }
+    return Object.fromEntries(Object.entries(source).filter(function (_ref17) {
+      var _ref18 = _slicedToArray(_ref17, 2),
+        value = _ref18[1];
+      return value !== undefined;
+    }));
+  }
   var initialize = function initialize(instanceConfig) {
-    var config = Object.assign({}, defaultConfig, instanceConfig);
+    var config = Object.assign({}, defaultConfig, compactObject(instanceConfig));
     // Keep defaultConfig in sync so renderers use overridden values
     defaultConfig = config;
     if (!config.signalRHubUrl) {
@@ -576,7 +589,12 @@ window.chatInteractionManager = function () {
           conversationButton: null,
           isConversationMode: false,
           notifications: [],
-          notificationDismissTimers: {}
+          notificationDismissTimers: {},
+          copyTitle: config.copyTitle,
+          copiedTitle: config.copiedTitle,
+          copiedMessageIndex: -1,
+          copyResetTimeoutId: null,
+          activeCopyButton: null
         };
       },
       computed: {
@@ -1075,9 +1093,9 @@ window.chatInteractionManager = function () {
           var _this6 = this;
           references = normalizeReferences(references);
           if (Object.keys(references).length) {
-            var _ref17, _message$rawContent2;
+            var _ref19, _message$rawContent2;
             var message = this.messages[messageIndex];
-            message.rawContent = (_ref17 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref17 !== void 0 ? _ref17 : '';
+            message.rawContent = (_ref19 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref19 !== void 0 ? _ref19 : '';
             updateMessagePresentation(message, references);
             this.messages[messageIndex] = message;
             this.$nextTick(function () {
@@ -1147,8 +1165,38 @@ window.chatInteractionManager = function () {
             }));
           });
         },
-        synthesizeSpeech: function synthesizeSpeech(text, cacheIndex) {
+        updateCopyButtons: function updateCopyButtons() {
           var _this8 = this;
+          if (!this.chatContainer) {
+            return;
+          }
+          var buttons = this.chatContainer.querySelectorAll('[data-copy-message-index]');
+          buttons.forEach(function (button) {
+            var buttonIndex = Number(button.getAttribute('data-copy-message-index'));
+            var isCopied = buttonIndex === _this8.copiedMessageIndex;
+            var iconHtml = isCopied ? '<i class="fa-solid fa-check"></i>' : '<i class="fa-solid fa-copy"></i>';
+            button.classList.toggle('text-success', isCopied);
+            button.classList.toggle('text-secondary', !isCopied);
+            button.setAttribute('title', isCopied ? _this8.copiedTitle : _this8.copyTitle);
+            button.replaceChildren(DOMPurify.sanitize(iconHtml, {
+              RETURN_DOM_FRAGMENT: true
+            }));
+          });
+        },
+        setCopyButtonState: function setCopyButtonState(button, isCopied) {
+          if (!button) {
+            return;
+          }
+          var iconHtml = isCopied ? '<i class="fa-solid fa-check"></i>' : '<i class="fa-solid fa-copy"></i>';
+          button.classList.toggle('text-success', isCopied);
+          button.classList.toggle('text-secondary', !isCopied);
+          button.setAttribute('title', isCopied ? this.copiedTitle : this.copyTitle);
+          button.replaceChildren(DOMPurify.sanitize(iconHtml, {
+            RETURN_DOM_FRAGMENT: true
+          }));
+        },
+        synthesizeSpeech: function synthesizeSpeech(text, cacheIndex) {
+          var _this9 = this;
           if (!this.textToSpeechEnabled || !text || !this.connection) {
             return;
           }
@@ -1157,16 +1205,16 @@ window.chatInteractionManager = function () {
           this._ttsCacheIndex = cacheIndex !== undefined ? cacheIndex : -1;
           this.connection.invoke("SynthesizeSpeech", this.getItemId(), text, this.ttsVoiceName)["catch"](function (err) {
             console.error("TTS synthesis error:", err);
-            _this8.isPlayingAudio = false;
-            _this8.ttsPlayingMessageIndex = -1;
-            _this8._ttsCacheIndex = -1;
-            _this8.$nextTick(function () {
-              return _this8.updateTtsPlaybackButtons();
+            _this9.isPlayingAudio = false;
+            _this9.ttsPlayingMessageIndex = -1;
+            _this9._ttsCacheIndex = -1;
+            _this9.$nextTick(function () {
+              return _this9.updateTtsPlaybackButtons();
             });
           });
         },
         toggleMessageTts: function toggleMessageTts(message, index) {
-          var _this9 = this;
+          var _this0 = this;
           if (this.ttsPlayingMessageIndex === index) {
             this.stopAudio();
             return;
@@ -1179,7 +1227,7 @@ window.chatInteractionManager = function () {
           }));
           this.ttsPlayingMessageIndex = index;
           this.$nextTick(function () {
-            return _this9.updateTtsPlaybackButtons();
+            return _this0.updateTtsPlaybackButtons();
           });
           if (this.ttsAudioCache[index]) {
             this.playAudioBlob(this.ttsAudioCache[index]);
@@ -1188,13 +1236,13 @@ window.chatInteractionManager = function () {
           this.synthesizeSpeech(message.content, index);
         },
         playCollectedAudio: function playCollectedAudio() {
-          var _this0 = this;
+          var _this1 = this;
           if (this.audioChunks.length === 0) {
             if (!this.isPlayingAudio && this.audioPlayQueue.length === 0) {
               this.isPlayingAudio = false;
               this.ttsPlayingMessageIndex = -1;
               this.$nextTick(function () {
-                return _this0.updateTtsPlaybackButtons();
+                return _this1.updateTtsPlaybackButtons();
               });
             }
             return;
@@ -1234,39 +1282,39 @@ window.chatInteractionManager = function () {
           this.playAudioBlob(blob);
         },
         playAudioBlob: function playAudioBlob(blob) {
-          var _this1 = this;
+          var _this10 = this;
           var url = URL.createObjectURL(blob);
           var audio = new Audio(url);
           this.currentAudioUrl = url;
           this.currentAudioElement = audio;
           this.isPlayingAudio = true;
           audio.addEventListener('ended', function () {
-            _this1.currentAudioElement = null;
-            _this1.currentAudioUrl = null;
+            _this10.currentAudioElement = null;
+            _this10.currentAudioUrl = null;
             URL.revokeObjectURL(url);
-            _this1.playNextInQueue();
+            _this10.playNextInQueue();
           });
           audio.addEventListener('error', function () {
-            _this1.currentAudioElement = null;
-            _this1.currentAudioUrl = null;
+            _this10.currentAudioElement = null;
+            _this10.currentAudioUrl = null;
             URL.revokeObjectURL(url);
-            _this1.playNextInQueue();
+            _this10.playNextInQueue();
           });
           audio.play()["catch"](function (err) {
             console.error("Audio playback error:", err);
-            _this1.currentAudioElement = null;
-            _this1.currentAudioUrl = null;
+            _this10.currentAudioElement = null;
+            _this10.currentAudioUrl = null;
             URL.revokeObjectURL(url);
-            _this1.audioPlayQueue = [];
-            _this1.isPlayingAudio = false;
-            _this1.ttsPlayingMessageIndex = -1;
-            _this1.$nextTick(function () {
-              return _this1.updateTtsPlaybackButtons();
+            _this10.audioPlayQueue = [];
+            _this10.isPlayingAudio = false;
+            _this10.ttsPlayingMessageIndex = -1;
+            _this10.$nextTick(function () {
+              return _this10.updateTtsPlaybackButtons();
             });
           });
         },
         playNextInQueue: function playNextInQueue() {
-          var _this10 = this;
+          var _this11 = this;
           if (this.audioPlayQueue.length > 0) {
             var nextBlob = this.audioPlayQueue.shift();
             this.playAudioBlob(nextBlob);
@@ -1274,13 +1322,13 @@ window.chatInteractionManager = function () {
             this.isPlayingAudio = false;
             this.ttsPlayingMessageIndex = -1;
             this.$nextTick(function () {
-              return _this10.updateTtsPlaybackButtons();
+              return _this11.updateTtsPlaybackButtons();
             });
             this.conversationModeOnAudioEnded();
           }
         },
         stopAudio: function stopAudio() {
-          var _this11 = this;
+          var _this12 = this;
           if (this.currentAudioElement) {
             this.currentAudioElement.pause();
             this.currentAudioElement.currentTime = 0;
@@ -1295,7 +1343,7 @@ window.chatInteractionManager = function () {
           this.isPlayingAudio = false;
           this.ttsPlayingMessageIndex = -1;
           this.$nextTick(function () {
-            return _this11.updateTtsPlaybackButtons();
+            return _this12.updateTtsPlaybackButtons();
           });
         },
         toggleConversationMode: function toggleConversationMode() {
@@ -1306,7 +1354,7 @@ window.chatInteractionManager = function () {
           }
         },
         startConversationMode: function startConversationMode() {
-          var _this12 = this;
+          var _this13 = this;
           if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
             return;
           }
@@ -1326,30 +1374,30 @@ window.chatInteractionManager = function () {
             }
           }).then(function (stream) {
             var mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-            _this12.mediaRecorder = new MediaRecorder(stream, {
+            _this13.mediaRecorder = new MediaRecorder(stream, {
               mimeType: mimeType,
               audioBitsPerSecond: 128000
             });
-            _this12._conversationSubject = new signalR.Subject();
-            _this12._conversationStream = stream;
+            _this13._conversationSubject = new signalR.Subject();
+            _this13._conversationStream = stream;
 
             // Create an AnalyserNode for volume-based interrupt detection.
             var AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (AudioCtx) {
-              _this12._conversationAudioCtx = new AudioCtx();
-              _this12._conversationAnalyser = _this12._conversationAudioCtx.createAnalyser();
-              _this12._conversationAnalyser.fftSize = 256;
-              var micSource = _this12._conversationAudioCtx.createMediaStreamSource(stream);
-              micSource.connect(_this12._conversationAnalyser);
+              _this13._conversationAudioCtx = new AudioCtx();
+              _this13._conversationAnalyser = _this13._conversationAudioCtx.createAnalyser();
+              _this13._conversationAnalyser.fftSize = 256;
+              var micSource = _this13._conversationAudioCtx.createMediaStreamSource(stream);
+              micSource.connect(_this13._conversationAnalyser);
             }
             var pendingChunk = Promise.resolve();
-            var analyser = _this12._conversationAnalyser;
+            var analyser = _this13._conversationAnalyser;
             var interruptVolumeThreshold = 30;
-            _this12.mediaRecorder.addEventListener('dataavailable', function (e) {
+            _this13.mediaRecorder.addEventListener('dataavailable', function (e) {
               if (e.data && e.data.size > 0) {
                 // During TTS playback, check mic volume to detect
                 // user interruption (speaking above threshold).
-                if (_this12.isPlayingAudio && analyser) {
+                if (_this13.isPlayingAudio && analyser) {
                   var freqData = new Uint8Array(analyser.frequencyBinCount);
                   analyser.getByteFrequencyData(freqData);
                   var sum = 0;
@@ -1359,7 +1407,7 @@ window.chatInteractionManager = function () {
                   var avg = sum / freqData.length;
                   if (avg >= interruptVolumeThreshold) {
                     // User is speaking — interrupt TTS playback.
-                    _this12.stopAudio();
+                    _this13.stopAudio();
                   }
                 }
 
@@ -1381,7 +1429,7 @@ window.chatInteractionManager = function () {
                         }, '');
                         base64 = btoa(binaryString);
                         try {
-                          _this12._conversationSubject.next(base64);
+                          _this13._conversationSubject.next(base64);
                         } catch (err) {
                           // Subject may have been completed already.
                         }
@@ -1392,27 +1440,27 @@ window.chatInteractionManager = function () {
                 })));
               }
             });
-            _this12.mediaRecorder.addEventListener('stop', function () {
+            _this13.mediaRecorder.addEventListener('stop', function () {
               stream.getTracks().forEach(function (track) {
                 return track.stop();
               });
               pendingChunk.then(function () {
                 try {
-                  _this12._conversationSubject.complete();
+                  _this13._conversationSubject.complete();
                 } catch (err) {
                   // Already completed.
                 }
               });
             });
-            var itemId = _this12.getItemId();
+            var itemId = _this13.getItemId();
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            _this12.connection.send("StartConversation", itemId, _this12._conversationSubject, mimeType, language);
-            _this12.mediaRecorder.start(250);
-            _this12.isRecording = true;
+            _this13.connection.send("StartConversation", itemId, _this13._conversationSubject, mimeType, language);
+            _this13.mediaRecorder.start(250);
+            _this13.isRecording = true;
           })["catch"](function (err) {
             console.error('Microphone access denied:', err);
-            _this12.isConversationMode = false;
-            _this12.updateConversationButton();
+            _this13.isConversationMode = false;
+            _this13.updateConversationButton();
           });
         },
         stopConversationMode: function stopConversationMode() {
@@ -1516,12 +1564,12 @@ window.chatInteractionManager = function () {
           return removedCount;
         },
         scrollToBottom: function scrollToBottom() {
-          var _this13 = this;
+          var _this14 = this;
           if (!this.autoScroll) {
             return;
           }
           setTimeout(function () {
-            _this13.chatContainer.scrollTop = _this13.chatContainer.scrollHeight - _this13.chatContainer.clientHeight;
+            _this14.chatContainer.scrollTop = _this14.chatContainer.scrollHeight - _this14.chatContainer.clientHeight;
           }, 50);
         },
         handleUserInput: function handleUserInput(event) {
@@ -1537,7 +1585,7 @@ window.chatInteractionManager = function () {
           return document.querySelector('[data-chat-interaction-save-indicator]');
         },
         showSaveIndicator: function showSaveIndicator(text, className) {
-          var _this14 = this;
+          var _this15 = this;
           var indicator = this.getSaveIndicatorElement();
           if (!indicator) {
             return;
@@ -1553,7 +1601,7 @@ window.chatInteractionManager = function () {
           }
           this.saveIndicatorTimeout = setTimeout(function () {
             indicator.textContent = '';
-            _this14.saveIndicatorTimeout = null;
+            _this15.saveIndicatorTimeout = null;
           }, 3000);
         },
         clearPendingSettingsSave: function clearPendingSettingsSave() {
@@ -1627,10 +1675,10 @@ window.chatInteractionManager = function () {
           return false;
         },
         validateSettings: function validateSettings() {
-          var _this15 = this;
+          var _this16 = this;
           var isValid = true;
           this.getSettingInputs().forEach(function (input) {
-            isValid = _this15.validateSettingInput(input) && isValid;
+            isValid = _this16.validateSettingInput(input) && isValid;
           });
           return isValid;
         },
@@ -1726,12 +1774,12 @@ window.chatInteractionManager = function () {
           }
         },
         scheduleNotificationDismiss: function scheduleNotificationDismiss(notification) {
-          var _this16 = this;
+          var _this17 = this;
           if (!notification || !notification.type || !notification.autoDismissMs || notification.autoDismissMs <= 0) {
             return;
           }
           this.notificationDismissTimers[notification.type] = setTimeout(function () {
-            _this16.removeNotification(notification.type);
+            _this17.removeNotification(notification.type);
           }, notification.autoDismissMs);
         },
         clearNotificationDismiss: function clearNotificationDismiss(notificationType) {
@@ -1771,7 +1819,7 @@ window.chatInteractionManager = function () {
           this.showPlaceholder();
         },
         initializeApp: function initializeApp() {
-          var _this17 = this;
+          var _this18 = this;
           this.inputElement = document.querySelector(config.inputElementSelector);
           this.buttonElement = document.querySelector(config.sendButtonElementSelector);
           this.chatContainer = document.querySelector(config.chatContainerElementSelector);
@@ -1783,59 +1831,59 @@ window.chatInteractionManager = function () {
 
           // Pause auto-scroll when the user manually scrolls up during streaming.
           this.chatContainer.addEventListener('scroll', function () {
-            if (!_this17.stream) {
+            if (!_this18.stream) {
               return;
             }
             var threshold = 30;
-            var atBottom = _this17.chatContainer.scrollHeight - _this17.chatContainer.clientHeight - _this17.chatContainer.scrollTop <= threshold;
-            _this17.autoScroll = atBottom;
+            var atBottom = _this18.chatContainer.scrollHeight - _this18.chatContainer.clientHeight - _this18.chatContainer.scrollTop <= threshold;
+            _this18.autoScroll = atBottom;
           });
           this.inputElement.addEventListener('keyup', function (event) {
-            if (_this17.stream != null) {
+            if (_this18.stream != null) {
               return;
             }
             if (event.key === "Enter" && !event.shiftKey) {
-              _this17.buttonElement.click();
+              _this18.buttonElement.click();
             }
           });
           this.inputElement.addEventListener('input', function (e) {
-            _this17.handleUserInput(e);
+            _this18.handleUserInput(e);
             if (e.target.value.trim()) {
-              _this17.buttonElement.removeAttribute('disabled');
+              _this18.buttonElement.removeAttribute('disabled');
             } else {
-              _this17.buttonElement.setAttribute('disabled', true);
+              _this18.buttonElement.setAttribute('disabled', true);
             }
           });
           this.inputElement.addEventListener('paste', function (e) {
             // Use setTimeout to allow the paste to complete before checking the value
             setTimeout(function () {
-              _this17.prompt = _this17.inputElement.value;
-              if (_this17.inputElement.value.trim()) {
-                _this17.buttonElement.removeAttribute('disabled');
+              _this18.prompt = _this18.inputElement.value;
+              if (_this18.inputElement.value.trim()) {
+                _this18.buttonElement.removeAttribute('disabled');
               } else {
-                _this17.buttonElement.setAttribute('disabled', true);
+                _this18.buttonElement.setAttribute('disabled', true);
               }
             }, 0);
           });
           this.buttonElement.addEventListener('click', function () {
-            if (_this17.stream != null) {
-              _this17.stream.dispose();
-              _this17.stream = null;
-              _this17.streamingFinished();
-              _this17.hideTypingIndicator();
+            if (_this18.stream != null) {
+              _this18.stream.dispose();
+              _this18.stream = null;
+              _this18.streamingFinished();
+              _this18.hideTypingIndicator();
 
               // Clean up: remove empty assistant message or stop streaming animation.
-              if (_this17.messages.length > 0) {
-                var lastMsg = _this17.messages[_this17.messages.length - 1];
+              if (_this18.messages.length > 0) {
+                var lastMsg = _this18.messages[_this18.messages.length - 1];
                 if (lastMsg.role === 'assistant' && !lastMsg.content) {
-                  _this17.messages.pop();
+                  _this18.messages.pop();
                 } else if (lastMsg.isStreaming) {
                   lastMsg.isStreaming = false;
                 }
               }
               return;
             }
-            _this17.sendMessage();
+            _this18.sendMessage();
           });
           var chatInteractionItems = document.getElementsByClassName('chat-interaction-history-item');
           for (var i = 0; i < chatInteractionItems.length; i++) {
@@ -1846,11 +1894,12 @@ window.chatInteractionManager = function () {
                 console.error('An element with the class chat-interaction-history-item with no data-interaction-id set.');
                 return;
               }
-              _this17.loadInteraction(itemId);
+              _this18.loadInteraction(itemId);
             });
           }
-          for (var _i4 = 0; _i4 < config.messages.length; _i4++) {
-            this.addMessage(config.messages[_i4]);
+          var initialMessages = Array.isArray(config.messages) ? config.messages : [];
+          for (var _i4 = 0; _i4 < initialMessages.length; _i4++) {
+            this.addMessage(initialMessages[_i4]);
           }
 
           // Delegate click for code block copy buttons.
@@ -1877,20 +1926,20 @@ window.chatInteractionManager = function () {
           }
           document.addEventListener('input', function (event) {
             if (event.target.matches('.setting-input[data-setting]')) {
-              _this17.validateSettingInput(event.target);
-              _this17.queueSettingsSave();
+              _this18.validateSettingInput(event.target);
+              _this18.queueSettingsSave();
             }
           });
           document.addEventListener('change', function (event) {
             if (event.target.matches('.setting-input[data-setting], .capability-checkbox[data-save-group], .capability-checkbox[data-group], .group-toggle, .ci-agent-global-toggle')) {
               if (event.target.matches('.setting-input[data-setting]')) {
-                _this17.validateSettingInput(event.target);
+                _this18.validateSettingInput(event.target);
               }
-              _this17.queueSettingsSave();
+              _this18.queueSettingsSave();
               return;
             }
             if (event.target.closest('.prompt-template-parameters-input, .prompt-template-id-input')) {
-              _this17.queueSettingsSave();
+              _this18.queueSettingsSave();
             }
           });
           document.addEventListener('click', function (event) {
@@ -1898,7 +1947,7 @@ window.chatInteractionManager = function () {
               return;
             }
             setTimeout(function () {
-              _this17.queueSettingsSave();
+              _this18.queueSettingsSave();
             }, 0);
           });
 
@@ -1908,7 +1957,7 @@ window.chatInteractionManager = function () {
             clearHistoryBtn.addEventListener('click', function () {
               var itemId = clearHistoryBtn.getAttribute('data-interaction-id');
               if (itemId) {
-                _this17.clearHistory(itemId);
+                _this18.clearHistory(itemId);
               }
             });
           }
@@ -1919,7 +1968,7 @@ window.chatInteractionManager = function () {
             if (this.micButton) {
               this.micButton.style.display = '';
               this.micButton.addEventListener('click', function () {
-                _this17.toggleRecording();
+                _this18.toggleRecording();
               });
             }
           }
@@ -1929,7 +1978,7 @@ window.chatInteractionManager = function () {
             this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
             if (this.conversationButton) {
               this.conversationButton.addEventListener('click', function () {
-                _this17.toggleConversationMode();
+                _this18.toggleConversationMode();
               });
             }
           }
@@ -1978,7 +2027,7 @@ window.chatInteractionManager = function () {
           }
         },
         debouncedSaveSettings: function debouncedSaveSettings() {
-          var _this18 = this;
+          var _this19 = this;
           // Clear any existing timeout to reset the debounce timer
           this.clearPendingSettingsSave();
 
@@ -1989,11 +2038,11 @@ window.chatInteractionManager = function () {
 
           // Set a new timeout to save after 850ms of no changes
           this.saveSettingsTimeout = setTimeout(function () {
-            if (_this18.settingsDirty) {
-              _this18.saveSettings();
-              _this18.settingsDirty = false;
+            if (_this19.settingsDirty) {
+              _this19.saveSettings();
+              _this19.settingsDirty = false;
             }
-            _this18.saveSettingsTimeout = null;
+            _this19.saveSettingsTimeout = null;
           }, 850);
         },
         getSelectedToolNames: function getSelectedToolNames() {
@@ -2009,7 +2058,7 @@ window.chatInteractionManager = function () {
           return this.getSelectedGroupValues('agentNames', 'input[type="checkbox"][name$="].IsSelected"][name^="ChatInteraction.Agents["]:checked');
         },
         saveSettings: function saveSettings() {
-          var _this19 = this;
+          var _this20 = this;
           var itemId = this.getItemId();
           if (!itemId) {
             return Promise.resolve();
@@ -2054,7 +2103,7 @@ window.chatInteractionManager = function () {
           }
           return this.connection.invoke("SaveSettings", itemId, settings)["catch"](function (err) {
             console.error('Error saving settings:', err);
-            _this19.showSaveIndicator('Save failed', 'text-danger');
+            _this20.showSaveIndicator('Save failed', 'text-danger');
           });
         },
         flushPendingSave: function flushPendingSave() {
@@ -2080,13 +2129,48 @@ window.chatInteractionManager = function () {
           this.setItemId(itemId);
           this.isInteractionStarted = true;
         },
-        copyResponse: function copyResponse(message) {
-          var _ref19, _message$copyContent;
-          var text = message && _typeof(message) === 'object' ? (_ref19 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref19 !== void 0 ? _ref19 : '' : message !== null && message !== void 0 ? message : '';
-          navigator.clipboard.writeText(text);
+        clearCopiedMessageState: function clearCopiedMessageState() {
+          if (this.copyResetTimeoutId) {
+            window.clearTimeout(this.copyResetTimeoutId);
+            this.copyResetTimeoutId = null;
+          }
+          if (this.activeCopyButton) {
+            this.setCopyButtonState(this.activeCopyButton, false);
+            this.activeCopyButton = null;
+          }
+          this.copiedMessageIndex = -1;
+        },
+        copyResponse: function copyResponse(message, index, event) {
+          var _ref21,
+            _message$copyContent,
+            _event$target,
+            _event$target$closest,
+            _this21 = this;
+          var text = message && _typeof(message) === 'object' ? (_ref21 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref21 !== void 0 ? _ref21 : '' : message !== null && message !== void 0 ? message : '';
+          var button = (event === null || event === void 0 ? void 0 : event.currentTarget) || (event === null || event === void 0 || (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '[data-copy-message-index]')) || null;
+          navigator.clipboard.writeText(text).then(function () {
+            _this21.clearCopiedMessageState();
+            _this21.copiedMessageIndex = typeof index === 'number' ? index : -1;
+            _this21.activeCopyButton = button;
+            if (button) {
+              _this21.setCopyButtonState(button, true);
+            } else {
+              _this21.$nextTick(function () {
+                return _this21.updateCopyButtons();
+              });
+            }
+            _this21.copyResetTimeoutId = window.setTimeout(function () {
+              _this21.clearCopiedMessageState();
+              _this21.$nextTick(function () {
+                return _this21.updateCopyButtons();
+              });
+            }, Number(config.copyResetDelayMs) || 2000);
+          })["catch"](function (err) {
+            return console.error('Failed to copy response:', err);
+          });
         },
         startRecording: function startRecording() {
-          var _this20 = this;
+          var _this22 = this;
           if (this.isRecording || !this.connection) {
             return;
           }
@@ -2098,16 +2182,16 @@ window.chatInteractionManager = function () {
             }
           }).then(function (stream) {
             var mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-            _this20.mediaRecorder = new MediaRecorder(stream, {
+            _this22.mediaRecorder = new MediaRecorder(stream, {
               mimeType: mimeType,
               audioBitsPerSecond: 128000
             });
-            _this20.preRecordingPrompt = _this20.prompt;
-            _this20._audioInputSent = false;
+            _this22.preRecordingPrompt = _this22.prompt;
+            _this22._audioInputSent = false;
             var subject = new signalR.Subject();
-            var itemId = _this20.getItemId();
+            var itemId = _this22.getItemId();
             var pendingChunk = Promise.resolve();
-            _this20.mediaRecorder.addEventListener('dataavailable', function (e) {
+            _this22.mediaRecorder.addEventListener('dataavailable', function (e) {
               if (e.data && e.data.size > 0) {
                 pendingChunk = pendingChunk.then(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
                   var data, uint8Array, binaryString, base64;
@@ -2131,7 +2215,7 @@ window.chatInteractionManager = function () {
                 })));
               }
             });
-            _this20.mediaRecorder.addEventListener('stop', function () {
+            _this22.mediaRecorder.addEventListener('stop', function () {
               stream.getTracks().forEach(function (track) {
                 return track.stop();
               });
@@ -2140,10 +2224,10 @@ window.chatInteractionManager = function () {
               });
             });
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            _this20.connection.send("SendAudioStream", itemId, subject, mimeType, language);
-            _this20.mediaRecorder.start(250);
-            _this20.isRecording = true;
-            _this20.updateMicButton();
+            _this22.connection.send("SendAudioStream", itemId, subject, mimeType, language);
+            _this22.mediaRecorder.start(250);
+            _this22.isRecording = true;
+            _this22.updateMicButton();
           })["catch"](function (err) {
             console.error('Microphone access denied:', err);
           });
@@ -2194,21 +2278,28 @@ window.chatInteractionManager = function () {
               this.inputElement.placeholder = '';
             }
           }
+        },
+        copiedMessageIndex: function copiedMessageIndex() {
+          var _this23 = this;
+          this.$nextTick(function () {
+            return _this23.updateCopyButtons();
+          });
         }
       },
       mounted: function mounted() {
-        var _this21 = this;
+        var _this24 = this;
         _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee5() {
           return _regenerator().w(function (_context5) {
             while (1) switch (_context5.n) {
               case 0:
                 _context5.n = 1;
-                return _this21.startConnection();
+                return _this24.startConnection();
               case 1:
-                _this21.initializeApp();
-                _this21.$nextTick(function () {
-                  refreshFontAwesomeIcons(_this21.$el);
-                  _this21.fontAwesomeObserver = observeFontAwesomeIcons(_this21.$el);
+                _this24.initializeApp();
+                _this24.$nextTick(function () {
+                  _this24.updateCopyButtons();
+                  refreshFontAwesomeIcons(_this24.$el);
+                  _this24.fontAwesomeObserver = observeFontAwesomeIcons(_this24.$el);
                 });
               case 2:
                 return _context5.a(2);
@@ -2225,6 +2316,7 @@ window.chatInteractionManager = function () {
           this.fontAwesomeObserver.disconnect();
           this.fontAwesomeObserver = null;
         }
+        this.clearCopiedMessageState();
         this.stopAudio(false);
         if (this.stream) {
           this.stream.dispose();
@@ -2238,8 +2330,73 @@ window.chatInteractionManager = function () {
     }).mount(config.appElementSelector);
     return app;
   };
+  var autoInitializeSelector = '[data-chat-interaction-config]';
+  function parseJsonAttribute(element, attributeName, description) {
+    var rawValue = element.getAttribute(attributeName);
+    if (!rawValue) {
+      return null;
+    }
+    try {
+      return JSON.parse(rawValue);
+    } catch (error) {
+      console.error('Failed to parse ' + description + ' JSON.', error);
+      return null;
+    }
+  }
+  function initializeFromElement(element) {
+    if (!element || element.dataset.chatInteractionInitialized === 'true') {
+      return element ? element.__chatInteractionApp || null : null;
+    }
+    var config = parseJsonAttribute(element, 'data-chat-interaction-config', 'chat interaction config');
+    if (!config) {
+      return null;
+    }
+    var app = initialize(config);
+    if (!app) {
+      return null;
+    }
+    element.dataset.chatInteractionInitialized = 'true';
+    element.__chatInteractionApp = app;
+    return app;
+  }
+  function scanForAutoInitialization(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') {
+      return;
+    }
+    if (typeof root.matches === 'function' && root.matches(autoInitializeSelector)) {
+      initializeFromElement(root);
+    }
+    root.querySelectorAll(autoInitializeSelector).forEach(initializeFromElement);
+  }
+  function startAutoInitialization() {
+    scanForAutoInitialization(document);
+    if (typeof MutationObserver === 'undefined') {
+      return;
+    }
+    var observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        mutation.addedNodes.forEach(function (node) {
+          if (node && node.nodeType === 1) {
+            scanForAutoInitialization(node);
+          }
+        });
+      });
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAutoInitialization, {
+      once: true
+    });
+  } else {
+    startAutoInitialization();
+  }
   return {
-    initialize: initialize
+    initialize: initialize,
+    initializeFromElement: initializeFromElement
   };
 }();
 window.chatInteractionDocumentManager = function () {
@@ -2766,9 +2923,73 @@ window.chatInteractionDocumentManager = function () {
     renderUploadQueue();
     showUploadStatus(null);
     showUploadProgress(null);
+    return fileInput[managerStateKey];
+  }
+  function parseJsonAttribute(element, attributeName, description) {
+    var rawValue = element.getAttribute(attributeName);
+    if (!rawValue) {
+      return null;
+    }
+    try {
+      return JSON.parse(rawValue);
+    } catch (error) {
+      console.error('Failed to parse ' + description + ' JSON.', error);
+      return null;
+    }
+  }
+  function initializeFromElement(element) {
+    if (!element || element.dataset.chatInteractionDocumentManagerInitialized === 'true') {
+      return element ? element[managerStateKey] || null : null;
+    }
+    var config = parseJsonAttribute(element, 'data-chat-interaction-document-manager-config', 'chat interaction document manager config');
+    if (!config) {
+      return null;
+    }
+    var state = initialize(config);
+    if (!state) {
+      return null;
+    }
+    element.dataset.chatInteractionDocumentManagerInitialized = 'true';
+    return state;
+  }
+  function scanForAutoInitialization(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') {
+      return;
+    }
+    if (typeof root.matches === 'function' && root.matches('[data-chat-interaction-document-manager-config]')) {
+      initializeFromElement(root);
+    }
+    root.querySelectorAll('[data-chat-interaction-document-manager-config]').forEach(initializeFromElement);
+  }
+  function startAutoInitialization() {
+    scanForAutoInitialization(document);
+    if (typeof MutationObserver === 'undefined') {
+      return;
+    }
+    var observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        mutation.addedNodes.forEach(function (node) {
+          if (node && node.nodeType === 1) {
+            scanForAutoInitialization(node);
+          }
+        });
+      });
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAutoInitialization, {
+      once: true
+    });
+  } else {
+    startAutoInitialization();
   }
   return {
-    initialize: initialize
+    initialize: initialize,
+    initializeFromElement: initializeFromElement
   };
 }();
 
