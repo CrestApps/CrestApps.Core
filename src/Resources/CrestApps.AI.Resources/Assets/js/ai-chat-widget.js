@@ -2,7 +2,7 @@ function clampWidgetValue(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
 
-window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function () {
+window.coreAIChatWidgetBehavior = window.coreAIChatWidgetBehavior || function () {
     function parsePixelValue(value) {
         if (typeof value === 'number' && Number.isFinite(value)) {
             return value;
@@ -733,7 +733,7 @@ window.openAIChatWidgetBehavior = window.openAIChatWidgetBehavior || function ()
     };
 }();
 
-window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
+window.coreAIChatWidgetManager = window.coreAIChatWidgetManager || function () {
     function getAttributeValue(element, attributeName) {
         var value = element.getAttribute(attributeName);
         return value === null || value === '' ? null : value;
@@ -776,24 +776,24 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
     }
 
     function buildOptionsFromDataAttributes(element) {
-        var widgetContainerSelector = getAttributeValue(element, 'data-openai-chat-widget-container-selector');
+        var widgetContainerSelector = getAttributeValue(element, 'data-coreai-chat-widget-container-selector');
         if (!widgetContainerSelector) {
             return null;
         }
 
         var chatConfig = null;
-        if (window.openAIChatManager && typeof window.openAIChatManager.buildConfigFromElement === 'function') {
-            chatConfig = window.openAIChatManager.buildConfigFromElement(element, { allowWidgetHost: true });
+        if (window.coreAIChatManager && typeof window.coreAIChatManager.buildConfigFromElement === 'function') {
+            chatConfig = window.coreAIChatManager.buildConfigFromElement(element, { allowWidgetHost: true });
         }
 
-        var profileId = getAttributeValue(element, 'data-openai-chat-widget-profile-id');
-        var profileName = getAttributeValue(element, 'data-openai-chat-widget-profile-name');
-        var profileDisplayText = getAttributeValue(element, 'data-openai-chat-widget-profile-display-text');
-        var profileWelcomeMessage = getAttributeValue(element, 'data-openai-chat-widget-profile-welcome-message');
-        var profileChatMode = getAttributeValue(element, 'data-openai-chat-widget-profile-chat-mode');
-        var profileTtsVoiceName = getAttributeValue(element, 'data-openai-chat-widget-profile-tts-voice-name');
-        var profileMetricsEnabled = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-profile-enable-session-metrics'));
-        var profileSessionDocuments = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-profile-allow-session-documents'));
+        var profileId = getAttributeValue(element, 'data-coreai-chat-widget-profile-id');
+        var profileName = getAttributeValue(element, 'data-coreai-chat-widget-profile-name');
+        var profileDisplayText = getAttributeValue(element, 'data-coreai-chat-widget-profile-display-text');
+        var profileWelcomeMessage = getAttributeValue(element, 'data-coreai-chat-widget-profile-welcome-message');
+        var profileChatMode = getAttributeValue(element, 'data-coreai-chat-widget-profile-chat-mode');
+        var profileTtsVoiceName = getAttributeValue(element, 'data-coreai-chat-widget-profile-tts-voice-name');
+        var profileMetricsEnabled = parseBooleanAttributeValue(getAttributeValue(element, 'data-coreai-chat-widget-profile-enable-session-metrics'));
+        var profileSessionDocuments = parseBooleanAttributeValue(getAttributeValue(element, 'data-coreai-chat-widget-profile-allow-session-documents'));
         var profile = null;
 
         if (profileId || profileName || profileDisplayText || profileWelcomeMessage || profileChatMode || profileTtsVoiceName || profileMetricsEnabled !== null || profileSessionDocuments !== null) {
@@ -809,30 +809,30 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
             };
         }
 
-        var enableDragging = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-enable-dragging'));
-        var enableResizing = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-enable-resizing'));
-        var persistLayout = parseBooleanAttributeValue(getAttributeValue(element, 'data-openai-chat-widget-persist-layout'));
+        var enableDragging = parseBooleanAttributeValue(getAttributeValue(element, 'data-coreai-chat-widget-enable-dragging'));
+        var enableResizing = parseBooleanAttributeValue(getAttributeValue(element, 'data-coreai-chat-widget-enable-resizing'));
+        var persistLayout = parseBooleanAttributeValue(getAttributeValue(element, 'data-coreai-chat-widget-persist-layout'));
 
         return {
-            shellSelector: getAttributeValue(element, 'data-openai-chat-widget-shell-selector'),
+            shellSelector: getAttributeValue(element, 'data-coreai-chat-widget-shell-selector'),
             widgetContainerSelector: widgetContainerSelector,
-            toggleButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-toggle-button-selector'),
-            closeButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-close-button-selector'),
-            inputSelector: getAttributeValue(element, 'data-openai-chat-widget-input-selector'),
+            toggleButtonSelector: getAttributeValue(element, 'data-coreai-chat-widget-toggle-button-selector'),
+            closeButtonSelector: getAttributeValue(element, 'data-coreai-chat-widget-close-button-selector'),
+            inputSelector: getAttributeValue(element, 'data-coreai-chat-widget-input-selector'),
             profile: profile,
-            widgetStateName: getAttributeValue(element, 'data-openai-chat-widget-state-name'),
-            openStateValue: getAttributeValue(element, 'data-openai-chat-widget-open-state-value'),
-            closedStateValue: getAttributeValue(element, 'data-openai-chat-widget-closed-state-value'),
-            openIconHtml: getAttributeValue(element, 'data-openai-chat-widget-open-icon-html'),
-            closedIconHtml: getAttributeValue(element, 'data-openai-chat-widget-closed-icon-html'),
+            widgetStateName: getAttributeValue(element, 'data-coreai-chat-widget-state-name'),
+            openStateValue: getAttributeValue(element, 'data-coreai-chat-widget-open-state-value'),
+            closedStateValue: getAttributeValue(element, 'data-coreai-chat-widget-closed-state-value'),
+            openIconHtml: getAttributeValue(element, 'data-coreai-chat-widget-open-icon-html'),
+            closedIconHtml: getAttributeValue(element, 'data-coreai-chat-widget-closed-icon-html'),
             chatConfig: chatConfig ? Object.assign({}, chatConfig, {
                 widget: Object.assign({}, chatConfig.widget || {}, {
                     chatWidgetContainer: widgetContainerSelector,
-                    chatWidgetStateName: getAttributeValue(element, 'data-openai-chat-widget-state-name'),
-                    newChatButton: getAttributeValue(element, 'data-openai-chat-widget-new-chat-button-selector'),
-                    toggleButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-toggle-button-selector'),
-                    resetSizeButtonSelector: getAttributeValue(element, 'data-openai-chat-widget-reset-size-button-selector'),
-                    dragHandleSelector: getAttributeValue(element, 'data-openai-chat-widget-drag-handle-selector'),
+                    chatWidgetStateName: getAttributeValue(element, 'data-coreai-chat-widget-state-name'),
+                    newChatButton: getAttributeValue(element, 'data-coreai-chat-widget-new-chat-button-selector'),
+                    toggleButtonSelector: getAttributeValue(element, 'data-coreai-chat-widget-toggle-button-selector'),
+                    resetSizeButtonSelector: getAttributeValue(element, 'data-coreai-chat-widget-reset-size-button-selector'),
+                    dragHandleSelector: getAttributeValue(element, 'data-coreai-chat-widget-drag-handle-selector'),
                     enableDragging: enableDragging === null ? undefined : enableDragging,
                     enableResizing: enableResizing === null ? undefined : enableResizing,
                     persistLayout: persistLayout === null ? undefined : persistLayout,
@@ -954,7 +954,7 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
             }
         }
 
-        var widgetApp = window.openAIChatManager.initialize(chatConfig);
+        var widgetApp = window.coreAIChatManager.initialize(chatConfig);
         if (options.applySessionProfilePatch !== false && window.crestAppsAIChat && window.crestAppsAIChat.patchSessionProfileSync) {
             window.crestAppsAIChat.patchSessionProfileSync(widgetApp);
         }
@@ -1118,11 +1118,11 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
     }
 
     function initializeFromElement(element) {
-        if (!element || element.dataset.openAiChatWidgetInitialized === 'true') {
-            return element ? element.__openAIChatWidgetApp || null : null;
+        if (!element || element.dataset.coreAiChatWidgetInitialized === 'true') {
+            return element ? element.__coreAIChatWidgetApp || null : null;
         }
 
-        var jsonOptions = parseJsonAttribute(element, 'data-openai-chat-widget-config', 'AI chat widget config');
+        var jsonOptions = parseJsonAttribute(element, 'data-coreai-chat-widget-config', 'CoreAI chat widget config');
         var attributeOptions = buildOptionsFromDataAttributes(element);
         if (!jsonOptions && !attributeOptions) {
             return null;
@@ -1135,8 +1135,8 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
             return null;
         }
 
-        element.dataset.openAiChatWidgetInitialized = 'true';
-        element.__openAIChatWidgetApp = widgetApp;
+        element.dataset.coreAiChatWidgetInitialized = 'true';
+        element.__coreAIChatWidgetApp = widgetApp;
 
         return widgetApp;
     }
@@ -1146,11 +1146,11 @@ window.openAIChatWidgetManager = window.openAIChatWidgetManager || function () {
             return;
         }
 
-        if (typeof root.matches === 'function' && root.matches('[data-openai-chat-widget-config],[data-openai-chat-widget-container-selector]')) {
+        if (typeof root.matches === 'function' && root.matches('[data-coreai-chat-widget-config],[data-coreai-chat-widget-container-selector]')) {
             initializeFromElement(root);
         }
 
-        root.querySelectorAll('[data-openai-chat-widget-config],[data-openai-chat-widget-container-selector]').forEach(initializeFromElement);
+        root.querySelectorAll('[data-coreai-chat-widget-config],[data-coreai-chat-widget-container-selector]').forEach(initializeFromElement);
     }
 
     function startAutoInitialization() {

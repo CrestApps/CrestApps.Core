@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <ModelContextProtocolVersion>1.4.0</ModelContextProtocolVersion>
-    <GitHubCopilotSdkVersion>1.0.2</GitHubCopilotSdkVersion>
+    <GitHubCopilotSdkVersion>1.0.5</GitHubCopilotSdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Miscellaneous Packages -->
@@ -35,7 +35,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Copilot Packages -->
-    <PackageVersion Include="GitHub.Copilot.SDK" Version="1.0.5" />
+    <PackageVersion Include="GitHub.Copilot.SDK" Version="$(GitHubCopilotSdkVersion)" />
   </ItemGroup>
   <ItemGroup>
     <!-- Microsoft Packages -->

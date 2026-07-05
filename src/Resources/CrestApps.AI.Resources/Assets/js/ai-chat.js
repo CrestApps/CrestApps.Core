@@ -1,4 +1,4 @@
-window.openAIChatManager = function () {
+window.coreAIChatManager = function () {
 
     // Defaults (can be overridden by instanceConfig)
     var defaultConfig = {
@@ -615,7 +615,7 @@ window.openAIChatManager = function () {
         const config = Object.assign({}, defaultConfig, normalizedInstanceConfig);
         config.widget = Object.assign({}, defaultConfig.widget || {}, normalizedWidgetConfig);
         const hasWidgetConfig = !!(normalizedWidgetConfig.chatWidgetContainer && normalizedWidgetConfig.chatWidgetStateName);
-        const widgetBehavior = window.openAIChatWidgetBehavior || null;
+        const widgetBehavior = window.coreAIChatWidgetBehavior || null;
         // Keep defaultConfig in sync so renderers use overridden values
         defaultConfig = config;
 
@@ -1334,11 +1334,11 @@ window.openAIChatManager = function () {
                     if (message.content && !message.htmlContent) {
                         message.htmlContent = parseMarkdownContent(message.content, message);
                     }
-                    this.fireEvent(new CustomEvent("addingOpenAIPromotMessage", { detail: { message: message } }));
+                    this.fireEvent(new CustomEvent("addingCoreAIPromotMessage", { detail: { message: message } }));
                     this.messages.push(message);
 
                     this.$nextTick(() => {
-                        this.fireEvent(new CustomEvent("addedOpenAIPromotMessage", { detail: { message: message } }));
+                        this.fireEvent(new CustomEvent("addedCoreAIPromotMessage", { detail: { message: message } }));
                     });
                 },
                 addMessage(message) {
@@ -2550,7 +2550,7 @@ window.openAIChatManager = function () {
 
                         return
                     }
-                    this.fireEvent(new CustomEvent("initializingSessionOpenAIChat", { detail: { sessionId: sessionId } }))
+                    this.fireEvent(new CustomEvent("initializingSessionCoreAIChat", { detail: { sessionId: sessionId } }))
                     this.setSessionId(sessionId);
                     this.isSessionStarted = true;
                     this.resolvePendingSessionRequest(sessionId);
@@ -2782,7 +2782,7 @@ window.openAIChatManager = function () {
         return app;
     };
 
-    const autoInitializeSelector = '[data-openai-chat-config],[data-openai-chat-app-element-selector]';
+    const autoInitializeSelector = '[data-coreai-chat-config],[data-coreai-chat-app-element-selector]';
 
     function getAttributeValue(element, attributeName) {
         const value = element.getAttribute(attributeName);
@@ -2827,46 +2827,46 @@ window.openAIChatManager = function () {
     function buildConfigFromDataAttributes(element, options) {
         const settings = options || {};
 
-        if (element.hasAttribute('data-openai-chat-widget-container-selector') && settings.allowWidgetHost !== true) {
+        if (element.hasAttribute('data-coreai-chat-widget-container-selector') && settings.allowWidgetHost !== true) {
             return null;
         }
 
-        const appElementSelector = getAttributeValue(element, 'data-openai-chat-app-element-selector');
+        const appElementSelector = getAttributeValue(element, 'data-coreai-chat-app-element-selector');
         if (!appElementSelector) {
             return null;
         }
 
         const config = {
-            signalRHubUrl: getAttributeValue(element, 'data-openai-chat-signalr-hub-url'),
+            signalRHubUrl: getAttributeValue(element, 'data-coreai-chat-signalr-hub-url'),
             appElementSelector: appElementSelector,
-            chatContainerElementSelector: getAttributeValue(element, 'data-openai-chat-container-element-selector'),
-            inputElementSelector: getAttributeValue(element, 'data-openai-chat-input-element-selector'),
-            sendButtonElementSelector: getAttributeValue(element, 'data-openai-chat-send-button-element-selector'),
-            placeholderElementSelector: getAttributeValue(element, 'data-openai-chat-placeholder-element-selector'),
-            messages: parseJsonAttribute(element, 'data-openai-chat-messages', 'OpenAI chat messages') ?? undefined,
-            chatMode: getAttributeValue(element, 'data-openai-chat-mode'),
-            micButtonElementSelector: getAttributeValue(element, 'data-openai-chat-mic-button-element-selector'),
-            conversationButtonElementSelector: getAttributeValue(element, 'data-openai-chat-conversation-button-element-selector'),
-            ttsVoiceName: getAttributeValue(element, 'data-openai-chat-tts-voice-name'),
-            documentBarSelector: getAttributeValue(element, 'data-openai-chat-document-bar-selector'),
-            uploadDocumentUrl: getAttributeValue(element, 'data-openai-chat-upload-document-url'),
-            removeDocumentUrl: getAttributeValue(element, 'data-openai-chat-remove-document-url'),
-            allowedExtensions: getAttributeValue(element, 'data-openai-chat-allowed-extensions'),
-            supportedExtensionsText: getAttributeValue(element, 'data-openai-chat-supported-extensions-text'),
-            existingDocuments: parseJsonAttribute(element, 'data-openai-chat-existing-documents', 'OpenAI chat existing documents') ?? undefined,
-            initialPrompt: getAttributeValue(element, 'data-openai-chat-initial-prompt'),
-            userLabel: getAttributeValue(element, 'data-openai-chat-user-label'),
-            assistantLabel: getAttributeValue(element, 'data-openai-chat-assistant-label'),
-            copyTitle: getAttributeValue(element, 'data-openai-chat-copy-title'),
-            copiedTitle: getAttributeValue(element, 'data-openai-chat-copied-title'),
+            chatContainerElementSelector: getAttributeValue(element, 'data-coreai-chat-container-element-selector'),
+            inputElementSelector: getAttributeValue(element, 'data-coreai-chat-input-element-selector'),
+            sendButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-send-button-element-selector'),
+            placeholderElementSelector: getAttributeValue(element, 'data-coreai-chat-placeholder-element-selector'),
+            messages: parseJsonAttribute(element, 'data-coreai-chat-messages', 'CoreAI chat messages') ?? undefined,
+            chatMode: getAttributeValue(element, 'data-coreai-chat-mode'),
+            micButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-mic-button-element-selector'),
+            conversationButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-conversation-button-element-selector'),
+            ttsVoiceName: getAttributeValue(element, 'data-coreai-chat-tts-voice-name'),
+            documentBarSelector: getAttributeValue(element, 'data-coreai-chat-document-bar-selector'),
+            uploadDocumentUrl: getAttributeValue(element, 'data-coreai-chat-upload-document-url'),
+            removeDocumentUrl: getAttributeValue(element, 'data-coreai-chat-remove-document-url'),
+            allowedExtensions: getAttributeValue(element, 'data-coreai-chat-allowed-extensions'),
+            supportedExtensionsText: getAttributeValue(element, 'data-coreai-chat-supported-extensions-text'),
+            existingDocuments: parseJsonAttribute(element, 'data-coreai-chat-existing-documents', 'CoreAI chat existing documents') ?? undefined,
+            initialPrompt: getAttributeValue(element, 'data-coreai-chat-initial-prompt'),
+            userLabel: getAttributeValue(element, 'data-coreai-chat-user-label'),
+            assistantLabel: getAttributeValue(element, 'data-coreai-chat-assistant-label'),
+            copyTitle: getAttributeValue(element, 'data-coreai-chat-copy-title'),
+            copiedTitle: getAttributeValue(element, 'data-coreai-chat-copied-title'),
         };
 
         const booleanAttributes = {
-            metricsEnabled: 'data-openai-chat-metrics-enabled',
-            textToSpeechEnabled: 'data-openai-chat-text-to-speech-enabled',
-            sessionDocumentsEnabled: 'data-openai-chat-session-documents-enabled',
-            autoCreateSession: 'data-openai-chat-auto-create-session',
-            singleResponseMode: 'data-openai-chat-single-response-mode',
+            metricsEnabled: 'data-coreai-chat-metrics-enabled',
+            textToSpeechEnabled: 'data-coreai-chat-text-to-speech-enabled',
+            sessionDocumentsEnabled: 'data-coreai-chat-session-documents-enabled',
+            autoCreateSession: 'data-coreai-chat-auto-create-session',
+            singleResponseMode: 'data-coreai-chat-single-response-mode',
         };
 
         Object.keys(booleanAttributes).forEach(key => {
@@ -2880,7 +2880,7 @@ window.openAIChatManager = function () {
     }
 
     function buildConfigFromElement(element, options) {
-        const jsonConfig = parseJsonAttribute(element, 'data-openai-chat-config', 'OpenAI chat config');
+        const jsonConfig = parseJsonAttribute(element, 'data-coreai-chat-config', 'CoreAI chat config');
         const attributeConfig = buildConfigFromDataAttributes(element, options);
 
         if (!jsonConfig && !attributeConfig) {
@@ -2891,8 +2891,8 @@ window.openAIChatManager = function () {
     }
 
     function initializeFromElement(element) {
-        if (!element || element.dataset.openAiChatInitialized === 'true') {
-            return element ? element.__openAIChatApp || null : null;
+        if (!element || element.dataset.coreAiChatInitialized === 'true') {
+            return element ? element.__coreAIChatApp || null : null;
         }
 
         const config = buildConfigFromElement(element);
@@ -2905,8 +2905,8 @@ window.openAIChatManager = function () {
             return null;
         }
 
-        element.dataset.openAiChatInitialized = 'true';
-        element.__openAIChatApp = app;
+        element.dataset.coreAiChatInitialized = 'true';
+        element.__coreAIChatApp = app;
 
         return app;
     }
