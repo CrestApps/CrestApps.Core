@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -12,11 +13,10 @@ namespace CrestApps.Core.Tests.Core.Documents.Tabular;
 public sealed class TabularWorkspaceDocumentEventHandlerTests
 {
     [Fact]
-    public async Task UploadedAsync_TabularDocument_InvalidatesReference()
+    public async Task UploadedAsync_TabularDocument_SavesArtifact()
     {
-        var publisher = new Mock<ITabularWorkspaceInvalidationPublisher>();
         var artifactStore = new Mock<ITabularDocumentArtifactStore>();
-        var handler = CreateHandler(publisher, artifactStore);
+        var handler = CreateHandler(artifactStore);
 
         await handler.UploadedAsync(new AIChatDocumentUploadContext
         {
@@ -38,20 +38,13 @@ public sealed class TabularWorkspaceDocumentEventHandlerTests
         artifactStore.Verify(
             store => store.SaveAsync("doc-1", It.IsAny<TabularDocumentArtifact>(), It.IsAny<CancellationToken>()),
             Times.Once);
-        publisher.Verify(
-            cache => cache.PublishAsync(It.Is<TabularWorkspaceInvalidation>(invalidation =>
-                invalidation.Kind == TabularWorkspaceInvalidation.ReferenceKind &&
-                invalidation.ReferenceType == AIReferenceTypes.Document.ChatSession &&
-                invalidation.ReferenceId == "session-1"), It.IsAny<CancellationToken>()),
-            Times.Once);
     }
 
     [Fact]
-    public async Task RemovedAsync_NonTabularDocument_DoesNotInvalidateReference()
+    public async Task RemovedAsync_NonTabularDocument_DoesNotDeleteArtifact()
     {
-        var publisher = new Mock<ITabularWorkspaceInvalidationPublisher>();
         var artifactStore = new Mock<ITabularDocumentArtifactStore>();
-        var handler = CreateHandler(publisher, artifactStore);
+        var handler = CreateHandler(artifactStore);
 
         await handler.RemovedAsync(new AIChatDocumentRemoveContext
         {
@@ -67,18 +60,44 @@ public sealed class TabularWorkspaceDocumentEventHandlerTests
         artifactStore.Verify(
             store => store.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        publisher.Verify(
-            cache => cache.PublishAsync(It.IsAny<TabularWorkspaceInvalidation>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
-    private static TabularWorkspaceDocumentEventHandler CreateHandler(
-        Mock<ITabularWorkspaceInvalidationPublisher> publisher,
-        Mock<ITabularDocumentArtifactStore> artifactStore)
+    [Fact]
+    public async Task RemovedAsync_TabularDocument_DeletesArtifact()
+    {
+        var artifactStore = new Mock<ITabularDocumentArtifactStore>();
+        var handler = CreateHandler(artifactStore);
+
+        await handler.RemovedAsync(new AIChatDocumentRemoveContext
+        {
+            ReferenceId = "session-1",
+            ReferenceType = AIReferenceTypes.Document.ChatSession,
+            DocumentInfo = new ChatDocumentInfo
+            {
+                DocumentId = "doc-1",
+                FileName = "data.csv",
+            },
+        }, TestContext.Current.CancellationToken);
+
+        artifactStore.Verify(
+            store => store.DeleteAsync("doc-1", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private static TabularWorkspaceDocumentEventHandler CreateHandler(Mock<ITabularDocumentArtifactStore> artifactStore)
     {
         var options = new ChatDocumentsOptions();
         options.Add(new ExtractorExtension(".csv", embeddable: false, isTabular: true));
 
-        return new TabularWorkspaceDocumentEventHandler(Options.Create(options), artifactStore.Object, [publisher.Object]);
+        var fileStoreOptions = new DocumentFileSystemFileStoreOptions
+        {
+            BasePath = Path.Combine(Path.GetTempPath(), "tabular-doc-event-tests"),
+        };
+
+        return new TabularWorkspaceDocumentEventHandler(
+            Options.Create(options),
+            artifactStore.Object,
+            Options.Create(fileStoreOptions),
+            NullLogger<TabularWorkspaceDocumentEventHandler>.Instance);
     }
 }

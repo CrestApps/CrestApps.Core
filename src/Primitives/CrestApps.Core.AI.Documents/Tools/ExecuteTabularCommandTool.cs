@@ -11,10 +11,10 @@ namespace CrestApps.Core.AI.Documents.Tools;
 
 /// <summary>
 /// Tool that runs one or more data-manipulation or schema statements (for example
-/// <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c>, or <c>ALTER TABLE</c>) against the in-memory
+/// <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c>, or <c>ALTER TABLE</c>) against the
 /// tabular workspace in a single batch. The originally uploaded file is never modified; changes apply
-/// to the in-memory copy and are persisted as the conversation's working copy so they survive workspace
-/// rebuilds and can be exported later.
+/// to the workspace copy and are persisted automatically by the file-backed SQLite database so they
+/// survive across requests and can be exported later.
 /// </summary>
 public sealed class ExecuteTabularCommandTool : AIFunction
 {
@@ -89,11 +89,11 @@ public sealed class ExecuteTabularCommandTool : AIFunction
             return preparation.Error;
         }
 
+        using var workspace = preparation.Workspace;
+
         try
         {
-            var result = await preparation.Workspace.ExecuteAsync(sql, cancellationToken);
-
-            SchedulePersistWorkspaceSnapshot(arguments.Services, preparation.Workspace, logger);
+            var result = await workspace.ExecuteAsync(sql, cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
@@ -143,49 +143,5 @@ public sealed class ExecuteTabularCommandTool : AIFunction
         invocationContext.Items[InvocationCountKey] = count;
 
         return count;
-    }
-
-    private static void SchedulePersistWorkspaceSnapshot(
-        IServiceProvider services,
-        TabularWorkspace workspace,
-        ILogger logger)
-    {
-        // Persist the mutated in-memory state so the changes survive workspace eviction, a process
-        // restart, or being served by another application instance. This is scheduled as a coalesced
-        // background operation rather than awaited so that a burst of commands does not each block on a
-        // full-table snapshot, serialization, and write. The artifact store is a singleton, so it is
-        // safe to capture here and use after the request scope completes.
-        var artifactStore = services.GetService<ITabularDocumentArtifactStore>();
-
-        if (artifactStore is null)
-        {
-            return;
-        }
-
-        workspace.SchedulePersist(token => PersistWorkspaceSnapshotAsync(workspace, artifactStore, logger, token));
-    }
-
-    private static async Task PersistWorkspaceSnapshotAsync(
-        TabularWorkspace workspace,
-        ITabularDocumentArtifactStore artifactStore,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var snapshots = await workspace.SnapshotAsync(cancellationToken);
-
-            foreach (var (documentId, artifact) in snapshots)
-            {
-                await artifactStore.SaveAsync(documentId, artifact, cancellationToken);
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            if (logger.IsEnabled(LogLevel.Debug))
-            {
-                logger.LogDebug(ex, "Failed to persist the in-memory tabular workspace snapshot for tool '{ToolName}'.", TheName);
-            }
-        }
     }
 }

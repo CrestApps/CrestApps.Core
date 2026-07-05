@@ -18,7 +18,6 @@ using CrestApps.Core.Templates.Extensions;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents;
@@ -85,13 +84,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ITabularBatchProcessor, TabularBatchProcessor>();
         services.TryAddSingleton<ITabularBatchResultCache, TabularBatchResultCache>();
 
-        // Per-prompt in-memory tabular workspace options + the system tabular data agent that queries it.
+        // Per-prompt tabular workspace options + the system tabular data agent that queries it.
         services.AddOptions<TabularWorkspaceOptions>();
         services.TryAddSingleton<ITabularDocumentArtifactStore, DocumentFileStoreTabularDocumentArtifactStore>();
-        services.TryAddSingleton<TabularWorkspaceCache>();
-        services.TryAddSingleton<ITabularWorkspaceInvalidator>(sp => sp.GetRequiredService<TabularWorkspaceCache>());
-        services.TryAddSingleton<ITabularWorkspaceInvalidationPublisher, LocalTabularWorkspaceInvalidationPublisher>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TabularWorkspaceCleanupBackgroundService>());
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProfileProvider, TabularDataAgentProvider>());
 
@@ -116,9 +111,9 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, TabularWorkspaceChatInteractionHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, ChatInteractionDocumentCleanupHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionHistoryHandler, ChatInteractionGeneratedFileCleanupHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionHistoryHandler, TabularWorkspaceHistoryClearedHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatDocumentEventHandler, TabularWorkspaceDocumentEventHandler>());
 
         services.AddCoreAIIngestionDocumentReader<PlainTextIngestionDocumentReader>(

@@ -89,11 +89,12 @@ public sealed class QueryTabularDataTool : AIFunction
             return preparation.Error;
         }
 
+        using var workspace = preparation.Workspace;
         var maxRows = arguments.GetFirstValueOrDefault("max_rows", 0);
 
         try
         {
-            var result = await preparation.Workspace.QueryAsync(sql, maxRows, cancellationToken);
+            var result = await workspace.QueryAsync(sql, maxRows, cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {

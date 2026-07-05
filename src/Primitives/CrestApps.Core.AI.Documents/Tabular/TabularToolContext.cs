@@ -22,14 +22,14 @@ internal sealed class TabularToolContext
         IReadOnlyList<TabularDocumentRef> documents,
         IAIDocumentChunkStore chunkStore,
         ITabularDocumentArtifactStore artifactStore,
-        TabularWorkspaceCacheKey cacheKey,
+        string databasePath,
         string exportReferenceId,
         string exportReferenceType)
     {
         Documents = documents;
         _chunkStore = chunkStore;
         _artifactStore = artifactStore;
-        CacheKey = cacheKey;
+        DatabasePath = databasePath;
         ExportReferenceId = exportReferenceId;
         ExportReferenceType = exportReferenceType;
     }
@@ -40,9 +40,10 @@ internal sealed class TabularToolContext
     public IReadOnlyList<TabularDocumentRef> Documents { get; }
 
     /// <summary>
-    /// Gets the cache key used to reuse the tabular workspace across active prompts in the same scope.
+    /// Gets the absolute path to the file-backed SQLite database for the workspace scope.
+    /// May be <see langword="null"/> when no durable path could be resolved (for example during tests).
     /// </summary>
-    public TabularWorkspaceCacheKey CacheKey { get; }
+    public string DatabasePath { get; }
 
     /// <summary>
     /// Gets the reference id that generated tabular files should be attached to for download.
@@ -130,9 +131,6 @@ internal sealed class TabularToolContext
         var documentOptions = services.GetRequiredService<IOptions<ChatDocumentsOptions>>().Value;
         var session = ResolveSession();
         var scopes = new List<(string ReferenceId, string ReferenceType)>();
-        string chatInteractionId = null;
-        string chatSessionId = null;
-        string profileId = null;
         string exportReferenceId = null;
         string exportReferenceType = null;
 
@@ -140,19 +138,16 @@ internal sealed class TabularToolContext
         {
             case ChatInteraction interaction:
                 scopes.Add((interaction.ItemId, AIReferenceTypes.Document.ChatInteraction));
-                chatInteractionId = interaction.ItemId;
                 exportReferenceId = interaction.ItemId;
                 exportReferenceType = AIReferenceTypes.Document.ChatInteraction;
                 break;
 
             case AIProfile profile:
                 scopes.Add((profile.ItemId, AIReferenceTypes.Document.Profile));
-                profileId = profile.ItemId;
 
                 if (session is not null && !string.IsNullOrEmpty(session.SessionId))
                 {
                     scopes.Add((session.SessionId, AIReferenceTypes.Document.ChatSession));
-                    chatSessionId = session.SessionId;
                     exportReferenceId = session.SessionId;
                     exportReferenceType = AIReferenceTypes.Document.ChatSession;
                 }
@@ -191,38 +186,32 @@ internal sealed class TabularToolContext
             }
         }
 
-        var cacheKey = BuildCacheKey(documents, scopes, chatInteractionId, chatSessionId, profileId);
+        var databasePath = ResolveDatabasePath(services, exportReferenceType, exportReferenceId);
 
         return new TabularToolContext(
             documents,
             chunkStore,
             artifactStore,
-            cacheKey,
+            databasePath,
             exportReferenceId,
             exportReferenceType);
     }
 
-    private static TabularWorkspaceCacheKey BuildCacheKey(
-        IReadOnlyList<TabularDocumentRef> documents,
-        IReadOnlyList<(string ReferenceId, string ReferenceType)> scopes,
-        string chatInteractionId,
-        string chatSessionId,
-        string profileId)
+    private static string ResolveDatabasePath(IServiceProvider services, string referenceType, string referenceId)
     {
-        var references = scopes
-            .Where(scope => !string.IsNullOrEmpty(scope.ReferenceId) && !string.IsNullOrEmpty(scope.ReferenceType))
-            .Select(scope => (scope.ReferenceType, scope.ReferenceId))
-            .ToArray();
-        var scopePart = string.Join('|', references
-            .OrderBy(reference => reference.ReferenceType, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(reference => reference.ReferenceId, StringComparer.OrdinalIgnoreCase)
-            .Select(reference => $"{reference.ReferenceType}:{reference.ReferenceId}"));
-        var documentPart = string.Join('|', documents
-            .OrderBy(document => document.DocumentId, StringComparer.OrdinalIgnoreCase)
-            .Select(document => $"{document.DocumentId}:{document.FileName}"));
-        var key = $"{scopePart}::documents:{documentPart}";
+        if (string.IsNullOrEmpty(referenceType) || string.IsNullOrEmpty(referenceId))
+        {
+            return null;
+        }
 
-        return new TabularWorkspaceCacheKey(key, chatInteractionId, chatSessionId, profileId, references);
+        var fileStoreOptions = services.GetRequiredService<IOptions<DocumentFileSystemFileStoreOptions>>().Value;
+
+        if (string.IsNullOrEmpty(fileStoreOptions.BasePath))
+        {
+            return null;
+        }
+
+        return Path.Combine(fileStoreOptions.BasePath, "documents", referenceType, referenceId, "data", "tabular.db");
     }
 
     private static AIChatSession ResolveSession()

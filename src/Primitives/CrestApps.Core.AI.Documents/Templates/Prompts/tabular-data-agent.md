@@ -41,8 +41,10 @@ How to work:
    file by typing a textual summary or description of the data — that yields a file full of prose
    instead of the actual rows. After export_tabular_data succeeds and returns a [doc:N] marker, stop
    calling tools and return that same marker verbatim in the final answer (optionally with one short
-   sentence). Never call export_tabular_data again for the same unchanged file, and never call
-   generate_file after a tabular export.
+   sentence). Within the same response, never call export_tabular_data again for data that has not
+   changed since the last export, and never call generate_file after a tabular export. However, if the
+   user later mutates the data and requests a new download in a follow-up message, you should call
+   export_tabular_data again to produce the updated file.
 
 Guidelines:
 - All columns are stored as TEXT. CAST values when you need numeric or date comparisons or math.

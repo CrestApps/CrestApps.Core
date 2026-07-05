@@ -3,14 +3,16 @@ using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Services;
 
 /// <summary>
 /// Default <see cref="IConversationDocumentCleanupService"/> that removes a conversation's documents from
 /// the <see cref="IAIDocumentStore"/>, deletes their stored file content from the <see cref="IDocumentFileStore"/>,
-/// drops any persisted tabular artifact via the <see cref="ITabularDocumentArtifactStore"/>, and clears the
-/// associated chunks from the <see cref="IAIDocumentChunkStore"/>.
+/// drops any persisted tabular artifact via the <see cref="ITabularDocumentArtifactStore"/>, clears the
+/// associated chunks from the <see cref="IAIDocumentChunkStore"/>, and removes the file-backed tabular
+/// database when one exists.
 /// </summary>
 public sealed class DefaultConversationDocumentCleanupService : IConversationDocumentCleanupService
 {
@@ -18,6 +20,7 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
     private readonly ITabularDocumentArtifactStore _artifactStore;
+    private readonly string _basePath;
     private readonly ILogger<DefaultConversationDocumentCleanupService> _logger;
 
     /// <summary>
@@ -27,18 +30,21 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
     /// <param name="chunkStore">The document chunk store.</param>
     /// <param name="fileStore">The document file store.</param>
     /// <param name="artifactStore">The tabular document artifact store.</param>
+    /// <param name="fileStoreOptions">The document file store options.</param>
     /// <param name="logger">The logger.</param>
     public DefaultConversationDocumentCleanupService(
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
         ITabularDocumentArtifactStore artifactStore,
+        IOptions<DocumentFileSystemFileStoreOptions> fileStoreOptions,
         ILogger<DefaultConversationDocumentCleanupService> logger)
     {
         _documentStore = documentStore;
         _chunkStore = chunkStore;
         _fileStore = fileStore;
         _artifactStore = artifactStore;
+        _basePath = fileStoreOptions.Value.BasePath;
         _logger = logger;
     }
 
@@ -68,6 +74,8 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
 
             await DeleteDocumentAsync(document, cancellationToken);
         }
+
+        TryDeleteTabularDatabase(referenceType, referenceId);
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -129,5 +137,36 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
         }
 
         await _documentStore.DeleteAsync(document, cancellationToken);
+    }
+
+    private void TryDeleteTabularDatabase(string referenceType, string referenceId)
+    {
+        if (string.IsNullOrEmpty(_basePath))
+        {
+            return;
+        }
+
+        var databasePath = Path.Combine(_basePath, "documents", referenceType, referenceId, "data", "tabular.db");
+        TryDeleteFile(databasePath);
+        TryDeleteFile(databasePath + "-wal");
+        TryDeleteFile(databasePath + "-shm");
+    }
+
+    private void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(ex, "Failed to delete tabular database file '{Path}'.", path);
+            }
+        }
     }
 }

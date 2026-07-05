@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.Documents.Services;
@@ -33,6 +34,7 @@ public sealed class ConversationDocumentCleanupServiceTests
             chunkStore.Object,
             fileStore.Object,
             artifactStore.Object,
+            Options.Create(new DocumentFileSystemFileStoreOptions { BasePath = Path.Combine(Path.GetTempPath(), "cleanup-tests") }),
             NullLogger<DefaultConversationDocumentCleanupService>.Instance);
 
         await service.CleanupAsync("session-1", "chat-session", TestContext.Current.CancellationToken);
@@ -63,6 +65,7 @@ public sealed class ConversationDocumentCleanupServiceTests
             chunkStore.Object,
             fileStore.Object,
             artifactStore.Object,
+            Options.Create(new DocumentFileSystemFileStoreOptions { BasePath = Path.Combine(Path.GetTempPath(), "cleanup-tests") }),
             NullLogger<DefaultConversationDocumentCleanupService>.Instance);
 
         await service.CleanupAsync("session-1", "chat-session", TestContext.Current.CancellationToken);
@@ -87,6 +90,7 @@ public sealed class ConversationDocumentCleanupServiceTests
             Mock.Of<IAIDocumentChunkStore>(),
             Mock.Of<IDocumentFileStore>(),
             Mock.Of<ITabularDocumentArtifactStore>(),
+            Options.Create(new DocumentFileSystemFileStoreOptions { BasePath = Path.Combine(Path.GetTempPath(), "cleanup-tests") }),
             NullLogger<DefaultConversationDocumentCleanupService>.Instance);
 
         await service.CleanupAsync(referenceId, referenceType, TestContext.Current.CancellationToken);
@@ -130,6 +134,7 @@ public sealed class ConversationDocumentCleanupServiceTests
             chunkStore.Object,
             fileStore.Object,
             artifactStore.Object,
+            Options.Create(new DocumentFileSystemFileStoreOptions { BasePath = Path.Combine(Path.GetTempPath(), "cleanup-tests") }),
             NullLogger<DefaultConversationDocumentCleanupService>.Instance);
 
         await service.CleanupGeneratedDocumentsAsync(

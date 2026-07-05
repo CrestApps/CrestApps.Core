@@ -306,40 +306,6 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
-    public async Task SnapshotAsync_CapturesCurrentDataKeyedByDocumentId()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        using var workspace = CreateWorkspace();
-        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
-        await workspace.ExecuteAsync("UPDATE sales SET amount = '999' WHERE region = 'South'", cancellationToken);
-
-        var snapshots = await workspace.SnapshotAsync(cancellationToken);
-
-        var snapshot = Assert.Single(snapshots);
-        Assert.Equal("doc1", snapshot.Key);
-        Assert.Equal(["region", "amount"], snapshot.Value.Header);
-        Assert.Equal(3, snapshot.Value.Rows.Count);
-        Assert.Contains(snapshot.Value.Rows, row => row[0] == "South" && row[1] == "999");
-    }
-
-    [Fact]
-    public async Task EnsureReadyAsync_SamePrompt_ReusesDatabaseWithoutReloading()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        using var workspace = CreateWorkspace();
-        var loadCount = 0;
-        var loader = CountingLoader(Csv, () => loadCount++);
-
-        // Multiple tabular tool calls in the same prompt must not rebuild the table or reload
-        // the file content.
-        await workspace.EnsureReadyAsync(Documents(), loader, cancellationToken);
-        await workspace.EnsureReadyAsync(Documents(), loader, cancellationToken);
-        await workspace.EnsureReadyAsync(Documents(), loader, cancellationToken);
-
-        Assert.Equal(1, loadCount);
-    }
-
-    [Fact]
     public async Task Dispose_DisposesDatabase()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -348,7 +314,7 @@ public class TabularWorkspaceTests
 
         workspace.Dispose();
 
-        // After disposal the in-memory database is gone; querying throws.
+        // After disposal the database is gone; querying throws.
         await Assert.ThrowsAnyAsync<Exception>(
             () => workspace.QueryAsync("SELECT * FROM sales", 100, cancellationToken));
     }

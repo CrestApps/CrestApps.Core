@@ -94,6 +94,7 @@ public sealed class FillEmptyTabularCellsTool : AIFunction
             return preparation.Error;
         }
 
+        using var workspace = preparation.Workspace;
         var table = ResolveTable(preparation.Tables, requestedTableName);
 
         if (table is null)
@@ -112,9 +113,7 @@ public sealed class FillEmptyTabularCellsTool : AIFunction
 
         try
         {
-            var result = await preparation.Workspace.ExecuteAsync(string.Join(";", statements), cancellationToken);
-
-            SchedulePersistWorkspaceSnapshot(arguments.Services, preparation.Workspace, logger);
+            var result = await workspace.ExecuteAsync(string.Join(";", statements), cancellationToken);
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
@@ -246,44 +245,5 @@ public sealed class FillEmptyTabularCellsTool : AIFunction
     private static string EscapeSqlStringLiteral(string value)
     {
         return value.Replace("'", "''", StringComparison.Ordinal);
-    }
-
-    private static void SchedulePersistWorkspaceSnapshot(
-        IServiceProvider services,
-        TabularWorkspace workspace,
-        ILogger logger)
-    {
-        var artifactStore = services.GetService<ITabularDocumentArtifactStore>();
-
-        if (artifactStore is null)
-        {
-            return;
-        }
-
-        workspace.SchedulePersist(token => PersistWorkspaceSnapshotAsync(workspace, artifactStore, logger, token));
-    }
-
-    private static async Task PersistWorkspaceSnapshotAsync(
-        TabularWorkspace workspace,
-        ITabularDocumentArtifactStore artifactStore,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var snapshots = await workspace.SnapshotAsync(cancellationToken);
-
-            foreach (var (documentId, artifact) in snapshots)
-            {
-                await artifactStore.SaveAsync(documentId, artifact, cancellationToken);
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            if (logger.IsEnabled(LogLevel.Debug))
-            {
-                logger.LogDebug(ex, "Failed to persist the in-memory tabular workspace snapshot for tool '{ToolName}'.", TheName);
-            }
-        }
     }
 }

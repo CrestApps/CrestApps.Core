@@ -71,6 +71,7 @@ public sealed class ListTabularDataTool : AIFunction
             return preparation.Error;
         }
 
+        using var workspace = preparation.Workspace;
         var tables = preparation.Tables;
 
         if (tables is null || tables.Count == 0)

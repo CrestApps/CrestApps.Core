@@ -61,12 +61,18 @@ public sealed class TabularToolContextTests
         var options = new ChatDocumentsOptions();
         options.Add(".xlsx", embeddable: false, isTabular: true);
 
+        var fileStoreOptions = new DocumentFileSystemFileStoreOptions
+        {
+            BasePath = Path.Combine(Path.GetTempPath(), "tabular-tool-context-tests"),
+        };
+
         var services = new ServiceCollection();
 
         services.AddSingleton(documentStore);
         services.AddSingleton(new Mock<IAIDocumentChunkStore>().Object);
         services.AddSingleton(new Mock<ITabularDocumentArtifactStore>().Object);
         services.AddSingleton<IOptions<ChatDocumentsOptions>>(Options.Create(options));
+        services.AddSingleton<IOptions<DocumentFileSystemFileStoreOptions>>(Options.Create(fileStoreOptions));
 
         return services.BuildServiceProvider();
     }

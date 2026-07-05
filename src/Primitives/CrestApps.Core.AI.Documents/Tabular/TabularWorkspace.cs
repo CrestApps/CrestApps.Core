@@ -1,24 +1,28 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
 namespace CrestApps.Core.AI.Documents.Tabular;
 
 /// <summary>
-/// An in-memory SQLite database that holds the tabular files for an active conversation scope. The
-/// workspace is built lazily on the first tabular tool call and reused across tabular tool calls while
-/// the scope stays active. In-memory manipulations (added or removed columns, updated values, inserted
-/// or deleted rows) are applied to this copy and can be snapshotted to durable storage so they survive
-/// a rebuild; the originally uploaded file is never modified.
+/// A file-backed SQLite database that holds the tabular files for a conversation scope. The workspace
+/// is built lazily on the first tabular tool call: once the table is created in the on-disk database
+/// file it persists for the lifetime of the owning session without requiring explicit snapshotting.
+/// Mutations (added or removed columns, updated values, inserted or deleted rows) are applied to this
+/// copy and written through to disk automatically by SQLite; the originally uploaded file is never
+/// modified.
 /// </summary>
 internal sealed class TabularWorkspace : IDisposable
 {
+    private const string MetadataTableName = "_workspace_meta";
+
+    private static readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly TabularWorkspaceOptions _options;
+    private readonly string _databasePath;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, LoadedTable> _tables = new(StringComparer.Ordinal);
-    private readonly object _persistLock = new();
-    private Func<CancellationToken, Task> _pendingPersist;
-    private bool _persisting;
     private int _mutationVersion;
     private SqliteConnection _connection;
     private bool _disposed;
@@ -27,16 +31,23 @@ internal sealed class TabularWorkspace : IDisposable
     /// Initializes a new instance of the <see cref="TabularWorkspace"/> class.
     /// </summary>
     /// <param name="options">The workspace options.</param>
-    public TabularWorkspace(TabularWorkspaceOptions options)
+    /// <param name="databasePath">
+    /// The absolute path to the SQLite database file. When <see langword="null"/> or empty, an
+    /// in-memory database is used (primarily for unit tests).
+    /// </param>
+    public TabularWorkspace(
+        TabularWorkspaceOptions options,
+        string databasePath = null)
     {
         _options = options;
+        _databasePath = databasePath;
     }
 
     /// <summary>
-    /// Ensures the in-memory database is built and contains a table for each supplied document.
-    /// Loading is lazy: <paramref name="contentLoader"/> is only invoked for documents that do not
-    /// yet have a table. Calling this multiple times within the same prompt reuses the already-built
-    /// tables rather than recreating them.
+    /// Ensures the database is built and contains a table for each supplied document. Loading is
+    /// lazy: <paramref name="contentLoader"/> is only invoked for documents that do not yet have a
+    /// table. Calling this multiple times within the same prompt reuses the already-built tables
+    /// rather than recreating them.
     /// </summary>
     /// <param name="documents">The tabular documents that should be available in the workspace.</param>
     /// <param name="contentLoader">A delegate that loads the raw tabular content for a document id.</param>
@@ -58,10 +69,10 @@ internal sealed class TabularWorkspace : IDisposable
     }
 
     /// <summary>
-    /// Ensures the in-memory database is built and contains a table for each supplied document.
-    /// Loading is lazy: <paramref name="artifactLoader"/> is only invoked for documents that do not
-    /// yet have a table. Calling this multiple times within the same workspace reuses the
-    /// already-built tables rather than recreating them.
+    /// Ensures the database is built and contains a table for each supplied document. Loading is
+    /// lazy: <paramref name="artifactLoader"/> is only invoked for documents that do not yet have a
+    /// table. Calling this multiple times within the same workspace reuses the already-built tables
+    /// rather than recreating them.
     /// </summary>
     /// <param name="documents">The tabular documents that should be available in the workspace.</param>
     /// <param name="artifactLoader">A delegate that loads the parsed tabular artifact for a document.</param>
@@ -80,6 +91,11 @@ internal sealed class TabularWorkspace : IDisposable
         try
         {
             _connection ??= OpenConnection();
+
+            if (_tables.Count == 0)
+            {
+                LoadMetadataFromDatabase();
+            }
 
             var desiredTableNames = ComputeTableNames(documents);
 
@@ -453,128 +469,17 @@ internal sealed class TabularWorkspace : IDisposable
     }
 
     /// <summary>
-    /// Captures the current state of every loaded table as a durable artifact keyed by document id,
-    /// using the original source column names where available. Callers persist these artifacts so the
-    /// workspace can be rebuilt with the in-memory changes intact after it is evicted, the process
-    /// restarts, or the request is served by another application instance.
-    /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A map of document id to the current artifact for that document's table.</returns>
-    public async Task<IReadOnlyDictionary<string, TabularDocumentArtifact>> SnapshotAsync(CancellationToken cancellationToken = default)
-    {
-        await _gate.WaitAsync(cancellationToken);
-
-        try
-        {
-            EnsureLoaded();
-
-            var snapshots = new Dictionary<string, TabularDocumentArtifact>(StringComparer.Ordinal);
-
-            foreach (var (documentId, table) in _tables)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText = $"SELECT * FROM {QuoteIdentifier(table.TableName)}";
-                command.CommandTimeout = _options.CommandTimeoutSeconds;
-
-                var export = await ReadExportAsync(
-                    command,
-                    sqlName => table.SourceNames.TryGetValue(sqlName, out var sourceName) && !string.IsNullOrEmpty(sourceName)
-                        ? sourceName
-                        : sqlName,
-                    cancellationToken);
-
-                snapshots[documentId] = export.Artifact;
-            }
-
-            return snapshots;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    /// <summary>
-    /// Schedules a best-effort background persistence of the current in-memory state. Multiple rapid
-    /// calls are coalesced: at most one persist operation runs at a time and the most recently
-    /// scheduled operation always runs against the latest state. This keeps in-memory mutations off
-    /// the model's tool-call critical path so a burst of changes does not block on a full-table
-    /// snapshot, serialization, and write after every command.
-    /// </summary>
-    /// <param name="persistOperation">The persistence operation to run in the background.</param>
-    public void SchedulePersist(Func<CancellationToken, Task> persistOperation)
-    {
-        ArgumentNullException.ThrowIfNull(persistOperation);
-
-        lock (_persistLock)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _pendingPersist = persistOperation;
-
-            if (_persisting)
-            {
-                return;
-            }
-
-            _persisting = true;
-        }
-
-        _ = Task.Run(RunPersistLoopAsync);
-    }
-
-    private async Task RunPersistLoopAsync()
-    {
-        while (true)
-        {
-            Func<CancellationToken, Task> operation;
-
-            lock (_persistLock)
-            {
-                if (_pendingPersist is null || _disposed)
-                {
-                    _persisting = false;
-
-                    return;
-                }
-
-                operation = _pendingPersist;
-                _pendingPersist = null;
-            }
-
-            try
-            {
-                await operation(CancellationToken.None);
-            }
-            catch
-            {
-                // Persistence is best-effort: the live workspace still holds the changes, so a
-                // failure to snapshot must never surface from the background loop.
-            }
-        }
-    }
-
-    /// <summary>
-    /// Disposes the in-memory database and releases the concurrency gate.
+    /// Disposes the database connection and releases the concurrency gate.
     /// </summary>
     public void Dispose()
     {
-        lock (_persistLock)
+        if (_disposed)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _pendingPersist = null;
+            return;
         }
 
-        // Acquire the gate so the connection is never disposed while a background snapshot is still
-        // reading from it; the snapshot only holds the gate for the in-memory read, not the write.
+        _disposed = true;
+
         _gate.Wait();
 
         try
@@ -616,15 +521,90 @@ internal sealed class TabularWorkspace : IDisposable
             var columns = CreateTable(_connection, tableName, artifact);
             var sourceNames = columns.ToDictionary(c => c.Name, c => c.SourceName, StringComparer.OrdinalIgnoreCase);
             _tables[document.DocumentId] = new LoadedTable(tableName, document.FileName, sourceNames);
+
+            SaveMetadataEntry(document.DocumentId, tableName, document.FileName, sourceNames);
         }
     }
 
-    private static SqliteConnection OpenConnection()
+    private SqliteConnection OpenConnection()
     {
-        var connection = new SqliteConnection("Data Source=:memory:");
+        string connectionString;
+
+        if (string.IsNullOrEmpty(_databasePath))
+        {
+            connectionString = "Data Source=:memory:";
+        }
+        else
+        {
+            var directory = Path.GetDirectoryName(_databasePath);
+
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            connectionString = $"Data Source={_databasePath}";
+        }
+
+        var connection = new SqliteConnection(connectionString);
         connection.Open();
 
+        using var walCommand = connection.CreateCommand();
+        walCommand.CommandText = "PRAGMA journal_mode=WAL";
+        walCommand.ExecuteNonQuery();
+
+        EnsureMetadataTable(connection);
+
         return connection;
+    }
+
+    private static void EnsureMetadataTable(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            CREATE TABLE IF NOT EXISTS "{MetadataTableName}" (
+                "document_id" TEXT PRIMARY KEY,
+                "table_name" TEXT NOT NULL,
+                "file_name" TEXT NOT NULL,
+                "source_names_json" TEXT NOT NULL
+            )
+            """;
+        command.ExecuteNonQuery();
+    }
+
+    private void LoadMetadataFromDatabase()
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"SELECT document_id, table_name, file_name, source_names_json FROM \"{MetadataTableName}\"";
+
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            var documentId = reader.GetString(0);
+            var tableName = reader.GetString(1);
+            var fileName = reader.GetString(2);
+            var sourceNamesJson = reader.GetString(3);
+
+            var sourceNames = JsonSerializer.Deserialize<Dictionary<string, string>>(sourceNamesJson, _jsonOptions)
+                ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            _tables[documentId] = new LoadedTable(tableName, fileName, sourceNames);
+        }
+    }
+
+    private void SaveMetadataEntry(string documentId, string tableName, string fileName, IReadOnlyDictionary<string, string> sourceNames)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"""
+            INSERT OR REPLACE INTO "{MetadataTableName}" (document_id, table_name, file_name, source_names_json)
+            VALUES ($documentId, $tableName, $fileName, $sourceNamesJson)
+            """;
+        command.Parameters.AddWithValue("$documentId", documentId);
+        command.Parameters.AddWithValue("$tableName", tableName);
+        command.Parameters.AddWithValue("$fileName", fileName);
+        command.Parameters.AddWithValue("$sourceNamesJson", JsonSerializer.Serialize(sourceNames, _jsonOptions));
+        command.ExecuteNonQuery();
     }
 
     private static List<TabularColumnInfo> CreateTable(SqliteConnection connection, string tableName, TabularDocumentArtifact artifact)

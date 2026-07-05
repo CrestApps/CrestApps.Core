@@ -99,6 +99,8 @@ public sealed class ExportTabularDataTool : AIFunction
             return preparation.Error;
         }
 
+        using var workspace = preparation.Workspace;
+
         if (string.IsNullOrEmpty(preparation.Context.ExportReferenceId) ||
             string.IsNullOrEmpty(preparation.Context.ExportReferenceType))
         {
@@ -128,7 +130,7 @@ public sealed class ExportTabularDataTool : AIFunction
             preparation.Context.ExportReferenceId,
             fileName,
             sql,
-            preparation.Workspace.MutationVersion);
+            workspace.MutationVersion);
 
         if (!string.IsNullOrEmpty(cachedResponse))
         {
@@ -142,7 +144,7 @@ public sealed class ExportTabularDataTool : AIFunction
                     preparation.Tables.Count,
                     string.IsNullOrWhiteSpace(sql),
                     fileName,
-                    preparation.Workspace.MutationVersion);
+                    workspace.MutationVersion);
             }
 
             return cachedResponse;
@@ -151,8 +153,8 @@ public sealed class ExportTabularDataTool : AIFunction
         try
         {
             var export = string.IsNullOrWhiteSpace(sql)
-                ? await preparation.Workspace.ExportFullAsync(cancellationToken)
-                : await preparation.Workspace.ExportAsync(sql, cancellationToken);
+                ? await workspace.ExportFullAsync(cancellationToken)
+                : await workspace.ExportAsync(sql, cancellationToken);
 
             if (export.Artifact.Header.Count == 0)
             {
@@ -185,7 +187,7 @@ public sealed class ExportTabularDataTool : AIFunction
                     string.IsNullOrWhiteSpace(sql),
                     fileName,
                     export.RowCount,
-                    preparation.Workspace.MutationVersion);
+                    workspace.MutationVersion);
             }
 
             var response = string.IsNullOrEmpty(result.ReferenceToken)
@@ -197,7 +199,7 @@ public sealed class ExportTabularDataTool : AIFunction
                 preparation.Context.ExportReferenceId,
                 fileName,
                 sql,
-                preparation.Workspace.MutationVersion,
+                workspace.MutationVersion,
                 response);
 
             return response;
