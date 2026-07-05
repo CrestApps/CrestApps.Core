@@ -127,6 +127,11 @@
     text-decoration: none;
 }
 
+.ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success svg {
+    color: inherit !important;
+    fill: currentColor;
+}
+
 .ai-chat-messages .message-buttons-container .tts-playing {
     color: var(--ai-chat-primary, #198754);
 }

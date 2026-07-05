@@ -37,6 +37,16 @@
         display: inline-flex; align-items: center; justify-content: center;
         width: 1.75rem; height: 1.75rem; border-radius: 50%;
     }
+    .ai-chat-messages .message-buttons-container > .ai-response-copy-btn.text-success,
+    .ai-chat-messages .message-buttons-container > .ai-response-copy-btn.text-success:hover,
+    .ai-chat-messages .message-buttons-container > .ai-response-copy-btn.text-success:focus {
+        color: var(--bs-success, #198754) !important;
+        text-decoration: none;
+    }
+    .ai-chat-messages .message-buttons-container > .ai-response-copy-btn.text-success svg {
+        color: inherit !important;
+        fill: currentColor;
+    }
     @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 </style>
 

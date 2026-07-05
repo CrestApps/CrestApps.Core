@@ -249,6 +249,11 @@
     text-decoration: none;
 }
 
+.ai-chat-widget-messages .message-buttons-container > .button-message-toolbox.text-success svg {
+    color: inherit !important;
+    fill: currentColor;
+}
+
 .ai-chat-widget-messages .message-buttons-container > .button-message-toolbox.tts-playing {
     color: var(--ai-widget-primary, #6f42c1) !important;
     opacity: 1;
