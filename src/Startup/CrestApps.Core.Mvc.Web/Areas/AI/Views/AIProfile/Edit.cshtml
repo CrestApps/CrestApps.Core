@@ -677,7 +677,7 @@
                         </div>
                         <div id="removed-docs-container"></div>
                         <div id="pending-docs-list" class="mb-2"></div>
-                        <div class="document-drop-zone" id="profile-doc-drop-zone">
+                        <div class="document-drop-zone" id="profile-doc-drop-zone" data-document-drop-zone-file-input="#doc-add-input" data-document-drop-zone-browse-button="#profile-doc-browse">
                             <input type="file" class="d-none" id="doc-add-input" name="Documents" multiple
                                    accept="@embeddableExtensionsAccept" />
                             <div class="document-drop-zone__body">
@@ -1593,12 +1593,6 @@
                 var pendingDocsList = document.getElementById('pending-docs-list');
                 var fileInput = document.getElementById('doc-add-input');
                 var pendingFiles = [];
-
-                initDocumentDropZone({
-                    dropZone: '#profile-doc-drop-zone',
-                    fileInput: '#doc-add-input',
-                    browseButton: '#profile-doc-browse'
-                });
 
                 function syncPendingFiles() {
                     if (!fileInput) {

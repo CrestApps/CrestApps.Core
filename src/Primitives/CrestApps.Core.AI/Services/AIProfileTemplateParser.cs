@@ -159,6 +159,12 @@ public static class AIProfileTemplateParser
             profileMetadata.AgentAvailability = agentAvailability;
         }
 
+        if (props.TryGetValue(nameof(ProfileTemplateMetadata.AllowToolInvocation), out var allowToolInvocationStr) &&
+            bool.TryParse(allowToolInvocationStr, out var allowToolInvocation))
+        {
+            profileMetadata.AllowToolInvocation = allowToolInvocation;
+        }
+
         template.Put(profileMetadata);
 
         return template;

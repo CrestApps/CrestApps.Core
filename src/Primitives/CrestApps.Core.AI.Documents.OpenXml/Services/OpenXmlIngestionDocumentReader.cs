@@ -117,11 +117,9 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
 
             foreach (var row in data.Elements<Row>())
             {
-                var values = row.Elements<Cell>()
-                    .Select(cell => GetCellValue(cell, sharedStrings))
-                    .Where(value => !string.IsNullOrEmpty(value));
+                var values = GetRowValues(row, sharedStrings);
 
-                if (values.Any())
+                if (values.Any(value => !string.IsNullOrEmpty(value)))
                 {
                     var rowText = string.Join("\t", values);
                     section.Elements.Add(new IngestionDocumentParagraph(rowText)
@@ -133,6 +131,59 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
         }
 
         return section.Elements.Count > 0 ? section : null;
+    }
+
+    private static List<string> GetRowValues(Row row, SharedStringTable sharedStrings)
+    {
+        var values = new List<string>();
+
+        foreach (var cell in row.Elements<Cell>())
+        {
+            var columnIndex = GetColumnIndex(cell.CellReference?.Value, values.Count);
+
+            while (values.Count < columnIndex)
+            {
+                values.Add(string.Empty);
+            }
+
+            values.Add(GetCellValue(cell, sharedStrings));
+        }
+
+        for (var i = values.Count - 1; i >= 0; i--)
+        {
+            if (!string.IsNullOrEmpty(values[i]))
+            {
+                break;
+            }
+
+            values.RemoveAt(i);
+        }
+
+        return values;
+    }
+
+    private static int GetColumnIndex(string cellReference, int fallbackIndex)
+    {
+        if (string.IsNullOrEmpty(cellReference))
+        {
+            return fallbackIndex;
+        }
+
+        var columnIndex = 0;
+        var hasColumnName = false;
+
+        foreach (var c in cellReference)
+        {
+            if (!char.IsLetter(c))
+            {
+                break;
+            }
+
+            hasColumnName = true;
+            columnIndex = (columnIndex * 26) + char.ToUpperInvariant(c) - 'A' + 1;
+        }
+
+        return hasColumnName ? columnIndex - 1 : fallbackIndex;
     }
 
     private static IngestionDocumentSection ExtractPowerPoint(Stream stream, CancellationToken cancellationToken)

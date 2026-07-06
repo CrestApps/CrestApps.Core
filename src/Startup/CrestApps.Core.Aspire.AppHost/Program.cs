@@ -65,7 +65,6 @@ var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
     .WithReference(redis)
     .WithReference(ollama)
     .WithReference(postgres)
-    .WaitFor(redis)
     .WithHttpsEndpoint(5001, name: "HttpsMvcWeb")
     .WithEnvironment((options) =>
     {
@@ -88,7 +87,6 @@ var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWe
     .WithReference(redis)
     .WithReference(ollama)
     .WithReference(postgres)
-    .WaitFor(redis)
     .WithHttpsEndpoint(5201, name: "HttpsBlazorWeb")
     .WithEnvironment((options) =>
     {

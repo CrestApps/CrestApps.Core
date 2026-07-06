@@ -1,7 +1,7 @@
+@using System.Text.Json
 @using CrestApps.Core
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
-@using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
 @model CrestApps.Core.AI.Models.AIProfile
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
@@ -176,7 +176,27 @@
     @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 </style>
 
-<div class="chat-page-shell">
+<div class="chat-page-shell"
+     data-coreai-chat-signalr-hub-url="/hubs/ai-chat"
+     data-coreai-chat-app-element-selector="#chat-app"
+     data-coreai-chat-container-element-selector="#chat-container"
+     data-coreai-chat-input-element-selector="#chat-input"
+     data-coreai-chat-send-button-element-selector="#send-btn"
+     data-coreai-chat-placeholder-element-selector="#chat-placeholder"
+     data-coreai-chat-messages="@JsonSerializer.Serialize(messages)"
+     data-coreai-chat-metrics-enabled="@metricsEnabled.ToString().ToLowerInvariant()"
+     data-coreai-chat-mode="@chatMode"
+     data-coreai-chat-mic-button-element-selector="#chat-mic-btn"
+     data-coreai-chat-conversation-button-element-selector="#chat-conversation-btn"
+     data-coreai-chat-tts-voice-name="@ttsVoiceName"
+     data-coreai-chat-text-to-speech-enabled="@textToSpeechEnabled.ToString().ToLowerInvariant()"
+     data-coreai-chat-session-documents-enabled="@((allowSessionDocuments || allowImageUploads).ToString().ToLowerInvariant())"
+     data-coreai-chat-existing-documents="@JsonSerializer.Serialize(existingDocuments)"
+     data-coreai-chat-document-bar-selector="#chat-document-bar"
+     data-coreai-chat-upload-document-url="@Url.Content("~/ai/chat-sessions/upload-document")"
+     data-coreai-chat-remove-document-url="@Url.Content("~/ai/chat-sessions/remove-document")"
+     data-coreai-chat-allowed-extensions="@supportedExtensionsAccept"
+     data-coreai-chat-supported-extensions-text="@supportedExtensionsDisplay">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
         <h2><i class="bi bi-chat-dots"></i> @(Model.DisplayText ?? Model.Name)</h2>
         <a asp-area="AI" asp-controller="AIProfile" asp-action="Index" class="btn btn-outline-secondary">
@@ -237,30 +257,4 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="~/_content/CrestApps.AI.Resources/scripts/ai-chat.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            window.openAIChatManager.initialize({
-                signalRHubUrl: '/hubs/ai-chat',
-                appElementSelector: '#chat-app',
-                chatContainerElementSelector: '#chat-container',
-                inputElementSelector: '#chat-input',
-                sendButtonElementSelector: '#send-btn',
-                placeholderElementSelector: '#chat-placeholder',
-                messages: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(messages)),
-                metricsEnabled: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(metricsEnabled)),
-                chatMode: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(chatMode.ToString())),
-                micButtonElementSelector: '#chat-mic-btn',
-                conversationButtonElementSelector: '#chat-conversation-btn',
-                ttsVoiceName: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ttsVoiceName)),
-                textToSpeechEnabled: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(textToSpeechEnabled)),
-                sessionDocumentsEnabled: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allowSessionDocuments || allowImageUploads)),
-                existingDocuments: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(existingDocuments)),
-                documentBarSelector: '#chat-document-bar',
-                uploadDocumentUrl: '@Url.Content("~/ai/chat-sessions/upload-document")',
-                removeDocumentUrl: '@Url.Content("~/ai/chat-sessions/remove-document")',
-                allowedExtensions: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(supportedExtensionsAccept)),
-                supportedExtensionsText: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(supportedExtensionsDisplay))
-            });
-        });
-    </script>
 }

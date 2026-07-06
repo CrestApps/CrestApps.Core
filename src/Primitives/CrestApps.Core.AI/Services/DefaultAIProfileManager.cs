@@ -13,6 +13,7 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IAIProfileManager
 {
     private readonly IAIProfileStore _store;
+    private readonly IEnumerable<IAIProfileProvider> _profileProviders;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
@@ -20,16 +21,19 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
     /// </summary>
     /// <param name="store">The profile catalog.</param>
     /// <param name="handlers">The catalog entry handlers.</param>
+    /// <param name="profileProviders">The code-defined profile providers.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public DefaultAIProfileManager(
         IAIProfileStore store,
         IEnumerable<ICatalogEntryHandler<AIProfile>> handlers,
+        IEnumerable<IAIProfileProvider> profileProviders,
         TimeProvider timeProvider,
         ILogger<DefaultAIProfileManager> logger)
         : base(store, handlers, logger)
     {
         _store = store;
+        _profileProviders = profileProviders;
         _timeProvider = timeProvider;
     }
 
@@ -47,7 +51,40 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
             await LoadAsync(profile, cancellationToken);
         }
 
-        return profiles;
+        return await MergeProvidedProfilesAsync(type, profiles, cancellationToken);
+    }
+
+    private async ValueTask<IEnumerable<AIProfile>> MergeProvidedProfilesAsync(
+        AIProfileType type,
+        IEnumerable<AIProfile> storedProfiles,
+        CancellationToken cancellationToken)
+    {
+        var merged = new List<AIProfile>(storedProfiles);
+        var existingNames = new HashSet<string>(merged.Where(p => !string.IsNullOrEmpty(p.Name)).Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var provider in _profileProviders)
+        {
+            var providedProfiles = await provider.GetProfilesAsync(type, cancellationToken);
+
+            if (providedProfiles is null)
+            {
+                continue;
+            }
+
+            foreach (var profile in providedProfiles)
+            {
+                // Provided profiles are fully formed in code and are not run through the
+                // load pipeline. A stored profile with the same name takes precedence.
+                if (profile is null || profile.Type != type || string.IsNullOrEmpty(profile.Name) || !existingNames.Add(profile.Name))
+                {
+                    continue;
+                }
+
+                merged.Add(profile);
+            }
+        }
+
+        return merged;
     }
 
     /// <summary>

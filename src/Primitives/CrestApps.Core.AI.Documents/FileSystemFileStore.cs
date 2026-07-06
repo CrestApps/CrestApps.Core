@@ -56,7 +56,11 @@ public sealed class FileSystemFileStore : IDocumentFileStore
             return Task.FromResult<Stream>(null);
         }
 
-        return Task.FromResult<Stream>(new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read));
+        return Task.FromResult<Stream>(new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete));
     }
 
     /// <summary>

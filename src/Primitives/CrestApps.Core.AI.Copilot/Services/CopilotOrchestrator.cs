@@ -13,7 +13,6 @@ using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
 using Cysharp.Text;
 using GitHub.Copilot;
-using GitHub.Copilot.Rpc;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;

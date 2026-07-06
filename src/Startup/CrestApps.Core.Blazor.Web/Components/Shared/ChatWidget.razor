@@ -10,18 +10,62 @@
 @inject IAIProfileManager ProfileManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject SiteSettingsStore SiteSettings
-@inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @inject SiteSettingsChangedNotifier SettingsChangedNotifier
 
 @if (_profile != null)
 {
-    <div id="ai-chat-admin-widget-shell" class="ai-chat-admin-widget-shell" style="@_widgetShellStyle">
+    <div id="ai-chat-admin-widget-shell"
+         class="ai-chat-admin-widget-shell"
+         style="@_widgetShellStyle"
+         @key="_profile.ItemId"
+         data-coreai-chat-widget-shell-selector="#ai-chat-admin-widget-shell"
+         data-coreai-chat-widget-container-selector="#widget-panel"
+         data-coreai-chat-widget-toggle-button-selector="#widget-toggle"
+         data-coreai-chat-widget-close-button-selector="#widget-close"
+         data-coreai-chat-widget-input-selector="#widget-chat-input"
+         data-coreai-chat-widget-state-name="@_widgetStateName"
+         data-coreai-chat-widget-open-state-value="true"
+         data-coreai-chat-widget-closed-state-value="false"
+         data-coreai-chat-widget-open-icon-html="<i class='bi bi-x-lg'></i>"
+         data-coreai-chat-widget-closed-icon-html="<i class='bi bi-chat-dots-fill'></i>"
+         data-coreai-chat-widget-profile-id="@_profile.ItemId"
+         data-coreai-chat-widget-profile-name="@_profile.Name"
+         data-coreai-chat-widget-profile-display-text="@(_profile.DisplayText ?? _profile.Name)"
+         data-coreai-chat-widget-profile-welcome-message="@_profile.WelcomeMessage"
+         data-coreai-chat-widget-profile-chat-mode="@_chatMode"
+         data-coreai-chat-widget-profile-tts-voice-name="@_ttsVoiceName"
+         data-coreai-chat-widget-profile-enable-session-metrics="@_metricsEnabled.ToString().ToLowerInvariant()"
+         data-coreai-chat-widget-profile-allow-session-documents="@((_allowSessionDocuments || _allowImageUploads).ToString().ToLowerInvariant())"
+         data-coreai-chat-widget-new-chat-button-selector="#widget-new-chat"
+         data-coreai-chat-widget-reset-size-button-selector="#widget-reset-size"
+         data-coreai-chat-widget-drag-handle-selector=".ai-chat-widget-header"
+         data-coreai-chat-widget-enable-dragging="true"
+         data-coreai-chat-widget-enable-resizing="true"
+         data-coreai-chat-widget-persist-layout="true"
+         data-coreai-chat-signalr-hub-url="/hubs/ai-chat"
+         data-coreai-chat-app-element-selector="#widget-chat-app"
+         data-coreai-chat-container-element-selector="#widget-chat-container"
+         data-coreai-chat-input-element-selector="#widget-chat-input"
+         data-coreai-chat-send-button-element-selector="#widget-send-btn"
+         data-coreai-chat-placeholder-element-selector="#widget-placeholder"
+         data-coreai-chat-auto-create-session="true"
+         data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
+         data-coreai-chat-mode="@_chatMode"
+         data-coreai-chat-mic-button-element-selector="#widget-mic-btn"
+         data-coreai-chat-conversation-button-element-selector="#widget-conversation-btn"
+         data-coreai-chat-tts-voice-name="@_ttsVoiceName"
+         data-coreai-chat-session-documents-enabled="@((_allowSessionDocuments || _allowImageUploads).ToString().ToLowerInvariant())"
+         data-coreai-chat-document-bar-selector="#widget-chat-document-bar"
+         data-coreai-chat-upload-document-url="/ai/chat-sessions/upload-document"
+         data-coreai-chat-remove-document-url="/ai/chat-sessions/remove-document"
+         data-coreai-chat-allowed-extensions="@_supportedExtensionsAccept"
+         data-coreai-chat-supported-extensions-text="@_supportedExtensionsDisplay">
         <link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/chat-widget.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
 
         <!-- Floating toggle button -->
-        <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open AI Chat">
+        <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open chat">
             <i class="bi bi-chat-dots-fill"></i>
         </button>
 
@@ -90,9 +134,9 @@
     private string _ttsVoiceName;
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
-    private bool _initialized;
     private bool _allowImageUploads;
     private string _lastProfileId;
+    private string _widgetStateName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -128,7 +172,6 @@
         if (!string.Equals(_lastProfileId, adminWidgetSettings.ProfileId, StringComparison.Ordinal))
         {
             _lastProfileId = adminWidgetSettings.ProfileId;
-            _initialized = false;
         }
 
         var selectedProfile = await ProfileManager.FindByIdAsync(adminWidgetSettings.ProfileId);
@@ -178,76 +221,8 @@
             ? null
             : $"--ai-widget-primary: {adminWidgetSettings.PrimaryColor.Trim()};";
         _widgetShellStyle = string.IsNullOrWhiteSpace(widgetStyle) ? "visibility:hidden;" : $"{widgetStyle}visibility:hidden;";
-    }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (_profile != null && !_initialized)
-        {
-            _initialized = true;
-
-            var widgetStateName = "blazor-admin-chat-widget-" + _profile.ItemId;
-
-            await JS.InvokeVoidAsync("window.openAIChatWidgetManager.initialize", new
-            {
-                shellSelector = "#ai-chat-admin-widget-shell",
-                widgetContainerSelector = "#widget-panel",
-                toggleButtonSelector = "#widget-toggle",
-                closeButtonSelector = "#widget-close",
-                inputSelector = "#widget-chat-input",
-                widgetStateName,
-                openStateValue = "true",
-                closedStateValue = "false",
-                openIconHtml = "<i class=\"bi bi-x-lg\"></i>",
-                closedIconHtml = "<i class=\"bi bi-chat-dots-fill\"></i>",
-                profile = new
-                {
-                    id = _profile.ItemId,
-                    name = _profile.Name,
-                    displayText = _profile.DisplayText ?? _profile.Name,
-                    welcomeMessage = _profile.WelcomeMessage,
-                    chatMode = _chatMode.ToString(),
-                    ttsVoiceName = _ttsVoiceName,
-                    enableSessionMetrics = _metricsEnabled,
-                    allowSessionDocuments = _allowSessionDocuments || _allowImageUploads,
-                },
-                chatConfig = new
-                {
-                    signalRHubUrl = "/hubs/ai-chat",
-                    appElementSelector = "#widget-chat-app",
-                    chatContainerElementSelector = "#widget-chat-container",
-                    inputElementSelector = "#widget-chat-input",
-                    sendButtonElementSelector = "#widget-send-btn",
-                    placeholderElementSelector = "#widget-placeholder",
-                    messages = Array.Empty<object>(),
-                    autoCreateSession = true,
-                    metricsEnabled = _metricsEnabled,
-                    chatMode = _chatMode.ToString(),
-                    micButtonElementSelector = "#widget-mic-btn",
-                    conversationButtonElementSelector = "#widget-conversation-btn",
-                    ttsVoiceName = _ttsVoiceName,
-                    sessionDocumentsEnabled = _allowSessionDocuments || _allowImageUploads,
-                    existingDocuments = Array.Empty<object>(),
-                    documentBarSelector = "#widget-chat-document-bar",
-                    uploadDocumentUrl = "/ai/chat-sessions/upload-document",
-                    removeDocumentUrl = "/ai/chat-sessions/remove-document",
-                    allowedExtensions = _supportedExtensionsAccept,
-                    supportedExtensionsText = _supportedExtensionsDisplay,
-                    widget = new
-                    {
-                        chatWidgetContainer = "#widget-panel",
-                        chatWidgetStateName = widgetStateName,
-                        newChatButton = "#widget-new-chat",
-                        toggleButtonSelector = "#widget-toggle",
-                        resetSizeButtonSelector = "#widget-reset-size",
-                        dragHandleSelector = ".ai-chat-widget-header",
-                        enableDragging = true,
-                        enableResizing = true,
-                        persistLayout = true,
-                    },
-                },
-            });
-        }
+        _widgetStateName = "blazor-admin-chat-widget-" + _profile.ItemId;
     }
 
     public void Dispose()

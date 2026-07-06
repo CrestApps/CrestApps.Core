@@ -6,11 +6,18 @@ namespace CrestApps.Core.AI.Documents;
 public static class DocumentFileStoragePath
 {
     /// <summary>
-    /// Statics the operation.
+    /// Creates a relative storage path for a persisted document file.
     /// </summary>
-    /// <param name="StoredFileName">The stored file name.</param>
-    /// <param name="StoragePath">The storage path.</param>
-    public static (string StoredFileName, string StoragePath) Create(string referenceType, string referenceId, string fileName)
+    /// <param name="referenceType">The owning reference type.</param>
+    /// <param name="referenceId">The owning reference identifier.</param>
+    /// <param name="fileName">The original file name.</param>
+    /// <param name="subfolder">An optional storage subfolder beneath the owning reference.</param>
+    /// <returns>The stored file name and normalized relative storage path.</returns>
+    public static (string StoredFileName, string StoragePath) Create(
+        string referenceType,
+        string referenceId,
+        string fileName,
+        string subfolder = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(referenceType);
         ArgumentException.ThrowIfNullOrEmpty(referenceId);
@@ -18,10 +25,38 @@ public static class DocumentFileStoragePath
 
         var extension = Path.GetExtension(fileName);
         var storedFileName = $"{Guid.NewGuid():N}{extension}";
-        var storagePath = Path.Combine("documents", referenceType, referenceId, storedFileName)
+        var segments = new List<string>
+        {
+            "documents",
+            referenceType,
+            referenceId,
+        };
+
+        AppendSafeSegments(segments, subfolder);
+        segments.Add(storedFileName);
+
+        var storagePath = Path.Combine([.. segments])
             .Replace(Path.DirectorySeparatorChar, '/')
             .Replace(Path.AltDirectorySeparatorChar, '/');
 
         return (storedFileName, storagePath);
+    }
+
+    private static void AppendSafeSegments(List<string> segments, string subfolder)
+    {
+        if (string.IsNullOrWhiteSpace(subfolder))
+        {
+            return;
+        }
+
+        foreach (var segment in subfolder.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment is "." or "..")
+            {
+                throw new ArgumentException("The storage subfolder contains an invalid path.", nameof(subfolder));
+            }
+
+            segments.Add(segment);
+        }
     }
 }

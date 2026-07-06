@@ -117,6 +117,19 @@
 .ai-chat-messages .message-buttons-container > .button-message-toolbox:hover,
 .ai-chat-messages .message-buttons-container > .button-message-toolbox:focus {
     color: var(--bs-body-color, #212529) !important;
+    text-decoration: none;
+}
+
+.ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success,
+.ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success:hover,
+.ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success:focus {
+    color: var(--bs-success, #198754) !important;
+    text-decoration: none;
+}
+
+.ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success svg {
+    color: inherit !important;
+    fill: currentColor;
 }
 
 .ai-chat-messages .message-buttons-container .tts-playing {

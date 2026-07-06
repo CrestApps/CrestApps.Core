@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
@@ -24,6 +25,7 @@ namespace CrestApps.Core.AI.Documents.Handlers;
 public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderHandler
 {
     private readonly AIToolDefinitionOptions _toolDefinitions;
+    private readonly ChatDocumentsOptions _documentOptions;
     private readonly ITemplateService _templateService;
     private readonly ILogger<DocumentOrchestrationHandler> _logger;
 
@@ -37,8 +39,25 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         IOptions<AIToolDefinitionOptions> toolDefinitions,
         ITemplateService templateService,
         ILogger<DocumentOrchestrationHandler> logger)
+        : this(toolDefinitions, Options.Create(new ChatDocumentsOptions()), templateService, logger)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentOrchestrationHandler"/> class.
+    /// </summary>
+    /// <param name="toolDefinitions">The tool definitions.</param>
+    /// <param name="documentOptions">The document options.</param>
+    /// <param name="templateService">The template service.</param>
+    /// <param name="logger">The logger.</param>
+    public DocumentOrchestrationHandler(
+        IOptions<AIToolDefinitionOptions> toolDefinitions,
+        IOptions<ChatDocumentsOptions> documentOptions,
+        ITemplateService templateService,
+        ILogger<DocumentOrchestrationHandler> logger)
     {
         _toolDefinitions = toolDefinitions.Value;
+        _documentOptions = documentOptions.Value;
         _templateService = templateService;
         _logger = logger;
     }
@@ -142,8 +161,12 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
 
         // Separate vision images from regular documents so the template can
         // provide appropriate tool usage guidance for each category.
+        var tabularUserSuppliedDocuments = userSuppliedDocuments?
+            .Where(IsTabularDocument)
+            .ToArray();
+
         var searchableUserSuppliedDocuments = userSuppliedDocuments?
-            .Where(document => !IsVisionDocument(document))
+            .Where(document => !IsVisionDocument(document) && !IsTabularDocument(document))
             .ToArray();
 
         var visionUserSuppliedDocuments = userSuppliedDocuments?
@@ -180,7 +203,9 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             ["availableDocuments"] = context.OrchestrationContext.Documents,
             ["knowledgeBaseDocuments"] = hasKnowledgeBaseDocuments ? knowledgeBaseDocuments : [],
             ["userSuppliedDocuments"] = searchableUserSuppliedDocuments ?? [],
+            ["tabularUserSuppliedDocuments"] = tabularUserSuppliedDocuments ?? [],
             ["visionUserSuppliedDocuments"] = visionUserSuppliedDocuments ?? [],
+            ["tabularAgentName"] = TabularDataAgentProvider.AgentName,
             ["isInScope"] = ragMetadata?.IsInScope == true,
         };
 
@@ -223,5 +248,15 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
         }
 
         return MediaTypeHelper.IsVisionImageExtension(Path.GetExtension(document.FileName));
+    }
+
+    private bool IsTabularDocument(ChatDocumentInfo document)
+    {
+        if (document == null)
+        {
+            return false;
+        }
+
+        return _documentOptions.IsTabularFileExtension(document.FileName);
     }
 }

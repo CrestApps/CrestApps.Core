@@ -11,23 +11,32 @@ public sealed class ExtractorExtension : IEquatable<ExtractorExtension>, IEquata
     public string Extension { get; }
 
     /// <summary>
-    /// Gets the embeddable.
+    /// Gets a value indicating whether content for this extension should be vector-embedded.
     /// </summary>
     public bool Embeddable { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the extension represents tabular data that should be
+    /// loaded into the tabular SQL workspace instead of treated as a regular text document.
+    /// </summary>
+    public bool IsTabular { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ExtractorExtension"/> class.
     /// </summary>
     /// <param name="extension">The extension.</param>
-    /// <param name="embeddable">The embeddable.</param>
+    /// <param name="embeddable">Whether content for this extension should be vector-embedded.</param>
+    /// <param name="isTabular">Whether the extension represents tabular data.</param>
     public ExtractorExtension(
         string extension,
-        bool embeddable = true)
+        bool embeddable = true,
+        bool isTabular = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);
-        // Normalize once
+
         Extension = Normalize(extension);
-        Embeddable = embeddable;
+        IsTabular = isTabular;
+        Embeddable = embeddable && !isTabular;
     }
 
     private static string Normalize(string extension)

@@ -13,6 +13,7 @@ public sealed class ChatDocumentsOptions
 
     private readonly HashSet<string> _allowedFileExtensions = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _embeddableFileExtensions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _tabularFileExtensions = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets the allowed File Extensions.
@@ -23,6 +24,11 @@ public sealed class ChatDocumentsOptions
     /// Gets the embeddable File Extensions.
     /// </summary>
     public IReadOnlySet<string> EmbeddableFileExtensions => _embeddableFileExtensions;
+
+    /// <summary>
+    /// Gets the tabular file extensions.
+    /// </summary>
+    public IReadOnlySet<string> TabularFileExtensions => _tabularFileExtensions;
 
     /// <summary>
     /// Gets or sets the maximum total number of image bytes loaded into a single multimodal chat request.
@@ -51,7 +57,7 @@ public sealed class ChatDocumentsOptions
     /// </summary>
     public int MaxInspectImageCallsPerRequest { get; set; } = 2;
 
-    internal void Add(string extension, bool embeddable = true)
+    internal void Add(string extension, bool embeddable = true, bool isTabular = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);
 
@@ -59,7 +65,7 @@ public sealed class ChatDocumentsOptions
 
         _allowedFileExtensions.Add(normalized);
 
-        if (embeddable)
+        if (embeddable && !isTabular)
         {
             _embeddableFileExtensions.Add(normalized);
         }
@@ -67,12 +73,21 @@ public sealed class ChatDocumentsOptions
         {
             _embeddableFileExtensions.Remove(normalized);
         }
+
+        if (isTabular)
+        {
+            _tabularFileExtensions.Add(normalized);
+        }
+        else
+        {
+            _tabularFileExtensions.Remove(normalized);
+        }
     }
 
     internal void Add(ExtractorExtension extension)
     {
         ArgumentNullException.ThrowIfNull(extension);
 
-        Add(extension.Extension, extension.Embeddable);
+        Add(extension.Extension, extension.Embeddable, extension.IsTabular);
     }
 }

@@ -9,6 +9,9 @@ window.chatInteractionManager = function () {
         downloadChartTitle: 'Download chart as image',
         downloadChartButtonText: 'Download',
         codeCopiedText: 'Copied!',
+        copyTitle: 'Click here to copy response to clipboard.',
+        copiedTitle: 'Response copied to clipboard.',
+        copyResetDelayMs: 2000,
         assistantLabel: 'Assistant',
 
         messageTemplate: `
@@ -33,8 +36,8 @@ window.chatInteractionManager = function () {
                                 <button v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
                                     <i :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></i>
                                 </button>
-                                <button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" @click="copyResponse(message)" title="Click here to copy response to clipboard.">
-                                    <i class="fa-solid fa-copy"></i>
+                                <button type="button" class="btn btn-sm btn-link p-0 button-message-toolbox ai-response-copy-btn" :class="copiedMessageIndex === index ? 'text-success' : 'text-secondary'" :data-copy-message-index="index" @click="copyResponse(message, index, $event)" :title="copiedMessageIndex === index ? copiedTitle : copyTitle">
+                                    <i :class="copiedMessageIndex === index ? 'fa-solid fa-check' : 'fa-solid fa-copy'"></i>
                                 </button>
                             </span>
                         </div>
@@ -142,6 +145,7 @@ window.chatInteractionManager = function () {
         normalized.title = normalized.title ?? normalized.Title ?? null;
         normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
         normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
+        normalized.isGenerated = (normalized.isGenerated ?? normalized.IsGenerated) === true;
 
         return normalized;
     }
@@ -183,18 +187,21 @@ window.chatInteractionManager = function () {
     function buildCitationDisplay(content, references) {
         let processedContent = (content || '').trim();
         const messageReferences = normalizeReferences(references);
+        const referenceEntries = Object.entries(messageReferences);
 
-        if (!processedContent || !Object.keys(messageReferences).length) {
+        if (!referenceEntries.length) {
             return { content: processedContent, citations: [] };
         }
 
-        const citedRefs = Object.entries(messageReferences).filter(([key]) => processedContent.includes(key));
+        const citedRefs = referenceEntries.filter(([key]) => processedContent.includes(key));
+        const generatedRefs = referenceEntries.filter(([key, value]) => value.isGenerated && !processedContent.includes(key));
 
-        if (!citedRefs.length) {
+        if (!citedRefs.length && !generatedRefs.length) {
             return { content: processedContent, citations: [] };
         }
 
         citedRefs.sort(([, a], [, b]) => a.index - b.index);
+        generatedRefs.sort(([, a], [, b]) => a.index - b.index);
 
         const citations = [];
         let displayIndex = 1;
@@ -219,6 +226,21 @@ window.chatInteractionManager = function () {
         }
 
         processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+
+        // Generated files (such as exported tabular data) are always offered as a download even when
+        // the model does not cite them inline, so the user never loses access to the produced file.
+        for (const [key, value] of generatedRefs) {
+            citations.push({
+                referenceKey: key,
+                displayIndex: displayIndex,
+                label: getCitationLabel(value, key),
+                link: value.link || null,
+                isDownload: true,
+                placeholder: null,
+            });
+
+            displayIndex++;
+        }
 
         return {
             content: processedContent,
@@ -506,9 +528,18 @@ window.chatInteractionManager = function () {
         return DOMPurify.sanitize(html, { ADD_TAGS: ['canvas'], ADD_ATTR: ['target'] });
     }
 
-    const initialize = (instanceConfig) => {
+    function compactObject(source) {
+        if (!source || typeof source !== 'object') {
+            return {};
+        }
 
-        const config = Object.assign({}, defaultConfig, instanceConfig);
+        return Object.fromEntries(
+            Object.entries(source).filter(([, value]) => value !== undefined)
+        );
+    }
+
+    const initialize = (instanceConfig) => {
+        const config = Object.assign({}, defaultConfig, compactObject(instanceConfig));
         // Keep defaultConfig in sync so renderers use overridden values
         defaultConfig = config;
 
@@ -576,6 +607,11 @@ window.chatInteractionManager = function () {
                     isConversationMode: false,
                     notifications: [],
                     notificationDismissTimers: {},
+                    copyTitle: config.copyTitle,
+                    copiedTitle: config.copiedTitle,
+                    copiedMessageIndex: -1,
+                    copyResetTimeoutId: null,
+                    activeCopyButton: null,
                 };
             },
             computed: {
@@ -1160,6 +1196,40 @@ window.chatInteractionManager = function () {
                         button.setAttribute('title', isPlaying ? 'Pause audio' : 'Read aloud');
                         button.replaceChildren(DOMPurify.sanitize(iconHtml, { RETURN_DOM_FRAGMENT: true }));
                     });
+                },
+                updateCopyButtons() {
+                    if (!this.chatContainer) {
+                        return;
+                    }
+
+                    var buttons = this.chatContainer.querySelectorAll('[data-copy-message-index]');
+
+                    buttons.forEach(button => {
+                        var buttonIndex = Number(button.getAttribute('data-copy-message-index'));
+                        var isCopied = buttonIndex === this.copiedMessageIndex;
+                        var iconHtml = isCopied
+                            ? '<i class="fa-solid fa-check"></i>'
+                            : '<i class="fa-solid fa-copy"></i>';
+
+                        button.classList.toggle('text-success', isCopied);
+                        button.classList.toggle('text-secondary', !isCopied);
+                        button.setAttribute('title', isCopied ? this.copiedTitle : this.copyTitle);
+                        button.replaceChildren(DOMPurify.sanitize(iconHtml, { RETURN_DOM_FRAGMENT: true }));
+                    });
+                },
+                setCopyButtonState(button, isCopied) {
+                    if (!button) {
+                        return;
+                    }
+
+                    var iconHtml = isCopied
+                        ? '<i class="fa-solid fa-check"></i>'
+                        : '<i class="fa-solid fa-copy"></i>';
+
+                    button.classList.toggle('text-success', isCopied);
+                    button.classList.toggle('text-secondary', !isCopied);
+                    button.setAttribute('title', isCopied ? this.copiedTitle : this.copyTitle);
+                    button.replaceChildren(DOMPurify.sanitize(iconHtml, { RETURN_DOM_FRAGMENT: true }));
                 },
                 synthesizeSpeech(text, cacheIndex) {
                     if (!this.textToSpeechEnabled || !text || !this.connection) {
@@ -1880,8 +1950,10 @@ window.chatInteractionManager = function () {
                         });
                     }
 
-                    for (let i = 0; i < config.messages.length; i++) {
-                        this.addMessage(config.messages[i]);
+                    const initialMessages = Array.isArray(config.messages) ? config.messages : [];
+
+                    for (let i = 0; i < initialMessages.length; i++) {
+                        this.addMessage(initialMessages[i]);
                     }
 
                     // Delegate click for code block copy buttons.
@@ -2130,12 +2202,43 @@ window.chatInteractionManager = function () {
                     this.setItemId(itemId);
                     this.isInteractionStarted = true;
                 },
-                copyResponse(message) {
+                clearCopiedMessageState() {
+                    if (this.copyResetTimeoutId) {
+                        window.clearTimeout(this.copyResetTimeoutId);
+                        this.copyResetTimeoutId = null;
+                    }
+
+                    if (this.activeCopyButton) {
+                        this.setCopyButtonState(this.activeCopyButton, false);
+                        this.activeCopyButton = null;
+                    }
+
+                    this.copiedMessageIndex = -1;
+                },
+                copyResponse(message, index, event) {
                     const text = message && typeof message === 'object'
                         ? message.copyContent ?? message.content ?? ''
                         : message ?? '';
+                    const button = event?.currentTarget || event?.target?.closest?.('[data-copy-message-index]') || null;
 
-                    navigator.clipboard.writeText(text);
+                    navigator.clipboard.writeText(text)
+                        .then(() => {
+                            this.clearCopiedMessageState();
+                            this.copiedMessageIndex = typeof index === 'number' ? index : -1;
+                            this.activeCopyButton = button;
+
+                            if (button) {
+                                this.setCopyButtonState(button, true);
+                            } else {
+                                this.$nextTick(() => this.updateCopyButtons());
+                            }
+
+                            this.copyResetTimeoutId = window.setTimeout(() => {
+                                this.clearCopiedMessageState();
+                                this.$nextTick(() => this.updateCopyButtons());
+                            }, Number(config.copyResetDelayMs) || 2000);
+                        })
+                        .catch(err => console.error('Failed to copy response:', err));
                 },
                 startRecording() {
                     if (this.isRecording || !this.connection) {
@@ -2239,6 +2342,9 @@ window.chatInteractionManager = function () {
                             this.inputElement.placeholder = '';
                         }
                     }
+                },
+                copiedMessageIndex() {
+                    this.$nextTick(() => this.updateCopyButtons());
                 }
             },
             mounted() {
@@ -2247,6 +2353,7 @@ window.chatInteractionManager = function () {
                     this.initializeApp();
 
                     this.$nextTick(() => {
+                        this.updateCopyButtons();
                         refreshFontAwesomeIcons(this.$el);
                         this.fontAwesomeObserver = observeFontAwesomeIcons(this.$el);
                     });
@@ -2264,6 +2371,7 @@ window.chatInteractionManager = function () {
                     this.fontAwesomeObserver = null;
                 }
 
+                this.clearCopiedMessageState();
                 this.stopAudio(false);
 
                 if (this.stream) {
@@ -2280,8 +2388,87 @@ window.chatInteractionManager = function () {
         return app;
     };
 
+    const autoInitializeSelector = '[data-chat-interaction-config]';
+
+    function parseJsonAttribute(element, attributeName, description) {
+        const rawValue = element.getAttribute(attributeName);
+        if (!rawValue) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(rawValue);
+        } catch (error) {
+            console.error('Failed to parse ' + description + ' JSON.', error);
+            return null;
+        }
+    }
+
+    function initializeFromElement(element) {
+        if (!element || element.dataset.chatInteractionInitialized === 'true') {
+            return element ? element.__chatInteractionApp || null : null;
+        }
+
+        const config = parseJsonAttribute(element, 'data-chat-interaction-config', 'chat interaction config');
+        if (!config) {
+            return null;
+        }
+
+        const app = initialize(config);
+        if (!app) {
+            return null;
+        }
+
+        element.dataset.chatInteractionInitialized = 'true';
+        element.__chatInteractionApp = app;
+
+        return app;
+    }
+
+    function scanForAutoInitialization(root) {
+        if (!root || typeof root.querySelectorAll !== 'function') {
+            return;
+        }
+
+        if (typeof root.matches === 'function' && root.matches(autoInitializeSelector)) {
+            initializeFromElement(root);
+        }
+
+        root.querySelectorAll(autoInitializeSelector).forEach(initializeFromElement);
+    }
+
+    function startAutoInitialization() {
+        scanForAutoInitialization(document);
+
+        if (typeof MutationObserver === 'undefined') {
+            return;
+        }
+
+        const observer = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => {
+                    if (node && node.nodeType === 1) {
+                        scanForAutoInitialization(node);
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startAutoInitialization, { once: true });
+    } else {
+        startAutoInitialization();
+    }
+
     return {
-        initialize: initialize
+        initialize: initialize,
+        initializeFromElement: initializeFromElement,
     };
 }();
 
@@ -2782,10 +2969,88 @@ window.chatInteractionDocumentManager = function () {
         renderUploadQueue();
         showUploadStatus(null);
         showUploadProgress(null);
+
+        return fileInput[managerStateKey];
+    }
+
+    function parseJsonAttribute(element, attributeName, description) {
+        const rawValue = element.getAttribute(attributeName);
+        if (!rawValue) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(rawValue);
+        } catch (error) {
+            console.error('Failed to parse ' + description + ' JSON.', error);
+            return null;
+        }
+    }
+
+    function initializeFromElement(element) {
+        if (!element || element.dataset.chatInteractionDocumentManagerInitialized === 'true') {
+            return element ? element[managerStateKey] || null : null;
+        }
+
+        const config = parseJsonAttribute(element, 'data-chat-interaction-document-manager-config', 'chat interaction document manager config');
+        if (!config) {
+            return null;
+        }
+
+        const state = initialize(config);
+        if (!state) {
+            return null;
+        }
+
+        element.dataset.chatInteractionDocumentManagerInitialized = 'true';
+
+        return state;
+    }
+
+    function scanForAutoInitialization(root) {
+        if (!root || typeof root.querySelectorAll !== 'function') {
+            return;
+        }
+
+        if (typeof root.matches === 'function' && root.matches('[data-chat-interaction-document-manager-config]')) {
+            initializeFromElement(root);
+        }
+
+        root.querySelectorAll('[data-chat-interaction-document-manager-config]').forEach(initializeFromElement);
+    }
+
+    function startAutoInitialization() {
+        scanForAutoInitialization(document);
+
+        if (typeof MutationObserver === 'undefined') {
+            return;
+        }
+
+        const observer = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => {
+                    if (node && node.nodeType === 1) {
+                        scanForAutoInitialization(node);
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startAutoInitialization, { once: true });
+    } else {
+        startAutoInitialization();
     }
 
     return {
-        initialize: initialize
+        initialize: initialize,
+        initializeFromElement: initializeFromElement,
     };
 }();
 

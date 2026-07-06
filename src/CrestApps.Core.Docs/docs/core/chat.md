@@ -791,23 +791,45 @@ Both widgets require the following libraries to be loaded on the page **before**
 | [highlight.js](https://highlightjs.org/) | Code syntax highlighting | `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js` |
 | [Font Awesome 7](https://fontawesome.com/) | Message action icons and brand icons such as Claude; works with either the CSS/webfont include or the SVG+JS bundle | `https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7/css/all.min.css` |
 
+### Declarative initialization with data attributes
+
+The shared chat scripts auto-initialize from matching `data-*` attributes, so hosts can render markup and load the asset without extra bootstrap code.
+
+The declarative script surface now uses the universal `coreai` prefix for chat and widget attributes.
+
+```html
+<div
+  class="chat-page-shell"
+  data-coreai-chat-signalr-hub-url="/hubs/ai-chat"
+  data-coreai-chat-app-element-selector="#chat-app"
+  data-coreai-chat-container-element-selector="#chat-container"
+  data-coreai-chat-input-element-selector="#chat-input"
+  data-coreai-chat-send-button-element-selector="#send-btn"
+  data-coreai-chat-placeholder-element-selector="#chat-placeholder"
+  data-coreai-chat-messages="[]"
+  data-coreai-chat-mode="TextInput">
+  ...
+</div>
+```
+
+Floating widgets use the same pattern with `data-coreai-chat-widget-*` attributes plus the shared `data-coreai-chat-*` chat attributes on the shell element, while Chat Interactions use `data-chat-interaction-config`, `data-chat-interaction-settings-config`, and `data-chat-interaction-document-manager-config`. The document drop zone can be declared with `data-document-drop-zone-file-input` and `data-document-drop-zone-browse-button`.
+
 ### Widget layout behavior
 
-The AI Chat widget now supports draggable and resizable floating shells through the shared `widget` config. These behaviors are enabled by default for widgets, persist the user-selected position and size in `localStorage`, and can be turned off per host if needed.
+The AI Chat widget supports draggable and resizable floating shells through dedicated widget `data-*` attributes. These behaviors are enabled by default for widgets, persist the user-selected position and size in `localStorage`, and can be turned off per host if needed.
 
-```js
-window.openAIChatManager.initialize({
-    // ... other config ...
-    widget: {
-        chatWidgetContainer: '#widget-panel',
-        chatWidgetStateName: 'support-chat',
-        toggleButtonSelector: '#widget-toggle',
-        resetSizeButtonSelector: '#widget-reset-size',
-        enableDragging: true,
-        enableResizing: true,
-        persistLayout: true
-    }
-});
+```html
+<div
+  id="ai-chat-admin-widget-shell"
+  data-coreai-chat-widget-container-selector="#widget-panel"
+  data-coreai-chat-widget-state-name="support-chat"
+  data-coreai-chat-widget-toggle-button-selector="#widget-toggle"
+  data-coreai-chat-widget-reset-size-button-selector="#widget-reset-size"
+  data-coreai-chat-widget-enable-dragging="true"
+  data-coreai-chat-widget-enable-resizing="true"
+  data-coreai-chat-widget-persist-layout="true">
+  ...
+</div>
 ```
 
 When `enableDragging` is on, both the widget window and its floating toggle button can be repositioned. When `enableResizing` is on, the widget can be resized from the browser resize handle and the optional reset-size button can restore the default dimensions. Set either flag to `false` to opt out for a specific host.
@@ -816,14 +838,10 @@ When `enableDragging` is on, both the widget window and its floating toggle butt
 
 When a text-to-speech (TTS) deployment is configured, each completed assistant message shows a play icon that reads the message aloud via server-side speech synthesis. Clicking the icon calls `SynthesizeSpeech` on the SignalR hub, which streams audio chunks back to the client and plays them as MP3. While audio is active, the icon switches to pause, the action buttons stay anchored at the bottom-right of the message just above the divider, and starting playback on a different message automatically stops the current player.
 
-To enable this feature, pass `textToSpeechEnabled: true` in the widget initialization config:
-
-```js
-window.openAIChatManager.initialize({
-    // ... other config ...
-    textToSpeechEnabled: true,
-    ttsVoiceName: 'alloy' // optional voice name override
-});
-```
+To enable this feature, set `data-coreai-chat-text-to-speech-enabled="true"` and optionally `data-coreai-chat-tts-voice-name="alloy"` on the chat or widget shell element.
 
 The play icon appears on completed assistant messages when a TTS deployment is available on the server. In Conversation mode, the per-message playback icon is hidden so the live voice exchange is not interrupted by manual playback controls.
+
+### Copy confirmation feedback
+
+Assistant-message copy buttons now briefly switch to a green success checkmark before returning to the normal copy icon, giving users immediate confirmation that the response was copied.

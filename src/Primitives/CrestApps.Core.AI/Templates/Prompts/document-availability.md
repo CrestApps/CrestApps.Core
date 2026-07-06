@@ -5,6 +5,7 @@ Parameters:
   - tools: array of AIToolDefinitionEntry objects for document processing tools available.
   - knowledgeBaseDocuments: array of profile-level ChatDocumentInfo objects that are hidden background knowledge.
   - userSuppliedDocuments: array of non-image session/user-level ChatDocumentInfo objects that are user-visible uploads/attachments.
+  - tabularUserSuppliedDocuments: array of tabular session/user-level ChatDocumentInfo objects handled by the Tabular Data Agent.
   - visionUserSuppliedDocuments: array of image session/user-level ChatDocumentInfo objects with text analysis available via document tools.
 IsListable: false
 Category: Documents
@@ -14,6 +15,7 @@ Category: Documents
 
 {% assign hasDocumentTools = tools.size > 0 %}
 {% assign hasVisionUserSuppliedDocuments = visionUserSuppliedDocuments.size > 0 %}
+{% assign hasTabularUserSuppliedDocuments = tabularUserSuppliedDocuments.size > 0 %}
 {% assign hasUserSuppliedDocuments = userSuppliedDocuments.size > 0 %}
 {% assign hasKnowledgeBaseDocuments = knowledgeBaseDocuments.size > 0 %}
 
@@ -26,6 +28,16 @@ Use `inspect_image` only when you need pixel-level detail that the text analysis
 
 ### Available image attachments:
 {% for doc in visionUserSuppliedDocuments %}
+- {{ doc.DocumentId }}: "{{ doc.FileName }}" ({{ doc.ContentType | default: "unknown" }}, {{ doc.FileSize }} bytes)
+{% endfor %}
+{% endif %}
+
+{% if hasTabularUserSuppliedDocuments %}
+The user has uploaded the following tabular data files.
+Use the `{{ tabularAgentName | default: "tabular-data-agent" }}` agent for spreadsheet/table tasks, including summaries, row counts, column descriptions, filtering, calculations, percentages, aggregates, transformations, and any question that references a column name or code. Do not answer tabular-data questions from document text alone; delegate to the tabular agent so it can inspect the SQL workspace and run queries.
+
+### Available tabular files:
+{% for doc in tabularUserSuppliedDocuments %}
 - {{ doc.DocumentId }}: "{{ doc.FileName }}" ({{ doc.ContentType | default: "unknown" }}, {{ doc.FileSize }} bytes)
 {% endfor %}
 {% endif %}

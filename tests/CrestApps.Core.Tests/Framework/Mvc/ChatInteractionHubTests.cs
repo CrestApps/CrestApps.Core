@@ -181,6 +181,79 @@ public sealed class ChatInteractionHubTests
         Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.", message);
     }
 
+    [Fact]
+    public async Task ClearHistory_DeletesPromptsAndInvokesHistoryHandlers()
+    {
+        // Arrange
+        var interaction = new ChatInteraction
+        {
+            ItemId = "chat-3",
+            Title = "Chat with generated files",
+        };
+
+        var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
+        managerMock.Setup(manager => manager
+            .FindByIdAsync(interaction.ItemId))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
+
+        var prompts = new List<ChatInteractionPrompt>
+        {
+            new()
+            {
+                ItemId = "prompt-1",
+                ChatInteractionId = interaction.ItemId,
+                References = new Dictionary<string, AICompletionReference>
+                {
+                    ["[doc:1]"] = new() { ReferenceId = "gen-1", IsGenerated = true },
+                },
+            },
+        };
+
+        var promptStoreMock = new Mock<IChatInteractionPromptStore>();
+        promptStoreMock
+            .Setup(store => store.GetPromptsAsync(interaction.ItemId))
+            .ReturnsAsync(prompts);
+        promptStoreMock
+            .Setup(store => store.DeleteAllPromptsAsync(interaction.ItemId))
+            .ReturnsAsync(prompts.Count);
+
+        var historyHandlerMock = new Mock<IChatInteractionHistoryHandler>();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(managerMock.Object)
+            .AddSingleton(promptStoreMock.Object)
+            .AddSingleton(historyHandlerMock.Object)
+            .BuildServiceProvider();
+
+        var callerMock = new Mock<IChatInteractionHubClient>();
+        callerMock.Setup(client => client.HistoryCleared(interaction.ItemId))
+            .Returns(Task.CompletedTask);
+
+        var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
+        clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+
+        var hub = new ChatInteractionHub(
+            serviceProvider,
+            TimeProvider.System,
+            CreateCitationCollector(),
+            CreateSiteSettingsStore(),
+            NullLogger<ChatInteractionHub>.Instance)
+        {
+            Clients = clientsMock.Object,
+        };
+
+        // Act
+        await hub.ClearHistory(interaction.ItemId);
+
+        // Assert
+        promptStoreMock.Verify(store => store.GetPromptsAsync(interaction.ItemId), Times.Once);
+        promptStoreMock.Verify(store => store.DeleteAllPromptsAsync(interaction.ItemId), Times.Once);
+        historyHandlerMock.Verify(
+            handler => handler.HistoryClearedAsync(interaction, prompts, It.IsAny<CancellationToken>()),
+            Times.Once);
+        callerMock.Verify(client => client.HistoryCleared(interaction.ItemId), Times.Once);
+    }
+
     private static CitationReferenceCollector CreateCitationCollector()
     {
         return new(new CompositeAIReferenceLinkResolver(new ServiceCollection().BuildServiceProvider()));

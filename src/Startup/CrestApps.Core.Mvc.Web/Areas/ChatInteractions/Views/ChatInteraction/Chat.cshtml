@@ -90,6 +90,14 @@
         margin: 0 !important;
         padding: 0 !important;
         border-radius: 50%;
+        text-decoration: none !important;
+    }
+    .ai-chat-messages .message-buttons-container > .button-message-toolbox:hover,
+    .ai-chat-messages .message-buttons-container > .button-message-toolbox:focus,
+    .ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success,
+    .ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success:hover,
+    .ai-chat-messages .message-buttons-container > .button-message-toolbox.text-success:focus {
+        text-decoration: none !important;
     }
     .ai-chat-messages .message-buttons-container > .tts-playing {
         color: var(--bs-primary, #0d6efd) !important;
@@ -542,7 +550,7 @@
 
                         <div class="mb-2">
                             <label class="form-label" id="chat-doc-upload-label"><i class="bi bi-paperclip"></i> @uploadLabel</label>
-                            <div class="document-drop-zone" id="chat-doc-drop-zone">
+                            <div class="document-drop-zone" id="chat-doc-drop-zone" data-document-drop-zone-file-input="#chat-doc-upload" data-document-drop-zone-browse-button="#chat-doc-browse">
                                 <input type="file" class="d-none" id="chat-doc-upload" multiple
                                        accept="@supportedExtensionsAccept" />
                                 <div class="document-drop-zone__body">
@@ -854,6 +862,36 @@
                 return reference.title || reference.text || key;
             }
 
+            function getDownloadReferences(messageReferences) {
+                return Object.entries(messageReferences).filter(function (entry) {
+                    return isDownloadCitationReference(entry[1]);
+                });
+            }
+
+            function replaceGeneratedMarkdownLinks(content, downloadReferences) {
+                if (!content || !Array.isArray(downloadReferences) || !downloadReferences.length) {
+                    return content;
+                }
+
+                var normalizedReferences = downloadReferences.map(function (entry) {
+                    return {
+                        key: entry[0],
+                        label: (getCitationLabel(entry[1], entry[0]) || '').trim().toLowerCase()
+                    };
+                });
+
+                return content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (match, label, url) {
+                    var normalizedLabel = (label || '').trim().toLowerCase();
+                    var normalizedUrl = (url || '').trim().toLowerCase();
+                    var matchedReference = normalizedReferences.find(function (entry) {
+                        return (normalizedLabel && normalizedLabel === entry.label) ||
+                            normalizedUrl.startsWith('sandbox:/mnt/data/');
+                    });
+
+                    return matchedReference ? matchedReference.key : label;
+                });
+            }
+
             function formatMessageContent(content, references) {
                 var processedContent = (content || '').trim();
                 var messageReferences = normalizeReferences(references);
@@ -862,12 +900,21 @@
                     return { content: processedContent, citations: [] };
                 }
 
+                var downloadReferences = getDownloadReferences(messageReferences);
+                processedContent = replaceGeneratedMarkdownLinks(processedContent, downloadReferences);
+
                 var citedRefs = Object.entries(messageReferences).filter(function (entry) {
                     return processedContent.includes(entry[0]);
                 });
 
                 if (!citedRefs.length) {
-                    return { content: processedContent, citations: [] };
+                    if (downloadReferences.length) {
+                        processedContent = (processedContent + ' ' + downloadReferences.map(function (entry) { return entry[0]; }).join(' ')).trim();
+                        citedRefs = downloadReferences;
+                    }
+                    else {
+                        return { content: processedContent, citations: [] };
+                    }
                 }
 
                 citedRefs.sort(function (a, b) {
@@ -1502,10 +1549,46 @@
                         var container = document.getElementById('chat-container');
                         if (container) container.scrollTop = container.scrollHeight;
                     },
-                    copyResponse: function (message) {
+                    setCopyButtonState: function (button, isCopied) {
+                        if (!button) {
+                            return;
+                        }
+
+                        var icon = document.createElement('i');
+                        icon.className = isCopied ? 'fa-solid fa-check' : 'fa-solid fa-copy';
+                        button.classList.toggle('text-success', isCopied);
+                        button.classList.toggle('text-secondary', !isCopied);
+                        button.title = isCopied ? 'Response copied' : 'Copy response';
+                        button.replaceChildren(icon);
+                    },
+                    clearCopiedButton: function () {
+                        if (this.copyResetTimeoutId) {
+                            clearTimeout(this.copyResetTimeoutId);
+                            this.copyResetTimeoutId = null;
+                        }
+
+                        if (this.activeCopyButton) {
+                            this.setCopyButtonState(this.activeCopyButton, false);
+                            this.activeCopyButton = null;
+                        }
+                    },
+                    copyResponse: function (message, event) {
+                        var self = this;
+                        var button = event && event.currentTarget ? event.currentTarget : null;
                         navigator.clipboard.writeText(message && typeof message === 'object'
                             ? (message.copyContent || message.content || '')
-                            : (message || ''));
+                            : (message || ''))
+                            .then(function () {
+                                self.clearCopiedButton();
+                                self.activeCopyButton = button;
+                                self.setCopyButtonState(button, true);
+                                self.copyResetTimeoutId = setTimeout(function () {
+                                    self.clearCopiedButton();
+                                }, 2000);
+                            })
+                            .catch(function (error) {
+                                console.error('Failed to copy response:', error);
+                            });
                     },
                     toggleMessageTts: function (message, index) {
                         if (this.ttsPlayingMessageIndex === index) {
@@ -1545,7 +1628,9 @@
                         messages: existingMessages.map(function (m) {
                             return createChatMessage(m.role, m.content, false, false, m.references || m.References);
                         }),
-                        ttsPlayingMessageIndex: -1
+                        ttsPlayingMessageIndex: -1,
+                        activeCopyButton: null,
+                        copyResetTimeoutId: null
                     };
                 },
                 template:
@@ -1574,8 +1659,8 @@
                                                 '<i :class="ttsPlayingMessageIndex === index ? \'bi bi-pause-circle-fill\' : \'bi bi-play-circle-fill\'"></i>' +
                                               '</button>'
                                             : '') +
-                                        '<button class="btn btn-sm btn-link text-secondary p-0" v-on:click="copyResponse(message)" title="Copy response">' +
-                                            '<i class="bi bi-clipboard"></i>' +
+                                        '<button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" v-on:click="copyResponse(message, $event)" title="Copy response">' +
+                                            '<i class="fa-solid fa-copy"></i>' +
                                         '</button>' +
                                     '</span>' +
                                 '</div>' +
@@ -1908,12 +1993,6 @@
             var sendBtn = document.getElementById('send-btn');
             var documentUploadInput = document.getElementById('chat-doc-upload');
             var placeholder = document.getElementById('chat-placeholder');
-
-            initDocumentDropZone({
-                dropZone: '#chat-doc-drop-zone',
-                fileInput: '#chat-doc-upload',
-                browseButton: '#chat-doc-browse'
-            });
 
             function sendMessage() {
                 if (isConversationMode) {

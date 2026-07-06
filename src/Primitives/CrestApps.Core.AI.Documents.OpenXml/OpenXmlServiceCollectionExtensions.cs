@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.Builders;
@@ -20,8 +21,12 @@ public static class OpenXmlServiceCollectionExtensions
 
         services.AddCoreAIIngestionDocumentReader<OpenXmlIngestionDocumentReader>(
             ".docx",
-            new ExtractorExtension(".xlsx", false),
+            new ExtractorExtension(".xlsx", embeddable: false, isTabular: true),
             ".pptx");
+
+        // Register Open XML output writers so generated files and tabular exports can target xlsx/docx.
+        services.AddGeneratedFileWriter<SpreadsheetGeneratedFileWriter>(".xlsx");
+        services.AddGeneratedFileWriter<WordGeneratedFileWriter>(".docx");
 
         return services;
     }
