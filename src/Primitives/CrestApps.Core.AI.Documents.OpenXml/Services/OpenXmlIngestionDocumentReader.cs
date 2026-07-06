@@ -37,28 +37,44 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
 
         var document = new IngestionDocument(identifier);
 
+        MemoryStream buffer = null;
+        var workingStream = source;
+
         if (source.CanSeek)
         {
             source.Position = 0;
         }
-
-        await using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, cancellationToken);
-        buffer.Position = 0;
+        else
+        {
+            buffer = new MemoryStream();
+            await source.CopyToAsync(buffer, cancellationToken);
+            buffer.Position = 0;
+            workingStream = buffer;
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var section = mediaType switch
+        try
         {
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ExtractWord(buffer, cancellationToken),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ExtractExcel(buffer, cancellationToken),
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation" => ExtractPowerPoint(buffer, cancellationToken),
-            _ => null,
-        };
+            var section = mediaType switch
+            {
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ExtractWord(workingStream, cancellationToken),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ExtractExcel(workingStream, cancellationToken),
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation" => ExtractPowerPoint(workingStream, cancellationToken),
+                _ => null,
+            };
 
-        if (section != null)
+            if (section != null)
+            {
+                document.Sections.Add(section);
+            }
+        }
+        finally
         {
-            document.Sections.Add(section);
+            if (buffer != null)
+            {
+                await buffer.DisposeAsync();
+            }
         }
 
         return document;

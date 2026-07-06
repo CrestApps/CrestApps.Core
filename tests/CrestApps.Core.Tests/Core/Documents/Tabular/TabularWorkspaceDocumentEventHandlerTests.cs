@@ -13,7 +13,7 @@ namespace CrestApps.Core.Tests.Core.Documents.Tabular;
 public sealed class TabularWorkspaceDocumentEventHandlerTests
 {
     [Fact]
-    public async Task UploadedAsync_TabularDocument_SavesArtifact()
+    public async Task UploadedAsync_TabularDocument_DoesNotSaveArtifact()
     {
         var artifactStore = new Mock<ITabularDocumentArtifactStore>();
         var handler = CreateHandler(artifactStore);
@@ -36,8 +36,8 @@ public sealed class TabularWorkspaceDocumentEventHandlerTests
         }, TestContext.Current.CancellationToken);
 
         artifactStore.Verify(
-            store => store.SaveAsync("doc-1", It.IsAny<TabularDocumentArtifact>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            store => store.SaveAsync(It.IsAny<string>(), It.IsAny<TabularDocumentArtifact>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.AI.Documents.Tabular;
 
@@ -16,11 +19,13 @@ namespace CrestApps.Core.AI.Documents.Tabular;
 internal sealed class TabularWorkspace : IDisposable
 {
     private const string MetadataTableName = "_workspace_meta";
+    private const int ImportProgressIntervalRows = 250;
 
     private static readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly TabularWorkspaceOptions _options;
     private readonly string _databasePath;
+    private readonly ILogger<TabularWorkspace> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, LoadedTable> _tables = new(StringComparer.Ordinal);
     private int _mutationVersion;
@@ -37,10 +42,12 @@ internal sealed class TabularWorkspace : IDisposable
     /// </param>
     public TabularWorkspace(
         TabularWorkspaceOptions options,
-        string databasePath = null)
+        string databasePath = null,
+        ILogger<TabularWorkspace> logger = null)
     {
         _options = options;
         _databasePath = databasePath;
+        _logger = logger ?? NullLogger<TabularWorkspace>.Instance;
     }
 
     /// <summary>
@@ -65,6 +72,7 @@ internal sealed class TabularWorkspace : IDisposable
             async (document, token) => TabularDocumentArtifact.FromDelimitedContent(
                 await contentLoader(document.DocumentId, token),
                 document.FileName),
+            workspaceImporter: null,
             cancellationToken);
     }
 
@@ -81,6 +89,7 @@ internal sealed class TabularWorkspace : IDisposable
     public async Task<IReadOnlyList<TabularTableInfo>> EnsureReadyAsync(
         IReadOnlyList<TabularDocumentRef> documents,
         Func<TabularDocumentRef, CancellationToken, Task<TabularDocumentArtifact>> artifactLoader,
+        Func<TabularDocumentRef, SqliteConnection, string, CancellationToken, Task<TabularWorkspaceImportResult>> workspaceImporter,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(documents);
@@ -90,6 +99,7 @@ internal sealed class TabularWorkspace : IDisposable
 
         try
         {
+            var stopwatch = Stopwatch.StartNew();
             _connection ??= OpenConnection();
 
             if (_tables.Count == 0)
@@ -99,7 +109,16 @@ internal sealed class TabularWorkspace : IDisposable
 
             var desiredTableNames = ComputeTableNames(documents);
 
-            await SynchronizeTablesAsync(documents, desiredTableNames, artifactLoader, cancellationToken);
+            await SynchronizeTablesAsync(documents, desiredTableNames, artifactLoader, workspaceImporter, cancellationToken);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Tabular workspace ready with {LoadedTableCount} loaded table(s) for {RequestedDocumentCount} requested document(s) in {ElapsedMilliseconds} ms.",
+                    _tables.Count,
+                    documents.Count,
+                    stopwatch.ElapsedMilliseconds);
+            }
 
             return BuildTableInfos();
         }
@@ -506,23 +525,72 @@ internal sealed class TabularWorkspace : IDisposable
         IReadOnlyList<TabularDocumentRef> documents,
         Dictionary<string, string> desiredTableNames,
         Func<TabularDocumentRef, CancellationToken, Task<TabularDocumentArtifact>> artifactLoader,
+        Func<TabularDocumentRef, SqliteConnection, string, CancellationToken, Task<TabularWorkspaceImportResult>> workspaceImporter,
         CancellationToken cancellationToken)
     {
         foreach (var document in documents)
         {
             if (_tables.ContainsKey(document.DocumentId))
             {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Skipping tabular document '{DocumentId}' because table '{TableName}' is already loaded.",
+                        document.DocumentId,
+                        _tables[document.DocumentId].TableName);
+                }
+
                 continue;
             }
 
             var tableName = desiredTableNames[document.DocumentId];
-            var artifact = await artifactLoader(document, cancellationToken);
+            var importStopwatch = Stopwatch.StartNew();
+            var importResult = workspaceImporter == null
+                ? null
+                : await workspaceImporter(document, _connection, tableName, cancellationToken);
+            TabularDocumentArtifact artifact = null;
+            IReadOnlyList<TabularColumnInfo> columns;
+            int insertCommandCount;
+            int rowsPerBatch;
+            long loadedRowCount;
+            var loadStopwatch = Stopwatch.StartNew();
 
-            var columns = CreateTable(_connection, tableName, artifact);
+            if (importResult != null)
+            {
+                loadStopwatch.Stop();
+                columns = importResult.Columns;
+                insertCommandCount = importResult.InsertCommandCount;
+                rowsPerBatch = importResult.RowsPerBatch;
+                loadedRowCount = importResult.RowCount;
+            }
+            else
+            {
+                artifact = await artifactLoader(document, cancellationToken);
+                loadStopwatch.Stop();
+                columns = CreateTable(_connection, tableName, artifact, out insertCommandCount, out rowsPerBatch, cancellationToken);
+                loadedRowCount = artifact?.Rows?.Count ?? 0;
+            }
+
+            importStopwatch.Stop();
+
             var sourceNames = columns.ToDictionary(c => c.Name, c => c.SourceName, StringComparer.OrdinalIgnoreCase);
             _tables[document.DocumentId] = new LoadedTable(tableName, document.FileName, sourceNames);
 
             SaveMetadataEntry(document.DocumentId, tableName, document.FileName, sourceNames);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Loaded tabular document '{FileName}' into table '{TableName}' with {ColumnCount} column(s), {RowCount} row(s), batch size {RowsPerBatch}, and {InsertCommandCount} insert command execution(s) in {ArtifactLoadMilliseconds} ms load + {ImportMilliseconds} ms import.",
+                    document.FileName,
+                    tableName,
+                    columns.Count,
+                    loadedRowCount,
+                    rowsPerBatch,
+                    insertCommandCount,
+                    loadStopwatch.ElapsedMilliseconds,
+                    importStopwatch.ElapsedMilliseconds);
+            }
         }
     }
 
@@ -548,6 +616,13 @@ internal sealed class TabularWorkspace : IDisposable
 
         var connection = new SqliteConnection(connectionString);
         connection.Open();
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Opened tabular workspace database at '{DatabasePath}'.",
+                string.IsNullOrEmpty(_databasePath) ? ":memory:" : _databasePath);
+        }
 
         using var walCommand = connection.CreateCommand();
         walCommand.CommandText = "PRAGMA journal_mode=WAL";
@@ -591,6 +666,11 @@ internal sealed class TabularWorkspace : IDisposable
 
             _tables[documentId] = new LoadedTable(tableName, fileName, sourceNames);
         }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Loaded {TableCount} tabular workspace metadata entr{Suffix} from the database.", _tables.Count, _tables.Count == 1 ? "y" : "ies");
+        }
     }
 
     private void SaveMetadataEntry(string documentId, string tableName, string fileName, IReadOnlyDictionary<string, string> sourceNames)
@@ -607,11 +687,19 @@ internal sealed class TabularWorkspace : IDisposable
         command.ExecuteNonQuery();
     }
 
-    private static List<TabularColumnInfo> CreateTable(SqliteConnection connection, string tableName, TabularDocumentArtifact artifact)
+    private List<TabularColumnInfo> CreateTable(
+        SqliteConnection connection,
+        string tableName,
+        TabularDocumentArtifact artifact,
+        out int insertCommandCount,
+        out int rowsPerBatch,
+        CancellationToken cancellationToken)
     {
         artifact ??= new TabularDocumentArtifact();
         var header = artifact.Header ?? [];
         var rows = artifact.Rows ?? [];
+        insertCommandCount = 0;
+        rowsPerBatch = 0;
 
         if (header.Count == 0)
         {
@@ -638,41 +726,105 @@ internal sealed class TabularWorkspace : IDisposable
             return columns;
         }
 
-        InsertRows(connection, tableName, columnNames, rows);
+        insertCommandCount = InsertRows(connection, tableName, columnNames, rows, out rowsPerBatch, cancellationToken);
 
         return columns;
     }
 
-    private static void InsertRows(SqliteConnection connection, string tableName, List<string> columns, IReadOnlyList<IReadOnlyList<string>> rows)
+    private int InsertRows(
+        SqliteConnection connection,
+        string tableName,
+        List<string> columns,
+        List<List<string>> rows,
+        out int rowsPerBatch,
+        CancellationToken cancellationToken)
     {
+        rowsPerBatch = 1;
+        var stopwatch = Stopwatch.StartNew();
+        var columnList = string.Join(", ", columns.Select(QuoteIdentifier));
         using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
 
-        var columnList = string.Join(", ", columns.Select(QuoteIdentifier));
-        var parameterList = string.Join(", ", columns.Select((_, i) => $"$p{i}"));
-        command.CommandText = $"INSERT INTO {QuoteIdentifier(tableName)} ({columnList}) VALUES ({parameterList})";
+        var parameterNames = new string[columns.Count];
 
-        var parameters = new SqliteParameter[columns.Count];
-
-        for (var i = 0; i < columns.Count; i++)
+        for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
         {
-            parameters[i] = command.CreateParameter();
-            parameters[i].ParameterName = $"$p{i}";
-            command.Parameters.Add(parameters[i]);
+            var parameterName = $"$p{columnIndex}";
+            parameterNames[columnIndex] = parameterName;
+
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = parameterName;
+            parameter.Value = DBNull.Value;
+            command.Parameters.Add(parameter);
         }
 
-        foreach (var row in rows)
+        command.CommandText = $"INSERT INTO {QuoteIdentifier(tableName)} ({columnList}) VALUES ({string.Join(", ", parameterNames)})";
+        command.Prepare();
+
+        if (_logger.IsEnabled(LogLevel.Debug))
         {
-            for (var i = 0; i < columns.Count; i++)
+            _logger.LogDebug(
+                "Starting SQLite import for table '{TableName}' with {ColumnCount} column(s), {RowCount} row(s), and prepared batch size {RowsPerBatch}.",
+                tableName,
+                columns.Count,
+                rows.Count,
+                rowsPerBatch);
+        }
+
+        var insertCommandCount = 0;
+
+        try
+        {
+            for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             {
-                parameters[i].Value = i < row.Count ? (object)(row[i] ?? string.Empty) : DBNull.Value;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var row = rows[rowIndex];
+
+                for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
+                {
+                    command.Parameters[columnIndex].Value = columnIndex < row.Count
+                        ? (object)(row[columnIndex] ?? string.Empty)
+                        : DBNull.Value;
+                }
+
+                command.ExecuteNonQuery();
+                insertCommandCount++;
+
+                if (_logger.IsEnabled(LogLevel.Debug) &&
+                    ((rowIndex + 1) % ImportProgressIntervalRows == 0 || rowIndex == rows.Count - 1))
+                {
+                    _logger.LogDebug(
+                        "SQLite import for table '{TableName}' processed {ProcessedRowCount}/{TotalRowCount} row(s) in {ElapsedMilliseconds} ms.",
+                        tableName,
+                        rowIndex + 1,
+                        rows.Count,
+                        stopwatch.ElapsedMilliseconds);
+                }
             }
 
-            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+
+            throw;
         }
 
-        transaction.Commit();
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Completed SQLite import for table '{TableName}' with {RowCount} row(s), batch size {RowsPerBatch}, and {InsertCommandCount} insert command execution(s) in {ElapsedMilliseconds} ms.",
+                tableName,
+                rows.Count,
+                rowsPerBatch,
+                insertCommandCount,
+                stopwatch.ElapsedMilliseconds);
+        }
+
+        return insertCommandCount;
     }
 
     private List<TabularTableInfo> BuildTableInfos()
@@ -914,4 +1066,5 @@ internal sealed class TabularWorkspace : IDisposable
 
         public IReadOnlyDictionary<string, string> SourceNames { get; }
     }
+
 }

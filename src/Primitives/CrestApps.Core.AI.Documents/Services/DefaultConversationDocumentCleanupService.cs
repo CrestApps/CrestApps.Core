@@ -1,10 +1,10 @@
+using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.AI.Documents.Services;
 

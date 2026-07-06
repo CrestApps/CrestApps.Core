@@ -100,7 +100,7 @@ public static class ChatDocumentsOptionsExtensions
             return false;
         }
 
-        var extension = System.IO.Path.GetExtension(fileNameOrExtension);
+        var extension = Path.GetExtension(fileNameOrExtension);
 
         if (string.IsNullOrEmpty(extension))
         {

@@ -13,6 +13,7 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
 {
     private readonly IEnumerable<INamedCatalogSource<T>> _sources;
     private readonly IWritableNamedCatalogSource<T>? _writableSource;
+    private IReadOnlyCollection<T>? _cachedEntries;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MultiSourceNamedCatalog"/> class.
@@ -95,11 +96,18 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// </summary>
     /// <param name="entry">The entry.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> DeleteAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource!.DeleteAsync(entry, cancellationToken);
+        var deleted = await _writableSource!.DeleteAsync(entry, cancellationToken);
+
+        if (deleted)
+        {
+            InvalidateCache();
+        }
+
+        return deleted;
     }
 
     /// <summary>
@@ -107,11 +115,13 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// </summary>
     /// <param name="entry">The entry.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default)
+    public async ValueTask CreateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource!.CreateAsync(entry, cancellationToken);
+        await _writableSource!.CreateAsync(entry, cancellationToken);
+
+        InvalidateCache();
     }
 
     /// <summary>
@@ -119,11 +129,13 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// </summary>
     /// <param name="entry">The entry.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public ValueTask UpdateAsync(T entry, CancellationToken cancellationToken = default)
+    public async ValueTask UpdateAsync(T entry, CancellationToken cancellationToken = default)
     {
         EnsureWritableSource();
 
-        return _writableSource!.UpdateAsync(entry, cancellationToken);
+        await _writableSource!.UpdateAsync(entry, cancellationToken);
+
+        InvalidateCache();
     }
 
     /// <summary>
@@ -172,6 +184,11 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
     /// <param name="cancellationToken">The cancellation token.</param>
     protected async ValueTask<IReadOnlyCollection<T>> GetMergedEntriesAsync(CancellationToken cancellationToken = default)
     {
+        if (_cachedEntries is not null)
+        {
+            return _cachedEntries;
+        }
+
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var merged = new List<T>();
 
@@ -190,7 +207,17 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
             }
         }
 
-        return merged;
+        _cachedEntries = merged.ToArray();
+
+        return _cachedEntries;
+    }
+
+    /// <summary>
+    /// Invalidates the scoped merged-entry cache so subsequent reads observe writes.
+    /// </summary>
+    protected virtual void InvalidateCache()
+    {
+        _cachedEntries = null;
     }
 
     /// <summary>

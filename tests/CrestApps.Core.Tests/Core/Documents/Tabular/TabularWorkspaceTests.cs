@@ -22,6 +22,36 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task EnsureReadyAsync_DirectImporter_BypassesArtifactLoader()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        var tables = await workspace.EnsureReadyAsync(
+            Documents(),
+            (_, _) => throw new Xunit.Sdk.XunitException("Artifact loader should not run when direct importer succeeds."),
+            (document, connection, tableName, _) =>
+            {
+                var columns = TabularWorkspaceSqliteHelpers.BuildColumns(["region", "amount"]);
+                TabularWorkspaceSqliteHelpers.CreateTable(connection, tableName, columns);
+
+                using var command = connection.CreateCommand();
+                command.CommandText = $"INSERT INTO {TabularWorkspaceSqliteHelpers.QuoteIdentifier(tableName)} (\"region\", \"amount\") VALUES ('North', '100'), ('South', '200')";
+                command.ExecuteNonQuery();
+
+                return Task.FromResult(new TabularWorkspaceImportResult(columns, 2, 1, 1));
+            },
+            cancellationToken);
+
+        var table = Assert.Single(tables);
+        Assert.Equal(2, table.RowCount);
+
+        var result = await workspace.QueryAsync("SELECT region, amount FROM sales ORDER BY region", 100, cancellationToken);
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal("North", result.Rows[0][0]);
+        Assert.Equal("100", result.Rows[0][1]);
+    }
+
+    [Fact]
     public async Task QueryAsync_RunsAggregation()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

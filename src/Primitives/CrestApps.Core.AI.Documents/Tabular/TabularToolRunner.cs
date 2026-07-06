@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Tabular;
@@ -32,6 +34,7 @@ internal static class TabularToolRunner
     /// <returns>The preparation result.</returns>
     public static async Task<PreparationResult> PrepareAsync(IServiceProvider services, CancellationToken cancellationToken = default)
     {
+        var logger = services.GetService<ILoggerFactory>()?.CreateLogger(typeof(TabularToolRunner).FullName);
         var context = await TabularToolContext.ResolveAsync(services, cancellationToken);
 
         if (context is null)
@@ -45,8 +48,23 @@ internal static class TabularToolRunner
         }
 
         var options = services.GetRequiredService<IOptions<TabularWorkspaceOptions>>().Value;
-        var workspace = new TabularWorkspace(options, context.DatabasePath);
-        var tables = await workspace.EnsureReadyAsync(context.Documents, context.LoadArtifactAsync, cancellationToken);
+        var workspaceLogger = services.GetRequiredService<ILogger<TabularWorkspace>>();
+        var workspace = new TabularWorkspace(options, context.DatabasePath, workspaceLogger);
+        var stopwatch = Stopwatch.StartNew();
+        var tables = await workspace.EnsureReadyAsync(
+            context.Documents,
+            context.LoadArtifactAsync,
+            context.ImportToWorkspaceAsync,
+            cancellationToken);
+
+        if (logger?.IsEnabled(LogLevel.Debug) == true)
+        {
+            logger.LogDebug(
+                "Prepared tabular workspace for {DocumentCount} document(s) with {TableCount} table(s) in {ElapsedMilliseconds} ms.",
+                context.Documents.Count,
+                tables.Count,
+                stopwatch.ElapsedMilliseconds);
+        }
 
         return new PreparationResult(workspace, tables, context, null);
     }

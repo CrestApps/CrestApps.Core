@@ -28,12 +28,7 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
 
     public Task UploadedAsync(AIChatDocumentUploadContext context, CancellationToken cancellationToken = default)
     {
-        if (context?.UploadedDocuments is null)
-        {
-            return Task.CompletedTask;
-        }
-
-        return UploadedCoreAsync(context, cancellationToken);
+        return Task.CompletedTask;
     }
 
     public async Task RemovedAsync(AIChatDocumentRemoveContext context, CancellationToken cancellationToken = default)
@@ -42,21 +37,6 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
         {
             await _artifactStore.DeleteAsync(context.DocumentInfo.DocumentId, cancellationToken);
             TryDropDocumentTable(context.ReferenceType, context.ReferenceId, context.DocumentInfo.DocumentId);
-        }
-    }
-
-    private async Task UploadedCoreAsync(AIChatDocumentUploadContext context, CancellationToken cancellationToken)
-    {
-        foreach (var uploadedDocument in context.UploadedDocuments)
-        {
-            if (!IsTabular(uploadedDocument.DocumentInfo))
-            {
-                continue;
-            }
-
-            var content = string.Concat(uploadedDocument.Chunks.OrderBy(chunk => chunk.Index).Select(chunk => chunk.Content));
-            var artifact = TabularDocumentArtifact.FromDelimitedContent(content, uploadedDocument.DocumentInfo.FileName);
-            await _artifactStore.SaveAsync(uploadedDocument.DocumentInfo.DocumentId, artifact, cancellationToken);
         }
     }
 
