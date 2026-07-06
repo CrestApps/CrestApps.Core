@@ -29,6 +29,8 @@
          data-coreai-chat-widget-closed-state-value="false"
          data-coreai-chat-widget-open-icon-html="<i class='bi bi-x-lg'></i>"
          data-coreai-chat-widget-closed-icon-html="<i class='bi bi-chat-dots-fill'></i>"
+         data-coreai-chat-widget-message-template-selector="#widget-chat-message-template"
+         data-coreai-chat-widget-indicator-template-selector="#widget-chat-indicator-template"
          data-coreai-chat-widget-profile-id="@_profile.ItemId"
          data-coreai-chat-widget-profile-name="@_profile.Name"
          data-coreai-chat-widget-profile-display-text="@(_profile.DisplayText ?? _profile.Name)"
@@ -60,9 +62,81 @@
          data-coreai-chat-upload-document-url="/ai/chat-sessions/upload-document"
          data-coreai-chat-remove-document-url="/ai/chat-sessions/remove-document"
          data-coreai-chat-allowed-extensions="@_supportedExtensionsAccept"
-         data-coreai-chat-supported-extensions-text="@_supportedExtensionsDisplay">
+         data-coreai-chat-supported-extensions-text="@_supportedExtensionsDisplay"
+         data-coreai-chat-user-label="You"
+         data-coreai-chat-assistant-label="Assistant">
         <link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/chat-widget.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
+
+        <template id="widget-chat-message-template">
+            <div class="ai-chat-messages">
+                <div v-for="(message, index) in messages" :key="'msg-' + index" class="ai-chat-message-item">
+                    <div>
+                        <div v-if="message.role === 'user'" class="ai-chat-message-heading ai-chat-message-heading-user">
+                            <span class="ai-chat-msg-role ai-chat-msg-role-user">{{ userLabel }}</span>
+                        </div>
+                        <div v-else-if="message.role !== 'indicator'" class="ai-chat-message-heading ai-chat-message-heading-assistant">
+                            <div :class="getAssistantRoleClasses(message)">
+                                <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                                <span class="ai-chat-message-role-label">{{ getAssistantLabel(message) }}</span>
+                            </div>
+                        </div>
+                        <div class="ai-chat-message-body lh-base">
+                            <h4 v-if="message.title">{{ message.title }}</h4>
+                            <div v-html="message.htmlContent"></div>
+                            <ol v-if="message.citationReferences && message.citationReferences.length" class="ai-chat-citation-list">
+                                <li v-for="citation in message.citationReferences" :key="'citation-' + (citation.referenceKey || citation.displayIndex)" class="ai-chat-citation-item">
+                                    <a v-if="citation.link" :href="citation.link" :target="citation.isDownload ? null : '_blank'" :rel="citation.isDownload ? null : 'noopener noreferrer'">{{ citation.label }}</a>
+                                    <span v-else>{{ citation.label }}</span>
+                                </li>
+                            </ol>
+                            <span class="message-buttons-container" v-if="!isIndicator(message)">
+                                <template v-if="metricsEnabled && message.role === 'assistant'">
+                                    <span class="ai-chat-message-assistant-feedback" :data-message-id="message.id">
+                                        <button type="button" class="btn btn-sm btn-link text-success p-0 me-2 button-message-toolbox rate-up-btn" @@click="rateMessage(message, true, $event)" :title="thumbsUpTitle">
+                                            <i class="fa-regular fa-thumbs-up"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-link text-danger p-0 me-2 button-message-toolbox rate-down-btn" @@click="rateMessage(message, false, $event)" :title="thumbsDownTitle">
+                                            <i class="fa-regular fa-thumbs-down"></i>
+                                        </button>
+                                    </span>
+                                </template>
+                                <button type="button" v-if="textToSpeechEnabled && !isConversationMode && message.role === 'assistant' && !message.isStreaming" class="btn btn-sm btn-link text-secondary p-0 me-1 button-message-toolbox" :class="{ 'tts-playing': ttsPlayingMessageIndex === index }" :data-tts-message-index="index" @@click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? 'Pause audio' : 'Read aloud'">
+                                    <span :class="ttsPlayingMessageIndex === index ? 'fa-solid fa-circle-pause' : 'fa-solid fa-circle-play'"></span>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-link p-0 button-message-toolbox ai-response-copy-btn" :class="copiedMessageIndex === index ? 'text-success' : 'text-secondary'" :data-copy-message-index="index" @@click="copyResponse(message, index, $event)" :title="copiedMessageIndex === index ? copiedTitle : copyTitle">
+                                    <i :class="copiedMessageIndex === index ? 'fa-solid fa-check' : 'fa-solid fa-copy'"></i>
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div v-for="notification in notifications" :key="'notif-' + notification.type" class="ai-chat-notification" :class="'ai-chat-notification-' + (notification.type || 'info') + ' ' + (notification.cssClass || '')">
+                    <div class="ai-chat-notification-content">
+                        <i v-if="notification.icon" :class="notification.icon" class="ai-chat-notification-icon"></i>
+                        <span class="ai-chat-notification-text">{{ notification.content }}</span>
+                        <button type="button" v-if="notification.dismissible" class="btn btn-sm btn-link p-0 ms-2 ai-chat-notification-dismiss" @@click="dismissNotification(notification.type)" title="Dismiss">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div v-if="notification.actions && notification.actions.length" class="ai-chat-notification-actions">
+                        <button type="button" v-for="action in notification.actions" :key="action.name" class="btn btn-sm" :class="action.cssClass || 'btn-outline-secondary'" @@click="handleNotificationAction(notification.type, action.name)">
+                            <i v-if="action.icon" :class="action.icon" class="me-1"></i>
+                            {{ action.label }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template id="widget-chat-indicator-template">
+            <div class="ai-chat-message-heading ai-chat-message-heading-assistant">
+                <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
+                    <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
+                    <span class="ai-chat-message-role-label">{{ assistantLabel }}</span>
+                </div>
+            </div>
+        </template>
 
         <!-- Floating toggle button -->
         <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open chat">

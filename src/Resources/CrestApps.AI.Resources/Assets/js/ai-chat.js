@@ -38,10 +38,14 @@ window.coreAIChatManager = function () {
         <div class="ai-chat-messages">
             <div v-for="(message, index) in messages" :key="'msg-' + index" class="ai-chat-message-item">
                 <div>
-                    <div v-if="message.role === 'user'" class="ai-chat-msg-role ai-chat-msg-role-user">{{ userLabel }}</div>
-                    <div v-else-if="message.role !== 'indicator'" :class="getAssistantRoleClasses(message)">
-                        <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
-                        {{ getAssistantLabel(message) }}
+                    <div v-if="message.role === 'user'" class="ai-chat-message-heading ai-chat-message-heading-user">
+                        <span class="ai-chat-msg-role ai-chat-msg-role-user">{{ userLabel }}</span>
+                    </div>
+                    <div v-else-if="message.role !== 'indicator'" class="ai-chat-message-heading ai-chat-message-heading-assistant">
+                        <div :class="getAssistantRoleClasses(message)">
+                            <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                            <span class="ai-chat-message-role-label">{{ getAssistantLabel(message) }}</span>
+                        </div>
                     </div>
                     <div class="ai-chat-message-body lh-base">
                         <h4 v-if="message.title">{{ message.title }}</h4>
@@ -91,9 +95,11 @@ window.coreAIChatManager = function () {
         </div>
     `,
         indicatorTemplate: `
-        <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-            <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
-            Assistant
+        <div class="ai-chat-message-heading ai-chat-message-heading-assistant">
+            <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
+                <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
+                <span class="ai-chat-message-role-label">Assistant</span>
+            </div>
         </div>
     `
     };
@@ -609,11 +615,21 @@ window.coreAIChatManager = function () {
         );
     }
 
+    function resolveIndicatorTemplate(template, assistantLabel) {
+        if (!template) {
+            return template;
+        }
+
+        const encodedAssistantLabel = escapeHtmlEntities(assistantLabel || 'Assistant');
+        return template.replace(/\{\{\s*assistantLabel\s*\}\}/g, encodedAssistantLabel);
+    }
+
     const initialize = (instanceConfig) => {
         const normalizedInstanceConfig = compactObject(instanceConfig);
         const normalizedWidgetConfig = compactObject(normalizedInstanceConfig.widget);
         const config = Object.assign({}, defaultConfig, normalizedInstanceConfig);
         config.widget = Object.assign({}, defaultConfig.widget || {}, normalizedWidgetConfig);
+        config.indicatorTemplate = resolveIndicatorTemplate(config.indicatorTemplate, config.assistantLabel);
         const hasWidgetConfig = !!(normalizedWidgetConfig.chatWidgetContainer && normalizedWidgetConfig.chatWidgetStateName);
         const widgetBehavior = window.coreAIChatWidgetBehavior || null;
         // Keep defaultConfig in sync so renderers use overridden values

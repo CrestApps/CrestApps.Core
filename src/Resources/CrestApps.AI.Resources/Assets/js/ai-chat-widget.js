@@ -819,6 +819,8 @@ window.coreAIChatWidgetManager = window.coreAIChatWidgetManager || function () {
             toggleButtonSelector: getAttributeValue(element, 'data-coreai-chat-widget-toggle-button-selector'),
             closeButtonSelector: getAttributeValue(element, 'data-coreai-chat-widget-close-button-selector'),
             inputSelector: getAttributeValue(element, 'data-coreai-chat-widget-input-selector'),
+            messageTemplateSelector: getAttributeValue(element, 'data-coreai-chat-widget-message-template-selector'),
+            indicatorTemplateSelector: getAttributeValue(element, 'data-coreai-chat-widget-indicator-template-selector'),
             profile: profile,
             widgetStateName: getAttributeValue(element, 'data-coreai-chat-widget-state-name'),
             openStateValue: getAttributeValue(element, 'data-coreai-chat-widget-open-state-value'),
