@@ -87,6 +87,7 @@ public static class ServiceCollectionExtensions
         // Per-prompt tabular workspace options + the system tabular data agent that queries it.
         services.AddOptions<TabularWorkspaceOptions>();
         services.TryAddSingleton<ITabularDocumentArtifactStore, DocumentFileStoreTabularDocumentArtifactStore>();
+        services.TryAddScoped<TabularDocumentArtifactFactory>();
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProfileProvider, TabularDataAgentProvider>());
 
@@ -136,6 +137,11 @@ public static class ServiceCollectionExtensions
         services.AddCoreAITool<ReadDocumentTool>(ReadDocumentTool.TheName)
             .WithTitle("Read Document")
             .WithDescription("Reads the full text content of a specific document.")
+            .WithPurpose(AIToolPurposes.DocumentProcessing);
+
+        services.AddCoreAITool<GetDocumentMetadataTool>(GetDocumentMetadataTool.TheName)
+            .WithTitle("Get Document Metadata")
+            .WithDescription("Returns metadata for an attached document, including tabular headers, row counts, and normalized column names when applicable.")
             .WithPurpose(AIToolPurposes.DocumentProcessing);
 
         services.AddCoreAITool<ListTabularDataTool>(ListTabularDataTool.TheName)

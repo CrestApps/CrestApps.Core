@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
+using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,6 +24,14 @@ public static class OpenXmlServiceCollectionExtensions
             ".docx",
             new ExtractorExtension(".xlsx", embeddable: false, isTabular: true),
             ".pptx");
+        services.AddSingleton<OpenXmlTabularDocumentArtifactBuilder>();
+        services.AddSingleton<OpenXmlTabularWorkspaceImporter>();
+        services.AddKeyedSingleton<ITabularDocumentArtifactBuilder>(
+            ".xlsx",
+            (sp, _) => sp.GetRequiredService<OpenXmlTabularDocumentArtifactBuilder>());
+        services.AddKeyedSingleton<ITabularWorkspaceImporter>(
+            ".xlsx",
+            (sp, _) => sp.GetRequiredService<OpenXmlTabularWorkspaceImporter>());
 
         // Register Open XML output writers so generated files and tabular exports can target xlsx/docx.
         services.AddGeneratedFileWriter<SpreadsheetGeneratedFileWriter>(".xlsx");

@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using Cysharp.Text;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -15,20 +16,26 @@ namespace CrestApps.Core.AI.Documents.Tabular;
 /// </summary>
 internal sealed class TabularToolContext
 {
+    private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly ITabularDocumentArtifactStore _artifactStore;
+    private readonly TabularDocumentArtifactFactory _artifactFactory;
 
     private TabularToolContext(
         IReadOnlyList<TabularDocumentRef> documents,
+        IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         ITabularDocumentArtifactStore artifactStore,
+        TabularDocumentArtifactFactory artifactFactory,
         string databasePath,
         string exportReferenceId,
         string exportReferenceType)
     {
         Documents = documents;
+        _documentStore = documentStore;
         _chunkStore = chunkStore;
         _artifactStore = artifactStore;
+        _artifactFactory = artifactFactory;
         DatabasePath = databasePath;
         ExportReferenceId = exportReferenceId;
         ExportReferenceType = exportReferenceType;
@@ -96,11 +103,46 @@ internal sealed class TabularToolContext
             return artifact;
         }
 
+        var storedDocument = await _documentStore.FindByIdAsync(document.DocumentId, cancellationToken);
+        artifact = storedDocument == null ? null : await _artifactFactory.CreateAsync(storedDocument, cancellationToken);
+
+        if (artifact != null)
+        {
+            await _artifactStore.SaveAsync(document.DocumentId, artifact, cancellationToken);
+
+            return artifact;
+        }
+
         var content = await LoadContentAsync(document.DocumentId, cancellationToken);
         artifact = TabularDocumentArtifact.FromDelimitedContent(content, document.FileName);
+
         await _artifactStore.SaveAsync(document.DocumentId, artifact, cancellationToken);
 
         return artifact;
+    }
+
+    public async Task<TabularWorkspaceImportResult> ImportToWorkspaceAsync(
+        TabularDocumentRef document,
+        SqliteConnection connection,
+        string tableName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrEmpty(tableName);
+
+        var storedDocument = await _documentStore.FindByIdAsync(document.DocumentId, cancellationToken);
+
+        if (storedDocument == null)
+        {
+            return null;
+        }
+
+        return await _artifactFactory.ImportToWorkspaceAsync(
+            storedDocument,
+            connection,
+            tableName,
+            cancellationToken);
     }
 
     /// <summary>
@@ -114,16 +156,12 @@ internal sealed class TabularToolContext
         var invocationContext = AIInvocationScope.Current;
         var executionContext = invocationContext?.ToolExecutionContext;
 
-        if (executionContext is null)
-        {
-            return null;
-        }
-
         var documentStore = services.GetService<IAIDocumentStore>();
         var chunkStore = services.GetService<IAIDocumentChunkStore>();
         var artifactStore = services.GetService<ITabularDocumentArtifactStore>();
+        var artifactFactory = services.GetService<TabularDocumentArtifactFactory>();
 
-        if (documentStore is null || chunkStore is null || artifactStore is null)
+        if (documentStore is null || chunkStore is null || artifactStore is null || artifactFactory is null)
         {
             return null;
         }
@@ -133,6 +171,11 @@ internal sealed class TabularToolContext
         var scopes = new List<(string ReferenceId, string ReferenceType)>();
         string exportReferenceId = null;
         string exportReferenceType = null;
+
+        if (executionContext is null)
+        {
+            return null;
+        }
 
         switch (executionContext.Resource)
         {
@@ -190,8 +233,10 @@ internal sealed class TabularToolContext
 
         return new TabularToolContext(
             documents,
+            documentStore,
             chunkStore,
             artifactStore,
+            artifactFactory,
             databasePath,
             exportReferenceId,
             exportReferenceType);

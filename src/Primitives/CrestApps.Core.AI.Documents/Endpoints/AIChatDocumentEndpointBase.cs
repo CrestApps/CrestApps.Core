@@ -94,6 +94,24 @@ public abstract class AIChatDocumentEndpointBase
 
         try
         {
+            if (documentOptions.IsTabularFileExtension(file.FileName))
+            {
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "Deferring tabular extraction for uploaded file '{FileName}' until the document is queried.",
+                        file.FileName);
+                }
+
+                return await ProcessTabularDocumentAsync(
+                    file,
+                    referenceId,
+                    referenceType,
+                    documentStore,
+                    fileStore,
+                    timeProvider);
+            }
+
             if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension))
             {
                 return await ProcessVisionImageAsync(
@@ -332,6 +350,56 @@ public abstract class AIChatDocumentEndpointBase
             Document = document,
             DocumentInfo = documentInfo,
             Chunks = chunks,
+        });
+    }
+
+    private static async Task<(bool Success, string Error, AIChatUploadedDocument UploadedDocument)> ProcessTabularDocumentAsync(
+        IFormFile file,
+        string referenceId,
+        string referenceType,
+        IAIDocumentStore documentStore,
+        IDocumentFileStore fileStore,
+        TimeProvider timeProvider)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var contentType = MediaTypeHelper.InferMediaType(Path.GetExtension(file.FileName), file.ContentType);
+        var document = new AIDocument
+        {
+            ItemId = UniqueId.GenerateId(),
+            ReferenceId = referenceId,
+            ReferenceType = referenceType,
+            FileName = file.FileName,
+            ContentType = contentType,
+            FileSize = file.Length,
+            UploadedUtc = now,
+        };
+
+        var (storedFileName, storagePath) = DocumentFileStoragePath.Create(referenceType, referenceId, file.FileName);
+
+        using (var stream = file.OpenReadStream())
+        {
+            await fileStore.SaveFileAsync(storagePath, stream);
+        }
+
+        document.StoredFileName = storedFileName;
+        document.StoredFilePath = storagePath;
+
+        var documentInfo = new ChatDocumentInfo
+        {
+            DocumentId = document.ItemId,
+            FileName = document.FileName,
+            FileSize = document.FileSize,
+            ContentType = document.ContentType,
+        };
+
+        await documentStore.CreateAsync(document);
+
+        return (true, null, new AIChatUploadedDocument
+        {
+            File = file,
+            Document = document,
+            DocumentInfo = documentInfo,
+            Chunks = [],
         });
     }
 
