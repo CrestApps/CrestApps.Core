@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Documents.Models;
@@ -15,8 +16,8 @@ namespace CrestApps.Core.AI.Documents.Tools;
 
 /// <summary>
 /// System tool that returns metadata for an attached document. For tabular files, it can surface
-/// row counts, original headers, and normalized SQL column names without requiring the model to
-/// request the full workspace/table listing first.
+/// row counts, original headers, inferred column data types, and normalized SQL column names
+/// without requiring the model to request the full workspace/table listing first.
 /// </summary>
 public sealed class GetDocumentMetadataTool : AIFunction
 {
@@ -33,7 +34,7 @@ public sealed class GetDocumentMetadataTool : AIFunction
         },
         "scope": {
           "type": "string",
-          "description": "The metadata scope to return: 'basic' for general file metadata, 'tabular_summary' for row/column counts on tabular files, 'headers' for original tabular headers, or 'columns' for normalized SQL column names.",
+          "description": "The metadata scope to return: 'basic' for general file metadata, 'tabular_summary' for row/column counts on tabular files, 'headers' for original tabular headers with inferred data types, or 'columns' for normalized SQL column names with inferred data types.",
           "enum": ["basic", "tabular_summary", "headers", "columns"]
         }
       },
@@ -49,7 +50,7 @@ public sealed class GetDocumentMetadataTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Returns metadata for an attached document. For tabular files it can provide row counts, original headers, and normalized SQL column names.";
+    public override string Description => "Returns metadata for an attached document. For tabular files it can provide row counts, original headers, normalized SQL column names, and inferred column data types.";
 
     /// <summary>
     /// Gets the JSON schema.
@@ -258,12 +259,16 @@ public sealed class GetDocumentMetadataTool : AIFunction
 
         var artifact = await tabularContext.LoadArtifactAsync(tabularDocument, cancellationToken);
 
+        var inferredTypes = InferColumnTypes(artifact);
+
         using var builder = ZString.CreateStringBuilder();
         builder.Append(FormatBasicMetadata(document));
         builder.Append("- tabular_rows: ");
         builder.AppendLine((artifact?.Rows?.Count ?? 0).ToString());
         builder.Append("- tabular_columns: ");
         builder.AppendLine((artifact?.Header?.Count ?? 0).ToString());
+        builder.Append("- inferred_column_types: ");
+        builder.AppendLine(string.Join(", ", inferredTypes.Distinct(StringComparer.Ordinal)));
         builder.AppendLine("- available_scopes: tabular_summary, headers, columns");
 
         return builder.ToString();
@@ -271,6 +276,8 @@ public sealed class GetDocumentMetadataTool : AIFunction
 
     private static string FormatTabularSummary(AIDocument document, TabularDocumentArtifact artifact)
     {
+        var inferredTypes = InferColumnTypes(artifact);
+
         using var builder = ZString.CreateStringBuilder();
         builder.Append('"');
         builder.Append(document.FileName);
@@ -279,6 +286,8 @@ public sealed class GetDocumentMetadataTool : AIFunction
         builder.Append(" data row(s) and ");
         builder.Append(artifact?.Header?.Count ?? 0);
         builder.AppendLine(" column(s).");
+        builder.Append("- inferred_column_types: ");
+        builder.AppendLine(string.Join(", ", inferredTypes.Distinct(StringComparer.Ordinal)));
 
         return builder.ToString();
     }
@@ -286,6 +295,7 @@ public sealed class GetDocumentMetadataTool : AIFunction
     private static string FormatTabularHeaders(AIDocument document, TabularDocumentArtifact artifact)
     {
         var headers = artifact?.Header ?? [];
+        var inferredTypes = InferColumnTypes(artifact);
         using var builder = ZString.CreateStringBuilder();
         builder.Append('"');
         builder.Append(document.FileName);
@@ -294,10 +304,14 @@ public sealed class GetDocumentMetadataTool : AIFunction
         builder.AppendLine(headers.Count == 1 ? " header." : " headers.");
         builder.AppendLine();
 
-        foreach (var header in headers)
+        for (var i = 0; i < headers.Count; i++)
         {
+            var header = headers[i];
             builder.Append("- ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(header) ? "(blank header)" : header);
+            builder.Append(string.IsNullOrWhiteSpace(header) ? "(blank header)" : header);
+            builder.Append(" (inferred type: ");
+            builder.Append(inferredTypes[i]);
+            builder.AppendLine(")");
         }
 
         return builder.ToString();
@@ -306,6 +320,7 @@ public sealed class GetDocumentMetadataTool : AIFunction
     private static string FormatTabularColumns(AIDocument document, TabularDocumentArtifact artifact)
     {
         var columns = TabularWorkspaceSqliteHelpers.BuildColumns(artifact?.Header ?? []);
+        var inferredTypes = InferColumnTypes(artifact);
         using var builder = ZString.CreateStringBuilder();
         builder.Append('"');
         builder.Append(document.FileName);
@@ -314,8 +329,9 @@ public sealed class GetDocumentMetadataTool : AIFunction
         builder.AppendLine(columns.Count == 1 ? " SQL column." : " SQL columns.");
         builder.AppendLine();
 
-        foreach (var column in columns)
+        for (var i = 0; i < columns.Count; i++)
         {
+            var column = columns[i];
             builder.Append("- ");
             builder.Append(column.Name);
 
@@ -327,10 +343,152 @@ public sealed class GetDocumentMetadataTool : AIFunction
                 builder.Append(')');
             }
 
+            builder.Append(" — inferred type: ");
+            builder.Append(inferredTypes[i]);
             builder.AppendLine();
         }
 
         return builder.ToString();
+    }
+
+    private static string[] InferColumnTypes(TabularDocumentArtifact artifact)
+    {
+        var headerCount = artifact?.Header?.Count ?? 0;
+
+        if (headerCount == 0)
+        {
+            return [];
+        }
+
+        var states = new InferredColumnType[headerCount];
+        var sampleCounts = new int[headerCount];
+        var rows = artifact?.Rows ?? [];
+        const int targetSamplesPerColumn = 32;
+
+        for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+        {
+            var row = rows[rowIndex];
+            var hasPendingColumns = false;
+
+            for (var columnIndex = 0; columnIndex < headerCount; columnIndex++)
+            {
+                if (sampleCounts[columnIndex] >= targetSamplesPerColumn)
+                {
+                    continue;
+                }
+
+                hasPendingColumns = true;
+                var value = columnIndex < row.Count ? row[columnIndex] : null;
+
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                states[columnIndex] = CombineTypes(states[columnIndex], ClassifyValue(value));
+                sampleCounts[columnIndex]++;
+            }
+
+            if (!hasPendingColumns)
+            {
+                break;
+            }
+        }
+
+        var inferredTypes = new string[headerCount];
+
+        for (var i = 0; i < headerCount; i++)
+        {
+            inferredTypes[i] = FormatType(states[i]);
+        }
+
+        return inferredTypes;
+    }
+
+    private static InferredColumnType ClassifyValue(string value)
+    {
+        if (bool.TryParse(value, out _))
+        {
+            return InferredColumnType.Boolean;
+        }
+
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        {
+            return InferredColumnType.Integer;
+        }
+
+        if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
+        {
+            return InferredColumnType.Decimal;
+        }
+
+        if (LooksLikeDate(value) &&
+            DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out _))
+        {
+            return InferredColumnType.Date;
+        }
+
+        if (LooksLikeDateTime(value) &&
+            DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out _))
+        {
+            return InferredColumnType.DateTime;
+        }
+
+        return InferredColumnType.Text;
+    }
+
+    private static InferredColumnType CombineTypes(InferredColumnType current, InferredColumnType next)
+    {
+        if (current == InferredColumnType.Unknown)
+        {
+            return next;
+        }
+
+        if (current == next)
+        {
+            return current;
+        }
+
+        if ((current == InferredColumnType.Integer && next == InferredColumnType.Decimal) ||
+            (current == InferredColumnType.Decimal && next == InferredColumnType.Integer))
+        {
+            return InferredColumnType.Decimal;
+        }
+
+        if ((current == InferredColumnType.Date && next == InferredColumnType.DateTime) ||
+            (current == InferredColumnType.DateTime && next == InferredColumnType.Date))
+        {
+            return InferredColumnType.DateTime;
+        }
+
+        return InferredColumnType.Text;
+    }
+
+    private static string FormatType(InferredColumnType value)
+    {
+        return value switch
+        {
+            InferredColumnType.Boolean => "boolean",
+            InferredColumnType.Integer => "integer",
+            InferredColumnType.Decimal => "decimal",
+            InferredColumnType.Date => "date",
+            InferredColumnType.DateTime => "datetime",
+            InferredColumnType.Text => "text",
+            _ => "empty",
+        };
+    }
+
+    private static bool LooksLikeDate(string value)
+    {
+        return value.Contains('-', StringComparison.Ordinal) ||
+            value.Contains('/', StringComparison.Ordinal);
+    }
+
+    private static bool LooksLikeDateTime(string value)
+    {
+        return LooksLikeDate(value) ||
+            value.Contains(':', StringComparison.Ordinal) ||
+            value.Contains('T', StringComparison.Ordinal);
     }
 
     private static bool TryParseScope(string value, out MetadataScope scope)
@@ -365,5 +523,16 @@ public sealed class GetDocumentMetadataTool : AIFunction
         TabularSummary,
         Headers,
         Columns,
+    }
+
+    private enum InferredColumnType
+    {
+        Unknown,
+        Boolean,
+        Integer,
+        Decimal,
+        Date,
+        DateTime,
+        Text,
     }
 }

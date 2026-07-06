@@ -41,8 +41,12 @@ public sealed class GetDocumentMetadataToolTests
             .Setup(store => store.GetAsync("uploaded-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TabularDocumentArtifact
             {
-                Header = ["First Name", "Last Name", "Email"],
-                Rows = [["Ada", "Lovelace", "ada@example.com"]],
+                Header = ["First Name", "Signup Date", "Is Active"],
+                Rows =
+                [
+                    ["Ada", "2026-07-01", "true"],
+                    ["Grace", "2026-07-02", "false"],
+                ],
             });
 
         var services = BuildServices(documentStore.Object, artifactStore.Object);
@@ -63,9 +67,9 @@ public sealed class GetDocumentMetadataToolTests
         var text = result.ToString();
 
         Assert.Contains("\"SkyLineFull 1.xlsx\" has 3 headers.", text);
-        Assert.Contains("- First Name", text);
-        Assert.Contains("- Last Name", text);
-        Assert.Contains("- Email", text);
+        Assert.Contains("- First Name (inferred type: text)", text);
+        Assert.Contains("- Signup Date (inferred type: date)", text);
+        Assert.Contains("- Is Active (inferred type: boolean)", text);
     }
 
     [Fact]
@@ -107,6 +111,59 @@ public sealed class GetDocumentMetadataToolTests
         Assert.Contains("document_id: uploaded-1", text);
         Assert.Contains("content_type: text/plain", text);
         Assert.Contains("file_size_bytes: 42", text);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ColumnsScope_ReturnsNormalizedColumnsWithInferredTypes()
+    {
+        var storedDocument = new AIDocument
+        {
+            ItemId = "uploaded-1",
+            ReferenceId = "interaction-1",
+            ReferenceType = AIReferenceTypes.Document.ChatInteraction,
+            FileName = "SkyLineFull 1.xlsx",
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            FileSize = 128,
+        };
+
+        var documentStore = new Mock<IAIDocumentStore>();
+        documentStore
+            .Setup(store => store.GetDocumentsAsync("interaction-1", AIReferenceTypes.Document.ChatInteraction))
+            .ReturnsAsync([storedDocument]);
+
+        var artifactStore = new Mock<ITabularDocumentArtifactStore>();
+        artifactStore
+            .Setup(store => store.GetAsync("uploaded-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TabularDocumentArtifact
+            {
+                Header = ["Order ID", "Total Amount", "Updated At"],
+                Rows =
+                [
+                    ["1001", "10.25", "2026-07-06T14:48:16Z"],
+                    ["1002", "11.50", "2026-07-06T15:00:00Z"],
+                ],
+            });
+
+        var services = BuildServices(documentStore.Object, artifactStore.Object);
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        });
+
+        var tool = new GetDocumentMetadataTool();
+        var arguments = CreateArguments(services, new Dictionary<string, object>
+        {
+            ["scope"] = "columns",
+        });
+
+        var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+        var text = result.ToString();
+
+        Assert.Contains("- Order_ID (source header: Order ID) — inferred type: integer", text);
+        Assert.Contains("- Total_Amount (source header: Total Amount) — inferred type: decimal", text);
+        Assert.Contains("- Updated_At (source header: Updated At) — inferred type: datetime", text);
     }
 
     private static AIFunctionArguments CreateArguments(IServiceProvider services, Dictionary<string, object> values)
