@@ -27,7 +27,6 @@ jobs:
         node-version: "20"
         registry-url: "https://registry.npmjs.org"
         scope: "@crestapps"
-        always-auth: true
 
     - name: Build assets
       run: |
