@@ -6,8 +6,10 @@ using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
 using Cysharp.Text;
 using Microsoft.AspNetCore.SignalR;
@@ -353,6 +355,17 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         ChatInteraction interaction,
         JsonElement settings)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(interaction);
+
+        return ApplyCoreSettingsInternalAsync(services, interaction, settings);
+    }
+
+    private static async Task ApplyCoreSettingsInternalAsync(
+        IServiceProvider services,
+        ChatInteraction interaction,
+        JsonElement settings)
+    {
         interaction.Title = JsonHelper.GetString(settings, "title") ?? "Untitled";
         interaction.OrchestratorName = JsonHelper.GetString(settings, "orchestratorName");
         interaction.ConnectionName = JsonHelper.GetString(settings, "connectionName");
@@ -366,12 +379,31 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         interaction.PresencePenalty = JsonHelper.GetFloat(settings, "presencePenalty");
         interaction.MaxTokens = JsonHelper.GetInt(settings, "maxTokens");
         interaction.PastMessagesCount = JsonHelper.GetInt(settings, "pastMessagesCount");
-        interaction.ToolNames = JsonHelper.GetStringArray(settings, "toolNames");
-        interaction.AgentNames = JsonHelper.GetStringArray(settings, "agentNames");
+
+        var selectableToolNames = services
+            .GetRequiredService<IOptions<AIToolDefinitionOptions>>()
+            .Value
+            .GetSelectableTools()
+            .Keys
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        interaction.ToolNames = (JsonHelper.GetStringArray(settings, "toolNames") ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name) && selectableToolNames.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var allAgents = await services.GetRequiredService<IAIProfileManager>().GetAsync(AIProfileType.Agent);
+        var userSelectableAgentNames = (allAgents ?? [])
+            .Where(profile => profile.IsUserSelectableAgent())
+            .Select(profile => profile.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        interaction.AgentNames = (JsonHelper.GetStringArray(settings, "agentNames") ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name) && userSelectableAgentNames.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         interaction.McpConnectionIds = JsonHelper.GetStringArray(settings, "mcpConnectionIds");
         interaction.A2AConnectionIds = JsonHelper.GetStringArray(settings, "a2aConnectionIds");
-
-        return Task.CompletedTask;
     }
 
     /// <summary>

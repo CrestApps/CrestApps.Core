@@ -111,4 +111,13 @@ public sealed class AIToolDefinitionEntry
 
         return string.Equals(Purpose, purpose, StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Determines whether the tool is selectable in user-facing tool pickers.
+    /// </summary>
+    /// <returns><see langword="true"/> when the tool is neither a system tool nor hidden; otherwise <see langword="false"/>.</returns>
+    public bool IsSelectable()
+    {
+        return !IsSystemTool && !Hidden;
+    }
 }

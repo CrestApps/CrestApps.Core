@@ -122,6 +122,7 @@ public sealed class AITemplateController : Controller
             ItemId = Guid.NewGuid().ToString("N"),
             CreatedUtc = DateTime.UtcNow,
         };
+        model.SelectedToolNames = GetValidToolNames(model.SelectedToolNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
@@ -165,6 +166,7 @@ public sealed class AITemplateController : Controller
             return NotFound();
         }
 
+        model.SelectedToolNames = GetValidToolNames(model.SelectedToolNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
@@ -202,7 +204,7 @@ public sealed class AITemplateController : Controller
         model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
         await PopulateCopilotStatusAsync(model, copilotOptions);
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden).Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
+        model.AvailableTools = _toolOptions.GetSelectableTools().Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();
         var selectedConnectionIds = new HashSet<string>(model.SelectedA2AConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableA2AConnections = connections.OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).Select(connection => new A2AConnectionSelectionItem { ItemId = connection.ItemId, DisplayText = connection.DisplayText, Endpoint = connection.Endpoint, IsSelected = selectedConnectionIds.Contains(connection.ItemId), }).ToList();
@@ -234,10 +236,24 @@ public sealed class AITemplateController : Controller
         model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId)).ToList();
     }
 
+    private string[] GetValidToolNames(IEnumerable<string> selectedNames)
+    {
+        var validToolNames = _toolOptions.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return (selectedNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
     {
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
-        var validNames = allAgents.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validNames = allAgents
+            .Where(agent => agent.IsUserSelectableAgent())
+            .Select(agent => agent.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validNames.Contains(name))

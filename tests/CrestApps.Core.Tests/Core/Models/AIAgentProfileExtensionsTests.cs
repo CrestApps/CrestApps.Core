@@ -49,6 +49,15 @@ public class AIAgentProfileExtensionsTests
     }
 
     [Fact]
+    public void IsUserSelectableAgent_ReturnsFalse_WhenSystemAgentIsOnDemand()
+    {
+        var profile = new AIProfile { Name = "a", Description = "d", Type = AIProfileType.Agent };
+        profile.Put(new AgentMetadata { Availability = AgentAvailability.OnDemand, IsSystem = true });
+
+        Assert.False(profile.IsUserSelectableAgent());
+    }
+
+    [Fact]
     public void IsSystemAgent_ReturnsTrue_WhenSystem()
     {
         var profile = new AIProfile { Name = "a", Description = "d", Type = AIProfileType.Agent };

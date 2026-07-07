@@ -38,6 +38,17 @@ public sealed class AIToolDefinitionOptions
         return expandedToolNames;
     }
 
+    /// <summary>
+    /// Gets the registered tools that are selectable in user-facing tool pickers.
+    /// </summary>
+    /// <returns>A read-only dictionary of selectable AI tool definitions keyed by tool name.</returns>
+    public IReadOnlyDictionary<string, AIToolDefinitionEntry> GetSelectableTools()
+    {
+        return _tools
+            .Where(tool => tool.Value.IsSelectable())
+            .ToDictionary(tool => tool.Key, tool => tool.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
     internal void SetTool(string name, AIToolDefinitionEntry entry)
     {
         _tools[name] = entry;

@@ -5,7 +5,9 @@ using CrestApps.Core.AI.Chat.Hubs;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
@@ -44,10 +46,23 @@ public sealed class ChatInteractionHubTests
         var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
         clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
 
+        var toolOptions = new AIToolDefinitionOptions();
+        toolOptions.SetTool("selectable-tool", new AIToolDefinitionEntry(typeof(object)));
+        toolOptions.SetTool("hidden-tool", new AIToolDefinitionEntry(typeof(object)) { Hidden = true });
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock.Setup(manager => manager.GetAsync(AIProfileType.Agent, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                BuildAgent("agent-a", "Agent A"),
+                BuildAgent("agent-b", "Agent B"),
+            ]);
+
         var serviceProvider = new ServiceCollection()
             .AddSingleton(managerMock.Object)
             .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
             .AddSingleton<IChatInteractionSettingsHandler>(new PromptTemplateChatInteractionSettingsHandler())
+            .AddSingleton(profileManagerMock.Object)
+            .AddSingleton(Microsoft.Extensions.Options.Options.Create(toolOptions))
             .BuildServiceProvider();
 
         var siteSettings = CreateSiteSettingsStore();
@@ -65,6 +80,7 @@ public sealed class ChatInteractionHubTests
         using var json = JsonDocument.Parse("""
             {
               "title":"Updated title",
+              "toolNames":["selectable-tool","hidden-tool"],
               "agentNames":["agent-a","agent-b"],
               "promptTemplates":[
                 {
@@ -80,6 +96,7 @@ public sealed class ChatInteractionHubTests
 
         // Assert
         Assert.Equal("Updated title", interaction.Title);
+        Assert.Equal(["selectable-tool"], interaction.ToolNames);
         Assert.Equal(["agent-a", "agent-b"], interaction.AgentNames);
         var promptTemplateMetadata = interaction.GetOrCreate<PromptTemplateMetadata>();
         var template = Assert.Single(promptTemplateMetadata.Templates);
@@ -90,6 +107,72 @@ public sealed class ChatInteractionHubTests
         managerMock.Verify(manager => manager.FindByIdAsync(interaction.ItemId), Times.Once);
         managerMock.Verify(manager => manager.UpdateAsync(interaction, null), Times.Once);
         callerMock.Verify(client => client.SettingsSaved(interaction.ItemId, "Updated title"), Times.Once);
+    }
+
+    [Fact]
+    public async Task SaveSettings_FiltersHiddenToolsAndSystemAgents()
+    {
+        var interaction = new ChatInteraction
+        {
+            ItemId = "chat-visibility",
+            Title = "Visibility test",
+        };
+
+        var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
+        managerMock.Setup(manager => manager.FindByIdAsync(interaction.ItemId))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
+        managerMock.Setup(manager => manager.UpdateAsync(interaction, null))
+            .Returns(ValueTask.CompletedTask);
+
+        var toolOptions = new AIToolDefinitionOptions();
+        toolOptions.SetTool("selectable-tool", new AIToolDefinitionEntry(typeof(object)));
+        toolOptions.SetTool("system-tool", new AIToolDefinitionEntry(typeof(object)) { IsSystemTool = true });
+        toolOptions.SetTool("hidden-tool", new AIToolDefinitionEntry(typeof(object)) { Hidden = true });
+
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock.Setup(manager => manager.GetAsync(AIProfileType.Agent, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                BuildAgent("selectable-agent", "Selectable Agent"),
+                BuildAgent("system-agent", "System Agent", isSystem: true),
+                BuildAgent("always-agent", "Always Agent", availability: AgentAvailability.AlwaysAvailable),
+            ]);
+
+        var callerMock = new Mock<IChatInteractionHubClient>();
+        callerMock.Setup(client => client.SettingsSaved(interaction.ItemId, interaction.Title))
+            .Returns(Task.CompletedTask);
+
+        var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
+        clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(managerMock.Object)
+            .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
+            .AddSingleton(profileManagerMock.Object)
+            .AddSingleton(Microsoft.Extensions.Options.Options.Create(toolOptions))
+            .BuildServiceProvider();
+
+        var hub = new ChatInteractionHub(
+            serviceProvider,
+            TimeProvider.System,
+            CreateCitationCollector(),
+            CreateSiteSettingsStore(),
+            NullLogger<ChatInteractionHub>.Instance)
+        {
+            Clients = clientsMock.Object,
+        };
+
+        using var json = JsonDocument.Parse("""
+            {
+              "toolNames":["selectable-tool","system-tool","hidden-tool"],
+              "agentNames":["selectable-agent","system-agent","always-agent"]
+            }
+            """);
+
+        await hub.SaveSettings(interaction.ItemId, json.RootElement.Clone());
+
+        Assert.Equal(["selectable-tool"], interaction.ToolNames);
+        Assert.Equal(["selectable-agent"], interaction.AgentNames);
     }
 
     [Fact]
@@ -112,12 +195,18 @@ public sealed class ChatInteractionHubTests
         dataSourceCatalog.Setup(catalog => catalog
             .FindByIdAsync("datasource-1"))
             .ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });
+        var toolOptions = new AIToolDefinitionOptions();
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock.Setup(manager => manager.GetAsync(AIProfileType.Agent, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
         var services = new ServiceCollection()
             .AddSingleton(managerMock.Object)
             .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
             .AddSingleton(dataSourceCatalog.Object)
             .AddSingleton<IChatInteractionSettingsHandler, DataSourceChatInteractionSettingsHandler>()
+            .AddSingleton(profileManagerMock.Object)
+            .AddSingleton(Microsoft.Extensions.Options.Options.Create(toolOptions))
             .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var serviceProvider = services.BuildServiceProvider();
 
@@ -264,6 +353,28 @@ public sealed class ChatInteractionHubTests
         var appDataPath = Path.Combine(Path.GetTempPath(), "copilot-chatinteractionhubtests", Guid.NewGuid().ToString("N"));
 
         return new SiteSettingsStore(appDataPath);
+    }
+
+    private static AIProfile BuildAgent(
+        string name,
+        string description,
+        AgentAvailability availability = AgentAvailability.OnDemand,
+        bool isSystem = false)
+    {
+        var profile = new AIProfile
+        {
+            Name = name,
+            Description = description,
+            Type = AIProfileType.Agent,
+        };
+
+        profile.Put(new AgentMetadata
+        {
+            Availability = availability,
+            IsSystem = isSystem,
+        });
+
+        return profile;
     }
 
     private sealed class TestChatInteractionHub : ChatInteractionHubBase

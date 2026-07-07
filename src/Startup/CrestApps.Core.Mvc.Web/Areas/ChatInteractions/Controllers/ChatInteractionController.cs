@@ -350,8 +350,7 @@ public sealed class ChatInteractionController : Controller
 
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
+        model.AvailableTools = _toolOptions.GetSelectableTools()
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -491,8 +490,7 @@ public sealed class ChatInteractionController : Controller
 
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.Tools
-            .Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
+        model.AvailableTools = _toolOptions.GetSelectableTools()
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -700,8 +698,10 @@ public sealed class ChatInteractionController : Controller
 
     private List<string> GetValidToolNames(IEnumerable<string> selectedNames)
     {
+        var validToolNames = _toolOptions.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         return (selectedNames ?? [])
-            .Where(name => !string.IsNullOrWhiteSpace(name) && _toolOptions.Tools.ContainsKey(name))
+            .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))
 
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -712,7 +712,9 @@ public sealed class ChatInteractionController : Controller
         var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
 
         var allNames = agentProfiles
+            .Where(profile => profile.IsUserSelectableAgent())
             .Select(p => p.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return (selectedNames ?? [])

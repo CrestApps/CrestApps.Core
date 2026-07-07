@@ -59,6 +59,8 @@ This is the recommended path for tasks such as:
 - adding calculated columns
 - exporting an updated spreadsheet for download
 
+Under the hood, tabular workflows are handled by the built-in **Tabular Data Agent**. It is a code-defined, always-available **system agent** that stays hidden from the AI Profile and Chat Interaction agent pickers, yet still participates in orchestration and is exposed through the A2A host for remote clients.
+
 ### Images
 
 When your deployment supports vision, users can upload supported image files alongside standard documents. This enables image-aware chat scenarios such as describing screenshots, extracting visible text, or answering questions about diagrams and photos.

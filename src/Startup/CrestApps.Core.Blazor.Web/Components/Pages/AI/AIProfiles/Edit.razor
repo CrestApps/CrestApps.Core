@@ -1187,6 +1187,8 @@ else if (_model != null)
         }
 
         SyncCheckboxSelections();
+        _model.SelectedToolNames = GetValidToolNames(_model.SelectedToolNames);
+        _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
         _model.ApplyTo(existing);
@@ -1368,7 +1370,7 @@ else if (_model != null)
 
         var toolOptions = ToolOpts.Value;
         var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableTools = toolOptions.Tools.Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
+        _model.AvailableTools = toolOptions.GetSelectableTools()
             .Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key) })
             .OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
 
@@ -1410,6 +1412,31 @@ else if (_model != null)
             .OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase)
             .Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description }).ToList() }).ToList();
+    }
+
+    private string[] GetValidToolNames(IEnumerable<string> selectedNames)
+    {
+        var validToolNames = ToolOpts.Value.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return (selectedNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
+    {
+        var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
+        var validAgentNames = allAgents
+            .Where(agent => agent.IsUserSelectableAgent())
+            .Select(agent => agent.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return (selectedNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name) && validAgentNames.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
