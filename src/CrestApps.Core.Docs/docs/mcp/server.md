@@ -304,7 +304,7 @@ When your application acts as an MCP server, registered AI tools are exposed to 
 1. **List tools** — Returns metadata (name, description, JSON schema) for all registered tools
 2. **Call tool** — Resolves the tool by name from the registry and invokes it with the provided arguments
 
-Tools registered via `AddCoreAITool<T>()` (see [Custom Tools](../core/tools.md)) are automatically available to MCP clients.
+Tools registered via `AddCoreAITool<T>()` (see [Custom Tools](../core/tools.md)) are automatically available to MCP clients unless they are marked with `.Hidden()`. Hidden tools remain available to explicitly configured profiles and agents, but the shared MCP handlers do not list or invoke them directly.
 
 ## Server Metadata
 

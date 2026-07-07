@@ -33,7 +33,7 @@ public static class McpServerBuilderExtensions
                         ILogger logger = null;
                         var tools = new List<Tool>();
 
-                        foreach (var (name, _) in toolDefinitions.Tools)
+                        foreach (var (name, _) in toolDefinitions.Tools.Where(tool => !tool.Value.Hidden))
                         {
                             try
                             {
@@ -73,7 +73,8 @@ public static class McpServerBuilderExtensions
                     {
                         var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
 
-                        if (toolDefinitions.Tools.ContainsKey(request.Params.Name))
+                        if (toolDefinitions.Tools.TryGetValue(request.Params.Name, out var definition) &&
+                            !definition.Hidden)
                         {
                             if (request.Services.GetKeyedService<AITool>(request.Params.Name) is not AIFunction aiFunction)
                             {

@@ -34,8 +34,8 @@ public static class AIAgentProfileExtensions
 
     /// <summary>
     /// Determines whether the agent profile should appear in the user-facing agent selection
-    /// list. Always-available (system) agents are excluded because they are included
-    /// automatically and never need to be selected manually.
+    /// list. Always-available agents and system agents are excluded because they are
+    /// included automatically or managed in code and never need to be selected manually.
     /// </summary>
     /// <param name="profile">The agent profile.</param>
     /// <returns><see langword="true"/> when the agent is user-selectable; otherwise <see langword="false"/>.</returns>
@@ -43,6 +43,7 @@ public static class AIAgentProfileExtensions
     {
         return profile is not null
             && !string.IsNullOrEmpty(profile.Description)
-            && !profile.IsAlwaysAvailableAgent();
+            && !profile.IsAlwaysAvailableAgent()
+            && !profile.IsSystemAgent();
     }
 }

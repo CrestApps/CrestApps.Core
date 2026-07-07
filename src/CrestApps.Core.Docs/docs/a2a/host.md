@@ -171,6 +171,8 @@ Each AI profile of type `Agent` becomes either:
 - An **independent Agent Card** (default behavior), or
 - A **skill on a combined Agent Card** (when `ExposeAgentsAsSkill` is `true`)
 
+This includes **code-defined system agents** contributed through `IAIProfileProvider`. For example, the built-in Tabular Data Agent is hidden from the MVC and Blazor agent pickers because it is always available and system-managed, but it is still published through the A2A host because the host reads the merged `IAIProfileManager.GetAsync(AIProfileType.Agent)` result.
+
 ### Agent Card Structure (A2A Protocol)
 
 A published Agent Card follows the A2A specification:
@@ -228,6 +230,8 @@ This approach is useful when:
 - You want remote clients to see a **single entry point** to your application
 - The client's AI model should choose which skill to invoke based on the task
 - You want to simplify discovery for clients that don't need to manage multiple connections
+
+Because system agents are part of the same merged agent list, they also appear here automatically. That means a hidden agent can remain unavailable for manual UI selection while still being discoverable to remote A2A clients.
 
 ```csharp
 builder.Services.Configure<A2AHostOptions>(options =>

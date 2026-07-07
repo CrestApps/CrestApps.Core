@@ -96,6 +96,8 @@ This is why profiles are broader than plain chat presets. They can define how th
 
 If a selected tool has registered dependencies, CrestApps.Core automatically includes those dependent tools at runtime. That lets profiles keep only the top-level tool selection while helper tools remain hidden or system-managed.
 
+The MVC and Blazor editors only surface **selectable** tools and **user-selectable** agents here. Hidden tools, system tools, always-available agents, and system agents such as the Tabular Data Agent stay out of the picker and continue to be managed by the framework.
+
 ### 5. Knowledge and retrieval
 
 Profiles can be linked to:

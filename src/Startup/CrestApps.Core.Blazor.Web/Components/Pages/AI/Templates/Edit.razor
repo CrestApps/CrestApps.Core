@@ -668,6 +668,7 @@
         if (_sourceError != null) return;
 
         SyncCheckboxSelections();
+        _model.SelectedToolNames = GetValidToolNames(_model.SelectedToolNames);
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
         _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
@@ -744,7 +745,7 @@
 
         var toolOpts = ToolOpts.Value;
         var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableTools = toolOpts.Tools.Where(kvp => !kvp.Value.IsSystemTool && !kvp.Value.Hidden)
+        _model.AvailableTools = toolOpts.GetSelectableTools()
             .Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key) })
             .OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
 
@@ -794,10 +795,18 @@
         return (ids ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
+    private string[] GetValidToolNames(IEnumerable<string> names)
+    {
+        var validToolNames = ToolOpts.Value.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return (names ?? []).Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
     private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> names)
     {
         var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
-        var valid = allAgents.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var valid = allAgents.Where(agent => agent.IsUserSelectableAgent()).Select(agent => agent.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         return (names ?? []).Where(n => !string.IsNullOrWhiteSpace(n) && valid.Contains(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 

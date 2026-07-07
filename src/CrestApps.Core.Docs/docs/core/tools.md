@@ -38,6 +38,7 @@ The tool builder pattern provides a fluent API for all of this.
 | Type | Registration | Visibility | Use Case |
 |------|-------------|-----------|----------|
 | **Selectable** | `.Selectable()` | Visible in UI for profile assignment | User-facing tools (calculator, search) |
+| **Hidden** | `.Hidden()` | Not shown in the picker or generic public exports; usable only when a profile or agent names it explicitly | Private helper tools for specialized agents |
 | **System** | Default (no `.Selectable()`) | Hidden, auto-included by orchestrator | Internal tools (RAG search, image gen) |
 
 ## Fluent Builder API
@@ -54,6 +55,7 @@ Returns an `AIToolBuilder<TTool>` for fluent configuration:
 | `.WithPurpose(string)` | Semantic purpose tag (see below) |
 | `.WithDependency(string)` / `.WithDependencies(params string[])` | Registers dependency tools that should be added automatically |
 | `.WithoutDependency(string)` / `.WithoutDependencies(params string[])` | Removes previously registered dependency tools |
+| `.Hidden()` | Makes the tool private to explicitly named profiles or agents and excludes it from picker-style/public export surfaces |
 | `.Selectable()` | Makes the tool visible in UI and assignable to profiles |
 
 ### Tool Purposes
