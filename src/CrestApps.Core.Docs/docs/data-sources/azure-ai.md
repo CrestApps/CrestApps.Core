@@ -76,6 +76,20 @@ When you call `AddAIDataSources()`, the feature builder also pulls in the shared
 
 Override `IAIDataSourceIndexingQueue` when you need a durable or distributed queue, override `IAIDataSourceIndexingService` when you need different synchronization rules, and add your own `ISearchDocumentHandler` registrations when source-index writes should trigger additional asynchronous work.
 
+## External Azure AI Search source mappings
+
+When an `AIDataSource` uses `SourceType = "AzureAISearch"`, the mapping reads documents from a remote Azure AI Search index using source-specific settings stored on the `AIDataSource`:
+
+- `Endpoint`
+- `AuthenticationType` (`ApiKey`, `Default`, or `ManagedIdentity`)
+- `IndexName`
+- `IdentityClientId` (optional for `Default` and `ManagedIdentity`)
+- `ApiKey` (protected at rest when `AuthenticationType = "ApiKey"`)
+
+This source-side configuration is separate from the shared Azure AI Search backend registration that hosts use for knowledge-base indexing and vector search.
+
+Because the remote source index is externally managed, record changes are synchronized by calling `IAIDataSourceChangeNotifier` from your application or integration layer. See [Custom Sources](./custom-sources.md) for the notification pattern.
+
 ## Authentication
 
 Set `AuthenticationType` to one of these values:

@@ -47,6 +47,11 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, IModifie
     public string OwnerId { get; set; }
 
     /// <summary>
+    /// Gets or sets the source type used to read documents into this data source.
+    /// </summary>
+    public string SourceType { get; set; }
+
+    /// <summary>
     /// Gets or sets the name of the source index to query for data.
     /// </summary>
     public string SourceIndexProfileName { get; set; }
@@ -89,6 +94,7 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, IModifie
 #pragma warning restore CS0618 // Type or member is obsolete
             Author = Author,
             OwnerId = OwnerId,
+            SourceType = SourceType,
             SourceIndexProfileName = SourceIndexProfileName,
             AIKnowledgeBaseIndexProfileName = AIKnowledgeBaseIndexProfileName,
             KeyFieldName = KeyFieldName,

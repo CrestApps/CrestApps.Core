@@ -57,6 +57,12 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
                     case AIDataSourceIndexingWorkItemType.RemoveSourceDocuments:
                         await indexingService.RemoveSourceDocumentsAsync(workItem.SourceIndexProfileName, workItem.DocumentIds, stoppingToken);
                         break;
+                    case AIDataSourceIndexingWorkItemType.SyncDataSourceDocuments:
+                        await indexingService.SyncDataSourceDocumentsAsync(workItem.DataSourceId, workItem.DocumentIds, stoppingToken);
+                        break;
+                    case AIDataSourceIndexingWorkItemType.RemoveDataSourceDocuments:
+                        await indexingService.RemoveDataSourceDocumentsAsync(workItem.DataSourceId, workItem.DocumentIds, stoppingToken);
+                        break;
                 }
 
                 if (_logger.IsEnabled(LogLevel.Trace))

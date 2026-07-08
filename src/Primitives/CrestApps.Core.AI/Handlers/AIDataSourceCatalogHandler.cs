@@ -1,12 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Support;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Handlers;
@@ -14,6 +16,7 @@ namespace CrestApps.Core.AI.Handlers;
 internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDataSource>
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly ILogger<AIDataSourceCatalogHandler> _logger;
@@ -27,11 +30,13 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
     /// <param name="logger">The logger.</param>
     public AIDataSourceCatalogHandler(
         IHttpContextAccessor httpContextAccessor,
+        IServiceProvider serviceProvider,
         TimeProvider timeProvider,
         IAIDataSourceIndexingQueue indexingQueue,
         ILogger<AIDataSourceCatalogHandler> logger)
     {
         _httpContextAccessor = httpContextAccessor;
+        _serviceProvider = serviceProvider;
         _timeProvider = timeProvider;
         _indexingQueue = indexingQueue;
         _logger = logger;
@@ -75,16 +80,11 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
     /// </summary>
     /// <param name="context">The context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public override Task ValidatingAsync(ValidatingContext<AIDataSource> context, CancellationToken cancellationToken = default)
+    public override async Task ValidatingAsync(ValidatingContext<AIDataSource> context, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(context.Model.DisplayText))
         {
             context.Result.Fail(new ValidationResult("Display text is required.", [nameof(AIDataSource.DisplayText)]));
-        }
-
-        if (string.IsNullOrWhiteSpace(context.Model.SourceIndexProfileName))
-        {
-            context.Result.Fail(new ValidationResult("Source index profile is required.", [nameof(AIDataSource.SourceIndexProfileName)]));
         }
 
         if (string.IsNullOrWhiteSpace(context.Model.AIKnowledgeBaseIndexProfileName))
@@ -97,7 +97,19 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
             context.Result.Fail(new ValidationResult("Content field name is required.", [nameof(AIDataSource.ContentFieldName)]));
         }
 
-        return Task.CompletedTask;
+        context.Model.SourceType = string.IsNullOrWhiteSpace(context.Model.SourceType)
+            ? AIDataSourceSourceTypes.SearchIndexProfile
+            : context.Model.SourceType.Trim();
+
+        var sourceHandler = _serviceProvider.GetKeyedService<IAIDataSourceSourceHandler>(context.Model.SourceType);
+        if (sourceHandler == null)
+        {
+            context.Result.Fail(new ValidationResult("The selected source type is not supported.", [nameof(AIDataSource.SourceType)]));
+
+            return;
+        }
+
+        await sourceHandler.ValidateAsync(context.Model, context.Result, cancellationToken);
     }
 
     /// <summary>
@@ -194,6 +206,7 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.DisplayText), value => dataSource.DisplayText = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.OwnerId), value => dataSource.OwnerId = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.Author), value => dataSource.Author = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIDataSource.SourceType), value => dataSource.SourceType = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.SourceIndexProfileName), value => dataSource.SourceIndexProfileName = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.AIKnowledgeBaseIndexProfileName), value => dataSource.AIKnowledgeBaseIndexProfileName = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.KeyFieldName), value => dataSource.KeyFieldName = value);
@@ -207,6 +220,7 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
 #pragma warning disable CS0618 // Type or member is obsolete
                 dataSource.ProfileSource = value;
 #pragma warning restore CS0618 // Type or member is obsolete
+                dataSource.SourceType ??= AIDataSourceSourceTypes.SearchIndexProfile;
                 dataSource.SourceIndexProfileName = value;
             });
         }

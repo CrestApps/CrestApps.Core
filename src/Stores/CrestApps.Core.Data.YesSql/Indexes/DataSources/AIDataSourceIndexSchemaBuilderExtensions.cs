@@ -17,6 +17,7 @@ public static class AIDataSourceIndexSchemaBuilderExtensions
         await schemaBuilder.CreateMapIndexTableAsync<AIDataSourceIndex>(table => table
             .Column<string>(nameof(AIDataSourceIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIDataSourceIndex.DisplayText), column => column.WithLength(255))
+            .Column<string>(nameof(AIDataSourceIndex.SourceType), column => column.WithLength(128))
             .Column<string>(nameof(AIDataSourceIndex.SourceIndexProfileName), column => column.WithLength(255)),
             collection: options?.AICollectionName);
 

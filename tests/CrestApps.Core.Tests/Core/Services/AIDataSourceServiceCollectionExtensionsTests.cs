@@ -1,5 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Azure.AISearch;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Elasticsearch;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Indexing;
@@ -32,6 +33,10 @@ public sealed class AIDataSourceServiceCollectionExtensionsTests
             descriptor.ImplementationType == typeof(DefaultAIDataSourceIndexingService) &&
             descriptor.Lifetime == ServiceLifetime.Scoped);
         Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(IAIDataSourceChangeNotifier) &&
+            descriptor.ImplementationType == typeof(DefaultAIDataSourceChangeNotifier) &&
+            descriptor.Lifetime == ServiceLifetime.Scoped);
+        Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(ICatalogEntryHandler<AIDataSource>) &&
             descriptor.ImplementationType == typeof(AIDataSourceCatalogHandler) &&
             descriptor.Lifetime == ServiceLifetime.Scoped);
@@ -47,6 +52,13 @@ public sealed class AIDataSourceServiceCollectionExtensionsTests
             descriptor.ServiceType == typeof(IHostedService) &&
             descriptor.ImplementationType == typeof(AIDataSourceAlignmentBackgroundService) &&
             descriptor.Lifetime == ServiceLifetime.Singleton);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<IOptions<AIDataSourceSourceOptions>>().Value;
+
+        Assert.Contains(options.Sources, source =>
+            source.SourceType == AIDataSourceSourceTypes.SearchIndexProfile &&
+            source.DisplayName.Value == "Search Index Profile");
     }
 
     [Fact]
@@ -73,6 +85,8 @@ public sealed class AIDataSourceServiceCollectionExtensionsTests
         Assert.Contains(options.Sources, source =>
             source.ProviderName == AISearchConstants.ProviderName &&
             source.Type == IndexProfileTypes.DataSource);
+        Assert.Contains(serviceProvider.GetRequiredService<IOptions<AIDataSourceSourceOptions>>().Value.Sources, source =>
+            source.SourceType == AIDataSourceSourceTypes.AzureAISearch);
     }
 
     [Fact]
@@ -99,5 +113,7 @@ public sealed class AIDataSourceServiceCollectionExtensionsTests
         Assert.Contains(options.Sources, source =>
             source.ProviderName == ElasticsearchConstants.ProviderName &&
             source.Type == IndexProfileTypes.DataSource);
+        Assert.Contains(serviceProvider.GetRequiredService<IOptions<AIDataSourceSourceOptions>>().Value.Sources, source =>
+            source.SourceType == AIDataSourceSourceTypes.Elasticsearch);
     }
 }

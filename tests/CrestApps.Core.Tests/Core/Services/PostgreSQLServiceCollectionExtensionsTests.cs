@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.PostgreSQL;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -36,6 +37,8 @@ public sealed class PostgreSQLServiceCollectionExtensionsTests
         Assert.Contains(options.Sources, source =>
             source.ProviderName == PostgreSQLConstants.ProviderName &&
             source.Type == IndexProfileTypes.DataSource);
+        Assert.Contains(serviceProvider.GetRequiredService<IOptions<AIDataSourceSourceOptions>>().Value.Sources, source =>
+            source.SourceType == AIDataSourceSourceTypes.PostgreSQL);
     }
 
     [Fact]

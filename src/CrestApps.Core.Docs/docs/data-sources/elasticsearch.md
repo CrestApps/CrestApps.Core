@@ -76,6 +76,21 @@ When you call `AddAIDataSources()`, the feature builder also pulls in the shared
 
 Override `IAIDataSourceIndexingQueue` when you need a durable or distributed queue, override `IAIDataSourceIndexingService` when you need different synchronization rules, and add your own `ISearchDocumentHandler` registrations when source-index writes should trigger additional asynchronous work.
 
+## External Elasticsearch source mappings
+
+When an `AIDataSource` uses `SourceType = "Elasticsearch"`, the mapping reads documents from a remote Elasticsearch index using source-specific settings stored on the `AIDataSource` itself:
+
+- `Url`
+- `AuthenticationType` (`None` or `Basic`)
+- `IndexName`
+- `Username` (when `AuthenticationType = "Basic"`)
+- `Password` (protected at rest when `AuthenticationType = "Basic"`)
+- `CertificateFingerprint`
+
+This is different from the Elasticsearch knowledge-base backend configuration. The backend settings under `CrestApps:Search:Elasticsearch` define where the embedded knowledge-base chunks are written. The source mapping settings define where the raw source documents are read from.
+
+Because the remote source index is externally managed, document changes must be pushed into the sync pipeline through `IAIDataSourceChangeNotifier`. See [Custom Sources](./custom-sources.md) for the notification pattern.
+
 ## Docker Setup for Local Development
 
 Use Docker Compose to run Elasticsearch locally with vector search support:

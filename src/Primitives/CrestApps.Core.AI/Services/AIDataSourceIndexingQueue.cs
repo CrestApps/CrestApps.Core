@@ -76,6 +76,28 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
         return QueueDocumentIdsAsync(sourceIndexProfileName, documentIds, AIDataSourceIndexingWorkItem.ForRemoveSourceDocuments, cancellationToken);
     }
 
+    /// <summary>
+    /// Queues sync data source documents.
+    /// </summary>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public ValueTask QueueSyncDataSourceDocumentsAsync(string dataSourceId, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
+    {
+        return QueueDataSourceDocumentIdsAsync(dataSourceId, documentIds, AIDataSourceIndexingWorkItem.ForSyncDataSourceDocuments, cancellationToken);
+    }
+
+    /// <summary>
+    /// Queues remove data source documents.
+    /// </summary>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public ValueTask QueueRemoveDataSourceDocumentsAsync(string dataSourceId, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
+    {
+        return QueueDataSourceDocumentIdsAsync(dataSourceId, documentIds, AIDataSourceIndexingWorkItem.ForRemoveDataSourceDocuments, cancellationToken);
+    }
+
     internal IAsyncEnumerable<AIDataSourceIndexingWorkItem> ReadAllAsync(CancellationToken cancellationToken = default)
     {
         return _channel.Reader.ReadAllAsync(cancellationToken);
@@ -107,6 +129,32 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
         return _channel.Writer.WriteAsync(workItem, cancellationToken);
     }
 
+    private ValueTask QueueDataSourceDocumentIdsAsync(string dataSourceId, IReadOnlyCollection<string> documentIds, Func<string, IReadOnlyCollection<string>, AIDataSourceIndexingWorkItem> factory, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataSourceId);
+        ArgumentNullException.ThrowIfNull(documentIds);
+
+        var ids = documentIds.Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                _logger.LogTrace("Skipped queueing data-source work item because no document ids remained after normalization.");
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
+        var workItem = factory(dataSourceId, ids);
+
+        LogQueuedWorkItem(workItem, dataSourceId, ids.Length);
+
+        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+    }
+
     private void LogQueuedWorkItem(AIDataSourceIndexingWorkItem workItem, string target, int documentCount)
     {
         if (_logger.IsEnabled(LogLevel.Trace))
@@ -119,6 +167,8 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 internal sealed class AIDataSourceIndexingWorkItem
 {
     public AIDataSource DataSource { get; private init; }
+
+    public string DataSourceId { get; private init; }
 
     public IReadOnlyCollection<string> DocumentIds { get; private init; } = [];
 
@@ -181,6 +231,36 @@ internal sealed class AIDataSourceIndexingWorkItem
             Type = AIDataSourceIndexingWorkItemType.RemoveSourceDocuments,
         };
     }
+
+    /// <summary>
+    /// Fors sync data source documents.
+    /// </summary>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="documentIds">The document ids.</param>
+    public static AIDataSourceIndexingWorkItem ForSyncDataSourceDocuments(string dataSourceId, IReadOnlyCollection<string> documentIds)
+    {
+        return new()
+        {
+            DataSourceId = dataSourceId,
+            DocumentIds = documentIds,
+            Type = AIDataSourceIndexingWorkItemType.SyncDataSourceDocuments,
+        };
+    }
+
+    /// <summary>
+    /// Fors remove data source documents.
+    /// </summary>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="documentIds">The document ids.</param>
+    public static AIDataSourceIndexingWorkItem ForRemoveDataSourceDocuments(string dataSourceId, IReadOnlyCollection<string> documentIds)
+    {
+        return new()
+        {
+            DataSourceId = dataSourceId,
+            DocumentIds = documentIds,
+            Type = AIDataSourceIndexingWorkItemType.RemoveDataSourceDocuments,
+        };
+    }
 }
 
 internal enum AIDataSourceIndexingWorkItemType
@@ -189,4 +269,6 @@ internal enum AIDataSourceIndexingWorkItemType
     DeleteDataSource,
     SyncSourceDocuments,
     RemoveSourceDocuments,
+    SyncDataSourceDocuments,
+    RemoveDataSourceDocuments,
 }

@@ -61,6 +61,19 @@ public sealed class AzureAISearchClientFactory : IAzureAISearchClientFactory
                 }, this);
     }
 
+    /// <summary>
+    /// Creates search client.
+    /// </summary>
+    /// <param name="indexFullName">The index full name.</param>
+    /// <param name="configuration">The configuration.</param>
+    public SearchClient CreateSearchClient(string indexFullName, AzureAISearchConnectionOptions configuration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexFullName);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        return CreateSearchIndexClient(configuration).GetSearchClient(indexFullName.Trim());
+    }
+
     private static SearchIndexClient CreateSearchIndexClient(AzureAISearchConnectionOptions configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);

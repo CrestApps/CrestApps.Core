@@ -16,6 +16,11 @@ public sealed class AIDataSourceIndex : CatalogItemIndex
     public string DisplayText { get; set; }
 
     /// <summary>
+    /// Gets or sets the registered source type.
+    /// </summary>
+    public string SourceType { get; set; }
+
+    /// <summary>
     /// Gets or sets the name of the search index profile that backs this data source.
     /// </summary>
     public string SourceIndexProfileName { get; set; }
@@ -47,6 +52,7 @@ public sealed class AIDataSourceIndexProvider : IndexProvider<AIDataSource>
             {
                 ItemId = ds.ItemId,
                 DisplayText = ds.DisplayText,
+                SourceType = ds.SourceType,
                 SourceIndexProfileName = ds.SourceIndexProfileName,
             });
     }

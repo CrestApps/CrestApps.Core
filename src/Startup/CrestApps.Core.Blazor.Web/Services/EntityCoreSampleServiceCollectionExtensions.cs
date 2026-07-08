@@ -17,6 +17,7 @@ using CrestApps.Core.Startup.Shared.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Blazor.Web.Services;
@@ -58,17 +59,17 @@ internal static class EntityCoreSampleServiceCollectionExtensions
         services.ConfigureOptions<Areas.AIChat.Services.SampleClaudeOptionsConfiguration>();
 
         services.Configure<IndexProfileSourceOptions>(options => options
-            .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", IndexProfileTypes.Articles, descriptor =>
+            .AddOrUpdate(ElasticsearchConstants.ProviderName, new LocalizedString("Elasticsearch", "Elasticsearch"), IndexProfileTypes.Articles, descriptor =>
             {
-                descriptor.DisplayName = "Articles";
-                descriptor.Description = "Create an Elasticsearch index for sample article records managed in the Blazor app.";
+                descriptor.DisplayName = new LocalizedString("Articles", "Articles");
+                descriptor.Description = new LocalizedString("Blazor Elasticsearch Articles Description", "Create an Elasticsearch index for sample article records managed in the Blazor app.");
             })
         );
         services.Configure<IndexProfileSourceOptions>(options => options
-            .AddOrUpdate(ElasticsearchConstants.ProviderName, "Azure AI Search", IndexProfileTypes.Articles, descriptor =>
+            .AddOrUpdate(ElasticsearchConstants.ProviderName, new LocalizedString("Azure AI Search", "Azure AI Search"), IndexProfileTypes.Articles, descriptor =>
             {
-                descriptor.DisplayName = "Articles";
-                descriptor.Description = "Create an Azure AI Search index for sample article records managed in the Blazor app.";
+                descriptor.DisplayName = new LocalizedString("Articles", "Articles");
+                descriptor.Description = new LocalizedString("Blazor Azure AI Search Articles Description", "Create an Azure AI Search index for sample article records managed in the Blazor app.");
             })
         );
 

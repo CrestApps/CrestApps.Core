@@ -1,6 +1,8 @@
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.PostgreSQL.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.PostgreSQL;
@@ -8,6 +10,7 @@ using CrestApps.Core.PostgreSQL.Builders;
 using CrestApps.Core.PostgreSQL.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.PostgreSQL;
@@ -30,8 +33,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCorePostgreSQLSource(IndexProfileTypes.AIDocuments, descriptor =>
                 {
-                    descriptor.DisplayName = "AI Documents";
-                    descriptor.Description = "Create a PostgreSQL index for uploaded and embedded AI document chunks.";
+                    descriptor.DisplayName = new LocalizedString("AI Documents", "AI Documents");
+                    descriptor.Description = new LocalizedString("PostgreSQL AI Documents Description", "Create a PostgreSQL index for uploaded and embedded AI document chunks.");
                 }).AddCoreAIDocumentIndexProfileHandler();
     }
 
@@ -45,9 +48,18 @@ public static class ServiceCollectionExtensions
 
         return services.AddCorePostgreSQLSource(IndexProfileTypes.DataSource, descriptor =>
                 {
-                    descriptor.DisplayName = "Data Source";
-                    descriptor.Description = "Create a PostgreSQL index for AI knowledge base data source documents.";
+                    descriptor.DisplayName = new LocalizedString("Data Source", "Data Source");
+                    descriptor.Description = new LocalizedString("PostgreSQL Data Source Description", "Create a PostgreSQL index for AI knowledge base data source documents.");
                 }).AddCoreAIDataSourceRag()
+                .Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
+                    AIDataSourceSourceTypes.PostgreSQL,
+                    new LocalizedString("PostgreSQL", "PostgreSQL"),
+                    new LocalizedString("PostgreSQL Source Description", "Read source documents from an external PostgreSQL table using explicit connection settings.")))
+                .AddKeyedScoped<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.PostgreSQL, (sp, _)
+                    => new PostgreSQLAIDataSourceSourceHandler(
+                        sp.GetRequiredService<IPostgreSQLClientFactory>(),
+                        sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
+                        sp.GetRequiredService<ILogger<PostgreSQLAIDataSourceSourceHandler>>()))
                 .AddCoreAIDataSourceIndexProfileHandler();
     }
 
@@ -64,8 +76,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCorePostgreSQLSource(IndexProfileTypes.AIMemory, descriptor =>
                 {
-                    descriptor.DisplayName = "AI Memory";
-                    descriptor.Description = "Create a PostgreSQL index for user and system memory records.";
+                    descriptor.DisplayName = new LocalizedString("AI Memory", "AI Memory");
+                    descriptor.Description = new LocalizedString("PostgreSQL AI Memory Description", "Create a PostgreSQL index for user and system memory records.");
                 }).AddCoreAIMemoryIndexProfileHandler();
     }
 
@@ -82,7 +94,7 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAIDefaultIndexProfileHandler();
         services.Configure<IndexProfileSourceOptions>(options => options
-            .AddOrUpdate(PostgreSQLConstants.ProviderName, "PostgreSQL", type, configure)
+            .AddOrUpdate(PostgreSQLConstants.ProviderName, new LocalizedString("PostgreSQL", "PostgreSQL"), type, configure)
         );
 
         return services;

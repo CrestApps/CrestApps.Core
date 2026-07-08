@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure;
@@ -94,7 +95,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     {
         ArgumentNullException.ThrowIfNull(dataSource);
 
-        var context = await TryCreateContextAsync(dataSource, requireSourceProfile: true);
+        var context = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
         if (context == null)
         {
             return;
@@ -102,7 +103,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 
         await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
         await context.ContentManager.DeleteByDataSourceIdAsync(context.KnowledgeBaseProfile, dataSource.ItemId, cancellationToken);
-        var sourceDocuments = context.DocumentReader.ReadAsync(context.SourceProfile, dataSource.KeyFieldName, dataSource.TitleFieldName, dataSource.ContentFieldName, cancellationToken);
+        var sourceDocuments = context.SourceHandler.ReadAsync(dataSource, cancellationToken);
         await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: false, cancellationToken);
     }
 
@@ -133,16 +134,49 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         foreach (var dataSource in await GetMatchingDataSourcesAsync(sourceIndexProfileName))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var context = await TryCreateContextAsync(dataSource, requireSourceProfile: true);
+            var context = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
             if (context == null)
             {
                 continue;
             }
 
             await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
-            var sourceDocuments = context.DocumentReader.ReadByIdsAsync(context.SourceProfile, ids, dataSource.KeyFieldName, dataSource.TitleFieldName, dataSource.ContentFieldName, cancellationToken);
+            var sourceDocuments = context.SourceHandler.ReadByIdsAsync(dataSource, ids, cancellationToken);
             await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: true, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Syncs data source documents.
+    /// </summary>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task SyncDataSourceDocumentsAsync(string dataSourceId, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
+    {
+        var ids = NormalizeDocumentIds(documentIds);
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        var dataSource = await _dataSourceCatalog.FindByIdAsync(dataSourceId, cancellationToken);
+        if (dataSource == null)
+        {
+            _logger.LogWarning("Skipping incremental data-source synchronization because data source '{DataSourceId}' was not found.", dataSourceId);
+
+            return;
+        }
+
+        var context = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
+        if (context == null)
+        {
+            return;
+        }
+
+        await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
+        var sourceDocuments = context.SourceHandler.ReadByIdsAsync(dataSource, ids, cancellationToken);
+        await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: true, cancellationToken);
     }
 
     /// <summary>
@@ -173,7 +207,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         foreach (var dataSource in await GetMatchingDataSourcesAsync(sourceIndexProfileName))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var context = await TryCreateContextAsync(dataSource, requireSourceProfile: false);
+            var context = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
             if (context == null)
             {
                 continue;
@@ -181,6 +215,37 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 
             await context.DocumentManager.DeleteAsync(context.KnowledgeBaseProfile, chunkIds, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Removes data source documents.
+    /// </summary>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="documentIds">The document ids.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async Task RemoveDataSourceDocumentsAsync(string dataSourceId, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
+    {
+        var ids = NormalizeDocumentIds(documentIds);
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        var dataSource = await _dataSourceCatalog.FindByIdAsync(dataSourceId, cancellationToken);
+        if (dataSource == null)
+        {
+            _logger.LogWarning("Skipping incremental data-source deletion because data source '{DataSourceId}' was not found.", dataSourceId);
+
+            return;
+        }
+
+        var context = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
+        if (context == null)
+        {
+            return;
+        }
+
+        await context.DocumentManager.DeleteAsync(context.KnowledgeBaseProfile, BuildChunkIds(ids), cancellationToken);
     }
 
     /// <summary>
@@ -192,7 +257,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     {
         ArgumentNullException.ThrowIfNull(dataSource);
 
-        var context = await TryCreateContextAsync(dataSource, requireSourceProfile: false);
+        var context = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
         if (context == null)
         {
             return;
@@ -248,7 +313,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
                     [DataSourceConstants.ColumnNames.ChunkId] = chunkId,
                     [DataSourceConstants.ColumnNames.ReferenceId] = referenceId,
                     [DataSourceConstants.ColumnNames.DataSourceId] = context.DataSource.ItemId,
-                    [DataSourceConstants.ColumnNames.ReferenceType] = context.SourceProfile.Type,
+                    [DataSourceConstants.ColumnNames.ReferenceType] = context.ReferenceType,
                     [DataSourceConstants.ColumnNames.ChunkIndex] = i,
                     [DataSourceConstants.ColumnNames.Title] = normalizedTitle,
                     [DataSourceConstants.ColumnNames.Content] = chunkTexts[i],
@@ -309,7 +374,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         await context.IndexManager.CreateAsync(context.KnowledgeBaseProfile, fields, cancellationToken);
     }
 
-    private async Task<DataSourceIndexingContext> TryCreateContextAsync(AIDataSource dataSource, bool requireSourceProfile)
+    private async Task<DataSourceIndexingContext> TryCreateContextAsync(AIDataSource dataSource, bool requireSourceReader, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(dataSource.AIKnowledgeBaseIndexProfileName))
         {
@@ -341,30 +406,9 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return null;
         }
 
-        if (!requireSourceProfile)
+        if (!requireSourceReader)
         {
-            return new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, null, indexManager, documentManager, contentManager, null, null);
-        }
-
-        if (string.IsNullOrWhiteSpace(dataSource.SourceIndexProfileName))
-        {
-            return null;
-        }
-
-        var sourceProfile = await _indexProfileManager.FindByNameAsync(dataSource.SourceIndexProfileName);
-        if (sourceProfile == null)
-        {
-            _logger.LogWarning("Skipping data source '{DataSourceId}' because source index profile '{IndexProfileName}' was not found.", dataSource.ItemId, dataSource.SourceIndexProfileName);
-
-            return null;
-        }
-
-        var documentReader = _serviceProvider.GetKeyedService<IDataSourceDocumentReader>(sourceProfile.ProviderName);
-        if (documentReader == null)
-        {
-            _logger.LogWarning("Skipping data source '{DataSourceId}' because provider '{ProviderName}' cannot read source documents.", dataSource.ItemId, sourceProfile.ProviderName);
-
-            return null;
+            return new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, indexManager, documentManager, contentManager, null, null, null);
         }
 
         var deploymentName = knowledgeBaseProfile.EmbeddingDeploymentName;
@@ -382,7 +426,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return null;
         }
 
-        var deployment = await _deploymentManager.FindByNameAsync(deploymentName);
+        var deployment = await _deploymentManager.FindByNameAsync(deploymentName, cancellationToken);
 
         if (deployment == null)
         {
@@ -400,7 +444,24 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return null;
         }
 
-        return new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, sourceProfile, indexManager, documentManager, contentManager, documentReader, embeddingGenerator);
+        var sourceType = AIDataSourceSourceHelper.GetSourceType(dataSource);
+        var sourceHandler = _serviceProvider.GetKeyedService<IAIDataSourceSourceHandler>(sourceType);
+        if (sourceHandler == null)
+        {
+            _logger.LogWarning("Skipping data source '{DataSourceId}' because source type '{SourceType}' is not registered.", dataSource.ItemId, sourceType);
+
+            return null;
+        }
+
+        var referenceType = await sourceHandler.GetReferenceTypeAsync(dataSource, cancellationToken);
+        if (string.IsNullOrWhiteSpace(referenceType))
+        {
+            _logger.LogWarning("Skipping data source '{DataSourceId}' because source type '{SourceType}' could not resolve a reference type.", dataSource.ItemId, sourceType);
+
+            return null;
+        }
+
+        return new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, indexManager, documentManager, contentManager, sourceHandler, referenceType, embeddingGenerator);
     }
 
     private static string[] NormalizeDocumentIds(IEnumerable<string> documentIds)
@@ -411,13 +472,10 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private async Task<IReadOnlyCollection<AIDataSource>> GetMatchingDataSourcesAsync(string sourceIndexProfileName)
     {
         var dataSources = await _dataSourceCatalog.GetAllAsync();
-        if (string.IsNullOrWhiteSpace(sourceIndexProfileName))
-        {
-            return dataSources.ToArray();
-        }
-
         return dataSources
-            .Where(dataSource => string.Equals(dataSource.SourceIndexProfileName, sourceIndexProfileName, StringComparison.OrdinalIgnoreCase))
+            .Where(dataSource => string.Equals(AIDataSourceSourceHelper.GetSourceType(dataSource), AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase))
+            .Where(dataSource => string.IsNullOrWhiteSpace(sourceIndexProfileName) ||
+                string.Equals(dataSource.SourceIndexProfileName, sourceIndexProfileName, StringComparison.OrdinalIgnoreCase))
             .ToArray();
     }
 
@@ -446,5 +504,13 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         return new Dictionary<string, object>(sourceFields, StringComparer.OrdinalIgnoreCase);
     }
 
-    private sealed record DataSourceIndexingContext(AIDataSource DataSource, SearchIndexProfile KnowledgeBaseProfile, SearchIndexProfile SourceProfile, ISearchIndexManager IndexManager, ISearchDocumentManager DocumentManager, IDataSourceContentManager ContentManager, IDataSourceDocumentReader DocumentReader, IEmbeddingGenerator<string, Embedding<float>> EmbeddingGenerator);
+    private sealed record DataSourceIndexingContext(
+        AIDataSource DataSource,
+        SearchIndexProfile KnowledgeBaseProfile,
+        ISearchIndexManager IndexManager,
+        ISearchDocumentManager DocumentManager,
+        IDataSourceContentManager ContentManager,
+        IAIDataSourceSourceHandler SourceHandler,
+        string ReferenceType,
+        IEmbeddingGenerator<string, Embedding<float>> EmbeddingGenerator);
 }

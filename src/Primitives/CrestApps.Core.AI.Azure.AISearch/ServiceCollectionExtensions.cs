@@ -1,13 +1,16 @@
 using CrestApps.Core.AI.Azure.AISearch.Services;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Azure.AISearch.Builders;
 using CrestApps.Core.Azure.AISearch.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Azure.AISearch;
@@ -29,8 +32,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
                 {
-                    descriptor.DisplayName = "AI Documents";
-                    descriptor.Description = "Create an Azure AI Search index for uploaded and embedded AI document chunks.";
+                    descriptor.DisplayName = new LocalizedString("AI Documents", "AI Documents");
+                    descriptor.Description = new LocalizedString("Azure AI Search AI Documents Description", "Create an Azure AI Search index for uploaded and embedded AI document chunks.");
                 }).AddCoreAIDocumentIndexProfileHandler();
     }
 
@@ -44,9 +47,19 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
                 {
-                    descriptor.DisplayName = "Data Source";
-                    descriptor.Description = "Create an Azure AI Search index for AI knowledge base data source documents.";
-                }).AddCoreAIDataSourceRag().AddCoreAIDataSourceIndexProfileHandler();
+                    descriptor.DisplayName = new LocalizedString("Data Source", "Data Source");
+                    descriptor.Description = new LocalizedString("Azure AI Search Data Source Description", "Create an Azure AI Search index for AI knowledge base data source documents.");
+                }).AddCoreAIDataSourceRag()
+                .Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
+                    AIDataSourceSourceTypes.AzureAISearch,
+                    new LocalizedString("Azure AI Search", "Azure AI Search"),
+                    new LocalizedString("Azure AI Search Source Description", "Read source documents from an external Azure AI Search index using explicit connection settings.")))
+                .AddKeyedScoped<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.AzureAISearch, (sp, _)
+                    => new AzureAISearchAIDataSourceSourceHandler(
+                        sp.GetRequiredService<IAzureAISearchClientFactory>(),
+                        sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
+                        sp.GetRequiredService<ILogger<AzureAISearchAIDataSourceSourceHandler>>()))
+                .AddCoreAIDataSourceIndexProfileHandler();
     }
 
     /// <summary>
@@ -61,8 +74,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
                 {
-                    descriptor.DisplayName = "AI Memory";
-                    descriptor.Description = "Create an Azure AI Search index for user and system memory records.";
+                    descriptor.DisplayName = new LocalizedString("AI Memory", "AI Memory");
+                    descriptor.Description = new LocalizedString("Azure AI Search AI Memory Description", "Create an Azure AI Search index for user and system memory records.");
                 }).AddCoreAIMemoryIndexProfileHandler();
     }
 
@@ -78,7 +91,11 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(type);
 
         services.AddCoreAIDefaultIndexProfileHandler();
-        services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(AISearchConstants.ProviderName, "Azure AI Search", type, configure));
+        services.Configure<IndexProfileSourceOptions>(options => options.AddOrUpdate(
+            AISearchConstants.ProviderName,
+            new LocalizedString("Azure AI Search", "Azure AI Search"),
+            type,
+            configure));
 
         return services;
     }
