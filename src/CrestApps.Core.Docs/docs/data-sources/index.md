@@ -2,12 +2,12 @@
 sidebar_label: Overview
 sidebar_position: 1
 title: Data Sources
-description: Vector search backends for retrieval-augmented generation (RAG) with Elasticsearch and Azure AI Search.
+description: Knowledge-base indexing and RAG with SearchIndexProfile, Elasticsearch, Azure AI Search, and PostgreSQL sources.
 ---
 
 # Data Sources
 
-> Connect vector search backends for retrieval-augmented generation (RAG). Data sources provide semantic search over external knowledge bases.
+> Connect knowledge sources and vector search backends for retrieval-augmented generation (RAG). Data sources let AI profiles ground responses in your own content.
 
 ## Quick Start
 
@@ -20,8 +20,28 @@ builder.Services
     .AddCoreElasticsearchServices(
         builder.Configuration.GetSection("CrestApps:Elasticsearch"))
     .AddCoreAzureAISearchServices(
-        builder.Configuration.GetSection("CrestApps:AzureAISearch"));
+        builder.Configuration.GetSection("CrestApps:AzureAISearch"))
+    .AddCorePostgreSQLServices(
+        builder.Configuration.GetSection("CrestApps:PostgreSQL"));
 ```
+
+## Source Model
+
+Each `AIDataSource` now has two sides:
+
+1. **Source** — where raw documents come from.
+2. **Knowledge base** — the vector-enabled index profile that stores chunked, embedded documents for RAG.
+
+The built-in source types are:
+
+| Source type | What it reads | Sync model |
+| --- | --- | --- |
+| `SearchIndexProfile` | A CrestApps-managed source index profile | automatic partial sync when writes go through `ISearchDocumentManager` |
+| `Elasticsearch` | An external Elasticsearch index using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
+| `AzureAISearch` | An external Azure AI Search index using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
+| `PostgreSQL` | An external PostgreSQL table using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
+
+`SearchIndexProfile` remains the default source type and the simplest option when your content is already indexed through CrestApps.Core.
 
 ## What is Vector Search?
 
@@ -90,7 +110,7 @@ Data sources integrate with the orchestration pipeline through three shared fram
 2. `DataSourceOrchestrationHandler` injects data-source availability instructions and keeps the search tool in scope
 3. `DataSourcePreemptiveRagHandler` performs preemptive retrieval and injects matching chunks into the system message
 
-The same shared framework layer also exposes `IAIDataSourceIndexingService` for keeping knowledge-base indexes synchronized with their source indexes. Data source mappings are observed by the framework itself so source document writes can flow into the mapped knowledge-base index without each host re-implementing custom handlers.
+The same shared framework layer also exposes `IAIDataSourceIndexingService` for keeping knowledge-base indexes synchronized with their sources. `SearchIndexProfile`-backed mappings are observed automatically when source document writes flow through the shared indexing services. External source types use the same indexing pipeline after your code notifies the framework about source changes.
 
 ```text
 User Query
@@ -117,8 +137,10 @@ Each data source backend registers these services, keyed by its provider name:
 
 | Service | Purpose |
 |---------|---------|
-| `IDataSourceContentManager` | Manages content in data source indices |
-| `IDataSourceDocumentReader` | Reads documents from data source indices |
+| `IAIDataSourceSourceHandler` | Validates one source type and reads full or incremental source documents |
+| `IAIDataSourceChangeNotifier` | Queues full or incremental sync work for externally managed source systems |
+| `IDataSourceContentManager` | Manages content in knowledge-base indices |
+| `IDataSourceDocumentReader` | Reads documents from `SearchIndexProfile` sources |
 | `IAIDataSourceIndexingService` | Rebuilds and repairs knowledge-base indexes from source indexes |
 | `IAIDataSourceIndexingQueue` | Queues asynchronous rebuild and partial-sync work for mapped data sources |
 | `IODataFilterTranslator` | Translates OData filters to backend-native queries |
@@ -128,12 +150,14 @@ Each data source backend registers these services, keyed by its provider name:
 
 ## Automatic Synchronization
 
-When you configure an `AIDataSource` that maps a source index profile to a knowledge-base index profile, the framework keeps the two aligned in two ways:
+When you configure an `AIDataSource`, the framework keeps the source and knowledge-base index aligned in two ways:
 
 1. `AIDataSourceCatalogIndexingHandler` queues an initial or updated full rebuild whenever the mapping itself is created, edited, or deleted.
-2. `ISearchDocumentManager` implementations notify registered `ISearchDocumentHandler` instances after successful document upserts and deletes, and `AIDataSourceSearchDocumentHandler` queues a targeted sync for any mapped source profile.
+2. Source-specific change notifications queue targeted sync work:
+   - `SearchIndexProfile` sources use `ISearchDocumentManager` + `AIDataSourceSearchDocumentHandler` automatically.
+   - external sources use `IAIDataSourceChangeNotifier`.
 
-That means document changes such as article create, update, and delete operations automatically flow into the mapped knowledge-base index as long as the source write goes through CrestApps.Core indexing services.
+That means document changes such as article create, update, and delete operations automatically flow into the mapped knowledge-base index when the source write goes through CrestApps.Core indexing services, or when your integration explicitly calls the notifier for external/custom sources.
 
 If a source update happens outside the framework, or an unexpected exception interrupts the queue flow, `AIDataSourceAlignmentBackgroundService` performs a nightly full reconciliation at 2:00 AM UTC to repair any drift.
 
@@ -156,6 +180,8 @@ Use these services when you need to customize the default behavior:
 
 | Service or contract | Default role | Override when you need |
 | --- | --- | --- |
+| `IAIDataSourceSourceHandler` | validates and reads one source type | custom source connectors, custom source document shaping |
+| `IAIDataSourceChangeNotifier` | queues external source changes | custom indexes, databases, feeds, or other external source systems |
 | `IAIDataSourceIndexingQueue` | In-memory async queue | durable storage, distributed dispatch, custom throttling |
 | `IAIDataSourceIndexingService` | full and partial sync orchestration | custom chunking, filtering, or source-to-target mapping rules |
 | `ISearchDocumentHandler` | reacts after source-index writes/deletes | additional downstream side effects after successful index mutations |
@@ -170,6 +196,13 @@ Use these services when you need to customize the default behavior:
 |---------|-----------|--------------|---------------|
 | Elasticsearch | `AddCoreElasticsearchServices()` | `"Elasticsearch"` | [Elasticsearch](./elasticsearch.md) |
 | Azure AI Search | `AddCoreAzureAISearchServices()` | `"AzureAISearch"` | [Azure AI Search](./azure-ai.md) |
+| PostgreSQL | `AddCorePostgreSQLServices()` | `"PostgreSQL"` | [PostgreSQL](./postgresql.md) |
+
+## Custom Sources
+
+When the built-in source types are not enough, register your own `IAIDataSourceSourceHandler`, add a source descriptor with `AIDataSourceSourceOptions`, and notify the framework through `IAIDataSourceChangeNotifier` when records are added, updated, or deleted.
+
+See [Custom Sources](./custom-sources.md) for the full registration and synchronization pattern.
 
 ## Key Interfaces Deep Dive
 

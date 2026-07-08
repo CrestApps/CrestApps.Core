@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Connections;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Indexing;
@@ -12,11 +13,13 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -225,8 +228,25 @@ public sealed class CatalogEntryHandlerPopulationTests
     public async Task AIDataSourceHandler_MapsKnownPropertiesAndValidatesRequiredValues()
     {
         var queue = new Mock<IAIDataSourceIndexingQueue>();
+        var indexProfileManager = new Mock<ISearchIndexProfileManager>();
+        indexProfileManager.Setup(store => store.FindByNameAsync("source-index"))
+            .ReturnsAsync(new SearchIndexProfile
+            {
+                Name = "source-index",
+                ProviderName = "provider",
+                Type = "Articles",
+            });
+
+        var services = new ServiceCollection();
+        services.AddSingleton(indexProfileManager.Object);
+        services.AddKeyedSingleton<IDataSourceDocumentReader>("provider", Mock.Of<IDataSourceDocumentReader>());
+        services.AddKeyedSingleton<IAIDataSourceSourceHandler>(
+            AIDataSourceSourceTypes.SearchIndexProfile,
+            (serviceProvider, _) => new SearchIndexProfileAIDataSourceSourceHandler(indexProfileManager.Object, serviceProvider));
+
         var handler = new AIDataSourceCatalogHandler(
             CreateHttpContextAccessor(),
+            services.BuildServiceProvider(),
             new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
             queue.Object,
             NullLogger<AIDataSourceCatalogHandler>.Instance);

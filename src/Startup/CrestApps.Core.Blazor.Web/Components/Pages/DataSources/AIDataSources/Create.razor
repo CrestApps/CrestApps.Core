@@ -1,14 +1,19 @@
 @page "/datasources/create"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.DataSources
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Models
 @using CrestApps.Core.Services
 @inject ICatalogManager<AIDataSource> Manager
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject TimeProvider TimeProvider
+@inject IServiceProvider ServiceProvider
+@inject Microsoft.AspNetCore.DataProtection.IDataProtectionProvider DataProtectionProvider
+@inject Microsoft.Extensions.Options.IOptions<AIDataSourceSourceOptions> SourceOptions
 
 <PageTitle>Create Data Source</PageTitle>
 
@@ -34,17 +39,146 @@
                 <div class="form-text">A human-readable name for this data source.</div>
             </div>
 
+            <hr />
+            <h5>Source</h5>
+
             <div class="mb-3">
-                <label class="form-label">Source index profile <span class="text-danger">*</span></label>
-                <InputSelect @bind-Value="_model.SourceIndexProfileName" class="form-select">
-                    <option value="">Select index profile</option>
-                    @foreach (var item in _sourceIndexProfiles)
+                <label class="form-label">Source type <span class="text-danger">*</span></label>
+                <InputSelect @bind-Value="_model.SourceType" class="form-select">
+                    <option value="">Select source type</option>
+                    @foreach (var item in _sourceTypes)
                     {
                         <option value="@item.Key">@item.Value</option>
                     }
                 </InputSelect>
-                <div class="form-text">The index to read source documents from.</div>
+                <div class="form-text">Choose how source documents are read into the knowledge base.</div>
             </div>
+
+            @if (IsSearchIndexProfileSource())
+            {
+                <div class="mb-3">
+                    <label class="form-label">Source index profile <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="_model.SourceIndexProfileName" class="form-select">
+                        <option value="">Select index profile</option>
+                        @foreach (var item in _sourceIndexProfiles)
+                        {
+                            <option value="@item.Key">@item.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">Used when the source type is <strong>Search Index Profile</strong>.</div>
+                </div>
+            }
+
+            @if (IsElasticsearchSource())
+            {
+                <hr />
+                <h5>Elasticsearch Source Settings</h5>
+                <div class="alert alert-info">
+                    Configure the remote Elasticsearch source that CrestApps.Core should read from before chunking and embedding documents.
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Elasticsearch URL</label>
+                    <InputText @bind-Value="_model.ElasticsearchUrl" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Authentication type</label>
+                    <InputSelect @bind-Value="_model.ElasticsearchAuthenticationType" class="form-select">
+                        <option value="@ElasticsearchSourceMetadata.NoneAuthenticationType">None</option>
+                        <option value="@ElasticsearchSourceMetadata.BasicAuthenticationType">Basic</option>
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Elasticsearch index name</label>
+                    <InputText @bind-Value="_model.ElasticsearchIndexName" class="form-control" />
+                </div>
+
+                @if (UsesElasticsearchBasicAuthentication())
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Elasticsearch username</label>
+                        <InputText @bind-Value="_model.ElasticsearchUsername" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Elasticsearch password</label>
+                        <InputText @bind-Value="_model.ElasticsearchPassword" type="password" class="form-control" />
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Certificate fingerprint</label>
+                    <InputText @bind-Value="_model.ElasticsearchCertificateFingerprint" class="form-control" />
+                </div>
+            }
+
+            @if (IsAzureAISearchSource())
+            {
+                <hr />
+                <h5>Azure AI Search Source Settings</h5>
+                <div class="alert alert-info">
+                    Configure the remote Azure AI Search index that CrestApps.Core should read from before chunking and embedding documents.
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Azure AI Search endpoint</label>
+                    <InputText @bind-Value="_model.AzureAISearchEndpoint" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Authentication type</label>
+                    <InputSelect @bind-Value="_model.AzureAISearchAuthenticationType" class="form-select">
+                        <option value="@AzureAISearchSourceMetadata.ApiKeyAuthenticationType">API key</option>
+                        <option value="@AzureAISearchSourceMetadata.DefaultAuthenticationType">Default credential</option>
+                        <option value="@AzureAISearchSourceMetadata.ManagedIdentityAuthenticationType">Managed identity</option>
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Azure AI Search index name</label>
+                    <InputText @bind-Value="_model.AzureAISearchIndexName" class="form-control" />
+                </div>
+
+                @if (UsesAzureAISearchApiKeyAuthentication())
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Azure AI Search API key</label>
+                        <InputText @bind-Value="_model.AzureAISearchApiKey" type="password" class="form-control" />
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Managed identity client ID</label>
+                        <InputText @bind-Value="_model.AzureAISearchIdentityClientId" class="form-control" />
+                        <div class="form-text">Optional for Default credential and Managed identity authentication.</div>
+                    </div>
+                }
+            }
+
+            @if (IsPostgreSQLSource())
+            {
+                <hr />
+                <h5>PostgreSQL Source Settings</h5>
+                <div class="alert alert-info">
+                    Configure the remote PostgreSQL table that CrestApps.Core should read from before chunking and embedding documents.
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">PostgreSQL connection string</label>
+                    <InputText @bind-Value="_model.PostgreSQLConnectionString" type="password" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">PostgreSQL table name</label>
+                    <InputText @bind-Value="_model.PostgreSQLTableName" class="form-control" />
+                </div>
+            }
+
+            <hr />
+            <h5>Knowledge Base</h5>
 
             <div class="mb-3">
                 <label class="form-label">Knowledge base index profile</label>
@@ -76,7 +210,7 @@
             <div class="mb-3">
                 <label class="form-label">Content field name <span class="text-danger">*</span></label>
                 <InputText @bind-Value="_model.ContentFieldName" class="form-control" placeholder="e.g., content" />
-                <div class="form-text">The source index field that maps to the document content (text body).</div>
+                <div class="form-text">The source field that maps to the document content (text body). Field mapping is still required for external sources so the knowledge-base pipeline knows which fields hold the key, title, and content.</div>
             </div>
 
             <div class="mt-4">
@@ -92,6 +226,7 @@
 @code {
     private AIDataSourceViewModel _model = new();
     private List<string> _errors = [];
+    private List<KeyValuePair<string, string>> _sourceTypes = [];
     private List<KeyValuePair<string, string>> _sourceIndexProfiles = [];
     private List<KeyValuePair<string, string>> _knowledgeBaseIndexProfiles = [];
 
@@ -112,7 +247,7 @@
 
         var dataSource = await Manager.NewAsync();
         dataSource.CreatedUtc = TimeProvider.GetUtcNow().UtcDateTime;
-        _model.ApplyTo(dataSource);
+        _model.ApplyTo(dataSource, DataProtectionProvider.CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose));
         await Manager.CreateAsync(dataSource);
         await StoreCommitter.CommitAsync();
         Navigation.NavigateTo("/datasources");
@@ -125,30 +260,14 @@
             _errors.Add("Display text is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(model.SourceIndexProfileName))
+        if (string.IsNullOrWhiteSpace(model.SourceType))
         {
-            _errors.Add("Source index profile is required.");
+            _errors.Add("Source type is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.ContentFieldName))
         {
             _errors.Add("Content field name is required.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(model.SourceIndexProfileName))
-        {
-            var sourceIndexProfile = await IndexProfileStore.FindByNameAsync(model.SourceIndexProfileName);
-
-            if (sourceIndexProfile == null)
-            {
-                _errors.Add("The selected source index profile could not be found.");
-            }
-            else if (string.Equals(sourceIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(sourceIndexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(sourceIndexProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
-            {
-                _errors.Add("The selected source index profile type is not supported for data sources.");
-            }
         }
 
         if (!string.IsNullOrWhiteSpace(model.AIKnowledgeBaseIndexProfileName))
@@ -164,11 +283,39 @@
                 _errors.Add("The selected knowledge base index profile must be an AI Data Source profile.");
             }
         }
+
+        if (string.IsNullOrWhiteSpace(model.SourceType))
+        {
+            return;
+        }
+
+        var handler = ServiceProvider.GetKeyedService<IAIDataSourceSourceHandler>(model.SourceType);
+        if (handler == null)
+        {
+            _errors.Add("The selected source type is not supported.");
+
+            return;
+        }
+
+        var probe = new AIDataSource();
+        model.ApplyTo(probe, DataProtectionProvider.CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose));
+        var validation = new ValidationResultDetails();
+        await handler.ValidateAsync(probe, validation);
+
+        foreach (var error in validation.Errors)
+        {
+            _errors.Add(error.ErrorMessage);
+        }
     }
 
     private async Task PopulateDropdownsAsync()
     {
         var indexProfiles = await IndexProfileStore.GetAllAsync();
+
+        _sourceTypes = SourceOptions.Value.Sources
+            .OrderBy(source => source.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(source => new KeyValuePair<string, string>(source.SourceType, source.DisplayName.Value))
+            .ToList();
 
         _sourceIndexProfiles = indexProfiles
             .Where(p =>
@@ -183,4 +330,22 @@
             .Select(p => new KeyValuePair<string, string>(p.Name, p.DisplayText ?? p.Name))
             .ToList();
     }
+
+    private bool IsSearchIndexProfileSource()
+        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsElasticsearchSource()
+        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase);
+
+    private bool UsesElasticsearchBasicAuthentication()
+        => string.Equals(_model.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsAzureAISearchSource()
+        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase);
+
+    private bool UsesAzureAISearchApiKeyAuthentication()
+        => string.Equals(_model.AzureAISearchAuthenticationType, AzureAISearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsPostgreSQLSource()
+        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase);
 }

@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Indexing;
@@ -331,13 +332,20 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<AIDataSourceIndexingQueue>();
         services.TryAddSingleton<IAIDataSourceIndexingQueue>(sp => sp.GetRequiredService<AIDataSourceIndexingQueue>());
+        services.TryAddScoped<IAIDataSourceChangeNotifier, DefaultAIDataSourceChangeNotifier>();
         services.TryAddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>();
+        services.TryAddKeyedScoped<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.SearchIndexProfile, (sp, _)
+            => new SearchIndexProfileAIDataSourceSourceHandler(sp.GetRequiredService<ISearchIndexProfileManager>(), sp));
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDataSource>, AIDataSourceCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ISearchDocumentHandler, AIDataSourceSearchDocumentHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceIndexingBackgroundService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIDataSourceAlignmentBackgroundService>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DataSourceOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DataSourcePreemptiveRagHandler>());
+        services.Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
+            AIDataSourceSourceTypes.SearchIndexProfile,
+            new LocalizedString("Search Index Profile", "Search Index Profile"),
+            new LocalizedString("Search Index Profile Description", "Read source documents from a CrestApps search index profile managed by the framework.")));
         services.AddCoreAITool<DataSourceSearchTool>(DataSourceSearchTool.TheName)
             .WithPurpose(AIToolPurposes.DataSourceSearch);
 

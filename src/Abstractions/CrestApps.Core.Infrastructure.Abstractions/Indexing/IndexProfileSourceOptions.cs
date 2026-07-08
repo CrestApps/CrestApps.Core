@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Localization;
+
 namespace CrestApps.Core.Infrastructure.Indexing;
 
 /// <summary>
@@ -21,12 +23,12 @@ public sealed class IndexProfileSourceOptions
     /// <param name="configure">The action used to configure.</param>
     public void AddOrUpdate(
         string providerName,
-        string providerDisplayName,
+        LocalizedString providerDisplayName,
         string type,
         Action<IndexProfileSourceDescriptor> configure = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(providerDisplayName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerDisplayName.Value);
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
 
         var descriptor = Sources.FirstOrDefault(source =>
@@ -38,8 +40,8 @@ public sealed class IndexProfileSourceOptions
             ProviderName = providerName,
             ProviderDisplayName = providerDisplayName,
             Type = type,
-            DisplayName = type,
-            Description = type,
+            DisplayName = new LocalizedString(type, type),
+            Description = new LocalizedString(type, type),
         };
 
         configure?.Invoke(descriptor);
@@ -49,4 +51,5 @@ public sealed class IndexProfileSourceOptions
             Sources.Add(descriptor);
         }
     }
+
 }

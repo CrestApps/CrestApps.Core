@@ -40,6 +40,14 @@ public interface IAIDataSourceIndexingService
     Task SyncSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Synchronizes specific source documents for one AI data source mapping.
+    /// </summary>
+    /// <param name="dataSourceId">The AI data source identifier.</param>
+    /// <param name="documentIds">The source document ids that should be synchronized.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    Task SyncDataSourceDocumentsAsync(string dataSourceId, IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Removes a set of source documents from all data sources that map to any matching source profile.
     /// </summary>
     /// <param name="documentIds">The source document ids that should be removed.</param>
@@ -55,6 +63,14 @@ public interface IAIDataSourceIndexingService
     /// <param name="cancellationToken">A token that cancels the removal operation.</param>
     /// <returns>A task that completes when the matching source documents have been removed.</returns>
     Task RemoveSourceDocumentsAsync(string sourceIndexProfileName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes specific source documents for one AI data source mapping.
+    /// </summary>
+    /// <param name="dataSourceId">The AI data source identifier.</param>
+    /// <param name="documentIds">The source document ids that should be removed.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    Task RemoveDataSourceDocumentsAsync(string dataSourceId, IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes all indexed documents for a mapped AI data source from its knowledge-base index.

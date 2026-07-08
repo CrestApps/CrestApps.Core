@@ -42,4 +42,20 @@ public interface IAIDataSourceIndexingQueue
     /// <param name="cancellationToken">A token that cancels queue submission.</param>
     /// <returns>A value task that completes when the work item has been accepted by the queue implementation.</returns>
     ValueTask QueueRemoveSourceDocumentsAsync(string sourceIndexProfileName, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queues an incremental add or update synchronization for one AI data source mapping.
+    /// </summary>
+    /// <param name="dataSourceId">The AI data source identifier.</param>
+    /// <param name="documentIds">The source document identifiers.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    ValueTask QueueSyncDataSourceDocumentsAsync(string dataSourceId, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queues an incremental delete synchronization for one AI data source mapping.
+    /// </summary>
+    /// <param name="dataSourceId">The AI data source identifier.</param>
+    /// <param name="documentIds">The source document identifiers.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    ValueTask QueueRemoveDataSourceDocumentsAsync(string dataSourceId, IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default);
 }

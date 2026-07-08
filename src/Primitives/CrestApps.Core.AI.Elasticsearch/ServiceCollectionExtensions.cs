@@ -1,13 +1,16 @@
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Elasticsearch.Services;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Elasticsearch.Builders;
 using CrestApps.Core.Elasticsearch.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Elasticsearch;
@@ -30,8 +33,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreElasticsearchSource(IndexProfileTypes.AIDocuments, descriptor =>
                 {
-                    descriptor.DisplayName = "AI Documents";
-                    descriptor.Description = "Create an Elasticsearch index for uploaded and embedded AI document chunks.";
+                    descriptor.DisplayName = new LocalizedString("AI Documents", "AI Documents");
+                    descriptor.Description = new LocalizedString("Elasticsearch AI Documents Description", "Create an Elasticsearch index for uploaded and embedded AI document chunks.");
                 }).AddCoreAIDocumentIndexProfileHandler();
     }
 
@@ -45,9 +48,18 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreElasticsearchSource(IndexProfileTypes.DataSource, descriptor =>
                 {
-                    descriptor.DisplayName = "Data Source";
-                    descriptor.Description = "Create an Elasticsearch index for AI knowledge base data source documents.";
+                    descriptor.DisplayName = new LocalizedString("Data Source", "Data Source");
+                    descriptor.Description = new LocalizedString("Elasticsearch Data Source Description", "Create an Elasticsearch index for AI knowledge base data source documents.");
                 }).AddCoreAIDataSourceRag()
+                .Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
+                    AIDataSourceSourceTypes.Elasticsearch,
+                    new LocalizedString("Elasticsearch", "Elasticsearch"),
+                    new LocalizedString("Elasticsearch Source Description", "Read source documents from an external Elasticsearch index using explicit connection settings.")))
+                .AddKeyedScoped<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch, (sp, _)
+                    => new ElasticsearchAIDataSourceSourceHandler(
+                        sp.GetRequiredService<IElasticsearchClientFactory>(),
+                        sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
+                        sp.GetRequiredService<ILogger<ElasticsearchAIDataSourceSourceHandler>>()))
                 .AddCoreAIDataSourceIndexProfileHandler();
     }
 
@@ -64,8 +76,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreElasticsearchSource(IndexProfileTypes.AIMemory, descriptor =>
                 {
-                    descriptor.DisplayName = "AI Memory";
-                    descriptor.Description = "Create an Elasticsearch index for user and system memory records.";
+                    descriptor.DisplayName = new LocalizedString("AI Memory", "AI Memory");
+                    descriptor.Description = new LocalizedString("Elasticsearch AI Memory Description", "Create an Elasticsearch index for user and system memory records.");
                 }).AddCoreAIMemoryIndexProfileHandler();
     }
 
@@ -82,7 +94,7 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreAIDefaultIndexProfileHandler();
         services.Configure<IndexProfileSourceOptions>(options => options
-            .AddOrUpdate(ElasticsearchConstants.ProviderName, "Elasticsearch", type, configure)
+            .AddOrUpdate(ElasticsearchConstants.ProviderName, new LocalizedString("Elasticsearch", "Elasticsearch"), type, configure)
         );
 
         return services;

@@ -3,12 +3,14 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
 @inject ICatalogManager<AIDataSource> Manager
 @inject IAIDataSourceIndexingQueue IndexingQueue
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ToastNotificationService ToastNotifications
+@inject IOptions<AIDataSourceSourceOptions> SourceOptions
 
 <PageTitle>Data Sources</PageTitle>
 
@@ -37,6 +39,7 @@ else
             <thead class="table-dark">
                 <tr>
                     <th>Title</th>
+                    <th>Source</th>
                     <th>Source Index</th>
                     <th>Knowledge Base Index</th>
                     <th style="width: 250px;">Actions</th>
@@ -47,7 +50,8 @@ else
                 {
                     <tr>
                         <td><strong>@item.DisplayText</strong></td>
-                        <td><code>@(item.SourceIndexProfileName ?? "—")</code></td>
+                        <td>@GetSourceDisplayName(item)</td>
+                        <td><code>@GetSourceReference(item)</code></td>
                         <td><code>@(item.AIKnowledgeBaseIndexProfileName ?? "—")</code></td>
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => SyncAsync(item.ItemId)">
@@ -119,5 +123,43 @@ else
         await StoreCommitter.CommitAsync();
         ToastNotifications.ShowSuccess("Data source deleted successfully. Knowledge-base cleanup has been queued.");
         await LoadAsync();
+    }
+
+    private string GetSourceDisplayName(AIDataSource dataSource)
+    {
+        var sourceType = string.IsNullOrWhiteSpace(dataSource.SourceType)
+            ? AIDataSourceSourceTypes.SearchIndexProfile
+            : dataSource.SourceType;
+
+        return SourceOptions.Value.Sources.FirstOrDefault(x => string.Equals(x.SourceType, sourceType, StringComparison.OrdinalIgnoreCase))?.DisplayName.Value ?? sourceType;
+    }
+
+    private static string GetSourceReference(AIDataSource dataSource)
+    {
+        if (string.IsNullOrWhiteSpace(dataSource.SourceType) ||
+            string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase))
+        {
+            return dataSource.SourceIndexProfileName ?? "—";
+        }
+
+        if (string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase) &&
+            dataSource.TryGet<ElasticsearchSourceMetadata>(out var elasticsearchMetadata))
+        {
+            return elasticsearchMetadata.IndexName ?? "—";
+        }
+
+        if (string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase) &&
+            dataSource.TryGet<AzureAISearchSourceMetadata>(out var azureAISearchMetadata))
+        {
+            return azureAISearchMetadata.IndexName ?? "—";
+        }
+
+        if (string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase) &&
+            dataSource.TryGet<PostgreSQLSourceMetadata>(out var postgreSQLMetadata))
+        {
+            return postgreSQLMetadata.TableName ?? "—";
+        }
+
+        return "—";
     }
 }

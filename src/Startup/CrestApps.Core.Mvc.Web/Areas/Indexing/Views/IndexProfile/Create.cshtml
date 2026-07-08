@@ -67,7 +67,14 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const sources = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Sources));
+        const sources = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Sources.Select(source => new
+        {
+            source.ProviderName,
+            ProviderDisplayName = source.ProviderDisplayName.Value,
+            source.Type,
+            DisplayName = source.DisplayName.Value,
+            Description = source.Description.Value,
+        })));
         const embeddingTypes = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(IndexProfileTypeRules.EmbeddingTypes));
         const articleType = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(IndexProfileTypes.Articles));
         const providerSelect = document.getElementById('@Html.IdFor(m => m.ProviderName)');

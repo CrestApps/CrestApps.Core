@@ -1,0 +1,35 @@
+<script>
+    (() => {
+        const sourceTypeField = document.getElementById('SourceType');
+        const elasticAuthField = document.getElementById('ElasticsearchAuthenticationType');
+        const azureAuthField = document.getElementById('AzureAISearchAuthenticationType');
+
+        const toggle = (id, visible) => {
+            const element = document.getElementById(id);
+            if (!element) {
+                return;
+            }
+
+            element.hidden = !visible;
+        };
+
+        const updateVisibility = () => {
+            const sourceType = sourceTypeField?.value ?? '';
+            const elasticAuthType = elasticAuthField?.value ?? '';
+            const azureAuthType = azureAuthField?.value ?? '';
+
+            toggle('source-index-profile-settings', sourceType === 'SearchIndexProfile');
+            toggle('elasticsearch-source-settings', sourceType === 'Elasticsearch');
+            toggle('azure-ai-search-source-settings', sourceType === 'AzureAISearch');
+            toggle('postgresql-source-settings', sourceType === 'PostgreSQL');
+            toggle('elasticsearch-basic-auth-settings', sourceType === 'Elasticsearch' && elasticAuthType === 'Basic');
+            toggle('azure-ai-search-api-key-settings', sourceType === 'AzureAISearch' && azureAuthType === 'ApiKey');
+            toggle('azure-ai-search-identity-settings', sourceType === 'AzureAISearch' && azureAuthType !== 'ApiKey');
+        };
+
+        sourceTypeField?.addEventListener('change', updateVisibility);
+        elasticAuthField?.addEventListener('change', updateVisibility);
+        azureAuthField?.addEventListener('change', updateVisibility);
+        updateVisibility();
+    })();
+</script>

@@ -1,11 +1,14 @@
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.DataSources.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.DataSources.Controllers;
 
@@ -16,18 +19,29 @@ public sealed class AIDataSourceController : Controller
     private readonly ICatalogManager<AIDataSource> _manager;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
+    private readonly IReadOnlyList<AIDataSourceSourceDescriptor> _sourceDescriptors;
 
     public AIDataSourceController(
         ICatalogManager<AIDataSource> manager,
         ISearchIndexProfileStore indexProfileStore,
         IAIDataSourceIndexingQueue indexingQueue,
-        TimeProvider timeProvider)
+        IServiceProvider serviceProvider,
+        IDataProtectionProvider dataProtectionProvider,
+        TimeProvider timeProvider,
+        IOptions<AIDataSourceSourceOptions> sourceOptions)
     {
         _manager = manager;
         _indexProfileStore = indexProfileStore;
         _indexingQueue = indexingQueue;
+        _serviceProvider = serviceProvider;
+        _dataProtectionProvider = dataProtectionProvider;
         _timeProvider = timeProvider;
+        _sourceDescriptors = sourceOptions.Value.Sources
+            .OrderBy(source => source.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     public async Task<IActionResult> Index()
@@ -61,7 +75,7 @@ public sealed class AIDataSourceController : Controller
         var dataSource = await _manager.NewAsync();
         dataSource.CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        model.ApplyTo(dataSource);
+        model.ApplyTo(dataSource, _dataProtectionProvider.CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose));
 
         await _manager.CreateAsync(dataSource);
         TempData["SuccessMessage"] = "Data source created successfully. Initial synchronization has been queued.";
@@ -104,7 +118,7 @@ public sealed class AIDataSourceController : Controller
             return View(model);
         }
 
-        model.ApplyTo(dataSource);
+        model.ApplyTo(dataSource, _dataProtectionProvider.CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose));
 
         await _manager.UpdateAsync(dataSource);
         TempData["SuccessMessage"] = "Data source updated successfully. Synchronization has been queued.";
@@ -151,30 +165,14 @@ public sealed class AIDataSourceController : Controller
             ModelState.AddModelError(nameof(model.DisplayText), "Display text is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(model.SourceIndexProfileName))
+        if (string.IsNullOrWhiteSpace(model.SourceType))
         {
-            ModelState.AddModelError(nameof(model.SourceIndexProfileName), "Source index profile is required.");
+            ModelState.AddModelError(nameof(model.SourceType), "Source type is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.ContentFieldName))
         {
             ModelState.AddModelError(nameof(model.ContentFieldName), "Content field name is required.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(model.SourceIndexProfileName))
-        {
-            var sourceIndexProfile = await _indexProfileStore.FindByNameAsync(model.SourceIndexProfileName);
-
-            if (sourceIndexProfile == null)
-            {
-                ModelState.AddModelError(nameof(model.SourceIndexProfileName), "The selected source index profile could not be found.");
-            }
-            else if (string.Equals(sourceIndexProfile.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(sourceIndexProfile.Type, IndexProfileTypes.AIMemory, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(sourceIndexProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
-            {
-                ModelState.AddModelError(nameof(model.SourceIndexProfileName), "The selected source index profile type is not supported for data sources.");
-            }
         }
 
         if (!string.IsNullOrWhiteSpace(model.AIKnowledgeBaseIndexProfileName))
@@ -190,13 +188,91 @@ public sealed class AIDataSourceController : Controller
                 ModelState.AddModelError(nameof(model.AIKnowledgeBaseIndexProfileName), "The selected knowledge base index profile must be an AI Data Source profile.");
             }
         }
+
+        if (string.IsNullOrWhiteSpace(model.SourceType))
+        {
+            return;
+        }
+
+        var handler = _serviceProvider.GetKeyedService<IAIDataSourceSourceHandler>(model.SourceType);
+        if (handler == null)
+        {
+            ModelState.AddModelError(nameof(model.SourceType), "The selected source type is not supported.");
+
+            return;
+        }
+
+        var probe = new AIDataSource();
+        model.ApplyTo(probe, _dataProtectionProvider.CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose));
+
+        var validation = new CrestApps.Core.Models.ValidationResultDetails();
+        await handler.ValidateAsync(probe, validation, HttpContext.RequestAborted);
+
+        foreach (var error in validation.Errors)
+        {
+            var memberNames = error.MemberNames?.Any() == true ? error.MemberNames : [string.Empty];
+            foreach (var memberName in memberNames)
+            {
+                ModelState.AddModelError(MapValidationMemberName(model.SourceType, memberName), error.ErrorMessage);
+            }
+        }
+    }
+
+    private static string MapValidationMemberName(string sourceType, string memberName)
+    {
+        if (string.IsNullOrWhiteSpace(memberName))
+        {
+            return string.Empty;
+        }
+
+        if (string.Equals(sourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase))
+        {
+            return memberName switch
+            {
+                nameof(ElasticsearchSourceMetadata) => nameof(AIDataSourceViewModel.SourceType),
+                nameof(ElasticsearchSourceMetadata.Url) => nameof(AIDataSourceViewModel.ElasticsearchUrl),
+                nameof(ElasticsearchSourceMetadata.AuthenticationType) => nameof(AIDataSourceViewModel.ElasticsearchAuthenticationType),
+                nameof(ElasticsearchSourceMetadata.IndexName) => nameof(AIDataSourceViewModel.ElasticsearchIndexName),
+                nameof(ElasticsearchSourceMetadata.Username) => nameof(AIDataSourceViewModel.ElasticsearchUsername),
+                nameof(ElasticsearchSourceMetadata.Password) => nameof(AIDataSourceViewModel.ElasticsearchPassword),
+                nameof(ElasticsearchSourceMetadata.CertificateFingerprint) => nameof(AIDataSourceViewModel.ElasticsearchCertificateFingerprint),
+                _ => memberName,
+            };
+        }
+
+        if (string.Equals(sourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase))
+        {
+            return memberName switch
+            {
+                nameof(AzureAISearchSourceMetadata) => nameof(AIDataSourceViewModel.SourceType),
+                nameof(AzureAISearchSourceMetadata.Endpoint) => nameof(AIDataSourceViewModel.AzureAISearchEndpoint),
+                nameof(AzureAISearchSourceMetadata.AuthenticationType) => nameof(AIDataSourceViewModel.AzureAISearchAuthenticationType),
+                nameof(AzureAISearchSourceMetadata.IndexName) => nameof(AIDataSourceViewModel.AzureAISearchIndexName),
+                nameof(AzureAISearchSourceMetadata.IdentityClientId) => nameof(AIDataSourceViewModel.AzureAISearchIdentityClientId),
+                nameof(AzureAISearchSourceMetadata.ApiKey) => nameof(AIDataSourceViewModel.AzureAISearchApiKey),
+                _ => memberName,
+            };
+        }
+
+        if (string.Equals(sourceType, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase))
+        {
+            return memberName switch
+            {
+                nameof(PostgreSQLSourceMetadata) => nameof(AIDataSourceViewModel.SourceType),
+                nameof(PostgreSQLSourceMetadata.ConnectionString) => nameof(AIDataSourceViewModel.PostgreSQLConnectionString),
+                nameof(PostgreSQLSourceMetadata.TableName) => nameof(AIDataSourceViewModel.PostgreSQLTableName),
+                _ => memberName,
+            };
+        }
+
+        return memberName;
     }
 
     private async Task PopulateDropdownsAsync(AIDataSourceViewModel model)
     {
         var indexProfiles = await _indexProfileStore.GetAllAsync();
 
-        // Source index profiles: exclude AI-specific target indexes.
+        model.SourceTypes = _sourceDescriptors.Select(descriptor => new SelectListItem(descriptor.DisplayName.Value, descriptor.SourceType)).ToList();
         model.SourceIndexProfiles = indexProfiles
             .Where(p =>
                 !string.Equals(p.Type, IndexProfileTypes.AIDocuments, StringComparison.OrdinalIgnoreCase) &&

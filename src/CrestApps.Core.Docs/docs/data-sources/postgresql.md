@@ -82,6 +82,17 @@ When you call `AddAIDataSources()`, the feature builder also pulls in the shared
 
 Override `IAIDataSourceIndexingQueue` when you need a durable or distributed queue, override `IAIDataSourceIndexingService` when you need different synchronization rules, and add your own `ISearchDocumentHandler` registrations when source-index writes should trigger additional asynchronous work.
 
+## External PostgreSQL source mappings
+
+When an `AIDataSource` uses `SourceType = "PostgreSQL"`, the mapping reads documents from a remote PostgreSQL table using source-specific settings stored on the `AIDataSource`:
+
+- `ConnectionString` (protected at rest)
+- `TableName`
+
+This source-side configuration is separate from the shared PostgreSQL backend registration used for the knowledge-base vector store.
+
+Because the source table is externally managed, record changes are synchronized by calling `IAIDataSourceChangeNotifier` from your application or integration layer. See [Custom Sources](./custom-sources.md) for the notification pattern.
+
 ## Prerequisites
 
 PostgreSQL must have the **pgvector** extension installed and enabled. The framework automatically runs `CREATE EXTENSION IF NOT EXISTS vector` when creating indexes.
