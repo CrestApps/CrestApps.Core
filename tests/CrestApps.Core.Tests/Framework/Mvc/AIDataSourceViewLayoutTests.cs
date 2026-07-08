@@ -5,7 +5,7 @@ public sealed class AIDataSourceViewLayoutTests
     [Fact]
     public void CreateView_ShouldRenderSourceSettingsBeforeKnowledgeBaseSection()
     {
-        var content = File.ReadAllText(GetRepositoryPath(@"src\Startup\CrestApps.Core.Mvc.Web\Areas\DataSources\Views\AIDataSource\Create.cshtml"));
+        var content = File.ReadAllText(GetRepositoryPath("src", "Startup", "CrestApps.Core.Mvc.Web", "Areas", "DataSources", "Views", "AIDataSource", "Create.cshtml"));
 
         var sourceHeaderIndex = content.IndexOf("<h5>Source</h5>", StringComparison.Ordinal);
         var elasticSettingsIndex = content.IndexOf("id=\"elasticsearch-source-settings\"", StringComparison.Ordinal);
@@ -19,7 +19,7 @@ public sealed class AIDataSourceViewLayoutTests
     [Fact]
     public void EditView_ShouldRenderSourceSettingsBeforeKnowledgeBaseSection()
     {
-        var content = File.ReadAllText(GetRepositoryPath(@"src\Startup\CrestApps.Core.Mvc.Web\Areas\DataSources\Views\AIDataSource\Edit.cshtml"));
+        var content = File.ReadAllText(GetRepositoryPath("src", "Startup", "CrestApps.Core.Mvc.Web", "Areas", "DataSources", "Views", "AIDataSource", "Edit.cshtml"));
 
         var sourceHeaderIndex = content.IndexOf("<h5>Source</h5>", StringComparison.Ordinal);
         var azureSettingsIndex = content.IndexOf("id=\"azure-ai-search-source-settings\"", StringComparison.Ordinal);
@@ -30,13 +30,13 @@ public sealed class AIDataSourceViewLayoutTests
         Assert.True(knowledgeBaseHeaderIndex > azureSettingsIndex);
     }
 
-    private static string GetRepositoryPath(string relativePath)
+    private static string GetRepositoryPath(params string[] relativeSegments)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory != null)
         {
-            var candidate = Path.Combine(directory.FullName, relativePath);
+            var candidate = Path.Combine([directory.FullName, .. relativeSegments]);
             if (File.Exists(candidate))
             {
                 return candidate;
@@ -45,6 +45,6 @@ public sealed class AIDataSourceViewLayoutTests
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException($"Could not find '{relativePath}' from '{AppContext.BaseDirectory}'.");
+        throw new FileNotFoundException($"Could not find '{Path.Combine(relativeSegments)}' from '{AppContext.BaseDirectory}'.");
     }
 }

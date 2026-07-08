@@ -5,7 +5,7 @@ public sealed class AIDataSourceLayoutTests
     [Fact]
     public void CreateView_ShouldRenderSourceSettingsBeforeKnowledgeBaseSection()
     {
-        var content = File.ReadAllText(GetRepositoryPath(@"src\Startup\CrestApps.Core.Blazor.Web\Components\Pages\DataSources\AIDataSources\Create.razor"));
+        var content = File.ReadAllText(GetRepositoryPath("src", "Startup", "CrestApps.Core.Blazor.Web", "Components", "Pages", "DataSources", "AIDataSources", "Create.razor"));
 
         var sourceHeaderIndex = content.IndexOf("<h5>Source</h5>", StringComparison.Ordinal);
         var elasticSettingsIndex = content.IndexOf("<h5>Elasticsearch Source Settings</h5>", StringComparison.Ordinal);
@@ -19,7 +19,7 @@ public sealed class AIDataSourceLayoutTests
     [Fact]
     public void EditView_ShouldRenderSourceSettingsBeforeKnowledgeBaseSection()
     {
-        var content = File.ReadAllText(GetRepositoryPath(@"src\Startup\CrestApps.Core.Blazor.Web\Components\Pages\DataSources\AIDataSources\Edit.razor"));
+        var content = File.ReadAllText(GetRepositoryPath("src", "Startup", "CrestApps.Core.Blazor.Web", "Components", "Pages", "DataSources", "AIDataSources", "Edit.razor"));
 
         var sourceHeaderIndex = content.IndexOf("<h5>Source</h5>", StringComparison.Ordinal);
         var azureSettingsIndex = content.IndexOf("<h5>Azure AI Search Source Settings</h5>", StringComparison.Ordinal);
@@ -33,19 +33,19 @@ public sealed class AIDataSourceLayoutTests
     [Fact]
     public void IndexView_ShouldRenderSourceColumn()
     {
-        var content = File.ReadAllText(GetRepositoryPath(@"src\Startup\CrestApps.Core.Blazor.Web\Components\Pages\DataSources\AIDataSources\Index.razor"));
+        var content = File.ReadAllText(GetRepositoryPath("src", "Startup", "CrestApps.Core.Blazor.Web", "Components", "Pages", "DataSources", "AIDataSources", "Index.razor"));
 
         Assert.Contains("<th>Source</th>", content, StringComparison.Ordinal);
         Assert.Contains("@GetSourceDisplayName(item)", content, StringComparison.Ordinal);
     }
 
-    private static string GetRepositoryPath(string relativePath)
+    private static string GetRepositoryPath(params string[] relativeSegments)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory != null)
         {
-            var candidate = Path.Combine(directory.FullName, relativePath);
+            var candidate = Path.Combine([directory.FullName, .. relativeSegments]);
             if (File.Exists(candidate))
             {
                 return candidate;
@@ -54,6 +54,6 @@ public sealed class AIDataSourceLayoutTests
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException($"Could not find '{relativePath}' from '{AppContext.BaseDirectory}'.");
+        throw new FileNotFoundException($"Could not find '{Path.Combine(relativeSegments)}' from '{AppContext.BaseDirectory}'.");
     }
 }
