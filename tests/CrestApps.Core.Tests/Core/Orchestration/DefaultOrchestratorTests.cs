@@ -1,3 +1,4 @@
+using System.Net;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -384,11 +385,35 @@ public sealed class DefaultOrchestratorTests
         Assert.Null(plan);
     }
 
-    private static DefaultOrchestrator CreateOrchestrator(FakeCompletionService completionService = null, FakeToolRegistry toolRegistry = null)
+    [Fact]
+    public async Task PlanAsync_UtilityChatClientUsesDefaultResilience()
+    {
+        var utilityResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, "resilient plan"));
+        var utilityChatClient = new Mock<IChatClient>(MockBehavior.Strict);
+        utilityChatClient
+            .SetupSequence(client => client.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(CreateRateLimitException())
+            .ReturnsAsync(utilityResponse);
+
+        var orchestrator = CreateOrchestrator(
+            aiClientFactory: new FakeAIClientFactory(utilityChatClient.Object));
+        var context = CreateContext("Plan this request");
+        var tools = CreateToolEntries(2);
+
+        var plan = await orchestrator.PlanAsync(context, tools, TestContext.Current.CancellationToken);
+
+        Assert.Equal("resilient plan", plan);
+        utilityChatClient.Verify(client => client.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    private static DefaultOrchestrator CreateOrchestrator(
+        FakeCompletionService completionService = null,
+        FakeToolRegistry toolRegistry = null,
+        IAIClientFactory aiClientFactory = null)
     {
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager.Setup(d => d
-            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentPurpose>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentPurpose>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment
             {
                 ItemId = "test-dep",
@@ -396,7 +421,16 @@ public sealed class DefaultOrchestratorTests
                 ClientName = "test-client",
             });
 
-        return new DefaultOrchestrator(completionService ?? new FakeCompletionService("default response"), new FakeAIClientFactory(), new FakeAITemplateService(), deploymentManager.Object, toolRegistry ?? new FakeToolRegistry([]), new LuceneTextTokenizer(), Options.Create(new DefaultOrchestratorOptions()), NullLogger<DefaultOrchestrator>.Instance);
+        return new DefaultOrchestrator(
+            completionService ?? new FakeCompletionService("default response"),
+            aiClientFactory ?? new FakeAIClientFactory(),
+            new FakeAITemplateService(),
+            deploymentManager.Object,
+            toolRegistry ?? new FakeToolRegistry([]),
+            new LuceneTextTokenizer(),
+            Options.Create(new DefaultOrchestratorOptions()),
+            Mock.Of<IServiceProvider>(),
+            NullLogger<DefaultOrchestrator>.Instance);
     }
 
     private static List<ToolRegistryEntry> CreateToolEntries(int count)
@@ -439,6 +473,11 @@ public sealed class DefaultOrchestratorTests
         }
 
         return sb.ToString();
+    }
+
+    private static HttpRequestException CreateRateLimitException()
+    {
+        return new HttpRequestException("Too many requests.", null, HttpStatusCode.TooManyRequests);
     }
 
     /// <summary>
@@ -511,9 +550,16 @@ public sealed class DefaultOrchestratorTests
     /// </summary>
     private sealed class FakeAIClientFactory : IAIClientFactory
     {
+        private readonly IChatClient _chatClient;
+
+        public FakeAIClientFactory(IChatClient chatClient = null)
+        {
+            _chatClient = chatClient;
+        }
+
         public ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
         {
-            return new((IChatClient)null);
+            return new(_chatClient);
         }
 
         public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)

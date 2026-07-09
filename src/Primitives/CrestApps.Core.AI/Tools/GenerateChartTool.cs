@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Support.Json;
 using CrestApps.Core.Templates.Services;
@@ -107,6 +108,18 @@ public sealed class GenerateChartTool : AIFunction
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
 
             var chatClient = await aIClientFactory.CreateChatClientAsync(deployment);
+
+            if (chatClient == null)
+            {
+                logger.LogWarning("AI tool '{ToolName}' failed: resolved deployment did not produce a chat client.", Name);
+
+                return "Chart generation is not available. The resolved deployment could not create a chat client.";
+            }
+
+            chatClient = chatClient
+                .AsBuilder()
+                .UseDefaultResilience()
+                .Build(arguments.Services);
 
             var promptService = arguments.Services.GetService<ITemplateService>();
 

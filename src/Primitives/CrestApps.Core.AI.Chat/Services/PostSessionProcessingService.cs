@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Support.Json;
@@ -1233,7 +1234,17 @@ public sealed class PostSessionProcessingService
 
             if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
             {
-                return await _clientFactory.CreateChatClientAsync(deployment);
+                var chatClient = await _clientFactory.CreateChatClientAsync(deployment);
+
+                if (chatClient == null)
+                {
+                    return null;
+                }
+
+                return chatClient
+                    .AsBuilder()
+                    .UseDefaultResilience()
+                    .Build(_serviceProvider);
             }
         }
 

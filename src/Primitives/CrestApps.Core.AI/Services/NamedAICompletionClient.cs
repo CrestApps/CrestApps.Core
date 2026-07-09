@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.Extensions;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
@@ -300,6 +301,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         var builder = new ChatClientBuilder(client);
 
+        builder.UseDefaultResilience();
         builder.UseLogging(LoggerFactory, ConfigureLogger);
 
         if (SupportFunctionInvocation(context, deployment.ModelName))

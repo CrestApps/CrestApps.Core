@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
@@ -36,6 +37,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IToolRegistry _toolRegistry;
     private readonly ITextTokenizer _tokenizer;
+    private readonly IServiceProvider _serviceProvider;
     private readonly DefaultOrchestratorOptions _options;
     private readonly ILogger<DefaultOrchestrator> _logger;
 
@@ -58,6 +60,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         IToolRegistry toolRegistry,
         ITextTokenizer tokenizer,
         IOptions<DefaultOrchestratorOptions> options,
+        IServiceProvider serviceProvider,
         ILogger<DefaultOrchestrator> logger)
     {
         _completionService = completionService;
@@ -66,6 +69,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         _deploymentManager = deploymentManager;
         _toolRegistry = toolRegistry;
         _tokenizer = tokenizer;
+        _serviceProvider = serviceProvider;
         _options = options.Value;
         _logger = logger;
     }
@@ -514,7 +518,17 @@ public sealed class DefaultOrchestrator : IOrchestrator
             return null;
         }
 
-        return await _aiClientFactory.CreateChatClientAsync(deployment);
+        var chatClient = await _aiClientFactory.CreateChatClientAsync(deployment);
+
+        if (chatClient == null)
+        {
+            return null;
+        }
+
+        return chatClient
+            .AsBuilder()
+            .UseDefaultResilience()
+            .Build(_serviceProvider);
     }
 
     /// <summary>

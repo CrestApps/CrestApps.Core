@@ -2,6 +2,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,7 @@ public sealed class PreemptiveSearchQueryProvider
     private readonly IAIClientFactory _aiClientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ITemplateService _aiTemplateService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<PreemptiveSearchQueryProvider> _logger;
 
     /// <summary>
@@ -43,11 +45,13 @@ public sealed class PreemptiveSearchQueryProvider
         IAIClientFactory aiClientFactory,
         IAIDeploymentManager deploymentManager,
         ITemplateService aiTemplateService,
+        IServiceProvider serviceProvider,
         ILogger<PreemptiveSearchQueryProvider> logger)
     {
         _aiClientFactory = aiClientFactory;
         _deploymentManager = deploymentManager;
         _aiTemplateService = aiTemplateService;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -188,6 +192,16 @@ public sealed class PreemptiveSearchQueryProvider
             return null;
         }
 
-        return await _aiClientFactory.CreateChatClientAsync(deployment);
+        var chatClient = await _aiClientFactory.CreateChatClientAsync(deployment);
+
+        if (chatClient == null)
+        {
+            return null;
+        }
+
+        return chatClient
+            .AsBuilder()
+            .UseDefaultResilience()
+            .Build(_serviceProvider);
     }
 }

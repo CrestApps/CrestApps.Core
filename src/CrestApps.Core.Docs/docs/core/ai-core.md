@@ -257,9 +257,9 @@ public sealed class ChatApiController : ControllerBase
 | Exception | When | How to Handle |
 |-----------|------|--------------|
 | `InvalidOperationException` | No deployment found, no provider connection configured | Check AI configuration — this is a setup error |
-| `HttpRequestException` | Provider API unreachable (network error, DNS failure) | Retry with exponential backoff, check network connectivity |
+| `HttpRequestException` | Provider API unreachable (network error, DNS failure) | Check network connectivity; framework-owned completion and utility chat paths already use the default retry policy, and host-created AI clients can opt in separately through the resilience builders |
 | `OperationCanceledException` | Request was cancelled (user navigated away, timeout) | Normal flow — let it propagate |
-| Provider-specific rate limit errors | Too many requests to the AI provider | Implement retry policies at the HTTP client level |
+| Provider-specific rate limit errors | Too many requests to the AI provider | Framework-owned completion and utility chat paths already use the default retry policy; for host-created AI clients, use `CrestApps.Core.AI.Resilience` with `.AsBuilder().UseDefaultResilience()` or a custom `UseResilience(...)` pipeline; see [AI Resilience](./ai-resilience.md) |
 | Provider-specific auth errors | Invalid API key or expired credentials | Check provider connection configuration |
 
 ### Handling Provider Failures
@@ -308,6 +308,8 @@ public sealed class ResilientCompletionService
     }
 }
 ```
+
+When you finish a `ChatClientBuilder` pipeline, always call `Build(serviceProvider)` with the active service provider instead of `Build(null)`. Several framework chat middlewares resolve services from DI at execution time, especially tool-related components.
 
 :::warning
 Never swallow `OperationCanceledException` — always re-throw it. Catching and ignoring it breaks the cancellation token contract and can cause resource leaks.

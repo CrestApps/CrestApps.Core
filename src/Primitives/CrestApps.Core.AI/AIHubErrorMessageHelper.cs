@@ -1,5 +1,6 @@
 using System.Net;
 using CrestApps.Core.AI.Exceptions;
+using CrestApps.Core.AI.Resilience;
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI;
@@ -9,9 +10,6 @@ namespace CrestApps.Core.AI;
 /// </summary>
 internal static class AIHubErrorMessageHelper
 {
-    private const string ClientResultExceptionName = "ClientResultException";
-    private static readonly string[] RateLimitIndicators = ["ratelimitreached", "rate limit", "too many requests"];
-
     /// <summary>
     /// Maps provider exceptions to localized, user-friendly error messages.
     /// </summary>
@@ -21,10 +19,10 @@ internal static class AIHubErrorMessageHelper
     public static LocalizedString GetFriendlyErrorMessage(Exception ex, IStringLocalizer S)
     {
         var message = ex?.Message ?? string.Empty;
-        var clientStatusCode = TryGetClientResultStatusCode(ex);
+        var clientStatusCode = AIProviderErrorHelper.TryGetClientResultStatusCode(ex);
 
         if (clientStatusCode == (int)HttpStatusCode.TooManyRequests ||
-            ContainsRateLimitIndicator(message))
+            AIProviderErrorHelper.ContainsRateLimitIndicator(message))
         {
             var retryAfterMessage = ExtractRetryAfterMessage(message);
 
@@ -65,56 +63,9 @@ internal static class AIHubErrorMessageHelper
     /// <param name="ex">The ex.</param>
     public static bool IsInvalidChatModelSettingsFailure(Exception ex)
     {
-        foreach (var current in EnumerateExceptions(ex))
+        foreach (var current in AIProviderErrorHelper.EnumerateExceptions(ex))
         {
             if (current is AIDeploymentConfigurationException)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static int? TryGetClientResultStatusCode(Exception ex)
-    {
-        if (ex is null)
-        {
-            return null;
-        }
-
-        var type = ex.GetType();
-        if (!string.Equals(type.Name, ClientResultExceptionName, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        try
-        {
-            var statusProperty = type.GetProperty("Status") ?? type.GetProperty("StatusCode");
-            if (statusProperty?.GetValue(ex) is int status)
-            {
-                return status;
-            }
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-
-        return null;
-    }
-
-    private static bool ContainsRateLimitIndicator(string message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        foreach (var indicator in RateLimitIndicators)
-        {
-            if (message.Contains(indicator, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -144,13 +95,5 @@ internal static class AIHubErrorMessageHelper
         }
 
         return sentence.Trim();
-    }
-
-    private static IEnumerable<Exception> EnumerateExceptions(Exception ex)
-    {
-        for (var current = ex; current is not null; current = current.InnerException)
-        {
-            yield return current;
-        }
     }
 }

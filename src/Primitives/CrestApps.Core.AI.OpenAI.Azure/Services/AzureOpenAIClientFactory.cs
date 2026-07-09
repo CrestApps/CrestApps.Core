@@ -38,7 +38,16 @@ internal static class AzureOpenAIClientFactory
         var endpoint = connection.GetEndpoint();
         var authType = connection.GetAzureAuthenticationType();
         var identityId = connection.GetIdentityId();
-        var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}";
+        var enableLogging = options?.EnableLogging ?? false;
+        var enableMessageLogging = options?.EnableMessageLogging ?? false;
+        var enableMessageContentLogging = options?.EnableMessageContentLogging ?? false;
+        var enableDefaultRetryPolicy = options?.EnableDefaultRetryPolicy ?? true;
+        var maxRetryAttempts = Math.Max(options?.MaxRetryAttempts ?? 5, 0);
+        var retryDelay = options?.RateLimitRetryDelay ?? TimeSpan.FromSeconds(1);
+        var backoffType = options?.BackoffType ?? AzureRetryBackoffType.Exponential;
+        var useJitter = options?.UseJitter ?? true;
+        var maxRetryDelay = options?.MaxRetryDelay ?? TimeSpan.FromSeconds(32);
+        var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}|{enableLogging}|{enableMessageLogging}|{enableMessageContentLogging}|{enableDefaultRetryPolicy}|{maxRetryAttempts}|{retryDelay}|{backoffType}|{useJitter}|{maxRetryDelay}";
 
         return _clientCache.GetOrAdd(cacheKey, _ =>
                 {
@@ -47,11 +56,23 @@ internal static class AzureOpenAIClientFactory
                         ClientLoggingOptions = new ClientLoggingOptions
                         {
                             LoggerFactory = loggerFactory,
-                            EnableLogging = options?.EnableLogging ?? false,
-                            EnableMessageLogging = options?.EnableMessageLogging ?? false,
-                            EnableMessageContentLogging = options?.EnableMessageContentLogging ?? false,
+                            EnableLogging = enableLogging,
+                            EnableMessageLogging = enableMessageLogging,
+                            EnableMessageContentLogging = enableMessageContentLogging,
                         },
                     };
+
+                    if (enableDefaultRetryPolicy)
+                    {
+                        clientOptions.RetryPolicy = new CrestAppsAzureOpenAIClientRetryPolicy(
+                            maxRetryAttempts,
+                            retryDelay,
+                            backoffType,
+                            useJitter,
+                            maxRetryDelay,
+                            enableLogging,
+                            loggerFactory);
+                    }
 
                     return authType switch
                     {

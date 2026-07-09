@@ -313,6 +313,39 @@ services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigure
 
 That keeps settings refresh host-agnostic and avoids custom accessor interfaces.
 
+`AddCoreAIServices()` keeps host-created AI clients opt-in for retries. Framework-owned completion clients and utility-deployment chat paths already use the default retry policy internally. If you want the same builder extensions for your own resolved clients outside the framework defaults, reference the standalone `CrestApps.Core.AI.Resilience` package and wrap the client through the corresponding Microsoft.Extensions.AI builder pipeline:
+
+```csharp
+var resilientClient = chatClient
+    .AsBuilder()
+    .UseDefaultResilience(options =>
+    {
+        options.MaxRateLimitRetries = 5;
+        options.RateLimitRetryDelay = TimeSpan.FromSeconds(1);
+    })
+    .Build(serviceProvider);
+```
+
+The same `UseDefaultResilience()` and `UseResilience(...)` extensions are also available on `IEmbeddingGenerator<TInput, TEmbedding>`, `IImageGenerator`, `ISpeechToTextClient`, and `ITextToSpeechClient` through their `.AsBuilder()` adapters. For streaming speech-to-text, retries require a seekable input stream so the audio can be replayed safely. See [AI Resilience](./ai-resilience.md) for the full builder surface, default retry schedule, and customization options.
+
+For a custom policy, use the lower-level builder extension and configure the resilience pipeline yourself:
+
+```csharp
+var resilientClient = chatClient
+    .AsBuilder()
+    .UseResilience(pipeline => pipeline.AddRetry(new RetryStrategyOptions
+    {
+        MaxRetryAttempts = 2,
+        Delay = TimeSpan.FromSeconds(1),
+        ShouldHandle = args => ValueTask.FromResult(
+            args.Outcome.Exception is HttpRequestException ex &&
+            ex.StatusCode == HttpStatusCode.TooManyRequests),
+    }))
+    .Build(serviceProvider);
+```
+
+Always pass the active `IServiceProvider` into `Build(serviceProvider)` rather than `null`. That keeps downstream middleware such as tool invocation and other DI-backed chat components able to resolve their required services correctly.
+
 ## 7. Add features one layer at a time
 
 The intended progression is:

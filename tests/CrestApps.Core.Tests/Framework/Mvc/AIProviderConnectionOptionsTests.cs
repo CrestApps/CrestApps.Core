@@ -58,6 +58,11 @@ public sealed class AIProviderConnectionConfigurationTests
                 ["CrestApps:AI:AzureClient:EnableLogging"] = "true",
                 ["CrestApps:AI:AzureClient:EnableMessageLogging"] = "true",
                 ["CrestApps:AI:AzureClient:EnableMessageContentLogging"] = "false",
+                ["CrestApps:AI:AzureClient:MaxRetryAttempts"] = "5",
+                ["CrestApps:AI:AzureClient:RateLimitRetryDelay"] = "00:00:01",
+                ["CrestApps:AI:AzureClient:BackoffType"] = "Exponential",
+                ["CrestApps:AI:AzureClient:UseJitter"] = "true",
+                ["CrestApps:AI:AzureClient:MaxRetryDelay"] = "00:00:32",
             })
             .Build();
 
@@ -73,6 +78,24 @@ public sealed class AIProviderConnectionConfigurationTests
         Assert.True(options.EnableLogging);
         Assert.True(options.EnableMessageLogging);
         Assert.False(options.EnableMessageContentLogging);
+        Assert.Equal(5, options.MaxRetryAttempts);
+        Assert.Equal(TimeSpan.FromSeconds(1), options.RateLimitRetryDelay);
+        Assert.Equal(AzureRetryBackoffType.Exponential, options.BackoffType);
+        Assert.True(options.UseJitter);
+        Assert.Equal(TimeSpan.FromSeconds(32), options.MaxRetryDelay);
+    }
+
+    [Fact]
+    public void AzureClientOptions_DefaultsMatchFrameworkRetrySchedule()
+    {
+        var options = new AzureClientOptions();
+
+        Assert.True(options.EnableDefaultRetryPolicy);
+        Assert.Equal(5, options.MaxRetryAttempts);
+        Assert.Equal(TimeSpan.FromSeconds(1), options.RateLimitRetryDelay);
+        Assert.Equal(AzureRetryBackoffType.Exponential, options.BackoffType);
+        Assert.True(options.UseJitter);
+        Assert.Equal(TimeSpan.FromSeconds(32), options.MaxRetryDelay);
     }
 
     [Fact]
