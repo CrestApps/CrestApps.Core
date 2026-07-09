@@ -39,6 +39,9 @@
     <Project Path="src/Primitives/CrestApps.Core.AI.PostgreSQL/CrestApps.Core.AI.PostgreSQL.csproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>
+    <Project Path="src/Primitives/CrestApps.Core.AI.Resilience/CrestApps.Core.AI.Resilience.csproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
     <Project Path="src/Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure/CrestApps.Core.Azure.csproj" />

@@ -153,6 +153,7 @@ public sealed class DataExtractionServiceTests
             templateService.Object,
             [new DefaultMarkdownTemplateParser()],
             TimeProvider.System,
+            Mock.Of<IServiceProvider>(),
             NullLogger<DataExtractionService>.Instance,
             deploymentManager.Object);
 
@@ -618,6 +619,7 @@ public sealed class DataExtractionServiceTests
             templateService.Object,
             [new DefaultMarkdownTemplateParser()],
             TimeProvider.System,
+            Mock.Of<IServiceProvider>(),
             NullLogger<DataExtractionService>.Instance,
             deploymentManager.Object);
     }

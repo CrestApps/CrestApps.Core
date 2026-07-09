@@ -56,13 +56,19 @@ Azure OpenAI requires an endpoint URL and either an API key or Azure AD credenti
 |----------|-------|
 | `AzureOpenAIConstants.ClientName` | `"Azure"` |
 
-Use `CrestApps:AI:AzureClient` for Azure SDK logging switches shared by all Azure OpenAI connections:
+Use `CrestApps:AI:AzureClient` for Azure SDK settings shared by all Azure OpenAI connections, including logging plus the default SDK retry policy used by the framework's Azure OpenAI completion path:
 
 ```json
 {
   "CrestApps": {
     "AI": {
       "AzureClient": {
+        "EnableDefaultRetryPolicy": true,
+        "MaxRetryAttempts": 5,
+        "RateLimitRetryDelay": "00:00:01",
+        "BackoffType": "Exponential",
+        "UseJitter": true,
+        "MaxRetryDelay": "00:00:32",
         "EnableLogging": false,
         "EnableMessageLogging": false,
         "EnableMessageContentLogging": false
@@ -71,6 +77,18 @@ Use `CrestApps:AI:AzureClient` for Azure SDK logging switches shared by all Azur
   }
 }
 ```
+
+The Azure SDK retry defaults now match the framework resilience defaults:
+
+| Setting | Default |
+|---|---|
+| `MaxRetryAttempts` | `5` |
+| `RateLimitRetryDelay` | `00:00:01` |
+| `BackoffType` | `Exponential` |
+| `UseJitter` | `true` |
+| `MaxRetryDelay` | `00:00:32` |
+
+That produces an approximate schedule of `1-2`, `2-4`, `4-8`, `8-16`, and `16-32` seconds across retries.
 
 ## Azure-Specific Behavior
 
@@ -105,13 +123,19 @@ The deployment name in Azure OpenAI is what you pass as the `deploymentName` par
 
 ## Configuration
 
-Full `appsettings.json` configuration with endpoint, deployment, and optional global Azure SDK logging:
+Full `appsettings.json` configuration with endpoint, deployment, optional Azure SDK retry settings, and optional global logging:
 
 ```json
 {
   "CrestApps": {
     "AI": {
         "AzureClient": {
+          "EnableDefaultRetryPolicy": true,
+          "MaxRetryAttempts": 5,
+          "RateLimitRetryDelay": "00:00:01",
+          "BackoffType": "Exponential",
+          "UseJitter": true,
+          "MaxRetryDelay": "00:00:32",
           "EnableLogging": false,
           "EnableMessageLogging": false,
           "EnableMessageContentLogging": false

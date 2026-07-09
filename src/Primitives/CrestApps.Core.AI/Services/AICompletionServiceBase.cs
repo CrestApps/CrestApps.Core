@@ -62,21 +62,6 @@ public abstract class AICompletionServiceBase
     }
 
     /// <summary>
-    /// Resolves a deployment using the <see cref="IAIDeploymentManager"/> for a legacy type.
-    /// </summary>
-    /// <param name="type">The type.</param>
-    /// <param name="providerName">The provider name.</param>
-    /// <param name="deploymentName">The deployment name.</param>
-    [Obsolete("Use the purpose overload instead.")]
-    protected ValueTask<AIDeployment> ResolveDeploymentAsync(
-        AIDeploymentType type,
-        string providerName,
-        string deploymentName = null)
-    {
-        return ResolveDeploymentAsync(type.ToPurpose(), providerName, deploymentName);
-    }
-
-    /// <summary>
     /// Gets total messages to skip.
     /// </summary>
     /// <param name="totalMessages">The total messages.</param>
