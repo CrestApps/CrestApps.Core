@@ -3,11 +3,16 @@ using Azure.Search.Documents.Indexes;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Azure.AISearch.Services;
 using CrestApps.Core.Elasticsearch;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Elasticsearch.Services;
+using Elastic.Transport;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Net.Http;
+using System.Text;
 
 namespace CrestApps.Core.Tests.Core.Services;
 
@@ -43,6 +48,143 @@ public sealed class SearchProviderClientFactoryTests
         var exception = Assert.Throws<InvalidOperationException>(() => factory.Create());
 
         Assert.Contains("username and password", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldRequireUrlOrCloudId()
+    {
+        var factory = new ElasticsearchClientFactory(
+            NullLogger<ElasticsearchClientFactory>.Instance,
+            Options.Create(new ElasticsearchConnectionOptions()));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.Create());
+
+        Assert.Contains("URL or the Cloud ID", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldRejectIncompleteKeyIdAndKeyAuthentication()
+    {
+        var factory = new ElasticsearchClientFactory(
+            NullLogger<ElasticsearchClientFactory>.Instance,
+            Options.Create(new ElasticsearchConnectionOptions
+            {
+                Url = "https://localhost:9200",
+                AuthenticationType = ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType,
+                ApiKeyId = "key-id",
+            }));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.Create());
+
+        Assert.Contains("API key ID and API key", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldUseBasicAuthenticationHeader()
+    {
+        var authenticationHeader = ElasticsearchClientFactory.CreateAuthorizationHeader(new ElasticsearchConnectionOptions
+        {
+            Url = "https://localhost:9200",
+            AuthenticationType = ElasticsearchConnectionOptions.BasicAuthenticationType,
+            Username = "elastic",
+            Password = "secret",
+        }, ElasticsearchConnectionOptions.BasicAuthenticationType);
+
+        Assert.NotNull(authenticationHeader);
+        Assert.Equal("Basic", authenticationHeader.AuthScheme);
+        Assert.True(authenticationHeader.TryGetAuthorizationParameters(out var value));
+        Assert.Equal(Convert.ToBase64String(Encoding.UTF8.GetBytes("elastic:secret")), value);
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldUseApiKeyAuthenticationHeader()
+    {
+        var authenticationHeader = ElasticsearchClientFactory.CreateAuthorizationHeader(new ElasticsearchConnectionOptions
+        {
+            Url = "https://localhost:9200",
+            AuthenticationType = ElasticsearchConnectionOptions.ApiKeyAuthenticationType,
+            ApiKey = "raw-api-key",
+        }, ElasticsearchConnectionOptions.ApiKeyAuthenticationType);
+
+        Assert.NotNull(authenticationHeader);
+        Assert.Equal("ApiKey", authenticationHeader.AuthScheme);
+        Assert.True(authenticationHeader.TryGetAuthorizationParameters(out var value));
+        Assert.Equal("raw-api-key", value);
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldUseBase64ApiKeyAuthenticationHeader()
+    {
+        var authenticationHeader = ElasticsearchClientFactory.CreateAuthorizationHeader(new ElasticsearchConnectionOptions
+        {
+            Url = "https://localhost:9200",
+            AuthenticationType = ElasticsearchConnectionOptions.Base64ApiKeyAuthenticationType,
+            Base64ApiKey = "YmFzZTY0LWtleQ==",
+        }, ElasticsearchConnectionOptions.Base64ApiKeyAuthenticationType);
+
+        Assert.NotNull(authenticationHeader);
+        Assert.Equal("ApiKey", authenticationHeader.AuthScheme);
+        Assert.True(authenticationHeader.TryGetAuthorizationParameters(out var value));
+        Assert.Equal("YmFzZTY0LWtleQ==", value);
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldUseKeyIdAndKeyAuthenticationHeader()
+    {
+        var authenticationHeader = ElasticsearchClientFactory.CreateAuthorizationHeader(new ElasticsearchConnectionOptions
+        {
+            Url = "https://localhost:9200",
+            AuthenticationType = ElasticsearchConnectionOptions.KeyIdAndKeyAuthenticationType,
+            ApiKeyId = "key-id",
+            ApiKey = "raw-api-key",
+        }, ElasticsearchConnectionOptions.KeyIdAndKeyAuthenticationType);
+
+        Assert.NotNull(authenticationHeader);
+        Assert.Equal("ApiKey", authenticationHeader.AuthScheme);
+        Assert.True(authenticationHeader.TryGetAuthorizationParameters(out var value));
+        Assert.Equal(Convert.ToBase64String(Encoding.UTF8.GetBytes("key-id:raw-api-key")), value);
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldPreferCloudIdWhenBothCloudIdAndUrlAreProvided()
+    {
+        var factory = new ElasticsearchClientFactory(
+            NullLogger<ElasticsearchClientFactory>.Instance,
+            Options.Create(new ElasticsearchConnectionOptions
+            {
+                Url = "not-a-valid-uri",
+                CloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
+                AuthenticationType = ElasticsearchConnectionOptions.ApiKeyAuthenticationType,
+                ApiKey = "raw-api-key",
+            }));
+
+        var client = factory.Create();
+
+        Assert.NotNull(client);
+        Assert.Equal(typeof(HttpRequestInvoker), client.Transport.Configuration.RequestInvoker.GetType());
+    }
+
+    [Fact]
+    public void ElasticsearchCreate_ShouldUseResilientHttpRequestInvoker()
+    {
+        var client = CreateElasticsearchClient(new ElasticsearchConnectionOptions
+        {
+            Url = "https://localhost:9200",
+        });
+
+        Assert.IsType<HttpRequestInvoker>(client.Transport.Configuration.RequestInvoker);
+    }
+
+    [Fact]
+    public void ElasticsearchCreateResilientHttpMessageHandler_ShouldWrapWithResilienceHandler()
+    {
+        var innerHandler = new HttpClientHandler();
+        var boundConfiguration = CreateBoundConfiguration();
+
+        var handler = ElasticsearchClientFactory.CreateResilientHttpMessageHandler(innerHandler, boundConfiguration);
+
+        var resilienceHandler = Assert.IsType<ResilienceHandler>(handler);
+        Assert.Same(innerHandler, resilienceHandler.InnerHandler);
     }
 
     [Fact]
@@ -159,5 +301,21 @@ public sealed class SearchProviderClientFactoryTests
         Assert.True(options.UsesApiKeyAuthentication());
         Assert.Equal("ApiKey", options.AuthenticationType);
         Assert.NotNull(client);
+    }
+
+    private static Elastic.Clients.Elasticsearch.ElasticsearchClient CreateElasticsearchClient(ElasticsearchConnectionOptions options)
+    {
+        var factory = new ElasticsearchClientFactory(
+            NullLogger<ElasticsearchClientFactory>.Instance,
+            Options.Create(options));
+
+        return factory.Create();
+    }
+
+    private static BoundConfiguration CreateBoundConfiguration()
+    {
+        var settings = new Elastic.Clients.Elasticsearch.ElasticsearchClientSettings(new Uri("https://localhost:9200"));
+
+        return new BoundConfiguration(settings, null);
     }
 }

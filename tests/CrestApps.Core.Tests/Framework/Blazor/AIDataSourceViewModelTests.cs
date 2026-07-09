@@ -86,6 +86,7 @@ public sealed class AIDataSourceViewModelTests
         var model = new AIDataSourceViewModel
         {
             SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            ElasticsearchEnvironmentType = ElasticsearchSourceMetadata.SelfManagedEnvironmentType,
             ElasticsearchAuthenticationType = ElasticsearchSourceMetadata.NoneAuthenticationType,
             ElasticsearchUrl = "https://cluster",
             ElasticsearchIndexName = "docs",
@@ -97,5 +98,55 @@ public sealed class AIDataSourceViewModelTests
         Assert.Equal(ElasticsearchSourceMetadata.NoneAuthenticationType, metadata.AuthenticationType);
         Assert.Null(metadata.Username);
         Assert.Null(metadata.Password);
+    }
+
+    [Fact]
+    public void ApplyTo_PreservesExistingElasticsearchBase64ApiKeyWhenBlank()
+    {
+        var protector = new EphemeralDataProtectionProvider().CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose);
+        var dataSource = new AIDataSource
+        {
+            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+        };
+        dataSource.Put(new ElasticsearchSourceMetadata
+        {
+            AuthenticationType = ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType,
+            Base64ApiKey = protector.Protect("ZXhhbXBsZTprZXk="),
+        });
+
+        var model = new AIDataSourceViewModel
+        {
+            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            ElasticsearchEnvironmentType = ElasticsearchSourceMetadata.CloudHostedEnvironmentType,
+            ElasticsearchCloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
+            ElasticsearchAuthenticationType = ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType,
+            ElasticsearchIndexName = "docs",
+        };
+
+        model.ApplyTo(dataSource, protector);
+
+        Assert.True(dataSource.TryGet<ElasticsearchSourceMetadata>(out var metadata));
+        Assert.Equal(ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType, metadata.AuthenticationType);
+        Assert.Equal("deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=", metadata.CloudId);
+        Assert.Equal("ZXhhbXBsZTprZXk=", protector.Unprotect(metadata.Base64ApiKey));
+    }
+
+    [Fact]
+    public void FromDataSource_InferLegacyElasticsearchCloudEnvironment()
+    {
+        var dataSource = new AIDataSource
+        {
+            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+        };
+        dataSource.Put(new ElasticsearchSourceMetadata
+        {
+            CloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
+            IndexName = "docs",
+        });
+
+        var model = AIDataSourceViewModel.FromDataSource(dataSource);
+
+        Assert.Equal(ElasticsearchSourceMetadata.CloudHostedEnvironmentType, model.ElasticsearchEnvironmentType);
+        Assert.Equal("deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=", model.ElasticsearchCloudId);
     }
 }

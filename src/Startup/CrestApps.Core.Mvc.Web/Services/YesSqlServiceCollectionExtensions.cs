@@ -98,22 +98,22 @@ internal static class YesSqlServiceCollectionExtensions
         services.Configure<IndexProfileSourceOptions>(options => options
             .AddOrUpdate(ElasticsearchConstants.ProviderName, new LocalizedString("Elasticsearch", "Elasticsearch"), IndexProfileTypes.Articles, descriptor =>
             {
-                descriptor.DisplayName = new LocalizedString("Articles", "Articles");
-                descriptor.Description = new LocalizedString("MVC Elasticsearch Articles Description", "Create an Elasticsearch index for sample article records managed in the MVC app.");
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create an Elasticsearch index for sample article records managed in the MVC app.";
             })
         );
         services.Configure<IndexProfileSourceOptions>(options => options
             .AddOrUpdate(AISearchConstants.ProviderName, new LocalizedString("Azure AI Search", "Azure AI Search"), IndexProfileTypes.Articles, descriptor =>
             {
-                descriptor.DisplayName = new LocalizedString("Articles", "Articles");
-                descriptor.Description = new LocalizedString("MVC Azure AI Search Articles Description", "Create an Azure AI Search index for sample article records managed in the MVC app.");
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create an Azure AI Search index for sample article records managed in the MVC app.";
             })
         );
         services.Configure<IndexProfileSourceOptions>(options => options
             .AddOrUpdate(PostgreSQLConstants.ProviderName, new LocalizedString("PostgreSQL", "PostgreSQL"), IndexProfileTypes.Articles, descriptor =>
             {
-                descriptor.DisplayName = new LocalizedString("Articles", "Articles");
-                descriptor.Description = new LocalizedString("MVC PostgreSQL Articles Description", "Create a PostgreSQL index for sample article records managed in the MVC app.");
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create a PostgreSQL index for sample article records managed in the MVC app.";
             })
         );
 

@@ -45,6 +45,91 @@ public sealed class AIDataSourceSourceHandlerTests
     }
 
     [Fact]
+    public async Task ElasticsearchHandler_ValidateAsync_ShouldRequireUrlForInferredSelfManagedEnvironment()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddDataProtection();
+        services.AddSingleton(Mock.Of<IElasticsearchClientFactory>());
+        services.AddCoreElasticsearchAIDataSource();
+        using var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch);
+        var dataSource = new AIDataSource
+        {
+            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+        };
+        dataSource.Put(new ElasticsearchSourceMetadata
+        {
+            IndexName = "articles",
+        });
+        var result = new ValidationResultDetails();
+
+        await handler.ValidateAsync(dataSource, result, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Errors, error => error.MemberNames.Contains(nameof(ElasticsearchSourceMetadata.Url)));
+    }
+
+    [Fact]
+    public async Task ElasticsearchHandler_ValidateAsync_ShouldRequireUrlForSelfManagedEnvironment()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddDataProtection();
+        services.AddSingleton(Mock.Of<IElasticsearchClientFactory>());
+        services.AddCoreElasticsearchAIDataSource();
+        using var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch);
+        var dataSource = new AIDataSource
+        {
+            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+        };
+        dataSource.Put(new ElasticsearchSourceMetadata
+        {
+            EnvironmentType = ElasticsearchSourceMetadata.SelfManagedEnvironmentType,
+            IndexName = "articles",
+        });
+        var result = new ValidationResultDetails();
+
+        await handler.ValidateAsync(dataSource, result, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Errors, error => error.MemberNames.Contains(nameof(ElasticsearchSourceMetadata.Url)));
+    }
+
+    [Fact]
+    public async Task ElasticsearchHandler_ValidateAsync_ShouldRequireApiKeyForKeyIdAndKeyAuthentication()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddDataProtection();
+        services.AddSingleton(Mock.Of<IElasticsearchClientFactory>());
+        services.AddCoreElasticsearchAIDataSource();
+        using var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch);
+        var dataSource = new AIDataSource
+        {
+            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+        };
+        dataSource.Put(new ElasticsearchSourceMetadata
+        {
+            CloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
+            AuthenticationType = ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType,
+            ApiKeyId = "key-id",
+            IndexName = "articles",
+        });
+        var result = new ValidationResultDetails();
+
+        await handler.ValidateAsync(dataSource, result, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Errors, error => error.MemberNames.Contains(nameof(ElasticsearchSourceMetadata.ApiKey)));
+    }
+
+    [Fact]
     public async Task AzureAISearchHandler_ValidateAsync_ShouldRequireApiKeyForApiKeyAuthentication()
     {
         var services = new ServiceCollection();
@@ -139,6 +224,33 @@ public sealed class AIDataSourceSourceHandlerTests
         var authenticationType = metadata.GetAuthenticationType();
 
         Assert.Equal(ElasticsearchSourceMetadata.BasicAuthenticationType, authenticationType);
+    }
+
+    [Fact]
+    public void ElasticsearchSourceMetadata_GetEnvironmentType_ShouldInferCloudHostedFromCloudId()
+    {
+        var metadata = new ElasticsearchSourceMetadata
+        {
+            CloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
+        };
+
+        var environmentType = metadata.GetEnvironmentType();
+
+        Assert.Equal(ElasticsearchSourceMetadata.CloudHostedEnvironmentType, environmentType);
+    }
+
+    [Fact]
+    public void ElasticsearchSourceMetadata_GetAuthenticationType_ShouldInferKeyIdAndKeyFromStoredFields()
+    {
+        var metadata = new ElasticsearchSourceMetadata
+        {
+            ApiKeyId = "key-id",
+            ApiKey = "protected-secret",
+        };
+
+        var authenticationType = metadata.GetAuthenticationType();
+
+        Assert.Equal(ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, authenticationType);
     }
 
     [Fact]

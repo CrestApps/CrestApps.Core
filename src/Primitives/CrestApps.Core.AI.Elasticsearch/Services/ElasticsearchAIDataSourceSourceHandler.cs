@@ -58,9 +58,18 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
             return ValueTask.CompletedTask;
         }
 
-        if (string.IsNullOrWhiteSpace(metadata.Url))
+        var environmentType = metadata.GetEnvironmentType();
+
+        if (string.Equals(environmentType, ElasticsearchSourceMetadata.CloudHostedEnvironmentType, StringComparison.OrdinalIgnoreCase))
         {
-            result.Fail(new ValidationResult("Elasticsearch URL is required.", [nameof(ElasticsearchSourceMetadata.Url)]));
+            if (string.IsNullOrWhiteSpace(metadata.CloudId))
+            {
+                result.Fail(new ValidationResult("Elastic Cloud ID is required for cloud-hosted Elasticsearch deployments.", [nameof(ElasticsearchSourceMetadata.EnvironmentType), nameof(ElasticsearchSourceMetadata.CloudId)]));
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(metadata.Url))
+        {
+            result.Fail(new ValidationResult("Elasticsearch URL is required for self-managed deployments.", [nameof(ElasticsearchSourceMetadata.EnvironmentType), nameof(ElasticsearchSourceMetadata.Url)]));
         }
 
         if (string.IsNullOrWhiteSpace(metadata.IndexName))
@@ -71,10 +80,35 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
         var authenticationType = metadata.GetAuthenticationType();
         var hasUsername = !string.IsNullOrWhiteSpace(metadata.Username);
         var hasPassword = !string.IsNullOrWhiteSpace(metadata.Password);
+
         if (string.Equals(authenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase) &&
             hasUsername != hasPassword)
         {
             result.Fail(new ValidationResult("Elasticsearch basic authentication requires both username and password.", [nameof(ElasticsearchSourceMetadata.Username), nameof(ElasticsearchSourceMetadata.Password)]));
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrWhiteSpace(metadata.ApiKey))
+        {
+            result.Fail(new ValidationResult("Elasticsearch API key authentication requires an API key.", [nameof(ElasticsearchSourceMetadata.ApiKey)]));
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrWhiteSpace(metadata.Base64ApiKey))
+        {
+            result.Fail(new ValidationResult("Elasticsearch base64 API key authentication requires a base64-encoded API key.", [nameof(ElasticsearchSourceMetadata.Base64ApiKey)]));
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(metadata.ApiKeyId) || string.IsNullOrWhiteSpace(metadata.ApiKey)))
+        {
+            result.Fail(new ValidationResult("Elasticsearch key ID and key authentication requires both an API key ID and API key.", [nameof(ElasticsearchSourceMetadata.ApiKeyId), nameof(ElasticsearchSourceMetadata.ApiKey)]));
+        }
+
+        if (string.Equals(environmentType, ElasticsearchSourceMetadata.CloudHostedEnvironmentType, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(authenticationType, ElasticsearchSourceMetadata.NoneAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            result.Fail(new ValidationResult("Elastic Cloud connections require an authentication type and matching credentials.", [nameof(ElasticsearchSourceMetadata.EnvironmentType), nameof(ElasticsearchSourceMetadata.AuthenticationType), nameof(ElasticsearchSourceMetadata.CloudId)]));
         }
 
         return ValueTask.CompletedTask;
@@ -200,17 +234,34 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
             throw new InvalidOperationException("Elasticsearch source metadata is missing.");
         }
 
+        var environmentType = metadata.GetEnvironmentType();
         var authenticationType = metadata.GetAuthenticationType();
         var protector = _dataProtectionProvider.CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose);
         var password = string.Equals(authenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase)
             ? DataProtectionHelper.Unprotect(protector, metadata.Password, _logger, "Failed to unprotect AI data source field '{FieldName}' for data source '{DataSourceId}'.", nameof(ElasticsearchSourceMetadata.Password), dataSource.ItemId)
             : null;
+        var apiKey = string.Equals(authenticationType, ElasticsearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(authenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase)
+            ? DataProtectionHelper.Unprotect(protector, metadata.ApiKey, _logger, "Failed to unprotect AI data source field '{FieldName}' for data source '{DataSourceId}'.", nameof(ElasticsearchSourceMetadata.ApiKey), dataSource.ItemId)
+            : null;
+        var base64ApiKey = string.Equals(authenticationType, ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase)
+            ? DataProtectionHelper.Unprotect(protector, metadata.Base64ApiKey, _logger, "Failed to unprotect AI data source field '{FieldName}' for data source '{DataSourceId}'.", nameof(ElasticsearchSourceMetadata.Base64ApiKey), dataSource.ItemId)
+            : null;
 
         var client = _clientFactory.Create(new ElasticsearchConnectionOptions
         {
-            Url = metadata.Url,
+            Url = string.Equals(environmentType, ElasticsearchSourceMetadata.CloudHostedEnvironmentType, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : metadata.Url,
+            CloudId = string.Equals(environmentType, ElasticsearchSourceMetadata.CloudHostedEnvironmentType, StringComparison.OrdinalIgnoreCase)
+                ? metadata.CloudId
+                : null,
+            AuthenticationType = authenticationType,
             Username = string.Equals(authenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase) ? metadata.Username : null,
             Password = password,
+            ApiKeyId = string.Equals(authenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) ? metadata.ApiKeyId : null,
+            ApiKey = apiKey,
+            Base64ApiKey = base64ApiKey,
             CertificateFingerprint = metadata.CertificateFingerprint,
         });
 

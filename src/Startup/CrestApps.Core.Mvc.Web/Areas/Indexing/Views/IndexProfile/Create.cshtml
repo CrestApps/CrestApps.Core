@@ -70,10 +70,10 @@
         const sources = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Sources.Select(source => new
         {
             source.ProviderName,
-            ProviderDisplayName = source.ProviderDisplayName.Value,
+            ProviderDisplayName = source.ProviderDisplayName,
             source.Type,
-            DisplayName = source.DisplayName.Value,
-            Description = source.Description.Value,
+            DisplayName = source.DisplayName,
+            Description = source.Description,
         })));
         const embeddingTypes = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(IndexProfileTypeRules.EmbeddingTypes));
         const articleType = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(IndexProfileTypes.Articles));

@@ -32,8 +32,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIDocuments, descriptor =>
                 {
-                    descriptor.DisplayName = new LocalizedString("AI Documents", "AI Documents");
-                    descriptor.Description = new LocalizedString("Azure AI Search AI Documents Description", "Create an Azure AI Search index for uploaded and embedded AI document chunks.");
+                    descriptor.DisplayName = "AI Documents";
+                    descriptor.Description = "Create an Azure AI Search index for uploaded and embedded AI document chunks.";
                 }).AddCoreAIDocumentIndexProfileHandler();
     }
 
@@ -47,8 +47,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.DataSource, descriptor =>
                 {
-                    descriptor.DisplayName = new LocalizedString("Data Source", "Data Source");
-                    descriptor.Description = new LocalizedString("Azure AI Search Data Source Description", "Create an Azure AI Search index for AI knowledge base data source documents.");
+                    descriptor.DisplayName = "Data Source";
+                    descriptor.Description = "Create an Azure AI Search index for AI knowledge base data source documents.";
                 }).AddCoreAIDataSourceRag()
                 .Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
                     AIDataSourceSourceTypes.AzureAISearch,
@@ -74,8 +74,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCoreAzureAISearchSource(IndexProfileTypes.AIMemory, descriptor =>
                 {
-                    descriptor.DisplayName = new LocalizedString("AI Memory", "AI Memory");
-                    descriptor.Description = new LocalizedString("Azure AI Search AI Memory Description", "Create an Azure AI Search index for user and system memory records.");
+                    descriptor.DisplayName = "AI Memory";
+                    descriptor.Description = "Create an Azure AI Search index for user and system memory records.";
                 }).AddCoreAIMemoryIndexProfileHandler();
     }
 

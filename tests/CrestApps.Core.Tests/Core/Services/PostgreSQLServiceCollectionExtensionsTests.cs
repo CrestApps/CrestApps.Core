@@ -42,6 +42,24 @@ public sealed class PostgreSQLServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void IndexProfileSourceOptions_AddOrUpdate_StringOverload_ShouldRemainCompatible()
+    {
+        var options = new IndexProfileSourceOptions();
+
+        options.AddOrUpdate(PostgreSQLConstants.ProviderName, "PostgreSQL", IndexProfileTypes.DataSource, descriptor =>
+        {
+            descriptor.DisplayName = "Data Source";
+            descriptor.Description = "Compatibility overload";
+        });
+
+        var source = Assert.Single(options.Sources);
+        Assert.Equal(PostgreSQLConstants.ProviderName, source.ProviderName);
+        Assert.Equal("PostgreSQL", source.ProviderDisplayName);
+        Assert.Equal(IndexProfileTypes.DataSource, source.Type);
+        Assert.Equal("Data Source", source.DisplayName);
+    }
+
+    [Fact]
     public void AddCorePostgreSQLAIDocumentSource_RegistersDocumentServices()
     {
         var services = new ServiceCollection();
