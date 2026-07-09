@@ -131,7 +131,9 @@ public sealed class DataExtractionServiceTests
             });
 
         clientFactory.Setup(factory => factory
-            .CreateChatClientAsync(It.Is<AIDeployment>(d => d.ClientName == "OpenAI" && d.ConnectionName == "Default" && d.ModelName == "gpt-4.1")))
+            .CreateChatClientAsync(
+                It.Is<AIDeployment>(d => d.ClientName == "OpenAI" && d.ConnectionName == "Default" && d.ModelName == "gpt-4.1"),
+                It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(chatClient.Object);
 
         templateService.Setup(service => service
@@ -153,7 +155,6 @@ public sealed class DataExtractionServiceTests
             templateService.Object,
             [new DefaultMarkdownTemplateParser()],
             TimeProvider.System,
-            Mock.Of<IServiceProvider>(),
             NullLogger<DataExtractionService>.Instance,
             deploymentManager.Object);
 
@@ -214,7 +215,7 @@ public sealed class DataExtractionServiceTests
             });
 
         clientFactory.Setup(factory => factory
-            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(chatClient.Object);
 
         templateService.Setup(service => service
@@ -293,7 +294,7 @@ public sealed class DataExtractionServiceTests
             });
 
         clientFactory.Setup(factory => factory
-            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(chatClient.Object);
 
         templateService.Setup(service => service
@@ -370,7 +371,7 @@ public sealed class DataExtractionServiceTests
             });
 
         clientFactory.Setup(factory => factory
-            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(chatClient.Object);
 
         templateService.Setup(service => service
@@ -456,7 +457,7 @@ public sealed class DataExtractionServiceTests
             });
 
         clientFactory.Setup(factory => factory
-            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(chatClient.Object);
 
         templateService.Setup(service => service
@@ -556,7 +557,7 @@ public sealed class DataExtractionServiceTests
             });
 
         clientFactory.Setup(factory => factory
-            .CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(chatClient.Object);
 
         templateService.Setup(service => service
@@ -619,7 +620,6 @@ public sealed class DataExtractionServiceTests
             templateService.Object,
             [new DefaultMarkdownTemplateParser()],
             TimeProvider.System,
-            Mock.Of<IServiceProvider>(),
             NullLogger<DataExtractionService>.Instance,
             deploymentManager.Object);
     }

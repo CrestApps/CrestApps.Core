@@ -31,14 +31,12 @@ The package depends on:
 
 ## Builder Extensions
 
-Every supported client follows the same pattern:
+Every supported client follows one of these patterns:
 
-1. Resolve or create the AI client
-2. Convert it to the corresponding builder with `.AsBuilder()`
-3. Apply either `UseDefaultResilience()` or `UseResilience(...)`
-4. Finish with `Build(serviceProvider)`
+1. Resolve the client through `IAIClientFactory` and configure the builder pipeline through the factory overload, or
+2. Resolve or create the raw Microsoft.Extensions.AI client yourself, convert it to the corresponding builder with `.AsBuilder()`, apply `UseDefaultResilience()` or `UseResilience(...)`, and finish with `Build(serviceProvider)`.
 
-Always pass the active `IServiceProvider` to `Build(serviceProvider)`. Do not use `Build()` or `Build(null)`, because downstream middleware may need DI to resolve services such as tools and related runtime components.
+When you build manually, always pass the active `IServiceProvider` to `Build(serviceProvider)`. Do not use `Build()` or `Build(null)`, because downstream middleware may need DI to resolve services such as tools and related runtime components.
 
 ## Default Policy
 
@@ -69,6 +67,16 @@ The exact delay varies because jitter is enabled by default.
 
 ## Chat Example
 
+If you are resolving the client through `IAIClientFactory`, use the overload and let the factory own the final build:
+
+```csharp
+var resilientClient = await aiClientFactory.CreateChatClientAsync(
+    deployment,
+    builder => builder.UseDefaultResilience());
+```
+
+If you already have a raw `IChatClient`, use the builder directly:
+
 ```csharp
 var resilientClient = chatClient
     .AsBuilder()
@@ -79,6 +87,21 @@ var resilientClient = chatClient
 ## Customizing the Default Settings
 
 Use the options callback when you want to keep the built-in rate-limit handling but tune the retry shape:
+
+```csharp
+var resilientClient = await aiClientFactory.CreateChatClientAsync(
+    deployment,
+    builder => builder.UseDefaultResilience(options =>
+    {
+        options.MaxRateLimitRetries = 3;
+        options.RateLimitRetryDelay = TimeSpan.FromSeconds(2);
+        options.BackoffType = DelayBackoffType.Exponential;
+        options.UseJitter = true;
+        options.MaxRetryDelay = TimeSpan.FromSeconds(20);
+    }));
+```
+
+The equivalent direct-builder form is:
 
 ```csharp
 var resilientClient = chatClient
@@ -139,6 +162,12 @@ The same extension methods are available on the other Microsoft.Extensions.AI bu
 ### Embeddings
 
 ```csharp
+var resilientGenerator = await aiClientFactory.CreateEmbeddingGeneratorAsync(
+    deployment,
+    builder => builder.UseDefaultResilience());
+```
+
+```csharp
 var resilientGenerator = embeddingGenerator
     .AsBuilder()
     .UseDefaultResilience()
@@ -146,6 +175,12 @@ var resilientGenerator = embeddingGenerator
 ```
 
 ### Image Generation
+
+```csharp
+var resilientGenerator = await aiClientFactory.CreateImageGeneratorAsync(
+    deployment,
+    builder => builder.UseDefaultResilience());
+```
 
 ```csharp
 var resilientGenerator = imageGenerator
@@ -157,6 +192,12 @@ var resilientGenerator = imageGenerator
 ### Speech to Text
 
 ```csharp
+var resilientClient = await aiClientFactory.CreateSpeechToTextClientAsync(
+    deployment,
+    builder => builder.UseDefaultResilience());
+```
+
+```csharp
 var resilientClient = speechToTextClient
     .AsBuilder()
     .UseDefaultResilience()
@@ -164,6 +205,12 @@ var resilientClient = speechToTextClient
 ```
 
 ### Text to Speech
+
+```csharp
+var resilientClient = await aiClientFactory.CreateTextToSpeechClientAsync(
+    deployment,
+    builder => builder.UseDefaultResilience());
+```
 
 ```csharp
 var resilientClient = textToSpeechClient

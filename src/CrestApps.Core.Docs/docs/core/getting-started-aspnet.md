@@ -313,7 +313,19 @@ services.AddSingleton<IConfigureOptions<GeneralAIOptions>, SiteSettingsConfigure
 
 That keeps settings refresh host-agnostic and avoids custom accessor interfaces.
 
-`AddCoreAIServices()` keeps host-created AI clients opt-in for retries. Framework-owned completion clients and utility-deployment chat paths already use the default retry policy internally. If you want the same builder extensions for your own resolved clients outside the framework defaults, reference the standalone `CrestApps.Core.AI.Resilience` package and wrap the client through the corresponding Microsoft.Extensions.AI builder pipeline:
+`AddCoreAIServices()` keeps host-created AI clients opt-in for retries. Framework-owned completion clients and utility-deployment chat paths already use the default retry policy internally. If you want the same builder extensions for your own resolved clients outside the framework defaults, reference the standalone `CrestApps.Core.AI.Resilience` package and use the `IAIClientFactory` overload when you resolve clients through deployments:
+
+```csharp
+var resilientClient = await aiClientFactory.CreateChatClientAsync(
+    deployment,
+    builder => builder.UseDefaultResilience(options =>
+    {
+        options.MaxRateLimitRetries = 5;
+        options.RateLimitRetryDelay = TimeSpan.FromSeconds(1);
+    }));
+```
+
+If you already have a raw client instance, wrap it through the corresponding Microsoft.Extensions.AI builder pipeline:
 
 ```csharp
 var resilientClient = chatClient
@@ -326,7 +338,7 @@ var resilientClient = chatClient
     .Build(serviceProvider);
 ```
 
-The same `UseDefaultResilience()` and `UseResilience(...)` extensions are also available on `IEmbeddingGenerator<TInput, TEmbedding>`, `IImageGenerator`, `ISpeechToTextClient`, and `ITextToSpeechClient` through their `.AsBuilder()` adapters. For streaming speech-to-text, retries require a seekable input stream so the audio can be replayed safely. See [AI Resilience](./ai-resilience.md) for the full builder surface, default retry schedule, and customization options.
+The same `UseDefaultResilience()` and `UseResilience(...)` extensions are also available on `IEmbeddingGenerator<TInput, TEmbedding>`, `IImageGenerator`, `ISpeechToTextClient`, and `ITextToSpeechClient` through the matching `IAIClientFactory` overloads or their `.AsBuilder()` adapters. For streaming speech-to-text, retries require a seekable input stream so the audio can be replayed safely. See [AI Resilience](./ai-resilience.md) for the full builder surface, default retry schedule, and customization options.
 
 For a custom policy, use the lower-level builder extension and configure the resilience pipeline yourself:
 

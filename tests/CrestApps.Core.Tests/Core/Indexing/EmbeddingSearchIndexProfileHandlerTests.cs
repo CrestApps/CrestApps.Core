@@ -164,9 +164,21 @@ public sealed class EmbeddingSearchIndexProfileHandlerTests
             return new((IChatClient)null);
         }
 
+        public ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment, Action<ChatClientBuilder> configurePipeline)
+        {
+            return CreateChatClientAsync(deployment);
+        }
+
         public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
         {
             return new(_embeddingGenerator);
+        }
+
+        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
+            AIDeployment deployment,
+            Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline)
+        {
+            return CreateEmbeddingGeneratorAsync(deployment);
         }
 
 #pragma warning disable MEAI001
@@ -175,14 +187,29 @@ public sealed class EmbeddingSearchIndexProfileHandlerTests
             return new((IImageGenerator)null);
         }
 
+        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment, Action<ImageGeneratorBuilder> configurePipeline)
+        {
+            return CreateImageGeneratorAsync(deployment);
+        }
+
         public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
         {
             return new((ISpeechToTextClient)null);
         }
 
+        public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment, Action<SpeechToTextClientBuilder> configurePipeline)
+        {
+            return CreateSpeechToTextClientAsync(deployment);
+        }
+
         public ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
         {
             return new((ITextToSpeechClient)null);
+        }
+
+        public ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment, Action<TextToSpeechClientBuilder> configurePipeline)
+        {
+            return CreateTextToSpeechClientAsync(deployment);
         }
 #pragma warning restore MEAI001
     }

@@ -37,7 +37,6 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IToolRegistry _toolRegistry;
     private readonly ITextTokenizer _tokenizer;
-    private readonly IServiceProvider _serviceProvider;
     private readonly DefaultOrchestratorOptions _options;
     private readonly ILogger<DefaultOrchestrator> _logger;
 
@@ -60,7 +59,6 @@ public sealed class DefaultOrchestrator : IOrchestrator
         IToolRegistry toolRegistry,
         ITextTokenizer tokenizer,
         IOptions<DefaultOrchestratorOptions> options,
-        IServiceProvider serviceProvider,
         ILogger<DefaultOrchestrator> logger)
     {
         _completionService = completionService;
@@ -69,7 +67,6 @@ public sealed class DefaultOrchestrator : IOrchestrator
         _deploymentManager = deploymentManager;
         _toolRegistry = toolRegistry;
         _tokenizer = tokenizer;
-        _serviceProvider = serviceProvider;
         _options = options.Value;
         _logger = logger;
     }
@@ -518,17 +515,16 @@ public sealed class DefaultOrchestrator : IOrchestrator
             return null;
         }
 
-        var chatClient = await _aiClientFactory.CreateChatClientAsync(deployment);
+        var chatClient = await _aiClientFactory.CreateChatClientAsync(
+            deployment,
+            builder => builder.UseDefaultResilience());
 
         if (chatClient == null)
         {
             return null;
         }
 
-        return chatClient
-            .AsBuilder()
-            .UseDefaultResilience()
-            .Build(_serviceProvider);
+        return chatClient;
     }
 
     /// <summary>

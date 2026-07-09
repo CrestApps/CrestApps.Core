@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -429,7 +430,6 @@ public sealed class DefaultOrchestratorTests
             toolRegistry ?? new FakeToolRegistry([]),
             new LuceneTextTokenizer(),
             Options.Create(new DefaultOrchestratorOptions()),
-            Mock.Of<IServiceProvider>(),
             NullLogger<DefaultOrchestrator>.Instance);
     }
 
@@ -550,6 +550,7 @@ public sealed class DefaultOrchestratorTests
     /// </summary>
     private sealed class FakeAIClientFactory : IAIClientFactory
     {
+        private static readonly IServiceProvider _serviceProvider = new ServiceCollection().BuildServiceProvider();
         private readonly IChatClient _chatClient;
 
         public FakeAIClientFactory(IChatClient chatClient = null)
@@ -562,9 +563,29 @@ public sealed class DefaultOrchestratorTests
             return new(_chatClient);
         }
 
+        public ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment, Action<ChatClientBuilder> configurePipeline)
+        {
+            if (_chatClient == null)
+            {
+                return CreateChatClientAsync(deployment);
+            }
+
+            var builder = _chatClient.AsBuilder();
+            configurePipeline?.Invoke(builder);
+
+            return new(builder.Build(_serviceProvider));
+        }
+
         public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
         {
             return new((IEmbeddingGenerator<string, Embedding<float>>)null);
+        }
+
+        public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
+            AIDeployment deployment,
+            Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline)
+        {
+            return CreateEmbeddingGeneratorAsync(deployment);
         }
 
 #pragma warning disable MEAI001
@@ -573,14 +594,29 @@ public sealed class DefaultOrchestratorTests
             return new((IImageGenerator)null);
         }
 
+        public ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment, Action<ImageGeneratorBuilder> configurePipeline)
+        {
+            return CreateImageGeneratorAsync(deployment);
+        }
+
         public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
         {
             return new((ISpeechToTextClient)null);
         }
 
+        public ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment, Action<SpeechToTextClientBuilder> configurePipeline)
+        {
+            return CreateSpeechToTextClientAsync(deployment);
+        }
+
         public ValueTask<Microsoft.Extensions.AI.ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
         {
             return new((Microsoft.Extensions.AI.ITextToSpeechClient)null);
+        }
+
+        public ValueTask<Microsoft.Extensions.AI.ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment, Action<TextToSpeechClientBuilder> configurePipeline)
+        {
+            return CreateTextToSpeechClientAsync(deployment);
         }
 #pragma warning restore MEAI001
     }

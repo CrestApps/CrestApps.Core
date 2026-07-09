@@ -295,10 +295,12 @@ public sealed class AIChatSessionPostCloseProcessorTests
 
         var mockClientFactory = new Mock<IAIClientFactory>();
         mockClientFactory.Setup(factory => factory
-            .CreateChatClientAsync(It.Is<AIDeployment>(deployment =>
-                deployment.ClientName == TestProviderName
-                && deployment.ConnectionName == TestConnectionName
-                && deployment.ModelName == TestDeploymentName)))
+            .CreateChatClientAsync(
+                It.Is<AIDeployment>(deployment =>
+                    deployment.ClientName == TestProviderName
+                    && deployment.ConnectionName == TestConnectionName
+                    && deployment.ModelName == TestDeploymentName),
+                It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(mockChatClient.Object);
 
         var mockDeploymentManager = new Mock<IAIDeploymentManager>();

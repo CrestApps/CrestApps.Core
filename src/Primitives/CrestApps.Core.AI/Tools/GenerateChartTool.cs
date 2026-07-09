@@ -107,7 +107,9 @@ public sealed class GenerateChartTool : AIFunction
 
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
 
-            var chatClient = await aIClientFactory.CreateChatClientAsync(deployment);
+            var chatClient = await aIClientFactory.CreateChatClientAsync(
+                deployment,
+                builder => builder.UseDefaultResilience());
 
             if (chatClient == null)
             {
@@ -115,11 +117,6 @@ public sealed class GenerateChartTool : AIFunction
 
                 return "Chart generation is not available. The resolved deployment could not create a chat client.";
             }
-
-            chatClient = chatClient
-                .AsBuilder()
-                .UseDefaultResilience()
-                .Build(arguments.Services);
 
             var promptService = arguments.Services.GetService<ITemplateService>();
 

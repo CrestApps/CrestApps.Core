@@ -48,6 +48,16 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     /// <param name="deployment">The deployment.</param>
     public async ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment)
     {
+        return await CreateChatClientAsync(deployment, null);
+    }
+
+    /// <summary>
+    /// Creates chat client and applies optional pipeline configuration before building the final client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="configurePipeline">The optional pipeline configuration.</param>
+    public async ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment, Action<ChatClientBuilder> configurePipeline)
+    {
         ArgumentNullException.ThrowIfNull(deployment);
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
@@ -56,13 +66,15 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetChatClientAsync(conn, model));
 
-        return new AICompletionUsageTrackingChatClient(
-                    client,
-                    deployment.ClientName,
-                    deployment.ConnectionName,
-                    deployment.ModelName,
-                    _serviceProvider,
-                    _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
+        client = new AICompletionUsageTrackingChatClient(
+            client,
+            deployment.ClientName,
+            deployment.ConnectionName,
+            deployment.ModelName,
+            _serviceProvider,
+            _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
+
+        return BuildChatClient(client, configurePipeline);
     }
 
     /// <summary>
@@ -71,13 +83,27 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     /// <param name="deployment">The deployment.</param>
     public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(AIDeployment deployment)
     {
+        return await CreateEmbeddingGeneratorAsync(deployment, null);
+    }
+
+    /// <summary>
+    /// Creates embedding generator and applies optional pipeline configuration before building the final generator.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="configurePipeline">The optional pipeline configuration.</param>
+    public async ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
+        AIDeployment deployment,
+        Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline)
+    {
         ArgumentNullException.ThrowIfNull(deployment);
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
-                    (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
+        var generator = await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
+
+        return BuildEmbeddingGenerator(generator, configurePipeline);
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -86,6 +112,16 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     /// </summary>
     /// <param name="deployment">The deployment.</param>
     public async ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment)
+    {
+        return await CreateImageGeneratorAsync(deployment, null);
+    }
+
+    /// <summary>
+    /// Creates image generator and applies optional pipeline configuration before building the final generator.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="configurePipeline">The optional pipeline configuration.</param>
+    public async ValueTask<IImageGenerator> CreateImageGeneratorAsync(AIDeployment deployment, Action<ImageGeneratorBuilder> configurePipeline)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -93,8 +129,10 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
-                    (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
+        var generator = await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
+
+        return BuildImageGenerator(generator, configurePipeline);
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -103,6 +141,16 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     /// </summary>
     /// <param name="deployment">The deployment.</param>
     public async ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment)
+    {
+        return await CreateSpeechToTextClientAsync(deployment, null);
+    }
+
+    /// <summary>
+    /// Creates speech to text client and applies optional pipeline configuration before building the final client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="configurePipeline">The optional pipeline configuration.</param>
+    public async ValueTask<ISpeechToTextClient> CreateSpeechToTextClientAsync(AIDeployment deployment, Action<SpeechToTextClientBuilder> configurePipeline)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -110,8 +158,10 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
-                    (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
+        var client = await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
+
+        return BuildSpeechToTextClient(client, configurePipeline);
     }
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -120,6 +170,16 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     /// </summary>
     /// <param name="deployment">The deployment.</param>
     public async ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment)
+    {
+        return await CreateTextToSpeechClientAsync(deployment, null);
+    }
+
+    /// <summary>
+    /// Creates text to speech client and applies optional pipeline configuration before building the final client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <param name="configurePipeline">The optional pipeline configuration.</param>
+    public async ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment, Action<TextToSpeechClientBuilder> configurePipeline)
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
         ArgumentNullException.ThrowIfNull(deployment);
@@ -127,8 +187,10 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
-                    (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
+        var client = await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
+
+        return BuildTextToSpeechClient(client, configurePipeline);
     }
 
     /// <summary>
@@ -170,4 +232,71 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         return AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
     }
+
+    private IChatClient BuildChatClient(IChatClient client, Action<ChatClientBuilder> configurePipeline)
+    {
+        if (configurePipeline is null)
+        {
+            return client;
+        }
+
+        var builder = client.AsBuilder();
+        configurePipeline.Invoke(builder);
+
+        return builder.Build(_serviceProvider);
+    }
+
+    private IEmbeddingGenerator<string, Embedding<float>> BuildEmbeddingGenerator(IEmbeddingGenerator<string, Embedding<float>> generator, Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline)
+    {
+        if (configurePipeline is null)
+        {
+            return generator;
+        }
+
+        var builder = generator.AsBuilder();
+        configurePipeline.Invoke(builder);
+
+        return builder.Build(_serviceProvider);
+    }
+
+#pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    private IImageGenerator BuildImageGenerator(IImageGenerator generator, Action<ImageGeneratorBuilder> configurePipeline)
+    {
+        if (configurePipeline is null)
+        {
+            return generator;
+        }
+
+        var builder = generator.AsBuilder();
+        configurePipeline.Invoke(builder);
+
+        return builder.Build(_serviceProvider);
+    }
+
+    private ISpeechToTextClient BuildSpeechToTextClient(ISpeechToTextClient client, Action<SpeechToTextClientBuilder> configurePipeline)
+    {
+        if (configurePipeline is null)
+        {
+            return client;
+        }
+
+        var builder = client.AsBuilder();
+        configurePipeline.Invoke(builder);
+
+        return builder.Build(_serviceProvider);
+    }
+
+    private ITextToSpeechClient BuildTextToSpeechClient(ITextToSpeechClient client, Action<TextToSpeechClientBuilder> configurePipeline)
+    {
+        if (configurePipeline is null)
+        {
+            return client;
+        }
+
+        var builder = client.AsBuilder();
+        configurePipeline.Invoke(builder);
+
+        return builder.Build(_serviceProvider);
+    }
+#pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 }

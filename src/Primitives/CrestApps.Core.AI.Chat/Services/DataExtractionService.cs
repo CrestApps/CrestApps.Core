@@ -23,7 +23,6 @@ public sealed class DataExtractionService
     private readonly ITemplateService _aiTemplateService;
     private readonly ITemplateParser _markdownTemplateParser;
     private readonly TimeProvider _timeProvider;
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DataExtractionService> _logger;
 
     /// <summary>
@@ -40,7 +39,6 @@ public sealed class DataExtractionService
         ITemplateService aiTemplateService,
         IEnumerable<ITemplateParser> templateParsers,
         TimeProvider timeProvider,
-        IServiceProvider serviceProvider,
         ILogger<DataExtractionService> logger,
         IAIDeploymentManager deploymentManager = null)
     {
@@ -49,7 +47,6 @@ public sealed class DataExtractionService
         _aiTemplateService = aiTemplateService;
         _markdownTemplateParser = ResolveMarkdownTemplateParser(templateParsers);
         _timeProvider = timeProvider;
-        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -475,17 +472,16 @@ public sealed class DataExtractionService
 
             if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
             {
-                var chatClient = await _clientFactory.CreateChatClientAsync(deployment);
+                var chatClient = await _clientFactory.CreateChatClientAsync(
+                    deployment,
+                    builder => builder.UseDefaultResilience());
 
                 if (chatClient == null)
                 {
                     return null;
                 }
 
-                return chatClient
-                    .AsBuilder()
-                    .UseDefaultResilience()
-                    .Build(_serviceProvider);
+                return chatClient;
             }
         }
 

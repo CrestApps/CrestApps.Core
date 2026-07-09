@@ -564,7 +564,9 @@ public sealed class PostSessionProcessingServiceTests
         if (chatClient is not null)
         {
             mockClientFactory.Setup(f => f
-                .CreateChatClientAsync(It.Is<AIDeployment>(d => d.ClientName == TestProviderName && d.ConnectionName == TestConnectionName && d.ModelName == TestDeploymentName)))
+                .CreateChatClientAsync(
+                    It.Is<AIDeployment>(d => d.ClientName == TestProviderName && d.ConnectionName == TestConnectionName && d.ModelName == TestDeploymentName),
+                    It.IsAny<Action<ChatClientBuilder>>()))
                 .ReturnsAsync(chatClient);
         }
 
