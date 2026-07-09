@@ -235,22 +235,26 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
     private IChatClient BuildChatClient(IChatClient client, Action<ChatClientBuilder> configurePipeline)
     {
-        ArgumentNullException.ThrowIfNull(client);
+        if (configurePipeline is null)
+        {
+            return client;
+        }
 
         var builder = client.AsBuilder();
-        configurePipeline?.Invoke(builder);
+        configurePipeline.Invoke(builder);
 
         return builder.Build(_serviceProvider);
     }
 
-    private IEmbeddingGenerator<string, Embedding<float>> BuildEmbeddingGenerator(
-        IEmbeddingGenerator<string, Embedding<float>> generator,
-        Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline)
+    private IEmbeddingGenerator<string, Embedding<float>> BuildEmbeddingGenerator(IEmbeddingGenerator<string, Embedding<float>> generator, Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline)
     {
-        ArgumentNullException.ThrowIfNull(generator);
+        if (configurePipeline is null)
+        {
+            return generator;
+        }
 
         var builder = generator.AsBuilder();
-        configurePipeline?.Invoke(builder);
+        configurePipeline.Invoke(builder);
 
         return builder.Build(_serviceProvider);
     }
@@ -258,30 +262,39 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     private IImageGenerator BuildImageGenerator(IImageGenerator generator, Action<ImageGeneratorBuilder> configurePipeline)
     {
-        ArgumentNullException.ThrowIfNull(generator);
+        if (configurePipeline is null)
+        {
+            return generator;
+        }
 
         var builder = generator.AsBuilder();
-        configurePipeline?.Invoke(builder);
+        configurePipeline.Invoke(builder);
 
         return builder.Build(_serviceProvider);
     }
 
     private ISpeechToTextClient BuildSpeechToTextClient(ISpeechToTextClient client, Action<SpeechToTextClientBuilder> configurePipeline)
     {
-        ArgumentNullException.ThrowIfNull(client);
+        if (configurePipeline is null)
+        {
+            return client;
+        }
 
         var builder = client.AsBuilder();
-        configurePipeline?.Invoke(builder);
+        configurePipeline.Invoke(builder);
 
         return builder.Build(_serviceProvider);
     }
 
     private ITextToSpeechClient BuildTextToSpeechClient(ITextToSpeechClient client, Action<TextToSpeechClientBuilder> configurePipeline)
     {
-        ArgumentNullException.ThrowIfNull(client);
+        if (configurePipeline is null)
+        {
+            return client;
+        }
 
         var builder = client.AsBuilder();
-        configurePipeline?.Invoke(builder);
+        configurePipeline.Invoke(builder);
 
         return builder.Build(_serviceProvider);
     }
