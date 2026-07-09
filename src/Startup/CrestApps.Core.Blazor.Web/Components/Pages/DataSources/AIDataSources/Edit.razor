@@ -87,8 +87,33 @@ else
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Elasticsearch URL</label>
-                        <InputText @bind-Value="_model.ElasticsearchUrl" class="form-control" />
+                        <label class="form-label">Elasticsearch environment</label>
+                        <InputSelect @bind-Value="_model.ElasticsearchEnvironmentType" class="form-select">
+                            <option value="@ElasticsearchSourceMetadata.SelfManagedEnvironmentType">Self-managed</option>
+                            <option value="@ElasticsearchSourceMetadata.CloudHostedEnvironmentType">Cloud hosted deployment</option>
+                        </InputSelect>
+                    </div>
+
+                    @if (UsesElasticsearchSelfManagedEnvironment())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Elasticsearch URL</label>
+                            <InputText @bind-Value="_model.ElasticsearchUrl" class="form-control" />
+                            <div class="form-text">Required for self-managed clusters or endpoint-based hosted deployments.</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Elastic Cloud ID</label>
+                            <InputText @bind-Value="_model.ElasticsearchCloudId" class="form-control" />
+                            <div class="form-text">Required for Elastic Cloud hosted deployments.</div>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Elasticsearch index name</label>
+                        <InputText @bind-Value="_model.ElasticsearchIndexName" class="form-control" />
                     </div>
 
                     <div class="mb-3">
@@ -96,12 +121,10 @@ else
                         <InputSelect @bind-Value="_model.ElasticsearchAuthenticationType" class="form-select">
                             <option value="@ElasticsearchSourceMetadata.NoneAuthenticationType">None</option>
                             <option value="@ElasticsearchSourceMetadata.BasicAuthenticationType">Basic</option>
+                            <option value="@ElasticsearchSourceMetadata.ApiKeyAuthenticationType">API key</option>
+                            <option value="@ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType">Base64 API key</option>
+                            <option value="@ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType">Key ID and key</option>
                         </InputSelect>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Elasticsearch index name</label>
-                        <InputText @bind-Value="_model.ElasticsearchIndexName" class="form-control" />
                     </div>
 
                     @if (UsesElasticsearchBasicAuthentication())
@@ -114,6 +137,35 @@ else
                         <div class="mb-3">
                             <label class="form-label">Elasticsearch password</label>
                             <InputText @bind-Value="_model.ElasticsearchPassword" type="password" class="form-control" />
+                        </div>
+                    }
+
+                    @if (UsesElasticsearchApiKeyAuthentication())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Elasticsearch API key</label>
+                            <InputText @bind-Value="_model.ElasticsearchApiKey" type="password" class="form-control" />
+                        </div>
+                    }
+
+                    @if (UsesElasticsearchBase64ApiKeyAuthentication())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Base64 API key</label>
+                            <InputText @bind-Value="_model.ElasticsearchBase64ApiKey" type="password" class="form-control" />
+                        </div>
+                    }
+
+                    @if (UsesElasticsearchKeyIdAndKeyAuthentication())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Elasticsearch API key ID</label>
+                            <InputText @bind-Value="_model.ElasticsearchApiKeyId" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Elasticsearch API key</label>
+                            <InputText @bind-Value="_model.ElasticsearchApiKey" type="password" class="form-control" />
                         </div>
                     }
 
@@ -137,17 +189,17 @@ else
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label">Azure AI Search index name</label>
+                        <InputText @bind-Value="_model.AzureAISearchIndexName" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Authentication type</label>
                         <InputSelect @bind-Value="_model.AzureAISearchAuthenticationType" class="form-select">
                             <option value="@AzureAISearchSourceMetadata.ApiKeyAuthenticationType">API key</option>
                             <option value="@AzureAISearchSourceMetadata.DefaultAuthenticationType">Default credential</option>
                             <option value="@AzureAISearchSourceMetadata.ManagedIdentityAuthenticationType">Managed identity</option>
                         </InputSelect>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Azure AI Search index name</label>
-                        <InputText @bind-Value="_model.AzureAISearchIndexName" class="form-control" />
                     </div>
 
                     @if (UsesAzureAISearchApiKeyAuthentication())
@@ -176,13 +228,13 @@ else
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">PostgreSQL connection string</label>
-                        <InputText @bind-Value="_model.PostgreSQLConnectionString" type="password" class="form-control" />
+                        <label class="form-label">PostgreSQL table name</label>
+                        <InputText @bind-Value="_model.PostgreSQLTableName" class="form-control" />
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">PostgreSQL table name</label>
-                        <InputText @bind-Value="_model.PostgreSQLTableName" class="form-control" />
+                        <label class="form-label">PostgreSQL connection string</label>
+                        <InputText @bind-Value="_model.PostgreSQLConnectionString" type="password" class="form-control" />
                     </div>
                 }
 
@@ -368,8 +420,20 @@ else
     private bool IsElasticsearchSource()
         => string.Equals(_model?.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase);
 
+    private bool UsesElasticsearchSelfManagedEnvironment()
+        => string.Equals(_model?.ElasticsearchEnvironmentType, ElasticsearchSourceMetadata.SelfManagedEnvironmentType, StringComparison.OrdinalIgnoreCase);
+
     private bool UsesElasticsearchBasicAuthentication()
         => string.Equals(_model?.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase);
+
+    private bool UsesElasticsearchApiKeyAuthentication()
+        => string.Equals(_model?.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase);
+
+    private bool UsesElasticsearchBase64ApiKeyAuthentication()
+        => string.Equals(_model?.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase);
+
+    private bool UsesElasticsearchKeyIdAndKeyAuthentication()
+        => string.Equals(_model?.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase);
 
     private bool IsAzureAISearchSource()
         => string.Equals(_model?.SourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase);

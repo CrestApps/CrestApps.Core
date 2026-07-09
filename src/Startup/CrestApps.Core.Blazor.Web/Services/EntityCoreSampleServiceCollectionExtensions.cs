@@ -6,10 +6,12 @@ using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.PostgreSQL;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Areas.AI.Handlers;
 using CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
@@ -61,15 +63,22 @@ internal static class EntityCoreSampleServiceCollectionExtensions
         services.Configure<IndexProfileSourceOptions>(options => options
             .AddOrUpdate(ElasticsearchConstants.ProviderName, new LocalizedString("Elasticsearch", "Elasticsearch"), IndexProfileTypes.Articles, descriptor =>
             {
-                descriptor.DisplayName = new LocalizedString("Articles", "Articles");
-                descriptor.Description = new LocalizedString("Blazor Elasticsearch Articles Description", "Create an Elasticsearch index for sample article records managed in the Blazor app.");
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create an Elasticsearch index for sample article records managed in the Blazor app.";
             })
         );
         services.Configure<IndexProfileSourceOptions>(options => options
-            .AddOrUpdate(ElasticsearchConstants.ProviderName, new LocalizedString("Azure AI Search", "Azure AI Search"), IndexProfileTypes.Articles, descriptor =>
+            .AddOrUpdate(AISearchConstants.ProviderName, new LocalizedString("Azure AI Search", "Azure AI Search"), IndexProfileTypes.Articles, descriptor =>
             {
-                descriptor.DisplayName = new LocalizedString("Articles", "Articles");
-                descriptor.Description = new LocalizedString("Blazor Azure AI Search Articles Description", "Create an Azure AI Search index for sample article records managed in the Blazor app.");
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create an Azure AI Search index for sample article records managed in the Blazor app.";
+            })
+        );
+        services.Configure<IndexProfileSourceOptions>(options => options
+            .AddOrUpdate(PostgreSQLConstants.ProviderName, new LocalizedString("PostgreSQL", "PostgreSQL"), IndexProfileTypes.Articles, descriptor =>
+            {
+                descriptor.DisplayName = "Articles";
+                descriptor.Description = "Create a PostgreSQL index for sample article records managed in the Blazor app.";
             })
         );
 

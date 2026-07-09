@@ -32,8 +32,13 @@ builder.Services.AddCoreElasticsearchServices();
     "Search": {
       "Elasticsearch": {
         "Url": "https://localhost:9200",
+        "CloudId": "",
+        "AuthenticationType": "Basic",
         "Username": "elastic",
         "Password": "your-password",
+        "ApiKey": "",
+        "Base64ApiKey": "",
+        "ApiKeyId": "",
         "CertificateFingerprint": "AA:BB:CC:..."
       }
     }
@@ -46,8 +51,13 @@ builder.Services.AddCoreElasticsearchServices();
 | Property | Type | Description |
 |----------|------|-------------|
 | `Url` | `string` | Elasticsearch endpoint URL |
+| `CloudId` | `string` | Elastic Cloud deployment identifier (optional alternative to `Url`) |
+| `AuthenticationType` | `string` | `None`, `Basic`, `ApiKey`, `Base64ApiKey`, or `KeyIdAndKey` |
 | `Username` | `string` | Basic auth username (optional) |
 | `Password` | `string` | Basic auth password (optional) |
+| `ApiKey` | `string` | Raw API key value for `ApiKey` auth, or the key portion for `KeyIdAndKey` |
+| `Base64ApiKey` | `string` | Base64-encoded API key value for `Base64ApiKey` auth |
+| `ApiKeyId` | `string` | API key identifier for `KeyIdAndKey` auth |
 | `CertificateFingerprint` | `string` | TLS certificate fingerprint for verification (optional) |
 
 ## Services Registered (Keyed by `"Elasticsearch"`)
@@ -81,11 +91,18 @@ Override `IAIDataSourceIndexingQueue` when you need a durable or distributed que
 When an `AIDataSource` uses `SourceType = "Elasticsearch"`, the mapping reads documents from a remote Elasticsearch index using source-specific settings stored on the `AIDataSource` itself:
 
 - `Url`
-- `AuthenticationType` (`None` or `Basic`)
+- `CloudId`
+- `EnvironmentType` (`SelfManaged` or `CloudHosted`)
+- `AuthenticationType` (`None`, `Basic`, `ApiKey`, `Base64ApiKey`, or `KeyIdAndKey`)
 - `IndexName`
 - `Username` (when `AuthenticationType = "Basic"`)
 - `Password` (protected at rest when `AuthenticationType = "Basic"`)
+- `ApiKey` (protected at rest when `AuthenticationType = "ApiKey"` or `KeyIdAndKey`)
+- `Base64ApiKey` (protected at rest when `AuthenticationType = "Base64ApiKey"`)
+- `ApiKeyId` (when `AuthenticationType = "KeyIdAndKey"`)
 - `CertificateFingerprint`
+
+Use `EnvironmentType = "SelfManaged"` with `Url` for self-managed clusters or endpoint-based hosted deployments. Use `EnvironmentType = "CloudHosted"` with `CloudId` for Elastic Cloud hosted deployments. Older records that only store `CloudId` are still inferred as cloud-hosted. Elastic Cloud connections require one of the authenticated modes.
 
 This is different from the Elasticsearch knowledge-base backend configuration. The backend settings under `CrestApps:Search:Elasticsearch` define where the embedded knowledge-base chunks are written. The source mapping settings define where the raw source documents are read from.
 
@@ -152,8 +169,13 @@ Then configure your `appsettings.Development.json`:
     "Search": {
       "Elasticsearch": {
         "Url": "https://my-cluster.es.us-east-1.aws.found.io:9243",
+        "CloudId": "",
+        "AuthenticationType": "Basic",
         "Username": "elastic",
         "Password": "your-secure-password",
+        "ApiKey": "",
+        "Base64ApiKey": "",
+        "ApiKeyId": "",
         "CertificateFingerprint": "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
       }
     }
@@ -165,9 +187,14 @@ Then configure your `appsettings.Development.json`:
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `Url` | `string` | Yes | — | Elasticsearch endpoint URL. Include the port if non-standard (e.g., `https://localhost:9200`). |
+| `Url` | `string` | Conditionally | — | Elasticsearch endpoint URL. Include the port if non-standard (e.g., `https://localhost:9200`). Required when `CloudId` is empty. |
+| `CloudId` | `string` | Conditionally | — | Elastic Cloud deployment identifier. Required when `Url` is empty. |
+| `AuthenticationType` | `string` | No | `None` | Selects `None`, `Basic`, `ApiKey`, `Base64ApiKey`, or `KeyIdAndKey`. Elastic Cloud requires one of the authenticated modes. |
 | `Username` | `string` | No | — | Username for basic authentication. Typically `"elastic"` for the built-in superuser. |
 | `Password` | `string` | No | — | Password for basic authentication. |
+| `ApiKey` | `string` | No | — | Raw API key for `ApiKey` auth, or the key portion for `KeyIdAndKey`. |
+| `Base64ApiKey` | `string` | No | — | Base64-encoded API key value for `Base64ApiKey` auth. |
+| `ApiKeyId` | `string` | No | — | API key identifier for `KeyIdAndKey` auth. |
 | `CertificateFingerprint` | `string` | No | — | SHA-256 fingerprint of the Elasticsearch TLS certificate. Required when using self-signed certificates. Format: `AA:BB:CC:...` |
 
 :::info
@@ -250,10 +277,10 @@ Deleting an index removes all indexed documents permanently. Re-indexing from th
 
 **Error:** `Elasticsearch.Net.ElasticsearchClientException: 401 Unauthorized`
 
-**Cause:** Invalid username or password.
+**Cause:** Invalid credentials for the selected authentication type.
 
 **Fix:**
-- Verify credentials in `appsettings.json`
+- Verify the selected `AuthenticationType` and its matching credentials in `appsettings.json`
 - Reset the elastic user password: `docker exec -it elasticsearch bin/elasticsearch-reset-password -u elastic`
 
 ### Certificate Error

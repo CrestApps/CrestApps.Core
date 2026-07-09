@@ -49,9 +49,32 @@
                 </div>
 
                 <div class="mb-3">
+                    <label asp-for="ElasticsearchEnvironmentType" class="form-label">Elasticsearch environment</label>
+                    <select asp-for="ElasticsearchEnvironmentType" class="form-select">
+                        <option value="@ElasticsearchSourceMetadata.SelfManagedEnvironmentType">Self-managed</option>
+                        <option value="@ElasticsearchSourceMetadata.CloudHostedEnvironmentType">Cloud hosted deployment</option>
+                    </select>
+                    <span asp-validation-for="ElasticsearchEnvironmentType" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3" id="elasticsearch-url-settings"@(string.Equals(Model.ElasticsearchEnvironmentType, ElasticsearchSourceMetadata.SelfManagedEnvironmentType, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
                     <label asp-for="ElasticsearchUrl" class="form-label">Elasticsearch URL</label>
                     <input asp-for="ElasticsearchUrl" class="form-control" placeholder="https://elastic.example.com:9200" />
                     <span asp-validation-for="ElasticsearchUrl" class="text-danger"></span>
+                    <div class="form-text">Required for self-managed clusters or endpoint-based hosted deployments.</div>
+                </div>
+
+                <div class="mb-3" id="elasticsearch-cloud-id-settings"@(string.Equals(Model.ElasticsearchEnvironmentType, ElasticsearchSourceMetadata.CloudHostedEnvironmentType, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+                    <label asp-for="ElasticsearchCloudId" class="form-label">Elastic Cloud ID</label>
+                    <input asp-for="ElasticsearchCloudId" class="form-control" placeholder="deployment-name:dXMtZWFzdC0x..." />
+                    <span asp-validation-for="ElasticsearchCloudId" class="text-danger"></span>
+                    <div class="form-text">Required for Elastic Cloud hosted deployments.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="ElasticsearchIndexName" class="form-label">Elasticsearch index name</label>
+                    <input asp-for="ElasticsearchIndexName" class="form-control" placeholder="products" />
+                    <span asp-validation-for="ElasticsearchIndexName" class="text-danger"></span>
                 </div>
 
                 <div class="mb-3">
@@ -59,14 +82,11 @@
                     <select asp-for="ElasticsearchAuthenticationType" class="form-select">
                         <option value="@ElasticsearchSourceMetadata.NoneAuthenticationType">None</option>
                         <option value="@ElasticsearchSourceMetadata.BasicAuthenticationType">Basic</option>
+                        <option value="@ElasticsearchSourceMetadata.ApiKeyAuthenticationType">API key</option>
+                        <option value="@ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType">Base64 API key</option>
+                        <option value="@ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType">Key ID and key</option>
                     </select>
                     <span asp-validation-for="ElasticsearchAuthenticationType" class="text-danger"></span>
-                </div>
-
-                <div class="mb-3">
-                    <label asp-for="ElasticsearchIndexName" class="form-label">Elasticsearch index name</label>
-                    <input asp-for="ElasticsearchIndexName" class="form-control" placeholder="products" />
-                    <span asp-validation-for="ElasticsearchIndexName" class="text-danger"></span>
                 </div>
 
                 <div id="elasticsearch-basic-auth-settings"@(string.Equals(Model.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
@@ -80,6 +100,30 @@
                         <label asp-for="ElasticsearchPassword" class="form-label">Elasticsearch password</label>
                         <input asp-for="ElasticsearchPassword" class="form-control" type="password" placeholder="Leave empty to keep the saved password" />
                         <span asp-validation-for="ElasticsearchPassword" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div id="elasticsearch-api-key-settings"@(string.Equals(Model.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) || string.Equals(Model.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+                    <div class="mb-3">
+                        <label asp-for="ElasticsearchApiKey" class="form-label">Elasticsearch API key</label>
+                        <input asp-for="ElasticsearchApiKey" class="form-control" type="password" placeholder="Leave empty to keep the saved API key" />
+                        <span asp-validation-for="ElasticsearchApiKey" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div id="elasticsearch-base64-api-key-settings"@(string.Equals(Model.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+                    <div class="mb-3">
+                        <label asp-for="ElasticsearchBase64ApiKey" class="form-label">Base64 API key</label>
+                        <input asp-for="ElasticsearchBase64ApiKey" class="form-control" type="password" placeholder="Leave empty to keep the saved base64 API key" />
+                        <span asp-validation-for="ElasticsearchBase64ApiKey" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div id="elasticsearch-key-id-settings"@(string.Equals(Model.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+                    <div class="mb-3">
+                        <label asp-for="ElasticsearchApiKeyId" class="form-label">Elasticsearch API key ID</label>
+                        <input asp-for="ElasticsearchApiKeyId" class="form-control" />
+                        <span asp-validation-for="ElasticsearchApiKeyId" class="text-danger"></span>
                     </div>
                 </div>
 
@@ -104,6 +148,12 @@
                 </div>
 
                 <div class="mb-3">
+                    <label asp-for="AzureAISearchIndexName" class="form-label">Azure AI Search index name</label>
+                    <input asp-for="AzureAISearchIndexName" class="form-control" placeholder="products" />
+                    <span asp-validation-for="AzureAISearchIndexName" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
                     <label asp-for="AzureAISearchAuthenticationType" class="form-label">Authentication type</label>
                     <select asp-for="AzureAISearchAuthenticationType" class="form-select">
                         <option value="@AzureAISearchSourceMetadata.ApiKeyAuthenticationType">API key</option>
@@ -111,12 +161,6 @@
                         <option value="@AzureAISearchSourceMetadata.ManagedIdentityAuthenticationType">Managed identity</option>
                     </select>
                     <span asp-validation-for="AzureAISearchAuthenticationType" class="text-danger"></span>
-                </div>
-
-                <div class="mb-3">
-                    <label asp-for="AzureAISearchIndexName" class="form-label">Azure AI Search index name</label>
-                    <input asp-for="AzureAISearchIndexName" class="form-control" placeholder="products" />
-                    <span asp-validation-for="AzureAISearchIndexName" class="text-danger"></span>
                 </div>
 
                 <div id="azure-ai-search-identity-settings"@(string.Equals(Model.AzureAISearchAuthenticationType, AzureAISearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase) ? " hidden" : null)>
@@ -145,15 +189,15 @@
                 </div>
 
                 <div class="mb-3">
-                    <label asp-for="PostgreSQLConnectionString" class="form-label">PostgreSQL connection string</label>
-                    <input asp-for="PostgreSQLConnectionString" class="form-control" type="password" placeholder="Leave empty to keep the saved connection string" />
-                    <span asp-validation-for="PostgreSQLConnectionString" class="text-danger"></span>
-                </div>
-
-                <div class="mb-3">
                     <label asp-for="PostgreSQLTableName" class="form-label">PostgreSQL table name</label>
                     <input asp-for="PostgreSQLTableName" class="form-control" placeholder="products" />
                     <span asp-validation-for="PostgreSQLTableName" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="PostgreSQLConnectionString" class="form-label">PostgreSQL connection string</label>
+                    <input asp-for="PostgreSQLConnectionString" class="form-control" type="password" placeholder="Leave empty to keep the saved connection string" />
+                    <span asp-validation-for="PostgreSQLConnectionString" class="text-danger"></span>
                 </div>
             </div>
 

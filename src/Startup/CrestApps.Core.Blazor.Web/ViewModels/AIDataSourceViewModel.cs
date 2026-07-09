@@ -23,6 +23,10 @@ public sealed class AIDataSourceViewModel
 
     public string ElasticsearchUrl { get; set; }
 
+    public string ElasticsearchCloudId { get; set; }
+
+    public string ElasticsearchEnvironmentType { get; set; } = ElasticsearchSourceMetadata.SelfManagedEnvironmentType;
+
     public string ElasticsearchAuthenticationType { get; set; } = ElasticsearchSourceMetadata.NoneAuthenticationType;
 
     public string ElasticsearchIndexName { get; set; }
@@ -30,6 +34,12 @@ public sealed class AIDataSourceViewModel
     public string ElasticsearchUsername { get; set; }
 
     public string ElasticsearchPassword { get; set; }
+
+    public string ElasticsearchApiKey { get; set; }
+
+    public string ElasticsearchBase64ApiKey { get; set; }
+
+    public string ElasticsearchApiKeyId { get; set; }
 
     public string ElasticsearchCertificateFingerprint { get; set; }
 
@@ -63,10 +73,13 @@ public sealed class AIDataSourceViewModel
 
         if (ds.TryGet<ElasticsearchSourceMetadata>(out var elasticsearch))
         {
+            model.ElasticsearchEnvironmentType = elasticsearch.GetEnvironmentType();
             model.ElasticsearchUrl = elasticsearch.Url;
+            model.ElasticsearchCloudId = elasticsearch.CloudId;
             model.ElasticsearchAuthenticationType = elasticsearch.GetAuthenticationType();
             model.ElasticsearchIndexName = elasticsearch.IndexName;
             model.ElasticsearchUsername = elasticsearch.Username;
+            model.ElasticsearchApiKeyId = elasticsearch.ApiKeyId;
             model.ElasticsearchCertificateFingerprint = elasticsearch.CertificateFingerprint;
         }
 
@@ -109,20 +122,28 @@ public sealed class AIDataSourceViewModel
 
         if (string.Equals(ds.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase))
         {
-            var authenticationType = string.Equals(ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase)
-                ? ElasticsearchSourceMetadata.BasicAuthenticationType
-                : ElasticsearchSourceMetadata.NoneAuthenticationType;
+            var environmentType = NormalizeElasticsearchEnvironmentType(ElasticsearchEnvironmentType);
+            var authenticationType = NormalizeElasticsearchAuthenticationType(ElasticsearchAuthenticationType);
+
             ds.Put(new ElasticsearchSourceMetadata
             {
-                Url = ElasticsearchUrl?.Trim(),
+                EnvironmentType = environmentType,
+                Url = environmentType == ElasticsearchSourceMetadata.SelfManagedEnvironmentType ? ElasticsearchUrl?.Trim() : null,
+                CloudId = environmentType == ElasticsearchSourceMetadata.CloudHostedEnvironmentType ? ElasticsearchCloudId?.Trim() : null,
                 AuthenticationType = authenticationType,
                 IndexName = ElasticsearchIndexName?.Trim(),
                 Username = authenticationType == ElasticsearchSourceMetadata.BasicAuthenticationType ? ElasticsearchUsername?.Trim() : null,
                 Password = authenticationType == ElasticsearchSourceMetadata.BasicAuthenticationType
-                    ? string.IsNullOrWhiteSpace(ElasticsearchPassword)
-                        ? existingElasticsearchMetadata?.Password
-                        : protector.Protect(ElasticsearchPassword)
+                    ? ProtectSecret(ElasticsearchPassword, existingElasticsearchMetadata?.Password, protector)
                     : null,
+                ApiKey = authenticationType == ElasticsearchSourceMetadata.ApiKeyAuthenticationType ||
+                    authenticationType == ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType
+                    ? ProtectSecret(ElasticsearchApiKey, existingElasticsearchMetadata?.ApiKey, protector)
+                    : null,
+                Base64ApiKey = authenticationType == ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType
+                    ? ProtectSecret(ElasticsearchBase64ApiKey, existingElasticsearchMetadata?.Base64ApiKey, protector)
+                    : null,
+                ApiKeyId = authenticationType == ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType ? ElasticsearchApiKeyId?.Trim() : null,
                 CertificateFingerprint = ElasticsearchCertificateFingerprint?.Trim(),
             });
         }
@@ -160,5 +181,47 @@ public sealed class AIDataSourceViewModel
                     : protector.Protect(PostgreSQLConnectionString),
             });
         }
+    }
+
+    private static string NormalizeElasticsearchEnvironmentType(string environmentType)
+    {
+        if (string.Equals(environmentType, ElasticsearchSourceMetadata.CloudHostedEnvironmentType, StringComparison.OrdinalIgnoreCase))
+        {
+            return ElasticsearchSourceMetadata.CloudHostedEnvironmentType;
+        }
+
+        return ElasticsearchSourceMetadata.SelfManagedEnvironmentType;
+    }
+
+    private static string NormalizeElasticsearchAuthenticationType(string authenticationType)
+    {
+        if (string.Equals(authenticationType, ElasticsearchSourceMetadata.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            return ElasticsearchSourceMetadata.BasicAuthenticationType;
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            return ElasticsearchSourceMetadata.ApiKeyAuthenticationType;
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            return ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType;
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            return ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType;
+        }
+
+        return ElasticsearchSourceMetadata.NoneAuthenticationType;
+    }
+
+    private static string ProtectSecret(string value, string existingValue, IDataProtector protector)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? existingValue
+            : protector.Protect(value);
     }
 }

@@ -1,6 +1,7 @@
 <script>
     (() => {
         const sourceTypeField = document.getElementById('SourceType');
+        const elasticEnvironmentField = document.getElementById('ElasticsearchEnvironmentType');
         const elasticAuthField = document.getElementById('ElasticsearchAuthenticationType');
         const azureAuthField = document.getElementById('AzureAISearchAuthenticationType');
 
@@ -15,6 +16,7 @@
 
         const updateVisibility = () => {
             const sourceType = sourceTypeField?.value ?? '';
+            const elasticEnvironmentType = elasticEnvironmentField?.value ?? '';
             const elasticAuthType = elasticAuthField?.value ?? '';
             const azureAuthType = azureAuthField?.value ?? '';
 
@@ -22,12 +24,18 @@
             toggle('elasticsearch-source-settings', sourceType === 'Elasticsearch');
             toggle('azure-ai-search-source-settings', sourceType === 'AzureAISearch');
             toggle('postgresql-source-settings', sourceType === 'PostgreSQL');
+            toggle('elasticsearch-url-settings', sourceType === 'Elasticsearch' && elasticEnvironmentType === 'SelfManaged');
+            toggle('elasticsearch-cloud-id-settings', sourceType === 'Elasticsearch' && elasticEnvironmentType === 'CloudHosted');
             toggle('elasticsearch-basic-auth-settings', sourceType === 'Elasticsearch' && elasticAuthType === 'Basic');
+            toggle('elasticsearch-api-key-settings', sourceType === 'Elasticsearch' && (elasticAuthType === 'ApiKey' || elasticAuthType === 'KeyIdAndKey'));
+            toggle('elasticsearch-base64-api-key-settings', sourceType === 'Elasticsearch' && elasticAuthType === 'Base64ApiKey');
+            toggle('elasticsearch-key-id-settings', sourceType === 'Elasticsearch' && elasticAuthType === 'KeyIdAndKey');
             toggle('azure-ai-search-api-key-settings', sourceType === 'AzureAISearch' && azureAuthType === 'ApiKey');
             toggle('azure-ai-search-identity-settings', sourceType === 'AzureAISearch' && azureAuthType !== 'ApiKey');
         };
 
         sourceTypeField?.addEventListener('change', updateVisibility);
+        elasticEnvironmentField?.addEventListener('change', updateVisibility);
         elasticAuthField?.addEventListener('change', updateVisibility);
         azureAuthField?.addEventListener('change', updateVisibility);
         updateVisibility();

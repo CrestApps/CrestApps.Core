@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Localization;
-
 namespace CrestApps.Core.Infrastructure.Indexing;
 
 /// <summary>
@@ -22,15 +20,15 @@ public sealed class IndexProfileSourceDescriptor
     /// <summary>
     /// Gets or sets the human-readable display name of the search provider.
     /// </summary>
-    public LocalizedString ProviderDisplayName { get; set; }
+    public string ProviderDisplayName { get; set; }
 
     /// <summary>
     /// Gets or sets the human-readable display name shown in the UI for this source descriptor.
     /// </summary>
-    public LocalizedString DisplayName { get; set; }
+    public string DisplayName { get; set; }
 
     /// <summary>
     /// Gets or sets a short description of this source descriptor shown in the UI.
     /// </summary>
-    public LocalizedString Description { get; set; }
+    public string Description { get; set; }
 }

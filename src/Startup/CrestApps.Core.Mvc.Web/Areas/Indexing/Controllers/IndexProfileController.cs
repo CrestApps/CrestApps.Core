@@ -37,8 +37,8 @@ public sealed class IndexProfileController : Controller
         _serviceProvider = serviceProvider;
         _logger = logger;
         _sources = sourceOptions.Value.Sources
-            .OrderBy(source => source.ProviderDisplayName.Value, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(source => source.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(source => source.ProviderDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(source => source.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
@@ -370,12 +370,12 @@ public sealed class IndexProfileController : Controller
         model.Providers = _sources
             .GroupBy(source => source.ProviderName, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .Select(source => new SelectListItem(source.ProviderDisplayName.Value, source.ProviderName))
+            .Select(source => new SelectListItem(source.ProviderDisplayName, source.ProviderName))
             .ToList();
         model.Types = _sources
             .GroupBy(source => source.Type, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .Select(source => new SelectListItem(source.DisplayName.Value, source.Type))
+            .Select(source => new SelectListItem(source.DisplayName, source.Type))
             .ToList();
 
         model.EmbeddingDeployments = (await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Embedding))

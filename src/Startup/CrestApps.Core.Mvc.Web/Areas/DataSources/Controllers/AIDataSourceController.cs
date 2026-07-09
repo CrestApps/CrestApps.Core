@@ -53,7 +53,11 @@ public sealed class AIDataSourceController : Controller
 
     public async Task<IActionResult> Create()
     {
-        var model = new AIDataSourceViewModel();
+        var model = new AIDataSourceViewModel
+        {
+            SourceType = string.Empty,
+        };
+
         await PopulateDropdownsAsync(model);
 
         return View(model);
@@ -230,11 +234,16 @@ public sealed class AIDataSourceController : Controller
             return memberName switch
             {
                 nameof(ElasticsearchSourceMetadata) => nameof(AIDataSourceViewModel.SourceType),
+                nameof(ElasticsearchSourceMetadata.EnvironmentType) => nameof(AIDataSourceViewModel.ElasticsearchEnvironmentType),
                 nameof(ElasticsearchSourceMetadata.Url) => nameof(AIDataSourceViewModel.ElasticsearchUrl),
+                nameof(ElasticsearchSourceMetadata.CloudId) => nameof(AIDataSourceViewModel.ElasticsearchCloudId),
                 nameof(ElasticsearchSourceMetadata.AuthenticationType) => nameof(AIDataSourceViewModel.ElasticsearchAuthenticationType),
                 nameof(ElasticsearchSourceMetadata.IndexName) => nameof(AIDataSourceViewModel.ElasticsearchIndexName),
                 nameof(ElasticsearchSourceMetadata.Username) => nameof(AIDataSourceViewModel.ElasticsearchUsername),
                 nameof(ElasticsearchSourceMetadata.Password) => nameof(AIDataSourceViewModel.ElasticsearchPassword),
+                nameof(ElasticsearchSourceMetadata.ApiKey) => nameof(AIDataSourceViewModel.ElasticsearchApiKey),
+                nameof(ElasticsearchSourceMetadata.Base64ApiKey) => nameof(AIDataSourceViewModel.ElasticsearchBase64ApiKey),
+                nameof(ElasticsearchSourceMetadata.ApiKeyId) => nameof(AIDataSourceViewModel.ElasticsearchApiKeyId),
                 nameof(ElasticsearchSourceMetadata.CertificateFingerprint) => nameof(AIDataSourceViewModel.ElasticsearchCertificateFingerprint),
                 _ => memberName,
             };

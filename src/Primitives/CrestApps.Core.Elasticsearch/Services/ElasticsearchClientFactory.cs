@@ -1,7 +1,10 @@
 using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
+using Polly;
+using System.Net.Http;
 
 namespace CrestApps.Core.Elasticsearch.Services;
 
@@ -10,6 +13,7 @@ namespace CrestApps.Core.Elasticsearch.Services;
 /// </summary>
 public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
 {
+    private static readonly ResiliencePipeline<HttpResponseMessage> HttpResiliencePipeline = CreateHttpResiliencePipeline();
     private readonly ILogger<ElasticsearchClientFactory> _logger;
     private readonly ElasticsearchConnectionOptions _options;
     private readonly object _syncLock = new();
@@ -55,28 +59,50 @@ public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (string.IsNullOrWhiteSpace(configuration.Url))
+        var authenticationType = configuration.GetAuthenticationType();
+        var hasCloudId = !string.IsNullOrWhiteSpace(configuration.CloudId);
+        var hasUrl = !string.IsNullOrWhiteSpace(configuration.Url);
+
+        if (!hasCloudId && !hasUrl)
         {
-            throw new InvalidOperationException("Elasticsearch is not configured.");
+            throw new InvalidOperationException("Elasticsearch is not configured. Set either the URL or the Cloud ID.");
         }
 
-        if (!Uri.TryCreate(configuration.Url.Trim(), UriKind.Absolute, out var endpoint))
+        AuthorizationHeader authorizationHeader = null;
+        if (!string.Equals(authenticationType, ElasticsearchConnectionOptions.NoneAuthenticationType, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("The Elasticsearch URL is invalid.");
+            authorizationHeader = CreateAuthorizationHeader(configuration, authenticationType);
         }
 
-        var settings = new ElasticsearchClientSettings(endpoint);
-        var hasUsername = !string.IsNullOrWhiteSpace(configuration.Username);
-        var hasPassword = !string.IsNullOrWhiteSpace(configuration.Password);
-
-        if (hasUsername != hasPassword)
+        if (hasCloudId && authorizationHeader == null)
         {
-            throw new InvalidOperationException("Elasticsearch basic authentication requires both username and password.");
+            throw new InvalidOperationException("Elastic Cloud connections require an authentication type and matching credentials.");
         }
 
-        if (hasUsername)
+        ElasticsearchClientSettings settings;
+        object connectionTarget;
+
+        if (hasCloudId)
         {
-            settings.Authentication(new BasicAuthentication(configuration.Username, configuration.Password));
+            settings = new ElasticsearchClientSettings(
+                new CloudNodePool(configuration.CloudId.Trim(), authorizationHeader ?? throw new InvalidOperationException("Elastic Cloud connections require an authentication type and matching credentials.")),
+                CreateRequestInvoker());
+            connectionTarget = "Elastic Cloud";
+        }
+        else
+        {
+            if (!Uri.TryCreate(configuration.Url.Trim(), UriKind.Absolute, out var endpoint))
+            {
+                throw new InvalidOperationException("The Elasticsearch URL is invalid.");
+            }
+
+            settings = new ElasticsearchClientSettings(new SingleNodePool(endpoint), CreateRequestInvoker());
+            connectionTarget = endpoint;
+        }
+
+        if (authorizationHeader != null)
+        {
+            settings.Authentication(authorizationHeader);
         }
 
         if (!string.IsNullOrWhiteSpace(configuration.CertificateFingerprint))
@@ -87,11 +113,87 @@ public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "Creating Elasticsearch client for endpoint '{Endpoint}' with authentication configured: {HasAuthentication}.",
-                endpoint,
-                hasUsername);
+                "Creating Elasticsearch client for target '{Target}' with authentication type '{AuthenticationType}'.",
+                connectionTarget,
+                authenticationType);
         }
 
         return new ElasticsearchClient(settings);
+    }
+
+    internal static AuthorizationHeader CreateAuthorizationHeader(ElasticsearchConnectionOptions configuration, string authenticationType)
+    {
+        if (string.Equals(authenticationType, ElasticsearchConnectionOptions.BasicAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            var hasUsername = !string.IsNullOrWhiteSpace(configuration.Username);
+            var hasPassword = !string.IsNullOrWhiteSpace(configuration.Password);
+
+            if (hasUsername != hasPassword)
+            {
+                throw new InvalidOperationException("Elasticsearch basic authentication requires both username and password.");
+            }
+
+            return hasUsername
+                ? new BasicAuthentication(configuration.Username, configuration.Password)
+                : throw new InvalidOperationException("Elasticsearch basic authentication requires both username and password.");
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchConnectionOptions.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(configuration.ApiKey)
+                ? new ApiKey(configuration.ApiKey)
+                : throw new InvalidOperationException("Elasticsearch API key authentication requires an API key.");
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchConnectionOptions.Base64ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(configuration.Base64ApiKey)
+                ? new Base64ApiKey(configuration.Base64ApiKey)
+                : throw new InvalidOperationException("Elasticsearch base64 API key authentication requires a base64-encoded API key.");
+        }
+
+        if (string.Equals(authenticationType, ElasticsearchConnectionOptions.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase))
+        {
+            var hasApiKeyId = !string.IsNullOrWhiteSpace(configuration.ApiKeyId);
+            var hasApiKey = !string.IsNullOrWhiteSpace(configuration.ApiKey);
+
+            if (!hasApiKeyId || !hasApiKey)
+            {
+                throw new InvalidOperationException("Elasticsearch key ID and key authentication requires both an API key ID and API key.");
+            }
+
+            return new Base64ApiKey(configuration.ApiKeyId, configuration.ApiKey);
+        }
+
+        throw new InvalidOperationException($"Unsupported Elasticsearch authentication type '{authenticationType}'.");
+    }
+
+    internal static IRequestInvoker CreateRequestInvoker()
+    {
+        return new HttpRequestInvoker(CreateResilientHttpMessageHandler);
+    }
+
+    internal static HttpMessageHandler CreateResilientHttpMessageHandler(HttpMessageHandler innerHandler, BoundConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(innerHandler);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        return new ResilienceHandler(HttpResiliencePipeline)
+        {
+            InnerHandler = innerHandler,
+        };
+    }
+
+    private static ResiliencePipeline<HttpResponseMessage> CreateHttpResiliencePipeline()
+    {
+        var options = new HttpStandardResilienceOptions();
+
+        return new ResiliencePipelineBuilder<HttpResponseMessage>()
+            .AddRateLimiter(options.RateLimiter)
+            .AddTimeout(options.TotalRequestTimeout)
+            .AddRetry(options.Retry)
+            .AddCircuitBreaker(options.CircuitBreaker)
+            .AddTimeout(options.AttemptTimeout)
+            .Build();
     }
 }

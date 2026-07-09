@@ -23,6 +23,22 @@ public sealed class IndexProfileSourceOptions
     /// <param name="configure">The action used to configure.</param>
     public void AddOrUpdate(
         string providerName,
+        string providerDisplayName,
+        string type,
+        Action<IndexProfileSourceDescriptor> configure = null)
+    {
+        AddOrUpdate(providerName, new LocalizedString(providerDisplayName, providerDisplayName), type, configure);
+    }
+
+    /// <summary>
+    /// Adds or update.
+    /// </summary>
+    /// <param name="providerName">The provider name.</param>
+    /// <param name="providerDisplayName">The provider display name.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="configure">The action used to configure.</param>
+    public void AddOrUpdate(
+        string providerName,
         LocalizedString providerDisplayName,
         string type,
         Action<IndexProfileSourceDescriptor> configure = null)
@@ -38,10 +54,10 @@ public sealed class IndexProfileSourceOptions
         descriptor ??= new IndexProfileSourceDescriptor
         {
             ProviderName = providerName,
-            ProviderDisplayName = providerDisplayName,
+            ProviderDisplayName = providerDisplayName.Value,
             Type = type,
-            DisplayName = new LocalizedString(type, type),
-            Description = new LocalizedString(type, type),
+            DisplayName = type,
+            Description = type,
         };
 
         configure?.Invoke(descriptor);

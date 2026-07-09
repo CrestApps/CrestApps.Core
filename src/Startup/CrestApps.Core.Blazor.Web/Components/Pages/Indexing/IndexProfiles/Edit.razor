@@ -190,21 +190,21 @@ else
     private async Task PopulateDropdownsAsync()
     {
         var sources = SourceOptions.Value.Sources
-            .OrderBy(s => s.ProviderDisplayName.Value, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(s => s.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s.ProviderDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         _model.Sources = sources;
         _model.Providers = sources
             .GroupBy(s => s.ProviderName, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .Select(s => new KeyValuePair<string, string>(s.ProviderName, s.ProviderDisplayName.Value))
+            .Select(s => new KeyValuePair<string, string>(s.ProviderName, s.ProviderDisplayName))
             .ToList();
 
         _model.Types = sources
             .GroupBy(s => s.Type, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .Select(s => new KeyValuePair<string, string>(s.Type, s.DisplayName.Value))
+            .Select(s => new KeyValuePair<string, string>(s.Type, s.DisplayName))
             .ToList();
 
         _model.EmbeddingDeployments = (await DeploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Embedding))

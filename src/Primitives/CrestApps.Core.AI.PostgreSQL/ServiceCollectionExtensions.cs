@@ -33,8 +33,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCorePostgreSQLSource(IndexProfileTypes.AIDocuments, descriptor =>
                 {
-                    descriptor.DisplayName = new LocalizedString("AI Documents", "AI Documents");
-                    descriptor.Description = new LocalizedString("PostgreSQL AI Documents Description", "Create a PostgreSQL index for uploaded and embedded AI document chunks.");
+                    descriptor.DisplayName = "AI Documents";
+                    descriptor.Description = "Create a PostgreSQL index for uploaded and embedded AI document chunks.";
                 }).AddCoreAIDocumentIndexProfileHandler();
     }
 
@@ -48,8 +48,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCorePostgreSQLSource(IndexProfileTypes.DataSource, descriptor =>
                 {
-                    descriptor.DisplayName = new LocalizedString("Data Source", "Data Source");
-                    descriptor.Description = new LocalizedString("PostgreSQL Data Source Description", "Create a PostgreSQL index for AI knowledge base data source documents.");
+                    descriptor.DisplayName = "Data Source";
+                    descriptor.Description = "Create a PostgreSQL index for AI knowledge base data source documents.";
                 }).AddCoreAIDataSourceRag()
                 .Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
                     AIDataSourceSourceTypes.PostgreSQL,
@@ -76,8 +76,8 @@ public static class ServiceCollectionExtensions
 
         return services.AddCorePostgreSQLSource(IndexProfileTypes.AIMemory, descriptor =>
                 {
-                    descriptor.DisplayName = new LocalizedString("AI Memory", "AI Memory");
-                    descriptor.Description = new LocalizedString("PostgreSQL AI Memory Description", "Create a PostgreSQL index for user and system memory records.");
+                    descriptor.DisplayName = "AI Memory";
+                    descriptor.Description = "Create a PostgreSQL index for user and system memory records.";
                 }).AddCoreAIMemoryIndexProfileHandler();
     }
 
