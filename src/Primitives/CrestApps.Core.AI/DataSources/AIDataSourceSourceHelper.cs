@@ -4,12 +4,12 @@ namespace CrestApps.Core.AI.DataSources;
 
 internal static class AIDataSourceSourceHelper
 {
-    public static string GetSourceType(AIDataSource dataSource)
+    public static string GetSource(AIDataSource dataSource)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
 
-        return string.IsNullOrWhiteSpace(dataSource.SourceType)
+        return string.IsNullOrWhiteSpace(dataSource.Source)
             ? AIDataSourceSourceTypes.SearchIndexProfile
-            : dataSource.SourceType;
+            : dataSource.Source;
     }
 }

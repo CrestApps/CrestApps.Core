@@ -12,7 +12,7 @@ public sealed class AIDataSourceViewModelTests
         var protector = new EphemeralDataProtectionProvider().CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {
@@ -22,7 +22,7 @@ public sealed class AIDataSourceViewModelTests
         var model = new AIDataSourceViewModel
         {
             DisplayText = "External docs",
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
             ElasticsearchEnvironmentType = ElasticsearchSourceMetadata.SelfManagedEnvironmentType,
             ElasticsearchUrl = "https://cluster",
             ElasticsearchAuthenticationType = ElasticsearchSourceMetadata.BasicAuthenticationType,
@@ -49,7 +49,7 @@ public sealed class AIDataSourceViewModelTests
         var dataSource = new AIDataSource();
         var model = new AIDataSourceViewModel
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
             ElasticsearchEnvironmentType = ElasticsearchSourceMetadata.CloudHostedEnvironmentType,
             ElasticsearchCloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
             ElasticsearchAuthenticationType = ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType,
@@ -75,7 +75,7 @@ public sealed class AIDataSourceViewModelTests
         var dataSource = new AIDataSource();
         var model = new AIDataSourceViewModel
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
             ElasticsearchEnvironmentType = ElasticsearchSourceMetadata.SelfManagedEnvironmentType,
             ElasticsearchUrl = "https://cluster",
             ElasticsearchCloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
@@ -97,7 +97,7 @@ public sealed class AIDataSourceViewModelTests
         var dataSource = new AIDataSource();
         var model = new AIDataSourceViewModel
         {
-            SourceType = AIDataSourceSourceTypes.AzureAISearch,
+            Source = AIDataSourceSourceTypes.AzureAISearch,
             AzureAISearchEndpoint = "https://kb.search.windows.net",
             AzureAISearchAuthenticationType = AzureAISearchSourceMetadata.ApiKeyAuthenticationType,
             AzureAISearchIndexName = "kb",
@@ -121,7 +121,7 @@ public sealed class AIDataSourceViewModelTests
         var dataSource = new AIDataSource();
         var model = new AIDataSourceViewModel
         {
-            SourceType = AIDataSourceSourceTypes.AzureAISearch,
+            Source = AIDataSourceSourceTypes.AzureAISearch,
             AzureAISearchEndpoint = "https://kb.search.windows.net",
             AzureAISearchAuthenticationType = AzureAISearchSourceMetadata.ManagedIdentityAuthenticationType,
             AzureAISearchIndexName = "kb",
@@ -144,7 +144,7 @@ public sealed class AIDataSourceViewModelTests
         {
             ItemId = "ds-1",
             DisplayText = "PostgreSQL docs",
-            SourceType = AIDataSourceSourceTypes.PostgreSQL,
+            Source = AIDataSourceSourceTypes.PostgreSQL,
             AIKnowledgeBaseIndexProfileName = "kb-index",
             KeyFieldName = "id",
             TitleFieldName = "title",
@@ -158,7 +158,7 @@ public sealed class AIDataSourceViewModelTests
         var model = AIDataSourceViewModel.FromDataSource(dataSource);
 
         Assert.Equal("ds-1", model.ItemId);
-        Assert.Equal(AIDataSourceSourceTypes.PostgreSQL, model.SourceType);
+        Assert.Equal(AIDataSourceSourceTypes.PostgreSQL, model.Source);
         Assert.Equal("public.articles", model.PostgreSQLTableName);
         Assert.Equal("kb-index", model.AIKnowledgeBaseIndexProfileName);
     }

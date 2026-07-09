@@ -7,7 +7,7 @@ namespace CrestApps.Core.AI.Models;
 /// Represents an AI data source that links an index profile to an AI knowledge base
 /// for document retrieval and augmented generation.
 /// </summary>
-public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIDataSource>
+public sealed class AIDataSource : SourceCatalogEntry, IDisplayTextAwareModel, ISourceAwareModel, IModifiedUtcAwareModel, ICloneable<AIDataSource>
 {
     /// <summary>
     /// Gets or sets the legacy profile source value retained for backward compatibility.
@@ -45,11 +45,6 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, IModifie
     /// Gets or sets the owner identifier associated with this data source.
     /// </summary>
     public string OwnerId { get; set; }
-
-    /// <summary>
-    /// Gets or sets the source type used to read documents into this data source.
-    /// </summary>
-    public string SourceType { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the source index to query for data.
@@ -94,7 +89,7 @@ public sealed class AIDataSource : CatalogItem, IDisplayTextAwareModel, IModifie
 #pragma warning restore CS0618 // Type or member is obsolete
             Author = Author,
             OwnerId = OwnerId,
-            SourceType = SourceType,
+            Source = Source,
             SourceIndexProfileName = SourceIndexProfileName,
             AIKnowledgeBaseIndexProfileName = AIKnowledgeBaseIndexProfileName,
             KeyFieldName = KeyFieldName,

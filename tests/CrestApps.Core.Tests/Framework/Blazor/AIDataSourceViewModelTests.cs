@@ -12,7 +12,7 @@ public sealed class AIDataSourceViewModelTests
         var protector = new EphemeralDataProtectionProvider().CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.PostgreSQL,
+            Source = AIDataSourceSourceTypes.PostgreSQL,
         };
         dataSource.Put(new PostgreSQLSourceMetadata
         {
@@ -21,7 +21,7 @@ public sealed class AIDataSourceViewModelTests
 
         var model = new AIDataSourceViewModel
         {
-            SourceType = AIDataSourceSourceTypes.PostgreSQL,
+            Source = AIDataSourceSourceTypes.PostgreSQL,
             PostgreSQLTableName = "kb_articles",
         };
 
@@ -42,7 +42,7 @@ public sealed class AIDataSourceViewModelTests
 
         var model = AIDataSourceViewModel.FromDataSource(dataSource);
 
-        Assert.Equal(AIDataSourceSourceTypes.SearchIndexProfile, model.SourceType);
+        Assert.Equal(AIDataSourceSourceTypes.SearchIndexProfile, model.Source);
         Assert.Equal("content-index", model.SourceIndexProfileName);
     }
 
@@ -52,7 +52,7 @@ public sealed class AIDataSourceViewModelTests
         var protector = new EphemeralDataProtectionProvider().CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.AzureAISearch,
+            Source = AIDataSourceSourceTypes.AzureAISearch,
         };
         dataSource.Put(new AzureAISearchSourceMetadata
         {
@@ -74,7 +74,7 @@ public sealed class AIDataSourceViewModelTests
         var protector = new EphemeralDataProtectionProvider().CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {
@@ -85,7 +85,7 @@ public sealed class AIDataSourceViewModelTests
 
         var model = new AIDataSourceViewModel
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
             ElasticsearchEnvironmentType = ElasticsearchSourceMetadata.SelfManagedEnvironmentType,
             ElasticsearchAuthenticationType = ElasticsearchSourceMetadata.NoneAuthenticationType,
             ElasticsearchUrl = "https://cluster",
@@ -106,7 +106,7 @@ public sealed class AIDataSourceViewModelTests
         var protector = new EphemeralDataProtectionProvider().CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {
@@ -116,7 +116,7 @@ public sealed class AIDataSourceViewModelTests
 
         var model = new AIDataSourceViewModel
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
             ElasticsearchEnvironmentType = ElasticsearchSourceMetadata.CloudHostedEnvironmentType,
             ElasticsearchCloudId = "deployment-name:dXMtZWFzdC0xJGFiYyRkZWY=",
             ElasticsearchAuthenticationType = ElasticsearchSourceMetadata.Base64ApiKeyAuthenticationType,
@@ -136,7 +136,7 @@ public sealed class AIDataSourceViewModelTests
     {
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {

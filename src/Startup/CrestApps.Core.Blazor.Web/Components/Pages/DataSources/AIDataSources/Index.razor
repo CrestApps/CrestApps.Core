@@ -127,34 +127,34 @@ else
 
     private string GetSourceDisplayName(AIDataSource dataSource)
     {
-        var sourceType = string.IsNullOrWhiteSpace(dataSource.SourceType)
+        var sourceType = string.IsNullOrWhiteSpace(dataSource.Source)
             ? AIDataSourceSourceTypes.SearchIndexProfile
-            : dataSource.SourceType;
+            : dataSource.Source;
 
         return SourceOptions.Value.Sources.FirstOrDefault(x => string.Equals(x.SourceType, sourceType, StringComparison.OrdinalIgnoreCase))?.DisplayName.Value ?? sourceType;
     }
 
     private static string GetSourceReference(AIDataSource dataSource)
     {
-        if (string.IsNullOrWhiteSpace(dataSource.SourceType) ||
-            string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(dataSource.Source) ||
+            string.Equals(dataSource.Source, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase))
         {
             return dataSource.SourceIndexProfileName ?? "—";
         }
 
-        if (string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase) &&
+        if (string.Equals(dataSource.Source, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase) &&
             dataSource.TryGet<ElasticsearchSourceMetadata>(out var elasticsearchMetadata))
         {
             return elasticsearchMetadata.IndexName ?? "—";
         }
 
-        if (string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase) &&
+        if (string.Equals(dataSource.Source, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase) &&
             dataSource.TryGet<AzureAISearchSourceMetadata>(out var azureAISearchMetadata))
         {
             return azureAISearchMetadata.IndexName ?? "—";
         }
 
-        if (string.Equals(dataSource.SourceType, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase) &&
+        if (string.Equals(dataSource.Source, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase) &&
             dataSource.TryGet<PostgreSQLSourceMetadata>(out var postgreSQLMetadata))
         {
             return postgreSQLMetadata.TableName ?? "—";

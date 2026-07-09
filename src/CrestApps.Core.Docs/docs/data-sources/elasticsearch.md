@@ -88,7 +88,7 @@ Override `IAIDataSourceIndexingQueue` when you need a durable or distributed que
 
 ## External Elasticsearch source mappings
 
-When an `AIDataSource` uses `SourceType = "Elasticsearch"`, the mapping reads documents from a remote Elasticsearch index using source-specific settings stored on the `AIDataSource` itself:
+When an `AIDataSource` uses `Source = "Elasticsearch"`, the mapping reads documents from a remote Elasticsearch index using source-specific settings stored on the `AIDataSource` itself:
 
 - `Url`
 - `CloudId`

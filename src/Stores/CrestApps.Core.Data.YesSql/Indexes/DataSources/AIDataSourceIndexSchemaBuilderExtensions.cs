@@ -17,13 +17,12 @@ public static class AIDataSourceIndexSchemaBuilderExtensions
         await schemaBuilder.CreateMapIndexTableAsync<AIDataSourceIndex>(table => table
             .Column<string>(nameof(AIDataSourceIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIDataSourceIndex.DisplayText), column => column.WithLength(255))
-            .Column<string>(nameof(AIDataSourceIndex.SourceType), column => column.WithLength(128))
+            .Column<string>(nameof(AIDataSourceIndex.Source), column => column.WithLength(128))
             .Column<string>(nameof(AIDataSourceIndex.SourceIndexProfileName), column => column.WithLength(255)),
             collection: options?.AICollectionName);
 
-        await schemaBuilder.AlterIndexTableAsync<AIDataSourceIndex>(table =>
-        {
-            table.CreateIndex("IDX_AIDataSource_DocumentId", "DocumentId");
-        }, collection: options?.AICollectionName);
+        await schemaBuilder.AlterIndexTableAsync<AIDataSourceIndex>(table => table
+            .CreateIndex("IDX_AIDataSource_DocumentId", "DocumentId"),
+            collection: options?.AICollectionName);
     }
 }

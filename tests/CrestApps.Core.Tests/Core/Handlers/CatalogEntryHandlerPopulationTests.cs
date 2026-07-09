@@ -239,14 +239,13 @@ public sealed class CatalogEntryHandlerPopulationTests
 
         var services = new ServiceCollection();
         services.AddSingleton(indexProfileManager.Object);
-        services.AddKeyedSingleton<IDataSourceDocumentReader>("provider", Mock.Of<IDataSourceDocumentReader>());
+        services.AddKeyedSingleton("provider", Mock.Of<IDataSourceDocumentReader>());
         services.AddKeyedSingleton<IAIDataSourceSourceHandler>(
             AIDataSourceSourceTypes.SearchIndexProfile,
             (serviceProvider, _) => new SearchIndexProfileAIDataSourceSourceHandler(indexProfileManager.Object, serviceProvider));
 
         var handler = new AIDataSourceCatalogHandler(
             CreateHttpContextAccessor(),
-            services.BuildServiceProvider(),
             new StubTimeProvider(new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero)),
             queue.Object,
             NullLogger<AIDataSourceCatalogHandler>.Instance);

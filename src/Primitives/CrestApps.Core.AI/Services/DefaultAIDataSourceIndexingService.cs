@@ -444,7 +444,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return null;
         }
 
-        var sourceType = AIDataSourceSourceHelper.GetSourceType(dataSource);
+        var sourceType = AIDataSourceSourceHelper.GetSource(dataSource);
         var sourceHandler = _serviceProvider.GetKeyedService<IAIDataSourceSourceHandler>(sourceType);
         if (sourceHandler == null)
         {
@@ -473,7 +473,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     {
         var dataSources = await _dataSourceCatalog.GetAllAsync();
         return dataSources
-            .Where(dataSource => string.Equals(AIDataSourceSourceHelper.GetSourceType(dataSource), AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase))
+            .Where(dataSource => string.Equals(AIDataSourceSourceHelper.GetSource(dataSource), AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase))
             .Where(dataSource => string.IsNullOrWhiteSpace(sourceIndexProfileName) ||
                 string.Equals(dataSource.SourceIndexProfileName, sourceIndexProfileName, StringComparison.OrdinalIgnoreCase))
             .ToArray();

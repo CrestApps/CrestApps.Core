@@ -1,14 +1,12 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
-using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Support;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Handlers;
@@ -16,7 +14,6 @@ namespace CrestApps.Core.AI.Handlers;
 internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDataSource>
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly ILogger<AIDataSourceCatalogHandler> _logger;
@@ -30,13 +27,11 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
     /// <param name="logger">The logger.</param>
     public AIDataSourceCatalogHandler(
         IHttpContextAccessor httpContextAccessor,
-        IServiceProvider serviceProvider,
         TimeProvider timeProvider,
         IAIDataSourceIndexingQueue indexingQueue,
         ILogger<AIDataSourceCatalogHandler> logger)
     {
         _httpContextAccessor = httpContextAccessor;
-        _serviceProvider = serviceProvider;
         _timeProvider = timeProvider;
         _indexingQueue = indexingQueue;
         _logger = logger;
@@ -97,19 +92,9 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
             context.Result.Fail(new ValidationResult("Content field name is required.", [nameof(AIDataSource.ContentFieldName)]));
         }
 
-        context.Model.SourceType = string.IsNullOrWhiteSpace(context.Model.SourceType)
+        context.Model.Source = string.IsNullOrWhiteSpace(context.Model.Source)
             ? AIDataSourceSourceTypes.SearchIndexProfile
-            : context.Model.SourceType.Trim();
-
-        var sourceHandler = _serviceProvider.GetKeyedService<IAIDataSourceSourceHandler>(context.Model.SourceType);
-        if (sourceHandler == null)
-        {
-            context.Result.Fail(new ValidationResult("The selected source type is not supported.", [nameof(AIDataSource.SourceType)]));
-
-            return;
-        }
-
-        await sourceHandler.ValidateAsync(context.Model, context.Result, cancellationToken);
+            : context.Model.Source.Trim();
     }
 
     /// <summary>
@@ -206,12 +191,13 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.DisplayText), value => dataSource.DisplayText = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.OwnerId), value => dataSource.OwnerId = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.Author), value => dataSource.Author = value);
-        json.TryUpdateTrimmedStringValue(nameof(AIDataSource.SourceType), value => dataSource.SourceType = value);
+        json.TryUpdateTrimmedStringValue(nameof(AIDataSource.Source), value => dataSource.Source = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.SourceIndexProfileName), value => dataSource.SourceIndexProfileName = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.AIKnowledgeBaseIndexProfileName), value => dataSource.AIKnowledgeBaseIndexProfileName = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.KeyFieldName), value => dataSource.KeyFieldName = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.TitleFieldName), value => dataSource.TitleFieldName = value);
         json.TryUpdateTrimmedStringValue(nameof(AIDataSource.ContentFieldName), value => dataSource.ContentFieldName = value);
+        json.TryUpdateTrimmedStringValue("SourceType", value => dataSource.Source = value);
 
         if (!json.TryUpdateTrimmedStringValue(nameof(AIDataSource.SourceIndexProfileName), value => dataSource.SourceIndexProfileName = value))
         {
@@ -220,7 +206,7 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
 #pragma warning disable CS0618 // Type or member is obsolete
                 dataSource.ProfileSource = value;
 #pragma warning restore CS0618 // Type or member is obsolete
-                dataSource.SourceType ??= AIDataSourceSourceTypes.SearchIndexProfile;
+                dataSource.Source ??= AIDataSourceSourceTypes.SearchIndexProfile;
                 dataSource.SourceIndexProfileName = value;
             });
         }

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
 
-public sealed class EntityCoreAIDataSourceStore : DocumentCatalog<AIDataSource>, IAIDataSourceStore
+public sealed class EntityCoreAIDataSourceStore : SourceDocumentCatalog<AIDataSource>, IAIDataSourceStore
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="EntityCoreAIDataSourceStore"/> class.

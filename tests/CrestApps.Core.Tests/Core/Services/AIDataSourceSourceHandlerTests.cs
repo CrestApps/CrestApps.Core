@@ -27,7 +27,7 @@ public sealed class AIDataSourceSourceHandlerTests
         var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {
@@ -57,7 +57,7 @@ public sealed class AIDataSourceSourceHandlerTests
         var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {
@@ -84,7 +84,7 @@ public sealed class AIDataSourceSourceHandlerTests
         var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {
@@ -112,7 +112,7 @@ public sealed class AIDataSourceSourceHandlerTests
         var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Elasticsearch);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.Elasticsearch,
+            Source = AIDataSourceSourceTypes.Elasticsearch,
         };
         dataSource.Put(new ElasticsearchSourceMetadata
         {
@@ -142,7 +142,7 @@ public sealed class AIDataSourceSourceHandlerTests
         var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.AzureAISearch);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.AzureAISearch,
+            Source = AIDataSourceSourceTypes.AzureAISearch,
         };
         dataSource.Put(new AzureAISearchSourceMetadata
         {
@@ -171,7 +171,7 @@ public sealed class AIDataSourceSourceHandlerTests
         var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.AzureAISearch);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.AzureAISearch,
+            Source = AIDataSourceSourceTypes.AzureAISearch,
         };
         dataSource.Put(new AzureAISearchSourceMetadata
         {
@@ -200,7 +200,7 @@ public sealed class AIDataSourceSourceHandlerTests
         var handler = serviceProvider.GetRequiredKeyedService<IAIDataSourceSourceHandler>(AIDataSourceSourceTypes.PostgreSQL);
         var dataSource = new AIDataSource
         {
-            SourceType = AIDataSourceSourceTypes.PostgreSQL,
+            Source = AIDataSourceSourceTypes.PostgreSQL,
         };
         dataSource.Put(new PostgreSQLSourceMetadata());
         var result = new ValidationResultDetails();
