@@ -461,6 +461,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddScoped<IAIDataSourceStore, YesSqlAIDataSourceStore>();
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
+        services.AddScoped<ISourceCatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDataSourceIndexProvider>());
 

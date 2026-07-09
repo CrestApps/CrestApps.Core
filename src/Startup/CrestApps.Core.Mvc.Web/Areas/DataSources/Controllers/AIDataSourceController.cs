@@ -55,7 +55,7 @@ public sealed class AIDataSourceController : Controller
     {
         var model = new AIDataSourceViewModel
         {
-            SourceType = string.Empty,
+            Source = string.Empty,
         };
 
         await PopulateDropdownsAsync(model);
@@ -169,9 +169,9 @@ public sealed class AIDataSourceController : Controller
             ModelState.AddModelError(nameof(model.DisplayText), "Display text is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(model.SourceType))
+        if (string.IsNullOrWhiteSpace(model.Source))
         {
-            ModelState.AddModelError(nameof(model.SourceType), "Source type is required.");
+            ModelState.AddModelError(nameof(model.Source), "Source type is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.ContentFieldName))
@@ -193,15 +193,15 @@ public sealed class AIDataSourceController : Controller
             }
         }
 
-        if (string.IsNullOrWhiteSpace(model.SourceType))
+        if (string.IsNullOrWhiteSpace(model.Source))
         {
             return;
         }
 
-        var handler = _serviceProvider.GetKeyedService<IAIDataSourceSourceHandler>(model.SourceType);
+        var handler = _serviceProvider.GetKeyedService<IAIDataSourceSourceHandler>(model.Source);
         if (handler == null)
         {
-            ModelState.AddModelError(nameof(model.SourceType), "The selected source type is not supported.");
+            ModelState.AddModelError(nameof(model.Source), "The selected source type is not supported.");
 
             return;
         }
@@ -217,7 +217,7 @@ public sealed class AIDataSourceController : Controller
             var memberNames = error.MemberNames?.Any() == true ? error.MemberNames : [string.Empty];
             foreach (var memberName in memberNames)
             {
-                ModelState.AddModelError(MapValidationMemberName(model.SourceType, memberName), error.ErrorMessage);
+                ModelState.AddModelError(MapValidationMemberName(model.Source, memberName), error.ErrorMessage);
             }
         }
     }
@@ -233,7 +233,7 @@ public sealed class AIDataSourceController : Controller
         {
             return memberName switch
             {
-                nameof(ElasticsearchSourceMetadata) => nameof(AIDataSourceViewModel.SourceType),
+                nameof(ElasticsearchSourceMetadata) => nameof(AIDataSourceViewModel.Source),
                 nameof(ElasticsearchSourceMetadata.EnvironmentType) => nameof(AIDataSourceViewModel.ElasticsearchEnvironmentType),
                 nameof(ElasticsearchSourceMetadata.Url) => nameof(AIDataSourceViewModel.ElasticsearchUrl),
                 nameof(ElasticsearchSourceMetadata.CloudId) => nameof(AIDataSourceViewModel.ElasticsearchCloudId),
@@ -253,7 +253,7 @@ public sealed class AIDataSourceController : Controller
         {
             return memberName switch
             {
-                nameof(AzureAISearchSourceMetadata) => nameof(AIDataSourceViewModel.SourceType),
+                nameof(AzureAISearchSourceMetadata) => nameof(AIDataSourceViewModel.Source),
                 nameof(AzureAISearchSourceMetadata.Endpoint) => nameof(AIDataSourceViewModel.AzureAISearchEndpoint),
                 nameof(AzureAISearchSourceMetadata.AuthenticationType) => nameof(AIDataSourceViewModel.AzureAISearchAuthenticationType),
                 nameof(AzureAISearchSourceMetadata.IndexName) => nameof(AIDataSourceViewModel.AzureAISearchIndexName),
@@ -267,7 +267,7 @@ public sealed class AIDataSourceController : Controller
         {
             return memberName switch
             {
-                nameof(PostgreSQLSourceMetadata) => nameof(AIDataSourceViewModel.SourceType),
+                nameof(PostgreSQLSourceMetadata) => nameof(AIDataSourceViewModel.Source),
                 nameof(PostgreSQLSourceMetadata.ConnectionString) => nameof(AIDataSourceViewModel.PostgreSQLConnectionString),
                 nameof(PostgreSQLSourceMetadata.TableName) => nameof(AIDataSourceViewModel.PostgreSQLTableName),
                 _ => memberName,

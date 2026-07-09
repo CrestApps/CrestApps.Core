@@ -11,7 +11,7 @@ public sealed class AIDataSourceViewModel
 
     public string DisplayText { get; set; }
 
-    public string SourceType { get; set; } = AIDataSourceSourceTypes.SearchIndexProfile;
+    public string Source { get; set; } = AIDataSourceSourceTypes.SearchIndexProfile;
 
     public string SourceIndexProfileName { get; set; }
 
@@ -74,7 +74,7 @@ public sealed class AIDataSourceViewModel
         {
             ItemId = ds.ItemId,
             DisplayText = ds.DisplayText,
-            SourceType = string.IsNullOrWhiteSpace(ds.SourceType) ? AIDataSourceSourceTypes.SearchIndexProfile : ds.SourceType,
+            Source = string.IsNullOrWhiteSpace(ds.Source) ? AIDataSourceSourceTypes.SearchIndexProfile : ds.Source,
             SourceIndexProfileName = ds.SourceIndexProfileName,
             AIKnowledgeBaseIndexProfileName = ds.AIKnowledgeBaseIndexProfileName,
             KeyFieldName = ds.KeyFieldName,
@@ -116,7 +116,7 @@ public sealed class AIDataSourceViewModel
         ArgumentNullException.ThrowIfNull(protector);
 
         ds.DisplayText = DisplayText?.Trim();
-        ds.SourceType = string.IsNullOrWhiteSpace(SourceType) ? AIDataSourceSourceTypes.SearchIndexProfile : SourceType.Trim();
+        ds.Source = string.IsNullOrWhiteSpace(Source) ? AIDataSourceSourceTypes.SearchIndexProfile : Source.Trim();
         ds.SourceIndexProfileName = SourceIndexProfileName;
         ds.AIKnowledgeBaseIndexProfileName = AIKnowledgeBaseIndexProfileName;
         ds.KeyFieldName = KeyFieldName?.Trim();
@@ -131,7 +131,7 @@ public sealed class AIDataSourceViewModel
         ds.Remove<AzureAISearchSourceMetadata>();
         ds.Remove<PostgreSQLSourceMetadata>();
 
-        if (string.Equals(ds.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(ds.Source, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase))
         {
             var environmentType = NormalizeElasticsearchEnvironmentType(ElasticsearchEnvironmentType);
             var authenticationType = NormalizeElasticsearchAuthenticationType(ElasticsearchAuthenticationType);
@@ -159,7 +159,7 @@ public sealed class AIDataSourceViewModel
             });
         }
 
-        if (string.Equals(ds.SourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(ds.Source, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase))
         {
             var authenticationType = string.Equals(AzureAISearchAuthenticationType, AzureAISearchSourceMetadata.ManagedIdentityAuthenticationType, StringComparison.OrdinalIgnoreCase)
                 ? AzureAISearchSourceMetadata.ManagedIdentityAuthenticationType
@@ -182,7 +182,7 @@ public sealed class AIDataSourceViewModel
             });
         }
 
-        if (string.Equals(ds.SourceType, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(ds.Source, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase))
         {
             ds.Put(new PostgreSQLSourceMetadata
             {

@@ -84,7 +84,7 @@ Override `IAIDataSourceIndexingQueue` when you need a durable or distributed que
 
 ## External PostgreSQL source mappings
 
-When an `AIDataSource` uses `SourceType = "PostgreSQL"`, the mapping reads documents from a remote PostgreSQL table using source-specific settings stored on the `AIDataSource`:
+When an `AIDataSource` uses `Source = "PostgreSQL"`, the mapping reads documents from a remote PostgreSQL table using source-specific settings stored on the `AIDataSource`:
 
 - `ConnectionString` (protected at rest)
 - `TableName`

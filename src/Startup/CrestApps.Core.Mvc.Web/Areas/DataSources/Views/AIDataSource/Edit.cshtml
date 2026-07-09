@@ -24,15 +24,15 @@
             <h5>Source</h5>
 
             <div class="mb-3">
-                <label asp-for="SourceType" class="form-label">Source type <span class="text-danger">*</span></label>
-                <select asp-for="SourceType" asp-items="Model.SourceTypes" class="form-select" required>
+                <label asp-for="Source" class="form-label">Source type <span class="text-danger">*</span></label>
+                <select asp-for="Source" asp-items="Model.SourceTypes" class="form-select" required>
                     <option value="">Select source type</option>
                 </select>
-                <span asp-validation-for="SourceType" class="text-danger"></span>
+                <span asp-validation-for="Source" class="text-danger"></span>
                 <div class="form-text">Choose how source documents are read into the knowledge base.</div>
             </div>
 
-            <div class="mb-3" id="source-index-profile-settings"@(string.Equals(Model.SourceType, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+            <div class="mb-3" id="source-index-profile-settings"@(string.Equals(Model.Source, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
                 <label asp-for="SourceIndexProfileName" class="form-label">Source index profile <span class="text-danger">*</span></label>
                 <select asp-for="SourceIndexProfileName" asp-items="Model.SourceIndexProfiles" class="form-select">
                     <option value="">Select index profile</option>
@@ -41,7 +41,7 @@
                 <div class="form-text">Used when the source type is <strong>Search Index Profile</strong>.</div>
             </div>
 
-            <div id="elasticsearch-source-settings"@(string.Equals(Model.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+            <div id="elasticsearch-source-settings"@(string.Equals(Model.Source, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
                 <hr />
                 <h5>Elasticsearch Source Settings</h5>
                 <div class="alert alert-info">
@@ -134,7 +134,7 @@
                 </div>
             </div>
 
-            <div id="azure-ai-search-source-settings"@(string.Equals(Model.SourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+            <div id="azure-ai-search-source-settings"@(string.Equals(Model.Source, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
                 <hr />
                 <h5>Azure AI Search Source Settings</h5>
                 <div class="alert alert-info">
@@ -181,7 +181,7 @@
                 </div>
             </div>
 
-            <div id="postgresql-source-settings"@(string.Equals(Model.SourceType, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+            <div id="postgresql-source-settings"@(string.Equals(Model.Source, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
                 <hr />
                 <h5>PostgreSQL Source Settings</h5>
                 <div class="alert alert-info">

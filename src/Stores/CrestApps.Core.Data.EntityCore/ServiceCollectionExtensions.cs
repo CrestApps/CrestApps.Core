@@ -264,6 +264,7 @@ public static class ServiceCollectionExtensions
 
         services.Replace(ServiceDescriptor.Scoped<IAIDataSourceStore, EntityCoreAIDataSourceStore>());
         services.AddScoped<ICatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
+        services.AddScoped<ISourceCatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
         return services;
     }

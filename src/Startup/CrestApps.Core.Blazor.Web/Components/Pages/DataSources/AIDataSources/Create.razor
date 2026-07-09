@@ -44,7 +44,7 @@
 
             <div class="mb-3">
                 <label class="form-label">Source type <span class="text-danger">*</span></label>
-                <InputSelect @bind-Value="_model.SourceType" class="form-select">
+                <InputSelect @bind-Value="_model.Source" class="form-select">
                     <option value="">Select source type</option>
                     @foreach (var item in _sourceTypes)
                     {
@@ -278,7 +278,7 @@
 @code {
     private AIDataSourceViewModel _model = new()
     {
-        SourceType = string.Empty,
+        Source = string.Empty,
     };
     private List<string> _errors = [];
     private List<KeyValuePair<string, string>> _sourceTypes = [];
@@ -315,7 +315,7 @@
             _errors.Add("Display text is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(model.SourceType))
+        if (string.IsNullOrWhiteSpace(model.Source))
         {
             _errors.Add("Source type is required.");
         }
@@ -339,12 +339,12 @@
             }
         }
 
-        if (string.IsNullOrWhiteSpace(model.SourceType))
+        if (string.IsNullOrWhiteSpace(model.Source))
         {
             return;
         }
 
-        var handler = ServiceProvider.GetKeyedService<IAIDataSourceSourceHandler>(model.SourceType);
+        var handler = ServiceProvider.GetKeyedService<IAIDataSourceSourceHandler>(model.Source);
         if (handler == null)
         {
             _errors.Add("The selected source type is not supported.");
@@ -387,10 +387,10 @@
     }
 
     private bool IsSearchIndexProfileSource()
-        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase);
+        => string.Equals(_model.Source, AIDataSourceSourceTypes.SearchIndexProfile, StringComparison.OrdinalIgnoreCase);
 
     private bool IsElasticsearchSource()
-        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase);
+        => string.Equals(_model.Source, AIDataSourceSourceTypes.Elasticsearch, StringComparison.OrdinalIgnoreCase);
 
     private bool UsesElasticsearchSelfManagedEnvironment()
         => string.Equals(_model.ElasticsearchEnvironmentType, ElasticsearchSourceMetadata.SelfManagedEnvironmentType, StringComparison.OrdinalIgnoreCase);
@@ -408,11 +408,11 @@
         => string.Equals(_model.ElasticsearchAuthenticationType, ElasticsearchSourceMetadata.KeyIdAndKeyAuthenticationType, StringComparison.OrdinalIgnoreCase);
 
     private bool IsAzureAISearchSource()
-        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase);
+        => string.Equals(_model.Source, AIDataSourceSourceTypes.AzureAISearch, StringComparison.OrdinalIgnoreCase);
 
     private bool UsesAzureAISearchApiKeyAuthentication()
         => string.Equals(_model.AzureAISearchAuthenticationType, AzureAISearchSourceMetadata.ApiKeyAuthenticationType, StringComparison.OrdinalIgnoreCase);
 
     private bool IsPostgreSQLSource()
-        => string.Equals(_model.SourceType, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase);
+        => string.Equals(_model.Source, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase);
 }

@@ -78,7 +78,7 @@ Override `IAIDataSourceIndexingQueue` when you need a durable or distributed que
 
 ## External Azure AI Search source mappings
 
-When an `AIDataSource` uses `SourceType = "AzureAISearch"`, the mapping reads documents from a remote Azure AI Search index using source-specific settings stored on the `AIDataSource`:
+When an `AIDataSource` uses `Source = "AzureAISearch"`, the mapping reads documents from a remote Azure AI Search index using source-specific settings stored on the `AIDataSource`:
 
 - `Endpoint`
 - `AuthenticationType` (`ApiKey`, `Default`, or `ManagedIdentity`)
