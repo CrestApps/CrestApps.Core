@@ -1234,17 +1234,16 @@ public sealed class PostSessionProcessingService
 
             if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
             {
-                var chatClient = await _clientFactory.CreateChatClientAsync(deployment);
+                var chatClient = await _clientFactory.CreateChatClientAsync(
+                    deployment,
+                    builder => builder.UseDefaultResilience());
 
                 if (chatClient == null)
                 {
                     return null;
                 }
 
-                return chatClient
-                    .AsBuilder()
-                    .UseDefaultResilience()
-                    .Build(_serviceProvider);
+                return chatClient;
             }
         }
 

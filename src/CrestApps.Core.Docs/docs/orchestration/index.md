@@ -403,7 +403,7 @@ If no deployment can be resolved (no profile-level, connection-level, or global 
 
 ### Provider Errors
 
-Errors from AI providers (rate limits, authentication failures, server errors) still propagate up to the caller after retries are exhausted. Framework-owned planning and other utility-model chat paths now apply the default `UseDefaultResilience()` policy automatically, while host-created `IChatClient` instances remain opt-in through `chatClient.AsBuilder().UseDefaultResilience()` or a custom `UseResilience(...)` pipeline.
+Errors from AI providers (rate limits, authentication failures, server errors) still propagate up to the caller after retries are exhausted. Framework-owned planning and other utility-model chat paths now apply the default `UseDefaultResilience()` policy automatically, while host-created `IChatClient` instances remain opt-in through the `IAIClientFactory` overloads or through `chatClient.AsBuilder().UseDefaultResilience()` / `UseResilience(...)`.
 
 | Error Type | Behavior |
 |-----------|----------|

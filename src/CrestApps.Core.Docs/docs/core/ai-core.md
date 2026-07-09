@@ -70,16 +70,32 @@ The AI services layer also registers the shared prompt-security services used by
 
 ### `IAIClientFactory`
 
-The lowest-level service. Creates typed AI clients from a provider connection entry.
+The lowest-level service. Creates typed AI clients from a resolved deployment and can optionally configure the final Microsoft.Extensions.AI builder pipeline before the factory builds the client.
 
 ```csharp
 public interface IAIClientFactory
 {
-    IChatClient CreateChatClient(AIProviderConnectionEntry connection, string deploymentName);
-    IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(
-        AIProviderConnectionEntry connection, string deploymentName);
-    // Also: CreateImageGenerator, CreateSpeechToTextClient, CreateTextToSpeechClient
+    ValueTask<IChatClient> CreateChatClientAsync(AIDeployment deployment);
+    ValueTask<IChatClient> CreateChatClientAsync(
+        AIDeployment deployment,
+        Action<ChatClientBuilder> configurePipeline);
+
+    ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
+        AIDeployment deployment);
+    ValueTask<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(
+        AIDeployment deployment,
+        Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline);
+
+    // Also: CreateImageGeneratorAsync, CreateSpeechToTextClientAsync, CreateTextToSpeechClientAsync
 }
+```
+
+Use the overload when you want the factory to own the final `Build(serviceProvider)` step:
+
+```csharp
+var chatClient = await aiClientFactory.CreateChatClientAsync(
+    deployment,
+    builder => builder.UseDefaultResilience());
 ```
 
 **When to use:** Only when you need direct, low-level access to a specific client type.
@@ -259,7 +275,7 @@ public sealed class ChatApiController : ControllerBase
 | `InvalidOperationException` | No deployment found, no provider connection configured | Check AI configuration — this is a setup error |
 | `HttpRequestException` | Provider API unreachable (network error, DNS failure) | Check network connectivity; framework-owned completion and utility chat paths already use the default retry policy, and host-created AI clients can opt in separately through the resilience builders |
 | `OperationCanceledException` | Request was cancelled (user navigated away, timeout) | Normal flow — let it propagate |
-| Provider-specific rate limit errors | Too many requests to the AI provider | Framework-owned completion and utility chat paths already use the default retry policy; for host-created AI clients, use `CrestApps.Core.AI.Resilience` with `.AsBuilder().UseDefaultResilience()` or a custom `UseResilience(...)` pipeline; see [AI Resilience](./ai-resilience.md) |
+| Provider-specific rate limit errors | Too many requests to the AI provider | Framework-owned completion and utility chat paths already use the default retry policy; for host-created AI clients, use `CrestApps.Core.AI.Resilience` through the `IAIClientFactory` overloads or through `.AsBuilder().UseDefaultResilience()` / `UseResilience(...)`; see [AI Resilience](./ai-resilience.md) |
 | Provider-specific auth errors | Invalid API key or expired credentials | Check provider connection configuration |
 
 ### Handling Provider Failures

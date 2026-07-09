@@ -31,7 +31,6 @@ public sealed class PreemptiveSearchQueryProvider
     private readonly IAIClientFactory _aiClientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly ITemplateService _aiTemplateService;
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<PreemptiveSearchQueryProvider> _logger;
 
     /// <summary>
@@ -45,13 +44,11 @@ public sealed class PreemptiveSearchQueryProvider
         IAIClientFactory aiClientFactory,
         IAIDeploymentManager deploymentManager,
         ITemplateService aiTemplateService,
-        IServiceProvider serviceProvider,
         ILogger<PreemptiveSearchQueryProvider> logger)
     {
         _aiClientFactory = aiClientFactory;
         _deploymentManager = deploymentManager;
         _aiTemplateService = aiTemplateService;
-        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -192,16 +189,15 @@ public sealed class PreemptiveSearchQueryProvider
             return null;
         }
 
-        var chatClient = await _aiClientFactory.CreateChatClientAsync(deployment);
+        var chatClient = await _aiClientFactory.CreateChatClientAsync(
+            deployment,
+            builder => builder.UseDefaultResilience());
 
         if (chatClient == null)
         {
             return null;
         }
 
-        return chatClient
-            .AsBuilder()
-            .UseDefaultResilience()
-            .Build(_serviceProvider);
+        return chatClient;
     }
 }
