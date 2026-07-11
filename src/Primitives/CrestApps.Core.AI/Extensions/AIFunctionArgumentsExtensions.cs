@@ -106,7 +106,7 @@ public static class AIFunctionArgumentsExtensions
 
             if (unsafeValue is JsonElement je)
             {
-                value = JsonSerializer.Deserialize<T>(je.GetRawText(), JSOptions.CaseInsensitive);
+                value = je.Deserialize<T>(JSOptions.CaseInsensitive);
 
                 return true;
             }
