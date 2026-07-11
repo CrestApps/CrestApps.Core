@@ -57,3 +57,14 @@ work, preserves first-registration precedence, and keeps the implementation stra
 The second-pass figures compare the legacy and optimized implementations in the same benchmark
 process. PostgreSQL tokenization timings were noisy for the long expression, but the optimized path
 consistently removes the regular-expression match-object allocations.
+
+## Third primitive optimization pass
+
+| Scenario | Baseline | Optimized | Change |
+| --- | ---: | ---: | ---: |
+| MCP prompt merge, 100 entries per source | 69.708 us / 19.91 KB | 4.644 us / 18.36 KB | 93.3% faster / 7.8% fewer allocations |
+| MCP prompt merge, 1,000 entries per source | 8,139.844 us / 195.7 KB | 52.040 us / 174.35 KB | 99.4% faster / 10.9% fewer allocations |
+
+The prompt merge preserves catalog, provider, and SDK precedence, keeps ordinal case-sensitive name
+matching, and retains duplicate catalog entries. A hash set replaces only the repeated linear scans
+used when provider and SDK prompts are added.
