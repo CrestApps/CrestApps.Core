@@ -221,3 +221,27 @@ With precomputed tokens isolating merge and ranking, the local token dictionary 
 slower at 100 and 1,000 entries while still reducing allocations by 11.7% and 13.0%; the production
 Lucene path above is the relevant retained result. A bounded top-K selection was not introduced because
 exact equivalence with the existing equal-score `List.Sort` behavior could not be proven.
+
+## JSON node raw-value conversion
+
+| Scenario | Legacy LINQ | Current loops | Change |
+| --- | ---: | ---: | ---: |
+| Flat object, 256 fields | 9.639 us / 17.20 KB | 8.785 us / 17.14 KB | 8.9% faster / allocations effectively unchanged |
+| Mixed 1,000-node tree | 31.409 us / 91.23 KB | 22.907 us / 74.88 KB | 27.1% faster / 17.9% fewer allocations |
+| Large array, 10,000 entries | 195.390 us / 359.48 KB | 181.545 us / 359.43 KB | 7.1% faster / allocations effectively unchanged |
+| Nested objects, 128 levels | 19.438 us / 60.27 KB | 15.808 us / 53.21 KB | 18.7% faster / 11.7% fewer allocations |
+| Fallback-heavy values | 39.222 us / 38.76 KB | 37.514 us / 38.70 KB | 4.4% faster / allocations effectively unchanged |
+| Catalog payload | 35.067 us / 93.42 KB | 28.280 us / 79.31 KB | 19.4% faster / 15.1% fewer allocations |
+| AI configuration payload | 15.118 us / 42.81 KB | 11.602 us / 35.92 KB | 23.3% faster / 16.1% fewer allocations |
+
+The benchmark compares the captured recursive LINQ implementation with production in the same process.
+The pre-change control run produced identical allocations and timings within noise. The retained path
+pre-sizes and fills dictionaries and lists directly; the material gains are concentrated in realistic
+container-heavy catalog, configuration, mixed-tree, and deeply nested payloads.
+
+Conversion semantics remain unchanged. Objects return insertion-ordered
+`Dictionary<string, object>` instances using `StringComparer.OrdinalIgnoreCase`, and case-only duplicate
+keys still throw instead of overwriting. Arrays return `List<object>` instances. Scalar precedence remains
+string, `long`, `double`, `bool`, and `DateTime`, followed by the exact `ToJsonString()` fallback. This
+preserves the existing string fallbacks for directly created `int`, `float`, `decimal`, `DateTimeOffset`,
+and custom values, as well as null handling, recursive shape, and detached mutable containers.
