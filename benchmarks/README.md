@@ -321,3 +321,22 @@ deployed schema expose only item identifier, session identifier, and role, not `
 ordering expression targets the mapped index. Adding and migrating an index column solely for this campaign
 would introduce backward-compatibility work without evidence of compelling value, so no schema change or
 unfaithful benchmark substitute was added.
+
+## Tabular batch splitting
+
+| Data rows | Batch size | Max rows | Legacy | Current | Change |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1,000 | 25 | Disabled | 13.57 us / 103.58 KB | 13.53 us / 91.16 KB | 0.3% faster / 12.0% fewer allocations |
+| 1,000 | 100 | 500 | 11.85 us / 94.63 KB | 11.94 us / 82.16 KB | Timing neutral / 13.2% fewer allocations |
+| 10,000 | 25 | Disabled | 164.14 us / 1,038.78 KB | 163.79 us / 918.05 KB | Timing neutral / 11.6% fewer allocations |
+| 10,000 | 100 | 500 | 134.41 us / 868.07 KB | 127.34 us / 785.29 KB | 5.3% faster / 9.5% fewer allocations |
+| 100,000 | 25 | Disabled | 5,736.69 us / 11,079.56 KB | 5,352.33 us / 9,890.21 KB | 6.7% faster / 10.7% fewer allocations |
+| 100,000 | 100 | 500 | 6,004.98 us / 9,305.97 KB | 5,304.76 us / 8,519.96 KB | 11.7% faster / 8.4% fewer allocations |
+
+The benchmark uses synthetic in-memory content and performs no AI or network work. The current path indexes
+the array returned by `Split('\n', StringSplitOptions.None)` directly, pre-sizes the batch collections, and
+materializes each mutable row list once. It preserves the legacy behavior for null, empty, and whitespace
+content; header-only input; LF and CRLF text; retained carriage returns; blank rows and trailing newlines;
+the 25-row fallback for non-positive batch sizes; disabled non-positive maximums; positive maximum-row
+truncation; repeated headers; one-based row indexes; final partial batches; and exact LF-based `GetContent()`
+output. The public maximum-row option is an `int`, so a null maximum is not representable.
