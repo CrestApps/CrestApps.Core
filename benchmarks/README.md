@@ -280,3 +280,44 @@ The SDK enumerator is obtained and disposed once; tools are appended in encounte
 against local or earlier SDK tools are skipped, and case-only variants remain distinct. Null SDK enumeration,
 hidden-tool filtering, keyed-service failure logging and skipping, cancellation behavior, exceptions, and
 the identity of appended SDK `ProtocolTool` instances remain unchanged.
+
+## YesSql ordering experiments
+
+### Extracted-data index mapping
+
+| Extracted fields | Legacy double sort | Current single sort | Change |
+| ---: | ---: | ---: | ---: |
+| 10 | 2.546 us / 7.05 KB | 1.898 us / 6.52 KB | 25.5% faster / 7.5% fewer allocations |
+| 100 | 24.712 us / 63.48 KB | 18.749 us / 59.78 KB | 24.1% faster / 5.8% fewer allocations |
+| 1,000 | 369.804 us / 627.77 KB | 264.194 us / 592.43 KB | 28.6% faster / 5.6% fewer allocations |
+
+The retained mapping sorts field names once with `StringComparer.OrdinalIgnoreCase` and uses each exact
+key to enumerate its values. The benchmark includes multiple values, duplicate values, empty strings,
+and case-only field-name variants. Exact equivalence checks and behavior tests preserve stable ordering
+for case-insensitive ties, field-name and value-text formatting, per-field value order, empty output,
+metadata, configured collection names, and the existing null failure.
+
+### Rejected store query ordering
+
+| Store and seeded records | Materialize then order | YesSql query ordering | Result |
+| --- | ---: | ---: | ---: |
+| Completion usage, 100 | 159.9 us / 173.92 KB | 190.5 us / 177.11 KB | 19.1% slower / 1.8% more allocations |
+| Completion usage, 1,000 | 1,411.1 us / 1,619.46 KB | 1,653.6 us / 1,607.77 KB | 17.2% slower / 0.7% fewer allocations |
+| Completion usage, 10,000 | 20,898.4 us / 15,968.69 KB | 23,864.7 us / 15,809.18 KB | 14.2% slower / 1.0% fewer allocations |
+| Chat-session events, 100 | 140.8 us / 151.57 KB | 152.4 us / 155.40 KB | 8.2% slower / 2.5% more allocations |
+| Chat-session events, 1,000 | 1,167.3 us / 1,363.37 KB | 1,312.0 us / 1,356.13 KB | 12.4% slower / 0.5% fewer allocations |
+| Chat-session events, 10,000 | 16,259.5 us / 13,477.42 KB | 18,428.8 us / 13,359.62 KB | 13.3% slower / 0.9% fewer allocations |
+
+The SQLite benchmarks use isolated local YesSql databases, persisted documents and map indexes, realistic
+date/profile filters, and groups of equal timestamps. Query-side candidates order by the mapped timestamp
+and then by map-index identifier; setup verifies the exact returned identifier sequence against the stable
+materialize-then-LINQ behavior, and both paths return their already-materialized lists without benchmark-only
+row copies. `AICompletionUsageIndex.CreatedUtc` and
+`AIChatSessionMetricsIndex.SessionStartedUtc` are mapped schema columns, but translated ordering was
+consistently slower and its allocation changes were marginal, so both production experiments were rejected.
+
+The prompt-store experiment was rejected before database benchmarking. `AIChatSessionPromptIndex` and its
+deployed schema expose only item identifier, session identifier, and role, not `CreatedUtc`; YesSql's typed
+ordering expression targets the mapped index. Adding and migrating an index column solely for this campaign
+would introduce backward-compatibility work without evidence of compelling value, so no schema change or
+unfaithful benchmark substitute was added.
