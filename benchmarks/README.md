@@ -340,3 +340,15 @@ content; header-only input; LF and CRLF text; retained carriage returns; blank r
 the 25-row fallback for non-positive batch sizes; disabled non-positive maximums; positive maximum-row
 truncation; repeated headers; one-based row indexes; final partial batches; and exact LF-based `GetContent()`
 output. The public maximum-row option is an `int`, so a null maximum is not representable.
+
+## AI document indexing materialization experiment
+
+| Chunks | Legacy `ToList` + `Select` | Direct output array | Count-aware chunk array |
+| ---: | ---: | ---: | ---: |
+| 10 | 2.035 us / 10.31 KB | 2.137 us / 10.18 KB | 2.033 us / 10.11 KB |
+| 100 | 20.475 us / 100.80 KB | 21.563 us / 100.67 KB | 16.521 us / 100.67 KB |
+| 1,000 | 207.765 us / 1,005.73 KB | 189.214 us / 1,005.59 KB | 291.994 us / 1,006.30 KB |
+| 10,000 | 9,024.704 us / 10,055.12 KB | 6,253.021 us / 10,054.98 KB | 6,636.340 us / 10,062.72 KB |
+
+Both candidates were rejected. The measured allocation changes were negligible, and timing varied
+inconsistently by scale. Production remains unchanged.

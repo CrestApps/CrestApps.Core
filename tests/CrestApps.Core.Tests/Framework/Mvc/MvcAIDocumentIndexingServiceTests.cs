@@ -158,6 +158,207 @@ public sealed class DefaultAIDocumentIndexingServiceTests
     }
 
     [Fact]
+    public async Task IndexAsync_WhenChunksAreEmpty_DoesNotInvokeProviders()
+    {
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>(MockBehavior.Strict);
+        var indexManager = new Mock<ISearchIndexManager>(MockBehavior.Strict);
+        var documentManager = new Mock<ISearchDocumentManager>(MockBehavior.Strict);
+        var service = CreateService(
+            indexProfileStore.Object,
+            indexManager.Object,
+            documentManager.Object);
+
+        await service.IndexAsync(CreateDocument(), [], TestContext.Current.CancellationToken);
+
+        indexProfileStore.VerifyNoOtherCalls();
+        indexManager.VerifyNoOtherCalls();
+        documentManager.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task IndexAsync_WhenChunkIsValid_MapsDocumentAndFieldValues()
+    {
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore
+            .Setup(store => store.FindByNameAsync("chat-documents", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateIndexProfile());
+
+        var indexManager = new Mock<ISearchIndexManager>();
+        indexManager
+            .Setup(manager => manager.ExistsAsync(It.IsAny<IIndexProfileInfo>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        IReadOnlyCollection<IndexDocument> indexedDocuments = [];
+        var documentManager = new Mock<ISearchDocumentManager>();
+        documentManager
+            .Setup(manager => manager.AddOrUpdateAsync(
+                It.IsAny<IIndexProfileInfo>(),
+                It.IsAny<IReadOnlyCollection<IndexDocument>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<IIndexProfileInfo, IReadOnlyCollection<IndexDocument>, CancellationToken>(
+                (_, documents, _) => indexedDocuments = documents)
+            .ReturnsAsync(true);
+
+        float[] embedding = [0.125f, 0.5f, 0.875f];
+        var document = new AIDocument
+        {
+            ItemId = "parent-document",
+            ReferenceId = "parent-reference",
+            ReferenceType = "parent-reference-type",
+            FileName = "reference-guide.pdf",
+        };
+        var chunk = new AIDocumentChunk
+        {
+            ItemId = "chunk-primary",
+            AIDocumentId = "stored-document",
+            ReferenceId = "profile-42",
+            ReferenceType = "profile",
+            Content = "Exact chunk content",
+            Embedding = embedding,
+            Index = 17,
+        };
+        var service = CreateService(indexProfileStore.Object, indexManager.Object, documentManager.Object);
+
+        await service.IndexAsync(document, [chunk], TestContext.Current.CancellationToken);
+
+        var indexDocument = Assert.Single(indexedDocuments);
+        Assert.Equal("chunk-primary", indexDocument.Id);
+
+        var fields = indexDocument.Fields;
+        Assert.Equal(8, fields.Count);
+        Assert.Equal(
+            [
+                DocumentIndexConstants.ColumnNames.ChunkId,
+                DocumentIndexConstants.ColumnNames.ChunkIndex,
+                DocumentIndexConstants.ColumnNames.Content,
+                DocumentIndexConstants.ColumnNames.DocumentId,
+                DocumentIndexConstants.ColumnNames.Embedding,
+                DocumentIndexConstants.ColumnNames.FileName,
+                DocumentIndexConstants.ColumnNames.ReferenceId,
+                DocumentIndexConstants.ColumnNames.ReferenceType,
+            ],
+            fields.Keys.OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal("chunk-primary", fields[DocumentIndexConstants.ColumnNames.ChunkId]);
+        Assert.Equal("parent-document", fields[DocumentIndexConstants.ColumnNames.DocumentId]);
+        Assert.Equal("Exact chunk content", fields[DocumentIndexConstants.ColumnNames.Content]);
+        Assert.Equal("reference-guide.pdf", fields[DocumentIndexConstants.ColumnNames.FileName]);
+        Assert.Equal("profile-42", fields[DocumentIndexConstants.ColumnNames.ReferenceId]);
+        Assert.Equal("profile", fields[DocumentIndexConstants.ColumnNames.ReferenceType]);
+        Assert.Equal(embedding, Assert.IsType<float[]>(fields[DocumentIndexConstants.ColumnNames.Embedding]));
+        Assert.Equal(17, fields[DocumentIndexConstants.ColumnNames.ChunkIndex]);
+    }
+
+    [Fact]
+    public async Task IndexAsync_WhenChunksContainMixedValues_WritesOnlyValidChunksInInputOrder()
+    {
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore
+            .Setup(store => store.FindByNameAsync("chat-documents", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateIndexProfile());
+
+        var indexManager = new Mock<ISearchIndexManager>();
+        indexManager
+            .Setup(manager => manager.ExistsAsync(It.IsAny<IIndexProfileInfo>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        IReadOnlyCollection<IndexDocument> indexedDocuments = [];
+        var documentManager = new Mock<ISearchDocumentManager>();
+        documentManager
+            .Setup(manager => manager.AddOrUpdateAsync(
+                It.IsAny<IIndexProfileInfo>(),
+                It.IsAny<IReadOnlyCollection<IndexDocument>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<IIndexProfileInfo, IReadOnlyCollection<IndexDocument>, CancellationToken>(
+                (_, documents, _) => indexedDocuments = documents)
+            .ReturnsAsync(true);
+
+        IReadOnlyCollection<AIDocumentChunk> chunks =
+        [
+            CreateChunk("no-content", content: " ", index: 0),
+            CreateChunk("chunk-3", content: "Third", index: 3),
+            CreateChunk("no-embedding", content: "Second", embedding: [], index: 2),
+            CreateChunk("chunk-1", content: "First", index: 1),
+        ];
+        var service = CreateService(indexProfileStore.Object, indexManager.Object, documentManager.Object);
+
+        await service.IndexAsync(CreateDocument(), chunks, TestContext.Current.CancellationToken);
+
+        var documents = indexedDocuments.ToArray();
+        Assert.Equal(["chunk-3", "chunk-1"], documents.Select(document => document.Id));
+        Assert.Equal(["Third", "First"], documents.Select(document =>
+            document.Fields[DocumentIndexConstants.ColumnNames.Content]));
+        Assert.Equal([3, 1], documents.Select(document =>
+            document.Fields[DocumentIndexConstants.ColumnNames.ChunkIndex]));
+    }
+
+    [Fact]
+    public async Task IndexAsync_WhenChunkEnumerationThrows_PropagatesWithoutInvokingProviders()
+    {
+        var expectedException = new InvalidOperationException("Enumeration failed.");
+        var chunks = CreateThrowingChunkCollection([CreateChunk("chunk-1")], expectedException);
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>(MockBehavior.Strict);
+        var indexManager = new Mock<ISearchIndexManager>(MockBehavior.Strict);
+        var documentManager = new Mock<ISearchDocumentManager>(MockBehavior.Strict);
+        var service = CreateService(
+            indexProfileStore.Object,
+            indexManager.Object,
+            documentManager.Object);
+
+        var actualException = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.IndexAsync(CreateDocument(), chunks, TestContext.Current.CancellationToken));
+
+        Assert.Same(expectedException, actualException);
+        indexProfileStore.VerifyNoOtherCalls();
+        indexManager.VerifyNoOtherCalls();
+        documentManager.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task IndexAsync_WhenCancellationIsAlreadyRequested_DoesNotInvokeProviders()
+    {
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>(MockBehavior.Strict);
+        var indexManager = new Mock<ISearchIndexManager>(MockBehavior.Strict);
+        var documentManager = new Mock<ISearchDocumentManager>(MockBehavior.Strict);
+        var service = CreateService(
+            indexProfileStore.Object,
+            indexManager.Object,
+            documentManager.Object);
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        await service.IndexAsync(CreateDocument(), [CreateChunk("chunk-1")], cancellationTokenSource.Token);
+
+        indexProfileStore.VerifyNoOtherCalls();
+        indexManager.VerifyNoOtherCalls();
+        documentManager.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task IndexAsync_WhenChunkEnumerationCancels_PropagatesWithoutInvokingProviders()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+        var expectedException = new OperationCanceledException(cancellationTokenSource.Token);
+        var chunks = CreateThrowingChunkCollection([], expectedException);
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>(MockBehavior.Strict);
+        var indexManager = new Mock<ISearchIndexManager>(MockBehavior.Strict);
+        var documentManager = new Mock<ISearchDocumentManager>(MockBehavior.Strict);
+        var service = CreateService(
+            indexProfileStore.Object,
+            indexManager.Object,
+            documentManager.Object);
+
+        var actualException = await Assert.ThrowsAsync<OperationCanceledException>(
+            () => service.IndexAsync(CreateDocument(), chunks, cancellationTokenSource.Token));
+
+        Assert.Same(expectedException, actualException);
+        Assert.Equal(cancellationTokenSource.Token, actualException.CancellationToken);
+        indexProfileStore.VerifyNoOtherCalls();
+        indexManager.VerifyNoOtherCalls();
+        documentManager.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task DeleteAsync_WhenProviderIsConfigured_DeletesRequestedDocument()
     {
         var indexProfileStore = new Mock<ISearchIndexProfileStore>();
@@ -265,5 +466,27 @@ public sealed class DefaultAIDocumentIndexingServiceTests
             Embedding = embedding ?? [0.1f, 0.2f],
             Index = index,
         };
+    }
+
+    private static IReadOnlyCollection<AIDocumentChunk> CreateThrowingChunkCollection(
+        IReadOnlyCollection<AIDocumentChunk> chunks,
+        Exception exception)
+    {
+        var collection = new Mock<IReadOnlyCollection<AIDocumentChunk>>();
+        collection
+            .Setup(value => value.GetEnumerator())
+            .Returns(() => Enumerate().GetEnumerator());
+
+        return collection.Object;
+
+        IEnumerable<AIDocumentChunk> Enumerate()
+        {
+            foreach (var chunk in chunks)
+            {
+                yield return chunk;
+            }
+
+            throw exception;
+        }
     }
 }
