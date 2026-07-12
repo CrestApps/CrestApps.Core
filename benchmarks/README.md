@@ -245,3 +245,38 @@ keys still throw instead of overwriting. Arrays return `List<object>` instances.
 string, `long`, `double`, `bool`, and `DateTime`, followed by the exact `ToJsonString()` fallback. This
 preserves the existing string fallbacks for directly created `int`, `float`, `decimal`, `DateTimeOffset`,
 and custom values, as well as null handling, recursive shape, and detached mutable containers.
+
+## MCP server tool merging
+
+| Scenario | Total local + SDK tools | Legacy | Current | Change |
+| --- | ---: | ---: | ---: | ---: |
+| Non-null empty SDK enumerable | 100 | 49.39 ns / 856 B | 52.59 ns / 856 B | Allocations unchanged; timing neutral |
+| No duplicates | 100 | 7.499 us / 5.58 KB | 1.115 us / 5.09 KB | 85.1% faster / 8.7% fewer allocations |
+| Duplicate-heavy overlap | 100 | 2.903 us / 5.58 KB | 1.057 us / 5.09 KB | 63.6% faster / 8.7% fewer allocations |
+| SDK-internal duplicates | 100 | 4.763 us / 5.58 KB | 1.111 us / 5.09 KB | 76.7% faster / 8.7% fewer allocations |
+| Case-only names | 100 | 7.082 us / 5.58 KB | 1.072 us / 5.09 KB | 84.9% faster / 8.7% fewer allocations |
+| Non-null empty SDK enumerable | 1,000 | 376.95 ns / 7.87 KB | 374.05 ns / 7.87 KB | Allocations unchanged; timing neutral |
+| No duplicates | 1,000 | 966.871 us / 54.80 KB | 13.413 us / 43.65 KB | 98.6% faster / 20.3% fewer allocations |
+| Duplicate-heavy overlap | 1,000 | 257.952 us / 54.80 KB | 14.301 us / 43.65 KB | 94.5% faster / 20.3% fewer allocations |
+| SDK-internal duplicates | 1,000 | 400.238 us / 54.80 KB | 13.546 us / 43.65 KB | 96.6% faster / 20.3% fewer allocations |
+| Case-only names | 1,000 | 891.076 us / 54.80 KB | 13.959 us / 43.65 KB | 98.4% faster / 20.3% fewer allocations |
+| Non-null empty SDK enumerable | 10,000 | 3.125 us / 78.18 KB | 3.134 us / 78.18 KB | Allocations unchanged; timing neutral |
+| No duplicates | 10,000 | 99,851.372 us / 546.98 KB | 236.593 us / 468.80 KB | 99.8% faster / 14.3% fewer allocations |
+| Duplicate-heavy overlap | 10,000 | 32,737.206 us / 546.98 KB | 211.864 us / 468.79 KB | 99.4% faster / 14.3% fewer allocations |
+| SDK-internal duplicates | 10,000 | 62,750.924 us / 546.98 KB | 179.649 us / 468.76 KB | 99.7% faster / 14.3% fewer allocations |
+| Case-only names | 10,000 | 94,293.520 us / 546.98 KB | 228.918 us / 468.79 KB | 99.8% faster / 14.3% fewer allocations |
+
+These same-process measurements isolate the merge from dependency injection and network work. The empty-SDK
+scenario uses the stated number of already-created local protocol tools and a non-null empty SDK enumerable.
+The current path performs the same local-list copy as legacy, with identical allocations at all three scales;
+the small timing differences are noise at sub-microsecond and low-microsecond durations. It tests `MoveNext()`
+before allocating the name set, so this path does not allocate a `HashSet`.
+
+The remaining scenarios split each total evenly between local and SDK tools. Duplicate-heavy overlap covers
+three quarters of SDK names, SDK-internal names repeat four times, and case-only names differ only by casing.
+For a non-empty SDK enumerable, the retained path seeds a `StringComparer.Ordinal` hash set from the local
+list without modifying it. Local precedence, duplicate local names, metadata, and order remain unchanged.
+The SDK enumerator is obtained and disposed once; tools are appended in encounter order, exact duplicates
+against local or earlier SDK tools are skipped, and case-only variants remain distinct. Null SDK enumeration,
+hidden-tool filtering, keyed-service failure logging and skipping, cancellation behavior, exceptions, and
+the identity of appended SDK `ProtocolTool` instances remain unchanged.
