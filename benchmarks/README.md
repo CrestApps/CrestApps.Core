@@ -78,3 +78,15 @@ content prefix instead of materializing the entire document before truncation.
 Unfiltered catalog paging now slices the cached array directly. Filtered, sorted, source-aware, and
 custom query contexts retain the extensible filtering pipeline while avoiding a second full-list
 materialization.
+
+## Fourth primitive optimization pass
+
+| Scenario | Baseline | Optimized | Change |
+| --- | ---: | ---: | ---: |
+| Data extraction matching, 10 configured entries/results | 7.214 us / 15.05 KB | 3.679 us / 6.51 KB | 49.0% faster / 56.7% fewer allocations |
+| Data extraction matching, 100 configured entries/results | 736.239 us / 1,534.98 KB | 36.276 us / 55.94 KB | 95.1% faster / 96.4% fewer allocations |
+
+The data-extraction benchmark compares the legacy repeated scans with the current implementation in
+the same process. The optimized path builds a per-call index that preserves direct, normalized, and
+semantic matching precedence as well as first-configured-entry precedence, without caching mutable
+profile settings globally.
