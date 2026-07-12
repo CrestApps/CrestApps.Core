@@ -115,8 +115,8 @@ public static class SentenceBoundaryDetector
         var lastSpace = span.LastIndexOf(' ');
         var lastWord = lastSpace >= 0 ? span[(lastSpace + 1)..] : span;
 
-        // fallback: convert lastWord to lowercase string to check abbreviation
-
-        return _abbreviations.Contains(lastWord.ToString());
+        return _abbreviations
+            .GetAlternateLookup<ReadOnlySpan<char>>()
+            .Contains(lastWord);
     }
 }

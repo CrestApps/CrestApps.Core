@@ -130,3 +130,19 @@ the same process. It uses synthetic in-memory Open XML workbooks, five warmups, 
 iterations, so workbook generation and disk or network I/O are excluded. The current implementation
 preserves SDK traversal, worksheet and row ordering, sparse column positions, trailing-empty-cell
 trimming, and exact tab-separated output.
+
+## Sentence boundary detection
+
+| Scenario | Legacy | Current | Change |
+| --- | ---: | ---: | ---: |
+| Abbreviation | 25.63 ns / 32 B | 19.75 ns / 0 B | 22.9% faster / allocation-free |
+| Regular sentence | 21.02 ns / 40 B | 18.87 ns / 0 B | 10.2% faster / allocation-free |
+| Streamed sequence | 134.81 ns / 136 B | 91.04 ns / 0 B | 32.5% faster / allocation-free |
+| Mixed-case abbreviation | 28.08 ns / 32 B | 18.09 ns / 0 B | 35.6% faster / allocation-free |
+| Long input | 21.25 ns / 32 B | 16.24 ns / 0 B | 23.6% faster / allocation-free |
+
+The current path uses the existing ordinal-ignore-case abbreviation set's span lookup, avoiding the
+final-word string allocation. It preserves literal-space word splitting, trailing space/tab/carriage
+return trimming, wrapper handling, and the existing hard, soft, and force-flush boundary precedence.
+These figures use the medium-run job because the individual operations are short; the allocation
+elimination is the primary acceptance criterion.
