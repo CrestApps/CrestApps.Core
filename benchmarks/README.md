@@ -146,3 +146,26 @@ final-word string allocation. It preserves literal-space word splitting, trailin
 return trimming, wrapper handling, and the existing hard, soft, and force-flush boundary precedence.
 These figures use the medium-run job because the individual operations are short; the allocation
 elimination is the primary acceptance criterion.
+
+## JSON code-fence extraction
+
+| Scenario | Legacy regex | Ordinal scanner | Change |
+| --- | ---: | ---: | ---: |
+| Short fenced JSON | 2.67 us / 464 B | 46.95 ns / 80 B | 98.2% faster / 82.8% fewer allocations |
+| 10 KB prose with fence | 1.98 us / 432 B | 584.38 ns / 48 B | 70.5% faster / 88.9% fewer allocations |
+| 100 KB JSON payload | 6.53 ms / 205,277 B | 58.52 us / 204,898 B | 99.1% faster / 379 B fewer |
+| 10 KB input without a fence | 994.32 ns / 0 B | 1.36 us / 0 B | Allocation-free in both paths; timing was noisy |
+| Multiple fences | 1.01 us / 432 B | 26.31 ns / 48 B | 97.4% faster / 88.9% fewer allocations |
+| Whitespace-heavy content | 26.79 us / 432 B | 8.47 us / 48 B | 68.4% faster / 88.9% fewer allocations |
+
+The scanner preserves the legacy regular expression's exact extraction behavior: it selects the first
+non-overlapping triple-backtick pair, removes only an immediately adjacent lowercase `json` prefix
+without requiring a label boundary, trims Unicode whitespace, and treats every other language label
+as content. It also intentionally closes on the first subsequent triple-backtick sequence even when
+that sequence is inside the content, and a run of four or more opening backticks starts a match at the
+first three. Compatibility tests cover direct edge cases and a 5,040-input differential matrix.
+
+These figures use five warmups and twelve measured iterations on the environment described above.
+Timing variance was high for some scenarios, so the latency figures are directional and the allocation
+reductions are the primary acceptance criterion. The large payload's returned string dominates its
+allocation total; the scanner still removes the regular-expression match overhead.

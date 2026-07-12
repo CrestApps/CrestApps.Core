@@ -18,6 +18,7 @@
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
+    <ProjectReference Include="../../src/Utilities/CrestApps.Core.Support/CrestApps.Core.Support.csproj" />
   </ItemGroup>
 
 </Project>
