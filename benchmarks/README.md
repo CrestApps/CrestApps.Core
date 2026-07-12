@@ -169,3 +169,28 @@ These figures use five warmups and twelve measured iterations on the environment
 Timing variance was high for some scenarios, so the latency figures are directional and the allocation
 reductions are the primary acceptance criterion. The large payload's returned string dominates its
 allocation total; the scanner still removes the regular-expression match overhead.
+
+## Default tool registry dependency expansion
+
+| Graph shape | Scale | Legacy | Current | Change |
+| --- | ---: | ---: | ---: | ---: |
+| Fan-out | 100 | 23.01 us / 54.06 KB | 16.45 us / 32.38 KB | 28.5% faster / 40.1% fewer allocations |
+| Fan-out | 1,000 | 265.21 us / 519.45 KB | 224.62 us / 313.02 KB | 15.3% faster / 39.7% fewer allocations |
+| Deep chain | 100 | 20.31 us / 57.73 KB | 16.02 us / 36.11 KB | 21.1% faster / 37.5% fewer allocations |
+| Deep chain | 1,000 | 251.78 us / 558.27 KB | 196.98 us / 351.90 KB | 21.8% faster / 37.0% fewer allocations |
+| Diamond/shared | 100 | 23.26 us / 56.48 KB | 17.78 us / 34.86 KB | 23.6% faster / 38.3% fewer allocations |
+| Diamond/shared | 1,000 | 283.47 us / 519.29 KB | 229.81 us / 338.93 KB | 18.9% faster / 34.7% fewer allocations |
+| Many roots/shared dependencies | 100 | 69.16 us / 52.10 KB | 54.94 us / 31.05 KB | 20.6% faster / 40.4% fewer allocations |
+| Many roots/shared dependencies | 1,000 | 665.63 us / 481.38 KB | 564.77 us / 274.45 KB | 15.2% faster / 43.0% fewer allocations |
+
+The current path builds the case-insensitive name index directly and pre-sizes resolved-entry
+collections instead of materializing `GroupBy` groupings and then copying each grouping into another
+list. It preserves provider and source order, depth-first pre-order expansion, all distinct entries in
+duplicate-name groups, first-entry precedence for duplicate identifiers, missing-dependency behavior,
+cycle handling, and the exact dependency-name side effect on `AICompletionContext`.
+
+Dependency-name memoization was intentionally not added. Reusing a name-level visited set can change
+the order of re-entrant duplicate-name groups, while the existing resolved-entry identifier set already
+prevents repeated expansion of each concrete entry. Search ranking also remains unchanged: replacing
+the explicit scored list with a direct ordered projection saved only 1.2-1.8% of allocations and
+produced neutral or noisy timings, so that experiment was reverted.
