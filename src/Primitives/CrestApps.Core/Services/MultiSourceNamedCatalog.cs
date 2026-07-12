@@ -81,14 +81,83 @@ public abstract class MultiSourceNamedCatalog<T> : INamedCatalog<T>
         where TQuery : QueryContext
     {
         var entries = await GetMergedEntriesAsync(cancellationToken);
-        var filtered = ApplyFilters(context, entries).ToList();
         var skip = (page - 1) * pageSize;
+
+        if (CanUseDirectPaging(context))
+        {
+            return new PageResult<T>
+            {
+                Count = entries.Count,
+                Entries = GetPageEntries(entries, skip, pageSize),
+            };
+        }
+
+        var pageEntries = new List<T>(Math.Clamp(pageSize, 0, entries.Count));
+        var count = 0;
+
+        foreach (var entry in ApplyFilters(context, entries))
+        {
+            if (count >= skip && pageEntries.Count < pageSize)
+            {
+                pageEntries.Add(entry);
+            }
+
+            count++;
+        }
 
         return new PageResult<T>
         {
-            Count = filtered.Count,
-            Entries = filtered.Skip(skip).Take(pageSize).ToArray(),
+            Count = count,
+            Entries = pageEntries.ToArray(),
         };
+    }
+
+    private static bool CanUseDirectPaging(QueryContext? context)
+    {
+        return context is null ||
+            (context.GetType() == typeof(QueryContext) &&
+             string.IsNullOrEmpty(context.Source) &&
+             string.IsNullOrEmpty(context.Name) &&
+             !context.Sorted);
+    }
+
+    private static T[] GetPageEntries(
+        IReadOnlyCollection<T> entries,
+        int skip,
+        int pageSize)
+    {
+        if (pageSize <= 0)
+        {
+            return [];
+        }
+
+        var start = Math.Max(0, skip);
+
+        if (start >= entries.Count)
+        {
+            return [];
+        }
+
+        var length = Math.Min(pageSize, entries.Count - start);
+
+        if (entries is T[] array)
+        {
+            return array.AsSpan(start, length).ToArray();
+        }
+
+        if (entries is IReadOnlyList<T> list)
+        {
+            var pageEntries = new T[length];
+
+            for (var i = 0; i < length; i++)
+            {
+                pageEntries[i] = list[start + i];
+            }
+
+            return pageEntries;
+        }
+
+        return entries.Skip(start).Take(length).ToArray();
     }
 
     /// <summary>

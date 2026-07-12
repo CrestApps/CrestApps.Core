@@ -65,6 +65,7 @@ consistently removes the regular-expression match-object allocations.
 | MCP prompt merge, 100 entries per source | 69.708 us / 19.91 KB | 4.644 us / 18.36 KB | 93.3% faster / 7.8% fewer allocations |
 | MCP prompt merge, 1,000 entries per source | 8,139.844 us / 195.7 KB | 52.040 us / 174.35 KB | 99.4% faster / 10.9% fewer allocations |
 | Bounded document context, 1 MB input / 50 KB output | 331.00 us / 2,152.48 KB | 43.19 us / 198.53 KB | 87.0% faster / 90.8% fewer allocations |
+| Cached catalog page, 50 of 10,000 entries | 3,275.50 ns / 80,576 B | 63.85 ns / 496 B | 98.1% faster / 99.4% fewer allocations |
 
 The prompt merge preserves catalog, provider, and SDK precedence, keeps ordinal case-sensitive name
 matching, and retains duplicate catalog entries. A hash set replaces only the repeated linear scans
@@ -73,3 +74,7 @@ used when provider and SDK prompts are added.
 Bounded document context formatting still uses stable chunk ordering and returns the exact same
 prefix and truncation marker. It computes the joined length first and writes only the requested
 content prefix instead of materializing the entire document before truncation.
+
+Unfiltered catalog paging now slices the cached array directly. Filtered, sorted, source-aware, and
+custom query contexts retain the extensible filtering pipeline while avoiding a second full-list
+materialization.
