@@ -104,3 +104,16 @@ The A2A benchmark compares the legacy and production paths in the same process w
 connections and cached agent cards. Valid names now return unchanged without allocating a character
 array or replacement string. Invalid names preserve the same Unicode-aware replacement behavior
 while creating only the resulting string.
+
+## Azure AI Search document ID filter preparation
+
+| Document IDs | Legacy | Current | Change |
+| --- | ---: | ---: | ---: |
+| 1 | 105.77 ns / 344 B | 42.41 ns / 176 B | 59.9% faster / 48.8% fewer allocations |
+| 10 | 435.78 ns / 1,776 B | 259.91 ns / 792 B | 40.4% faster / 55.4% fewer allocations |
+| 100 | 3,136.09 ns / 16,336 B | 2,438.25 ns / 7,288 B | 22.3% faster / 55.4% fewer allocations |
+| 1,000 | 29,538.15 ns / 163,760 B | 24,660.78 ns / 74,072 B | 16.5% faster / 54.8% fewer allocations |
+
+The current path preserves identifier order and identity, filters only null and empty identifiers,
+and emits the same apostrophe-escaped OData filter text. It sizes and fills the final filter string
+directly, avoiding the per-identifier projection and interpolation strings used by the legacy path.
