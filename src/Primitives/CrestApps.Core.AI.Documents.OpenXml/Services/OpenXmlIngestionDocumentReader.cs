@@ -120,12 +120,14 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
 
         var sharedStrings = workbook.SharedStringTablePart?.SharedStringTable;
         var section = new IngestionDocumentSection();
+        var values = new List<string>();
 
         foreach (var sheet in workbook.WorksheetParts)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var data = sheet.Worksheet.GetFirstChild<SheetData>();
+
             if (data == null)
             {
                 continue;
@@ -133,9 +135,9 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
 
             foreach (var row in data.Elements<Row>())
             {
-                var values = GetRowValues(row, sharedStrings);
+                GetRowValues(row, sharedStrings, values);
 
-                if (values.Any(value => !string.IsNullOrEmpty(value)))
+                if (values.Count > 0)
                 {
                     var rowText = string.Join("\t", values);
                     section.Elements.Add(new IngestionDocumentParagraph(rowText)
@@ -149,9 +151,15 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
         return section.Elements.Count > 0 ? section : null;
     }
 
-    private static List<string> GetRowValues(Row row, SharedStringTable sharedStrings)
+    /// <summary>
+    /// Populates reusable storage with a spreadsheet row's values while omitting trailing empty cells.
+    /// </summary>
+    /// <param name="row">The spreadsheet row.</param>
+    /// <param name="sharedStrings">The workbook shared-string table.</param>
+    /// <param name="values">The per-read reusable value storage.</param>
+    private static void GetRowValues(Row row, SharedStringTable sharedStrings, List<string> values)
     {
-        var values = new List<string>();
+        values.Clear();
 
         foreach (var cell in row.Elements<Cell>())
         {
@@ -165,17 +173,15 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
             values.Add(GetCellValue(cell, sharedStrings));
         }
 
-        for (var i = values.Count - 1; i >= 0; i--)
+        for (var index = values.Count - 1; index >= 0; index--)
         {
-            if (!string.IsNullOrEmpty(values[i]))
+            if (!string.IsNullOrEmpty(values[index]))
             {
                 break;
             }
 
-            values.RemoveAt(i);
+            values.RemoveAt(index);
         }
-
-        return values;
     }
 
     private static int GetColumnIndex(string cellReference, int fallbackIndex)

@@ -117,3 +117,16 @@ while creating only the resulting string.
 The current path preserves identifier order and identity, filters only null and empty identifiers,
 and emits the same apostrophe-escaped OData filter text. It sizes and fills the final filter string
 directly, avoiding the per-identifier projection and interpolation strings used by the legacy path.
+
+## Open XML spreadsheet row extraction
+
+| Scenario | Legacy | Current | Change |
+| --- | ---: | ---: | ---: |
+| Sparse 1,000 x 34 sheet | 6.810 ms / 4.81 MB | 6.218 ms / 3.72 MB | 8.7% faster / 22.7% fewer allocations |
+| Dense 10,000 x 16 sheet | 514.012 ms / 163.21 MB | 473.676 ms / 160.08 MB | 7.8% faster / 1.9% fewer allocations |
+
+The benchmark compares the legacy per-row list allocation with the current per-read reusable list in
+the same process. It uses synthetic in-memory Open XML workbooks, five warmups, and twelve measured
+iterations, so workbook generation and disk or network I/O are excluded. The current implementation
+preserves SDK traversal, worksheet and row ordering, sparse column positions, trailing-empty-cell
+trimming, and exact tab-separated output.
