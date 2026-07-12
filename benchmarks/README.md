@@ -90,3 +90,17 @@ The data-extraction benchmark compares the legacy repeated scans with the curren
 the same process. The optimized path builds a per-call index that preserves direct, normalized, and
 semantic matching precedence as well as first-configured-entry precedence, without caching mutable
 profile settings globally.
+
+## A2A tool registry optimization
+
+| Scenario | Baseline | Optimized | Change |
+| --- | ---: | ---: | ---: |
+| 100 connections, 1,000 valid skill names | 67.78 us / 362.38 KB | 52.77 us / 269.41 KB | 22.1% faster / 25.7% fewer allocations |
+| 100 connections, 20% invalid skill names | 84.26 us / 362.38 KB | 62.35 us / 278.63 KB | 26.0% faster / 23.1% fewer allocations |
+| 1,000 connections, 10,000 valid skill names | 3,740.86 us / 3,794.73 KB | 2,257.29 us / 2,858.02 KB | 39.7% faster / 24.7% fewer allocations |
+| 1,000 connections, 20% invalid skill names | 3,731.52 us / 3,794.74 KB | 2,426.43 us / 2,951.60 KB | 35.0% faster / 22.2% fewer allocations |
+
+The A2A benchmark compares the legacy and production paths in the same process with in-memory
+connections and cached agent cards. Valid names now return unchanged without allocating a character
+array or replacement string. Invalid names preserve the same Unicode-aware replacement behavior
+while creating only the resulting string.

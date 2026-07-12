@@ -38,6 +38,7 @@ internal sealed class A2AToolRegistryProvider : IToolRegistryProvider
     /// </summary>
     /// <param name="context">The context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The A2A tool registry entries.</returns>
     public async Task<IReadOnlyList<ToolRegistryEntry>> GetToolsAsync(
         AICompletionContext context,
         CancellationToken cancellationToken = default)
@@ -95,17 +96,40 @@ internal sealed class A2AToolRegistryProvider : IToolRegistryProvider
         return entries;
     }
 
+    /// <summary>
+    /// Replaces characters that are not valid in tool identifiers.
+    /// </summary>
+    /// <param name="name">The tool name.</param>
+    /// <returns>The original name when valid; otherwise, a sanitized name.</returns>
     private static string SanitizeToolName(string name)
     {
-        // Tool names must be valid identifiers. Replace invalid characters.
-        var sanitized = new char[name.Length];
-
         for (var i = 0; i < name.Length; i++)
         {
             var c = name[i];
-            sanitized[i] = char.IsLetterOrDigit(c) || c == '_' ? c : '_';
+
+            if (char.IsLetterOrDigit(c) || c == '_')
+            {
+                continue;
+            }
+
+            return string.Create(name.Length, name, static (sanitized, value) =>
+            {
+                for (var j = 0; j < value.Length; j++)
+                {
+                    var character = value[j];
+
+                    if (char.IsLetterOrDigit(character) || character == '_')
+                    {
+                        sanitized[j] = character;
+                    }
+                    else
+                    {
+                        sanitized[j] = '_';
+                    }
+                }
+            });
         }
 
-        return new string(sanitized);
+        return name;
     }
 }
