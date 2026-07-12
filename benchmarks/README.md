@@ -194,3 +194,30 @@ the order of re-entrant duplicate-name groups, while the existing resolved-entry
 prevents repeated expansion of each concrete entry. Search ranking also remains unchanged: replacing
 the explicit scored list with a direct ordered projection saved only 1.2-1.8% of allocations and
 produced neutral or noisy timings, so that experiment was reverted.
+
+## MCP capability resolution
+
+| Raw capabilities | Legacy | Current | Change |
+| ---: | ---: | ---: | ---: |
+| 100 | 310.90 us / 294.52 KB | 244.55 us / 241.94 KB | 21.3% faster / 17.9% fewer allocations |
+| 1,000 | 3,073.17 us / 2,847.51 KB | 2,397.33 us / 2,259.13 KB | 22.0% faster / 20.7% fewer allocations |
+| 10,000 | 35,543.44 us / 29,063.70 KB | 32,050.24 us / 22,342.07 KB | 9.8% faster / 23.1% fewer allocations |
+
+These top-5 figures compare the captured legacy implementation and production resolver in the same
+process using the production Lucene tokenizer, eight MCP servers, mixed tools, prompts, resources, and
+resource templates, duplicate identities and names, equal-score ties, zero-score entries, and five
+warmups with twelve measured iterations. Top-3 results showed the same allocation profile and similar
+timing direction.
+
+The current path builds the exact `name[: uri][: description]` tokenization text without a temporary
+parts list, pre-sizes per-resolution collections, and reuses tokens only for ordinally identical text
+within the current resolution call. It does not cache mutable or server-specific capabilities globally.
+Matching still uses distinct tokenizer terms, the same forward/reverse score maximum, inclusive
+thresholds, case-insensitive `connection + NUL + capability name` identities, strict higher-score
+replacement, embedding-first precedence on equal scores, descending score sorting, and the existing
+top-K truncation.
+
+With precomputed tokens isolating merge and ranking, the local token dictionary was 8.7% and 5.5%
+slower at 100 and 1,000 entries while still reducing allocations by 11.7% and 13.0%; the production
+Lucene path above is the relevant retained result. A bounded top-K selection was not introduced because
+exact equivalence with the existing equal-score `List.Sort` behavior could not be proven.
