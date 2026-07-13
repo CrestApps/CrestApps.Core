@@ -405,14 +405,21 @@ public sealed class DataExtractionService
 
         if (resultFieldKind == ExtractionFieldKind.FirstName)
         {
-            return existingParts.Length > 1
-                ? string.Join(' ', [incomingValue, .. existingParts.Skip(1)])
-                : incomingValue;
+            if (existingParts.Length == 1)
+            {
+                return incomingValue;
+            }
+
+            existingParts[0] = incomingValue;
+
+            return string.Join(' ', existingParts);
         }
 
         if (existingParts.Length > 1)
         {
-            return string.Join(' ', [.. existingParts.Take(existingParts.Length - 1), incomingValue]);
+            existingParts[^1] = incomingValue;
+
+            return string.Join(' ', existingParts);
         }
 
         return string.Concat(existingParts[0], " ", incomingValue);

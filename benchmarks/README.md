@@ -545,3 +545,74 @@ so their timing differences are noise and allocations match exactly. Neither loo
 a consistent material latency gain across scales; the direct loop also allocates 6.2% more at 100
 prompts and 4.4% more at 1,000. The existing filter, role mapping, trimming, dictionary shape, and
 ordering are therefore retained.
+
+## Data extraction local formatting and projection
+
+Run the independent name-merging and prompt-projection comparisons from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*DataExtractionMergeNamePartsBenchmarks*' --join
+
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*DataExtractionPromptProjectionBenchmarks*' --join
+```
+
+The measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured iterations,
+.NET 10.0.5, and an Apple M2.
+
+### Name-part merging
+
+Each benchmark invocation performs 1,000 merges; BenchmarkDotNet reports per-merge values.
+
+| Name shape | Legacy Split + projection | Retained in-place Split | Manual span experiment | Retained change |
+| --- | ---: | ---: | ---: | ---: |
+| Short realistic | 75.89 ns / 344 B | 40.14 ns / 168 B | 27.32 ns / 168 B | 47.1% faster / 51.2% fewer allocations |
+| Punctuation-heavy | 98.70 ns / 496 B | 63.21 ns / 304 B | 43.10 ns / 264 B | 36.0% faster / 38.7% fewer allocations |
+| Unicode | 79.91 ns / 312 B | 41.90 ns / 136 B | 30.57 ns / 128 B | 47.6% faster / 56.4% fewer allocations |
+| Long multi-part | 233.21 ns / 1,352 B | 178.17 ns / 808 B | 132.00 ns / 480 B | 23.6% faster / 40.2% fewer allocations |
+
+The retained implementation keeps `String.Split` with its literal-space separator,
+`RemoveEmptyEntries`, and `TrimEntries`, but replaces the first or last element in the resulting
+array before the existing `string.Join`. This removes the second LINQ/collection-expression array
+while keeping the method small.
+
+The manual scanner was rejected even though it was faster in isolation. It reimplemented literal
+separator discovery, Unicode trimming, empty-part removal, and first/last-part buffering for a method
+called only when semantic name aliases are applied. The additional tokenizer-sized compatibility
+surface was not justified after the simple retained change already removed 38.7-56.4% of allocations
+and improved timing by 23.6-47.6%.
+
+Exact behavior is protected by explicit null, empty, whitespace, separator, casing, punctuation,
+Unicode, multiple-whitespace, and delimiter cases plus an 880-combination differential matrix across
+every extraction field kind.
+
+### Prompt argument projection
+
+| Entries | State | Legacy | Unchanged current |
+| ---: | --- | ---: | ---: |
+| 10 | Sparse | 226.6 ns / 1.20 KB | 216.2 ns / 1.20 KB |
+| 10 | Dense | 301.7 ns / 1.58 KB | 300.5 ns / 1.58 KB |
+| 100 | Sparse | 1,121.3 ns / 5.80 KB | 1,114.2 ns / 5.80 KB |
+| 100 | Dense | 1,758.3 ns / 8.88 KB | 1,787.0 ns / 8.88 KB |
+| 1,000 | Sparse | 10,838.2 ns / 51.42 KB | 10,871.6 ns / 51.42 KB |
+| 1,000 | Dense | 16,696.1 ns / 81.93 KB | 16,693.1 ns / 81.93 KB |
+
+Legacy and current are intentionally identical controls. Allocations match exactly and the small
+timing differences are noise, so production keeps the existing anonymous projections, dictionary
+shape and comparer, key order, source order, duplicate fields, current-state filtering, and
+per-call mutable profile/session reads.
+
+The field-only `List.ConvertAll` experiment reached 205.8 ns / 1.13 KB at 10 sparse entries but only
+16,440.0 ns / 81.86 KB at 1,000 dense entries, making its large-scale allocation change negligible.
+The single-pass state loop reached 15,892.7 ns at 1,000 dense entries but increased allocation from
+81.93 KB to 91.03 KB. Full pre-sizing reached 15,348.5 ns / 82.69 KB for 1,000 dense entries but
+increased 1,000-sparse allocation from 51.42 KB to 58.28 KB. Counting first regressed to
+12,431.5 ns for 1,000 sparse entries and 18,770.3 ns for 1,000 dense entries. All prompt projection
+experiments were therefore rejected as marginal, density-dependent, slower, or allocation-negative.
+
+Tests capture exact serialized anonymous-object property order and argument-key order for zero, one,
+and many fields; null values; aliases and examples; duplicate names; sparse current state; last-turn
+selection and trimming; template identity; cancellation propagation; and template errors.

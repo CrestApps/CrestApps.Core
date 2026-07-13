@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Services;
@@ -15,6 +16,12 @@ namespace CrestApps.Core.Tests.Framework.AI;
 
 public sealed class DataExtractionServiceTests
 {
+    private static readonly MethodInfo MergeNamePartsMethod = typeof(DataExtractionService)
+        .GetMethod("MergeNameParts", BindingFlags.NonPublic | BindingFlags.Static);
+
+    private static readonly MethodInfo BuildExtractionPromptAsyncMethod = typeof(DataExtractionService)
+        .GetMethod("BuildExtractionPromptAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+
     [Fact]
     public async Task ProcessAsync_WhenExtractionIsDisabled_ShouldReturnNull()
     {
@@ -258,6 +265,385 @@ public sealed class DataExtractionServiceTests
         Assert.NotNull(promptArguments);
         Assert.Equal(["fields", "currentState", "lastUserMessage"], promptArguments.Keys);
         Assert.False(promptArguments.ContainsKey("lastAssistantMessage"));
+    }
+
+    [Theory]
+    [InlineData(null, null, "FirstName", null)]
+    [InlineData("Existing", "", "FirstName", "Existing")]
+    [InlineData("  Existing  ", " \t\r\n ", "LastName", "  Existing  ")]
+    [InlineData(null, "  Ada  ", "FirstName", "Ada")]
+    [InlineData("", "  Ada Lovelace  ", "LastName", "Ada Lovelace")]
+    [InlineData("\t\r\n", "  李 小龍  ", "FirstName", "李 小龍")]
+    [InlineData("Smith", "  ADA  ", "FirstName", "ADA")]
+    [InlineData("Ada", "  Lovelace  ", "LastName", "Ada Lovelace")]
+    [InlineData("  Ada   Byron  Lovelace  ", "  Augusta  ", "FirstName", "Augusta Byron Lovelace")]
+    [InlineData("  Ada   Byron  Lovelace  ", "  King  ", "LastName", "Ada Byron King")]
+    [InlineData("Ada\tByron  Lovelace\n", "King", "LastName", "Ada\tByron King")]
+    [InlineData("\u00A0Ada\u00A0  Lovelace\u00A0", "Grace", "FirstName", "Grace Lovelace")]
+    [InlineData("Jean-Luc O'Neill, Jr.", "Smith-Jones", "LastName", "Jean-Luc O'Neill, Smith-Jones")]
+    [InlineData("|Ada|  |Lovelace|", "--Grace--", "FirstName", "--Grace-- |Lovelace|")]
+    [InlineData("mCdonald SMITH", "ADA", "FirstName", "ADA SMITH")]
+    [InlineData("Ada Smith", "  Mary   Jane  ", "FirstName", "Mary   Jane Smith")]
+    [InlineData("---", "Ada", "LastName", "--- Ada")]
+    [InlineData("Ada Lovelace", "Byron", "FullName", "Ada Byron")]
+    [InlineData("Ada Lovelace", "Byron", "Unknown", "Ada Byron")]
+    [InlineData("Ada Lovelace", "Byron", "PhoneNumber", "Ada Byron")]
+    public void MergeNameParts_ShouldPreserveExactSemantics(
+        string existingValue,
+        string newValue,
+        string resultFieldKind,
+        string expected)
+    {
+        // Act
+        var result = InvokeMergeNameParts(
+            existingValue,
+            newValue,
+            Enum.Parse<DataExtractionService.ExtractionFieldKind>(resultFieldKind));
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void MergeNameParts_ShouldMatchLegacyImplementationAcrossInputMatrix()
+    {
+        // Arrange
+        string[] existingValues =
+        [
+            null,
+            "",
+            " ",
+            "\t\r\n",
+            "\u00A0",
+            "Ada",
+            "  Ada  ",
+            "Ada Lovelace",
+            "  Ada   Byron  Lovelace  ",
+            "Ada\tByron  Lovelace\n",
+            "\u00A0Ada\u00A0  Lovelace\u00A0",
+            "Jean-Luc O'Neill, Jr.",
+            "|Ada|  |Lovelace|",
+            "mCdonald SMITH",
+            "李 小龍",
+            "---",
+        ];
+        string[] newValues =
+        [
+            null,
+            "",
+            " ",
+            "\t\r\n",
+            "Grace",
+            "  Grace  ",
+            "Mary   Jane",
+            "Smith-Jones (III)",
+            "O'Connor, Jr.",
+            "김민수",
+            "\u00A0李 小龍\u00A0",
+        ];
+
+        // Act and assert
+        foreach (var existingValue in existingValues)
+        {
+            foreach (var newValue in newValues)
+            {
+                foreach (var resultFieldKind in Enum.GetValues<DataExtractionService.ExtractionFieldKind>())
+                {
+                    var expected = MergeNamePartsLegacy(existingValue, newValue, resultFieldKind);
+                    var actual = InvokeMergeNameParts(existingValue, newValue, resultFieldKind);
+
+                    Assert.True(
+                        string.Equals(expected, actual, StringComparison.Ordinal),
+                        $"Mismatch for existing '{existingValue}', incoming '{newValue}', and kind '{resultFieldKind}'.");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task BuildExtractionPromptAsync_WithNoEntries_ShouldPreserveEmptyProjectionAndArgumentOrder()
+    {
+        // Arrange
+        var templateService = new Mock<ITemplateService>();
+        IDictionary<string, object> promptArguments = null;
+        using var cancellation = new CancellationTokenSource();
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), cancellation.Token))
+            .Callback<string, IDictionary<string, object>, CancellationToken>((_, arguments, _) => promptArguments = arguments)
+            .ReturnsAsync("empty projection");
+        var service = CreateService(
+            new Mock<IAIClientFactory>(),
+            templateService,
+            new Mock<IAIDeploymentManager>());
+
+        // Act
+        var result = await InvokeBuildExtractionPromptAsync(
+            service,
+            [],
+            new AIChatSession
+            {
+                ExtractedData = null,
+            },
+            [new AIChatSessionPrompt { Role = ChatRole.User, Content = "  latest message  " }],
+            cancellation.Token);
+
+        // Assert
+        Assert.Equal("empty projection", result);
+        Assert.NotNull(promptArguments);
+        Assert.Equal(["fields", "currentState", "lastUserMessage"], promptArguments.Keys);
+        Assert.Equal("[]", JsonSerializer.Serialize(promptArguments["fields"]));
+        Assert.Equal("[]", JsonSerializer.Serialize(promptArguments["currentState"]));
+        Assert.Equal("latest message", promptArguments["lastUserMessage"]);
+        Assert.True(promptArguments.ContainsKey("FIELDS"));
+        templateService.Verify(service => service.RenderAsync(
+            AITemplateIds.DataExtractionPrompt,
+            It.Is<IDictionary<string, object>>(arguments => ReferenceEquals(arguments, promptArguments)),
+            cancellation.Token), Times.Once);
+    }
+
+    [Fact]
+    public async Task BuildExtractionPromptAsync_WithOneNullValuedEntry_ShouldPreserveAnonymousShape()
+    {
+        // Arrange
+        var templateService = new Mock<ITemplateService>();
+        IDictionary<string, object> promptArguments = null;
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IDictionary<string, object>, CancellationToken>((_, arguments, _) => promptArguments = arguments)
+            .ReturnsAsync("single projection");
+        var service = CreateService(
+            new Mock<IAIClientFactory>(),
+            templateService,
+            new Mock<IAIDeploymentManager>());
+
+        // Act
+        var result = await InvokeBuildExtractionPromptAsync(
+            service,
+            [
+                new DataExtractionEntry
+                {
+                    Name = null,
+                    Description = null,
+                    AllowMultipleValues = true,
+                    IsUpdatable = true,
+                },
+            ],
+            new AIChatSession(),
+            [
+                new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = null },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "value" },
+            ],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("single projection", result);
+        Assert.NotNull(promptArguments);
+        Assert.Equal(["fields", "currentState", "lastUserMessage"], promptArguments.Keys);
+        Assert.Equal(
+            """[{"Name":null,"Description":null,"AllowMultipleValues":true,"IsUpdatable":true}]""",
+            JsonSerializer.Serialize(promptArguments["fields"]));
+        Assert.Equal("[]", JsonSerializer.Serialize(promptArguments["currentState"]));
+    }
+
+    [Fact]
+    public async Task BuildExtractionPromptAsync_WithManyEntries_ShouldPreserveOrderDuplicatesAliasesExamplesAndCurrentState()
+    {
+        // Arrange
+        var templateService = new Mock<ITemplateService>();
+        IDictionary<string, object> promptArguments = null;
+        using var cancellation = new CancellationTokenSource();
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), cancellation.Token))
+            .Callback<string, IDictionary<string, object>, CancellationToken>((_, arguments, _) => promptArguments = arguments)
+            .ReturnsAsync("many projection");
+        var service = CreateService(
+            new Mock<IAIClientFactory>(),
+            templateService,
+            new Mock<IAIDeploymentManager>());
+        List<DataExtractionEntry> fields =
+        [
+            new()
+            {
+                Name = "customer_name",
+                Description = "Aliases: fullName, display name. Examples: Ada Lovelace; 李 小龍.",
+                IsUpdatable = true,
+            },
+            new()
+            {
+                Name = "customer_name",
+                Description = null,
+                AllowMultipleValues = true,
+            },
+            new()
+            {
+                Name = "email",
+                Description = "Aliases: e-mail. Examples: ada@example.com.",
+                AllowMultipleValues = true,
+                IsUpdatable = true,
+            },
+        ];
+        var session = new AIChatSession
+        {
+            ExtractedData =
+            {
+                ["empty"] = new ExtractedFieldState(),
+                ["null-state"] = null,
+                ["customer_name"] = new ExtractedFieldState
+                {
+                    Values = ["Ada Lovelace", null, "", "  李 小龍  "],
+                },
+                ["email"] = new ExtractedFieldState
+                {
+                    Values = ["ada@example.com"],
+                },
+            },
+        };
+        AIChatSessionPrompt[] prompts =
+        [
+            new() { Role = ChatRole.User, Content = "older user" },
+            new() { Role = ChatRole.Assistant, Content = "  nearest assistant  " },
+            new() { Role = ChatRole.User, Content = "  latest user  " },
+            new() { Role = ChatRole.Assistant, Content = "ignored later assistant" },
+        ];
+
+        // Act
+        var result = await InvokeBuildExtractionPromptAsync(
+            service,
+            fields,
+            session,
+            prompts,
+            cancellation.Token);
+
+        // Assert
+        Assert.Equal("many projection", result);
+        Assert.NotNull(promptArguments);
+        Assert.Equal(
+            ["fields", "currentState", "lastUserMessage", "lastAssistantMessage"],
+            promptArguments.Keys);
+        Assert.Equal(
+            """[{"Name":"customer_name","Description":"Aliases: fullName, display name. Examples: Ada Lovelace; \u674E \u5C0F\u9F8D.","AllowMultipleValues":false,"IsUpdatable":true},{"Name":"customer_name","Description":null,"AllowMultipleValues":true,"IsUpdatable":false},{"Name":"email","Description":"Aliases: e-mail. Examples: ada@example.com.","AllowMultipleValues":true,"IsUpdatable":true}]""",
+            JsonSerializer.Serialize(promptArguments["fields"]));
+        Assert.Equal(
+            """[{"Name":"customer_name","Values":["Ada Lovelace",null,"","  \u674E \u5C0F\u9F8D  "]},{"Name":"email","Values":["ada@example.com"]}]""",
+            JsonSerializer.Serialize(promptArguments["currentState"]));
+        Assert.Equal("latest user", promptArguments["lastUserMessage"]);
+        Assert.Equal("nearest assistant", promptArguments["lastAssistantMessage"]);
+        templateService.Verify(service => service.RenderAsync(
+            AITemplateIds.DataExtractionPrompt,
+            It.Is<IDictionary<string, object>>(arguments => ReferenceEquals(arguments, promptArguments)),
+            cancellation.Token), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t\r\n ")]
+    public async Task BuildExtractionPromptAsync_WhenLatestUserMessageIsEmpty_ShouldNotInvokeTemplate(string content)
+    {
+        // Arrange
+        var templateService = new Mock<ITemplateService>();
+        var service = CreateService(
+            new Mock<IAIClientFactory>(),
+            templateService,
+            new Mock<IAIDeploymentManager>());
+
+        // Act
+        var result = await InvokeBuildExtractionPromptAsync(
+            service,
+            [new DataExtractionEntry { Name = "email" }],
+            new AIChatSession(),
+            [
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = "older usable message" },
+                new AIChatSessionPrompt { Role = ChatRole.User, Content = content },
+            ],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(result);
+        templateService.Verify(service => service.RenderAsync(
+            It.IsAny<string>(),
+            It.IsAny<IDictionary<string, object>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task BuildExtractionPromptAsync_WhenNoUserMessageExists_ShouldNotInvokeTemplate()
+    {
+        // Arrange
+        var templateService = new Mock<ITemplateService>();
+        var service = CreateService(
+            new Mock<IAIClientFactory>(),
+            templateService,
+            new Mock<IAIDeploymentManager>());
+
+        // Act
+        var result = await InvokeBuildExtractionPromptAsync(
+            service,
+            [new DataExtractionEntry { Name = "email" }],
+            new AIChatSession(),
+            [new AIChatSessionPrompt { Role = ChatRole.Assistant, Content = "assistant only" }],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(result);
+        templateService.Verify(service => service.RenderAsync(
+            It.IsAny<string>(),
+            It.IsAny<IDictionary<string, object>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task BuildExtractionPromptAsync_WhenTemplateIsCanceled_ShouldPropagateCancellation()
+    {
+        // Arrange
+        var templateService = new Mock<ITemplateService>();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), cancellation.Token))
+            .Returns((string _, IDictionary<string, object> _, CancellationToken token) => Task.FromCanceled<string>(token));
+        var service = CreateService(
+            new Mock<IAIClientFactory>(),
+            templateService,
+            new Mock<IAIDeploymentManager>());
+
+        // Act and assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InvokeBuildExtractionPromptAsync(
+            service,
+            [new DataExtractionEntry { Name = "email" }],
+            new AIChatSession(),
+            [new AIChatSessionPrompt { Role = ChatRole.User, Content = "value" }],
+            cancellation.Token));
+        templateService.Verify(service => service.RenderAsync(
+            AITemplateIds.DataExtractionPrompt,
+            It.IsAny<IDictionary<string, object>>(),
+            cancellation.Token), Times.Once);
+    }
+
+    [Fact]
+    public async Task BuildExtractionPromptAsync_WhenTemplateThrows_ShouldPropagateError()
+    {
+        // Arrange
+        var templateService = new Mock<ITemplateService>();
+        var expected = new InvalidOperationException("template failure");
+        templateService.Setup(service => service
+            .RenderAsync(AITemplateIds.DataExtractionPrompt, It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(expected);
+        var service = CreateService(
+            new Mock<IAIClientFactory>(),
+            templateService,
+            new Mock<IAIDeploymentManager>());
+
+        // Act
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => InvokeBuildExtractionPromptAsync(
+            service,
+            [new DataExtractionEntry { Name = "email" }],
+            new AIChatSession(),
+            [new AIChatSessionPrompt { Role = ChatRole.User, Content = "value" }],
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Same(expected, exception);
     }
 
     [Fact]
@@ -986,5 +1372,81 @@ public sealed class DataExtractionServiceTests
             Role = ChatRole.User,
             Content = message,
         }).ToArray();
+    }
+
+    /// <summary>
+    /// Invokes the private name-merging implementation so its legacy behavior can be locked before optimization.
+    /// </summary>
+    /// <param name="existingValue">The currently extracted value.</param>
+    /// <param name="newValue">The incoming name part.</param>
+    /// <param name="resultFieldKind">The incoming field kind.</param>
+    /// <returns>The merged value.</returns>
+    private static string InvokeMergeNameParts(
+        string existingValue,
+        string newValue,
+        DataExtractionService.ExtractionFieldKind resultFieldKind)
+    {
+        return (string)MergeNamePartsMethod.Invoke(null, [existingValue, newValue, resultFieldKind]);
+    }
+
+    /// <summary>
+    /// Captures the pre-optimization name-merging implementation for differential verification.
+    /// </summary>
+    /// <param name="existingValue">The currently extracted value.</param>
+    /// <param name="newValue">The incoming name part.</param>
+    /// <param name="resultFieldKind">The incoming field kind.</param>
+    /// <returns>The merged value.</returns>
+    private static string MergeNamePartsLegacy(
+        string existingValue,
+        string newValue,
+        DataExtractionService.ExtractionFieldKind resultFieldKind)
+    {
+        if (string.IsNullOrWhiteSpace(newValue))
+        {
+            return existingValue;
+        }
+
+        if (string.IsNullOrWhiteSpace(existingValue))
+        {
+            return newValue.Trim();
+        }
+
+        var existingParts = existingValue.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var incomingValue = newValue.Trim();
+
+        if (resultFieldKind == DataExtractionService.ExtractionFieldKind.FirstName)
+        {
+            return existingParts.Length > 1
+                ? string.Join(' ', [incomingValue, .. existingParts.Skip(1)])
+                : incomingValue;
+        }
+
+        if (existingParts.Length > 1)
+        {
+            return string.Join(' ', [.. existingParts.Take(existingParts.Length - 1), incomingValue]);
+        }
+
+        return string.Concat(existingParts[0], " ", incomingValue);
+    }
+
+    /// <summary>
+    /// Invokes prompt construction directly so projection behavior can be tested independently of extraction matching.
+    /// </summary>
+    /// <param name="service">The data extraction service.</param>
+    /// <param name="fieldsToExtract">The fields to project.</param>
+    /// <param name="session">The current chat session.</param>
+    /// <param name="prompts">The available chat prompts.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The rendered prompt.</returns>
+    private static Task<string> InvokeBuildExtractionPromptAsync(
+        DataExtractionService service,
+        List<DataExtractionEntry> fieldsToExtract,
+        AIChatSession session,
+        IReadOnlyList<AIChatSessionPrompt> prompts,
+        CancellationToken cancellationToken)
+    {
+        return (Task<string>)BuildExtractionPromptAsyncMethod.Invoke(
+            service,
+            [fieldsToExtract, session, prompts, cancellationToken]);
     }
 }
