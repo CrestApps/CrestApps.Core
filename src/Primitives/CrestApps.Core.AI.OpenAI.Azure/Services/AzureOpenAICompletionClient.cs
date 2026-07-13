@@ -106,26 +106,9 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             return null;
         }
 
-        var azureMessages = new List<ChatMessage>();
-        var currentPrompt = string.Empty;
-        foreach (var message in messages)
-        {
-            if (message.Role == Microsoft.Extensions.AI.ChatRole.User)
-            {
-                var userMessage = CreateUserMessage(message);
-
-                if (userMessage != null)
-                {
-                    azureMessages.Add(userMessage);
-                    currentPrompt = message.Text;
-                }
-            }
-            else if (message.Role == Microsoft.Extensions.AI.ChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text))
-            {
-                azureMessages.Add(new AssistantChatMessage(message.Text));
-            }
-        }
-
+        var azureMessages = AzureOpenAIChatMessageConverter.Convert(
+            messages,
+            context.PastMessagesCount);
         var prompts = GetPrompts(context, azureMessages);
         var connectionName = deployment.ConnectionName;
         var azureClient = GetChatClient(connectionProperties);
@@ -214,27 +197,9 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             yield break;
         }
 
-        var azureMessages = new List<ChatMessage>();
-        string currentPrompt;
-
-        foreach (var message in messages)
-        {
-            if (message.Role == Microsoft.Extensions.AI.ChatRole.User)
-            {
-                var userMessage = CreateUserMessage(message);
-
-                if (userMessage != null)
-                {
-                    azureMessages.Add(userMessage);
-                    currentPrompt = message.Text;
-                }
-            }
-            else if (message.Role == Microsoft.Extensions.AI.ChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text))
-            {
-                azureMessages.Add(new AssistantChatMessage(message.Text));
-            }
-        }
-
+        var azureMessages = AzureOpenAIChatMessageConverter.Convert(
+            messages,
+            context.PastMessagesCount);
         var connectionName = deployment.ConnectionName;
         var azureClient = GetChatClient(connection);
         var chatClient = azureClient.GetChatClient(deployment.ModelName);
@@ -455,42 +420,6 @@ omit optional fields, or split the operation into multiple smaller calls.
         }
 
         return optionsContext.SystemFunctions;
-    }
-
-    private static UserChatMessage CreateUserMessage(Microsoft.Extensions.AI.ChatMessage message)
-    {
-        if (message.Contents is not { Count: > 0 })
-        {
-            return string.IsNullOrWhiteSpace(message.Text)
-                ? null
-                : new UserChatMessage(message.Text);
-        }
-
-        var parts = new List<ChatMessageContentPart>();
-
-        foreach (var content in message.Contents)
-        {
-            switch (content)
-            {
-                case Microsoft.Extensions.AI.TextContent textContent when !string.IsNullOrWhiteSpace(textContent.Text):
-                    parts.Add(ChatMessageContentPart.CreateTextPart(textContent.Text));
-                    break;
-                case Microsoft.Extensions.AI.DataContent dataContent when dataContent.Data is { Length: > 0 } && !string.IsNullOrWhiteSpace(dataContent.MediaType):
-                    parts.Add(ChatMessageContentPart.CreateImagePart(
-                        BinaryData.FromBytes(dataContent.Data.ToArray()),
-                        dataContent.MediaType));
-                    break;
-            }
-        }
-
-        if (parts.Count == 0)
-        {
-            return string.IsNullOrWhiteSpace(message.Text)
-                ? null
-                : new UserChatMessage(message.Text);
-        }
-
-        return new UserChatMessage(parts);
     }
 
     private static ChatCompletionOptions GetOptions(AICompletionContext context, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)

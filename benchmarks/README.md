@@ -958,6 +958,81 @@ eager filtering, custom enumerables are acquired and consumed once, iterator exc
 the call and disposal still occurs, and `int.MinValue` through `1` continue to mean all eligible history
 while positive values above `1`, including `int.MaxValue`, mean the eligible tail.
 
+## Azure OpenAI history conversion before tail selection
+
+Run the text and image comparisons from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*AzureOpenAICompletionClient*HistoryBenchmarks*'
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8's short-run job on .NET 10.0.5
+and an Apple M2. Dense inputs make every raw message eligible. Sparse inputs make one message
+in ten eligible and distribute the remainder across system, tool, unknown, empty, whitespace,
+unsupported-content, and image-only assistant messages. Global setup compares the captured
+legacy implementation with the production converter and fails unless SDK message types, content
+kind and order, text, media type, and image bytes are exactly equivalent.
+
+| Raw messages | K | Eligibility | Legacy convert-all | Current bounded conversion |
+| ---: | ---: | --- | ---: | ---: |
+| 10 | 10 | Dense text | 827.4 ns / 5.71 KB | 1,007.0 ns / 6.01 KB |
+| 10 | 10 | Sparse | 292.5 ns / 1.28 KB | 319.8 ns / 1.87 KB |
+| 10 | 50 | Dense text | 859.6 ns / 5.71 KB | 1,120.9 ns / 8.82 KB |
+| 10 | 50 | Sparse | 286.9 ns / 1.28 KB | 634.0 ns / 4.68 KB |
+| 1,000 | 10 | Dense text | 112.240 us / 489.53 KB | 34.961 us / 25.34 KB |
+| 1,000 | 10 | Sparse | 25.929 us / 71.16 KB | 19.510 us / 19.48 KB |
+| 1,000 | 50 | Dense text | 101.468 us / 489.84 KB | 28.150 us / 45.81 KB |
+| 1,000 | 50 | Sparse | 48.259 us / 71.48 KB | 30.926 us / 39.95 KB |
+| 10,000 | 10 | Dense text | 11.308 ms / 4,983.66 KB | 0.299 ms / 201.13 KB |
+| 10,000 | 10 | Sparse | 0.912 ms / 700.47 KB | 0.152 ms / 142.53 KB |
+| 10,000 | 50 | Dense text | 6.214 ms / 4,983.99 KB | 0.288 ms / 221.59 KB |
+| 10,000 | 50 | Sparse | 0.237 ms / 700.78 KB | 0.130 ms / 163 KB |
+
+Image cases use a 256 KB image on every tenth eligible message. They are intentionally scaled
+to 10, 100, and 1,000 raw messages instead of 10,000 to keep repeated eager Base64 data-URI
+creation practical while preserving the same eligibility and retention ratios.
+
+| Raw messages | K | Eligibility | Legacy convert-all | Current bounded conversion |
+| ---: | ---: | --- | ---: | ---: |
+| 10 | 10 | Dense | 192.7 us / 1.84 MB | 191.8 us / 1.84 MB |
+| 10 | 10 | Sparse | 218.0 us / 1.84 MB | 198.8 us / 1.84 MB |
+| 10 | 50 | Dense | 301.0 us / 1.84 MB | 166.3 us / 1.84 MB |
+| 10 | 50 | Sparse | 702.4 us / 1.84 MB | 850.3 us / 1.84 MB |
+| 100 | 10 | Dense | 4.918 ms / 18.39 MB | 0.548 ms / 4.10 MB |
+| 100 | 10 | Sparse | 0.232 ms / 1.84 MB | 0.158 ms / 1.84 MB |
+| 100 | 50 | Dense | 2.205 ms / 18.39 MB | 0.990 ms / 10.45 MB |
+| 100 | 50 | Sparse | 0.154 ms / 1.84 MB | 0.159 ms / 1.84 MB |
+| 1,000 | 10 | Dense | 20.247 ms / 183.86 MB | 1.627 ms / 26.64 MB |
+| 1,000 | 10 | Sparse | 2.547 ms / 18.41 MB | 0.317 ms / 4.11 MB |
+| 1,000 | 50 | Dense | 23.066 ms / 183.87 MB | 2.394 ms / 33.00 MB |
+| 1,000 | 50 | Sparse | 1.923 ms / 18.41 MB | 1.019 ms / 10.46 MB |
+
+The change is retained because realistic bounded histories show material reductions. At 10,000
+text messages, allocations fall 76.7-96.0%; at 1,000 image-bearing messages they fall 43.2-85.5%.
+Large-case latency also improves substantially, but the short-run timing errors were high, so the
+allocation totals are the primary acceptance evidence. Ten-message controls receive no avoided SDK
+work when all eligible messages fit within `K`; the pending ring can therefore be neutral or slower
+and allocate more.
+
+`PastMessagesCount <= 1` still takes the original immediate convert-all path. For larger values, the
+converter enumerates once, classifies every raw message in encounter order, and retains a ring of the
+last `K` messages that would have converted successfully. User eligibility still accepts non-whitespace
+text parts and any non-empty `DataContent` with a non-whitespace media type, ignores unsupported parts,
+and falls back to aggregate message text only when no supported part remains. Assistant eligibility
+still uses non-whitespace aggregate text; system, tool, unknown, and otherwise ineligible entries are
+not counted. Null entries still throw, and the system prompt remains outside the history count.
+
+All raw property and content reads needed by conversion still occur at encounter time, including the
+otherwise-unused successful-user text read. Consequently, exceptions from null entries, custom content
+collections, getters, and source iterators still occur in source order even for candidates later evicted
+from the ring. Text and media values are captured immediately, and image bytes are copied immediately,
+so later mutation cannot affect retained prompts. Only the retained SDK message/content objects and
+their eager Base64 image data URIs are deferred. Role and content order, duplicate occurrences, image
+ownership, deployment and request options, cancellation, streaming behavior, logging, and error
+handling remain unchanged.
+
 ## Azure OpenAI streaming tool-call argument accumulation
 
 Run the complete comparison from the repository root:
