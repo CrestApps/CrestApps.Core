@@ -865,3 +865,95 @@ SignalR semantics are unchanged: empty audio data is skipped; each non-empty fir
 in source order; `ReceiveAudioComplete(identifier)` remains after the full speech stream
 or after each synthesized sentence. Cancellation flow, voice options, logging, media type
 selection, and exception behavior are untouched.
+
+## Named AI completion prompt tail selection
+
+Run the complete comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*NamedAICompletionClientPromptsBenchmarks*'
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8's short-run job on .NET 10.0.5
+and an Apple M2. Dense inputs make every message eligible. Sparse inputs make one message
+in ten eligible and distribute the remainder across system, tool, unknown, and content-free
+user or assistant messages. Iterator cases create a fresh forward-only enumerable per call.
+Global setup verifies exact role, text, content count, order, and source-object identity.
+
+| Messages | K | Eligibility | Input | Legacy materialize-all | Current bounded ring | Change |
+| ---: | ---: | --- | --- | ---: | ---: | ---: |
+| 10 | 1 | Dense | List | 191.2 ns / 608 B | 190.5 ns / 608 B | 0.4% faster / allocations unchanged |
+| 10 | 1 | Dense | Iterator | 246.1 ns / 656 B | 250.7 ns / 656 B | 1.9% slower / allocations unchanged |
+| 10 | 1 | Sparse | List | 117.5 ns / 424 B | 115.2 ns / 424 B | 2.0% faster / allocations unchanged |
+| 10 | 1 | Sparse | Iterator | 154.5 ns / 472 B | 154.4 ns / 472 B | 0.1% faster / allocations unchanged |
+| 10 | 2 | Dense | List | 195.2 ns / 592 B | 181.4 ns / 432 B | 7.1% faster / 27.0% fewer allocations |
+| 10 | 2 | Dense | Iterator | 258.8 ns / 640 B | 209.5 ns / 480 B | 19.0% faster / 25.0% fewer allocations |
+| 10 | 2 | Sparse | List | 137.0 ns / 520 B | 119.8 ns / 432 B | 12.6% faster / 16.9% fewer allocations |
+| 10 | 2 | Sparse | Iterator | 178.4 ns / 568 B | 145.5 ns / 480 B | 18.4% faster / 15.5% fewer allocations |
+| 10 | 20 | Dense | List | 216.6 ns / 704 B | 223.0 ns / 800 B | 3.0% slower / 13.6% more allocations |
+| 10 | 20 | Dense | Iterator | 273.5 ns / 752 B | 242.7 ns / 848 B | 11.3% faster / 12.8% more allocations |
+| 10 | 20 | Sparse | List | 137.9 ns / 520 B | 118.4 ns / 448 B | 14.1% faster / 13.8% fewer allocations |
+| 10 | 20 | Sparse | Iterator | 176.2 ns / 568 B | 145.7 ns / 496 B | 17.3% faster / 12.7% fewer allocations |
+| 10 | 200 | Dense | List | 221.6 ns / 704 B | 221.8 ns / 800 B | 0.1% slower / 13.6% more allocations |
+| 10 | 200 | Dense | Iterator | 268.3 ns / 752 B | 244.9 ns / 848 B | 8.7% faster / 12.8% more allocations |
+| 10 | 200 | Sparse | List | 135.8 ns / 520 B | 119.2 ns / 448 B | 12.2% faster / 13.8% fewer allocations |
+| 10 | 200 | Sparse | Iterator | 175.5 ns / 568 B | 144.4 ns / 496 B | 17.7% faster / 12.7% fewer allocations |
+| 1,000 | 1 | Dense | List | 9,370.7 ns / 16,448 B | 9,331.2 ns / 16,448 B | 0.4% faster / allocations unchanged |
+| 1,000 | 1 | Dense | Iterator | 16,713.8 ns / 16,496 B | 16,738.0 ns / 16,496 B | 0.1% slower / allocations unchanged |
+| 1,000 | 1 | Sparse | List | 5,552.6 ns / 2,048 B | 5,499.1 ns / 2,048 B | 1.0% faster / allocations unchanged |
+| 1,000 | 1 | Sparse | Iterator | 7,264.9 ns / 2,096 B | 7,309.6 ns / 2,096 B | 0.6% slower / allocations unchanged |
+| 1,000 | 2 | Dense | List | 8,949.8 ns / 8,512 B | 10,475.8 ns / 432 B | 17.1% slower / 94.9% fewer allocations |
+| 1,000 | 2 | Dense | Iterator | 16,283.1 ns / 8,560 B | 12,543.3 ns / 480 B | 23.0% faster / 94.4% fewer allocations |
+| 1,000 | 2 | Sparse | List | 5,527.1 ns / 1,312 B | 5,748.1 ns / 432 B | 4.0% slower / 67.1% fewer allocations |
+| 1,000 | 2 | Sparse | Iterator | 7,233.7 ns / 1,360 B | 7,403.2 ns / 480 B | 2.3% slower / 64.7% fewer allocations |
+| 1,000 | 20 | Dense | List | 8,935.4 ns / 8,704 B | 10,884.5 ns / 1,160 B | 21.8% slower / 86.7% fewer allocations |
+| 1,000 | 20 | Dense | Iterator | 16,127.3 ns / 8,752 B | 16,056.3 ns / 1,208 B | 0.4% faster / 86.2% fewer allocations |
+| 1,000 | 20 | Sparse | List | 5,505.8 ns / 1,504 B | 5,584.6 ns / 1,160 B | 1.4% slower / 22.9% fewer allocations |
+| 1,000 | 20 | Sparse | Iterator | 7,250.2 ns / 1,552 B | 7,646.5 ns / 1,208 B | 5.5% slower / 22.2% fewer allocations |
+| 1,000 | 200 | Dense | List | 8,968.6 ns / 10,144 B | 10,931.9 ns / 6,256 B | 21.9% slower / 38.3% fewer allocations |
+| 1,000 | 200 | Dense | Iterator | 16,077.8 ns / 10,192 B | 12,688.9 ns / 6,304 B | 21.1% faster / 38.1% fewer allocations |
+| 1,000 | 200 | Sparse | List | 5,573.7 ns / 2,144 B | 5,695.0 ns / 3,384 B | 2.2% slower / 57.8% more allocations |
+| 1,000 | 200 | Sparse | Iterator | 7,355.3 ns / 2,192 B | 7,697.9 ns / 3,432 B | 4.7% slower / 56.6% more allocations |
+| 100,000 | 1 | Dense | List | 1,112,234.6 ns / 1,600,615 B | 1,101,836.2 ns / 1,600,567 B | 0.9% faster / allocations unchanged |
+| 100,000 | 1 | Dense | Iterator | 1,786,643.4 ns / 1,600,627 B | 1,780,027.5 ns / 1,600,630 B | 0.4% faster / allocations unchanged |
+| 100,000 | 1 | Sparse | List | 558,109.7 ns / 160,448 B | 555,761.8 ns / 160,448 B | 0.4% faster / allocations unchanged |
+| 100,000 | 1 | Sparse | Iterator | 732,389.7 ns / 160,496 B | 733,427.0 ns / 160,496 B | 0.1% slower / allocations unchanged |
+| 100,000 | 2 | Dense | List | 965,993.2 ns / 800,587 B | 1,067,554.3 ns / 432 B | 10.5% slower / 99.9% fewer allocations |
+| 100,000 | 2 | Dense | Iterator | 1,643,718.0 ns / 800,629 B | 1,282,382.3 ns / 480 B | 22.0% faster / 99.9% fewer allocations |
+| 100,000 | 2 | Sparse | List | 551,145.1 ns / 80,512 B | 582,443.6 ns / 432 B | 5.7% slower / 99.5% fewer allocations |
+| 100,000 | 2 | Sparse | Iterator | 724,921.8 ns / 80,560 B | 752,516.2 ns / 480 B | 3.8% slower / 99.4% fewer allocations |
+| 100,000 | 20 | Dense | List | 974,078.9 ns / 800,798 B | 1,057,952.1 ns / 1,160 B | 8.6% slower / 99.9% fewer allocations |
+| 100,000 | 20 | Dense | Iterator | 1,665,903.7 ns / 800,934 B | 1,647,166.5 ns / 1,208 B | 1.1% faster / 99.8% fewer allocations |
+| 100,000 | 20 | Sparse | List | 549,588.6 ns / 80,704 B | 586,941.8 ns / 1,160 B | 6.8% slower / 98.6% fewer allocations |
+| 100,000 | 20 | Sparse | Iterator | 720,881.9 ns / 80,752 B | 742,695.7 ns / 1,208 B | 3.0% slower / 98.5% fewer allocations |
+| 100,000 | 200 | Dense | List | 956,548.8 ns / 802,216 B | 1,044,477.3 ns / 6,256 B | 9.2% slower / 99.2% fewer allocations |
+| 100,000 | 200 | Dense | Iterator | 1,661,164.6 ns / 802,306 B | 1,228,016.1 ns / 6,304 B | 26.1% faster / 99.2% fewer allocations |
+| 100,000 | 200 | Sparse | List | 550,765.2 ns / 82,144 B | 581,523.8 ns / 6,256 B | 5.6% slower / 92.4% fewer allocations |
+| 100,000 | 200 | Sparse | Iterator | 717,144.7 ns / 82,192 B | 740,981.1 ns / 6,304 B | 3.3% slower / 92.3% fewer allocations |
+
+The `K <= 1` control intentionally remains the original materialize-all branch; its allocations are
+identical and timing differences are noise. For `K > 1`, the retained implementation enumerates the
+filtered sequence once and keeps at most `K` eligible references in a small ring. At 100,000 messages,
+it removes 92.3-99.9% of bounded-history allocations. List timings are 5.6-10.5% slower, adding
+approximately 31-102 microseconds, while iterator timings range from 26.1% faster to 3.8% slower.
+At 1,000 messages, the primary dense-list cases trade approximately 1.5-2.0 microseconds for
+38.3-94.9% fewer allocations. The sparse `K=200` case is recorded rather than hidden: because only
+100 messages qualify, the growing ring allocates about 1.2 KB more than materializing that small
+eligible set.
+
+`Enumerable.TakeLast` was evaluated first and rejected. In the same matrix it made the 100,000-message
+dense-list cases 29-53% slower and the 1,000-message sparse `K=200` cases about 22% slower with more
+than twice the allocations. The retained ring removes those queue and destination-growth costs while
+remaining a one-pass implementation.
+
+Compatibility tests preserve the exact existing contract: only user and assistant roles qualify;
+null text with no content is excluded; empty or null `TextContent`, any non-text content, and whitespace
+text qualify because `Contents.Count` or non-empty `Text` does; system, tool, and unknown roles are
+excluded. The system message is prepended only when non-null and non-empty, so whitespace is retained.
+Eligible order, duplicate references, and source-object identity remain stable. Null sources still throw
+the LINQ `ArgumentNullException` synchronously from prompt selection, null elements still fail during
+eager filtering, custom enumerables are acquired and consumed once, iterator exceptions propagate during
+the call and disposal still occurs, and `int.MinValue` through `1` continue to mean all eligible history
+while positive values above `1`, including `int.MaxValue`, mean the eligible tail.
