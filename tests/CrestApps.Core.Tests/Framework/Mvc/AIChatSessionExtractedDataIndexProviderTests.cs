@@ -44,15 +44,15 @@ public sealed class AIChatSessionExtractedDataIndexProviderTests
         Assert.Equal(5, index.FieldCount);
         Assert.Equal("|ALPHA|alpha|beta|Gamma", index.FieldNames);
         Assert.Equal(
-            """
-            :empty
-            ALPHA:upper
-            ALPHA:
-            alpha:lower
-            alpha:lower
-            beta:b1
-            beta:b2
-            """,
+            string.Join(
+                '\n',
+                ":empty",
+                "ALPHA:upper",
+                "ALPHA:",
+                "alpha:lower",
+                "alpha:lower",
+                "beta:b1",
+                "beta:b2"),
             index.ValuesText);
     }
 
