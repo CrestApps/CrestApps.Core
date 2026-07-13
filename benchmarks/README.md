@@ -827,3 +827,41 @@ Characterization tests preserve null-to-empty behavior, CR/LF/CRLF handling inde
 the existing leading-line-ending `> 0` behavior, the 200 UTF-16-code-unit cap before trimming, tabs and
 Unicode whitespace, split surrogate pairs, large single-line inputs, and equal but independently
 allocated clean-title output.
+
+## Speech audio chunk Base64 encoding
+
+Run the audio chunk encoding comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*AudioChunkBase64EncodingBenchmarks*'
+```
+
+The measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured iterations,
+.NET 10.0.5, and an Apple M2. Each operation encodes 256 x 256 B, 64 x 4 KB,
+16 x 64 KB, or 4 x 1 MB chunks. Sliced cases use a 17-byte non-zero offset with
+guard data on both sides, and setup verifies exact output equivalence before measuring.
+
+| Chunk size / count | Memory | `ToArray` + Base64 | Span Base64 | Change |
+| --- | --- | ---: | ---: | ---: |
+| 256 B / 256 | Contiguous | 17.63 us / 248 KB | 12.10 us / 178 KB | 31.4% faster / 28.2% fewer allocations |
+| 256 B / 256 | Sliced | 18.42 us / 248 KB | 12.15 us / 178 KB | 34.0% faster / 28.2% fewer allocations |
+| 4 KB / 64 | Contiguous | 62.69 us / 942 KB | 52.30 us / 684.5 KB | 16.6% faster / 27.3% fewer allocations |
+| 4 KB / 64 | Sliced | 63.25 us / 942 KB | 53.02 us / 684.5 KB | 16.2% faster / 27.3% fewer allocations |
+| 64 KB / 16 | Contiguous | 440.28 us / 3,756.08 KB | 390.33 us / 2,731.71 KB | 11.3% faster / 27.3% fewer allocations |
+| 64 KB / 16 | Sliced | 440.70 us / 3,756.08 KB | 395.28 us / 2,731.71 KB | 10.3% faster / 27.3% fewer allocations |
+| 1 MB / 4 | Contiguous | 1,105.20 us / 15,019.92 KB | 891.85 us / 10,923.62 KB | 19.3% faster / 27.3% fewer allocations |
+| 1 MB / 4 | Sliced | 1,137.91 us / 15,019.93 KB | 910.76 us / 10,923.60 KB | 20.0% faster / 27.3% fewer allocations |
+
+The retained change passes each selected `ReadOnlyMemory<byte>.Span` directly to
+`Convert.ToBase64String`, removing one chunk-sized array copy while preserving the Base64
+string allocation required by SignalR. Behavior tests cover empty memory, full arrays,
+non-zero-offset slices, deterministic binary data containing `0` and `255`, exact legacy
+Base64 equivalence, both hub types, and both speech streaming methods.
+
+SignalR semantics are unchanged: empty audio data is skipped; each non-empty first
+`DataContent` emits `ReceiveAudioChunk(identifier, base64Audio, mediaType ?? "audio/mp3")`
+in source order; `ReceiveAudioComplete(identifier)` remains after the full speech stream
+or after each synthesized sentence. Cancellation flow, voice options, logging, media type
+selection, and exception behavior are untouched.

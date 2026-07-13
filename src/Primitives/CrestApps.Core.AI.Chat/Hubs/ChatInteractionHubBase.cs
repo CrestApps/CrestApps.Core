@@ -1196,7 +1196,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 continue;
             }
 
-            var base64Audio = Convert.ToBase64String(audioData.ToArray());
+            var base64Audio = Convert.ToBase64String(audioData.Span);
 
             await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
         }
@@ -1247,7 +1247,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     continue;
                 }
 
-                var base64Audio = Convert.ToBase64String(audioData.ToArray());
+                var base64Audio = Convert.ToBase64String(audioData.Span);
                 await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
             }
 
