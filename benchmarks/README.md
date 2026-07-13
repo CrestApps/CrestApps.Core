@@ -489,3 +489,59 @@ for the join. The manual builder improved some large-input timings but allocated
 memory and added complexity, so it did not provide a balanced replacement. Production remains
 unchanged and continues to use the literal LF separator with the maintainable LINQ projection; this
 experiment does not introduce platform-specific separators or additional whitespace normalization.
+
+## Post-session processing helper optimization
+
+Run the complete helper comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*PostSession*'
+```
+
+The measurements below use BenchmarkDotNet 0.15.8, five warmups, twelve measured iterations,
+.NET 10.0.5, and an Apple M2.
+
+### Message text projection
+
+| Messages | Legacy repeated `ChatMessage.Text` reads | Current single read | Change |
+| ---: | ---: | ---: | ---: |
+| 10 | 432.9 ns / 1,344 B | 178.9 ns / 352 B | 58.7% faster / 73.8% fewer allocations |
+| 100 | 4,302.0 ns / 13,080 B | 1,743.8 ns / 3,160 B | 59.5% faster / 75.8% fewer allocations |
+| 1,000 | 43,665.4 ns / 131,880 B | 17,559.4 ns / 31,960 B | 59.8% faster / 75.8% fewer allocations |
+
+The single-read implementation was retained. Microsoft.Extensions.AI 10.7.0 defines
+`ChatMessage.Text` as the ordered concatenation of every `TextContent` item in `Contents`; non-text
+items are ignored. Differential coverage includes a null message, null or empty contents,
+text-free mixed contents, whitespace-only text, multiple text fragments, embedded newlines, and
+direct text. The public processing test also parses JSON split across text items with null and
+binary content interleaved.
+
+### Task-result summary builder experiment
+
+| Results | Retained LINQ + `string.Join` | Capped builder candidate | Change |
+| ---: | ---: | ---: | ---: |
+| 10 | 341.8 ns / 1.59 KB | 162.6 ns / 1.71 KB | 52.4% faster / 8% more allocations |
+| 100 | 3,034.5 ns / 15.32 KB | 1,270.7 ns / 14.67 KB | 58.1% faster / 4.2% fewer allocations |
+| 1,000 | 33,983.0 ns / 153.66 KB | 12,663.6 ns / 145.78 KB | 62.7% faster / 5.1% fewer allocations |
+
+The builder candidate preserved null and empty handling, exact names, separators, newlines,
+whitespace-based value detection, and one source enumeration. It was rejected because the common
+small-result case allocates more, while the larger measured counts are atypical for configured
+post-session tasks. The extra capacity heuristic and loop do not provide a material application-level
+gain for a diagnostic formatter, so production retains the simpler LINQ implementation.
+
+### Prompt projection experiment
+
+| Prompts | Legacy | Unchanged current | Direct loop | Pre-sized direct loop |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 | 330.5 ns / 2.19 KB | 324.6 ns / 2.19 KB | 321.8 ns / 2.13 KB | 308.2 ns / 2.09 KB |
+| 100 | 3,424.7 ns / 21.26 KB | 3,461.3 ns / 21.26 KB | 3,532.4 ns / 22.57 KB | 3,425.2 ns / 21.27 KB |
+| 1,000 | 34,876.4 ns / 214.26 KB | 34,970.3 ns / 214.26 KB | 37,347.3 ns / 223.61 KB | 36,363.7 ns / 215.27 KB |
+
+Production remains unchanged. The legacy and current methods are intentionally identical controls,
+so their timing differences are noise and allocations match exactly. Neither loop candidate produces
+a consistent material latency gain across scales; the direct loop also allocates 6.2% more at 100
+prompts and 4.4% more at 1,000. The existing filter, role mapping, trimming, dictionary shape, and
+ordering are therefore retained.

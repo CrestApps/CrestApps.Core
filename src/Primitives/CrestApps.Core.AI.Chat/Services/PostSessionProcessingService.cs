@@ -992,21 +992,11 @@ public sealed class PostSessionProcessingService
 
     private static string GetMessageText(ChatMessage message)
     {
-        if (message == null)
-        {
-            return null;
-        }
+        var text = message?.Text;
 
-        if (!string.IsNullOrWhiteSpace(message.Text))
-        {
-            return message.Text;
-        }
-
-        var contentText = string.Concat(message.Contents?.OfType<TextContent>().Select(content => content.Text) ?? []);
-
-        return string.IsNullOrWhiteSpace(contentText)
+        return string.IsNullOrWhiteSpace(text)
             ? null
-            : contentText;
+            : text;
     }
 
     private static ITemplateParser ResolveMarkdownTemplateParser(IEnumerable<ITemplateParser> templateParsers)

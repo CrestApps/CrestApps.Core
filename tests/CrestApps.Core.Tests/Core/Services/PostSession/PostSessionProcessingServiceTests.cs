@@ -736,9 +736,9 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WithTools_WhenAssistantResponseUsesContentsText_ShouldParseSuccessfully()
+    public async Task ProcessAsync_WithTools_WhenAssistantResponseUsesMixedContents_ShouldParseSuccessfully()
     {
-        // Arrange: provider returns assistant text through Contents instead of ChatMessage.Text.
+        // Arrange: provider returns the JSON across mixed content items.
         var profile = CreateProfile();
         profile.AlterSettings<AIProfilePostSessionSettings>(s =>
         {
@@ -759,7 +759,14 @@ public sealed class PostSessionProcessingServiceTests
         var responseMessage = new ChatMessage
         {
             Role = ChatRole.Assistant,
-            Contents = [new TextContent("""{"tasks":[{"name":"summary","value":"Customer asked about pricing."}]}""")],
+            Contents =
+            [
+                null,
+                new DataContent(new byte[] { 1, 2, 3 }, "image/png"),
+                new TextContent("{\"tasks\":[{\"name\":\"summary\",\"value\":"),
+                new TextContent("\"Customer asked about pricing.\"}]}"),
+                new DataContent(new byte[] { 4, 5 }, "application/octet-stream"),
+            ],
         };
         var mockChatClient = new Mock<IChatClient>();
         mockChatClient.Setup(c => c
