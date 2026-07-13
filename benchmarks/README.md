@@ -477,6 +477,52 @@ unit behavior, a 23,040-input interaction matrix, and 131,072 BMP-context differ
 timings use five warmups and twelve measured iterations; allocation reductions are deterministic, while
 the small benign and Unicode timing differences should be treated as neutral.
 
+## Output security local scanning
+
+| Scenario | Legacy at `333798a` | Current | Change |
+| --- | ---: | ---: | ---: |
+| Benign output, 256 B | 1.361 us / 72 B | 743.00 ns / 72 B | 45.4% faster |
+| Benign output, 2 KB | 11.282 us / 72 B | 5.797 us / 72 B | 48.6% faster |
+| Benign output, 20 KB | 104.892 us / 72 B | 56.023 us / 72 B | 46.6% faster |
+| Benign output, 20 KB + unique 8 KB system prompt | 273.913 us / 19,232 B | 208.459 us / 72 B | 23.9% faster / 99.6% fewer allocations |
+| System-prompt leak | 124.51 ns / 616 B | 90.49 ns / 248 B | 27.3% faster / 59.7% fewer allocations |
+| Disclosure indicator | 604.06 ns / 248 B | 415.45 ns / 248 B | 31.2% faster |
+| Tool schema disclosure | 113.91 ns / 248 B | 112.47 ns / 248 B | Timing neutral |
+| Tool definition pattern | 204.27 ns / 248 B | 206.18 ns / 248 B | Timing neutral |
+| Sensitive-data SSN | 488.75 ns / 248 B | 472.71 ns / 248 B | 3.3% faster |
+| Sensitive-data credit card | 714.00 ns / 248 B | 693.38 ns / 248 B | 2.9% faster |
+| Unsafe output content | 339.63 ns / 248 B | 328.75 ns / 248 B | 3.2% faster |
+| Mixed findings | 685.90 ns / 5,176 B | 445.65 ns / 352 B | 35.0% faster / 93.2% fewer allocations |
+| Benign output + 96 repeated system-prompt lines | 297.465 us / 20,832 B | 227.190 us / 72 B | 23.6% faster / 99.7% fewer allocations |
+
+The retained implementation enumerates and trims system-prompt lines with spans instead of materializing
+the `Split` array and substrings. It preserves LF splitting, CRLF trimming, the inclusive 50-character
+threshold, and ordinal-ignore-case matching. Exact preconditions avoid invoking the tool-definition regex
+when no literal `{` exists and the unsafe-output regex when none of `<`, `:`, `=`, or `(` exists; every
+possible match requires those literals. No prompt or output content is cached.
+
+The captured legacy/current setup covers 256 B, 2 KB, and 20 KB benign outputs, a 20 KB benign output with
+an 8 KB system prompt, every finding and sensitive-data reason variant, mixed findings, and repeated prompt
+lines. Global setup verifies every observable result field before measurement. The tests add 149 cases and
+more than 271,000 generated legacy/current comparisons, including every BMP code unit in system-line
+trimming/case positions and SSN/card digit positions, all output options, ordering, duplicates, line
+endings, audit behavior, cancellation, and propagated errors.
+
+Two exact-result candidates were rejected:
+
+- Counting nine Unicode decimal digits before running the sensitive-data regexes slowed benign 256 B,
+  2 KB, 20 KB, and 20 KB + 8 KB-system-prompt cases by 9.5%, 3.5%, 12.5%, and 6.1%, respectively, and
+  slowed the SSN and card cases by 5.1% and 4.1%.
+- Suppressing consecutive duplicate substantial system-prompt line scans made the repeated-line case
+  73.7% faster than the retained implementation, but slowed the more representative unique 8 KB system
+  prompt by 7.7% and mixed findings by 6.1%, while adding per-line comparison state.
+
+Run the comparison with:
+
+```bash
+dotnet run -c Release -f net10.0 --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj -- --filter '*DefaultOutputSecurityFilterBenchmarks*'
+```
+
 ## RAG document text joining experiment
 
 The parser-free benchmark compares the current production baseline,

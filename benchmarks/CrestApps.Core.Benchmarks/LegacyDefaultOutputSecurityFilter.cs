@@ -3,28 +3,28 @@ using CrestApps.Core.AI.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Services;
+namespace CrestApps.Core.Benchmarks;
 
 /// <summary>
-/// Default implementation of <see cref="IOutputSecurityFilter"/> that scans AI-generated
-/// responses for system prompt leaks, tool disclosure, sensitive data exposure, and unsafe content.
+/// Captures the output security filter implementation that existed at commit
+/// <c>333798a</c> for differential tests and benchmarks.
 /// </summary>
-public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
+public sealed partial class LegacyDefaultOutputSecurityFilter : IOutputSecurityFilter
 {
     private readonly IAIChatSecurityAuditService _auditService;
     private readonly IOptions<PromptSecurityOptions> _options;
-    private readonly ILogger<DefaultOutputSecurityFilter> _logger;
+    private readonly ILogger<LegacyDefaultOutputSecurityFilter> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DefaultOutputSecurityFilter"/> class.
+    /// Initializes a new instance of the <see cref="LegacyDefaultOutputSecurityFilter"/> class.
     /// </summary>
     /// <param name="auditService">The security audit service.</param>
     /// <param name="options">The prompt security options.</param>
     /// <param name="logger">The logger.</param>
-    public DefaultOutputSecurityFilter(
+    public LegacyDefaultOutputSecurityFilter(
         IAIChatSecurityAuditService auditService,
         IOptions<PromptSecurityOptions> options,
-        ILogger<DefaultOutputSecurityFilter> logger)
+        ILogger<LegacyDefaultOutputSecurityFilter> logger)
     {
         _auditService = auditService;
         _options = options;
@@ -32,11 +32,14 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
     }
 
     /// <summary>
-    /// Validates AI-generated output for security concerns.
+    /// Validates AI-generated output using the implementation captured at commit <c>333798a</c>.
     /// </summary>
     /// <param name="context">The output security context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async Task<PromptSecurityResult> ValidateOutputAsync(OutputSecurityContext context, CancellationToken cancellationToken = default)
+    /// <returns>The captured security evaluation result.</returns>
+    public async Task<PromptSecurityResult> ValidateOutputAsync(
+        OutputSecurityContext context,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -52,7 +55,6 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
             return PromptSecurityResult.Safe;
         }
 
-        // Check for system prompt leakage (most critical — exact match of system prompt content).
         var leakResult = DetectSystemPromptLeak(context);
 
         if (leakResult.IsBlocked)
@@ -62,7 +64,6 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
             return leakResult;
         }
 
-        // Check for tool/function schema disclosure in output.
         var toolResult = DetectToolSchemaDisclosure(context.Output);
 
         if (toolResult.RiskLevel != PromptRiskLevel.None)
@@ -72,7 +73,6 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
             return toolResult;
         }
 
-        // Check for sensitive data patterns in output.
         var piiResult = DetectSensitiveDataExposure(context.Output);
 
         if (piiResult.RiskLevel != PromptRiskLevel.None)
@@ -82,7 +82,6 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
             return piiResult;
         }
 
-        // Check for XSS/script injection patterns in output.
         var xssResult = DetectUnsafeOutputPatterns(context.Output);
 
         if (xssResult.RiskLevel != PromptRiskLevel.None)
@@ -92,7 +91,6 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
             return xssResult;
         }
 
-        // Return lower-severity findings (disclosure indicators).
         if (leakResult.RiskLevel != PromptRiskLevel.None)
         {
             await LogAndAuditAsync(leakResult, context, cancellationToken);
@@ -103,7 +101,16 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         return PromptSecurityResult.Safe;
     }
 
-    private async Task LogAndAuditAsync(PromptSecurityResult result, OutputSecurityContext context, CancellationToken cancellationToken)
+    /// <summary>
+    /// Logs and optionally audits a captured output finding.
+    /// </summary>
+    /// <param name="result">The finding result.</param>
+    /// <param name="context">The output security context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async Task LogAndAuditAsync(
+        PromptSecurityResult result,
+        OutputSecurityContext context,
+        CancellationToken cancellationToken)
     {
         _logger.LogWarning(
             "Output security event: Rule={Rule}, Risk={RiskLevel}, Session={SessionId}",
@@ -117,6 +124,11 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         }
     }
 
+    /// <summary>
+    /// Detects an exact substantial system-prompt line or a disclosure phrase.
+    /// </summary>
+    /// <param name="context">The output security context.</param>
+    /// <returns>The captured leak-detection result.</returns>
     private static PromptSecurityResult DetectSystemPromptLeak(OutputSecurityContext context)
     {
         if (string.IsNullOrWhiteSpace(context.SystemMessage))
@@ -127,54 +139,35 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         var output = context.Output;
         var systemMessage = context.SystemMessage;
 
-        if (ContainsSubstantialSystemPromptLine(output, systemMessage))
+        const int minLeakLength = 50;
+        var systemLines = systemMessage.Split(
+            '\n',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var line in systemLines)
         {
-            return PromptSecurityResult.Blocked(
-                "Detected system prompt content in AI response.",
-                PromptRiskLevel.Critical,
-                "SystemPromptLeak");
+            if (line.Length < minLeakLength)
+            {
+                continue;
+            }
+
+            if (output.Contains(line, StringComparison.OrdinalIgnoreCase))
+            {
+                return PromptSecurityResult.Blocked(
+                    "Detected system prompt content in AI response.",
+                    PromptRiskLevel.Critical,
+                    "SystemPromptLeak");
+            }
         }
 
         return CheckDisclosureIndicatorsOnly(output);
     }
 
     /// <summary>
-    /// Determines whether the output contains a trimmed system-prompt line of at least 50 characters.
+    /// Detects a system-prompt disclosure phrase without comparing prompt text.
     /// </summary>
     /// <param name="output">The model output.</param>
-    /// <param name="systemMessage">The system message.</param>
-    /// <returns><see langword="true"/> when a substantial line is disclosed.</returns>
-    private static bool ContainsSubstantialSystemPromptLine(string output, string systemMessage)
-    {
-        const int minLeakLength = 50;
-        var outputSpan = output.AsSpan();
-        var remainingSystemMessage = systemMessage.AsSpan();
-
-        while (true)
-        {
-            var lineEnd = remainingSystemMessage.IndexOf('\n');
-            var line = lineEnd >= 0
-                ? remainingSystemMessage[..lineEnd]
-                : remainingSystemMessage;
-            line = line.Trim();
-
-            if (line.Length >= minLeakLength
-                && outputSpan.Contains(line, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (lineEnd < 0)
-            {
-                break;
-            }
-
-            remainingSystemMessage = remainingSystemMessage[(lineEnd + 1)..];
-        }
-
-        return false;
-    }
-
+    /// <returns>The captured disclosure-indicator result.</returns>
     private static PromptSecurityResult CheckDisclosureIndicatorsOnly(string output)
     {
         if (ContainsDisclosureIndicator(output))
@@ -188,11 +181,13 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         return PromptSecurityResult.Safe;
     }
 
+    /// <summary>
+    /// Detects internal tool schema indicators and structured tool definitions.
+    /// </summary>
+    /// <param name="output">The model output.</param>
+    /// <returns>The captured tool-disclosure result.</returns>
     private static PromptSecurityResult DetectToolSchemaDisclosure(string output)
     {
-        // Detect patterns that indicate the model disclosed its internal tool/function schemas.
-        // This catches the attack from the audit where the model outputted "namespace functions {"
-        // with full tool definitions.
         ReadOnlySpan<string> toolSchemaIndicators =
         [
             "namespace functions {",
@@ -214,7 +209,6 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
             }
         }
 
-        // Require at least 2 indicators to avoid false positives (e.g., discussing tool schemas in general).
         if (matchCount >= 2)
         {
             return PromptSecurityResult.Blocked(
@@ -223,9 +217,7 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
                 "ToolSchemaDisclosure");
         }
 
-        // Check for structured function definition patterns.
-        // Every regex match requires a literal opening brace.
-        if (output.Contains('{') && ToolDefinitionPatternRegex().IsMatch(output))
+        if (ToolDefinitionPatternRegex().IsMatch(output))
         {
             return PromptSecurityResult.Flagged(
                 "AI response may contain tool definition patterns.",
@@ -236,10 +228,13 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         return PromptSecurityResult.Safe;
     }
 
+    /// <summary>
+    /// Detects SSN and payment-card patterns when sensitive-data context is present.
+    /// </summary>
+    /// <param name="output">The model output.</param>
+    /// <returns>The captured sensitive-data result.</returns>
     private static PromptSecurityResult DetectSensitiveDataExposure(string output)
     {
-        // Detect PII patterns being echoed in output.
-        // This catches attacks where the model is tricked into repeating sensitive data.
         if (SsnPatternRegex().IsMatch(output) && SensitiveDataContextRegex().IsMatch(output))
         {
             return PromptSecurityResult.Blocked(
@@ -259,13 +254,14 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         return PromptSecurityResult.Safe;
     }
 
+    /// <summary>
+    /// Detects potentially executable browser content.
+    /// </summary>
+    /// <param name="output">The model output.</param>
+    /// <returns>The captured unsafe-output result.</returns>
     private static PromptSecurityResult DetectUnsafeOutputPatterns(string output)
     {
-        // Detect XSS/script injection payloads in output that could cause harm
-        // if rendered in a browser context.
-        // Every regex branch requires at least one of these literal punctuation characters.
-        if (output.AsSpan().IndexOfAny("<:=(".AsSpan()) >= 0
-            && XssPayloadRegex().IsMatch(output))
+        if (XssPayloadRegex().IsMatch(output))
         {
             return PromptSecurityResult.Flagged(
                 "AI response contains potentially executable script content.",
@@ -276,6 +272,11 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         return PromptSecurityResult.Safe;
     }
 
+    /// <summary>
+    /// Determines whether a disclosure phrase occurs in the model output.
+    /// </summary>
+    /// <param name="output">The model output.</param>
+    /// <returns><see langword="true"/> when a captured phrase occurs.</returns>
     private static bool ContainsDisclosureIndicator(string output)
     {
         ReadOnlySpan<string> indicators =

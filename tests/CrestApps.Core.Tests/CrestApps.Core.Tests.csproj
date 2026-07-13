@@ -42,4 +42,8 @@
     <EmbeddedResource Include="Templates\**\*.md" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../../benchmarks/CrestApps.Core.Benchmarks/LegacyDefaultOutputSecurityFilter.cs" Link="Framework/AI/Security/LegacyDefaultOutputSecurityFilter.cs" />
+  </ItemGroup>
+
 </Project>
