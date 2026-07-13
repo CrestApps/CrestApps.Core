@@ -592,6 +592,52 @@ a consistent material latency gain across scales; the direct loop also allocates
 prompts and 4.4% more at 1,000. The existing filter, role mapping, trimming, dictionary shape, and
 ordering are therefore retained.
 
+### Response log preview
+
+Run the response preview comparison with:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*PostSessionResponseLogPreviewBenchmarks*' --join
+```
+
+Each response contains the stated number of ASCII bytes. The newline scenarios use LF every 64
+characters, CRLF every 64 characters, or isolated CR and LF code units near the response end for
+512-byte inputs and around the 2,000-character preview boundary for larger inputs.
+
+| Response | Pattern | Legacy full normalization | Current bounded preview | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 512 B | Frequent CRLF | 280.70 ns / 2,144 B | 281.08 ns / 2,144 B | Neutral |
+| 512 B | Frequent LF | 164.72 ns / 1,064 B | 166.32 ns / 1,064 B | Neutral |
+| 512 B | Newlines near boundary | 160.05 ns / 2,104 B | 160.02 ns / 2,104 B | Neutral |
+| 512 B | No newlines | 53.23 ns / 0 B | 53.98 ns / 0 B | Neutral |
+| 2 KB | Frequent CRLF | 1,563.86 ns / 16,488 B | 828.91 ns / 4,032 B | 47.0% faster / 75.5% fewer allocations |
+| 2 KB | Frequent LF | 1,052.35 ns / 12,240 B | 534.66 ns / 4,032 B | 49.2% faster / 67.1% fewer allocations |
+| 2 KB | Newlines near boundary | 898.59 ns / 16,304 B | 390.14 ns / 4,032 B | 56.6% faster / 75.3% fewer allocations |
+| 2 KB | No newlines | 562.67 ns / 8,056 B | 284.86 ns / 4,032 B | 49.4% faster / 50.0% fewer allocations |
+| 20 KB | Frequent CRLF | 11,760.69 ns / 91,944 B | 827.25 ns / 4,032 B | 93.0% faster / 95.6% fewer allocations |
+| 20 KB | Frequent LF | 6,865.07 ns / 49,680 B | 535.11 ns / 4,032 B | 92.2% faster / 91.9% fewer allocations |
+| 20 KB | Newlines near boundary | 4,376.19 ns / 90,032 B | 391.41 ns / 4,032 B | 91.1% faster / 95.5% fewer allocations |
+| 20 KB | No newlines | 2,060.56 ns / 8,056 B | 283.76 ns / 4,032 B | 86.2% faster / 50.0% fewer allocations |
+| 1 MB | Frequent CRLF | 767,522.59 ns / 4,301,213 B | 825.83 ns / 4,032 B | 99.9% faster / 99.9% fewer allocations |
+| 1 MB | Frequent LF | 408,427.10 ns / 2,138,330 B | 534.98 ns / 4,032 B | 99.9% faster / 99.8% fewer allocations |
+| 1 MB | Newlines near boundary | 367,588.10 ns / 4,202,758 B | 395.25 ns / 4,032 B | 99.9% faster / 99.9% fewer allocations |
+| 1 MB | No newlines | 86,992.14 ns / 8,056 B | 285.55 ns / 4,032 B | 99.7% faster / 50.0% fewer allocations |
+
+Responses of 1,000 characters or fewer retain the runtime replacement path because their maximum
+escaped length is already bounded to 2,000 characters; this keeps the 512-byte cases neutral.
+Larger responses count or search only the code units needed to decide truncation, then fill the final
+string directly. The implementation never constructs the complete escaped text when it would be
+truncated.
+
+The output remains exactly equivalent to ordinal carriage-return replacement followed by ordinal
+line-feed replacement and then a UTF-16 code-unit slice. CR and LF are escaped independently, an
+escape sequence or surrogate pair may still be split at code unit 2,000, and the ellipsis is appended
+only when the fully escaped text exceeds that boundary. Behavior tests cover null and empty values,
+all boundary lengths, CR/LF/CRLF ordering, expansion across the boundary, Unicode, lone surrogates,
+surrogate splitting, exact ordinal prefixes, and a 1 MB response.
+
 ## Data extraction local formatting and projection
 
 Run the independent name-merging and prompt-projection comparisons from the repository root:

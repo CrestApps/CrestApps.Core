@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
@@ -21,6 +22,11 @@ namespace CrestApps.Core.AI.Chat.Services;
 /// </summary>
 public sealed class PostSessionProcessingService
 {
+    private const int MaximumResponseLogPreviewLength = 2_000;
+    private const int MaximumDirectResponseLogNormalizationLength = MaximumResponseLogPreviewLength / 2;
+
+    private static readonly SearchValues<char> _responseLineEndings = SearchValues.Create("\r\n");
+
     private readonly IAIClientFactory _clientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IToolRegistry _toolRegistry;
@@ -1090,6 +1096,11 @@ public sealed class PostSessionProcessingService
             StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Creates a single-line escaped response preview for diagnostic logging.
+    /// </summary>
+    /// <param name="responseText">The response text.</param>
+    /// <returns>The escaped response preview.</returns>
     private static string CreateResponseLogPreview(string responseText)
     {
         if (string.IsNullOrEmpty(responseText))
@@ -1097,12 +1108,116 @@ public sealed class PostSessionProcessingService
             return "(empty)";
         }
 
-        var normalized = responseText
+        if (responseText.Length <= MaximumDirectResponseLogNormalizationLength)
+        {
+            return responseText
+                .Replace("\r", "\\r", StringComparison.Ordinal)
+                .Replace("\n", "\\n", StringComparison.Ordinal);
+        }
 
-            .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal);
+        if (responseText.Length <= MaximumResponseLogPreviewLength)
+        {
+            var lineEndingCount = responseText.AsSpan().CountAny(_responseLineEndings);
 
-        return normalized.Length > 2000 ? normalized[..2000] + "..." : normalized;
+            if (lineEndingCount == 0)
+            {
+                return responseText;
+            }
+
+            var escapedLength = responseText.Length + lineEndingCount;
+
+            if (escapedLength <= MaximumResponseLogPreviewLength)
+            {
+                return string.Create(escapedLength, responseText, static (preview, response) =>
+                    WriteEscapedResponse(response, preview));
+            }
+
+            return CreateTruncatedResponseLogPreview(responseText, true);
+        }
+
+        var requiresEscaping = responseText
+            .AsSpan(0, MaximumResponseLogPreviewLength)
+            .IndexOfAny(_responseLineEndings) >= 0;
+
+        return CreateTruncatedResponseLogPreview(responseText, requiresEscaping);
+    }
+
+    /// <summary>
+    /// Creates a truncated response preview with an ellipsis.
+    /// </summary>
+    /// <param name="responseText">The response text.</param>
+    /// <param name="requiresEscaping">Whether the retained prefix contains line endings.</param>
+    /// <returns>The truncated response preview.</returns>
+    private static string CreateTruncatedResponseLogPreview(
+        string responseText,
+        bool requiresEscaping)
+    {
+        return string.Create(
+            MaximumResponseLogPreviewLength + 3,
+            (responseText, requiresEscaping),
+            static (preview, state) =>
+            {
+                var content = preview[..MaximumResponseLogPreviewLength];
+
+                if (state.requiresEscaping)
+                {
+                    WriteEscapedResponse(state.responseText, content);
+                }
+                else
+                {
+                    state.responseText.AsSpan(0, MaximumResponseLogPreviewLength).CopyTo(content);
+                }
+
+                preview[MaximumResponseLogPreviewLength] = '.';
+                preview[MaximumResponseLogPreviewLength + 1] = '.';
+                preview[MaximumResponseLogPreviewLength + 2] = '.';
+            });
+    }
+
+    /// <summary>
+    /// Writes escaped response code units until the destination is full.
+    /// </summary>
+    /// <param name="responseText">The response text.</param>
+    /// <param name="destination">The destination span.</param>
+    private static void WriteEscapedResponse(string responseText, Span<char> destination)
+    {
+        var source = responseText.AsSpan();
+        var sourceIndex = 0;
+        var destinationIndex = 0;
+
+        while (destinationIndex < destination.Length)
+        {
+            var remainingSource = source[sourceIndex..];
+            var lineEndingIndex = remainingSource.IndexOfAny(_responseLineEndings);
+
+            if (lineEndingIndex < 0)
+            {
+                remainingSource[..Math.Min(remainingSource.Length, destination.Length - destinationIndex)]
+                    .CopyTo(destination[destinationIndex..]);
+
+                return;
+            }
+
+            var copyLength = Math.Min(lineEndingIndex, destination.Length - destinationIndex);
+            remainingSource[..copyLength].CopyTo(destination[destinationIndex..]);
+            sourceIndex += copyLength;
+            destinationIndex += copyLength;
+
+            if (destinationIndex == destination.Length)
+            {
+                return;
+            }
+
+            var lineEnding = source[sourceIndex++];
+            destination[destinationIndex++] = '\\';
+
+            if (destinationIndex == destination.Length)
+            {
+                return;
+            }
+
+            destination[destinationIndex++] = lineEnding == '\r' ? 'r' : 'n';
+        }
     }
 
     private static string CreateTaskResultSummary(IEnumerable<PostSessionTaskResult> results)
