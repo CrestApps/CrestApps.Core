@@ -451,3 +451,28 @@ a 48,000-input interaction matrix, and all 65,536 BMP code units in prose and or
 verify the current output against the captured legacy helper. Blank inputs still return the original
 reference, all supplementary pairs still disappear even when they are not emoji, and the documented
 legacy repeated-call behavior remains unchanged.
+
+## Prompt security input normalization
+
+| Scenario | Legacy three-stage pipeline | Current fused pipeline | Change |
+| --- | ---: | ---: | ---: |
+| Benign ASCII, 256 B | 1.515 us / 3.92 KB | 1.490 us / 1.73 KB | Timing neutral / 55.9% fewer allocations |
+| Benign ASCII, 2 KB | 10.954 us / 24.40 KB | 11.788 us / 12.23 KB | 7.6% slower / 49.9% fewer allocations |
+| Benign ASCII, 8 KB | 64.529 us / 112.42 KB | 57.500 us / 48.23 KB | 10.9% faster / 57.1% fewer allocations |
+| Whitespace-heavy, 8,192 UTF-16 code units | 49.478 us / 90.54 KB | 41.711 us / 45.30 KB | 15.7% faster / 50.0% fewer allocations |
+| Invisible-heavy, 8,192 UTF-16 code units | 48.600 us / 80.77 KB | 47.281 us / 41.98 KB | 2.7% faster / 48.0% fewer allocations |
+| Homoglyph-heavy, 8,192 UTF-16 code units | 58.174 us / 96.40 KB | 56.541 us / 48.23 KB | 2.8% faster / 50.0% fewer allocations |
+| Mixed obfuscated injection, 2,048 UTF-16 code units | 13.025 us / 28.14 KB | 9.914 us / 16.12 KB | 23.9% faster / 42.7% fewer allocations |
+| Unicode and surrogate-heavy, 8,192 UTF-16 code units | 68.045 us / 102.02 KB | 69.109 us / 58.66 KB | Timing neutral / 42.5% fewer allocations |
+
+The current path retains Form KC normalization as the first stage and preserves the exact configured
+Unicode categories and homoglyph map. One pre-sized builder now performs invisible-character removal
+and whitespace collapsing in removal-first order, including the legacy leading/trailing run counts.
+Homoglyph folding writes its fixed-length result directly while recording the same replacement count.
+
+The benchmark setup verifies every context and telemetry field plus observable string-reference
+relationships against the captured legacy implementation. Tests additionally cover all 43 configured
+homoglyph entries, malformed and valid surrogate cases, every BMP whitespace, format, control, and code
+unit behavior, a 23,040-input interaction matrix, and 131,072 BMP-context differential inputs. The
+timings use five warmups and twelve measured iterations; allocation reductions are deterministic, while
+the small benign and Unicode timing differences should be treated as neutral.
