@@ -957,3 +957,87 @@ the LINQ `ArgumentNullException` synchronously from prompt selection, null eleme
 eager filtering, custom enumerables are acquired and consumed once, iterator exceptions propagate during
 the call and disposal still occurs, and `int.MinValue` through `1` continue to mean all eligible history
 while positive values above `1`, including `int.MaxValue`, mean the eligible tail.
+
+## Azure OpenAI streaming tool-call argument accumulation
+
+Run the complete comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*StreamingToolCallAccumulatorBenchmarks*'
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, three warmups, eight measured
+iterations, .NET 10.0.5, and an Apple M2. Fragment counts and total argument bytes are per
+tool call. Each fragment round interleaves 1, 4, or 8 indexed SDK tool-call updates, including
+the 1,000-fragment/1 KB small-fragment stress case. Global setup verifies exact tool-call ID,
+function name, first-index appearance order, and byte-for-byte argument equivalence before
+measurement.
+
+| Fragments/call | Bytes/call | Calls | Legacy lists | Current buffer writer | Change |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1 KB | 1 | 274.0 ns / 3.96 KB | 129.8 ns / 1.75 KB | 52.6% faster / 55.8% fewer allocations |
+| 1 | 1 KB | 4 | 928.9 ns / 14.63 KB | 455.2 ns / 6.27 KB | 51.0% faster / 57.1% fewer allocations |
+| 1 | 1 KB | 8 | 1,821.0 ns / 29.16 KB | 914.4 ns / 12.62 KB | 49.8% faster / 56.7% fewer allocations |
+| 1 | 64 KB | 1 | 6,824.2 ns / 192.96 KB | 2,250.9 ns / 64.75 KB | 67.0% faster / 66.4% fewer allocations |
+| 1 | 64 KB | 4 | 26,996.2 ns / 770.63 KB | 9,911.5 ns / 258.27 KB | 63.3% faster / 66.5% fewer allocations |
+| 1 | 64 KB | 8 | 53,410.2 ns / 1541.16 KB | 18,563.2 ns / 516.62 KB | 65.2% faster / 66.5% fewer allocations |
+| 1 | 1 MB | 1 | 202,362.2 ns / 3075.22 KB | 61,920.4 ns / 1025.31 KB | 69.4% faster / 66.7% fewer allocations |
+| 1 | 1 MB | 4 | 1,392,867.2 ns / 12292.39 KB | 343,323.5 ns / 4099.76 KB | 75.4% faster / 66.6% fewer allocations |
+| 1 | 1 MB | 8 | 2,708,770.8 ns / 24583.77 KB | 1,035,460.6 ns / 8197.67 KB | 61.8% faster / 66.7% fewer allocations |
+| 10 | 1 KB | 1 | 518.6 ns / 6.41 KB | 355.1 ns / 3.97 KB | 31.5% faster / 38.1% fewer allocations |
+| 10 | 1 KB | 4 | 1,935.5 ns / 24.41 KB | 1,341.6 ns / 15.15 KB | 30.7% faster / 37.9% fewer allocations |
+| 10 | 1 KB | 8 | 3,825.0 ns / 48.72 KB | 2,700.7 ns / 30.37 KB | 29.4% faster / 37.7% fewer allocations |
+| 10 | 64 KB | 1 | 17,639.5 ns / 327.77 KB | 13,894.3 ns / 199.29 KB | 21.2% faster / 39.2% fewer allocations |
+| 10 | 64 KB | 4 | 67,324.1 ns / 1309.87 KB | 48,912.5 ns / 796.42 KB | 27.3% faster / 39.2% fewer allocations |
+| 10 | 64 KB | 8 | 130,925.5 ns / 2619.64 KB | 93,234.2 ns / 1592.92 KB | 28.8% faster / 39.2% fewer allocations |
+| 10 | 1 MB | 1 | 368,859.0 ns / 5227.48 KB | 191,878.5 ns / 3176.75 KB | 48.0% faster / 39.2% fewer allocations |
+| 10 | 1 MB | 4 | 2,885,207.6 ns / 20894.91 KB | 1,821,509.3 ns / 12701.56 KB | 36.9% faster / 39.2% fewer allocations |
+| 10 | 1 MB | 8 | 5,370,622.8 ns / 41788.21 KB | 3,110,857.2 ns / 25401.26 KB | 42.1% faster / 39.2% fewer allocations |
+| 100 | 1 KB | 1 | 1,981.9 ns / 8.76 KB | 1,366.7 ns / 3.66 KB | 31.0% faster / 58.2% fewer allocations |
+| 100 | 1 KB | 4 | 7,692.0 ns / 33.81 KB | 5,573.9 ns / 13.93 KB | 27.5% faster / 58.8% fewer allocations |
+| 100 | 1 KB | 8 | 15,033.2 ns / 67.53 KB | 10,746.9 ns / 27.93 KB | 28.5% faster / 58.6% fewer allocations |
+| 100 | 64 KB | 1 | 12,217.7 ns / 294.87 KB | 7,426.1 ns / 164.27 KB | 39.2% faster / 44.3% fewer allocations |
+| 100 | 64 KB | 4 | 52,033.4 ns / 1178.25 KB | 29,213.1 ns / 656.37 KB | 43.9% faster / 44.3% fewer allocations |
+| 100 | 64 KB | 8 | 104,439.5 ns / 2356.41 KB | 61,482.9 ns / 1312.8 KB | 41.1% faster / 44.3% fewer allocations |
+| 100 | 1 MB | 1 | 284,405.3 ns / 4665.74 KB | 153,944.1 ns / 2613.78 KB | 45.9% faster / 44.0% fewer allocations |
+| 100 | 1 MB | 4 | 2,888,868.8 ns / 18651.12 KB | 701,490.3 ns / 10450.17 KB | 75.7% faster / 44.0% fewer allocations |
+| 100 | 1 MB | 8 | 4,892,364.6 ns / 37301.54 KB | 2,563,627.8 ns / 20897.15 KB | 47.6% faster / 44.0% fewer allocations |
+| 1,000 | 1 KB | 1 | 16,122.7 ns / 35.38 KB | 13,236.9 ns / 2.97 KB | 17.9% faster / 91.6% fewer allocations |
+| 1,000 | 1 KB | 4 | 61,067.7 ns / 140.28 KB | 43,518.7 ns / 11.15 KB | 28.7% faster / 92.1% fewer allocations |
+| 1,000 | 1 KB | 8 | 126,089.2 ns / 280.47 KB | 86,311.8 ns / 22.37 KB | 31.5% faster / 92.0% fewer allocations |
+| 1,000 | 64 KB | 1 | 26,065.1 ns / 290.87 KB | 17,398.5 ns / 132.93 KB | 33.2% faster / 54.3% fewer allocations |
+| 1,000 | 64 KB | 4 | 101,808.3 ns / 1162.25 KB | 65,467.0 ns / 530.99 KB | 35.7% faster / 54.3% fewer allocations |
+| 1,000 | 64 KB | 8 | 215,416.4 ns / 2324.41 KB | 133,540.8 ns / 1062.05 KB | 38.0% faster / 54.3% fewer allocations |
+| 1,000 | 1 MB | 1 | 1,736,250.3 ns / 4174.18 KB | 125,139.6 ns / 2098.01 KB | 92.8% faster / 49.7% fewer allocations |
+| 1,000 | 1 MB | 4 | 5,131,412.1 ns / 16694.23 KB | 500,194.4 ns / 8391.36 KB | 90.3% faster / 49.7% fewer allocations |
+| 1,000 | 1 MB | 8 | 7,278,436.9 ns / 33386.74 KB | 1,662,534.0 ns / 16782.84 KB | 77.2% faster / 49.7% fewer allocations |
+
+The retained implementation copies every SDK fragment immediately from
+`BinaryData.ToMemory().Span` into an unpooled `ArrayBufferWriter<byte>`. It therefore does
+not retain SDK-owned fragment memory. At finalization, `BinaryData.FromBytes(ReadOnlyMemory<byte>)`
+wraps the writer's written slice without another copy. `BinaryData` keeps the backing array alive
+after the accumulator and writer become unreachable. The accumulator never clears, resets, pools,
+or reuses a finalized writer: later appends write beyond the already captured slice or resize to a
+new array, and clearing the index dictionary only drops its writer references. Behavior tests verify
+that finalized output remains byte-identical after repeated finalization, subsequent appends, source
+fragment mutation, and dictionary clearing.
+
+Avoiding the final exact-sized copy means a finalized `BinaryData` can retain unused
+`ArrayBufferWriter<byte>` capacity, which can approach twice the written length after growth.
+The measured allocation totals include that capacity. Even with this caveat, every matrix case
+improved: latency fell 17.9-92.8% and allocations fell 37.7-92.1%. `MemoryStream` and pooled or
+custom owners were not used because they add stream or lifetime management without improving the
+required ownership model.
+
+Compatibility remains byte-oriented. Indexes still identify dictionary entries; output follows
+first index appearance rather than numeric index order; later non-empty IDs and names replace earlier
+values; empty metadata is ignored; incomplete calls are filtered; duplicate IDs across different
+indexes remain separate; and null or empty fragments append no bytes. Fragment bytes remain in arrival
+order, including split UTF-8 and invalid UTF-8 or arbitrary binary data. The normal OpenAI SDK
+deserializer produces argument fragments from JSON strings, but the accumulator does not assume UTF-8
+validity. Tool calls are still finalized only on `ChatFinishReason.ToolCalls`, processed before the
+dictionary is cleared, and accumulated independently for the next iteration. Emitted response-update
+shape and order, cancellation-token flow, usage recording, logging, and exception propagation are
+unchanged outside the isolated accumulator.

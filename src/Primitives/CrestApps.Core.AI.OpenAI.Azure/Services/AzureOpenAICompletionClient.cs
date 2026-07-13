@@ -244,9 +244,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         var prompts = GetPrompts(context, azureMessages);
         var systemFunctions = await ConfigureOptionsAsync(chatOptions, context, prompts);
         var allFunctions = systemFunctions.Count > 0 ? functions.Concat(systemFunctions) : functions;
-        // Accumulate tool call updates across streaming chunks.
-        // Key is the tool call index, value contains the accumulated tool call data.
-        var accumulatedToolCalls = new Dictionary<int, (string ToolCallId, string FunctionName, List<byte> ArgumentBytes)>();
+        var accumulatedToolCalls = new StreamingToolCallAccumulator();
         var iterations = 0;
         var stopwatch = Stopwatch.StartNew();
         Microsoft.Extensions.AI.UsageDetails usage = null;
@@ -261,36 +259,13 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                 // Accumulate tool call updates as they arrive.
                 foreach (var toolCallUpdate in update.ToolCallUpdates)
                 {
-                    if (!accumulatedToolCalls.TryGetValue(toolCallUpdate.Index, out var accumulated))
-                    {
-                        accumulated = (toolCallUpdate.ToolCallId, toolCallUpdate.FunctionName, new List<byte>());
-                        accumulatedToolCalls[toolCallUpdate.Index] = accumulated;
-                    }
-
-                    // Update ToolCallId and FunctionName if they are provided in this chunk.
-                    if (!string.IsNullOrEmpty(toolCallUpdate.ToolCallId))
-                    {
-                        accumulated.ToolCallId = toolCallUpdate.ToolCallId;
-                    }
-
-                    if (!string.IsNullOrEmpty(toolCallUpdate.FunctionName))
-                    {
-                        accumulated.FunctionName = toolCallUpdate.FunctionName;
-                    }
-
-                    // Append function arguments bytes.
-                    if (toolCallUpdate.FunctionArgumentsUpdate is not null)
-                    {
-                        accumulated.ArgumentBytes.AddRange(toolCallUpdate.FunctionArgumentsUpdate.ToArray());
-                    }
-
-                    accumulatedToolCalls[toolCallUpdate.Index] = accumulated;
+                    accumulatedToolCalls.Append(toolCallUpdate);
                 }
 
                 if (update.FinishReason == ChatFinishReason.ToolCalls)
                 {
                     // Convert accumulated tool call data to ChatToolCall objects.
-                    var toolCalls = accumulatedToolCalls.Values.Where(tc => !string.IsNullOrEmpty(tc.ToolCallId) && !string.IsNullOrEmpty(tc.FunctionName)).Select(tc => ChatToolCall.CreateFunctionToolCall(tc.ToolCallId, tc.FunctionName, BinaryData.FromBytes(tc.ArgumentBytes.ToArray()))).ToList();
+                    var toolCalls = accumulatedToolCalls.BuildToolCalls();
                     await ProcessToolCallsAsync(prompts, toolCalls, allFunctions);
                     // Clear accumulated tool calls for the next iteration.
                     accumulatedToolCalls.Clear();
