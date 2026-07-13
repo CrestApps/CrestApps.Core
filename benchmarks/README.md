@@ -638,6 +638,53 @@ only when the fully escaped text exceeds that boundary. Behavior tests cover nul
 all boundary lengths, CR/LF/CRLF ordering, expansion across the boundary, Unicode, lone surrogates,
 surrogate splitting, exact ordinal prefixes, and a 1 MB response.
 
+### Conversion-goal matching
+
+Run the isolated conversion-goal mapping comparison with:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*PostSessionConversionGoalMatchingBenchmarks*' --join
+```
+
+The benchmark uses equal configured and returned goal counts and excludes prompt rendering, JSON
+parsing, chat completion, and recording. All-matched and case-variant responses use reverse configured
+order; sparse responses match 10%; duplicate inputs include duplicate configured and returned names,
+null names, whitespace names, and case variants. The null-entry fallback scenario places a null
+configured element midway through the list and returns only names that match before it.
+
+| Goals | Scenario | Legacy repeated scan | Current per-call dictionary | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 10 | All matched | 385.7 ns / 1,608 B | 293.9 ns / 1,168 B | 23.8% faster / 27.4% fewer allocations |
+| 10 | Sparse matched | 229.1 ns / 1,008 B | 215.3 ns / 568 B | 6.0% faster / 43.7% fewer allocations |
+| 10 | Duplicates | 274.9 ns / 1,608 B | 288.4 ns / 1,168 B | 4.9% slower / 27.4% fewer allocations |
+| 10 | Case variants | 437.2 ns / 1,608 B | 367.6 ns / 1,168 B | 15.9% faster / 27.4% fewer allocations |
+| 100 | All matched | 18,930.5 ns / 14,992 B | 2,947.7 ns / 9,320 B | 84.4% faster / 37.8% fewer allocations |
+| 100 | Sparse matched | 13,081.1 ns / 9,528 B | 1,996.4 ns / 3,856 B | 84.7% faster / 59.5% fewer allocations |
+| 100 | Duplicates | 15,136.5 ns / 14,992 B | 3,436.1 ns / 9,320 B | 77.3% faster / 37.8% fewer allocations |
+| 100 | Case variants | 22,162.3 ns / 14,992 B | 3,603.2 ns / 9,320 B | 83.7% faster / 37.8% fewer allocations |
+| 1,000 | All matched | 1,276.18 us / 144,600 B | 42.11 us / 87,536 B | 96.7% faster / 39.5% fewer allocations |
+| 1,000 | Sparse matched | 1,760.38 us / 94,192 B | 25.37 us / 37,208 B | 98.6% faster / 60.5% fewer allocations |
+| 1,000 | Duplicates | 1,380.01 us / 144,600 B | 45.74 us / 87,536 B | 96.7% faster / 39.5% fewer allocations |
+| 1,000 | Case variants | 1,903.48 us / 144,600 B | 48.54 us / 87,616 B | 97.5% faster / 39.4% fewer allocations |
+| 10,000 | All matched | 126.91 ms / 1,542,456 B | 670.19 us / 945,546 B | 99.5% faster / 38.7% fewer allocations |
+| 10,000 | Sparse matched | 173.30 ms / 936,600 B | 518.35 us / 339,667 B | 99.7% faster / 63.7% fewer allocations |
+| 10,000 | Duplicates | 143.06 ms / 1,542,456 B | 629.15 us / 945,546 B | 99.6% faster / 38.7% fewer allocations |
+| 10,000 | Case variants | 191.59 ms / 1,542,456 B | 745.03 us / 945,546 B | 99.6% faster / 38.7% fewer allocations |
+
+The indexed implementation is retained because the 100-goal non-null-entry cases are 77.3-84.7%
+faster and allocate 37.8-59.5% less while remaining a small per-call implementation. At 10 goals,
+setup cost dominates only the duplicate-heavy case, where the 13.5 ns regression is accompanied by
+27.4% fewer allocations. `TryAdd` preserves first-configured precedence, response iteration preserves
+duplicates and response order, and a separate null-name slot retains the legacy null-name match
+without passing a null key to `Dictionary`. If the mutable configured list contains a null element
+when results are mapped, the current path intentionally falls back to the legacy per-response
+`FirstOrDefault` scan. This preserves match-before-null short-circuiting and the exact
+`NullReferenceException` timing for matches or misses that reach the null element. Empty returned goal
+collections still return before any configured-goal scan. No indexed-performance gain is claimed for
+the fallback scenario.
+
 ## Data extraction local formatting and projection
 
 Run the independent name-merging and prompt-projection comparisons from the repository root:

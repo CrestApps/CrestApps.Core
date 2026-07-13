@@ -187,12 +187,48 @@ public sealed class PostSessionProcessingService
             return null;
         }
 
+        var containsNullGoal = goals.Any(static goal => goal is null);
+        Dictionary<string, ConversionGoal> goalsByName = null;
+        ConversionGoal nullNameGoal = null;
+
+        if (!containsNullGoal)
+        {
+            goalsByName = new Dictionary<string, ConversionGoal>(
+                goals.Count,
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var goal in goals)
+            {
+                if (goal.Name is null)
+                {
+                    nullNameGoal ??= goal;
+
+                    continue;
+                }
+
+                goalsByName.TryAdd(goal.Name, goal);
+            }
+        }
+
         var results = new List<ConversionGoalResult>();
 
         foreach (var result in response.Result.Goals)
         {
-            var goal = goals.FirstOrDefault(g =>
-            string.Equals(g.Name, result.Name, StringComparison.OrdinalIgnoreCase));
+            ConversionGoal goal;
+
+            if (containsNullGoal)
+            {
+                goal = goals.FirstOrDefault(configuredGoal =>
+                    string.Equals(configuredGoal.Name, result.Name, StringComparison.OrdinalIgnoreCase));
+            }
+            else if (result.Name is null)
+            {
+                goal = nullNameGoal;
+            }
+            else
+            {
+                goalsByName.TryGetValue(result.Name, out goal);
+            }
 
             if (goal == null)
             {
