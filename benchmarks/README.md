@@ -708,3 +708,36 @@ experiments were therefore rejected as marginal, density-dependent, slower, or a
 Tests capture exact serialized anonymous-object property order and argument-key order for zero, one,
 and many fields; null values; aliases and examples; duplicate names; sparse current state; last-turn
 selection and trimming; template identity; cancellation propagation; and template errors.
+
+## Content title extraction
+
+Run the title extraction comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*StringExtensionsExtractTitleBenchmarks*'
+```
+
+The measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured iterations,
+.NET 10.0.5, and an Apple M2.
+
+| Scenario | Legacy string then trim | Current span trim | Change |
+| --- | ---: | ---: | ---: |
+| Short clean title | 8.94 ns / 56 B | 8.66 ns / 56 B | Allocations neutral |
+| Padded title | 23.10 ns / 112 B | 14.94 ns / 48 B | 35.3% faster / 57.1% fewer allocations |
+| 1 KB body, early newline | 8.62 ns / 48 B | 8.49 ns / 48 B | Allocations neutral |
+| 1 MB body, early newline | 8.52 ns / 48 B | 8.46 ns / 48 B | Allocations neutral |
+| 1 MB single line | 53.49 us / 424 B | 52.57 us / 424 B | Allocations neutral |
+| Exactly 200 code units | 36.38 ns / 424 B | 35.31 ns / 424 B | Allocations neutral |
+| 201 code units | 36.42 ns / 424 B | 35.63 ns / 424 B | Allocations neutral |
+| Unicode whitespace | 25.12 ns / 104 B | 13.96 ns / 48 B | 44.4% faster / 53.8% fewer allocations |
+
+The retained change trims the bounded first-line span before materializing its string. It removes the
+discarded pre-trim string only when edge whitespace is present and remains allocation-neutral for clean,
+bounded, and large-document cases.
+
+Characterization tests preserve null-to-empty behavior, CR/LF/CRLF handling independent of the platform,
+the existing leading-line-ending `> 0` behavior, the 200 UTF-16-code-unit cap before trimming, tabs and
+Unicode whitespace, split surrogate pairs, large single-line inputs, and equal but independently
+allocated clean-title output.
