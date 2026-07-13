@@ -352,3 +352,35 @@ output. The public maximum-row option is an `int`, so a null maximum is not repr
 
 Both candidates were rejected. The measured allocation changes were negligible, and timing varied
 inconsistently by scale. Production remains unchanged.
+
+## Extracted-data snapshot recording
+
+| Source fields | Density | Legacy LINQ | Current retained-count loop | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 1,000 | Dense | 43.971 us / 178.30 KB | 34.328 us / 108.66 KB | 21.9% faster / 39.1% fewer allocations |
+| 1,000 | 1% retained | 3.877 us / 2.11 KB | 3.206 us / 1.45 KB | 17.3% faster / 31.1% fewer allocations |
+| 1,000 | All empty | 3.322 us / 200 B | 1.372 us / 0 B | 58.7% faster / allocation-free |
+| 10,000 | Dense | 1.374 ms / 1,701.64 KB | 834.245 us / 1,057.92 KB | 39.3% faster / 37.8% fewer allocations |
+| 10,000 | 1% retained | 37.410 us / 18.13 KB | 33.302 us / 11.11 KB | 11.0% faster / 38.7% fewer allocations |
+| 10,000 | All empty | 31.933 us / 200 B | 13.623 us / 0 B | 57.3% faster / allocation-free |
+
+The same-process benchmark uses a fixed clock and call-counting in-memory stores so it isolates
+snapshot construction and verifies the save-versus-delete result. Dense maps retain every field,
+mostly-empty maps retain one field in 100, and all-empty maps exercise deletion without constructing
+a snapshot. Keys use descending insertion order and mixed casing, while retained lists include ordered
+values and sparse null items.
+
+The current path first counts retained fields, then lazily creates the ordinal-ignore-case destination
+dictionary when the second pass reaches the first retained list. Capacity is based on the retained
+count, not the source map count, and every retained list is still copied with `ToList()`. The extra
+read-only pass is accepted because dense maps keep substantial timing and allocation gains, the
+10,000-field mostly-empty case remains 11.0% faster with 38.7% fewer allocations, and all-empty maps
+avoid the destination dictionary entirely while more than halving elapsed time. Short-run timings are
+directional, but none of the measured sparse or delete scenarios regressed.
+
+Legacy observable behavior remains unchanged: empty dictionaries and dictionaries containing only
+empty value lists delete once, while null source dictionaries, field states, or value lists retain
+their existing failures. Empty lists are omitted, null list items are retained, case-only duplicate
+keys still throw, source key and per-field value order remain stable, and the saved dictionary and
+lists are detached snapshots. Metadata, timestamps, cancellation, and store exception propagation
+are also preserved.
