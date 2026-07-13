@@ -1116,3 +1116,49 @@ validity. Tool calls are still finalized only on `ChatFinishReason.ToolCalls`, p
 dictionary is cleared, and accumulated independently for the next iteration. Emitted response-update
 shape and order, cancellation-token flow, usage recording, logging, and exception propagation are
 unchanged outside the isolated accumulator.
+
+## Chat hub conversation-history construction
+
+Run the complete comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*ChatConversationHistoryBuilderBenchmarks*'
+```
+
+The BenchmarkDotNet 0.15.8 short-run matrix covers both chat interaction and AI chat session
+prompt models, 10/100/1,000/10,000 stored prompts, 0% and approximately 25% generated prompts,
+the new prompt present and absent, and both contract-compliant ordered input and deliberately
+unordered input. Global setup verifies exact message count, role, text, and stable order
+equivalence for every case.
+
+These representative figures use the chat interaction model, ordered store output, and an absent
+new prompt. The AI chat session model has identical allocation totals and follows the same
+production path.
+
+| Prompts | Generated | Legacy | Current | Change |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 | 0% | 464.9 ns / 3.23 KB | 281.1 ns / 2.29 KB | 39.5% faster / 29.1% fewer allocations |
+| 100 | 0% | 3,571.2 ns / 25.38 KB | 2,626.6 ns / 20.57 KB | 26.5% faster / 19.0% fewer allocations |
+| 1,000 | 0% | 42,700.1 ns / 246.87 KB | 28,483.3 ns / 203.38 KB | 33.3% faster / 17.6% fewer allocations |
+| 10,000 | 0% | 1,292,552.8 ns / 2,461.75 KB | 558,657.8 ns / 2,031.51 KB | 56.8% faster / 17.5% fewer allocations |
+| 10 | 25% | 373.0 ns / 2.63 KB | 219.0 ns / 1.68 KB | 41.3% faster / 36.1% fewer allocations |
+| 100 | 25% | 3,133.2 ns / 20.30 KB | 2,016.3 ns / 15.49 KB | 35.6% faster / 23.7% fewer allocations |
+| 1,000 | 25% | 59,519.7 ns / 196.09 KB | 38,250.6 ns / 152.60 KB | 35.7% faster / 22.2% fewer allocations |
+| 10,000 | 25% | 950,764.7 ns / 1,953.95 KB | 402,260.4 ns / 1,523.70 KB | 57.7% faster / 22.0% fewer allocations |
+
+Both public prompt-store contracts require creation-time ordering, and all YesSql and EntityCore
+implementations provide it. The shared helper still checks monotonic timestamps. Ordered arrays take
+the allocation-reduced projection and stable insertion path; a custom unordered implementation falls
+back to stable `OrderBy` behavior. Defensive unordered timings were mixed because they retain sorting,
+but allocations were 3.4-12.0% lower across the full matrix.
+
+The change is retained because realistic ordered histories consistently remove the redundant source
+copy and LINQ sort buffers, while centralizing identical hub semantics. Equal timestamps preserve
+source order, an absent new prompt remains after existing equal-timestamp prompts, any matching
+identifier suppresses insertion without deduplicating stored records, and generated prompts are
+filtered only from the projected history. Iterator inputs are materialized once, null entries and
+enumeration exceptions retain their existing failures, and cancellation-token flow remains unchanged
+around store, group, and handler calls. Short-run timing outliers were observed in a few large matrix
+cells, so deterministic allocation reductions are the primary acceptance evidence.

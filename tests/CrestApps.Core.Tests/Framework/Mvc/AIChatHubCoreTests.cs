@@ -1,10 +1,18 @@
+using System.Threading.Channels;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Hubs;
+using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.Services;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
@@ -65,11 +73,117 @@ public sealed class AIChatHubCoreTests
         Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in the AI Profile or the global AI settings.", message);
     }
 
+    /// <summary>
+    /// Verifies prompt persistence, group membership, and handler dispatch retain the caller's
+    /// cancellation token around conversation-history construction.
+    /// </summary>
+    [Fact]
+    public async Task ProcessChatPromptAsync_PropagatesCancellationTokenAroundHistoryConstruction()
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        var cancellationToken = cancellationSource.Token;
+        var profile = new AIProfile
+        {
+            ItemId = "profile",
+        };
+        var chatSession = new AIChatSession
+        {
+            SessionId = "session",
+            ProfileId = profile.ItemId,
+            Title = "Existing title",
+            Status = ChatSessionStatus.Active,
+        };
+        var sessionManagerMock = new Mock<IAIChatSessionManager>();
+        sessionManagerMock
+            .Setup(manager => manager.SaveAsync(chatSession, default))
+            .Returns(Task.CompletedTask);
+        var promptStoreMock = new Mock<IAIChatSessionPromptStore>();
+        promptStoreMock
+            .Setup(store => store.CreateAsync(
+                It.Is<AIChatSessionPrompt>(prompt => prompt.ItemId == "new-prompt"),
+                cancellationToken))
+            .Returns(ValueTask.CompletedTask);
+        promptStoreMock
+            .Setup(store => store.GetPromptsAsync(chatSession.SessionId))
+            .ReturnsAsync([]);
+        ChatResponseHandlerContext handlerContext = null;
+        var handlerMock = new Mock<IChatResponseHandler>();
+        handlerMock
+            .Setup(handler => handler.HandleAsync(
+                It.IsAny<ChatResponseHandlerContext>(),
+                cancellationToken))
+            .Callback<ChatResponseHandlerContext, CancellationToken>(
+                (context, _) => handlerContext = context)
+            .ReturnsAsync(ChatResponseHandlerResult.Deferred());
+        var handlerResolverMock = new Mock<IChatResponseHandlerResolver>();
+        handlerResolverMock
+            .Setup(resolver => resolver.Resolve(null, ChatMode.TextInput))
+            .Returns(handlerMock.Object);
+        var services = new ServiceCollection()
+            .AddSingleton(sessionManagerMock.Object)
+            .AddSingleton(promptStoreMock.Object)
+            .AddSingleton(handlerResolverMock.Object)
+            .BuildServiceProvider();
+        var contextMock = new Mock<HubCallerContext>();
+        contextMock.SetupGet(context => context.ConnectionId).Returns("connection");
+        contextMock.SetupGet(context => context.ConnectionAborted).Returns(cancellationToken);
+        var groupsMock = new Mock<IGroupManager>();
+        groupsMock
+            .Setup(groups => groups.AddToGroupAsync(
+                "connection",
+                AIChatHubCore<IAIChatHubClient>.GetSessionGroupName(chatSession.SessionId),
+                cancellationToken))
+            .Returns(Task.CompletedTask);
+        var hub = new TestAIChatHub(services, chatSession)
+        {
+            Context = contextMock.Object,
+            Groups = groupsMock.Object,
+        };
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.ProcessChatPromptForTestAsync(
+            channel.Writer,
+            services,
+            profile,
+            chatSession.SessionId,
+            "prompt",
+            cancellationToken);
+
+        Assert.NotNull(handlerContext);
+        var historyMessage = Assert.Single(handlerContext.ConversationHistory);
+        Assert.Equal(ChatRole.User, historyMessage.Role);
+        Assert.Equal("prompt", historyMessage.Text);
+        promptStoreMock.Verify(
+            store => store.CreateAsync(It.IsAny<AIChatSessionPrompt>(), cancellationToken),
+            Times.Once);
+        groupsMock.Verify(
+            groups => groups.AddToGroupAsync(
+                "connection",
+                AIChatHubCore<IAIChatHubClient>.GetSessionGroupName(chatSession.SessionId),
+                cancellationToken),
+            Times.Exactly(2));
+        handlerMock.Verify(
+            handler => handler.HandleAsync(
+                It.IsAny<ChatResponseHandlerContext>(),
+                cancellationToken),
+            Times.Once);
+    }
+
     private sealed class TestAIChatHub : AIChatHubCore<IAIChatHubClient>
     {
-        public TestAIChatHub(IServiceProvider services)
+        private readonly AIChatSession _chatSession;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TestAIChatHub"/> class.
+        /// </summary>
+        /// <param name="services">The service provider.</param>
+        /// <param name="chatSession">The optional chat session returned by the test override.</param>
+        public TestAIChatHub(
+            IServiceProvider services,
+            AIChatSession chatSession = null)
             : base(services, TimeProvider.System, NullLogger.Instance)
         {
+            _chatSession = chatSession;
         }
 
         public Task SaveChatSessionForTestAsync(IAIChatSessionManager sessionManager, AIChatSession chatSession)
@@ -82,6 +196,33 @@ public sealed class AIChatHubCoreTests
             return GetFriendlyErrorMessage(ex);
         }
 
+        /// <summary>
+        /// Invokes chat prompt processing for tests.
+        /// </summary>
+        /// <param name="writer">The output channel writer.</param>
+        /// <param name="services">The service provider.</param>
+        /// <param name="profile">The AI profile.</param>
+        /// <param name="sessionId">The session identifier.</param>
+        /// <param name="prompt">The prompt text.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task representing prompt processing.</returns>
+        public Task ProcessChatPromptForTestAsync(
+            ChannelWriter<CompletionPartialMessage> writer,
+            IServiceProvider services,
+            AIProfile profile,
+            string sessionId,
+            string prompt,
+            CancellationToken cancellationToken)
+        {
+            return ProcessChatPromptAsync(
+                writer,
+                services,
+                profile,
+                sessionId,
+                prompt,
+                cancellationToken);
+        }
+
         public static bool IsEndedStatusForTest(ChatSessionStatus status)
         {
             var method = typeof(AIChatHubCore<IAIChatHubClient>).GetMethod(
@@ -91,6 +232,31 @@ public sealed class AIChatHubCoreTests
             Assert.NotNull(method);
 
             return (bool)method.Invoke(null, [status]);
+        }
+
+        /// <inheritdoc />
+        protected override string GenerateId()
+        {
+            return "new-prompt";
+        }
+
+        /// <inheritdoc />
+        protected override Task<(AIChatSession ChatSession, bool IsNewSession)> GetOrCreateSessionAsync(
+            IServiceProvider services,
+            string sessionId,
+            AIProfile profile,
+            string userPrompt)
+        {
+            if (_chatSession is null)
+            {
+                return base.GetOrCreateSessionAsync(
+                    services,
+                    sessionId,
+                    profile,
+                    userPrompt);
+            }
+
+            return Task.FromResult((_chatSession, false));
         }
     }
 
