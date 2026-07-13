@@ -476,3 +476,16 @@ homoglyph entries, malformed and valid surrogate cases, every BMP whitespace, fo
 unit behavior, a 23,040-input interaction matrix, and 131,072 BMP-context differential inputs. The
 timings use five warmups and twelve measured iterations; allocation reductions are deterministic, while
 the small benign and Unicode timing differences should be treated as neutral.
+
+## RAG document text joining experiment
+
+The parser-free benchmark compares the current production baseline,
+`string.Join("\n", document.EnumerateContent().Select(...).Where(...))`, with a materialized-list
+candidate and a manual `StringBuilder` candidate. Global setup verifies ordinal output equivalence
+for every element count and content scenario, including null, empty, and whitespace-only values.
+
+Both candidates were rejected. Materializing a list stores every retained string reference solely
+for the join. The manual builder improved some large-input timings but allocated substantially more
+memory and added complexity, so it did not provide a balanced replacement. Production remains
+unchanged and continues to use the literal LF separator with the maintainable LINQ projection; this
+experiment does not introduce platform-specific separators or additional whitespace normalization.
