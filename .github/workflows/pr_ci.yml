@@ -47,4 +47,4 @@ jobs:
         dotnet build -c Release -warnaserror /p:TreatWarningsAsErrors=true /p:RunAnalyzers=true /p:NuGetAudit=false
     - name: Unit Tests
       run: |
-        dotnet test -c Release --no-build ./tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj 
+        dotnet test -c Release --no-build ./tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj --logger "console;verbosity=normal"
