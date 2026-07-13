@@ -384,3 +384,38 @@ their existing failures. Empty lists are omitted, null list items are retained, 
 keys still throw, source key and per-field value order remain stable, and the saved dictionary and
 lists are detached snapshots. Metadata, timestamps, cancellation, and store exception propagation
 are also preserved.
+
+## AI data source indexing queue normalization experiment
+
+| Input IDs | Distribution | Current `Where` + `Distinct` + `ToArray` | One-pass hash set | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 10 | Unique | 808.7 ns / 1,032 B | 817.5 ns / 920 B | 1.1% slower / 10.9% fewer allocations |
+| 10 | 50% duplicates | 1.843 us / 600 B | 588.5 ns / 488 B | 68.1% faster / 18.7% fewer allocations |
+| 10 | 90% invalid/whitespace | 425.8 ns / 376 B | 323.9 ns / 264 B | 23.9% faster / 29.8% fewer allocations |
+| 10 | Case-only duplicates | 698.9 ns / 600 B | 602.3 ns / 488 B | 13.8% faster / 18.7% fewer allocations |
+| 100 | Unique | 4.116 us / 8,368 B | 4.020 us / 8,256 B | 2.3% faster / 1.3% fewer allocations |
+| 100 | 50% duplicates | 3.410 us / 3,976 B | 3.423 us / 3,864 B | Timing neutral / 2.8% fewer allocations |
+| 100 | 90% invalid/whitespace | 1.106 us / 1,032 B | 1.226 us / 920 B | 10.8% slower / 10.9% fewer allocations |
+| 100 | Case-only duplicates | 3.435 us / 3,976 B | 3.597 us / 3,864 B | 4.7% slower / 2.8% fewer allocations |
+| 1,000 | Unique | 34.828 us / 81,344 B | 38.018 us / 81,232 B | 9.2% slower / 0.1% fewer allocations |
+| 1,000 | 50% duplicates | 29.755 us / 38,672 B | 33.889 us / 38,560 B | 13.9% slower / 0.3% fewer allocations |
+| 1,000 | 90% invalid/whitespace | 6.970 us / 8,368 B | 11.649 us / 8,256 B | 67.1% slower / 1.3% fewer allocations |
+| 1,000 | Case-only duplicates | 29.182 us / 38,672 B | 33.771 us / 38,560 B | 15.7% slower / 0.3% fewer allocations |
+| 10,000 | Unique | 569.586 us / 753,314 B | 453.730 us / 753,202 B | 20.3% faster / less than 0.1% fewer allocations |
+| 10,000 | 50% duplicates | 442.081 us / 362,829 B | 321.131 us / 362,717 B | 27.4% faster / less than 0.1% fewer allocations |
+| 10,000 | 90% invalid/whitespace | 94.182 us / 81,344 B | 50.232 us / 81,232 B | 46.7% faster / 0.1% fewer allocations |
+| 10,000 | Case-only duplicates | 349.228 us / 362,829 B | 283.816 us / 362,717 B | 18.7% faster / less than 0.1% fewer allocations |
+
+The benchmark uses 64 invocations per iteration, five warmups, and twelve measured iterations on
+.NET 10.0.5 and an Apple M2. It includes validation, normalization, work-item construction, and an
+available in-memory unbounded channel write with the production channel options. Channels are drained
+outside measurements; no consumer, store, or network work is included. Setup verifies exact operation,
+target, first-occurrence casing, and identifier order against the captured production expression.
+
+The one-pass candidate specializes array inputs and falls back to direct collection enumeration. It
+removes a fixed 112 bytes, but results are mixed at 100 IDs and every 1,000-ID case regresses by
+9.2-67.1%. The 10- and 10,000-ID timings include high-variance cases and their apparent gains do not
+offset the stable mid-scale regressions or negligible large-input allocation change.
+
+Production is unchanged: `AIDataSourceIndexingQueue` retains its existing LINQ normalization pipelines,
+and no helper consolidation, normalized wrapper, marker, or caller change was retained.
