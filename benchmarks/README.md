@@ -341,6 +341,45 @@ the 25-row fallback for non-positive batch sizes; disabled non-positive maximums
 truncation; repeated headers; one-based row indexes; final partial batches; and exact LF-based `GetContent()`
 output. The public maximum-row option is an `int`, so a null maximum is not representable.
 
+## Delimited artifact construction
+
+| Data rows | Shape | Format | Legacy | Current | Change |
+| ---: | --- | --- | ---: | ---: | ---: |
+| 1,000 | Narrow | CSV | 109.21 us / 451.48 KB | 82.99 us / 333.41 KB | 24.0% faster / 26.2% fewer allocations |
+| 1,000 | Narrow | TSV | 108.63 us / 451.39 KB | 83.91 us / 333.31 KB | 22.8% faster / 26.2% fewer allocations |
+| 1,000 | Wide | CSV | 702.49 us / 2,519.03 KB | 745.91 us / 2,307.11 KB | 6.2% slower / 8.4% fewer allocations |
+| 1,000 | Wide | TSV | 700.47 us / 2,518.72 KB | 746.03 us / 2,306.80 KB | 6.5% slower / 8.4% fewer allocations |
+| 1,000 | Quoted/newline-heavy | CSV | 298.54 us / 1,193.75 KB | 248.32 us / 1,044.39 KB | 16.8% faster / 12.5% fewer allocations |
+| 1,000 | Quoted/newline-heavy | TSV | 308.85 us / 1,193.58 KB | 249.73 us / 1,044.22 KB | 19.1% faster / 12.5% fewer allocations |
+| 10,000 | Narrow | CSV | 1,758.85 us / 4,807.23 KB | 2,075.48 us / 3,535.02 KB | 18.0% slower / 26.5% fewer allocations |
+| 10,000 | Narrow | TSV | 1,758.70 us / 4,807.13 KB | 2,080.45 us / 3,534.93 KB | 18.3% slower / 26.5% fewer allocations |
+| 10,000 | Wide | CSV | 15,272.12 us / 26,302.10 KB | 13,466.12 us / 24,091.71 KB | 11.8% faster / 8.4% fewer allocations |
+| 10,000 | Wide | TSV | 15,271.51 us / 26,301.98 KB | 13,513.70 us / 24,091.44 KB | 11.5% faster / 8.4% fewer allocations |
+| 10,000 | Quoted/newline-heavy | CSV | 6,351.44 us / 12,542.46 KB | 5,394.32 us / 10,957.71 KB | 15.1% faster / 12.6% fewer allocations |
+| 10,000 | Quoted/newline-heavy | TSV | 6,290.02 us / 12,542.37 KB | 5,433.22 us / 10,957.53 KB | 13.6% faster / 12.6% fewer allocations |
+| 100,000 | Narrow | CSV | 38,334.48 us / 49,183.23 KB | 33,676.03 us / 36,977.61 KB | 12.2% faster / 24.8% fewer allocations |
+| 100,000 | Narrow | TSV | 38,572.05 us / 49,183.14 KB | 33,697.56 us / 36,977.51 KB | 12.6% faster / 24.8% fewer allocations |
+| 100,000 | Wide | CSV | 224,542.22 us / 275,520.54 KB | 204,110.94 us / 253,936.49 KB | 9.1% faster / 7.8% fewer allocations |
+| 100,000 | Wide | TSV | 224,225.84 us / 275,519.32 KB | 204,390.14 us / 253,936.21 KB | 8.8% faster / 7.8% fewer allocations |
+| 100,000 | Quoted/newline-heavy | CSV | 101,001.10 us / 128,746.12 KB | 75,863.40 us / 113,416.54 KB | 24.9% faster / 11.9% fewer allocations |
+| 100,000 | Quoted/newline-heavy | TSV | 100,944.62 us / 128,745.60 KB | 75,433.77 us / 113,416.39 KB | 25.3% faster / 11.9% fewer allocations |
+
+The benchmark decodes synthetic in-memory UTF-8 streams, uses the production plain-text reader, and
+reconstructs the ingestion document exactly as `TabularDocumentArtifactFactory` does, so storage and
+network I/O are excluded. The legacy baseline captures the previous parser result projections and the
+artifact's second header/row materialization. The current path reuses the parser-owned header and row
+lists directly; delimiter detection and record parsing are unchanged. Allocation reductions are
+consistent; the geometric mean across all 18 cases is 10.8% faster with 15.8% fewer allocations, and
+every 100,000-row case is 8.8-25.3% faster. The 1,000-row wide and 10,000-row narrow timings regressed
+despite 8.4% and 26.5% lower allocations respectively; those scale-specific results are retained here
+rather than hidden.
+
+A direct stream-to-artifact experiment omitted only the ingestion document graph and reconstruction.
+It changed measured latency by -4.0% to +3.9% versus the retained path and changed allocations by no
+more than 0.74 KB, including measurement noise at the largest sizes. No CSV/TSV-specific artifact
+builder was added because that extra implementation would duplicate the plain-text reader for a
+marginal, inconsistent gain.
+
 ## AI document indexing materialization experiment
 
 | Chunks | Legacy `ToList` + `Select` | Direct output array | Count-aware chunk array |
