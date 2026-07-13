@@ -419,3 +419,35 @@ offset the stable mid-scale regressions or negligible large-input allocation cha
 
 Production is unchanged: `AIDataSourceIndexingQueue` retains its existing LINQ normalization pipelines,
 and no helper consolidation, normalized wrapper, marker, or caller change was retained.
+
+## Speech text sanitization
+
+| Scenario | Legacy regex pipeline | Current hybrid | Change |
+| --- | ---: | ---: | ---: |
+| Plain text, 87 bytes | 522.6 ns / 200 B | 204.9 ns / 0 B | 60.8% faster / allocation-free |
+| Chat chunk, 200 bytes | 1.066 us / 976 B | 975.1 ns / 976 B | 8.5% faster / allocations unchanged |
+| Mixed markdown, 2 KB | 10.455 us / 21,053 B | 10.243 us / 19,235 B | 2.0% faster / 8.6% fewer allocations |
+| Transcript, 20 KB | 101.199 us / 39,793 B | 71.093 us / 39,784 B | 29.7% faster / allocations effectively unchanged |
+| Code-heavy, 20 KB | 21.969 us / 29,575 B | 21.355 us / 29,573 B | Timing and allocations effectively unchanged |
+| Emoji-heavy, 33,920 UTF-16 code units | 239.644 us / 174,216 B | 104.668 us / 39,704 B | 56.3% faster / 77.2% fewer allocations |
+| Whitespace-heavy, 17,280 UTF-16 code units | 149.160 us / 28,215 B | 61.875 us / 14,104 B | 58.5% faster / 50.0% fewer allocations |
+
+The benchmark uses five warmups and twelve measured iterations on .NET 10.0.5 and an Apple M2.
+The pre-change control run compared two copies of the original source-generated regex pipeline:
+allocations were identical in every scenario and timings remained within 3%, confirming that the
+captured legacy path is a faithful baseline.
+
+The retained implementation is a conservative hybrid. Text that cannot contain any markdown match
+bypasses the markdown expressions, while a direct pass preserves the legacy removal of every asterisk
+and underscore. A final exact-size pass combines removal of every UTF-16 high/low surrogate pair, the
+configured BMP symbol ranges, .NET whitespace collapsing, and trimming. The broader fenced-code,
+inline-code, image, link, heading, horizontal-rule, and list expressions remain source generated and
+in their original order.
+
+A single hand-written markdown parser was rejected because the compatibility contract includes
+malformed and nested-looking delimiters, multiline `\s` behavior, incomplete fences and inline code,
+and ordering cases where a first pass intentionally exposes a marker for a later call. Direct tests,
+a 48,000-input interaction matrix, and all 65,536 BMP code units in prose and ordered-list contexts
+verify the current output against the captured legacy helper. Blank inputs still return the original
+reference, all supplementary pairs still disappear even when they are not emoji, and the documented
+legacy repeated-call behavior remains unchanged.
