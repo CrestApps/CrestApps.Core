@@ -41,12 +41,22 @@ public class OpenXmlSpreadsheetRowExtractionBenchmarks
 
         var legacy = ReadLegacy();
         var current = ReadCurrent();
+        var sharedStringCacheCandidate = ReadSharedStringCacheCandidate();
         var legacyText = legacy.Sections.SelectMany(section => section.Elements).Select(element => element.Text);
         var currentText = current.Sections.SelectMany(section => section.Elements).Select(element => element.Text);
+        var sharedStringCacheCandidateText = sharedStringCacheCandidate.Sections
+            .SelectMany(section => section.Elements)
+            .Select(element => element.Text);
 
         if (!legacyText.SequenceEqual(currentText, StringComparer.Ordinal))
         {
             throw new InvalidOperationException("Legacy and current spreadsheet extraction produced different output.");
+        }
+
+        if (!legacyText.SequenceEqual(sharedStringCacheCandidateText, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Legacy and shared-string cache spreadsheet extraction produced different output.");
         }
     }
 
@@ -72,6 +82,18 @@ public class OpenXmlSpreadsheetRowExtractionBenchmarks
         using var stream = new MemoryStream(_workbook, writable: false);
 
         return _reader.ReadAsync(stream, "benchmark.xlsx", SpreadsheetMediaType).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Reads the workbook with reusable row storage and a per-read shared-string cache.
+    /// </summary>
+    /// <returns>The extracted ingestion document.</returns>
+    [Benchmark]
+    public IngestionDocument ReadSharedStringCacheCandidate()
+    {
+        using var stream = new MemoryStream(_workbook, writable: false);
+
+        return ExtractSharedStringCacheCandidate(stream);
     }
 
     /// <summary>
@@ -228,6 +250,94 @@ public class OpenXmlSpreadsheetRowExtractionBenchmarks
     }
 
     /// <summary>
+    /// Reproduces the current reusable row storage with shared strings materialized once per read.
+    /// </summary>
+    /// <param name="stream">The workbook stream.</param>
+    /// <returns>The extracted ingestion document.</returns>
+    private static IngestionDocument ExtractSharedStringCacheCandidate(Stream stream)
+    {
+        using var document = SpreadsheetDocument.Open(stream, false);
+        var result = new IngestionDocument("benchmark.xlsx");
+        var workbook = document.WorkbookPart;
+
+        if (workbook == null)
+        {
+            return result;
+        }
+
+        var sharedStrings = OpenXmlTabularWorksheetReader.CreateSharedStringCache(workbook);
+        var section = new IngestionDocumentSection();
+        var values = new List<string>();
+
+        foreach (var sheet in workbook.WorksheetParts)
+        {
+            var data = sheet.Worksheet.GetFirstChild<SheetData>();
+
+            if (data == null)
+            {
+                continue;
+            }
+
+            foreach (var row in data.Elements<Row>())
+            {
+                GetCachedRowValues(row, sharedStrings, values);
+
+                if (values.Count > 0)
+                {
+                    var rowText = string.Join("\t", values);
+                    section.Elements.Add(new IngestionDocumentParagraph(rowText)
+                    {
+                        Text = rowText,
+                    });
+                }
+            }
+        }
+
+        if (section.Elements.Count > 0)
+        {
+            result.Sections.Add(section);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Populates reusable row storage using cached shared strings.
+    /// </summary>
+    /// <param name="row">The spreadsheet row.</param>
+    /// <param name="sharedStrings">The cached shared strings.</param>
+    /// <param name="values">The reusable row values.</param>
+    private static void GetCachedRowValues(
+        Row row,
+        string[] sharedStrings,
+        List<string> values)
+    {
+        values.Clear();
+
+        foreach (var cell in row.Elements<Cell>())
+        {
+            var columnIndex = GetLegacyColumnIndex(cell.CellReference?.Value, values.Count);
+
+            while (values.Count < columnIndex)
+            {
+                values.Add(string.Empty);
+            }
+
+            values.Add(GetCachedCellValue(cell, sharedStrings));
+        }
+
+        for (var index = values.Count - 1; index >= 0; index--)
+        {
+            if (!string.IsNullOrEmpty(values[index]))
+            {
+                break;
+            }
+
+            values.RemoveAt(index);
+        }
+    }
+
+    /// <summary>
     /// Reproduces the original list-based row materialization.
     /// </summary>
     /// <param name="row">The spreadsheet row.</param>
@@ -321,6 +431,42 @@ public class OpenXmlSpreadsheetRowExtractionBenchmarks
                 : null;
 
             return item?.InnerText ?? value;
+        }
+
+        if (cell.DataType?.Value == CellValues.Boolean)
+        {
+            return value == "1" ? "TRUE" : "FALSE";
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Converts a spreadsheet cell to text using cached shared strings.
+    /// </summary>
+    /// <param name="cell">The spreadsheet cell.</param>
+    /// <param name="sharedStrings">The cached shared strings.</param>
+    /// <returns>The extracted cell text.</returns>
+    private static string GetCachedCellValue(Cell cell, string[] sharedStrings)
+    {
+        if (cell.DataType?.Value == CellValues.InlineString)
+        {
+            return cell.InlineString?.InnerText ?? string.Empty;
+        }
+
+        if (cell.CellValue == null)
+        {
+            return string.Empty;
+        }
+
+        var value = cell.CellValue.InnerText;
+
+        if (cell.DataType?.Value == CellValues.SharedString &&
+            int.TryParse(value, out var index) &&
+            sharedStrings != null &&
+            (uint)index < (uint)sharedStrings.Length)
+        {
+            return sharedStrings[index];
         }
 
         if (cell.DataType?.Value == CellValues.Boolean)

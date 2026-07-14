@@ -182,18 +182,49 @@ dotnet run -c Release -f net10.0 \
   -- --filter '*OpenXml*TextPropertyReadBenchmarks*'
 ```
 
+## Open XML tabular artifact row capacity
+
+### Unconditional 4,096-row capacity rejected
+
+| Data rows | Default capacity | 4,096-row capacity | Allocation change |
+| ---: | ---: | ---: | ---: |
+| 0 | 809.1 us / 175.41 KB | 786.2 us / 207.43 KB | 18.3% more |
+| 1 | 667.6 us / 176.38 KB | 1,271.3 us / 208.35 KB | 18.1% more |
+| 32 | 3,678.1 us / 203.45 KB | 1,152.9 us / 234.93 KB | 15.5% more |
+| 1,000 | 2,699.2 us / 1,051.19 KB | 16,976.0 us / 1,067.05 KB | 1.5% more |
+| 4,096 | 8,367.5 us / 3,760.73 KB | 25,343.2 us / 3,728.49 KB | 0.9% less |
+| 10,000 | 17,384.4 us / 9,028.24 KB | 21,391.5 us / 8,996.18 KB | 0.4% less |
+
+Each benchmark parses a prebuilt, in-memory XLSX containing one header and the indicated number of
+data rows. Setup verifies exact header, row, cell, and ordering equivalence before measurement.
+Timing was noisy and showed no consistent preallocation win. Allocation results were stable:
+preallocating 4,096 references added about 32 KB to empty and small artifacts, while saving only about
+32 KB at 4,096 and 10,000 rows. Production therefore lets the row list grow normally. Regression
+tests cover empty and header-only workbooks, sparse cells, 4,095/4,096/4,097 rows, exact ordering, and
+cancellation.
+
+Run the comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*OpenXmlTabularDocumentArtifactBuilderCapacityBenchmarks*'
+```
+
 ## Open XML spreadsheet row extraction
 
-| Scenario | Legacy | Current | Change |
+| Scenario | Legacy | Current row reuse | Shared-string cache candidate |
 | --- | ---: | ---: | ---: |
-| Sparse 1,000 x 34 sheet | 6.810 ms / 4.81 MB | 6.218 ms / 3.72 MB | 8.7% faster / 22.7% fewer allocations |
-| Dense 10,000 x 16 sheet | 514.012 ms / 163.21 MB | 473.676 ms / 160.08 MB | 7.8% faster / 1.9% fewer allocations |
+| Sparse 1,000 x 34 sheet | 8.539 ms / 4.81 MB | 7.832 ms / 3.72 MB | 8.021 ms / 3.31 MB |
+| Dense 10,000 x 16 sheet | 623.667 ms / 163.21 MB | 481.068 ms / 160.08 MB | 648.009 ms / 138.11 MB |
 
-The benchmark compares the legacy per-row list allocation with the current per-read reusable list in
-the same process. It uses synthetic in-memory Open XML workbooks, five warmups, and twelve measured
-iterations, so workbook generation and disk or network I/O are excluded. The current implementation
-preserves SDK traversal, worksheet and row ordering, sparse column positions, trailing-empty-cell
-trimming, and exact tab-separated output.
+The benchmark compares the legacy per-row list allocation, the retained per-read reusable list, and a
+deep-scan candidate that additionally materializes every shared string once. It uses synthetic
+in-memory Open XML workbooks, five warmups, and twelve measured iterations, so workbook generation and
+disk or network I/O are excluded. Setup verifies exact output before measurement. The shared-string
+cache reduced allocations by 11.0% on the sparse workbook and 13.7% on the dense workbook relative to
+current row reuse, but it was 2.4% and 34.7% slower respectively. The candidate was therefore rejected;
+production keeps row reuse without eager shared-string materialization.
 
 ## Sentence boundary detection
 
