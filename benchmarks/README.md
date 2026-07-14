@@ -1277,3 +1277,85 @@ while the zero-handler path removes 112 B per update. Faulting handlers still re
 allocation reductions and noisy latency changes from 3.5% slower to 16.4% faster. The change is
 retained for the large, consistent zero/successful-handler gains; no fault-path latency improvement
 is claimed.
+
+## Security prompt preamble composition
+
+Run the complete legacy/current comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*SecurityPromptPreambleCompositionBenchmarks*' --join
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured
+iterations, .NET 10.0.5, and an Apple M2. Each measured invocation operates on 16 independently
+prepared builders and reports normalized per-composition values. Input construction is excluded.
+ASCII lengths make the requested byte counts equal the input character counts; the builder itself
+stores UTF-16. Contiguous inputs occupy one pre-sized chunk. Many-append inputs use 64-character
+appends and setup rejects a non-empty builder unless it contains multiple chunks.
+
+Global setup fails unless legacy and current return the original builder and produce exactly
+`preamble + Environment.NewLine + Environment.NewLine + existing` for non-empty builders, or just
+`preamble` for empty builders, using ordinal comparison. The composition-and-flush category also
+includes the final `StringBuilder.ToString()` performed by the orchestration context builder.
+
+| Existing | Shape | Preamble | Legacy composition | Current composition | Composition change | Legacy + flush | Current + flush | Flush change |
+| ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |
+| 0 B | Contiguous | 256 B | 85.33 ns / 552 B | 86.39 ns / 552 B | 1.2% slower / allocations unchanged | 174.72 ns / 1.06 KB | 179.00 ns / 1.06 KB | 2.4% slower / allocations unchanged |
+| 0 B | Contiguous | 4 KB | 507.01 ns / 8.04 KB | 502.65 ns / 8.04 KB | 0.9% faster / allocations unchanged | 940.56 ns / 16.06 KB | 965.02 ns / 16.06 KB | 2.6% slower / allocations unchanged |
+| 0 B | Many appends | 256 B | 100.36 ns / 584 B | 86.24 ns / 584 B | 14.1% faster / allocations unchanged | 189.65 ns / 1.09 KB | 179.20 ns / 1.09 KB | 5.5% faster / allocations unchanged |
+| 0 B | Many appends | 4 KB | 541.00 ns / 8.07 KB | 527.86 ns / 8.07 KB | 2.4% faster / allocations unchanged | 980.69 ns / 16.09 KB | 967.91 ns / 16.09 KB | 1.3% faster / allocations unchanged |
+| 256 B | Contiguous | 256 B | 211.42 ns / 2.16 KB | 123.48 ns / 688 B | 41.6% faster / 69.0% fewer allocations | 320.84 ns / 3.20 KB | 254.99 ns / 1.70 KB | 20.5% faster / 46.7% fewer allocations |
+| 256 B | Contiguous | 4 KB | 935.38 ns / 16.16 KB | 551.26 ns / 8.17 KB | 41.1% faster / 49.4% fewer allocations | 1.331 us / 24.70 KB | 968.24 ns / 16.70 KB | 27.2% faster / 32.4% fewer allocations |
+| 256 B | Many appends | 256 B | 284.08 ns / 2.69 KB | 129.32 ns / 688 B | 54.5% faster / 75.0% fewer allocations | 379.75 ns / 3.72 KB | 271.39 ns / 1.70 KB | 28.5% faster / 54.2% fewer allocations |
+| 256 B | Many appends | 4 KB | 887.45 ns / 16.69 KB | 534.67 ns / 8.17 KB | 39.8% faster / 51.0% fewer allocations | 1.441 us / 25.22 KB | 990.75 ns / 16.70 KB | 31.3% faster / 33.8% fewer allocations |
+| 8 KB | Contiguous | 256 B | 1.448 us / 31.72 KB | 113.06 ns / 688 B | 92.2% faster / 97.9% fewer allocations | 2.138 us / 48.25 KB | 938.06 ns / 17.20 KB | 56.1% faster / 64.3% fewer allocations |
+| 8 KB | Contiguous | 4 KB | 1.653 us / 31.72 KB | 520.12 ns / 8.17 KB | 68.5% faster / 74.2% fewer allocations | 2.661 us / 55.75 KB | 1.623 us / 32.20 KB | 39.0% faster / 42.2% fewer allocations |
+| 8 KB | Many appends | 256 B | 1.642 us / 47.74 KB | 196.72 ns / 688 B | 88.0% faster / 98.6% fewer allocations | 2.497 us / 64.27 KB | 1.096 us / 17.20 KB | 56.1% faster / 73.2% fewer allocations |
+| 8 KB | Many appends | 4 KB | 1.829 us / 47.74 KB | 602.72 ns / 8.17 KB | 67.0% faster / 82.9% fewer allocations | 2.851 us / 71.77 KB | 1.804 us / 32.20 KB | 36.7% faster / 55.1% fewer allocations |
+| 1 MB | Contiguous | 256 B | 202.532 us / 2.02 MB | 120.55 ns / 688 B | 99.9% faster / 99.97% fewer allocations | 350.372 us / 4.02 MB | 138.119 us / 2.00 MB | 60.6% faster / 50.2% fewer allocations |
+| 1 MB | Contiguous | 4 KB | 200.720 us / 2.02 MB | 705.93 ns / 8.17 KB | 99.6% faster / 99.6% fewer allocations | 350.792 us / 4.02 MB | 138.607 us / 2.02 MB | 60.5% faster / 49.9% fewer allocations |
+| 1 MB | Many appends | 256 B | 408.920 us / 4.01 MB | 2.762 us / 688 B | 99.3% faster / 99.98% fewer allocations | 521.434 us / 6.02 MB | 188.172 us / 2.00 MB | 63.9% faster / 66.7% fewer allocations |
+| 1 MB | Many appends | 4 KB | 406.102 us / 4.01 MB | 3.245 us / 8.17 KB | 99.2% faster / 99.8% fewer allocations | 524.851 us / 6.02 MB | 190.481 us / 2.02 MB | 63.7% faster / 66.5% fewer allocations |
+
+The empty-builder path still appends the preamble directly. Its allocations are identical, and its
+timing differences range from 2.6% slower to 14.1% faster with overlapping error intervals, so no
+small-message latency change is claimed. Every non-empty scenario improves both allocation and mean
+latency. Including the required final flush, 256-byte messages are 20.5-31.3% faster with
+32.4-54.2% fewer allocations; 8 KB messages are 36.7-56.1% faster with 42.2-73.2% fewer
+allocations; and 1 MB messages are 60.5-63.9% faster with 49.9-66.7% fewer allocations.
+
+The retained implementation inserts a cached double platform-newline at index zero, then inserts the
+preamble at index zero. Both operations therefore prepend instead of inserting the separator into
+the middle of the newly inserted preamble. A single combined-prefix insertion was rejected: it
+allocates a discarded combined string on every non-empty call. In the candidate run, separator-first
+insertion used 688 B versus 1,136 B with a 256-byte preamble and 8,368 B versus 16,496 B with a
+4 KB preamble. The combined candidate was sometimes faster for a 1 MB many-append builder before
+the final flush, but separator-first was faster for contiguous builders, had the lowest allocation in
+every non-empty case, and the required final-flush timings were effectively equivalent.
+
+Builder capacity and chunk counts are implementation details, but the same-runtime diagnostic
+observations explain the allocation results:
+
+| Existing | Shape | Initial capacity/chunks | Legacy final, 256 B preamble | Current final, 256 B preamble | Legacy final, 4 KB preamble | Current final, 4 KB preamble |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0 B | Contiguous | 16 / 1 | 256 / 2 | 256 / 2 | 4,096 / 2 | 4,096 / 2 |
+| 0 B | Many appends | 1 / 1 | 256 / 2 | 256 / 2 | 4,096 / 2 | 4,096 / 2 |
+| 256 B | Contiguous | 256 / 1 | 1,024 / 3 | 514 / 3 | 8,192 / 3 | 4,354 / 3 |
+| 256 B | Many appends | 256 / 4 | 1,024 / 3 | 514 / 6 | 8,192 / 3 | 4,354 / 6 |
+| 8 KB | Contiguous | 8,192 / 1 | 16,192 / 2 | 8,450 / 3 | 16,192 / 2 | 12,290 / 3 |
+| 8 KB | Many appends | 8,192 / 9 | 16,192 / 2 | 8,450 / 11 | 16,192 / 2 | 12,290 / 11 |
+| 1 MB | Contiguous | 1,048,576 / 1 | 1,056,576 / 2 | 1,048,834 / 3 | 1,056,576 / 2 | 1,052,674 / 3 |
+| 1 MB | Many appends | 1,056,192 / 140 | 1,056,192 / 1 | 1,056,450 / 142 | 1,056,192 / 1 | 1,060,290 / 142 |
+
+The legacy path materialized the existing message, cleared the builder, and appended the full copy,
+which often flattened chunked inputs and over-expanded contiguous capacity. The retained path keeps
+the original chunks and adds two prefix chunks. The context builder's final `ToString()` therefore
+remains part of the realistic benchmark rather than being hidden by the composition-only result.
+
+Behavior tests lock null, empty, whitespace-only, large, Unicode, and lone-surrogate preambles;
+empty, whitespace-only, contiguous, chunked, newline-prefixed/suffixed, mixed CR/LF, and 1 MB
+existing messages; exact ordinal output; builder and context identity; repeated invocation;
+cancellation-token propagation; cancellation ignored by a completing renderer; and unchanged
+template exception/cancellation mutation boundaries.

@@ -20,6 +20,7 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
     private const string InputDelimiterTemplateId = "input-delimiter-instructions";
     private const string UserInputBeginDelimiter = "<|user_input_begin|>";
     private const string UserInputEndDelimiter = "<|user_input_end|>";
+    private static readonly string _systemMessageSeparator = string.Concat(Environment.NewLine, Environment.NewLine);
 
     private readonly ITemplateService _templateService;
     private readonly IOptions<PromptSecurityOptions> _options;
@@ -90,15 +91,16 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
 
             if (!string.IsNullOrWhiteSpace(preamble))
             {
-                var existingSystemMessage = context.OrchestrationContext.SystemMessageBuilder.ToString();
-                context.OrchestrationContext.SystemMessageBuilder.Clear();
-                context.OrchestrationContext.SystemMessageBuilder.Append(preamble);
+                var systemMessageBuilder = context.OrchestrationContext.SystemMessageBuilder;
 
-                if (!string.IsNullOrEmpty(existingSystemMessage))
+                if (systemMessageBuilder.Length == 0)
                 {
-                    context.OrchestrationContext.SystemMessageBuilder.AppendLine();
-                    context.OrchestrationContext.SystemMessageBuilder.AppendLine();
-                    context.OrchestrationContext.SystemMessageBuilder.Append(existingSystemMessage);
+                    systemMessageBuilder.Append(preamble);
+                }
+                else
+                {
+                    systemMessageBuilder.Insert(0, _systemMessageSeparator);
+                    systemMessageBuilder.Insert(0, preamble);
                 }
 
                 if (_logger.IsEnabled(LogLevel.Debug))
