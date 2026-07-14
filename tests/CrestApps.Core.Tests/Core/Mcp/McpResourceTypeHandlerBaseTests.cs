@@ -77,6 +77,93 @@ public sealed class McpResourceTypeHandlerBaseTests
         Assert.Empty(handler.LastVariables);
     }
 
+    [Theory]
+    [InlineData(null, "")]
+    [InlineData("", "")]
+    [InlineData("   ", "")]
+    [InlineData("report.txt", "report.txt")]
+    [InlineData("/documents/reports/report.txt/", "documents/reports/report.txt")]
+    [InlineData(@"\\documents\\reports\report.txt", "documents/reports/report.txt")]
+    [InlineData("documents//reports///report.txt", "documents/reports/report.txt")]
+    [InlineData("documents/.hidden/..archive/report.txt", "documents/.hidden/..archive/report.txt")]
+    [InlineData("documents/ /report.txt", "documents/ /report.txt")]
+    public void SanitizePath_NormalizesExpectedValue(string path, string expected)
+    {
+        var result = TestHandler.Sanitize(path);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("documents/./report.txt")]
+    [InlineData(@"documents\..\report.txt")]
+    [InlineData("documents/\0/report.txt")]
+    public void SanitizePath_WithUnsafeSegment_ThrowsArgumentException(string path)
+    {
+        Assert.Throws<ArgumentException>(() => TestHandler.Sanitize(path));
+    }
+
+    [Fact]
+    public void SanitizePath_MatchesLegacyBehaviorAcrossGeneratedMatrix()
+    {
+        var segments = new[] { "", "a", "report.txt", ".", "..", ".hidden", "..archive", " ", "é" };
+        var separators = new[] { "/", "\\", "//", "\\\\", "/\\" };
+        var affixes = new[] { "", "/", "\\" };
+
+        foreach (var prefix in affixes)
+        {
+            foreach (var firstSegment in segments)
+            {
+                foreach (var separator in separators)
+                {
+                    foreach (var secondSegment in segments)
+                    {
+                        foreach (var suffix in affixes)
+                        {
+                            var path = prefix + firstSegment + separator + secondSegment + suffix;
+                            string legacyResult = null;
+                            string currentResult = null;
+                            var legacyException = Record.Exception(() => legacyResult = SanitizeLegacy(path));
+                            var currentException = Record.Exception(() => currentResult = TestHandler.Sanitize(path));
+
+                            Assert.Equal(legacyException?.GetType(), currentException?.GetType());
+                            Assert.Equal(legacyException?.Message, currentException?.Message);
+                            Assert.Equal(legacyResult, currentResult);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static string SanitizeLegacy(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        if (path.Contains('\0'))
+        {
+            throw new ArgumentException("Path contains invalid characters.", nameof(path));
+        }
+
+        var normalized = path.Replace('\\', '/');
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var segment in segments)
+        {
+            if (segment == ".." || segment == ".")
+            {
+                throw new ArgumentException("Path must not contain directory traversal sequences.", nameof(path));
+            }
+        }
+
+        return string.Join("/", segments);
+    }
+
     private static McpResource CreateResource(string uri)
     {
         return new McpResource
@@ -98,6 +185,11 @@ public sealed class McpResourceTypeHandlerBaseTests
         public TestHandler(string type)
             : base(type)
         {
+        }
+
+        public static string Sanitize(string path)
+        {
+            return SanitizePath(path);
         }
 
         protected override Task<ReadResourceResult> GetResultAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken)

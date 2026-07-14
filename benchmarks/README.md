@@ -1570,3 +1570,67 @@ tool factories, while OAuth model projection, serializer streaming, and protecto
 network-, file-, or cryptography-bound paths and either offer marginal application-level savings
 or change failure timing. No additional production candidate justified benchmark or compatibility
 surface.
+
+## MCP resource URI matching and remote path sanitization
+
+Run the comparisons from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*McpResourceUriBenchmarks*'
+
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*McpPathSanitizationBenchmarks*'
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured
+iterations, .NET 10.0.5, and an Apple M2.
+
+### Resource URI matching
+
+| Scenario | Legacy dynamic regex | Current cached matcher | Change |
+| --- | ---: | ---: | ---: |
+| Encoded path | 2,777.47 ns / 7,504 B | 336.59 ns / 800 B | 87.9% faster / 89.3% fewer allocations |
+| Exact URI | 4,007.04 ns / 6,360 B | 226.58 ns / 80 B | 94.3% faster / 98.7% fewer allocations |
+| FTP path | 2,751.07 ns / 7,256 B | 397.07 ns / 696 B | 85.6% faster / 90.4% fewer allocations |
+| Multiple variables | 6,678.49 ns / 8,688 B | 525.37 ns / 976 B | 92.1% faster / 88.8% fewer allocations |
+| Non-match | 2,304.43 ns / 6,384 B | 73.82 ns / 0 B | 96.8% faster / allocation-free |
+
+The retained implementation retains up to 256 template matchers, keyed by the trimmed template
+and current culture. Matcher construction still uses the existing regular expression, preserving
+case rules, placeholder recognition, greedy capture and backtracking, duplicate-name capture,
+literal escaping, encoded-value decoding, and exception behavior. Exact templates use the cached
+regex's allocation-free match check before returning the same mutable empty dictionary shape.
+
+Benchmark setup validates equivalence and warms each production matcher, so the figures represent
+repeated matching. First-use matcher construction remains similar to the legacy path and occurs once
+for each retained template and culture pair.
+
+The allocation reductions are deterministic; timing is directional because the legacy exact and
+multiple-variable measurements were noisy. Forty-three behavior cases cover whitespace, literals,
+single and multiple variables, adjacent and duplicate variables, trailing literals, encoded slashes,
+non-placeholder braces, multi-segment final captures, empty captures, and culture-specific
+case-insensitive matching.
+
+### Remote resource path sanitization
+
+| Scenario | Legacy split + join | Current scanner | Change |
+| --- | ---: | ---: | ---: |
+| Flat file | 16.348 ns / 32 B | 5.264 ns / 0 B | 67.8% faster / allocation-free |
+| Nested path | 83.606 ns / 328 B | 41.954 ns / 0 B | 49.8% faster / allocation-free |
+| 64 segments | 1,218.977 ns / 4,936 B | 702.766 ns / 0 B | 42.3% faster / allocation-free |
+| Mixed and repeated separators | 109.264 ns / 528 B | 107.222 ns / 104 B | Timing neutral / 80.3% fewer allocations |
+
+The scanner returns already normalized FTP and SFTP paths unchanged. Paths needing normalization
+are validated once for empty, current-directory, parent-directory, backslash, repeated-separator,
+and null-byte behavior, then written directly to the final string. Tests preserve exact results and
+exception messages for explicit edge cases and a 3,645-input legacy/current differential matrix.
+
+The remaining MCP, FTP, and SFTP scan retained no speculative changes. Client reuse and parallel
+capability discovery require explicit lifetime, disposal, and server-concurrency guarantees.
+Consolidating the existing FTP and SFTP handlers onto the remote-file base would introduce a new
+download-size limit, while replacing the stream-reader path could change encoding and BOM behavior.
+Tool argument and metadata prompt micro-optimizations remain dominated by remote calls or sorting,
+so production keeps their simpler implementations.
