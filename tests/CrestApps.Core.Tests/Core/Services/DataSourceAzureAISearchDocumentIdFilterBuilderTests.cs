@@ -75,4 +75,31 @@ public sealed class DataSourceAzureAISearchDocumentIdFilterBuilderTests
 
         Assert.Equal(string.Empty, result);
     }
+
+    [Fact]
+    public void BuildFilter_MatchesLegacyProjection_ForEscapingOrderEmptyAndDuplicates()
+    {
+        string[][] idSets =
+        [
+            [],
+            ["document"],
+            ["O'Brien"],
+            ["first", "second", "third"],
+            ["a''b", "'x'", "y'z'"],
+            ["dup", "dup", "other", "dup"],
+            ["b", "a", "c", "a"],
+            ["'", "''", "'''"],
+        ];
+
+        foreach (var ids in idSets)
+        {
+            var expected = BuildLegacyFilter(ids, "documentId");
+            var actual = DataSourceAzureAISearchDocumentIdFilterBuilder.BuildFilter(ids, "documentId");
+
+            Assert.Equal(expected, actual);
+        }
+    }
+
+    private static string BuildLegacyFilter(IEnumerable<string> ids, string keyFieldName)
+        => string.Join(" or ", ids.Select(id => $"{keyFieldName} eq '{id.Replace("'", "''", StringComparison.Ordinal)}'"));
 }

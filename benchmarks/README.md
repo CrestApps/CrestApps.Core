@@ -118,6 +118,28 @@ The current path preserves identifier order and identity, filters only null and 
 and emits the same apostrophe-escaped OData filter text. It sizes and fills the final filter string
 directly, avoiding the per-identifier projection and interpolation strings used by the legacy path.
 
+## Azure AI Search AI data source ReadByIds filter construction
+
+`AzureAISearchAIDataSourceSourceHandler.ReadByIdsAsync` now reuses the shared document ID filter
+builder instead of a per-identifier LINQ projection joined with `" or "`. The identifiers below
+represent the already whitespace-filtered and case-insensitively de-duplicated array the handler
+passes to filter construction, so the measured region isolates the step that changed.
+
+| Document IDs | Legacy allocated | Current allocated | Change |
+| --- | ---: | ---: | ---: |
+| 1 | 208 B | 96 B | 53.8% fewer allocations |
+| 10 | 1,568 B | 640 B | 59.2% fewer allocations |
+| 100 | 15,408 B | 6,416 B | 58.4% fewer allocations |
+| 1,000 | 155,632 B | 66,000 B | 57.6% fewer allocations |
+
+The current path emits the identical apostrophe-escaped OData filter text, locked by the
+characterization test that compares it to the legacy `string.Join` projection across empty,
+apostrophe-heavy, ordered, and duplicate identifier sets. It fills the filter string once through the
+shared builder rather than allocating a projection string per identifier plus the joined result. The
+allocation reduction above is deterministic across runs; wall-clock time was directionally faster in
+the low-noise measurements (down to roughly 0.45x at 10 identifiers) but is sensitive to
+garbage-collection noise on the development machine, so allocations are the reproducible metric.
+
 ## Open XML text property reads
 
 ### Word optimization retained
