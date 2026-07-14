@@ -1196,3 +1196,84 @@ locks its parser precedence, parentheses, field mapping, JSON and wildcard escap
 formatting, fallback values, and exception behavior. Production changes only the regular-expression
 match enumeration and exact `Substring(match.Index, match.Length)` extraction; all Elasticsearch
 parsing and rendering code remains unchanged.
+
+## AI completion handler dispatch
+
+Run the complete legacy/current comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*DefaultAICompletionServiceHandlerDispatchBenchmarks*'
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured
+iterations, .NET 10.0.5, and an Apple M2. Streaming figures are normalized by
+`OperationsPerInvoke`, so time and allocation columns are per emitted update. Global setup fails
+unless legacy and current paths emit the same update references and produce equivalent handler
+order, context-sharing patterns, update/response identities, default handler cancellation tokens,
+and fault log counts. A pre-change control run produced identical allocations in all 30
+legacy/current pairs.
+
+| Updates | Handlers | Outcome | Legacy | Current | Change |
+| ---: | ---: | --- | ---: | ---: | ---: |
+| 1 | 0 | Successful | 139.67 ns / 768 B | 120.90 ns / 656 B | 13.4% faster / 14.6% fewer allocations |
+| 1 | 0 | Faulting | 139.42 ns / 768 B | 119.00 ns / 656 B | 14.6% faster / 14.6% fewer allocations |
+| 1 | 1 | Successful | 148.23 ns / 800 B | 136.18 ns / 680 B | 8.1% faster / 15.0% fewer allocations |
+| 1 | 1 | Faulting | 3,166.74 ns / 1,200 B | 3,257.22 ns / 1,080 B | 2.9% slower / 10.0% fewer allocations |
+| 1 | 4 | Successful | 192.79 ns / 800 B | 171.31 ns / 680 B | 11.1% faster / 15.0% fewer allocations |
+| 1 | 4 | Faulting | 14,529.19 ns / 2,400 B | 13,623.36 ns / 2,280 B | 6.2% faster / 5.0% fewer allocations |
+| 32 | 0 | Successful | 41.94 ns / 132 B | 30.72 ns / 20 B | 26.8% faster / 84.8% fewer allocations |
+| 32 | 0 | Faulting | 44.11 ns / 132 B | 30.79 ns / 20 B | 30.2% faster / 84.8% fewer allocations |
+| 32 | 1 | Successful | 50.45 ns / 164 B | 36.85 ns / 44 B | 27.0% faster / 73.2% fewer allocations |
+| 32 | 1 | Faulting | 4,160.69 ns / 565 B | 4,123.48 ns / 445 B | 0.9% faster / 21.2% fewer allocations |
+| 32 | 4 | Successful | 67.30 ns / 164 B | 43.24 ns / 44 B | 35.8% faster / 73.2% fewer allocations |
+| 32 | 4 | Faulting | 11,256.96 ns / 1,765 B | 11,411.03 ns / 1,645 B | 1.4% slower / 6.8% fewer allocations |
+| 256 | 0 | Successful | 48.62 ns / 115 B | 34.61 ns / 3 B | 28.8% faster / 97.4% fewer allocations |
+| 256 | 0 | Faulting | 48.45 ns / 115 B | 34.71 ns / 3 B | 28.4% faster / 97.4% fewer allocations |
+| 256 | 1 | Successful | 48.62 ns / 147 B | 41.69 ns / 27 B | 14.3% faster / 81.6% fewer allocations |
+| 256 | 1 | Faulting | 3,662.81 ns / 547 B | 3,622.08 ns / 427 B | 1.1% faster / 21.9% fewer allocations |
+| 256 | 4 | Successful | 71.95 ns / 147 B | 48.87 ns / 27 B | 32.1% faster / 81.6% fewer allocations |
+| 256 | 4 | Faulting | 14,230.69 ns / 1,747 B | 11,891.72 ns / 1,627 B | 16.4% faster / 6.9% fewer allocations |
+| 4,096 | 0 | Successful | 38.54 ns / 112 B | 27.45 ns / 0 B | 28.8% faster / allocation-free after amortization |
+| 4,096 | 0 | Faulting | 38.17 ns / 112 B | 27.46 ns / 0 B | 28.1% faster / allocation-free after amortization |
+| 4,096 | 1 | Successful | 44.15 ns / 144 B | 32.73 ns / 24 B | 25.9% faster / 83.3% fewer allocations |
+| 4,096 | 1 | Faulting | 2,918.61 ns / 544 B | 2,796.53 ns / 424 B | 4.2% faster / 22.1% fewer allocations |
+| 4,096 | 4 | Successful | 58.00 ns / 144 B | 43.12 ns / 24 B | 25.7% faster / 83.3% fewer allocations |
+| 4,096 | 4 | Faulting | 11,083.40 ns / 1,744 B | 11,469.82 ns / 1,624 B | 3.5% slower / 6.9% fewer allocations |
+
+The zero-handler `Faulting` rows intentionally duplicate the successful behavior because there is
+no handler to fault. At 4,096 updates, the current zero-handler stream still has one small
+per-stream allocation, which BenchmarkDotNet rounds to 0 B per update after normalization.
+
+| Non-stream handlers | Outcome | Legacy | Current | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 0 | Successful | 78.49 ns / 552 B | 57.71 ns / 440 B | 26.5% faster / 20.3% fewer allocations |
+| 0 | Faulting | 87.38 ns / 552 B | 81.33 ns / 440 B | 6.9% faster / 20.3% fewer allocations |
+| 1 | Successful | 109.13 ns / 584 B | 77.12 ns / 464 B | 29.3% faster / 20.5% fewer allocations |
+| 1 | Faulting | 3,671.30 ns / 984 B | 3,508.25 ns / 864 B | 4.4% faster / 12.2% fewer allocations |
+| 4 | Successful | 109.67 ns / 584 B | 94.46 ns / 464 B | 13.9% faster / 20.5% fewer allocations |
+| 4 | Faulting | 14,023.82 ns / 2,184 B | 13,876.42 ns / 2,064 B | 1.1% faster / 5.5% fewer allocations |
+
+The retained implementation does not snapshot handlers. Microsoft dependency injection supplies
+the scoped `IEnumerable<IAICompletionHandler>` as an ordered array, so production caches only that
+array reference, skips context/delegate dispatch for an empty array, and indexes non-empty arrays
+directly. Arbitrary enumerable inputs retain legacy lazy re-enumeration for every response or
+update. This preserves mutations between chunks, single-use-enumerable failures, and enumerator
+exceptions and disposal; a constructor-time or first-use `ToArray()` snapshot was rejected because
+it changes all three behaviors.
+
+Direct typed message/update loops remove the capturing per-dispatch delegate while retaining the
+exact `DefaultAICompletionService` logging category, message template, handler type, exception
+swallowing, and later-handler continuation. The existing shared `HandlerExtensions.InvokeAsync`
+was not reused because its public contract logs a different template and has different null-handler
+fallback behavior. Changing that helper would have altered public behavior. The zero-handler path
+also retains the legacy `ReceivedUpdateContext` null-update failure and exact `update` parameter
+name.
+
+Successful realistic streams remove a deterministic 120 B per update with one or four handlers,
+while the zero-handler path removes 112 B per update. Faulting handlers still remove the same fixed
+120 B, but exception throwing and structured logging dominate total cost, leaving only 5.0-22.1%
+allocation reductions and noisy latency changes from 3.5% slower to 16.4% faster. The change is
+retained for the large, consistent zero/successful-handler gains; no fault-path latency improvement
+is claimed.

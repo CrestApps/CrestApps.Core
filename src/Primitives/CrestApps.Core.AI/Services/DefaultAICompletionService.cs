@@ -16,6 +16,7 @@ public sealed class DefaultAICompletionService : IAICompletionService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IEnumerable<IAICompletionHandler> _completionHandlers;
+    private readonly IAICompletionHandler[] _completionHandlerArray;
     private readonly AIOptions _aiOptions;
     private readonly ILogger<DefaultAICompletionService> _logger;
 
@@ -34,6 +35,7 @@ public sealed class DefaultAICompletionService : IAICompletionService
     {
         _serviceProvider = serviceProvider;
         _completionHandlers = completionHandlers;
+        _completionHandlerArray = completionHandlers as IAICompletionHandler[];
         _aiOptions = aiOptions.Value;
         _logger = logger;
     }
@@ -56,9 +58,14 @@ public sealed class DefaultAICompletionService : IAICompletionService
         var response = await client.CompleteAsync(messages, context, cancellationToken)
         ?? throw new InvalidOperationException("Unable to generate a response. Ensure that the connection, and the deployment names are correct.");
 
+        if (_completionHandlerArray is { Length: 0 })
+        {
+            return response;
+        }
+
         var updateContext = new ReceivedMessageContext(response);
 
-        await InvokeHandlersAsync(handler => handler.ReceivedMessageAsync(updateContext));
+        await InvokeMessageHandlersAsync(updateContext);
 
         return response;
     }
@@ -80,29 +87,118 @@ public sealed class DefaultAICompletionService : IAICompletionService
 
         await foreach (var chunk in client.CompleteStreamingAsync(messages, context, cancellationToken))
         {
+            if (_completionHandlerArray is { Length: 0 })
+            {
+                ArgumentNullException.ThrowIfNull(chunk, "update");
+
+                yield return chunk;
+
+                continue;
+            }
+
             var updateContext = new ReceivedUpdateContext(chunk);
 
-            await InvokeHandlersAsync(handler => handler.ReceivedUpdateAsync(updateContext));
+            await InvokeUpdateHandlersAsync(updateContext);
 
             yield return chunk;
         }
     }
 
-    private async Task InvokeHandlersAsync(Func<IAICompletionHandler, Task> invoke)
+    /// <summary>
+    /// Invokes each completion handler for a non-streaming response.
+    /// </summary>
+    /// <param name="context">The received-message context shared by all handlers.</param>
+    /// <returns>A task representing handler dispatch.</returns>
+    private async Task InvokeMessageHandlersAsync(ReceivedMessageContext context)
     {
+        if (_completionHandlerArray is not null)
+        {
+            for (var index = 0; index < _completionHandlerArray.Length; index++)
+            {
+                var handler = _completionHandlerArray[index];
+
+                try
+                {
+                    await handler.ReceivedMessageAsync(context);
+                }
+                catch (Exception ex)
+                {
+                    LogHandlerError(handler, ex);
+                }
+            }
+
+            return;
+        }
+
         foreach (var handler in _completionHandlers)
         {
             try
             {
-                await invoke(handler);
+                await handler.ReceivedMessageAsync(context);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error invoking completion handler '{HandlerType}'.", handler.GetType().Name);
+                LogHandlerError(handler, ex);
             }
         }
     }
 
+    /// <summary>
+    /// Invokes each completion handler for a streaming update.
+    /// </summary>
+    /// <param name="context">The received-update context shared by all handlers.</param>
+    /// <returns>A task representing handler dispatch.</returns>
+    private async Task InvokeUpdateHandlersAsync(ReceivedUpdateContext context)
+    {
+        if (_completionHandlerArray is not null)
+        {
+            for (var index = 0; index < _completionHandlerArray.Length; index++)
+            {
+                var handler = _completionHandlerArray[index];
+
+                try
+                {
+                    await handler.ReceivedUpdateAsync(context);
+                }
+                catch (Exception ex)
+                {
+                    LogHandlerError(handler, ex);
+                }
+            }
+
+            return;
+        }
+
+        foreach (var handler in _completionHandlers)
+        {
+            try
+            {
+                await handler.ReceivedUpdateAsync(context);
+            }
+            catch (Exception ex)
+            {
+                LogHandlerError(handler, ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Logs an exception raised by an individual completion handler.
+    /// </summary>
+    /// <param name="handler">The completion handler.</param>
+    /// <param name="exception">The handler exception.</param>
+    private void LogHandlerError(
+        IAICompletionHandler handler,
+        Exception exception)
+    {
+        _logger.LogError(exception, "Error invoking completion handler '{HandlerType}'.", handler.GetType().Name);
+    }
+
+    /// <summary>
+    /// Resolves the completion client configured for the deployment.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    /// <returns>The configured completion client.</returns>
     private IAICompletionClient ResolveClient(AIDeployment deployment)
     {
         var clientName = deployment.ClientName
