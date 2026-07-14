@@ -1423,3 +1423,62 @@ empty, whitespace-only, contiguous, chunked, newline-prefixed/suffixed, mixed CR
 existing messages; exact ordinal output; builder and context identity; repeated invocation;
 cancellation-token propagation; cancellation ignored by a completing renderer; and unchanged
 template exception/cancellation mutation boundaries.
+
+## Tabular tool result formatting and column-type inference
+
+### Query result formatting retained
+
+| Result shape | Legacy join/LINQ | Direct append | Change |
+| --- | ---: | ---: | ---: |
+| Compact aggregation (5 rows / 3 cols, mixed) | 724.7 ns / 1,392 B | 350.3 ns / 648 B | 51.7% faster / 53.4% fewer allocations |
+| Row cap (100 rows / 6 cols, strings) | 11,324.6 ns / 39,576 B | 4,767.3 ns / 16,200 B | 57.9% faster / 59.1% fewer allocations |
+| Row cap (100 rows / 6 cols, mixed + nulls) | 20,766.4 ns / 43,368 B | 12,141.5 ns / 24,000 B | 41.5% faster / 44.7% fewer allocations |
+
+The retained production change in `QueryTabularDataTool.FormatResult` appends each column and cell
+straight into the shared `ZString` builder with inline `" | "` separators, replacing the per-row
+`string.Join(" | ", row.Select(FormatCell))` projection. `IFormattable` cells still format with
+`CultureInfo.InvariantCulture`, `null` cells still render as empty, and other cells still use
+`ToString()`, so the output is byte-for-byte identical. Query results are capped at the default 100
+rows and 200 characters per cell, so each call is bounded, but eliminating the transient per-row
+joined string and LINQ enumerator removed 44–59% of allocations across every shape while also
+improving timing. Reported values are per single `FormatResult` call at `OperationsPerInvoke = 1000`;
+global setup invokes the production formatter through reflection and rejects any divergence from the
+legacy and direct reproductions. Characterization tests lock the exact singular/plural, truncation,
+separator, ragged-row, null, and invariant-culture output.
+
+### Column-type inference candidate rejected
+
+| Column shape | Columns | Legacy classify-all | Text-absorbing candidate | Result |
+| --- | ---: | ---: | ---: | --- |
+| All text | 8 | 13,770.2 ns / 200 B | 450.1 ns / 200 B | Faster timing; allocations unchanged |
+| All text | 40 | 68,207.6 ns / 712 B | 3,698.2 ns / 712 B | Faster timing; allocations unchanged |
+| All typed | 8 | 17,186.7 ns / 200 B | 13,423.2 ns / 200 B | Faster timing; allocations unchanged |
+| All typed | 40 | 92,344.1 ns / 712 B | 100,063.6 ns / 712 B | Slower timing; allocations unchanged |
+| Half text / half typed | 8 | 18,061.4 ns / 200 B | 8,226.7 ns / 200 B | Faster timing; allocations unchanged |
+| Half text / half typed | 40 | 91,448.0 ns / 712 B | 60,786.8 ns / 712 B | Faster timing; allocations unchanged |
+
+The candidate stops sampling a column in `GetDocumentMetadataTool.InferColumnTypes` once it becomes
+text, since text absorbs every later value and cannot be promoted back. Output is identical in every
+case — global setup verifies the production helper, the legacy reproduction, and the candidate agree —
+and text-heavy columns (the common shape for uploaded spreadsheets) classify dramatically faster
+because the wasted `bool`/`long`/`decimal`/date parse chain is skipped after the first text value.
+Even so, the change was not retained: it produces no allocation reduction in any case, it runs once
+per `get_document_metadata` call over at most 32 samples per column rather than on a sustained path,
+and it is neutral-to-slightly-slower for all-typed tables where the extra per-cell state check never
+pays off. Consistent with the allocation-first acceptance criterion, production remains unchanged and
+the characterization tests continue to lock the exact inference contract.
+
+A wider scan of the `CrestApps.Core.AI.Documents` project found the remaining `string.Join`/`Select`
+formatting sites — `ListTabularDataTool` column listing, the `GetDocumentMetadataTool` inferred-type
+summaries, `PlainTextGeneratedFileWriter` Markdown-table rendering, and the `TabularWorkspace` DDL/DML
+identifier lists — all run once per bounded, model-sized invocation rather than on a sustained hot
+path, so none were changed without their own proof.
+
+Both benchmark classes use five warmups and twelve measured iterations. Run both comparisons from the
+repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*TabularQueryResultFormattingBenchmarks*' '*TabularColumnTypeInferenceBenchmarks*'
+```
