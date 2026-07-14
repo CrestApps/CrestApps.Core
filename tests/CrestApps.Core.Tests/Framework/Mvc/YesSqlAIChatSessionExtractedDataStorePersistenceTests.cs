@@ -14,6 +14,9 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class YesSqlAIChatSessionExtractedDataStorePersistenceTests
 {
+    /// <summary>
+    /// Verifies a new extracted-data snapshot can be committed and loaded through YesSql.
+    /// </summary>
     [Fact]
     public async Task SaveAndCommitAsync_WritesAndReadsExtractedDataSnapshot()
     {
@@ -79,6 +82,113 @@ public sealed class YesSqlAIChatSessionExtractedDataStorePersistenceTests
         Assert.Equal(1, count);
     }
 
+    /// <summary>
+    /// Verifies detached updates preserve key semantics, ordering, null normalization, and list isolation.
+    /// </summary>
+    [Fact]
+    public async Task SaveAndCommitAsync_UpdatesExtractedDataSnapshotWithoutRetainingInputLists()
+    {
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = $"{nameof(YesSqlAIChatSessionExtractedDataStorePersistenceTests)}-{Guid.NewGuid():N}",
+            Mode = SqliteOpenMode.Memory,
+            Cache = SqliteCacheMode.Shared,
+        }.ToString();
+
+        await using var rootConnection = new SqliteConnection(connectionString);
+        await rootConnection.OpenAsync(TestContext.Current.CancellationToken);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddSingleton(TimeProvider.System);
+        services.AddCoreYesSqlDataStore(configuration => configuration.UseSqLite(connectionString));
+        services.AddCoreAIChatSessionExtractedDataStoresYesSql();
+
+        await using var serviceProvider = services.BuildServiceProvider();
+        await InitializeSchemaAsync(serviceProvider);
+
+        await using (var scope = serviceProvider.CreateAsyncScope())
+        {
+            var extractedDataStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionExtractedDataStore>();
+            var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+            await extractedDataStore.SaveAsync(
+                new AIChatSessionExtractedDataRecord
+                {
+                    ItemId = "session-1",
+                    SessionId = "session-1",
+                    ProfileId = "profile-1",
+                    SessionStartedUtc = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
+                    UpdatedUtc = new DateTime(2026, 5, 1, 12, 1, 0, DateTimeKind.Utc),
+                    Values =
+                    {
+                        ["old"] = ["old-value"],
+                    },
+                },
+                TestContext.Current.CancellationToken);
+            await committer.CommitAsync(TestContext.Current.CancellationToken);
+        }
+
+        var customerNames = new List<string>
+        {
+            "Mike Alhayek",
+            "M. Alhayek",
+        };
+        var updatedValues = new Dictionary<string, List<string>>
+        {
+            ["CustomerName"] = customerNames,
+            ["EmptyField"] = null,
+            ["CustomerPhone"] = ["7024993350"],
+        };
+
+        await using (var scope = serviceProvider.CreateAsyncScope())
+        {
+            var extractedDataStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionExtractedDataStore>();
+            var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+            await extractedDataStore.SaveAsync(
+                new AIChatSessionExtractedDataRecord
+                {
+                    ItemId = "session-1-updated",
+                    SessionId = "session-1",
+                    ProfileId = "profile-1",
+                    SessionStartedUtc = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
+                    SessionEndedUtc = new DateTime(2026, 5, 1, 12, 5, 0, DateTimeKind.Utc),
+                    UpdatedUtc = new DateTime(2026, 5, 1, 12, 5, 0, DateTimeKind.Utc),
+                    Values = updatedValues,
+                },
+                TestContext.Current.CancellationToken);
+
+            customerNames.Clear();
+            updatedValues.Clear();
+            await committer.CommitAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using (var scope = serviceProvider.CreateAsyncScope())
+        {
+            var extractedDataStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionExtractedDataStore>();
+            var records = await extractedDataStore.GetAsync(
+                "profile-1",
+                null,
+                null,
+                TestContext.Current.CancellationToken);
+            var record = Assert.Single(records);
+
+            Assert.Equal("session-1-updated", record.ItemId);
+            Assert.Equal(
+                ["CustomerName", "EmptyField", "CustomerPhone"],
+                record.Values.Keys);
+            Assert.Equal(
+                ["Mike Alhayek", "M. Alhayek"],
+                record.Values["CustomerName"]);
+            Assert.Empty(record.Values["EmptyField"]);
+            Assert.Equal("7024993350", Assert.Single(record.Values["CustomerPhone"]));
+        }
+    }
+
+    /// <summary>
+    /// Initializes the extracted-data index schema for the supplied service provider.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
     private static async Task InitializeSchemaAsync(IServiceProvider services)
     {
         var store = services.GetRequiredService<IStore>();

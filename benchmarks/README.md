@@ -386,6 +386,35 @@ ordering expression targets the mapped index. Adding and migrating an index colu
 would introduce backward-compatibility work without evidence of compelling value, so no schema change or
 unfaithful benchmark substitute was added.
 
+## YesSql extracted-data store update copy
+
+| Source fields | Legacy LINQ `ToDictionary` | Current pre-sized loop | Change |
+| ---: | ---: | ---: | ---: |
+| 10 | 369.0 ns / 1.13 KB | 312.5 ns / 1.07 KB | 15.3% faster / 5.3% fewer allocations |
+| 100 | 3,993.4 ns / 9.42 KB | 3,020.4 ns / 9.37 KB | 24.4% faster / 0.5% fewer allocations |
+| 1,000 | 39,499.0 ns / 93.75 KB | 33,729.9 ns / 93.70 KB | 14.6% faster / 0.1% fewer allocations |
+
+This experiment targets the `YesSqlAIChatSessionExtractedDataStore` update path, where an incoming
+record's field map is copied into the already-tracked `existing` entity so the persisted snapshot is
+detached from caller-owned lists. It is distinct from the recorder's snapshot construction covered under
+*Extracted-data snapshot recording*. The benchmark's source dictionary mixes case-only key variants,
+populated multi-value lists, empty lists, and null value lists, and `[GlobalSetup]` verifies both copy
+implementations return identical keys, ordering, and per-key values.
+
+The retained candidate pre-sizes the destination dictionary to the source field count with
+`StringComparer.OrdinalIgnoreCase`, then copies each list with a collection expression over the struct
+enumerator. This avoids the LINQ `ToDictionary` boxed `IEnumerable` enumerator, its per-element key and
+value delegate invocations, and interface dispatch, giving a consistent 15–24% timing reduction across
+sizes and a fixed single-object (~60 B) allocation saving from the eliminated enumerator. The allocation
+gain is most visible at 10 fields (5.3%) and negligible at large sizes where the copied value lists
+dominate. Both runs reproduced the direction; a noisier first run measured 0.61–0.90 ratios.
+
+Observable behavior is unchanged: non-null source maps produce an ordinal-ignore-case dictionary, a null
+source map yields an empty dictionary, source key order and per-field value order stay stable, empty
+lists remain empty, null value lists become empty lists, null list items are retained, and case-only
+duplicate keys still throw through `Dictionary.Add`. The copied lists remain detached snapshots. Store
+unit tests, the persistence round-trip test, and the manager test lock in these guarantees.
+
 ## Tabular batch splitting
 
 | Data rows | Batch size | Max rows | Legacy | Current | Change |
