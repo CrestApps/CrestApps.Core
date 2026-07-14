@@ -118,6 +118,48 @@ The current path preserves identifier order and identity, filters only null and 
 and emits the same apostrophe-escaped OData filter text. It sizes and fills the final filter string
 directly, avoiding the per-identifier projection and interpolation strings used by the legacy path.
 
+## Open XML text property reads
+
+### Word optimization retained
+
+| Paragraphs / runs per paragraph | Repeated reads | Cached read | Change |
+| --- | ---: | ---: | ---: |
+| 1,000 / 1 | 2.528 ms / 2.45 MB | 2.236 ms / 1.32 MB | Faster; 1.13 MB fewer allocations |
+| 1,000 / 8 | 14.739 ms / 14.35 MB | 11.182 ms / 7.18 MB | Faster; 7.17 MB fewer allocations |
+| 10,000 / 1 | 27.695 ms / 23.56 MB | 21.137 ms / 12.27 MB | Faster; 11.29 MB fewer allocations |
+| 10,000 / 8 | 151.185 ms / 142.51 MB | 118.881 ms / 70.79 MB | Faster; 71.72 MB fewer allocations |
+
+The retained production change reads each Word paragraph's `InnerText` once, then reuses that exact
+string for whitespace filtering, paragraph construction, and `Text`. The benchmark uses synthetic
+in-memory documents and verifies exact legacy/current document structure, text, markdown, metadata,
+ordering, duplicates, and element counts before measurement. Behavior tests additionally cover empty
+and whitespace-only paragraphs, control elements, Unicode, large text, cancellation, and invalid
+packages. Package creation and disk or network I/O are excluded. All four measured Word cases
+improved timing, while allocations fell by roughly half; the allocation reduction is the stronger
+evidence because timings remain sensitive to runtime and machine noise.
+
+### PowerPoint candidate rejected
+
+| Slides / text fragments per slide | Repeated reads | Single-read candidate | Result |
+| --- | ---: | ---: | ---: |
+| 1,000 / 1 | 60.57 ms / 42.71 MB | 53.74 ms / 42.71 MB | Faster timing; allocations unchanged |
+| 1,000 / 8 | 104.39 ms / 46.43 MB | 117.81 ms / 46.43 MB | Slower timing; allocations unchanged |
+| 10,000 / 1 | 1,107.81 ms / 768.64 MB | 698.94 ms / 768.65 MB | Faster timing; allocations effectively unchanged |
+| 10,000 / 8 | 980.95 ms / 805.81 MB | 1,051.42 ms / 805.80 MB | Slower timing; allocations effectively unchanged |
+
+The PowerPoint candidate cached each drawing text element's `Text` value but did not provide a
+consistent timing improvement or a meaningful allocation reduction, so production remains unchanged.
+Setup verifies exact equivalence among the legacy path, the candidate, and current production before
+measurement. Both benchmark classes use five warmups and twelve measured iterations.
+
+Run both comparisons from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*OpenXml*TextPropertyReadBenchmarks*'
+```
+
 ## Open XML spreadsheet row extraction
 
 | Scenario | Legacy | Current | Change |

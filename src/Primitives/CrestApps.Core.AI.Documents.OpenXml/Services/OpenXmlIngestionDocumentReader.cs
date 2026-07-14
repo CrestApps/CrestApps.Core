@@ -96,11 +96,13 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!string.IsNullOrWhiteSpace(paragraph.InnerText))
+            var paragraphText = paragraph.InnerText;
+
+            if (!string.IsNullOrWhiteSpace(paragraphText))
             {
-                section.Elements.Add(new IngestionDocumentParagraph(paragraph.InnerText)
+                section.Elements.Add(new IngestionDocumentParagraph(paragraphText)
                 {
-                    Text = paragraph.InnerText,
+                    Text = paragraphText,
                 });
             }
         }
