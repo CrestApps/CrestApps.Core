@@ -1511,3 +1511,62 @@ dotnet run -c Release -f net10.0 \
   --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
   -- --filter '*TabularQueryResultFormattingBenchmarks*' '*TabularColumnTypeInferenceBenchmarks*'
 ```
+
+## Copilot prompt composition
+
+Run the retained history comparison and rejected MCP experiment from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*Copilot*Benchmarks*' --join
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured
+iterations, .NET 10.0.5, and an Apple M2. Global setup fails unless the captured legacy,
+production, and candidate implementations produce ordinally identical text.
+
+### Conversation-history text reads
+
+| History messages | Content shape | Legacy repeated text reads | Current single read | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 10 | Multiple text contents | 2,055.8 ns / 5.84 KB | 1,049.2 ns / 3.96 KB | 49.0% faster / 32.2% fewer allocations |
+| 100 | Multiple text contents | 16,285.2 ns / 55.85 KB | 8,904.6 ns / 37.10 KB | 45.3% faster / 33.6% fewer allocations |
+| 1,000 | Multiple text contents | 221,572.9 ns / 557.74 KB | 136,438.6 ns / 370.24 KB | 38.4% faster / 33.6% fewer allocations |
+| 10,000 | Multiple text contents | 5,635,880.3 ns / 5,594.09 KB | 3,045,225.7 ns / 3,718.99 KB | 46.0% faster / 33.5% fewer allocations |
+
+For one text-content item per message, allocations are unchanged and timing differences are
+noise. With only one supported role in ten, allocations fall 13.1-14.3%; latency was inconsistent
+across repeated runs, so no sparse-role timing improvement is claimed. Allocation is the primary
+acceptance evidence.
+
+The retained change reads `ChatMessage.Text` once and reuses that exact value. Version 10.7.0 of
+Microsoft.Extensions.AI builds this property from every text-content item, so the legacy second
+read repeated both projection work and aggregate-string allocation. Evaluation order remains
+unchanged: text is still read before role filtering. Tests lock no-history reference identity,
+null and empty text, mixed content types, unsupported roles, whitespace, embedded newlines,
+section formatting, and existing null-element failure behavior.
+
+### MCP single-builder experiment rejected
+
+| Connections | Existing 8 KB system message | Current production | Single-builder candidate | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 10 | No | 623.9 ns / 1.45 KB | 709.6 ns / 1.45 KB | Allocations unchanged |
+| 10 | Yes | 2,021.6 ns / 18.34 KB | 2,881.4 ns / 17.45 KB | 4.9% fewer allocations; slower in this run |
+| 100 | Yes | 4,498.5 ns / 32.99 KB | 5,393.7 ns / 24.78 KB | 24.9% fewer allocations; slower in this run |
+| 1,000 | Yes | 75,100.3 ns / 185.42 KB | 67,200.8 ns / 101.00 KB | 10.5% faster / 45.5% fewer allocations |
+
+The captured legacy and unchanged production controls allocate identically in all six matrix
+cases. Their timing varied enough to make small latency differences directional only. The
+candidate provides no allocation benefit without an existing system message and saves only
+0.89 KB for the realistic ten-connection case. Its material gains are concentrated at atypical
+hundred- and thousand-server counts, so production retains the simpler intermediate-description
+composition.
+
+The remaining Copilot project was also scanned end to end. Early role filtering was rejected
+because it would skip the legacy `ChatMessage.Text` evaluation and its failure behavior for
+unsupported roles. Tool-list projection removes at most a small LINQ iterator around asynchronous
+tool factories, while OAuth model projection, serializer streaming, and protector caching sit on
+network-, file-, or cryptography-bound paths and either offer marginal application-level savings
+or change failure timing. No additional production candidate justified benchmark or compatibility
+surface.
