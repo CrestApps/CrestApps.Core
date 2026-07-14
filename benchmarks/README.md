@@ -1162,3 +1162,37 @@ filtered only from the projected history. Iterator inputs are materialized once,
 enumeration exceptions retain their existing failures, and cancellation-token flow remains unchanged
 around store, group, and handler calls. Short-run timing outliers were observed in a few large matrix
 cells, so deterministic allocation reductions are the primary acceptance evidence.
+
+## Elasticsearch OData filter translation
+
+Run the legacy/current comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*ElasticsearchODataFilterTranslatorBenchmarks*' --buildTimeout 600
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured
+iterations, .NET 10.0.5, and an Apple M2. Global setup compares the captured legacy Elasticsearch
+translator with the production translator and fails unless their complete query JSON is ordinally
+identical for every scenario.
+
+| Scenario | Legacy `MatchCollection` | Current `EnumerateMatches` | Change |
+| --- | ---: | ---: | ---: |
+| Short | 291.3 ns / 1,184 B | 141.4 ns / 384 B | 51.5% faster / 67.6% fewer allocations |
+| Nested | 1,236.6 ns / 5,520 B | 711.4 ns / 2,192 B | 42.5% faster / 60.3% fewer allocations |
+| Long | 15,407.1 ns / 84,656 B | 16,594.6 ns / 51,392 B | 39.3% fewer allocations; timing noisy |
+
+The change is retained because every scale materially reduces allocation. The long-filter mean was
+7.7% slower, but its 99.9% confidence-interval half-width was 8.72 us for the current path versus
+1.82 us for legacy, so the run does not establish a meaningful regression. Short and nested filters
+were both faster.
+
+This optimization deliberately reuses the already-retained PostgreSQL tokenizer strategy only where
+the implementations were proven identical: both translators use the exact
+`'[^']*'|[(),]|\w[\w.]*` generated regex. Elasticsearch-specific characterization independently
+locks its parser precedence, parentheses, field mapping, JSON and wildcard escaping, output
+formatting, fallback values, and exception behavior. Production changes only the regular-expression
+match enumeration and exact `Substring(match.Index, match.Length)` extraction; all Elasticsearch
+parsing and rendering code remains unchanged.
