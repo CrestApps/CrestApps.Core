@@ -1,18 +1,17 @@
+using System.Text;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Azure.AISearch.Services;
 using CrestApps.Core.Elasticsearch;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.Elasticsearch.Services;
 using Elastic.Transport;
-using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System.Net.Http;
-using System.Text;
 
 namespace CrestApps.Core.Tests.Core.Services;
 
