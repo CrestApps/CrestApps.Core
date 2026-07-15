@@ -32,10 +32,12 @@ public sealed class AIServiceCollectionExtensionsTests
         Assert.Null(scopedServices.GetService<INamedCatalog<AIProviderConnection>>());
         Assert.Null(scopedServices.GetService<ISourceCatalog<AIProviderConnection>>());
         Assert.Null(scopedServices.GetService<ICatalog<AIProviderConnection>>());
+        Assert.Null(scopedServices.GetService<INamedCatalogManager<AIProfileTemplate>>());
         Assert.Null(scopedServices.GetService<INamedSourceCatalog<AIDeployment>>());
         Assert.Null(scopedServices.GetService<INamedCatalog<AIDeployment>>());
         Assert.Null(scopedServices.GetService<ISourceCatalog<AIDeployment>>());
         Assert.Null(scopedServices.GetService<ICatalog<AIDeployment>>());
+        Assert.Null(scopedServices.GetService<INamedCatalogManager<AIDeployment>>());
     }
 
     [Fact]

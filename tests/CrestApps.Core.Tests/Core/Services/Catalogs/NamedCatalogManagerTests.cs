@@ -56,6 +56,17 @@ public sealed class NamedCatalogManagerTests
     }
 
     [Fact]
+    public async Task NewAsync_WithoutName_CreatesEntryWithoutAssigningName()
+    {
+        var manager = CreateManager();
+
+        var entry = await manager.NewAsync(cancellationToken: CancellationToken);
+
+        Assert.Null(entry.Name);
+        Assert.False(string.IsNullOrEmpty(entry.ItemId));
+    }
+
+    [Fact]
     public async Task NewAsync_RestoresRequestedNameAfterInitialization()
     {
         var catalog = InMemoryCatalogFactory.CreateNamedCatalog<TestNamedCatalogEntry>([]);

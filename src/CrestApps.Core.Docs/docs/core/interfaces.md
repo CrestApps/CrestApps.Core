@@ -25,7 +25,7 @@ Use these contracts when you are building reusable storage or management infrast
 | --- | --- |
 | `IReadCatalog<T>`, `ICatalog<T>` | Query and mutate catalog-backed data |
 | `IReadCatalogManager<T>`, `ICatalogManager<T>` | Validation and lifecycle handling over catalogs |
-| `INamedCatalog<T>`, `ISourceCatalog<T>`, related managers | Name-based and source-based lookup patterns |
+| `INamedCatalog<T>`, `ISourceCatalog<T>`, related managers | Name-based and source-based lookup patterns, including name-optional creation for named managers and source-required creation for source-aware managers |
 | `ICatalogEntryHandler<T>` | Hooks for create, update, and delete events |
 | `INameAwareModel`, `IDisplayTextAwareModel`, `ISourceAwareModel` | Common model markers used across the framework |
 
