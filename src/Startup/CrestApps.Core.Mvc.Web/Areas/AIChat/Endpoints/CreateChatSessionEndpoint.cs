@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Filters;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 
@@ -10,8 +11,11 @@ internal static class CreateChatSessionEndpoint
 {
     public static IEndpointRouteBuilder AddCreateChatSessionEndpoint(this IEndpointRouteBuilder builder)
     {
+        var endpointRateLimitingOptions = builder.ServiceProvider.GetRequiredService<IOptions<AIChatEndpointRateLimitingOptions>>().Value;
+
         _ = builder.MapPost("api/chat/create-session", HandleAsync)
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
+            .RequireRateLimiting(endpointRateLimitingOptions.AnonymousSessionStartPolicyName)
             .RequireAuthorization()
             .DisableAntiforgery();
 

@@ -361,6 +361,57 @@ else
                                 </select>
                                 <div class="form-text">Controls the minimum risk level at which prompts are blocked. Lower thresholds are stricter.</div>
                             </div>
+
+                            <div class="mb-3">
+                                <label for="securityRemoteAddressMode" class="form-label">Remote address storage mode</label>
+                                <select id="securityRemoteAddressMode" class="form-select" style="max-width: 400px;" @bind="_model.SecurityRemoteAddressMode">
+                                    <option value="@AIVisitorRemoteAddressMode.Disabled">Disabled</option>
+                                    <option value="@AIVisitorRemoteAddressMode.Hashed">Hashed (Recommended)</option>
+                                    <option value="@AIVisitorRemoteAddressMode.PlainText">Plain text</option>
+                                    <option value="@AIVisitorRemoteAddressMode.Encrypted">Encrypted</option>
+                                </select>
+                                <div class="form-text">Choose whether anonymous abuse controls should avoid remote-address data, store only a salted hash, store the raw address for operator-managed blocklists and investigations, or encrypt the address at rest while still using a hash for throttling.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityMaxMessagesPerWindow" class="form-label">Maximum messages per rate-limit window</label>
+                                <input id="securityMaxMessagesPerWindow" class="form-control" type="number" min="0" max="1000" style="max-width: 200px;" @bind="_model.SecurityMaxMessagesPerWindow" />
+                                @if (_errors.TryGetValue(nameof(_model.SecurityMaxMessagesPerWindow), out var maxMessagesErr))
+                                {
+                                    <span class="text-danger">@maxMessagesErr</span>
+                                }
+                                <div class="form-text">Anonymous and authenticated chat prompts are throttled after this many messages. Set to 0 to disable message throttling.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityRateLimitWindowSeconds" class="form-label">Message rate-limit window (seconds)</label>
+                                <input id="securityRateLimitWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" @bind="_model.SecurityRateLimitWindowSeconds" />
+                                @if (_errors.TryGetValue(nameof(_model.SecurityRateLimitWindowSeconds), out var messageWindowErr))
+                                {
+                                    <span class="text-danger">@messageWindowErr</span>
+                                }
+                                <div class="form-text">Determines how long message-throttle counters remain active.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window</label>
+                                <input id="securityMaxAnonymousSessionsPerWindow" class="form-control" type="number" min="0" max="500" style="max-width: 200px;" @bind="_model.SecurityMaxAnonymousSessionsPerWindow" />
+                                @if (_errors.TryGetValue(nameof(_model.SecurityMaxAnonymousSessionsPerWindow), out var maxSessionsErr))
+                                {
+                                    <span class="text-danger">@maxSessionsErr</span>
+                                }
+                                <div class="form-text">Limits how many new anonymous widget sessions can be started from the same visitor/IP bucket. Set to 0 to disable session-start throttling.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityAnonymousSessionWindowSeconds" class="form-label">Anonymous session window (seconds)</label>
+                                <input id="securityAnonymousSessionWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" @bind="_model.SecurityAnonymousSessionRateLimitWindowSeconds" />
+                                @if (_errors.TryGetValue(nameof(_model.SecurityAnonymousSessionRateLimitWindowSeconds), out var anonymousWindowErr))
+                                {
+                                    <span class="text-danger">@anonymousWindowErr</span>
+                                }
+                                <div class="form-text">Determines how long anonymous session-start counters remain active for the ASP.NET Core and hub session throttles.</div>
+                            </div>
                         }
                     </div>
                 </div>
@@ -784,6 +835,7 @@ else
         var paginationSettings = SiteSettings.Get<PaginationSettings>();
         var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
         var promptSecuritySettings = SiteSettings.Get<PromptSecurityOptions>();
+        var visitorIdentitySettings = SiteSettings.Get<AIVisitorIdentityOptions>();
 
         _model = new SettingsViewModel
         {
@@ -847,6 +899,11 @@ else
             SecurityEnableAuditLogging = promptSecuritySettings.EnableAuditLogging,
             SecurityMaxPromptLength = promptSecuritySettings.MaxPromptLength,
             SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
+            SecurityMaxMessagesPerWindow = promptSecuritySettings.MaxMessagesPerWindow,
+            SecurityRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.RateLimitWindow.TotalSeconds),
+            SecurityMaxAnonymousSessionsPerWindow = promptSecuritySettings.MaxAnonymousSessionsPerWindow,
+            SecurityAnonymousSessionRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.AnonymousSessionRateLimitWindow.TotalSeconds),
+            SecurityRemoteAddressMode = visitorIdentitySettings.RemoteAddressMode,
         };
 
         await PopulateDropdownsAsync();
@@ -1005,6 +1062,26 @@ else
         if (_model.SecurityMaxPromptLength < 100 || _model.SecurityMaxPromptLength > 100000)
         {
             _errors[nameof(_model.SecurityMaxPromptLength)] = "Must be between 100 and 100,000.";
+        }
+
+        if (_model.SecurityMaxMessagesPerWindow < 0 || _model.SecurityMaxMessagesPerWindow > 1000)
+        {
+            _errors[nameof(_model.SecurityMaxMessagesPerWindow)] = "Must be between 0 and 1,000.";
+        }
+
+        if (_model.SecurityRateLimitWindowSeconds < 1 || _model.SecurityRateLimitWindowSeconds > 86400)
+        {
+            _errors[nameof(_model.SecurityRateLimitWindowSeconds)] = "Must be between 1 and 86,400 seconds.";
+        }
+
+        if (_model.SecurityMaxAnonymousSessionsPerWindow < 0 || _model.SecurityMaxAnonymousSessionsPerWindow > 500)
+        {
+            _errors[nameof(_model.SecurityMaxAnonymousSessionsPerWindow)] = "Must be between 0 and 500.";
+        }
+
+        if (_model.SecurityAnonymousSessionRateLimitWindowSeconds < 1 || _model.SecurityAnonymousSessionRateLimitWindowSeconds > 86400)
+        {
+            _errors[nameof(_model.SecurityAnonymousSessionRateLimitWindowSeconds)] = "Must be between 1 and 86,400 seconds.";
         }
 
         if (!string.IsNullOrWhiteSpace(_model.AdminWidgetPrimaryColor) &&
@@ -1181,7 +1258,15 @@ else
             EnableAuditLogging = _model.SecurityEnabled && _model.SecurityEnableAuditLogging,
             MaxPromptLength = _model.SecurityMaxPromptLength,
             BlockingThreshold = _model.SecurityBlockingThreshold,
+            MaxMessagesPerWindow = _model.SecurityMaxMessagesPerWindow,
+            RateLimitWindow = TimeSpan.FromSeconds(_model.SecurityRateLimitWindowSeconds),
+            MaxAnonymousSessionsPerWindow = _model.SecurityMaxAnonymousSessionsPerWindow,
+            AnonymousSessionRateLimitWindow = TimeSpan.FromSeconds(_model.SecurityAnonymousSessionRateLimitWindowSeconds),
         });
+
+        var visitorIdentitySettings = SiteSettings.Get<AIVisitorIdentityOptions>();
+        visitorIdentitySettings.RemoteAddressMode = _model.SecurityRemoteAddressMode;
+        SiteSettings.Set(visitorIdentitySettings);
 
         await SiteSettings.SaveChangesAsync();
         await SettingsChangedNotifier.NotifyAsync();

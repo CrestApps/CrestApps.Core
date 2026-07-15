@@ -529,9 +529,11 @@ public static class ServiceCollectionExtensions
     private static void AddPromotSecurityLayer(this IServiceCollection services)
     {
         // Prompt security services.
+        services.AddOptions<AIChatRateLimitingOptions>();
         services.AddOptions<PromptSecurityOptions>();
         services.TryAddSingleton<PromptSecurityRiskScoringEngine>();
         services.TryAddSingleton<IChatRateLimiter, DefaultChatRateLimiter>();
+        services.TryAddSingleton<IChatSessionStartRateLimiter, DefaultChatSessionStartRateLimiter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, SystemRoleInjectionRule>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, InstructionOverrideRule>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, PersonaJailbreakRule>());

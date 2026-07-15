@@ -38,4 +38,19 @@ public sealed class PromptSecurityContext
     /// Gets or sets the connection identifier for the current connection.
     /// </summary>
     public string ConnectionId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resolved visitor identifier for the current request.
+    /// </summary>
+    public string VisitorId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the hashed remote-address signal used only for abuse controls.
+    /// </summary>
+    public string RemoteAddressHash { get; set; }
+
+    /// <summary>
+    /// Gets or sets the captured remote-address value when plain-text or encrypted storage is enabled.
+    /// </summary>
+    public string RemoteAddress { get; set; }
 }

@@ -80,6 +80,7 @@ builder.Services.AddControllersWithViews(options =>
     .AddCrestAppsStoreCommitterFilter();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSharedAIChatProtection();
 
 // =============================================================================
 // 3. CRESTAPPS FRAMEWORK COMPOSITION
@@ -203,6 +204,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection()
     .UseStaticFiles()
     .UseRouting()
+    .UseSharedAIChatProtection()
     .UseAuthentication()
     .UseAuthorization();
 

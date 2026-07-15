@@ -1,5 +1,6 @@
 @using CrestApps.Core.AI.Claude.Models
 @using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Security
 @model CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels.SettingsViewModel
 @{
     ViewData["Title"] = "AI Settings";
@@ -273,6 +274,45 @@
                             <select asp-for="SecurityBlockingThreshold" asp-items="Model.BlockingThresholds" class="form-select" style="max-width: 400px;">
                             </select>
                             <div class="form-text">Controls the minimum risk level at which prompts are blocked. Lower thresholds are stricter.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityRemoteAddressMode" class="form-label">Remote address storage mode</label>
+                            <select asp-for="SecurityRemoteAddressMode" class="form-select" style="max-width: 400px;">
+                                <option value="@AIVisitorRemoteAddressMode.Disabled">Disabled</option>
+                                <option value="@AIVisitorRemoteAddressMode.Hashed">Hashed (Recommended)</option>
+                                <option value="@AIVisitorRemoteAddressMode.PlainText">Plain text</option>
+                                <option value="@AIVisitorRemoteAddressMode.Encrypted">Encrypted</option>
+                            </select>
+                            <div class="form-text">Choose whether anonymous abuse controls should avoid remote-address data, store only a salted hash, store the raw address for operator-managed blocklists and investigations, or encrypt the address at rest while still using a hash for throttling.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityMaxMessagesPerWindow" class="form-label">Maximum messages per rate-limit window</label>
+                            <input asp-for="SecurityMaxMessagesPerWindow" class="form-control" type="number" min="0" max="1000" style="max-width: 200px;" />
+                            <span asp-validation-for="SecurityMaxMessagesPerWindow" class="text-danger"></span>
+                            <div class="form-text">Anonymous and authenticated chat prompts are throttled after this many messages. Set to 0 to disable message throttling.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityRateLimitWindowSeconds" class="form-label">Message rate-limit window (seconds)</label>
+                            <input asp-for="SecurityRateLimitWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" />
+                            <span asp-validation-for="SecurityRateLimitWindowSeconds" class="text-danger"></span>
+                            <div class="form-text">Determines how long message-throttle counters remain active.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window</label>
+                            <input asp-for="SecurityMaxAnonymousSessionsPerWindow" class="form-control" type="number" min="0" max="500" style="max-width: 200px;" />
+                            <span asp-validation-for="SecurityMaxAnonymousSessionsPerWindow" class="text-danger"></span>
+                            <div class="form-text">Limits how many new anonymous widget sessions can be started from the same visitor/IP bucket. Set to 0 to disable session-start throttling.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="form-label">Anonymous session window (seconds)</label>
+                            <input asp-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" />
+                            <span asp-validation-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="text-danger"></span>
+                            <div class="form-text">Determines how long anonymous session-start counters remain active for the ASP.NET Core and hub session throttles.</div>
                         </div>
                     </div>
                 </div>

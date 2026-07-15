@@ -634,10 +634,6 @@ window.coreAIChatWidgetBehavior = window.coreAIChatWidgetBehavior || function ()
 
         app.reloadCurrentSession();
 
-        if (config.autoCreateSession && !app.getSessionId()) {
-            app.startNewSession();
-        }
-
         if (config.widget.showHistoryButton && app.chatHistorySection) {
             var showHistoryButton = document.querySelector(config.widget.showHistoryButton);
             if (showHistoryButton) {

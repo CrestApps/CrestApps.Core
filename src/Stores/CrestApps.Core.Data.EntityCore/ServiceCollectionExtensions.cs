@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -196,6 +197,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<IAIVisitorIdentityResolver, NullAIVisitorIdentityResolver>();
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionManager, EntityCoreAIChatSessionManager>());
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionStore, EntityCoreAIChatSessionStore>());
         services.Replace(ServiceDescriptor.Scoped<IAIChatSessionPromptStore, EntityCoreAIChatSessionPromptStore>());
