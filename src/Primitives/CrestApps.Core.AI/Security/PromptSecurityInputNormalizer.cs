@@ -71,9 +71,20 @@ public static class PromptSecurityInputNormalizer
         var unicodeNormalized = originalInput.Normalize(NormalizationForm.FormKC);
         var unicodeChanged = !string.Equals(originalInput, unicodeNormalized, StringComparison.Ordinal);
 
-        var zeroWidthRemoved = RemoveInvisibleCharacters(unicodeNormalized, out var removedZeroWidthCount);
-        var collapsedWhitespace = CollapseWhitespace(zeroWidthRemoved, out var collapsedWhitespaceRunCount);
-        var foldedInput = FoldHomoglyphs(collapsedWhitespace, out var homoglyphReplacementCount);
+        var collapsedWhitespace = RemoveInvisibleCharactersAndCollapseWhitespace(
+            unicodeNormalized,
+            out var removedZeroWidthCount,
+            out var collapsedWhitespaceRunCount);
+        var telemetry = new PromptSecurityDetectionTelemetry
+        {
+            OriginalLength = originalInput.Length,
+            NormalizedLength = collapsedWhitespace.Length,
+            RemovedZeroWidthCharacterCount = removedZeroWidthCount,
+            CollapsedWhitespaceRunCount = collapsedWhitespaceRunCount,
+            UnicodeNormalized = unicodeChanged,
+        };
+        var foldedInput = FoldHomoglyphs(collapsedWhitespace, telemetry);
+        telemetry.FoldedLength = foldedInput.Length;
 
         return new PromptSecurityEvaluationContext
         {
@@ -82,49 +93,26 @@ public static class PromptSecurityInputNormalizer
             FoldedInput = foldedInput,
             MaxPromptLength = maxPromptLength,
             BlockingThreshold = blockingThreshold,
-            Telemetry = new PromptSecurityDetectionTelemetry
-            {
-                OriginalLength = originalInput.Length,
-                NormalizedLength = collapsedWhitespace.Length,
-                FoldedLength = foldedInput.Length,
-                RemovedZeroWidthCharacterCount = removedZeroWidthCount,
-                CollapsedWhitespaceRunCount = collapsedWhitespaceRunCount,
-                HomoglyphReplacementCount = homoglyphReplacementCount,
-                UnicodeNormalized = unicodeChanged,
-            },
+            Telemetry = telemetry,
         };
     }
 
-    private static string RemoveInvisibleCharacters(string input, out int removedCount)
+    /// <summary>
+    /// Removes configured invisible characters and collapses whitespace in their resulting order.
+    /// </summary>
+    /// <param name="input">The compatibility-normalized input.</param>
+    /// <param name="removedCount">The number of removed invisible characters.</param>
+    /// <param name="collapsedRunCount">The number of whitespace runs encountered after non-whitespace text.</param>
+    /// <returns>The normalized and trimmed input.</returns>
+    private static string RemoveInvisibleCharactersAndCollapseWhitespace(
+        string input,
+        out int removedCount,
+        out int collapsedRunCount)
     {
         removedCount = 0;
-
-        if (string.IsNullOrEmpty(input))
-        {
-            return string.Empty;
-        }
-
-        var builder = new StringBuilder(input.Length);
-
-        foreach (var character in input)
-        {
-            if (IsInvisibleCharacter(character))
-            {
-                removedCount++;
-                continue;
-            }
-
-            builder.Append(character);
-        }
-
-        return builder.ToString();
-    }
-
-    private static string CollapseWhitespace(string input, out int collapsedRunCount)
-    {
         collapsedRunCount = 0;
 
-        if (string.IsNullOrWhiteSpace(input))
+        if (string.IsNullOrEmpty(input))
         {
             return string.Empty;
         }
@@ -134,6 +122,12 @@ public static class PromptSecurityInputNormalizer
 
         foreach (var character in input)
         {
+            if (IsInvisibleCharacter(character))
+            {
+                removedCount++;
+                continue;
+            }
+
             if (char.IsWhiteSpace(character))
             {
                 if (inWhitespace)
@@ -155,35 +149,55 @@ public static class PromptSecurityInputNormalizer
             inWhitespace = false;
         }
 
-        return builder.ToString().Trim();
-    }
-
-    private static string FoldHomoglyphs(string input, out int replacementCount)
-    {
-        replacementCount = 0;
-
-        if (string.IsNullOrEmpty(input))
+        if (builder.Length > 0 && builder[builder.Length - 1] == ' ')
         {
-            return string.Empty;
-        }
-
-        var builder = new StringBuilder(input.Length);
-
-        foreach (var character in input)
-        {
-            if (HomoglyphMap.TryGetValue(character, out var replacement))
-            {
-                builder.Append(replacement);
-                replacementCount++;
-                continue;
-            }
-
-            builder.Append(character);
+            builder.Length--;
         }
 
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Folds configured homoglyph characters to their ASCII equivalents.
+    /// </summary>
+    /// <param name="input">The normalized input.</param>
+    /// <param name="telemetry">The telemetry that receives the homoglyph replacement count.</param>
+    /// <returns>The folded input.</returns>
+    private static string FoldHomoglyphs(
+        string input,
+        PromptSecurityDetectionTelemetry telemetry)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+
+        return string.Create(
+            input.Length,
+            (Input: input, Telemetry: telemetry),
+            static (destination, state) =>
+            {
+                for (var index = 0; index < state.Input.Length; index++)
+                {
+                    var character = state.Input[index];
+
+                    if (HomoglyphMap.TryGetValue(character, out var replacement))
+                    {
+                        destination[index] = replacement;
+                        state.Telemetry.HomoglyphReplacementCount++;
+                        continue;
+                    }
+
+                    destination[index] = character;
+                }
+            });
+    }
+
+    /// <summary>
+    /// Determines whether the supplied UTF-16 code unit is removed as invisible input.
+    /// </summary>
+    /// <param name="character">The UTF-16 code unit.</param>
+    /// <returns><see langword="true"/> when the character is removed; otherwise <see langword="false"/>.</returns>
     private static bool IsInvisibleCharacter(char character)
     {
         return character is '\u200B'

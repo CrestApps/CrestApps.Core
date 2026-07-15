@@ -31,7 +31,7 @@ public static class StringExtensions
             firstLine = firstLine[..200];
         }
 
-        return firstLine.ToString().Trim();
+        return firstLine.Trim().ToString();
     }
 
 }

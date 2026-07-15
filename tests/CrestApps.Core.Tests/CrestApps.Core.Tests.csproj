@@ -20,12 +20,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.OpenAI.Azure/CrestApps.Core.AI.OpenAI.Azure.csproj" />
     <ProjectReference Include="../../src/Stores/CrestApps.Core.Data.EntityCore/CrestApps.Core.Data.EntityCore.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Claude/CrestApps.Core.AI.Claude.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Resilience/CrestApps.Core.AI.Resilience.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <ProjectReference Include="../../src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
@@ -38,6 +41,10 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Templates\**\*.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../benchmarks/CrestApps.Core.Benchmarks/LegacyDefaultOutputSecurityFilter.cs" Link="Framework/AI/Security/LegacyDefaultOutputSecurityFilter.cs" />
   </ItemGroup>
 
 </Project>

@@ -1,18 +1,22 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Hubs;
+using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -344,6 +348,98 @@ public sealed class ChatInteractionHubTests
         callerMock.Verify(client => client.HistoryCleared(interaction.ItemId), Times.Once);
     }
 
+    /// <summary>
+    /// Verifies prompt persistence, group membership, and handler dispatch retain the caller's
+    /// cancellation token around conversation-history construction.
+    /// </summary>
+    [Fact]
+    public async Task HandlePromptAsync_PropagatesCancellationTokenAroundHistoryConstruction()
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        var cancellationToken = cancellationSource.Token;
+        var interaction = new ChatInteraction
+        {
+            ItemId = "interaction",
+            Title = "Existing title",
+        };
+        var interactionManagerMock = new Mock<ICatalogManager<ChatInteraction>>();
+        interactionManagerMock
+            .Setup(manager => manager.FindByIdAsync(interaction.ItemId, cancellationToken))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
+        var promptStoreMock = new Mock<IChatInteractionPromptStore>();
+        promptStoreMock
+            .Setup(store => store.CreateAsync(
+                It.Is<ChatInteractionPrompt>(prompt => prompt.ItemId == "new-prompt"),
+                cancellationToken))
+            .Returns(ValueTask.CompletedTask);
+        promptStoreMock
+            .Setup(store => store.GetPromptsAsync(interaction.ItemId))
+            .ReturnsAsync([]);
+        ChatResponseHandlerContext handlerContext = null;
+        var handlerMock = new Mock<IChatResponseHandler>();
+        handlerMock
+            .Setup(handler => handler.HandleAsync(
+                It.IsAny<ChatResponseHandlerContext>(),
+                cancellationToken))
+            .Callback<ChatResponseHandlerContext, CancellationToken>(
+                (context, _) => handlerContext = context)
+            .ReturnsAsync(ChatResponseHandlerResult.Deferred());
+        var handlerResolverMock = new Mock<IChatResponseHandlerResolver>();
+        handlerResolverMock
+            .Setup(resolver => resolver.Resolve(null, ChatMode.TextInput))
+            .Returns(handlerMock.Object);
+        var services = new ServiceCollection()
+            .AddSingleton(interactionManagerMock.Object)
+            .AddSingleton(promptStoreMock.Object)
+            .AddSingleton(handlerResolverMock.Object)
+            .BuildServiceProvider();
+        var contextMock = new Mock<HubCallerContext>();
+        contextMock.SetupGet(context => context.ConnectionId).Returns("connection");
+        contextMock.SetupGet(context => context.ConnectionAborted).Returns(cancellationToken);
+        var groupsMock = new Mock<IGroupManager>();
+        groupsMock
+            .Setup(groups => groups.AddToGroupAsync(
+                "connection",
+                ChatInteractionHubBase.GetInteractionGroupName(interaction.ItemId),
+                cancellationToken))
+            .Returns(Task.CompletedTask);
+        var hub = new TestChatInteractionHub(services)
+        {
+            Context = contextMock.Object,
+            Groups = groupsMock.Object,
+        };
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandlePromptForTestAsync(
+            channel.Writer,
+            services,
+            interaction.ItemId,
+            "prompt",
+            cancellationToken);
+
+        Assert.NotNull(handlerContext);
+        var historyMessage = Assert.Single(handlerContext.ConversationHistory);
+        Assert.Equal(ChatRole.User, historyMessage.Role);
+        Assert.Equal("prompt", historyMessage.Text);
+        interactionManagerMock.Verify(
+            manager => manager.FindByIdAsync(interaction.ItemId, cancellationToken),
+            Times.Once);
+        promptStoreMock.Verify(
+            store => store.CreateAsync(It.IsAny<ChatInteractionPrompt>(), cancellationToken),
+            Times.Once);
+        groupsMock.Verify(
+            groups => groups.AddToGroupAsync(
+                "connection",
+                ChatInteractionHubBase.GetInteractionGroupName(interaction.ItemId),
+                cancellationToken),
+            Times.Once);
+        handlerMock.Verify(
+            handler => handler.HandleAsync(
+                It.IsAny<ChatResponseHandlerContext>(),
+                cancellationToken),
+            Times.Once);
+    }
+
     private static CitationReferenceCollector CreateCitationCollector()
     {
         return new(new CompositeAIReferenceLinkResolver(new ServiceCollection().BuildServiceProvider()));
@@ -388,6 +484,36 @@ public sealed class ChatInteractionHubTests
         public string GetFriendlyErrorMessageForTest(Exception ex)
         {
             return GetFriendlyErrorMessage(ex);
+        }
+
+        /// <summary>
+        /// Invokes prompt handling for tests.
+        /// </summary>
+        /// <param name="writer">The output channel writer.</param>
+        /// <param name="services">The service provider.</param>
+        /// <param name="itemId">The interaction identifier.</param>
+        /// <param name="prompt">The prompt text.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task representing prompt handling.</returns>
+        public Task HandlePromptForTestAsync(
+            ChannelWriter<CompletionPartialMessage> writer,
+            IServiceProvider services,
+            string itemId,
+            string prompt,
+            CancellationToken cancellationToken)
+        {
+            return HandlePromptAsync(
+                writer,
+                services,
+                itemId,
+                prompt,
+                cancellationToken);
+        }
+
+        /// <inheritdoc />
+        protected override string GenerateId()
+        {
+            return "new-prompt";
         }
     }
 }

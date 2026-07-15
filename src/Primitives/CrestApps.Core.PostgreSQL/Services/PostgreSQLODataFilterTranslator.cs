@@ -39,9 +39,9 @@ internal sealed partial class PostgreSQLODataFilterTranslator : IODataFilterTran
         var tokens = new List<string>();
         var regex = TokenRegex();
 
-        foreach (Match match in regex.Matches(input))
+        foreach (var match in regex.EnumerateMatches(input))
         {
-            tokens.Add(match.Value);
+            tokens.Add(input.Substring(match.Index, match.Length));
         }
 
         return tokens;

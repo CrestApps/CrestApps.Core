@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Benchmarks" />
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="GitHub.Copilot.SDK" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>

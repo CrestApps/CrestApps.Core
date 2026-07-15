@@ -138,23 +138,49 @@ public sealed class QueryTabularDataTool : AIFunction
 
         builder.AppendLine(":");
         builder.AppendLine();
-        builder.AppendLine(string.Join(" | ", result.Columns));
+
+        var columns = result.Columns;
+
+        for (var index = 0; index < columns.Count; index++)
+        {
+            if (index > 0)
+            {
+                builder.Append(" | ");
+            }
+
+            builder.Append(columns[index]);
+        }
+
+        builder.AppendLine();
 
         foreach (var row in result.Rows)
         {
-            builder.AppendLine(string.Join(" | ", row.Select(FormatCell)));
+            for (var index = 0; index < row.Length; index++)
+            {
+                if (index > 0)
+                {
+                    builder.Append(" | ");
+                }
+
+                switch (row[index])
+                {
+                    case null:
+                        break;
+                    case string text:
+                        builder.Append(text);
+                        break;
+                    case IFormattable formattable:
+                        builder.Append(formattable.ToString(null, CultureInfo.InvariantCulture));
+                        break;
+                    default:
+                        builder.Append(row[index].ToString());
+                        break;
+                }
+            }
+
+            builder.AppendLine();
         }
 
         return builder.ToString();
-    }
-
-    private static string FormatCell(object cell)
-    {
-        return cell switch
-        {
-            null => string.Empty,
-            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-            _ => cell.ToString(),
-        };
     }
 }

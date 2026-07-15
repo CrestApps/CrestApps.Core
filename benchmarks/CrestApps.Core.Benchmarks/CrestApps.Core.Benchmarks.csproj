@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="YesSql.Provider.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.OpenAI.Azure/CrestApps.Core.AI.OpenAI.Azure.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
+    <ProjectReference Include="../../src/Stores/CrestApps.Core.Data.YesSql/CrestApps.Core.Data.YesSql.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
+    <ProjectReference Include="../../src/Utilities/CrestApps.Core.Support/CrestApps.Core.Support.csproj" />
+  </ItemGroup>
+
+</Project>

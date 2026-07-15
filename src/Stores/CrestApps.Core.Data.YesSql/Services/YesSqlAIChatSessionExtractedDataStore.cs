@@ -61,12 +61,23 @@ public sealed class YesSqlAIChatSessionExtractedDataStore : IAIChatSessionExtrac
             existing.SessionStartedUtc = record.SessionStartedUtc;
             existing.SessionEndedUtc = record.SessionEndedUtc;
             existing.UpdatedUtc = record.UpdatedUtc;
-            existing.Values = record.Values == null
-                ? []
-                : record.Values.ToDictionary(
-                    pair => pair.Key,
-                    pair => pair.Value?.ToList() ?? [],
-                    StringComparer.OrdinalIgnoreCase);
+
+            if (record.Values is null)
+            {
+                existing.Values = [];
+            }
+            else
+            {
+                var copiedValues = new Dictionary<string, List<string>>(record.Values.Count, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var pair in record.Values)
+                {
+                    var values = pair.Value;
+                    copiedValues.Add(pair.Key, values is null ? [] : [.. values]);
+                }
+
+                existing.Values = copiedValues;
+            }
         }
 
         await _session.SaveAsync(existing, _collection);

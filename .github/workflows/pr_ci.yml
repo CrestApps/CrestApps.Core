@@ -47,4 +47,10 @@ jobs:
         dotnet build -c Release -warnaserror /p:TreatWarningsAsErrors=true /p:RunAnalyzers=true /p:NuGetAudit=false
     - name: Unit Tests
       run: |
-        dotnet test -c Release --no-build ./tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj 
+        dotnet test -c Release --no-build ./tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj
+    - name: Print Test Failure Details
+      if: failure()
+      shell: pwsh
+      run: |
+        Get-ChildItem ./tests/CrestApps.Core.Tests/bin/Release/net10.0/TestResults -Filter *.log -Recurse |
+          ForEach-Object { Get-Content $_.FullName }

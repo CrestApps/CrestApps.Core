@@ -84,27 +84,97 @@ public abstract class McpResourceTypeHandlerBase : IMcpResourceTypeHandler
             return string.Empty;
         }
 
-        // Reject null bytes.
         if (path.Contains('\0'))
         {
             throw new ArgumentException("Path contains invalid characters.", nameof(path));
         }
 
-        // Normalize backslashes to forward slashes for consistent checking.
-        var normalized = path.Replace('\\', '/');
-
-        // Check each segment for directory traversal.
-        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var segment in segments)
+        if (path.AsSpan().IndexOfAny('/', '\\') < 0)
         {
-            if (segment == ".." || segment == ".")
+            if (path is "." or "..")
             {
                 throw new ArgumentException("Path must not contain directory traversal sequences.", nameof(path));
             }
+
+            return path;
         }
 
-        return string.Join("/", segments);
+        var outputLength = 0;
+        var segmentCount = 0;
+        var segmentStart = 0;
+        var requiresNormalization = false;
+
+        for (var i = 0; i <= path.Length; i++)
+        {
+            if (i < path.Length && path[i] is not ('/' or '\\'))
+            {
+                continue;
+            }
+
+            var segmentLength = i - segmentStart;
+
+            if (segmentLength == 0)
+            {
+                requiresNormalization = true;
+            }
+            else
+            {
+                if (path[segmentStart] == '.' &&
+                    (segmentLength == 1 || (segmentLength == 2 && path[segmentStart + 1] == '.')))
+                {
+                    throw new ArgumentException("Path must not contain directory traversal sequences.", nameof(path));
+                }
+
+                outputLength += segmentLength + (segmentCount > 0 ? 1 : 0);
+                segmentCount++;
+            }
+
+            if (i < path.Length && path[i] == '\\')
+            {
+                requiresNormalization = true;
+            }
+
+            segmentStart = i + 1;
+        }
+
+        if (outputLength == 0)
+        {
+            return string.Empty;
+        }
+
+        if (!requiresNormalization)
+        {
+            return path;
+        }
+
+        return string.Create(outputLength, path, static (destination, source) =>
+        {
+            var destinationIndex = 0;
+            var sourceSegmentStart = 0;
+
+            for (var i = 0; i <= source.Length; i++)
+            {
+                if (i < source.Length && source[i] is not ('/' or '\\'))
+                {
+                    continue;
+                }
+
+                var segmentLength = i - sourceSegmentStart;
+
+                if (segmentLength > 0)
+                {
+                    if (destinationIndex > 0)
+                    {
+                        destination[destinationIndex++] = '/';
+                    }
+
+                    source.AsSpan(sourceSegmentStart, segmentLength).CopyTo(destination[destinationIndex..]);
+                    destinationIndex += segmentLength;
+                }
+
+                sourceSegmentStart = i + 1;
+            }
+        });
     }
 
     /// <summary>

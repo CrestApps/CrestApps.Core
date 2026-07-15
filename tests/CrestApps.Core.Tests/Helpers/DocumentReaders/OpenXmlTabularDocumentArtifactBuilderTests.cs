@@ -10,6 +10,42 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
 {
     private readonly OpenXmlTabularDocumentArtifactBuilder _builder = new(NullLogger<OpenXmlTabularDocumentArtifactBuilder>.Instance);
 
+    /// <summary>
+    /// Verifies that an empty worksheet produces an empty artifact.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_EmptyWorksheet_ReturnsEmptyArtifact()
+    {
+        await using var stream = CreateExcelWithSequentialRows(0, includeHeader: false);
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(artifact.Header);
+        Assert.Empty(artifact.Rows);
+    }
+
+    /// <summary>
+    /// Verifies that a header-only workbook preserves the header without creating data rows.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_HeaderOnlyWorkbook_ReturnsHeaderWithoutRows()
+    {
+        await using var stream = CreateExcelWithSequentialRows(0);
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Index"], artifact.Header);
+        Assert.Empty(artifact.Rows);
+    }
+
     [Fact]
     public async Task CreateAsync_SharedStringsWorkbook_ExtractsHeaderAndRows()
     {
@@ -60,6 +96,49 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
         Assert.Empty(artifact.Rows);
     }
 
+    /// <summary>
+    /// Verifies exact row preservation around the former initial-capacity boundary.
+    /// </summary>
+    /// <param name="rowCount">The number of data rows to read.</param>
+    [Theory]
+    [InlineData(4095)]
+    [InlineData(4096)]
+    [InlineData(4097)]
+    public async Task CreateAsync_RowCountAroundInitialCapacity_PreservesEveryRow(int rowCount)
+    {
+        await using var stream = CreateExcelWithSequentialRows(rowCount);
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Index"], artifact.Header);
+        Assert.Equal(rowCount, artifact.Rows.Count);
+        Assert.Equal("0", artifact.Rows[0][0]);
+        Assert.Equal((rowCount - 1).ToString(), artifact.Rows[^1][0]);
+    }
+
+    /// <summary>
+    /// Verifies that sequential data rows retain their source order.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_SequentialRows_PreservesSourceOrder()
+    {
+        await using var stream = CreateExcelWithSequentialRows(32);
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            Enumerable.Range(0, 32).Select(index => index.ToString()),
+            artifact.Rows.Select(row => row[0]));
+    }
+
     [Fact]
     public async Task CreateAsync_MultipleWorksheets_SkipsSubsequentWorksheetHeaders()
     {
@@ -76,6 +155,24 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
             artifact.Rows,
             row => Assert.Equal(["North", "100"], row),
             row => Assert.Equal(["South", "200"], row));
+    }
+
+    /// <summary>
+    /// Verifies that a canceled operation stops before worksheet rows are materialized.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_CanceledToken_ThrowsOperationCanceledException()
+    {
+        await using var stream = CreateExcelWithSequentialRows(1);
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _builder.CreateAsync(
+                stream,
+                "test.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                cancellationTokenSource.Token));
     }
 
     private static MemoryStream CreateExcelWithSharedStrings(string[][] rows)
@@ -214,6 +311,68 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
             }
 
             sheetData.AppendChild(row);
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.AppendChild(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "Sheet1",
+            });
+        }
+
+        stream.Position = 0;
+
+        return stream;
+    }
+
+    /// <summary>
+    /// Creates a workbook with an optional header and sequential one-column data rows.
+    /// </summary>
+    /// <param name="rowCount">The number of data rows.</param>
+    /// <param name="includeHeader">Whether to include the header row.</param>
+    /// <returns>The workbook stream positioned at the beginning.</returns>
+    private static MemoryStream CreateExcelWithSequentialRows(
+        int rowCount,
+        bool includeHeader = true)
+    {
+        var stream = new MemoryStream();
+
+        using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+
+            if (includeHeader)
+            {
+                sheetData.AppendChild(new Row(
+                    new Cell
+                    {
+                        CellReference = "A1",
+                        DataType = CellValues.InlineString,
+                        InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text("Index")),
+                    })
+                {
+                    RowIndex = 1,
+                });
+            }
+
+            for (var index = 0; index < rowCount; index++)
+            {
+                var rowIndex = index + (includeHeader ? 2 : 1);
+                sheetData.AppendChild(new Row(
+                    new Cell
+                    {
+                        CellReference = $"A{rowIndex}",
+                        CellValue = new CellValue(index.ToString()),
+                    })
+                {
+                    RowIndex = (uint)rowIndex,
+                });
+            }
+
             worksheetPart.Worksheet = new Worksheet(sheetData);
             var sheets = workbookPart.Workbook.AppendChild(new Sheets());
             sheets.AppendChild(new Sheet

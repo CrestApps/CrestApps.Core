@@ -72,21 +72,21 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
         // First line is always the header
 
         var headerRow = lines[0];
-        var dataLines = lines.Skip(1).ToList();
+        var dataLineCount = lines.Length - 1;
 
         // Apply max rows limit
         var maxRows = _settings.MaxRowsPerDocument;
 
-        if (maxRows > 0 && dataLines.Count > maxRows)
+        if (maxRows > 0 && dataLineCount > maxRows)
         {
             _logger.LogWarning(
                 "Document '{FileName}' has {ActualRows} rows, exceeding the maximum of {MaxRows}. Truncating.",
-                fileName, dataLines.Count, maxRows);
+                fileName, dataLineCount, maxRows);
 
-            dataLines = dataLines.Take(maxRows).ToList();
+            dataLineCount = maxRows;
         }
 
-        if (dataLines.Count == 0)
+        if (dataLineCount == 0)
         {
             return batches;
         }
@@ -98,11 +98,19 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
             batchSize = 25; // Default fallback
         }
 
+        batches.EnsureCapacity(((dataLineCount - 1) / batchSize) + 1);
+
         var batchIndex = 0;
 
-        for (var i = 0; i < dataLines.Count; i += batchSize)
+        for (var i = 0; i < dataLineCount; i += batchSize)
         {
-            var batchRows = dataLines.Skip(i).Take(batchSize).ToList();
+            var batchRowCount = Math.Min(batchSize, dataLineCount - i);
+            var batchRows = new List<string>(batchRowCount);
+
+            for (var rowOffset = 0; rowOffset < batchRowCount; rowOffset++)
+            {
+                batchRows.Add(lines[i + rowOffset + 1]);
+            }
 
             batches.Add(new TabularBatch
             {

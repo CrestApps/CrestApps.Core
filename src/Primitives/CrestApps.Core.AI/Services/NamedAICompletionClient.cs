@@ -230,7 +230,15 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         }
     }
 
-    private static List<ChatMessage> GetPrompts(IEnumerable<ChatMessage> messages, AICompletionContext context)
+    /// <summary>
+    /// Builds the provider prompts from the eligible conversation history.
+    /// </summary>
+    /// <param name="messages">The source conversation messages.</param>
+    /// <param name="context">The completion context.</param>
+    /// <returns>The prompts to send to the provider.</returns>
+    private static List<ChatMessage> GetPrompts(
+        IEnumerable<ChatMessage> messages,
+        AICompletionContext context)
     {
         var chatMessages = messages.Where(static x =>
             (x.Role == ChatRole.User || x.Role == ChatRole.Assistant) &&
@@ -245,20 +253,75 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             prompts.Add(new ChatMessage(ChatRole.System, systemMessage));
         }
 
-        var materializedMessages = chatMessages.ToList();
-
         if (context.PastMessagesCount > 1)
         {
-            var skip = GetTotalMessagesToSkip(materializedMessages.Count, context.PastMessagesCount.Value);
-
-            prompts.AddRange(materializedMessages.Skip(skip).Take(context.PastMessagesCount.Value));
+            AddLastMessages(prompts, chatMessages, context.PastMessagesCount.Value);
         }
         else
         {
+            var materializedMessages = chatMessages.ToList();
+
             prompts.AddRange(materializedMessages);
         }
 
         return prompts;
+    }
+
+    /// <summary>
+    /// Adds the requested number of messages from the end of a forward-only sequence.
+    /// </summary>
+    /// <param name="prompts">The destination prompt collection.</param>
+    /// <param name="messages">The eligible messages.</param>
+    /// <param name="count">The maximum number of messages to add.</param>
+    private static void AddLastMessages(
+        List<ChatMessage> prompts,
+        IEnumerable<ChatMessage> messages,
+        int count)
+    {
+        var buffer = new List<ChatMessage>(Math.Min(count, 4));
+        var nextIndex = 0;
+
+        foreach (var message in messages)
+        {
+            if (buffer.Count < count)
+            {
+                buffer.Add(message);
+
+                continue;
+            }
+
+            buffer[nextIndex] = message;
+            nextIndex++;
+
+            if (nextIndex == count)
+            {
+                nextIndex = 0;
+            }
+        }
+
+        if (nextIndex == 0)
+        {
+            prompts.AddRange(buffer);
+
+            return;
+        }
+
+        var requiredCapacity = (long)prompts.Count + buffer.Count;
+
+        if (requiredCapacity <= int.MaxValue)
+        {
+            prompts.EnsureCapacity((int)requiredCapacity);
+        }
+
+        for (var index = nextIndex; index < buffer.Count; index++)
+        {
+            prompts.Add(buffer[index]);
+        }
+
+        for (var index = 0; index < nextIndex; index++)
+        {
+            prompts.Add(buffer[index]);
+        }
     }
 
     private async Task<ChatOptions> GetChatOptionsAsync(AICompletionContext context, string deploymentName, bool isStreaming)

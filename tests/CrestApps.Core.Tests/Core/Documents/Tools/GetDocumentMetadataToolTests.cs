@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Reflection;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Models;
@@ -17,6 +19,10 @@ namespace CrestApps.Core.Tests.Core.Documents.Tools;
 
 public sealed class GetDocumentMetadataToolTests
 {
+    private static readonly MethodInfo _inferColumnTypes = typeof(GetDocumentMetadataTool)
+        .GetMethod("InferColumnTypes", BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException("Unable to find the document metadata type inference helper.");
+
     [Fact]
     public async Task InvokeAsync_HeadersScope_ReturnsTabularHeadersWithoutWorkspaceImport()
     {
@@ -65,10 +71,14 @@ public sealed class GetDocumentMetadataToolTests
         var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
         var text = result.ToString();
 
-        Assert.Contains("\"SkyLineFull 1.xlsx\" has 3 headers.", text);
-        Assert.Contains("- First Name (inferred type: text)", text);
-        Assert.Contains("- Signup Date (inferred type: date)", text);
-        Assert.Contains("- Is Active (inferred type: boolean)", text);
+        var newLine = Environment.NewLine;
+        var expected = string.Concat(
+            "\"SkyLineFull 1.xlsx\" has 3 headers.", newLine, newLine,
+            "- First Name (inferred type: text)", newLine,
+            "- Signup Date (inferred type: date)", newLine,
+            "- Is Active (inferred type: boolean)", newLine);
+
+        Assert.Equal(expected, text);
     }
 
     [Fact]
@@ -106,10 +116,14 @@ public sealed class GetDocumentMetadataToolTests
         var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
         var text = result.ToString();
 
-        Assert.Contains("\"notes.txt\" metadata:", text);
-        Assert.Contains("document_id: uploaded-1", text);
-        Assert.Contains("content_type: text/plain", text);
-        Assert.Contains("file_size_bytes: 42", text);
+        var newLine = Environment.NewLine;
+        var expected = string.Concat(
+            "\"notes.txt\" metadata:", newLine,
+            "- document_id: uploaded-1", newLine,
+            "- content_type: text/plain", newLine,
+            "- file_size_bytes: 42", newLine);
+
+        Assert.Equal(expected, text);
     }
 
     [Fact]
@@ -160,9 +174,113 @@ public sealed class GetDocumentMetadataToolTests
         var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
         var text = result.ToString();
 
-        Assert.Contains("- Order_ID (source header: Order ID) — inferred type: integer", text);
-        Assert.Contains("- Total_Amount (source header: Total Amount) — inferred type: decimal", text);
-        Assert.Contains("- Updated_At (source header: Updated At) — inferred type: datetime", text);
+        var newLine = Environment.NewLine;
+        var expected = string.Concat(
+            "\"SkyLineFull 1.xlsx\" exposes 3 SQL columns.", newLine, newLine,
+            "- Order_ID (source header: Order ID) — inferred type: integer", newLine,
+            "- Total_Amount (source header: Total Amount) — inferred type: decimal", newLine,
+            "- Updated_At (source header: Updated At) — inferred type: datetime", newLine);
+
+        Assert.Equal(expected, text);
+    }
+
+    /// <summary>
+    /// Verifies exact type promotion for ragged rows, nulls, whitespace, and every supported inferred type.
+    /// </summary>
+    [Fact]
+    public void InferColumnTypes_WithRaggedMixedRows_PreservesTypePromotionRules()
+    {
+        var artifact = new TabularDocumentArtifact
+        {
+            Header = ["Boolean", "Integer", "Decimal", "Date", "DateTime", "Mixed", "Empty", "ReverseDateTime"],
+            Rows =
+            [
+                ["true", "1", "1", "2026-07-01", "2026-07-01", "true", null, "2026-07-01T12:00:00Z"],
+                ["false", "-2", "2.5", "2026/07/02", "2026-07-02T12:00:00Z", "1", " ", "2026-07-02"],
+                [" true ", "3"],
+            ],
+        };
+
+        Assert.Equal(
+            ["boolean", "integer", "decimal", "date", "datetime", "text", "empty", "datetime"],
+            InferColumnTypes(artifact));
+    }
+
+    /// <summary>
+    /// Verifies that only the first 32 nonblank values per column participate in inference.
+    /// </summary>
+    [Fact]
+    public void InferColumnTypes_AtSampleBoundary_UsesFirstThirtyTwoNonblankValues()
+    {
+        var artifact = new TabularDocumentArtifact
+        {
+            Header = ["ThirtySecondCounts", "ThirtyThirdIgnored", "WhitespaceDoesNotCount", "TextAbsorbs"],
+        };
+
+        for (var rowIndex = 0; rowIndex < 34; rowIndex++)
+        {
+            artifact.Rows.Add(
+            [
+                rowIndex < 31 ? "1" : rowIndex == 31 ? "2.5" : "not-a-number",
+                rowIndex < 32 ? "1" : "2.5",
+                rowIndex < 31 ? "1" : rowIndex == 31 ? " " : rowIndex == 32 ? "2.5" : "not-a-number",
+                rowIndex == 0 ? "not-a-number" : "1",
+            ]);
+        }
+
+        Assert.Equal(
+            ["decimal", "integer", "decimal", "text"],
+            InferColumnTypes(artifact));
+    }
+
+    /// <summary>
+    /// Verifies that inference remains invariant when the current culture uses different numeric syntax.
+    /// </summary>
+    [Fact]
+    public void InferColumnTypes_WithNonInvariantCurrentCulture_UsesInvariantParsing()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
+
+            var artifact = new TabularDocumentArtifact
+            {
+                Header = ["InvariantDecimal", "FrenchFormattedText"],
+                Rows =
+                [
+                    ["1234.5", "1 234,5"],
+                ],
+            };
+
+            Assert.Equal(["decimal", "text"], InferColumnTypes(artifact));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    /// <summary>
+    /// Verifies empty inference for absent headers and null row collections.
+    /// </summary>
+    [Fact]
+    public void InferColumnTypes_WithMissingStructure_ReturnsEmptyTypes()
+    {
+        Assert.Empty(InferColumnTypes(null));
+        Assert.Empty(InferColumnTypes(new TabularDocumentArtifact
+        {
+            Header = null,
+            Rows = null,
+        }));
+        Assert.Equal(
+            ["empty", "empty"],
+            InferColumnTypes(new TabularDocumentArtifact
+            {
+                Header = ["A", "B"],
+                Rows = null,
+            }));
     }
 
     private static AIFunctionArguments CreateArguments(IServiceProvider services, Dictionary<string, object> values)
@@ -171,6 +289,16 @@ public sealed class GetDocumentMetadataToolTests
         {
             Services = services,
         };
+    }
+
+    /// <summary>
+    /// Invokes the production inferred-column-type helper.
+    /// </summary>
+    /// <param name="artifact">The artifact to inspect.</param>
+    /// <returns>The inferred type name for each header column.</returns>
+    private static string[] InferColumnTypes(TabularDocumentArtifact artifact)
+    {
+        return (string[])_inferColumnTypes.Invoke(null, [artifact]);
     }
 
     private static ServiceProvider BuildServices(

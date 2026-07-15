@@ -188,6 +188,46 @@ public sealed class PromptInjectionPatternDetectorTests
         Assert.Equal("max-length", result.DetectionRule);
     }
 
+    /// <summary>
+    /// Verifies an input exactly at the maximum length reaches normal rule evaluation.
+    /// </summary>
+    [Fact]
+    public async Task EvaluateAsync_AtMaxLength_DoesNotBlockInPreflight()
+    {
+        var detector = CreateDetector(new PromptSecurityOptions
+        {
+            MaxPromptLength = 100,
+        });
+
+        var result = await EvaluateAsync(detector, new string('x', 100), maxPromptLength: 100);
+
+        Assert.False(result.IsBlocked);
+        Assert.DoesNotContain("max-length", result.MatchedRuleIds);
+        Assert.Equal(100, result.Telemetry.OriginalLength);
+        Assert.Equal(100, result.Telemetry.NormalizedLength);
+        Assert.Equal(100, result.Telemetry.FoldedLength);
+    }
+
+    /// <summary>
+    /// Verifies cancellation is observed before the first rule is evaluated.
+    /// </summary>
+    [Fact]
+    public async Task EvaluateAsync_CanceledBeforeRuleEvaluation_Throws()
+    {
+        var detector = CreateDetector();
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+        var context = new PromptSecurityEvaluationContext
+        {
+            OriginalInput = "A benign prompt.",
+            MaxPromptLength = 8000,
+            BlockingThreshold = PromptRiskLevel.High,
+        };
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await detector.EvaluateAsync(context, cancellationTokenSource.Token));
+    }
+
     [Fact]
     public async Task EvaluateAsync_CustomBlockedPattern_Blocks()
     {

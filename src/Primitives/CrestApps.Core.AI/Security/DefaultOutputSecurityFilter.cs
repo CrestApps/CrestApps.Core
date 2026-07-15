@@ -127,27 +127,52 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         var output = context.Output;
         var systemMessage = context.SystemMessage;
 
-        // Look for substantial substring matches from the system message in the output.
-        const int minLeakLength = 50;
-        var systemLines = systemMessage.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        foreach (var line in systemLines)
+        if (ContainsSubstantialSystemPromptLine(output, systemMessage))
         {
-            if (line.Length < minLeakLength)
-            {
-                continue;
-            }
-
-            if (output.Contains(line, StringComparison.OrdinalIgnoreCase))
-            {
-                return PromptSecurityResult.Blocked(
-                    "Detected system prompt content in AI response.",
-                    PromptRiskLevel.Critical,
-                    "SystemPromptLeak");
-            }
+            return PromptSecurityResult.Blocked(
+                "Detected system prompt content in AI response.",
+                PromptRiskLevel.Critical,
+                "SystemPromptLeak");
         }
 
         return CheckDisclosureIndicatorsOnly(output);
+    }
+
+    /// <summary>
+    /// Determines whether the output contains a trimmed system-prompt line of at least 50 characters.
+    /// </summary>
+    /// <param name="output">The model output.</param>
+    /// <param name="systemMessage">The system message.</param>
+    /// <returns><see langword="true"/> when a substantial line is disclosed.</returns>
+    private static bool ContainsSubstantialSystemPromptLine(string output, string systemMessage)
+    {
+        const int minLeakLength = 50;
+        var outputSpan = output.AsSpan();
+        var remainingSystemMessage = systemMessage.AsSpan();
+
+        while (true)
+        {
+            var lineEnd = remainingSystemMessage.IndexOf('\n');
+            var line = lineEnd >= 0
+                ? remainingSystemMessage[..lineEnd]
+                : remainingSystemMessage;
+            line = line.Trim();
+
+            if (line.Length >= minLeakLength
+                && outputSpan.Contains(line, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (lineEnd < 0)
+            {
+                break;
+            }
+
+            remainingSystemMessage = remainingSystemMessage[(lineEnd + 1)..];
+        }
+
+        return false;
     }
 
     private static PromptSecurityResult CheckDisclosureIndicatorsOnly(string output)
@@ -199,7 +224,8 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
         }
 
         // Check for structured function definition patterns.
-        if (ToolDefinitionPatternRegex().IsMatch(output))
+        // Every regex match requires a literal opening brace.
+        if (output.Contains('{') && ToolDefinitionPatternRegex().IsMatch(output))
         {
             return PromptSecurityResult.Flagged(
                 "AI response may contain tool definition patterns.",
@@ -237,7 +263,9 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
     {
         // Detect XSS/script injection payloads in output that could cause harm
         // if rendered in a browser context.
-        if (XssPayloadRegex().IsMatch(output))
+        // Every regex branch requires at least one of these literal punctuation characters.
+        if (output.AsSpan().IndexOfAny("<:=(".AsSpan()) >= 0
+            && XssPayloadRegex().IsMatch(output))
         {
             return PromptSecurityResult.Flagged(
                 "AI response contains potentially executable script content.",

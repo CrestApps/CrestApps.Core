@@ -281,6 +281,90 @@ public sealed class FileSystemAITemplateProviderTests : IDisposable
         Assert.Equal("test", template.Id);
         Assert.Equal("Root Template", template.Metadata.Title);
     }
+
+    [Fact]
+    public async Task GetTemplatesAsync_MatchesExtensionsCaseInsensitively()
+    {
+        var templatesDir = Path.Combine(_tempDir, "Templates");
+        Directory.CreateDirectory(templatesDir);
+        File.WriteAllText(Path.Combine(templatesDir, "case-sensitive.MD"), "Template content.");
+
+        var options = new TemplateOptions();
+        options.DiscoveryPaths.Add(_tempDir);
+        var provider = new FileSystemTemplateProvider(
+            Options.Create(options),
+            [new TrackingTemplateParser(".md", "parsed")],
+            NullLogger<FileSystemTemplateProvider>.Instance);
+
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
+
+        var template = Assert.Single(templates);
+        Assert.Equal("parsed", template.Content);
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_WhenParsersOverlap_UsesFirstRegisteredParser()
+    {
+        var templatesDir = Path.Combine(_tempDir, "Templates");
+        Directory.CreateDirectory(templatesDir);
+        File.WriteAllText(Path.Combine(templatesDir, "overlap.md"), "Template content.");
+
+        var options = new TemplateOptions();
+        options.DiscoveryPaths.Add(_tempDir);
+        var provider = new FileSystemTemplateProvider(
+            Options.Create(options),
+            [
+                new TrackingTemplateParser(".md", "first"),
+                new TrackingTemplateParser(".md", "second"),
+            ],
+            NullLogger<FileSystemTemplateProvider>.Instance);
+
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
+
+        var template = Assert.Single(templates);
+        Assert.Equal("first", template.Content);
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_ExtensionlessParser_DiscoversExtensionlessTemplate()
+    {
+        var templatesDir = Path.Combine(_tempDir, "Templates");
+        Directory.CreateDirectory(templatesDir);
+        File.WriteAllText(Path.Combine(templatesDir, "extensionless"), "Template content.");
+
+        var options = new TemplateOptions();
+        options.DiscoveryPaths.Add(_tempDir);
+        var provider = new FileSystemTemplateProvider(
+            Options.Create(options),
+            [new TrackingTemplateParser(string.Empty, "extensionless")],
+            NullLogger<FileSystemTemplateProvider>.Instance);
+
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
+
+        var template = Assert.Single(templates);
+        Assert.Equal("extensionless", template.Content);
+    }
+
+    private sealed class TrackingTemplateParser : ITemplateParser
+    {
+        private readonly string _body;
+
+        public TrackingTemplateParser(string extension, string body)
+        {
+            SupportedExtensions = [extension];
+            _body = body;
+        }
+
+        public IReadOnlyList<string> SupportedExtensions { get; }
+
+        public TemplateParseResult Parse(string rawContent)
+        {
+            return new TemplateParseResult
+            {
+                Body = _body,
+            };
+        }
+    }
 }
 
 public sealed class EmbeddedResourceAITemplateProviderTests

@@ -41,7 +41,7 @@ public sealed class PdfGeneratedFileWriter : IGeneratedFileWriter
         using var buffer = new MemoryStream();
         renderer.PdfDocument.Save(buffer, closeStream: false);
 
-        var bytes = buffer.ToArray();
+        var bytes = buffer.GetBuffer().AsMemory(0, checked((int)buffer.Length));
         await destination.WriteAsync(bytes, cancellationToken);
     }
 
