@@ -41,6 +41,42 @@ public sealed class NamedSourceCatalogManagerTests
     }
 
     [Fact]
+    public async Task NewAsync_AssignsRequestedNameAndSource()
+    {
+        var manager = CreateManager();
+
+        var entry = await manager.NewAsync("Test", "A", cancellationToken: CancellationToken);
+
+        Assert.Equal("Test", entry.Name);
+        Assert.Equal("A", entry.Source);
+        Assert.False(string.IsNullOrEmpty(entry.ItemId));
+    }
+
+    [Fact]
+    public async Task NewAsync_RestoresRequestedNameAndSourceAfterInitialization()
+    {
+        var catalog = InMemoryCatalogFactory.CreateNamedSourceCatalog<TestNamedSourceCatalogEntry>([]);
+        var logger = Mock.Of<ILogger<NamedSourceCatalogManager<TestNamedSourceCatalogEntry>>>();
+        var handler = new TestCatalogEntryHandler<TestNamedSourceCatalogEntry>
+        {
+            OnInitializingAsync = ctx =>
+            {
+                ctx.Model.Name = "Changed";
+                ctx.Model.Source = "Changed";
+
+                return Task.CompletedTask;
+            }
+        };
+
+        var manager = new NamedSourceCatalogManager<TestNamedSourceCatalogEntry>(catalog, [handler], logger);
+
+        var entry = await manager.NewAsync("Test", "A", cancellationToken: CancellationToken);
+
+        Assert.Equal("Test", entry.Name);
+        Assert.Equal("A", entry.Source);
+    }
+
+    [Fact]
     public async Task FindByNameAsync_InvokesLoadedHandler()
     {
         var entry = new TestNamedSourceCatalogEntry { ItemId = "1", Name = "Test", Source = "A" };

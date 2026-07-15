@@ -13,7 +13,7 @@ public sealed class EntityCoreAIDataSourceStore : SourceDocumentCatalog<AIDataSo
     /// <param name="logger">The logger.</param>
     public EntityCoreAIDataSourceStore(
         CrestAppsEntityDbContext dbContext,
-        ILogger<DocumentCatalog<AIDataSource>> logger = null)
+        ILogger<DocumentCatalog<AIDataSource>> logger)
         : base(dbContext, logger)
     {
     }

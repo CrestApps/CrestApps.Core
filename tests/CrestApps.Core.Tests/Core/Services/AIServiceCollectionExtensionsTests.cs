@@ -50,8 +50,8 @@ public sealed class AIServiceCollectionExtensionsTests
         var scopedServices = scope.ServiceProvider;
 
         Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<IAIProfileManager>());
-        Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<ICatalogManager<AIProfile>>());
         Assert.IsType<DefaultAIProfileManager>(scopedServices.GetRequiredService<INamedCatalogManager<AIProfile>>());
+        Assert.Null(scopedServices.GetService<ICatalogManager<AIProfile>>());
     }
 
     [Fact]

@@ -213,7 +213,7 @@ public sealed class EntityCoreStoreTests
         await indexProfileStore.CreateAsync(indexProfile, cancellationToken);
         await committer.CommitAsync(cancellationToken);
         Assert.Equal(indexProfile.ItemId, (await indexProfileStore.FindByNameAsync("docs-index", cancellationToken))?.ItemId);
-        Assert.Single(await indexProfileStore.GetByTypeAsync("AIDocuments"));
+        Assert.Single(await indexProfileStore.GetByTypeAsync("AIDocuments", cancellationToken));
 
         var profile = new AIProfile
         {

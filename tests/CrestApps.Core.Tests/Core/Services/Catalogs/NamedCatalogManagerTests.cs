@@ -45,6 +45,39 @@ public sealed class NamedCatalogManagerTests
     }
 
     [Fact]
+    public async Task NewAsync_AssignsRequestedName()
+    {
+        var manager = CreateManager();
+
+        var entry = await manager.NewAsync("Test", cancellationToken: CancellationToken);
+
+        Assert.Equal("Test", entry.Name);
+        Assert.False(string.IsNullOrEmpty(entry.ItemId));
+    }
+
+    [Fact]
+    public async Task NewAsync_RestoresRequestedNameAfterInitialization()
+    {
+        var catalog = InMemoryCatalogFactory.CreateNamedCatalog<TestNamedCatalogEntry>([]);
+        var logger = Mock.Of<ILogger<NamedCatalogManager<TestNamedCatalogEntry>>>();
+        var handler = new TestCatalogEntryHandler<TestNamedCatalogEntry>
+        {
+            OnInitializingAsync = ctx =>
+            {
+                ctx.Model.Name = "Changed";
+
+                return Task.CompletedTask;
+            }
+        };
+
+        var manager = new NamedCatalogManager<TestNamedCatalogEntry>(catalog, [handler], logger);
+
+        var entry = await manager.NewAsync("Test", cancellationToken: CancellationToken);
+
+        Assert.Equal("Test", entry.Name);
+    }
+
+    [Fact]
     public async Task FindByNameAsync_InvokesLoadedHandler()
     {
         var entry = new TestNamedCatalogEntry { ItemId = "1", Name = "Test" };

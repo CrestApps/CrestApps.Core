@@ -110,7 +110,7 @@ public sealed class NullSearchIndexProfileStore : ISearchIndexProfileStore
     /// Gets by type.
     /// </summary>
     /// <param name="type">The type.</param>
-    public Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type)
+    public Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
 

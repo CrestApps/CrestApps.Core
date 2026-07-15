@@ -90,11 +90,12 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
     /// <summary>
     /// Creates a new AI profile instance.
     /// </summary>
+    /// <param name="name">The profile name.</param>
     /// <param name="data">The optional initialization data.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public new async ValueTask<AIProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
+    public new async ValueTask<AIProfile> NewAsync(string name, JsonNode data = null, CancellationToken cancellationToken = default)
     {
-        var profile = await base.NewAsync(data, cancellationToken);
+        var profile = await base.NewAsync(name, data, cancellationToken);
 
         EnsureDefaults(profile);
 
@@ -133,15 +134,6 @@ public sealed class DefaultAIProfileManager : NamedCatalogManager<AIProfile>, IA
 
         return result;
     }
-
-    ValueTask<AIProfile> ICatalogManager<AIProfile>.NewAsync(JsonNode data, CancellationToken cancellationToken)
-        => NewAsync(data, cancellationToken);
-
-    ValueTask ICatalogManager<AIProfile>.CreateAsync(AIProfile model, CancellationToken cancellationToken)
-        => CreateAsync(model, cancellationToken);
-
-    ValueTask<ValidationResultDetails> ICatalogManager<AIProfile>.ValidateAsync(AIProfile model, CancellationToken cancellationToken)
-        => ValidateAsync(model, cancellationToken);
 
     private void EnsureDefaults(AIProfile profile)
     {

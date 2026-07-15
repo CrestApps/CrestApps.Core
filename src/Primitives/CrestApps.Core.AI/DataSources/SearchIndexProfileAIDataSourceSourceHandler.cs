@@ -49,7 +49,7 @@ internal sealed class SearchIndexProfileAIDataSourceSourceHandler : IAIDataSourc
             return;
         }
 
-        var sourceProfile = await _indexProfileManager.FindByNameAsync(dataSource.SourceIndexProfileName);
+        var sourceProfile = await _indexProfileManager.FindByNameAsync(dataSource.SourceIndexProfileName, cancellationToken);
         if (sourceProfile == null)
         {
             result.Fail(new ValidationResult("The selected source index profile could not be found.", [nameof(AIDataSource.SourceIndexProfileName)]));
