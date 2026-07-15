@@ -8,7 +8,6 @@ using CrestApps.Core.AI.Security;
 using CrestApps.Core.Data.EntityCore.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Data.EntityCore.Services;
 
