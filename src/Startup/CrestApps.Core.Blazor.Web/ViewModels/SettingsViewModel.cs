@@ -126,6 +126,16 @@ public sealed class SettingsViewModel
 
     public PromptRiskLevel SecurityBlockingThreshold { get; set; } = PromptRiskLevel.High;
 
+    public int SecurityMaxMessagesPerWindow { get; set; } = 20;
+
+    public int SecurityRateLimitWindowSeconds { get; set; } = 60;
+
+    public int SecurityMaxAnonymousSessionsPerWindow { get; set; } = 5;
+
+    public int SecurityAnonymousSessionRateLimitWindowSeconds { get; set; } = 600;
+
+    public AIVisitorRemoteAddressMode SecurityRemoteAddressMode { get; set; } = AIVisitorRemoteAddressMode.Hashed;
+
     // Dropdown items populated at load time.
     public List<KeyValuePair<string, string>> ChatDeployments { get; set; } = [];
 

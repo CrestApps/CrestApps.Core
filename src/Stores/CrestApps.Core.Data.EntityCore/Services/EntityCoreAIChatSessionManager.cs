@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Data.EntityCore.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,7 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IAIVisitorIdentityResolver _visitorIdentityResolver;
     private readonly CrestAppsEntityDbContext _dbContext;
     private readonly IEnumerable<IConversationDocumentCleanupService> _documentCleanupServices;
     private readonly TimeProvider _timeProvider;
@@ -27,11 +29,13 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
     /// <param name="timeProvider">The time provider.</param>
     public EntityCoreAIChatSessionManager(
         IHttpContextAccessor httpContextAccessor,
+        IAIVisitorIdentityResolver visitorIdentityResolver,
         CrestAppsEntityDbContext dbContext,
         IEnumerable<IConversationDocumentCleanupService> documentCleanupServices,
         TimeProvider timeProvider)
     {
         _httpContextAccessor = httpContextAccessor;
+        _visitorIdentityResolver = visitorIdentityResolver;
         _dbContext = dbContext;
         _documentCleanupServices = documentCleanupServices;
         _timeProvider = timeProvider;
@@ -121,33 +125,21 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         };
         var user = _httpContextAccessor.HttpContext?.User;
         var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier) ?? user?.Identity?.Name;
+        var visitorIdentity = _visitorIdentityResolver.Resolve();
+        session.RemoteAddress = visitorIdentity.RemoteAddress;
+        session.RemoteAddressHash = visitorIdentity.RemoteAddressHash;
 
         if (!string.IsNullOrEmpty(userId))
         {
             session.UserId = userId;
         }
+        else
+        {
+            session.ClientId = visitorIdentity.VisitorId;
+        }
 
         if (profile.Type == AIProfileType.Chat)
         {
-            if (profile.TryGet<AIProfileMetadata>(out var profileMetadata) && !string.IsNullOrWhiteSpace(profileMetadata.InitialPrompt))
-            {
-                // Stage the initial prompt directly in the change tracker so that SaveAsync
-                // commits both the session and this prompt atomically in a single transaction.
-                // If SaveAsync is never called, the scope disposes without committing and no
-                // orphaned prompt is persisted.
-                var prompt = new AIChatSessionPrompt
-                {
-                    ItemId = UniqueId.GenerateId(),
-                    SessionId = session.SessionId,
-                    Role = ChatRole.Assistant,
-                    Title = profile.PromptSubject,
-                    Content = profileMetadata.InitialPrompt,
-                    CreatedUtc = now,
-                };
-
-                _dbContext.CatalogRecords.Add(CatalogRecordFactory.Create(prompt));
-            }
-
             var handlerSettings = profile.GetOrCreateSettings<ResponseHandlerProfileSettings>();
 
             if (!string.IsNullOrEmpty(handlerSettings.InitialResponseHandlerName))

@@ -1,38 +1,32 @@
 using System.Collections.Concurrent;
-using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Security;
 
 /// <summary>
-/// Default implementation of <see cref="IChatRateLimiter"/> that enforces a sliding window
-/// rate limit on AI chat messages. Messages are keyed by user identity (with fallback to
-/// session or connection ID) and tracked using an in-memory sliding window queue.
+/// Default implementation of <see cref="IChatSessionStartRateLimiter"/> that limits
+/// anonymous session creation using a sliding window.
 /// </summary>
-/// <remarks>
-/// This implementation is designed for single-instance deployments. For distributed
-/// deployments, replace with a Redis-backed or shared-state implementation.
-/// </remarks>
-public sealed class DefaultChatRateLimiter : IChatRateLimiter
+public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLimiter
 {
     private readonly ConcurrentDictionary<string, SlidingWindowEntry> _windows = new(StringComparer.OrdinalIgnoreCase);
     private readonly TimeProvider _timeProvider;
     private readonly IOptions<AIChatRateLimitingOptions> _rateLimitingOptions;
     private readonly IOptions<PromptSecurityOptions> _options;
-    private readonly ILogger<DefaultChatRateLimiter> _logger;
+    private readonly ILogger<DefaultChatSessionStartRateLimiter> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DefaultChatRateLimiter"/> class.
+    /// Initializes a new instance of the <see cref="DefaultChatSessionStartRateLimiter"/> class.
     /// </summary>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="options">The prompt security options.</param>
     /// <param name="logger">The logger.</param>
-    public DefaultChatRateLimiter(
+    public DefaultChatSessionStartRateLimiter(
         TimeProvider timeProvider,
         IOptions<AIChatRateLimitingOptions> rateLimitingOptions,
         IOptions<PromptSecurityOptions> options,
-        ILogger<DefaultChatRateLimiter> logger)
+        ILogger<DefaultChatSessionStartRateLimiter> logger)
     {
         _timeProvider = timeProvider;
         _rateLimitingOptions = rateLimitingOptions;
@@ -41,35 +35,37 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
     }
 
     /// <summary>
-    /// Evaluates whether the current request exceeds the configured rate limit.
+    /// Determines whether the current session-start request should be rate-limited.
     /// </summary>
-    /// <param name="context">The prompt security context.</param>
+    /// <param name="context">The prompt security context identifying the visitor and request.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public ValueTask<RateLimitResult> EvaluateAsync(PromptSecurityContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var siteOptions = _options.Value;
-
-        // Resolve per-profile rate limit overrides.
-        var profileSettings = context.Profile?.TryGetSettings<PromptSecurityProfileSettings>(out var ps) == true ? ps : null;
-        var maxMessages = profileSettings?.MaxMessagesPerWindow ?? siteOptions.MaxMessagesPerWindow;
-        var window = profileSettings?.RateLimitWindow ?? siteOptions.RateLimitWindow;
-
-        // A max of zero means rate limiting is disabled.
-        if (maxMessages <= 0)
+        if (context.User?.Identity?.IsAuthenticated == true)
         {
             return ValueTask.FromResult(RateLimitResult.Allowed);
         }
 
-        var now = _timeProvider.GetUtcNow();
-        var windowStart = now - window;
-        var keys = ChatRateLimitKeyResolver.ResolveMessageKeys(context, _rateLimitingOptions.Value);
+        var options = _options.Value;
+        var maxSessions = options.MaxAnonymousSessionsPerWindow;
+
+        if (maxSessions <= 0)
+        {
+            return ValueTask.FromResult(RateLimitResult.Allowed);
+        }
+
+        var keys = ChatRateLimitKeyResolver.ResolveAnonymousSessionStartKeys(context, _rateLimitingOptions.Value);
 
         if (keys.Count == 0)
         {
             return ValueTask.FromResult(RateLimitResult.Allowed);
         }
+
+        var window = options.AnonymousSessionRateLimitWindow;
+        var now = _timeProvider.GetUtcNow();
+        var windowStart = now - window;
 
         foreach (var key in keys)
         {
@@ -77,7 +73,6 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
 
             lock (entry.Lock)
             {
-                // Evict timestamps outside the current window.
                 while (entry.Timestamps.Count > 0 && entry.Timestamps.Peek() <= windowStart)
                 {
                     entry.Timestamps.Dequeue();
@@ -85,9 +80,8 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
 
                 var currentCount = entry.Timestamps.Count;
 
-                if (currentCount >= maxMessages)
+                if (currentCount >= maxSessions)
                 {
-                    // Calculate retry-after as the time until the oldest entry expires.
                     var oldestInWindow = entry.Timestamps.Peek();
                     var retryAfter = (int)Math.Ceiling((oldestInWindow + window - now).TotalSeconds);
 
@@ -97,14 +91,13 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
                     }
 
                     _logger.LogWarning(
-                        "Rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s, Session={SessionId}",
+                        "Anonymous chat session start rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s",
                         key,
                         currentCount,
-                        maxMessages,
-                        retryAfter,
-                        context.SessionId);
+                        maxSessions,
+                        retryAfter);
 
-                    return ValueTask.FromResult(RateLimitResult.Throttled(retryAfter, currentCount, maxMessages));
+                    return ValueTask.FromResult(RateLimitResult.Throttled(retryAfter, currentCount, maxSessions));
                 }
             }
         }
@@ -123,14 +116,14 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
     }
 
     /// <summary>
-    /// Resets the rate limit tracking state for a given session.
+    /// Resets the rate-limit tracking state for the provided key.
     /// </summary>
-    /// <param name="sessionId">The session identifier to reset.</param>
-    public void Reset(string sessionId)
+    /// <param name="key">The rate-limit key to clear.</param>
+    public void Reset(string key)
     {
-        if (!string.IsNullOrEmpty(sessionId))
+        if (!string.IsNullOrWhiteSpace(key))
         {
-            _windows.TryRemove(sessionId, out _);
+            _windows.TryRemove(key, out _);
         }
     }
 

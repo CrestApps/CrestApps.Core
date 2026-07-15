@@ -3,6 +3,7 @@ using System.Security.Claims;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using CrestApps.Core.Data.YesSql.Services;
@@ -16,7 +17,7 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 public sealed class YesSqlAIChatSessionManagerTests
 {
     [Fact]
-    public async Task NewAsync_WithInitialPrompt_ShouldCreateAssistantPromptThatParticipatesInHistory()
+    public async Task NewAsync_WithInitialPrompt_DoesNotPersistAssistantPromptUntilUserMessageArrives()
     {
         var promptStore = new Mock<IAIChatSessionPromptStore>();
         var httpContextAccessor = new Mock<IHttpContextAccessor>();
@@ -45,6 +46,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             httpContextAccessor.Object,
+            CreateVisitorResolver().Object,
             new Mock<YesSql.ISession>().Object,
             promptStore.Object,
             [],
@@ -55,14 +57,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         Assert.Equal("user-1", session.UserId);
         Assert.Equal("handoff", session.ResponseHandlerName);
-        promptStore.Verify(store => store.CreateAsync(It.Is<AIChatSessionPrompt>(prompt =>
-            prompt.SessionId == session.SessionId &&
-            prompt.Role == ChatRole.Assistant &&
-            prompt.Title == "Welcome" &&
-            prompt.Content == "Hello there" &&
-            !prompt.IsGeneratedPrompt &&
-            prompt.CreatedUtc != default), It.IsAny<CancellationToken>()),
-            Times.Once);
+        promptStore.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -81,6 +76,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             httpContextAccessor.Object,
+            CreateVisitorResolver().Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
             [],
@@ -96,6 +92,33 @@ public sealed class YesSqlAIChatSessionManagerTests
         Assert.Equal("friendly-name", session.UserId);
         Assert.Null(session.ResponseHandlerName);
         promptStore.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task NewAsync_WhenAnonymous_AssignsStableClientIdFromVisitorResolver()
+    {
+        var promptStore = new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict);
+        var httpContextAccessor = new Mock<IHttpContextAccessor>();
+        httpContextAccessor.Setup(accessor => accessor.HttpContext).Returns(new DefaultHttpContext());
+        var visitorResolver = CreateVisitorResolver("visitor-42");
+        var manager = new YesSqlAIChatSessionManager(
+            httpContextAccessor.Object,
+            visitorResolver.Object,
+            new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
+            promptStore.Object,
+            [],
+            TimeProvider.System,
+            Options.Create(new YesSqlStoreOptions()));
+
+        var session = await manager.NewAsync(new AIProfile
+        {
+            ItemId = "profile-1",
+            Type = AIProfileType.Chat,
+        }, new NewAIChatSessionContext(), TestContext.Current.CancellationToken);
+
+        Assert.Equal("visitor-42", session.ClientId);
+        Assert.Null(session.UserId);
+        visitorResolver.Verify(resolver => resolver.Resolve(), Times.Once);
     }
 
     [Fact]
@@ -120,6 +143,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             Mock.Of<IHttpContextAccessor>(accessor => accessor.HttpContext == null),
+            CreateVisitorResolver().Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
             [],
@@ -154,6 +178,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var manager = new YesSqlAIChatSessionManager(
             Mock.Of<IHttpContextAccessor>(accessor => accessor.HttpContext == null),
+            CreateVisitorResolver().Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             promptStore.Object,
             [],
@@ -195,6 +220,7 @@ public sealed class YesSqlAIChatSessionManagerTests
 
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
+            CreateVisitorResolver().Object,
             sessionStore.Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             [],
@@ -218,6 +244,7 @@ public sealed class YesSqlAIChatSessionManagerTests
     {
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
+            CreateVisitorResolver().Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             [],
@@ -232,6 +259,7 @@ public sealed class YesSqlAIChatSessionManagerTests
     {
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
+            CreateVisitorResolver().Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             [],
@@ -246,6 +274,7 @@ public sealed class YesSqlAIChatSessionManagerTests
     {
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
+            CreateVisitorResolver().Object,
             new Mock<YesSql.ISession>(MockBehavior.Strict).Object,
             new Mock<IAIChatSessionPromptStore>(MockBehavior.Strict).Object,
             [],
@@ -253,5 +282,16 @@ public sealed class YesSqlAIChatSessionManagerTests
             Options.Create(new YesSqlStoreOptions()));
 
         await Assert.ThrowsAnyAsync<ArgumentException>(() => sessionManager.DeleteAsync(string.Empty, TestContext.Current.CancellationToken));
+    }
+
+    private static Mock<IAIVisitorIdentityResolver> CreateVisitorResolver(string visitorId = "visitor-default")
+    {
+        var visitorResolver = new Mock<IAIVisitorIdentityResolver>();
+        visitorResolver.Setup(resolver => resolver.Resolve()).Returns(new AIVisitorIdentity
+        {
+            VisitorId = visitorId,
+        });
+
+        return visitorResolver;
     }
 }

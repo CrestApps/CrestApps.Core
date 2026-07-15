@@ -1355,8 +1355,6 @@ window.coreAIChatManager = function () {
                     console.info("SignalR: reconnected.");
                     if (_this3.isSessionStarted) {
                       _this3.reloadCurrentSession();
-                    } else if (config.autoCreateSession) {
-                      _this3.startNewSession();
                     }
                   });
                   _this3.connection.onclose(function (error) {
@@ -2311,12 +2309,7 @@ window.coreAIChatManager = function () {
           this.sessionRating = null;
           this.messages = [];
           this.documents = [];
-          if (!config.autoCreateSession) {
-            this.showPlaceholder();
-          }
-          if (config.autoCreateSession) {
-            this.startNewSession();
-          }
+          this.showPlaceholder();
           if (widgetBehavior && typeof widgetBehavior.onSessionReset === 'function') {
             widgetBehavior.onSessionReset(this, config);
           }
@@ -2421,8 +2414,6 @@ window.coreAIChatManager = function () {
           var sessionId = this.getSessionId();
           if (!hasWidgetConfig && sessionId) {
             this.loadSession(sessionId);
-          } else if (this.isOrchestratorAvailable() && config.autoCreateSession && !hasWidgetConfig && !sessionId) {
-            this.startNewSession();
           }
 
           // Initialize document bar if enabled.
@@ -2904,7 +2895,6 @@ window.coreAIChatManager = function () {
       metricsEnabled: 'data-coreai-chat-metrics-enabled',
       textToSpeechEnabled: 'data-coreai-chat-text-to-speech-enabled',
       sessionDocumentsEnabled: 'data-coreai-chat-session-documents-enabled',
-      autoCreateSession: 'data-coreai-chat-auto-create-session',
       singleResponseMode: 'data-coreai-chat-single-response-mode'
     };
     Object.keys(booleanAttributes).forEach(function (key) {

@@ -39,6 +39,16 @@ public sealed class AIChatSession : ExtensibleEntity, IModifiedUtcAwareModel
     public string ClientId { get; set; }
 
     /// <summary>
+    /// Gets or sets the captured remote-address value for this session when plain-text or encrypted storage is enabled.
+    /// </summary>
+    public string RemoteAddress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the hashed remote-address signal captured for this session when enabled.
+    /// </summary>
+    public string RemoteAddressHash { get; set; }
+
+    /// <summary>
     /// Gets or sets the collection of document references attached to this session.
     /// Documents are uploaded by users and used for RAG (Retrieval-Augmented Generation).
     /// </summary>

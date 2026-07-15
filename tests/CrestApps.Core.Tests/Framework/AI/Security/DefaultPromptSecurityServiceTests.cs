@@ -245,6 +245,7 @@ public sealed class DefaultPromptSecurityServiceTests
 
         rateLimiter ??= new DefaultChatRateLimiter(
             TimeProvider.System,
+            Options.Create(new AIChatRateLimitingOptions()),
             configuredOptions,
             NullLogger<DefaultChatRateLimiter>.Instance);
 

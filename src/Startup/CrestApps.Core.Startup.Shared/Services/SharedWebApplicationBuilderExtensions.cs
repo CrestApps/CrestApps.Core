@@ -78,6 +78,7 @@ public static class SharedWebApplicationBuilderExtensions
         services.AddSingleton<IConfigureOptions<AIDataSourceOptions>, SiteSettingsConfigureAIDataSourceOptions>();
         services.AddSingleton<IConfigureOptions<ChatInteractionMemoryOptions>, SiteSettingsConfigureChatInteractionMemoryOptions>();
         services.AddSingleton<IConfigureOptions<DefaultAIDeploymentSettings>, SiteSettingsConfigureDefaultDeploymentOptions>();
+        services.AddSingleton<IConfigureOptions<AIVisitorIdentityOptions>, SiteSettingsConfigureStoredOptions<AIVisitorIdentityOptions>>();
         services.AddSingleton<IConfigureOptions<PromptSecurityOptions>, SiteSettingsConfigureStoredOptions<PromptSecurityOptions>>();
 
         return services;

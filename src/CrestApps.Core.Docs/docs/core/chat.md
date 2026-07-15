@@ -22,6 +22,16 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
     .AddAISuite(ai => ai
         .AddOpenAI()
         .AddChatInteractions(chatInteractions => chatInteractions
+            .ConfigureVisitorIdentity(options =>
+            {
+                options.RemoteAddressMode = AIVisitorRemoteAddressMode.Hashed;
+            })
+            .ConfigureChatRateLimiting(options =>
+            {
+                options.AnonymousSessionStartPartitions =
+                    ChatRateLimitPartition.Visitor |
+                    ChatRateLimitPartition.NetworkAddress;
+            })
             .AddEntityCoreStores()
         )
     )
@@ -30,6 +40,16 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 ```
 
 By default, connections are discovered from `CrestApps:AI:Connections` and deployments are discovered from `CrestApps:AI:Deployments`. Connection-based deployments can reference a shared `ConnectionName`, while contained-connection deployments can embed provider-specific settings directly in the deployment entry.
+
+The chat builder also exposes options-pattern hooks for visitor identity and rate-limit partitioning. Use `ConfigureVisitorIdentity(...)` to keep the default privacy-first hashed remote-address behavior, opt into plain-text remote-address storage when your host needs operator-managed IP controls, or encrypt remote addresses at rest with ASP.NET Core Data Protection while still using a hash for throttling. Use `ConfigureChatRateLimiting(...)` to adjust which keys participate in message and session-start throttling without replacing the built-in limiter.
+
+By default, the framework reduces anonymous widget spam in three ways before you add a CAPTCHA or challenge provider:
+
+1. It issues a stable first-party visitor cookie so anonymous usage can be tracked across multiple sessions instead of treating every session as a new visitor.
+2. It rate-limits prompt traffic per visitor, with optional network-address participation and session/connection fallbacks.
+3. It rate-limits anonymous session starts separately, so robots cannot bypass prompt limits by creating fresh sessions repeatedly.
+
+For AI Profile-based chat, `AIProfileMetadata.InitialPrompt` is now persisted lazily. The framework does not save the initial assistant prompt or create a widget session on page load by default. Instead, the session and the initial prompt are committed when the first real user prompt arrives, which avoids inflating analytics with empty sessions.
 
 When you are ready to turn an ad hoc interaction into a reusable runtime contract, move that setup into an [AI Profile](./ai-profiles.md).
 
@@ -196,7 +216,7 @@ NewAsync()          SaveAsync()         (inactivity / explicit close)
 
 | Stage | What Happens |
 |-------|-------------|
-| **Creation** | `IAIChatSessionManager.NewAsync()` allocates a new `AIChatSession`, assigns a `SessionId`, sets `Status = Active`, records `CreatedUtc`, and associates it with the profile and user. |
+| **Creation** | `IAIChatSessionManager.NewAsync()` allocates a new `AIChatSession`, assigns a `SessionId`, sets `Status = Active`, records `CreatedUtc`, and associates it with the profile and user. Anonymous browser sessions now receive a stable first-party visitor-backed `ClientId` so analytics and throttling can span multiple sessions from the same visitor. |
 | **Active Use** | Every user message updates `LastActivityUtc`. Prompts are appended via `IAIChatSessionPromptStore`. Documents may be attached to `session.Documents`. |
 | **Interaction Transfer** | If a response handler transfers the conversation (e.g., AI → live agent), a new `ChatInteraction` is created while the session continues. The session's `ResponseHandlerName` updates to the new handler. |
 | **Closure** | The session status changes to `Closed` and `ClosedAtUtc` is recorded. The shared post-close processor updates extraction state, post-session task results, resolution analysis, and conversion-goal evaluation so hosts reuse the same runtime behavior. |
@@ -214,7 +234,7 @@ NewAsync()          SaveAsync()         (inactivity / explicit close)
 | `ProfileId` | `string` | Associated AI profile |
 | `Title` | `string` | Human-readable title (often AI-generated after the first exchange) |
 | `UserId` | `string` | Authenticated user who owns the session |
-| `ClientId` | `string` | Anonymous client identifier (used when `UserId` is null) |
+| `ClientId` | `string` | Stable anonymous visitor identifier (used when `UserId` is null) |
 | `Status` | `ChatSessionStatus` | `Active`, `Closed`, etc. |
 | `ResponseHandlerName` | `string` | Which `IChatResponseHandler` processes messages |
 | `Documents` | `List<ChatDocumentInfo>` | Uploaded files for RAG processing |

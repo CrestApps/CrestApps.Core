@@ -110,8 +110,21 @@ The prompt security layer is controlled by `PromptSecurityOptions`.
 | `EnableAuditLogging` | `true` | Records suspicious prompt or output events |
 | `MaxPromptLength` | `8000` | Hard limit checked before deeper detection runs |
 | `BlockingThreshold` | `High` | Final risk level that changes a suspicious prompt from flagged to blocked |
-| `MaxMessagesPerWindow` | `0` (disabled) | Maximum messages per sliding window before rate limiting kicks in |
+| `MaxMessagesPerWindow` | `20` | Maximum messages per sliding window before rate limiting kicks in |
 | `RateLimitWindow` | `00:01:00` | Duration of the sliding window for rate limiting |
+| `MaxAnonymousSessionsPerWindow` | `5` | Maximum anonymous chat sessions that can be started per window |
+| `AnonymousSessionRateLimitWindow` | `00:10:00` | Duration of the anonymous session-start rate-limit window |
+
+### Visitor identity and remote-address handling
+
+`AIVisitorIdentityOptions` controls how anonymous visitors are stabilized and how network data is captured:
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `CookieName` | `crestapps-ai-visitor` | Name of the first-party cookie used to persist anonymous visitor IDs |
+| `CookieLifetime` | `180` days | Lifetime of the anonymous visitor cookie |
+| `RemoteAddressMode` | `Hashed` | Chooses whether remote-address data is disabled, stored as a salted hash, stored in plain text, or encrypted at rest with Data Protection |
+| `RemoteAddressHashSalt` | `CrestApps.Core.AI.VisitorIdentity` | Salt used when `RemoteAddressMode = Hashed` or `Encrypted` |
 
 ### Weighted-scoring thresholds
 
@@ -157,12 +170,29 @@ That model lets you keep strong defaults globally while allowing carefully chose
 
 The security layer includes built-in rate limiting to prevent abuse and brute-force prompt extraction attempts. Rate limiting runs **before** the expensive regex evaluation, acting as an early short-circuit for abusive senders.
 
+By default, spam reduction is layered:
+
+1. Anonymous browsers receive a stable first-party visitor cookie.
+2. Prompt traffic is throttled per visitor, with optional network-address participation and session/connection fallbacks.
+3. Anonymous session starts are throttled separately so attackers cannot reset prompt quotas just by creating new sessions.
+4. Sample hosts also apply an ASP.NET Core endpoint policy to explicit session-start endpoints before the chat pipeline runs.
+
 ### Configuration
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `MaxMessagesPerWindow` | `0` (disabled) | Maximum messages allowed within the sliding window. Set to `0` to disable. |
+| `MaxMessagesPerWindow` | `20` | Maximum messages allowed within the sliding window. Set to `0` to disable. |
 | `RateLimitWindow` | `00:01:00` (1 minute) | The sliding window duration. |
+| `MaxAnonymousSessionsPerWindow` | `5` | Maximum anonymous sessions allowed within the session-start window. Set to `0` to disable. |
+| `AnonymousSessionRateLimitWindow` | `00:10:00` (10 minutes) | The anonymous session-start window duration. |
+
+The default limiter behavior is privacy-first but configurable through `AIChatRateLimitingOptions`:
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `AuthenticatedMessagePartitions` | `AuthenticatedUser` | Keys authenticated message throttles by the signed-in user by default |
+| `AnonymousMessagePartitions` | `Visitor, NetworkAddress, Session, Connection` | Keys anonymous message throttles by stable visitor ID, then the configured network-address representation, then session/connection fallbacks |
+| `AnonymousSessionStartPartitions` | `Visitor, NetworkAddress` | Keys anonymous session-start throttles by stable visitor ID plus the configured network-address representation |
 
 ### Per-profile override
 
@@ -180,15 +210,85 @@ Set `MaxMessagesPerWindow` to `0` on a profile to disable rate limiting for that
 
 ### How it works
 
-1. The rate limiter resolves a tracking key: **user identity** (from `ClaimsPrincipal`) takes priority, then session ID, then connection ID.
+1. The message rate limiter resolves one or more tracking keys from `AIChatRateLimitingOptions`. By default, authenticated requests use the user identity, and anonymous requests use the stable visitor ID plus the configured network-address representation, with session and connection fallbacks.
 2. A sliding window queue tracks timestamp entries per key.
 3. Expired entries (outside the window) are evicted on each evaluation.
 4. If the count equals or exceeds the maximum, a `Blocked` result is returned with `rule-id = "rate-limit"` and a `RetryAfterSeconds` hint.
 5. Audit logging records rate limit blocks alongside other security events.
 
+Anonymous session creation is protected separately:
+
+1. Sample hosts issue a long-lived first-party visitor cookie for anonymous browsers.
+2. New anonymous session starts are throttled in two layers:
+   - an ASP.NET Core endpoint rate-limit policy on explicit session-start routes
+   - a hub-level anonymous session-start limiter that uses the same visitor key and configured network-address partition
+3. Remote-address handling is configurable:
+   - `Disabled` stores nothing
+   - `Hashed` stores only a salted hash for privacy-first abuse partitioning
+   - `PlainText` stores the raw address for operator-managed blocklists, allowlists, or investigations
+   - `Encrypted` stores a protected address value for at-rest confidentiality and still records a salted hash for rate limiting and abuse partitioning
+
 ### Replacing the default implementation
 
 Register a custom `IChatRateLimiter` implementation in DI to use Redis, a database, or another distributed state store for multi-instance deployments.
+
+You can also keep the built-in implementation and change its partitioning strategy through the options pattern:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddChatInteractions(chat => chat
+            .ConfigureVisitorIdentity(options =>
+            {
+                options.RemoteAddressMode = AIVisitorRemoteAddressMode.Hashed;
+            })
+            .ConfigureChatRateLimiting(options =>
+            {
+                options.AnonymousMessagePartitions =
+                    ChatRateLimitPartition.Visitor |
+                    ChatRateLimitPartition.NetworkAddress;
+
+                options.AnonymousSessionStartPartitions = ChatRateLimitPartition.NetworkAddress;
+            })
+        )
+    )
+);
+```
+
+You can change the rate-limit thresholds themselves through `PromptSecurityOptions`:
+
+```csharp
+builder.Services.Configure<PromptSecurityOptions>(options =>
+{
+    options.MaxMessagesPerWindow = 12;
+    options.RateLimitWindow = TimeSpan.FromMinutes(2);
+    options.MaxAnonymousSessionsPerWindow = 3;
+    options.AnonymousSessionRateLimitWindow = TimeSpan.FromMinutes(15);
+});
+```
+
+If you want to keep CrestApps' endpoint wiring but supply your own ASP.NET Core rate-limit policy, disable the built-in policy registration and point the chat endpoints at your policy name:
+
+```csharp
+builder.Services.Configure<AIChatEndpointRateLimitingOptions>(options =>
+{
+    options.RegisterAnonymousSessionStartPolicy = false;
+    options.AnonymousSessionStartPolicyName = "MyCustomChatPolicy";
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("MyCustomChatPolicy", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+});
+```
+
+That override replaces only the ASP.NET Core endpoint/hub layer. The framework's chat-aware `IChatRateLimiter` still protects prompt traffic unless you replace that service too.
 
 ## Configuration example
 
@@ -206,6 +306,8 @@ Register a custom `IChatRateLimiter` implementation in DI to use Redis, a databa
         "BlockingThreshold": "High",
         "MaxMessagesPerWindow": 20,
         "RateLimitWindow": "00:01:00",
+        "MaxAnonymousSessionsPerWindow": 5,
+        "AnonymousSessionRateLimitWindow": "00:10:00",
         "LowRiskScoreThreshold": 10,
         "MediumRiskScoreThreshold": 20,
         "HighRiskScoreThreshold": 35,
