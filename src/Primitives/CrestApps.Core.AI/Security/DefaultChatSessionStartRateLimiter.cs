@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -92,7 +93,7 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
 
                     _logger.LogWarning(
                         "Anonymous chat session start rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s",
-                        key,
+                        key.SanitizeForLog(),
                         currentCount,
                         maxSessions,
                         retryAfter);

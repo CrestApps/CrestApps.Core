@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -98,11 +99,11 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
 
                     _logger.LogWarning(
                         "Rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s, Session={SessionId}",
-                        key,
+                        key.SanitizeForLog(),
                         currentCount,
                         maxMessages,
                         retryAfter,
-                        context.SessionId);
+                        context.SessionId.SanitizeForLog());
 
                     return ValueTask.FromResult(RateLimitResult.Throttled(retryAfter, currentCount, maxMessages));
                 }
