@@ -27,6 +27,7 @@ public sealed class IndexingServiceCollectionExtensionsTests
         Assert.Same(store, scopedServices.GetRequiredService<ICatalog<SearchIndexProfile>>());
         Assert.Same(store, scopedServices.GetRequiredService<INamedCatalog<SearchIndexProfile>>());
         Assert.IsType<SearchIndexProfileManager>(scopedServices.GetRequiredService<ISearchIndexProfileManager>());
+        Assert.IsType<SearchIndexProfileManager>(scopedServices.GetRequiredService<INamedCatalogManager<SearchIndexProfile>>());
         Assert.IsType<SearchIndexProfileProvisioningService>(scopedServices.GetRequiredService<ISearchIndexProfileProvisioningService>());
     }
 

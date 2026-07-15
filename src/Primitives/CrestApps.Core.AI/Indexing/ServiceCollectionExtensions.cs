@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ICatalog<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileStore>());
         services.TryAddScoped<INamedCatalog<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileStore>());
         services.TryAddScoped<ISearchIndexProfileManager, SearchIndexProfileManager>();
-        services.TryAddScoped<ICatalogManager<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileManager>());
+        services.TryAddScoped<INamedCatalogManager<SearchIndexProfile>>(sp => sp.GetRequiredService<ISearchIndexProfileManager>());
         services.TryAddScoped<ISearchIndexProfileProvisioningService, SearchIndexProfileProvisioningService>();
 
         return services;

@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -7,7 +8,6 @@ using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
@@ -68,7 +68,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         }
 
         return ValueTask.FromResult(
-            _serviceProvider.GetService<ICatalog<AIDataSource>>() != null &&
+            _serviceProvider.GetService<IAIDataSourceStore>() != null &&
             _serviceProvider.GetService<ISearchIndexProfileStore>() != null);
     }
 
@@ -93,7 +93,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 
     private async Task InjectPreemptiveRagContextAsync(PreemptiveRagContext context, AIDataSourceRagMetadata ragMetadata)
     {
-        var dataSourceCatalog = _serviceProvider.GetService<ICatalog<AIDataSource>>();
+        var dataSourceCatalog = _serviceProvider.GetService<IAIDataSourceStore>();
         var indexProfileStore = _serviceProvider.GetService<ISearchIndexProfileStore>();
 
         if (dataSourceCatalog == null || indexProfileStore == null)

@@ -13,5 +13,5 @@ public interface ISearchIndexProfileStore : ICatalog<SearchIndexProfile>, INamed
     /// </summary>
     /// <param name="type">The index profile type to filter by.</param>
     /// <returns>A read-only collection of matching index profiles.</returns>
-    Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type);
+    Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type, CancellationToken cancellationToken = default);
 }

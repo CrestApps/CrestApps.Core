@@ -37,12 +37,12 @@ public sealed class YesSqlSearchIndexProfileStore : DocumentCatalog<SearchIndexP
     /// Gets by type.
     /// </summary>
     /// <param name="type">The type.</param>
-    public async Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type)
+    public async Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(type);
 
         var items = await Session.Query<SearchIndexProfile, SearchIndexProfileIndex>(x => x.Type == type, collection: CollectionName)
-            .ListAsync();
+            .ListAsync(cancellationToken);
 
         return items.ToArray();
     }

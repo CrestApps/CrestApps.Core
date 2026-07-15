@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Hubs;
 using CrestApps.Core.AI.Chat.Services;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
@@ -191,7 +192,7 @@ public sealed class ChatInteractionHubTests
             .Returns(new ValueTask<ChatInteraction>(interaction));
         managerMock.Setup(manager => manager.UpdateAsync(interaction, null))
             .Returns(ValueTask.CompletedTask);
-        var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
+        var dataSourceCatalog = new Mock<IAIDataSourceStore>();
         dataSourceCatalog.Setup(catalog => catalog
             .FindByIdAsync("datasource-1"))
             .ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });

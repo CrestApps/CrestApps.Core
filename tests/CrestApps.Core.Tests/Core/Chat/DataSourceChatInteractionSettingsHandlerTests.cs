@@ -1,7 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Chat.Handlers;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -13,7 +13,7 @@ public sealed class DataSourceChatInteractionSettingsHandlerTests
     [Fact]
     public async Task UpdatingAsync_WithDataSource_PersistsDataSourceAndDefaultRagMetadata()
     {
-        var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
+        var dataSourceCatalog = new Mock<IAIDataSourceStore>();
         dataSourceCatalog
             .Setup(catalog => catalog.FindByIdAsync("datasource-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDataSource { ItemId = "datasource-1" });

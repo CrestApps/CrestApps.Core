@@ -19,10 +19,10 @@ public sealed class EntityCoreSearchIndexProfileStore : NamedDocumentCatalog<Sea
     /// Gets by type.
     /// </summary>
     /// <param name="type">The type.</param>
-    public async Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type)
+    public async Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
-        var records = await GetReadQuery().Where(x => x.Type == type).ToListAsync();
+        var records = await GetReadQuery().Where(x => x.Type == type).ToListAsync(cancellationToken);
 
         return records.Select(CatalogRecordFactory.Materialize<SearchIndexProfile>).ToArray();
     }
