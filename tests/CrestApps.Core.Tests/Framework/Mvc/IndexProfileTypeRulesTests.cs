@@ -373,6 +373,11 @@ public sealed class IndexProfileTypeRulesTests
             return ValueTask.FromResult(new SearchIndexProfile { Name = name });
         }
 
+        public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(new SearchIndexProfile());
+        }
+
         public ValueTask<PageResult<SearchIndexProfile>> PageAsync<TQuery>(int page, int pageSize, TQuery context, CancellationToken cancellationToken = default)
             where TQuery : QueryContext
         {

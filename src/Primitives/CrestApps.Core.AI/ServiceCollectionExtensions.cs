@@ -69,7 +69,6 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IAIProfileTemplateManager, DefaultAIProfileTemplateManager>();
-        services.TryAddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => (INamedCatalogManager<AIProfileTemplate>)sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => (ISourceCatalogManager<AIProfileTemplate>)sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfileTemplate>, AIProfileTemplateCatalogHandler>());
@@ -443,10 +442,9 @@ public static class ServiceCollectionExtensions
 
             return snapshot.Value.ApplySiteOverrides(settings.CurrentValue);
         });
-
         // Register the Framework-level deployment manager.
         services.TryAddScoped<IAIDeploymentManager, DefaultAIDeploymentManager>();
-        services.TryAddScoped<INamedCatalogManager<AIDeployment>>(sp => (INamedCatalogManager<AIDeployment>)sp.GetRequiredService<IAIDeploymentManager>());
+        services.TryAddScoped<IAIDeploymentManager, DefaultAIDeploymentManager>();
         services.TryAddScoped<ISourceCatalogManager<AIDeployment>>(sp => (ISourceCatalogManager<AIDeployment>)sp.GetRequiredService<IAIDeploymentManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
 

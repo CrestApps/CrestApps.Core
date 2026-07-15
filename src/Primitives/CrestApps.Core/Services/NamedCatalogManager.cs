@@ -62,11 +62,24 @@ public class NamedCatalogManager<T> : CatalogManagerBase<T>, INamedCatalogManage
     }
 
     /// <summary>
-    /// News the operation.
+    /// Asynchronously creates a new model instance, optionally populating it from JSON data.
+    /// </summary>
+    /// <param name="data">Optional JSON data to seed the new model.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A newly created and initialized model instance.</returns>
+    public virtual async ValueTask<T> NewAsync(JsonNode? data = null, CancellationToken cancellationToken = default)
+    {
+        return await InitializeNewEntryAsync(new T(), data, cancellationToken);
+    }
+
+    /// <summary>
+    /// Asynchronously creates a new model instance pre-assigned to the specified name,
+    /// optionally populating it from JSON data.
     /// </summary>
     /// <param name="name">The name.</param>
     /// <param name="data">The data.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A newly created and initialized model instance assigned to the specified name.</returns>
     public virtual async ValueTask<T> NewAsync(string name, JsonNode? data = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
