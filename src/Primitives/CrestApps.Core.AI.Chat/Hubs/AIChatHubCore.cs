@@ -1157,6 +1157,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                "[ChatPersist] Resolved session {SessionId} (isNew={IsNew}) on connection {ConnectionId} using services scope {ServicesHash}.",
+                chatSession.SessionId,
+                isNew,
+                Context.ConnectionId,
+                services.GetHashCode());
+        }
+
         await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
         var utcNow = GetUtcNow();
         if (IsEndedStatus(chatSession.Status))
@@ -1185,6 +1195,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         await promptStore.CreateAsync(userPromptRecord, cancellationToken);
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
         var conversationHistorySource = existingPrompts.ToList();
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                "[ChatPersist] Staged user prompt {ItemId} for session {SessionId}; store now reports {StagedCount} prompt(s) (promptStore {StoreHash}).",
+                userPromptRecord.ItemId,
+                chatSession.SessionId,
+                conversationHistorySource.Count,
+                promptStore.GetHashCode());
+        }
 
         if (!conversationHistorySource.Any(x => x.ItemId == userPromptRecord.ItemId))
         {
@@ -1308,6 +1328,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             assistantMessage.ContentItemIds = contentItemIds.ToList();
             assistantMessage.References = references;
             await promptStore.CreateAsync(assistantMessage, cancellationToken);
+
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    "[ChatPersist] Staged assistant prompt {ItemId} for session {SessionId}.",
+                    assistantMessage.ItemId,
+                    chatSession.SessionId);
+            }
         }
 
         var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
@@ -1318,6 +1346,15 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             Prompts = prompts,
             ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds,
         };
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                "[ChatPersist] Session {SessionId} has {StagedCount} prompt(s) staged before final commit.",
+                chatSession.SessionId,
+                prompts.Count);
+        }
+
         await sessionHandlers.InvokeAsync((h, ctx) => h.MessageCompletedAsync(ctx), context, Logger);
         await OnMessageCompletedAsync(services, context);
         await SaveChatSessionAsync(services, sessionManager, chatSession);
@@ -1601,7 +1638,33 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         await sessionManager.SaveAsync(chatSession);
 
         var committer = services.GetRequiredService<IStoreCommitter>();
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                "[ChatPersist] Committing session {SessionId} using committer {CommitterHash} resolved from services scope {ServicesHash}.",
+                chatSession.SessionId,
+                committer.GetHashCode(),
+                services.GetHashCode());
+        }
+
         await committer.CommitAsync();
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            var promptStore = services.GetService<IAIChatSessionPromptStore>();
+
+            if (promptStore is not null)
+            {
+                var persistedCount = await promptStore.CountAsync(chatSession.SessionId);
+
+                Logger.LogDebug(
+                    "[ChatPersist] After commit, session {SessionId} reports {PersistedCount} persisted prompt(s) (promptStore {StoreHash}).",
+                    chatSession.SessionId,
+                    persistedCount,
+                    promptStore.GetHashCode());
+            }
+        }
     }
 
 #pragma warning disable MEAI001

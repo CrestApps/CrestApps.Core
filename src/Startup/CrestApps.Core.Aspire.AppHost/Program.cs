@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -49,8 +50,15 @@ const string ollamaModelName = "deepseek-v2:16b";
 
 var ollama = builder.AddOllama("Ollama")
     .WithDataVolume()
-    .WithGPUSupport()
     .WithHttpEndpoint(port: 11434, targetPort: 11434, name: "HttpOllama");
+
+// Docker Desktop on macOS cannot pass through a host GPU, so requesting GPU support
+// prevents the Ollama container from starting. Only enable GPU support where the
+// container runtime can actually provide it (Windows/Linux hosts).
+if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+{
+    ollama.WithGPUSupport();
+}
 
 ollama.AddModel(ollamaModelName);
 
