@@ -170,20 +170,14 @@ public sealed class AITemplateViewModel
 
     public CopilotAuthenticationType CopilotAuthenticationType { get; set; }
 
-    // Security override properties
-    public string SecurityIsEnabled { get; set; } = string.Empty;
+    // Anti-spam throttle overrides. Leave blank to inherit the site-wide default.
+    public int? SecurityMaxMessagesPerWindow { get; set; }
 
-    public string SecurityEnableInjectionDetection { get; set; } = string.Empty;
+    public int? SecurityRateLimitWindowSeconds { get; set; }
 
-    public string SecurityEnableOutputFiltering { get; set; } = string.Empty;
+    public int? SecurityMaxAnonymousSessionsPerWindow { get; set; }
 
-    public string SecurityEnableSecurityPreamble { get; set; } = string.Empty;
-
-    public string SecurityEnableInputDelimiters { get; set; } = string.Empty;
-
-    public int? SecurityMaxPromptLength { get; set; }
-
-    public string SecurityBlockingThreshold { get; set; } = string.Empty;
+    public int? SecurityAnonymousSessionRateLimitWindowSeconds { get; set; }
 
     // Dropdown options (populated at load time)
     public List<KeyValuePair<string, string>> ChatDeployments { get; set; } = [];
@@ -364,13 +358,14 @@ public sealed class AITemplateViewModel
 
             if (template.TryGet<PromptSecurityProfileSettings>(out var securitySettings))
             {
-                model.SecurityIsEnabled = securitySettings.IsEnabled?.ToString() ?? string.Empty;
-                model.SecurityEnableInjectionDetection = securitySettings.EnableInjectionDetection?.ToString() ?? string.Empty;
-                model.SecurityEnableOutputFiltering = securitySettings.EnableOutputFiltering?.ToString() ?? string.Empty;
-                model.SecurityEnableSecurityPreamble = securitySettings.EnableSecurityPreamble?.ToString() ?? string.Empty;
-                model.SecurityEnableInputDelimiters = securitySettings.EnableInputDelimiters?.ToString() ?? string.Empty;
-                model.SecurityMaxPromptLength = securitySettings.MaxPromptLength;
-                model.SecurityBlockingThreshold = securitySettings.BlockingThreshold?.ToString() ?? string.Empty;
+                model.SecurityMaxMessagesPerWindow = securitySettings.MaxMessagesPerWindow;
+                model.SecurityRateLimitWindowSeconds = securitySettings.RateLimitWindow.HasValue
+                    ? (int)Math.Round(securitySettings.RateLimitWindow.Value.TotalSeconds)
+                    : null;
+                model.SecurityMaxAnonymousSessionsPerWindow = securitySettings.MaxAnonymousSessionsPerWindow;
+                model.SecurityAnonymousSessionRateLimitWindowSeconds = securitySettings.AnonymousSessionRateLimitWindow.HasValue
+                    ? (int)Math.Round(securitySettings.AnonymousSessionRateLimitWindow.Value.TotalSeconds)
+                    : null;
             }
         }
 
@@ -605,22 +600,20 @@ public sealed class AITemplateViewModel
 
         var securitySettings = new PromptSecurityProfileSettings
         {
-            IsEnabled = bool.TryParse(SecurityIsEnabled, out var se) ? se : null,
-            EnableInjectionDetection = bool.TryParse(SecurityEnableInjectionDetection, out var sid) ? sid : null,
-            EnableOutputFiltering = bool.TryParse(SecurityEnableOutputFiltering, out var sof) ? sof : null,
-            EnableSecurityPreamble = bool.TryParse(SecurityEnableSecurityPreamble, out var ssp) ? ssp : null,
-            EnableInputDelimiters = bool.TryParse(SecurityEnableInputDelimiters, out var sdl) ? sdl : null,
-            MaxPromptLength = SecurityMaxPromptLength,
-            BlockingThreshold = Enum.TryParse<PromptRiskLevel>(SecurityBlockingThreshold, out var sbt) ? sbt : null,
+            MaxMessagesPerWindow = SecurityMaxMessagesPerWindow,
+            RateLimitWindow = SecurityRateLimitWindowSeconds.HasValue
+                ? TimeSpan.FromSeconds(SecurityRateLimitWindowSeconds.Value)
+                : null,
+            MaxAnonymousSessionsPerWindow = SecurityMaxAnonymousSessionsPerWindow,
+            AnonymousSessionRateLimitWindow = SecurityAnonymousSessionRateLimitWindowSeconds.HasValue
+                ? TimeSpan.FromSeconds(SecurityAnonymousSessionRateLimitWindowSeconds.Value)
+                : null,
         };
 
-        if (securitySettings.IsEnabled.HasValue
-            || securitySettings.EnableInjectionDetection.HasValue
-            || securitySettings.EnableOutputFiltering.HasValue
-            || securitySettings.EnableSecurityPreamble.HasValue
-            || securitySettings.EnableInputDelimiters.HasValue
-            || securitySettings.MaxPromptLength.HasValue
-            || securitySettings.BlockingThreshold.HasValue)
+        if (securitySettings.MaxMessagesPerWindow.HasValue
+            || securitySettings.RateLimitWindow.HasValue
+            || securitySettings.MaxAnonymousSessionsPerWindow.HasValue
+            || securitySettings.AnonymousSessionRateLimitWindow.HasValue)
         {
             template.Put(securitySettings);
         }

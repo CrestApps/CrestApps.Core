@@ -209,6 +209,37 @@ public sealed class DefaultChatRateLimiterTests
     }
 
     [Fact]
+    public async Task EvaluateAsync_ProfileOverridesCount_InheritsWindowFromSite()
+    {
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+
+        // Site default: 100 messages within a 60 second window.
+        var limiter = CreateLimiter(maxMessages: 100, windowSeconds: 60, timeProvider: fakeTime);
+        var context = CreateContext();
+        context.Profile = new AIProfile { ItemId = "profile-1" };
+
+        // Profile overrides only the count and leaves the window null so it inherits the site window.
+        context.Profile.WithSettings(new PromptSecurityProfileSettings
+        {
+            MaxMessagesPerWindow = 2,
+        });
+
+        // The count override applies (throttled after 2, not the site default of 100).
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        var blocked = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        Assert.True(blocked.IsThrottled);
+
+        // Advancing past the inherited 60 second site window frees the quota again,
+        // proving the null profile window fell back to the site setting.
+        fakeTime.Advance(TimeSpan.FromSeconds(61));
+
+        var allowed = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.False(allowed.IsThrottled);
+    }
+
+    [Fact]
     public async Task Reset_ClearsSessionTracking()
     {
         var limiter = CreateLimiter(
