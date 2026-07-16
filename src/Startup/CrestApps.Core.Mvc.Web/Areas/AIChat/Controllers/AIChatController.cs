@@ -30,28 +30,43 @@ public sealed class AIChatController : Controller
         _deploymentManager = deploymentManager;
     }
 
-    public async Task<IActionResult> Chat(string sessionId)
+    public async Task<IActionResult> Chat(string sessionId, string profileId = null)
     {
-        if (string.IsNullOrEmpty(sessionId))
+        AIChatSession session = null;
+        IReadOnlyList<AIChatSessionPrompt> prompts = [];
+        AIProfile profile = null;
+
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            session = await _sessionManager.FindByIdAsync(sessionId);
+
+            if (session == null)
+            {
+                return NotFound();
+            }
+
+            profile = await _profileManager.FindByIdAsync(session.ProfileId);
+
+            if (profile == null)
+            {
+                return NotFound();
+            }
+
+            prompts = await _promptStore.GetPromptsAsync(sessionId);
+        }
+        else if (!string.IsNullOrEmpty(profileId))
+        {
+            profile = await _profileManager.FindByIdAsync(profileId);
+
+            if (profile == null)
+            {
+                return NotFound();
+            }
+        }
+        else
         {
             return RedirectToAction("Index", "AIProfile", new { area = "AI" });
         }
-
-        var session = await _sessionManager.FindByIdAsync(sessionId);
-
-        if (session == null)
-        {
-            return NotFound();
-        }
-
-        var profile = await _profileManager.FindByIdAsync(session.ProfileId);
-
-        if (profile == null)
-        {
-            return NotFound();
-        }
-
-        var prompts = await _promptStore.GetPromptsAsync(sessionId);
 
         ViewData["Session"] = session;
         ViewData["Prompts"] = prompts;
@@ -71,13 +86,9 @@ public sealed class AIChatController : Controller
             return NotFound();
         }
 
-        var session = await _sessionManager.NewAsync(profile, new NewAIChatSessionContext());
-
-        session.Title = profile.DisplayText ?? profile.Name;
-
-        await _sessionManager.SaveAsync(session);
-
-        return RedirectToAction(nameof(Chat), new { sessionId = session.SessionId });
+        // Navigate to the chat page without creating a session. The session
+        // will be created when the user sends their first message via SignalR.
+        return RedirectToAction(nameof(Chat), new { profileId = profile.ItemId });
     }
 
     [HttpPost]

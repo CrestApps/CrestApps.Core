@@ -576,7 +576,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 chatSession.ResponseHandlerName = initialResponseHandlerName.Trim();
             }
 
-            await SaveChatSessionAsync(sessionManager, chatSession);
+            await SaveChatSessionAsync(services, sessionManager, chatSession);
             var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId));
             await Clients.Caller.LoadSession(CreateSessionPayload(chatSession, profile, prompts));
@@ -1214,7 +1214,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (handlerResult.IsDeferred)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
-            await SaveChatSessionAsync(sessionManager, chatSession);
+            await SaveChatSessionAsync(services, sessionManager, chatSession);
 
             return;
         }
@@ -1298,7 +1298,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                         Content = GetOutputBlockedMessage(),
                     };
                     await writer.WriteAsync(blockedMessage, cancellationToken);
-                    await SaveChatSessionAsync(sessionManager, chatSession);
+                    await SaveChatSessionAsync(services, sessionManager, chatSession);
 
                     return;
                 }
@@ -1320,7 +1320,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         };
         await sessionHandlers.InvokeAsync((h, ctx) => h.MessageCompletedAsync(ctx), context, Logger);
         await OnMessageCompletedAsync(services, context);
-        await SaveChatSessionAsync(sessionManager, chatSession);
+        await SaveChatSessionAsync(services, sessionManager, chatSession);
     }
 
     /// <summary>
@@ -1394,7 +1394,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         assistantMessage.ContentItemIds = contentItemIds.ToList();
         assistantMessage.References = references;
         await promptStore.CreateAsync(assistantMessage, cancellationToken);
-        await SaveChatSessionAsync(sessionManager, chatSession);
+        await SaveChatSessionAsync(services, sessionManager, chatSession);
     }
 
     /// <summary>
@@ -1589,21 +1589,19 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <summary>
     /// Saves chat session.
     /// </summary>
+    /// <param name="services">The service provider used to resolve the store committer.</param>
     /// <param name="sessionManager">The session manager.</param>
     /// <param name="chatSession">The chat session.</param>
-    protected virtual async Task SaveChatSessionAsync(IAIChatSessionManager sessionManager, AIChatSession chatSession)
+    protected virtual async Task SaveChatSessionAsync(IServiceProvider services, IAIChatSessionManager sessionManager, AIChatSession chatSession)
     {
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(sessionManager);
         ArgumentNullException.ThrowIfNull(chatSession);
 
         await sessionManager.SaveAsync(chatSession);
 
-        var committer = _services.GetService<IStoreCommitter>();
-
-        if (committer != null)
-        {
-            await committer.CommitAsync();
-        }
+        var committer = services.GetRequiredService<IStoreCommitter>();
+        await committer.CommitAsync();
     }
 
 #pragma warning disable MEAI001

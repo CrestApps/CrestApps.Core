@@ -64,6 +64,9 @@
             name = selectedProfile.Name,
             displayText = selectedProfile.DisplayText ?? selectedProfile.Name,
             welcomeMessage = selectedProfile.WelcomeMessage,
+            initialPrompt = selectedProfile.TryGet<AIProfileMetadata>(out var profileMetadata)
+                ? profileMetadata.InitialPrompt?.Trim()
+                : null,
             enableSessionMetrics = selectedProfile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics,
             allowSessionDocuments = allowSessionDocuments || allowImageUploads,
         };
@@ -101,6 +104,7 @@
      data-coreai-chat-widget-profile-name="@profile.name"
      data-coreai-chat-widget-profile-display-text="@profile.displayText"
      data-coreai-chat-widget-profile-welcome-message="@profile.welcomeMessage"
+     data-coreai-chat-widget-profile-initial-prompt="@profile.initialPrompt"
      data-coreai-chat-widget-profile-chat-mode="@profile.chatMode"
      data-coreai-chat-widget-profile-tts-voice-name="@profile.ttsVoiceName"
      data-coreai-chat-widget-profile-enable-session-metrics="@profile.enableSessionMetrics.ToString().ToLowerInvariant()"
@@ -117,6 +121,7 @@
      data-coreai-chat-input-element-selector="#widget-chat-input"
      data-coreai-chat-send-button-element-selector="#widget-send-btn"
      data-coreai-chat-placeholder-element-selector="#widget-placeholder"
+     data-coreai-chat-initial-prompt="@profile.initialPrompt"
      data-coreai-chat-metrics-enabled="@profile.enableSessionMetrics.ToString().ToLowerInvariant()"
      data-coreai-chat-mode="@profile.chatMode"
      data-coreai-chat-mic-button-element-selector="#widget-mic-btn"

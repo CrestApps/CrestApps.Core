@@ -131,15 +131,13 @@ else
         _sessions = result.Sessions.ToList();
     }
 
-    private async Task CreateSessionAsync()
+    private Task CreateSessionAsync()
     {
-        var session = await SessionManager.NewAsync(_profile, new NewAIChatSessionContext());
-        session.Title = _profile.DisplayText ?? _profile.Name;
+        // Navigate to the chat page without creating a session. The session
+        // will be created when the user sends their first message via SignalR.
+        Navigation.NavigateTo($"/ai-chat/new/{_profile.ItemId}");
 
-        await SessionManager.SaveAsync(session);
-        await StoreCommitter.CommitAsync();
-
-        Navigation.NavigateTo($"/ai-chat/chat/{session.SessionId}");
+        return Task.CompletedTask;
     }
 
     private async Task DeleteSessionAsync(string sessionId)
