@@ -1150,25 +1150,25 @@
                     </p>
 
                     <div class="mb-3">
-                        <label class="form-label">Max messages per window</label>
+                        <label class="form-label">Max messages per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. Leave blank to inherit the site default; set to 0 to disable message throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxMessagesPerWindow" />
                         <div class="form-text">Leave empty to use the site default. Set to 0 to disable message throttling for this profile.</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Message rate-limit window (seconds)</label>
+                        <label class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityRateLimitWindowSeconds" />
                         <div class="form-text">Leave empty to use the site default.</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Max anonymous sessions per window</label>
+                        <label class="form-label">Max anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous chat sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. Leave blank to inherit the site default; set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxAnonymousSessionsPerWindow" />
                         <div class="form-text">Leave empty to use the site default. Set to 0 to disable anonymous session-start throttling for this profile.</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Anonymous session window (seconds)</label>
+                        <label class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityAnonymousSessionRateLimitWindowSeconds" />
                         <div class="form-text">Leave empty to use the site default.</div>
                     </div>
