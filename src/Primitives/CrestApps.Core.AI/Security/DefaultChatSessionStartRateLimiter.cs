@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -7,7 +8,8 @@ namespace CrestApps.Core.AI.Security;
 
 /// <summary>
 /// Default implementation of <see cref="IChatSessionStartRateLimiter"/> that limits
-/// anonymous session creation using a sliding window.
+/// anonymous session creation using a sliding window. Per-profile overrides on
+/// <see cref="PromptSecurityProfileSettings"/> take precedence over the site-level defaults.
 /// </summary>
 public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLimiter
 {
@@ -50,7 +52,11 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
         }
 
         var options = _options.Value;
-        var maxSessions = options.MaxAnonymousSessionsPerWindow;
+
+        // Resolve per-profile anti-spam overrides, falling back to site-level defaults.
+        var profileSettings = context.Profile?.TryGetSettings<PromptSecurityProfileSettings>(out var ps) == true ? ps : null;
+        var maxSessions = profileSettings?.MaxAnonymousSessionsPerWindow ?? options.MaxAnonymousSessionsPerWindow;
+        var window = profileSettings?.AnonymousSessionRateLimitWindow ?? options.AnonymousSessionRateLimitWindow;
 
         if (maxSessions <= 0)
         {
@@ -64,7 +70,6 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
             return ValueTask.FromResult(RateLimitResult.Allowed);
         }
 
-        var window = options.AnonymousSessionRateLimitWindow;
         var now = _timeProvider.GetUtcNow();
         var windowStart = now - window;
 

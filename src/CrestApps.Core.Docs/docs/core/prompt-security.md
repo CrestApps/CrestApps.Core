@@ -149,22 +149,20 @@ The prompt security layer is controlled by `PromptSecurityOptions`.
 The framework supports two layers of configuration:
 
 1. **site-level defaults** through `PromptSecurityOptions`
-2. **per-profile overrides** through `PromptSecurityProfileSettings`
+2. **per-profile anti-spam throttle overrides** through `PromptSecurityProfileSettings`
 
-Both MVC and Blazor sample hosts expose the site defaults in admin settings, and AI Profiles plus AI Profile-source templates can override the default behavior.
+Both MVC and Blazor sample hosts expose the site defaults in admin settings. AI Profiles and AI Profile-source templates can override the anti-spam throttle limits so each use case can raise or lower its quotas.
 
-Per-profile overrides support:
+Per-profile overrides are intentionally scoped to anti-spam throttling only:
 
-- enabling or disabling the prompt security layer
-- enabling or disabling injection detection
-- enabling or disabling output filtering
-- enabling or disabling the security preamble
-- enabling or disabling input delimiters
-- overriding maximum prompt length
-- overriding the blocking threshold
-- overriding rate limit settings (messages per window, window duration)
+- `MaxMessagesPerWindow` — maximum messages allowed within the message window
+- `RateLimitWindow` — the message sliding-window duration
+- `MaxAnonymousSessionsPerWindow` — maximum anonymous session starts within the session window
+- `AnonymousSessionRateLimitWindow` — the anonymous session-start window duration
 
-That model lets you keep strong defaults globally while allowing carefully chosen profiles to be more permissive or more strict.
+High-level input and output security guards — injection detection, output filtering, the security preamble, input delimiters, the blocking threshold, and the maximum prompt length — remain **global concerns** configured only through `PromptSecurityOptions`. They are deliberately not overridable per profile so protective posture stays consistent across every profile.
+
+That model lets you keep strong global guards while allowing carefully chosen profiles to be more permissive or more strict on throttling.
 
 ## Rate limiting
 
@@ -196,17 +194,19 @@ The default limiter behavior is privacy-first but configurable through `AIChatRa
 
 ### Per-profile override
 
-Rate limiting can be customized per AI Profile using `PromptSecurityProfileSettings`:
+Anti-spam throttling can be customized per AI Profile (or AI Profile-source template) using `PromptSecurityProfileSettings`. Any field left `null` falls back to the site-level default:
 
 ```csharp
 profile.WithSettings(new PromptSecurityProfileSettings
 {
     MaxMessagesPerWindow = 10,
     RateLimitWindow = TimeSpan.FromMinutes(2),
+    MaxAnonymousSessionsPerWindow = 3,
+    AnonymousSessionRateLimitWindow = TimeSpan.FromMinutes(10),
 });
 ```
 
-Set `MaxMessagesPerWindow` to `0` on a profile to disable rate limiting for that profile even when site-level rate limiting is enabled.
+Both the message throttle (`DefaultChatRateLimiter`) and the anonymous session-start throttle (`DefaultChatSessionStartRateLimiter`) honor these overrides, falling back to the site defaults on `PromptSecurityOptions` when a value is not set. Set `MaxMessagesPerWindow` (or `MaxAnonymousSessionsPerWindow`) to `0` on a profile to disable that throttle for the profile even when site-level rate limiting is enabled.
 
 ### How it works
 

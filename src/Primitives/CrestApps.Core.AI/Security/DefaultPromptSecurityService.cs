@@ -7,7 +7,8 @@ namespace CrestApps.Core.AI.Security;
 /// <summary>
 /// Default implementation of <see cref="IPromptSecurityService"/> that validates user prompts
 /// against known prompt injection patterns and configurable security policies.
-/// Respects per-profile security settings that override site-level defaults.
+/// Security guards are governed by the site-level <see cref="PromptSecurityOptions"/>, while the
+/// injected rate limiter honors per-profile anti-spam throttle overrides.
 /// </summary>
 public sealed class DefaultPromptSecurityService : IPromptSecurityService
 {
@@ -50,16 +51,8 @@ public sealed class DefaultPromptSecurityService : IPromptSecurityService
 
         var siteOptions = _options.Value;
 
-        // Resolve per-profile security settings.
-        var profileSettings = context.Profile?.TryGetSettings<PromptSecurityProfileSettings>(out var ps) == true ? ps : null;
-
-        // Check if security is entirely disabled for this profile.
-        if (profileSettings?.IsEnabled == false)
-        {
-            return PromptSecurityResult.Safe;
-        }
-
         // Rate limit check (before expensive regex evaluation).
+        // The rate limiter honors per-profile anti-spam throttle overrides.
         var rateLimitResult = await _rateLimiter.EvaluateAsync(context, cancellationToken);
 
         if (rateLimitResult.IsThrottled)
@@ -77,7 +70,7 @@ public sealed class DefaultPromptSecurityService : IPromptSecurityService
             return rateLimitBlockedResult;
         }
 
-        var injectionDetectionEnabled = profileSettings?.EnableInjectionDetection ?? siteOptions.EnableInjectionDetection;
+        var injectionDetectionEnabled = siteOptions.EnableInjectionDetection;
 
         if (!injectionDetectionEnabled)
         {
@@ -89,8 +82,8 @@ public sealed class DefaultPromptSecurityService : IPromptSecurityService
             return PromptSecurityResult.Safe;
         }
 
-        var blockingThreshold = profileSettings?.BlockingThreshold ?? siteOptions.BlockingThreshold;
-        var maxPromptLength = profileSettings?.MaxPromptLength ?? siteOptions.MaxPromptLength;
+        var blockingThreshold = siteOptions.BlockingThreshold;
+        var maxPromptLength = siteOptions.MaxPromptLength;
         var evaluationContext = new PromptSecurityEvaluationContext
         {
             OriginalInput = context.Prompt,

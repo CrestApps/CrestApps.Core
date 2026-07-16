@@ -69,22 +69,16 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
         // Only apply security to AI Profile-based chats.
         // Chat Interactions give the user full control (system prompt, model, MCP)
         // so the security layer is not applicable.
-        if (context.Resource is not AIProfile profile)
+        if (context.Resource is not AIProfile)
         {
             return;
         }
 
-        // Resolve effective options by merging site-level defaults with per-profile overrides.
-        var effectiveOptions = ResolveEffectiveOptions(profile);
-
-        // If security is entirely disabled for this profile, skip.
-        if (!effectiveOptions.IsEnabled)
-        {
-            return;
-        }
+        // Security guards are governed globally by the site-level options.
+        var siteOptions = _options.Value;
 
         // Prepend the security preamble to the system message.
-        if (effectiveOptions.EnableSecurityPreamble)
+        if (siteOptions.EnableSecurityPreamble)
         {
             var preamble = await _templateService.RenderAsync(SecurityPreambleTemplateId, cancellationToken: cancellationToken);
 
@@ -113,7 +107,7 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
         }
 
         // Wrap user message with delimiters to establish clear input boundaries.
-        if (effectiveOptions.EnableInputDelimiters && !string.IsNullOrEmpty(context.OrchestrationContext.UserMessage))
+        if (siteOptions.EnableInputDelimiters && !string.IsNullOrEmpty(context.OrchestrationContext.UserMessage))
         {
             // Sanitize user input by removing any injected delimiter tokens.
             var sanitizedMessage = context.OrchestrationContext.UserMessage
@@ -139,39 +133,5 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
                 context.OrchestrationContext.SystemMessageBuilder.Append(delimiterInstruction);
             }
         }
-    }
-
-    private EffectiveSecurityOptions ResolveEffectiveOptions(AIProfile profile)
-    {
-        var siteOptions = _options.Value;
-        var profileSettings = profile.TryGetSettings<PromptSecurityProfileSettings>(out var settings) ? settings : null;
-
-        return new EffectiveSecurityOptions
-        {
-            IsEnabled = profileSettings?.IsEnabled ?? true,
-            EnableSecurityPreamble = profileSettings?.EnableSecurityPreamble ?? siteOptions.EnableSecurityPreamble,
-            EnableInputDelimiters = profileSettings?.EnableInputDelimiters ?? siteOptions.EnableInputDelimiters,
-            EnableInjectionDetection = profileSettings?.EnableInjectionDetection ?? siteOptions.EnableInjectionDetection,
-            EnableOutputFiltering = profileSettings?.EnableOutputFiltering ?? siteOptions.EnableOutputFiltering,
-            MaxPromptLength = profileSettings?.MaxPromptLength ?? siteOptions.MaxPromptLength,
-            BlockingThreshold = profileSettings?.BlockingThreshold ?? siteOptions.BlockingThreshold,
-        };
-    }
-
-    private sealed class EffectiveSecurityOptions
-    {
-        public bool IsEnabled { get; init; }
-
-        public bool EnableSecurityPreamble { get; init; }
-
-        public bool EnableInputDelimiters { get; init; }
-
-        public bool EnableInjectionDetection { get; init; }
-
-        public bool EnableOutputFiltering { get; init; }
-
-        public int MaxPromptLength { get; init; }
-
-        public PromptRiskLevel BlockingThreshold { get; init; }
     }
 }

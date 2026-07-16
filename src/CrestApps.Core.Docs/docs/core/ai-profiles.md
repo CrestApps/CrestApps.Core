@@ -127,15 +127,17 @@ Profiles can opt into user memory so experiences can carry durable context forwa
 
 That toggle is stored directly as `MemoryMetadata`, so profile and template consumers read and write one shared metadata shape instead of carrying legacy memory-setting aliases forward.
 
-### 8. Prompt security
+### 8. Anti-spam throttling
 
-Profiles can also override the site-level prompt security defaults through `PromptSecurityProfileSettings`.
+Profiles can override the site-level anti-spam throttle limits through `PromptSecurityProfileSettings`.
 
-That lets you keep a strong global baseline while adjusting individual profile behavior for cases such as:
+That lets you keep a strong global baseline while raising or lowering throttle quotas for individual profiles, for cases such as:
 
-- stricter blocking for high-sensitivity assistants
-- longer prompt limits for carefully managed internal workflows
-- disabling the security layer for intentionally operator-controlled profiles
+- tighter per-minute message limits for public, unauthenticated widgets
+- higher limits for carefully managed internal or authenticated workflows
+- adjusting anonymous session-start quotas for a specific use case
+
+Only anti-spam throttling is per-profile. High-level input and output security guards (injection detection, output filtering, security preamble, input delimiters, blocking threshold, and maximum prompt length) remain global-only and are configured through `PromptSecurityOptions`.
 
 See [Prompt Security](./prompt-security.md) for the full option set, scoring model, and limitations.
 

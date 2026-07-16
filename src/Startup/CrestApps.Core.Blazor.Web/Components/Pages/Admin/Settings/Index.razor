@@ -294,7 +294,7 @@ else
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input id="securityEnabled" class="form-check-input" type="checkbox" @bind="_model.SecurityEnabled" />
-                                <label for="securityEnabled" class="form-check-label">Enable prompt security layer</label>
+                                <label for="securityEnabled" class="form-check-label">Enable prompt security layer <span class="text-muted" data-bs-toggle="tooltip" title="Master switch that turns the entire prompt-security layer on or off. When off, none of the defenses below are active and AI Profiles cannot enforce their own overrides."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                             </div>
                             <div class="form-text">Master switch for all prompt security features. When disabled, none of the security defenses below are active.</div>
                         </div>
@@ -304,7 +304,7 @@ else
                             <div class="mb-3">
                                 <div class="form-check form-switch">
                                     <input id="securityInjection" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableInjectionDetection" />
-                                    <label for="securityInjection" class="form-check-label">Enable injection detection</label>
+                                    <label for="securityInjection" class="form-check-label">Enable injection detection <span class="text-muted" data-bs-toggle="tooltip" title="Scans incoming prompts for known injection patterns (such as attempts to ignore previous instructions or hijack the assistant persona) and blocks matches."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 </div>
                                 <div class="form-text">Detects and blocks known prompt injection patterns such as "ignore previous instructions", persona hijacking, and role impersonation.</div>
                             </div>
@@ -312,7 +312,7 @@ else
                             <div class="mb-3">
                                 <div class="form-check form-switch">
                                     <input id="securityOutput" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableOutputFiltering" />
-                                    <label for="securityOutput" class="form-check-label">Enable output filtering</label>
+                                    <label for="securityOutput" class="form-check-label">Enable output filtering <span class="text-muted" data-bs-toggle="tooltip" title="Inspects AI responses before delivery and blocks or redacts output that leaks system prompts, tool configuration, or internal data."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 </div>
                                 <div class="form-text">Scans AI responses for leaked system prompts, tool configurations, or internal data before delivering to the user.</div>
                             </div>
@@ -320,7 +320,7 @@ else
                             <div class="mb-3">
                                 <div class="form-check form-switch">
                                     <input id="securityPreamble" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableSecurityPreamble" />
-                                    <label for="securityPreamble" class="form-check-label">Enable security preamble</label>
+                                    <label for="securityPreamble" class="form-check-label">Enable security preamble <span class="text-muted" data-bs-toggle="tooltip" title="Prepends a hardened instruction to every system prompt telling the model never to reveal its configuration or bypass its rules."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 </div>
                                 <div class="form-text">Prepends a hardened security instruction to system prompts that instructs the model to never reveal its configuration.</div>
                             </div>
@@ -328,7 +328,7 @@ else
                             <div class="mb-3">
                                 <div class="form-check form-switch">
                                     <input id="securityDelimiters" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableInputDelimiters" />
-                                    <label for="securityDelimiters" class="form-check-label">Enable input delimiters</label>
+                                    <label for="securityDelimiters" class="form-check-label">Enable input delimiters <span class="text-muted" data-bs-toggle="tooltip" title="Wraps each user message in boundary markers so the model can clearly separate untrusted user content from trusted system instructions."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 </div>
                                 <div class="form-text">Wraps user messages with boundary markers to help the model distinguish user content from system instructions.</div>
                             </div>
@@ -336,13 +336,13 @@ else
                             <div class="mb-3">
                                 <div class="form-check form-switch">
                                     <input id="securityAudit" class="form-check-input" type="checkbox" @bind="_model.SecurityEnableAuditLogging" />
-                                    <label for="securityAudit" class="form-check-label">Enable security audit logging</label>
+                                    <label for="securityAudit" class="form-check-label">Enable security audit logging <span class="text-muted" data-bs-toggle="tooltip" title="Records blocked prompts and other security events to the log so you can investigate injection attempts after the fact."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 </div>
                                 <div class="form-text">Logs blocked prompts and security events for forensic investigation of injection attempts.</div>
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityMaxLength" class="form-label">Maximum prompt length (characters)</label>
+                                <label for="securityMaxLength" class="form-label">Maximum prompt length (characters) <span class="text-muted" data-bs-toggle="tooltip" title="Any prompt longer than this character count is blocked before it reaches the model, limiting oversized or padding-based abuse."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <input id="securityMaxLength" class="form-control" type="number" min="100" max="100000" style="max-width: 200px;" @bind="_model.SecurityMaxPromptLength" />
                                 @if (_errors.TryGetValue(nameof(_model.SecurityMaxPromptLength), out var maxLenErr))
                                 {
@@ -352,7 +352,7 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityThreshold" class="form-label">Blocking threshold</label>
+                                <label for="securityThreshold" class="form-label">Blocking threshold <span class="text-muted" data-bs-toggle="tooltip" title="Sets the minimum detected risk level that causes a prompt to be blocked. Lower thresholds block more aggressively."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <select id="securityThreshold" class="form-select" style="max-width: 400px;" @bind="_model.SecurityBlockingThreshold">
                                     <option value="@PromptRiskLevel.Low">Low — Block low-risk and above</option>
                                     <option value="@PromptRiskLevel.Medium">Medium — Block medium-risk and above</option>
@@ -363,7 +363,7 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityRemoteAddressMode" class="form-label">Remote address storage mode</label>
+                                <label for="securityRemoteAddressMode" class="form-label">Remote address storage mode <span class="text-muted" data-bs-toggle="tooltip" title="Controls how a visitor remote address is stored for abuse controls: disabled, salted hash, plain text, or encrypted at rest while still hashing for throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <select id="securityRemoteAddressMode" class="form-select" style="max-width: 400px;" @bind="_model.SecurityRemoteAddressMode">
                                     <option value="@AIVisitorRemoteAddressMode.Disabled">Disabled</option>
                                     <option value="@AIVisitorRemoteAddressMode.Hashed">Hashed (Recommended)</option>
@@ -374,7 +374,7 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityMaxMessagesPerWindow" class="form-label">Maximum messages per rate-limit window</label>
+                                <label for="securityMaxMessagesPerWindow" class="form-label">Maximum messages per rate-limit window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable message throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <input id="securityMaxMessagesPerWindow" class="form-control" type="number" min="0" max="1000" style="max-width: 200px;" @bind="_model.SecurityMaxMessagesPerWindow" />
                                 @if (_errors.TryGetValue(nameof(_model.SecurityMaxMessagesPerWindow), out var maxMessagesErr))
                                 {
@@ -384,7 +384,7 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityRateLimitWindowSeconds" class="form-label">Message rate-limit window (seconds)</label>
+                                <label for="securityRateLimitWindowSeconds" class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. This is the site-wide default; individual AI Profiles can override it."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <input id="securityRateLimitWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" @bind="_model.SecurityRateLimitWindowSeconds" />
                                 @if (_errors.TryGetValue(nameof(_model.SecurityRateLimitWindowSeconds), out var messageWindowErr))
                                 {
@@ -394,7 +394,7 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window</label>
+                                <label for="securityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous widget sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <input id="securityMaxAnonymousSessionsPerWindow" class="form-control" type="number" min="0" max="500" style="max-width: 200px;" @bind="_model.SecurityMaxAnonymousSessionsPerWindow" />
                                 @if (_errors.TryGetValue(nameof(_model.SecurityMaxAnonymousSessionsPerWindow), out var maxSessionsErr))
                                 {
@@ -404,7 +404,7 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityAnonymousSessionWindowSeconds" class="form-label">Anonymous session window (seconds)</label>
+                                <label for="securityAnonymousSessionWindowSeconds" class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. This is the site-wide default; individual AI Profiles can override it."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <input id="securityAnonymousSessionWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" @bind="_model.SecurityAnonymousSessionRateLimitWindowSeconds" />
                                 @if (_errors.TryGetValue(nameof(_model.SecurityAnonymousSessionRateLimitWindowSeconds), out var anonymousWindowErr))
                                 {
