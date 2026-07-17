@@ -32,16 +32,42 @@ public sealed class PromptSecurityRiskScoringEngine
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(matchedRules);
 
-        var matchedCategories = matchedRules
-            .SelectMany(static x => x.Categories)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        HashSet<string> matchedCategorySet = null;
+        List<string> matchedCategoryList = null;
+        PromptSecurityRuleResult primaryRule = null;
+        var score = 0;
+        var matchedOnFoldedInput = false;
 
-        var score = matchedRules.Sum(static x => x.Score);
+        foreach (var rule in matchedRules)
+        {
+            score = checked(score + rule.Score);
+            matchedOnFoldedInput |= rule.MatchedOnFoldedInput;
+
+            if (primaryRule is null ||
+                rule.Score > primaryRule.Score ||
+                (rule.Score == primaryRule.Score && rule.Severity > primaryRule.Severity))
+            {
+                primaryRule = rule;
+            }
+
+            foreach (var category in rule.Categories)
+            {
+                matchedCategorySet ??= new HashSet<string>(StringComparer.Ordinal);
+
+                if (matchedCategorySet.Add(category))
+                {
+                    matchedCategoryList ??= [];
+                    matchedCategoryList.Add(category);
+                }
+            }
+        }
+
+        var matchedCategories = matchedCategoryList?.ToArray() ?? [];
+
         score += GetRuleCombinationBonus(matchedRules.Count);
         score += GetCategoryCombinationBonus(matchedCategories.Length);
 
-        if (matchedRules.Any(static x => x.MatchedOnFoldedInput))
+        if (matchedOnFoldedInput)
         {
             score += 6;
         }
@@ -53,11 +79,6 @@ public sealed class PromptSecurityRiskScoringEngine
 
         var riskLevel = DetermineRiskLevel(score);
         var disposition = DetermineDisposition(riskLevel, context.BlockingThreshold);
-        var primaryRule = matchedRules
-            .OrderByDescending(static x => x.Score)
-            .ThenByDescending(static x => x.Severity)
-            .Select(static x => x.RuleId)
-            .FirstOrDefault();
         var reason = BuildReason(matchedRules, disposition, riskLevel);
 
         var telemetry = context.Telemetry ?? PromptSecurityDetectionTelemetry.Empty;
@@ -70,7 +91,7 @@ public sealed class PromptSecurityRiskScoringEngine
             riskLevel,
             score,
             reason,
-            primaryRule,
+            primaryRule?.RuleId,
             matchedRules,
             matchedCategories,
             telemetry);
@@ -144,12 +165,46 @@ public sealed class PromptSecurityRiskScoringEngine
                 : "Suspicious prompt indicators detected.";
         }
 
-        var topReasons = matchedRules
-            .OrderByDescending(static x => x.Score)
-            .Select(static x => x.Reason)
-            .Distinct(StringComparer.Ordinal)
-            .Take(3);
+        var topReasons = new string[Math.Min(3, matchedRules.Count)];
+        var topReasonCount = 0;
 
-        return $"{disposition} prompt at {riskLevel} risk. Indicators: {string.Join("; ", topReasons)}";
+        while (topReasonCount < topReasons.Length)
+        {
+            PromptSecurityRuleResult bestRule = null;
+
+            // Equal scores retain the first source occurrence, matching stable OrderBy behavior.
+            foreach (var rule in matchedRules)
+            {
+                var reasonAlreadySelected = false;
+
+                for (var index = 0; index < topReasonCount; index++)
+                {
+                    if (string.Equals(topReasons[index], rule.Reason, StringComparison.Ordinal))
+                    {
+                        reasonAlreadySelected = true;
+                        break;
+                    }
+                }
+
+                if (reasonAlreadySelected)
+                {
+                    continue;
+                }
+
+                if (bestRule is null || rule.Score > bestRule.Score)
+                {
+                    bestRule = rule;
+                }
+            }
+
+            if (bestRule is null)
+            {
+                break;
+            }
+
+            topReasons[topReasonCount++] = bestRule.Reason;
+        }
+
+        return $"{disposition} prompt at {riskLevel} risk. Indicators: {string.Join("; ", topReasons, 0, topReasonCount)}";
     }
 }

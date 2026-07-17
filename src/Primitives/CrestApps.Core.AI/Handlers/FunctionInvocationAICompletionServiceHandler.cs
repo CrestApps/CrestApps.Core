@@ -66,10 +66,24 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
         var user = _httpContextAccessor.HttpContext?.User;
         var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Process entries in priority order: Local/System first, then MCP.
-        // This ensures local tools win name collisions over MCP tools.
-        var orderedEntries = scopedEntries
-            .OrderBy(e => e.Source == ToolRegistryEntrySource.McpServer ? 1 : 0);
+        // Snapshot a stable partition before authorization or factory callbacks can mutate the source.
+        var orderedEntries = new ToolRegistryEntry[scopedEntries.Count];
+        var nonMcpIndex = 0;
+        var mcpIndex = orderedEntries.Length;
+
+        foreach (var entry in scopedEntries)
+        {
+            if (entry.Source == ToolRegistryEntrySource.McpServer)
+            {
+                orderedEntries[--mcpIndex] = entry;
+            }
+            else
+            {
+                orderedEntries[nonMcpIndex++] = entry;
+            }
+        }
+
+        Array.Reverse(orderedEntries, mcpIndex, orderedEntries.Length - mcpIndex);
 
         foreach (var entry in orderedEntries)
         {

@@ -1934,3 +1934,170 @@ dotnet run -c Release -f net10.0 \
   --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
   -- --filter '*ElasticsearchSourceDocumentMappingBenchmarks*' --buildTimeout 600
 ```
+
+## AI context builder reverse dispatch
+
+Run the complete legacy/current comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*ContextBuilderReverseDispatchBenchmarks*' --join
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured
+iterations, .NET 10.0.5, and an Apple M2. Builders receive handler arrays, matching Microsoft
+dependency injection. Global setup fails unless legacy and current builders produce the same phase
+order and equivalent contexts.
+
+| Completion handlers | Legacy | Current | Change |
+| ---: | ---: | ---: | ---: |
+| 0 | 64.65 ns / 288 B | 42.85 ns / 288 B | 33.7% faster / allocations unchanged |
+| 1 | 117.84 ns / 448 B | 88.12 ns / 288 B | 25.2% faster / 35.7% fewer allocations |
+| 4 | 164.59 ns / 496 B | 102.62 ns / 288 B | 37.7% faster / 41.9% fewer allocations |
+| 16 | 248.49 ns / 688 B | 162.44 ns / 288 B | 34.6% faster / 58.1% fewer allocations |
+| 64 | 704.41 ns / 1,456 B | 475.70 ns / 288 B | 32.5% faster / 80.2% fewer allocations |
+
+| Orchestration handlers | Legacy | Current | Change |
+| ---: | ---: | ---: | ---: |
+| 0 | 72.87 ns / 440 B | 62.37 ns / 440 B | 14.4% faster / allocations unchanged |
+| 1 | 134.84 ns / 600 B | 104.12 ns / 440 B | 22.8% faster / 26.7% fewer allocations |
+| 4 | 149.21 ns / 648 B | 115.72 ns / 440 B | 22.4% faster / 32.1% fewer allocations |
+| 16 | 269.84 ns / 840 B | 182.03 ns / 440 B | 32.5% faster / 47.6% fewer allocations |
+| 64 | 830.34 ns / 1,608 B | 631.27 ns / 440 B | 24.0% faster / 72.6% fewer allocations |
+
+The current array path rents one buffer per build and refreshes it before each phase. This removes
+the two per-build `Reverse()` buffers while preserving reverse registration order, a stable snapshot
+within each phase, and array element changes made between the building and built phases. The rented
+references are cleared in a `finally` block, including cancellation and configuration failures.
+Arbitrary non-array enumerables retain the legacy lazy `Reverse()` path and its re-enumeration
+semantics. Empty-array timing is directional because the operations are very short; the deterministic
+allocation reductions for non-empty pipelines are the primary acceptance evidence.
+
+## Function invocation tool ordering
+
+Run the complete legacy/current comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*FunctionInvocationToolOrderingBenchmarks*' --join
+```
+
+The benchmark uses alternating MCP and non-MCP entries, unique tool names, cached successful
+authorization tasks, synchronous tool factories, and pre-sized output lists so it isolates ordering,
+duplicate tracking, authorization, and factory dispatch. Setup verifies exact authorization order and
+tool reference order before measurement.
+
+| Mixed entries | Legacy `OrderBy` | Current stable partition | Change |
+| ---: | ---: | ---: | ---: |
+| 8 | 366.2 ns / 1,168 B | 277.6 ns / 848 B | 24.2% faster / 27.4% fewer allocations |
+| 64 | 2.726 us / 4,688 B | 1.943 us / 3,920 B | 28.7% faster / 16.4% fewer allocations |
+| 512 | 28.751 us / 42,952 B | 19.756 us / 38,640 B | 31.3% faster / 10.0% fewer allocations |
+
+The retained implementation snapshots entries into one exact-size array, writes non-MCP entries
+from the front and MCP entries from the back, then reverses only the MCP tail. It preserves source
+order within both partitions, treats every non-MCP source equally, evaluates authorization before
+duplicate suppression, keeps non-MCP collision precedence, and completes the snapshot before any
+asynchronous authorization or factory callback can mutate the source list.
+
+## Prompt security risk aggregation
+
+Run the complete legacy/current comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*PromptSecurityRiskScoringBenchmarks*' --join
+```
+
+The input matrix includes repeated categories and reasons, score and severity ties, folded-input
+matches, and normalization telemetry. Global setup verifies the exact score, disposition, risk level,
+primary rule, reason text, matched-rule identifiers, category order, and telemetry counts.
+
+| Matched rules | Legacy LINQ aggregation | Current aggregation | Change |
+| ---: | ---: | ---: | ---: |
+| 0 | 138.56 ns / 400 B | 73.12 ns / 80 B | 47.2% faster / 80.0% fewer allocations |
+| 1 | 749.73 ns / 1,776 B | 320.98 ns / 712 B | 57.2% faster / 59.9% fewer allocations |
+| 4 | 844.58 ns / 2,280 B | 429.08 ns / 1,344 B | 49.2% faster / 41.1% fewer allocations |
+| 16 | 1.586 us / 3,376 B | 977.31 ns / 2,400 B | 38.4% faster / 28.9% fewer allocations |
+| 32 | 3.623 us / 4,272 B | 2.126 us / 3,040 B | 41.3% faster / 28.8% fewer allocations |
+
+The retained path aggregates checked scores, folded-input state, primary-rule precedence, and
+first-seen ordinal categories in one traversal. It selects at most three distinct reasons with
+bounded scans instead of sorting the full match list twice. Equal scores remain stable by original
+rule order, primary-rule severity remains the secondary key, duplicate and null reasons retain
+ordinal `Distinct` behavior, and score overflow still throws. Timing variance was noticeable for
+the sub-microsecond and 32-rule cases, so the consistent allocation reductions are the stronger
+acceptance evidence.
+
+## AI optimization checkpoint validation, 2026-07-16
+
+Run the checkpoint benchmarks from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*ContextBuilderReverseDispatchBenchmarks*' --join --buildTimeout 600
+
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*FunctionInvocationToolOrderingBenchmarks*' --join --buildTimeout 600
+
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*PromptSecurityRiskScoringBenchmarks*' --join --buildTimeout 600
+```
+
+These measurements use BenchmarkDotNet 0.15.8, five warmups, twelve measured iterations, .NET
+10.0.5, and an Apple M2. The acceptance decision is allocation-first: zero-handler or empty-input
+rows are not claimed as material wins unless allocations also drop, and short timing regressions
+with lower allocations are retained only where the path is sustained and the byte reduction is
+repeatable.
+
+| Completion handlers | Legacy | Current | Decision |
+| ---: | ---: | ---: | --- |
+| 0 | 65.15 ns / 288 B | 52.62 ns / 288 B | Neutral; no allocation change |
+| 1 | 128.63 ns / 448 B | 107.32 ns / 288 B | Retained; 35.7% fewer allocations |
+| 4 | 187.94 ns / 496 B | 116.52 ns / 288 B | Retained; 41.9% fewer allocations |
+| 16 | 381.44 ns / 688 B | 224.29 ns / 288 B | Retained; 58.1% fewer allocations |
+| 64 | 998.59 ns / 1,456 B | 737.85 ns / 288 B | Retained; 80.2% fewer allocations |
+
+| Orchestration handlers | Legacy | Current | Decision |
+| ---: | ---: | ---: | --- |
+| 0 | 101.13 ns / 440 B | 148.94 ns / 440 B | Neutral; no allocation change |
+| 1 | 231.79 ns / 600 B | 122.88 ns / 440 B | Retained; 26.7% fewer allocations |
+| 4 | 181.20 ns / 648 B | 159.61 ns / 440 B | Retained; 32.1% fewer allocations |
+| 16 | 382.76 ns / 840 B | 236.15 ns / 440 B | Retained; 47.6% fewer allocations |
+| 64 | 1,148.53 ns / 1,608 B | 875.63 ns / 440 B | Retained; 72.6% fewer allocations |
+
+The context-builder change is retained for non-empty handler arrays. It rents one per-build buffer
+and refreshes it before each phase, preserving reverse registration order, per-phase array snapshot
+semantics, mutation visibility between phases, cancellation timing, and logged exception handling.
+Non-array enumerables retain the lazy `Reverse()` path so their re-enumeration behavior is unchanged.
+
+| Mixed tool entries | Legacy `OrderBy` | Current stable partition | Decision |
+| ---: | ---: | ---: | --- |
+| 8 | 375.1 ns / 1,168 B | 424.1 ns / 848 B | Retained; 27.4% fewer allocations |
+| 64 | 3,753.9 ns / 4,688 B | 3,031.3 ns / 3,920 B | Retained; 16.4% fewer allocations |
+| 512 | 29,084.4 ns / 42,952 B | 35,917.5 ns / 38,640 B | Retained; 10.0% fewer allocations |
+
+The tool-ordering change is retained because it removes the LINQ ordering buffers and consistently
+reduces allocations on the mixed-entry path. The implementation is behavior-preserving: it snapshots
+before authorization and factory callbacks, keeps non-MCP entries before MCP entries, preserves source
+order within both partitions, evaluates authorization before duplicate suppression, and keeps local
+name-collision precedence over MCP entries.
+
+| Matched rules | Legacy LINQ aggregation | Current aggregation | Decision |
+| ---: | ---: | ---: | --- |
+| 0 | 144.17 ns / 400 B | 48.91 ns / 80 B | Retained; 80.0% fewer allocations |
+| 1 | 374.60 ns / 1,776 B | 154.55 ns / 712 B | Retained; 59.9% fewer allocations |
+| 4 | 581.71 ns / 2,280 B | 337.48 ns / 1,344 B | Retained; 41.1% fewer allocations |
+| 16 | 1,100.40 ns / 3,376 B | 887.72 ns / 2,400 B | Retained; 28.9% fewer allocations |
+| 32 | 1,844.84 ns / 4,272 B | 2,012.07 ns / 3,040 B | Retained; 28.8% fewer allocations |
+
+The prompt-security aggregation change is retained. It preserves checked score overflow, folded-input
+and normalization bonuses, primary-rule score/severity precedence, first-seen ordinal category order,
+stable equal-score reason selection, duplicate/null reason handling, telemetry mutation timing, and
+exact reason text while avoiding the repeated LINQ aggregation and sort allocations. No source
+experiments were rejected in this checkpoint run.

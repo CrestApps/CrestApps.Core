@@ -80,16 +80,16 @@ public sealed class DefaultOrchestrationContextBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsync_HandlersExecuteInReverseOrder()
+    public async Task BuildAsync_HandlersExecuteInReverseOrderForBothPhases()
     {
         var order = new List<string>();
 
         var handler1 = new TestHandler(
-            building: (_, _) => order.Add("handler1"),
-        built: null);
+            building: (_, _) => order.Add("handler1-building"),
+            built: (_, _) => order.Add("handler1-built"));
         var handler2 = new TestHandler(
-            building: (_, _) => order.Add("handler2"),
-        built: null);
+            building: (_, _) => order.Add("handler2-building"),
+            built: (_, _) => order.Add("handler2-built"));
 
         // Handlers are reversed internally, so last registered runs first.
         var builder = CreateBuilder([handler1, handler2]);
@@ -97,7 +97,65 @@ public sealed class DefaultOrchestrationContextBuilderTests
         await builder.BuildAsync(new AIProfile(), cancellationToken: TestContext.Current.CancellationToken);
 
         // Reverse of [handler1, handler2] = [handler2, handler1]
-        Assert.Equal(["handler2", "handler1"], order);
+        Assert.Equal(
+            ["handler2-building", "handler1-building", "handler2-built", "handler1-built"],
+            order);
+    }
+
+    [Fact]
+    public async Task BuildAsync_ArrayHandlersAreSnapshottedForEachPhase()
+    {
+        var order = new List<string>();
+        IOrchestrationContextBuilderHandler[] handlers = null;
+
+        var replacement = new TestHandler(
+            building: (_, _) => order.Add("replacement-building"),
+            built: (_, _) => order.Add("replacement-built"));
+        var handler1 = new TestHandler(
+            building: (_, _) => order.Add("handler1-building"),
+            built: (_, _) => order.Add("handler1-built"));
+        var handler2 = new TestHandler(
+            building: (_, _) =>
+            {
+                order.Add("handler2-building");
+                handlers[0] = replacement;
+            },
+            built: (_, _) => order.Add("handler2-built"));
+
+        handlers = [handler1, handler2];
+        var builder = CreateBuilder(handlers);
+
+        await builder.BuildAsync(new AIProfile(), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ["handler2-building", "handler1-building", "handler2-built", "replacement-built"],
+            order);
+    }
+
+    [Fact]
+    public async Task BuildAsync_NonArrayHandlersRemainLazyAcrossPhases()
+    {
+        var order = new List<string>();
+        var enumerationCount = 0;
+        var first = new TestHandler(
+            building: (_, _) => order.Add("first-building"),
+            built: (_, _) => order.Add("first-built"));
+        var second = new TestHandler(
+            building: (_, _) => order.Add("second-building"),
+            built: (_, _) => order.Add("second-built"));
+
+        IEnumerable<IOrchestrationContextBuilderHandler> GetHandlers()
+        {
+            enumerationCount++;
+            yield return enumerationCount == 1 ? first : second;
+        }
+
+        var builder = CreateBuilder(GetHandlers());
+
+        await builder.BuildAsync(new AIProfile(), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["first-building", "second-built"], order);
+        Assert.Equal(2, enumerationCount);
     }
 
     [Fact]
