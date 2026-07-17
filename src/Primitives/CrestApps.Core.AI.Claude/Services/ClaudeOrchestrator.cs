@@ -194,19 +194,24 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             prompts.Add(new ChatMessage(ChatRole.System, systemMessage));
         }
 
-        var history = context.ConversationHistory?
-            .Where(message => message.Role == ChatRole.User || message.Role == ChatRole.Assistant)
-            .Where(message => !string.IsNullOrWhiteSpace(message.Text))
-            .ToList() ?? [];
+        var conversationHistory = context.ConversationHistory;
 
-        if (context.CompletionContext.PastMessagesCount > 1)
+        if (conversationHistory is not null)
         {
-            var count = Math.Min(history.Count, context.CompletionContext.PastMessagesCount.Value);
-            prompts.AddRange(history.Skip(Math.Max(0, history.Count - count)));
-        }
-        else
-        {
-            prompts.AddRange(history);
+            var eligible = conversationHistory.Where(static message =>
+                (message.Role == ChatRole.User || message.Role == ChatRole.Assistant) &&
+                !string.IsNullOrWhiteSpace(message.Text));
+
+            if (context.CompletionContext.PastMessagesCount > 1)
+            {
+                AddLastMessages(prompts, eligible, context.CompletionContext.PastMessagesCount.Value);
+            }
+            else
+            {
+                var materializedMessages = eligible.ToList();
+
+                prompts.AddRange(materializedMessages);
+            }
         }
 
         if (prompts.Count == 0 || prompts[^1].Text != context.UserMessage)
@@ -215,6 +220,64 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         }
 
         return prompts;
+    }
+
+    /// <summary>
+    /// Adds the last <paramref name="count"/> eligible messages from a forward-only sequence in
+    /// their original order without materializing the entire sequence.
+    /// </summary>
+    /// <param name="prompts">The destination prompt collection.</param>
+    /// <param name="messages">The eligible messages.</param>
+    /// <param name="count">The maximum number of trailing messages to add.</param>
+    private static void AddLastMessages(
+        List<ChatMessage> prompts,
+        IEnumerable<ChatMessage> messages,
+        int count)
+    {
+        var buffer = new List<ChatMessage>(Math.Min(count, 4));
+        var nextIndex = 0;
+
+        foreach (var message in messages)
+        {
+            if (buffer.Count < count)
+            {
+                buffer.Add(message);
+
+                continue;
+            }
+
+            buffer[nextIndex] = message;
+            nextIndex++;
+
+            if (nextIndex == count)
+            {
+                nextIndex = 0;
+            }
+        }
+
+        if (nextIndex == 0)
+        {
+            prompts.AddRange(buffer);
+
+            return;
+        }
+
+        var requiredCapacity = (long)prompts.Count + buffer.Count;
+
+        if (requiredCapacity <= int.MaxValue)
+        {
+            prompts.EnsureCapacity((int)requiredCapacity);
+        }
+
+        for (var index = nextIndex; index < buffer.Count; index++)
+        {
+            prompts.Add(buffer[index]);
+        }
+
+        for (var index = 0; index < nextIndex; index++)
+        {
+            prompts.Add(buffer[index]);
+        }
     }
 
     private static ChatResponseUpdate CreateTextResponse(string text)

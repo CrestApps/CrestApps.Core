@@ -1779,3 +1779,88 @@ are not behavior-preserving. The resolved-case allocation reduction is only abou
 from a path that normally runs once per streamed citation add-event, so production keeps the existing
 full-rescan implementation. Characterization tests pin the current retry behavior, no-new-reference
 short-circuit, preemptive-reference interaction, and deterministic output contract.
+
+## Claude orchestrator prompt tail selection
+
+Run the complete comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*ClaudeOrchestratorPromptsBenchmarks*'
+```
+
+If BenchmarkDotNet's isolated per-benchmark build exceeds its default 120-second limit on a cold
+build, add `--buildTimeout 600`.
+
+These same-process measurements use BenchmarkDotNet 0.15.8's short-run job on .NET 10.0.5 and an
+Apple M2. Dense inputs make every message eligible. Sparse inputs make one message in ten eligible
+and distribute the remainder across system, tool, unknown, and null-text user or assistant messages.
+The history is a materialized `List<ChatMessage>` shared by both implementations. Global setup verifies
+exact role, text, content count, order, and source-object identity.
+
+| Messages | K | Eligibility | Legacy materialize-all | Current bounded ring | Change |
+| ---: | ---: | --- | ---: | ---: | ---: |
+| 10 | 1 | Dense | 478.1 ns / 1176 B | 599.2 ns / 1008 B | 25.3% slower / 14.3% fewer allocations |
+| 10 | 1 | Sparse | 356.0 ns / 792 B | 277.2 ns / 624 B | 22.1% faster / 21.2% fewer allocations |
+| 10 | 2 | Dense | 459.4 ns / 912 B | 403.2 ns / 632 B | 12.2% faster / 30.7% fewer allocations |
+| 10 | 2 | Sparse | 327.8 ns / 840 B | 238.2 ns / 632 B | 27.3% faster / 24.8% fewer allocations |
+| 10 | 20 | Dense | 519.0 ns / 1224 B | 527.2 ns / 1200 B | 1.6% slower / 2.0% fewer allocations |
+| 10 | 20 | Sparse | 265.5 ns / 840 B | 242.3 ns / 648 B | 8.7% faster / 22.9% fewer allocations |
+| 10 | 200 | Dense | 490.5 ns / 1224 B | 469.1 ns / 1200 B | 4.4% faster / 2.0% fewer allocations |
+| 10 | 200 | Sparse | 487.4 ns / 840 B | 263.9 ns / 648 B | 45.9% faster / 22.9% fewer allocations |
+| 1,000 | 1 | Dense | 22,081.2 ns / 32856 B | 20,441.7 ns / 32688 B | 7.4% faster / 0.5% fewer allocations |
+| 1,000 | 1 | Sparse | 9,709.4 ns / 4056 B | 8,982.6 ns / 3888 B | 7.5% faster / 4.1% fewer allocations |
+| 1,000 | 2 | Dense | 20,149.0 ns / 8832 B | 21,689.4 ns / 632 B | 7.6% slower / 92.8% fewer allocations |
+| 1,000 | 2 | Sparse | 9,751.4 ns / 1632 B | 15,992.4 ns / 632 B | 64.0% slower / 61.3% fewer allocations |
+| 1,000 | 20 | Dense | 19,288.7 ns / 9384 B | 19,603.1 ns / 1720 B | 1.6% slower / 81.7% fewer allocations |
+| 1,000 | 20 | Sparse | 8,919.4 ns / 2184 B | 8,995.2 ns / 1720 B | 0.8% slower / 21.2% fewer allocations |
+| 1,000 | 200 | Dense | 23,621.0 ns / 13704 B | 16,388.8 ns / 9696 B | 30.6% faster / 29.2% fewer allocations |
+| 1,000 | 200 | Sparse | 9,910.5 ns / 4104 B | 16,261.2 ns / 5224 B | 64.1% slower / 27.3% more allocations |
+| 10,000 | 1 | Dense | 263,129.5 ns / 320906 B | 275,745.6 ns / 320738 B | 4.8% slower / 0.1% fewer allocations |
+| 10,000 | 1 | Sparse | 95,559.4 ns / 32856 B | 135,885.8 ns / 32688 B | 42.2% slower / 0.5% fewer allocations |
+| 10,000 | 2 | Dense | 155,255.8 ns / 80832 B | 174,561.7 ns / 632 B | 12.4% slower / 99.2% fewer allocations |
+| 10,000 | 2 | Sparse | 110,278.5 ns / 8832 B | 130,264.9 ns / 632 B | 18.1% slower / 92.8% fewer allocations |
+| 10,000 | 20 | Dense | 207,091.9 ns / 81384 B | 208,866.6 ns / 1720 B | 0.9% slower / 97.9% fewer allocations |
+| 10,000 | 20 | Sparse | 90,090.7 ns / 9384 B | 119,424.6 ns / 1720 B | 32.6% slower / 81.7% fewer allocations |
+| 10,000 | 200 | Dense | 229,215.5 ns / 85704 B | 147,344.7 ns / 9696 B | 35.7% faster / 88.7% fewer allocations |
+| 10,000 | 200 | Sparse | 76,052.2 ns / 13704 B | 95,004.8 ns / 9696 B | 24.9% slower / 29.2% fewer allocations |
+
+`ClaudeOrchestrator.BuildPrompts` differs from the named-client selector in one way that shapes these
+results: a message qualifies only when its role is user or assistant and its `Text` is non-whitespace.
+There is no `Contents.Count` fallback, so image-only or empty-text messages never reach the tail. The
+`K <= 1` control remains the original materialize-all branch; its only change is that the legacy two
+chained `Where` clauses became a single combined predicate. That removes one iterator allocation and
+trims a constant 168 bytes in the control, leaving its allocations otherwise identical and its timing
+within the short-run noise band.
+
+For `K > 1`, the retained implementation enumerates the filtered sequence once and keeps at most `K`
+eligible references in a small ring instead of materializing the whole history before taking its tail.
+The deterministic signal is allocation reduction on bounded-history paths where the requested tail is
+smaller than the eligible history. At 10,000 messages it removes 81.7-99.2% of bounded-history
+allocations for `K` of 2 and 20, collapsing the dense `K=2` case from 80,832 bytes to 632 bytes and the
+dense `K=20` case from 81,384 bytes to 1,720 bytes. The 1,000-message dense `K=2` and `K=20` cases drop
+92.8% and 81.7% respectively. Short-run timing remains noisy, so no broad latency claim is made.
+
+The sparse `K=200` case at 1,000 messages is recorded rather than hidden: only 100 messages qualify, so
+the tail is never trimmed, and the growing ring plus its copy into the prompt list allocates about
+1.1 KB more than materializing that small eligible set. The retained value is the sustained bounded-tail
+path where `K` is materially smaller than the eligible history; oversized bounds remain atypical for the
+optimization and keep exact behavior.
+
+The repeated computed `Text` reads were evaluated separately and left unchanged. The method reads
+`message.Text` once per candidate inside the eligibility filter and reads `prompts[^1].Text` once more
+only for the final-user suppression check. Microsoft.Extensions.AI 10.7.0 returns the text of a
+single-`TextContent` message directly, without the concatenation that multiple text items require, so
+caching that one trailing read saved nothing measurable and was rejected as marginal.
+
+Compatibility tests preserve the exact existing contract: only user and assistant roles qualify;
+whitespace-only, empty, and null `Text` are excluded, as are image-only messages, because there is no
+content-count fallback; system, tool, and unknown roles are excluded. The system message is prepended
+only when it is non-whitespace, so whitespace-only system text is suppressed. The final user message is
+appended unless the last selected prompt's `Text` already equals it, a comparison that ignores role and
+therefore also suppresses the append when a system-only prompt's text matches the user message. Eligible
+order, duplicate references, and source-object identity remain stable. A null conversation history is
+tolerated without throwing, null elements still fail eagerly during filtering, and `int.MinValue` through
+`1` continue to mean all eligible history while positive values above `1`, including `int.MaxValue`, mean
+the eligible tail.
