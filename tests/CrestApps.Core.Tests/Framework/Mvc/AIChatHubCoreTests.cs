@@ -40,7 +40,7 @@ public sealed class AIChatHubCoreTests
 
         var hub = new TestAIChatHub(serviceProvider);
 
-        await hub.SaveChatSessionForTestAsync(sessionManager, chatSession);
+        await hub.SaveChatSessionForTestAsync(serviceProvider, sessionManager, chatSession);
 
         Assert.Same(chatSession, sessionManager.SavedSession);
         Assert.Single(chatSession.Documents);
@@ -134,9 +134,9 @@ public sealed class AIChatHubCoreTests
         {
         }
 
-        public Task SaveChatSessionForTestAsync(IAIChatSessionManager sessionManager, AIChatSession chatSession)
+        public Task SaveChatSessionForTestAsync(IServiceProvider services, IAIChatSessionManager sessionManager, AIChatSession chatSession)
         {
-            return SaveChatSessionAsync(sessionManager, chatSession);
+            return SaveChatSessionAsync(services, sessionManager, chatSession);
         }
 
         public string GetFriendlyErrorMessageForTest(Exception ex)

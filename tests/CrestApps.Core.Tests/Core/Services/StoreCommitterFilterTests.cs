@@ -1,10 +1,15 @@
+using System.Security.Claims;
+using System.Threading.Channels;
 using CrestApps.Core.Filters;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.Core.Services;
@@ -117,6 +122,80 @@ public sealed class StoreCommitterFilterTests
         Assert.True(committer.LastCancellationToken.IsCancellationRequested);
     }
 
+    [Fact]
+    public async Task HubFilter_NonStreamingResult_CommitsOnce()
+    {
+        var committer = new FakeStoreCommitter();
+        var filter = new StoreCommitterHubFilter(NullLogger<StoreCommitterHubFilter>.Instance);
+        var context = CreateHubInvocationContext(committer);
+        var expected = new object();
+
+        var result = await filter.InvokeMethodAsync(context, _ => ValueTask.FromResult<object>(expected));
+
+        Assert.Same(expected, result);
+        Assert.Equal(1, committer.CommitCount);
+    }
+
+    [Fact]
+    public async Task HubFilter_NullResult_CommitsOnce()
+    {
+        var committer = new FakeStoreCommitter();
+        var filter = new StoreCommitterHubFilter(NullLogger<StoreCommitterHubFilter>.Instance);
+        var context = CreateHubInvocationContext(committer);
+
+        var result = await filter.InvokeMethodAsync(context, _ => ValueTask.FromResult<object>(null));
+
+        Assert.Null(result);
+        Assert.Equal(1, committer.CommitCount);
+    }
+
+    [Fact]
+    public async Task HubFilter_ChannelReaderResult_DoesNotCommit()
+    {
+        var committer = new FakeStoreCommitter();
+        var filter = new StoreCommitterHubFilter(NullLogger<StoreCommitterHubFilter>.Instance);
+        var context = CreateHubInvocationContext(committer);
+        var reader = Channel.CreateUnbounded<int>().Reader;
+
+        var result = await filter.InvokeMethodAsync(context, _ => ValueTask.FromResult<object>(reader));
+
+        Assert.Same(reader, result);
+        Assert.Equal(0, committer.CommitCount);
+    }
+
+    [Fact]
+    public async Task HubFilter_AsyncEnumerableResult_DoesNotCommit()
+    {
+        var committer = new FakeStoreCommitter();
+        var filter = new StoreCommitterHubFilter(NullLogger<StoreCommitterHubFilter>.Instance);
+        var context = CreateHubInvocationContext(committer);
+        var stream = EmptyAsyncEnumerable();
+
+        var result = await filter.InvokeMethodAsync(context, _ => ValueTask.FromResult<object>(stream));
+
+        Assert.Same(stream, result);
+        Assert.Equal(0, committer.CommitCount);
+    }
+
+    private static async IAsyncEnumerable<int> EmptyAsyncEnumerable()
+    {
+        await Task.CompletedTask;
+
+        yield break;
+    }
+
+    private static HubInvocationContext CreateHubInvocationContext(IStoreCommitter committer)
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(committer)
+            .BuildServiceProvider();
+
+        var hub = new TestHub();
+        var method = typeof(TestHub).GetMethod(nameof(TestHub.Noop));
+
+        return new HubInvocationContext(new FakeHubCallerContext(), services, hub, method, []);
+    }
+
     private static ActionExecutingContext CreateActionExecutingContext(
         out ActionExecutedContext executedContext,
         CancellationToken requestAborted = default)
@@ -140,6 +219,32 @@ public sealed class StoreCommitterFilterTests
             CommitCount++;
             LastCancellationToken = cancellationToken;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class TestHub : Hub
+    {
+        public static void Noop()
+        {
+        }
+    }
+
+    private sealed class FakeHubCallerContext : HubCallerContext
+    {
+        public override string ConnectionId => "test-connection";
+
+        public override string UserIdentifier => null;
+
+        public override ClaimsPrincipal User => null;
+
+        public override IDictionary<object, object> Items { get; } = new Dictionary<object, object>();
+
+        public override IFeatureCollection Features { get; } = new FeatureCollection();
+
+        public override CancellationToken ConnectionAborted => CancellationToken.None;
+
+        public override void Abort()
+        {
         }
     }
 

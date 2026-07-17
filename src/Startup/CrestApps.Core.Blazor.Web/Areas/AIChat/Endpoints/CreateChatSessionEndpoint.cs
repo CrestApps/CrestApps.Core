@@ -40,11 +40,9 @@ internal static class CreateChatSessionEndpoint
         }
 
         var session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
-        session.Title = profile.DisplayText ?? profile.Name;
-
         await sessionManager.SaveAsync(session);
 
-        return TypedResults.Ok(new { sessionId = session.SessionId });
+        return TypedResults.Ok(new { sessionId = session.SessionId, profileId = profile.ItemId });
     }
 
     private sealed class CreateChatSessionRequest

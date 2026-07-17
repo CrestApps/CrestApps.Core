@@ -1138,10 +1138,12 @@ window.coreAIChatManager = function () {
                         });
 
                         // When the session is new (no messages) and an initial prompt is configured,
-                        // automatically send it as the first user message to trigger an AI response.
+                        // display it as the first assistant message without invoking the AI.
                         if (this.messages.length === 0 && config.initialPrompt) {
-                            this.prompt = config.initialPrompt;
-                            this.sendMessage();
+                            this.addMessage({
+                                role: 'assistant',
+                                content: config.initialPrompt
+                            });
                         }
                     });
 
@@ -2265,7 +2267,17 @@ window.coreAIChatManager = function () {
                     this.sessionRating = null;
                     this.messages = [];
                     this.documents = [];
-                    this.showPlaceholder();
+
+                    // When an initial prompt is configured, show it as the first
+                    // assistant message instead of the generic placeholder.
+                    if (config.initialPrompt) {
+                        this.addMessage({
+                            role: 'assistant',
+                            content: config.initialPrompt
+                        });
+                    } else {
+                        this.showPlaceholder();
+                    }
 
                     if (widgetBehavior && typeof widgetBehavior.onSessionReset === 'function') {
                         widgetBehavior.onSessionReset(this, config);
@@ -2485,6 +2497,15 @@ window.coreAIChatManager = function () {
                         this.addMessage(initialMessages[i]);
                     }
 
+                    // When no messages were loaded and an initial prompt is configured,
+                    // display it as the first assistant message without invoking the AI.
+                    if (this.messages.length === 0 && config.initialPrompt) {
+                        this.addMessage({
+                            role: 'assistant',
+                            content: config.initialPrompt
+                        });
+                    }
+
                     // Update feedback icons in the DOM after initial messages have rendered.
                     this.$nextTick(() => {
                         this.refreshAllFeedbackIcons();
@@ -2563,6 +2584,13 @@ window.coreAIChatManager = function () {
 
                     if (widgetBehavior && typeof widgetBehavior.onSessionInitialized === 'function') {
                         widgetBehavior.onSessionInitialized(this, sessionId, config);
+                    }
+
+                    // For non-widget pages, update the browser URL so that a page
+                    // refresh reloads the correct session instead of starting fresh.
+                    if (!hasWidgetConfig && sessionId && config.sessionUrlTemplate && typeof history !== 'undefined' && history.replaceState) {
+                        var sessionUrl = config.sessionUrlTemplate.replace('{sessionId}', encodeURIComponent(sessionId));
+                        history.replaceState(null, '', sessionUrl);
                     }
                 },
                 getSessionId() {
@@ -2861,6 +2889,7 @@ window.coreAIChatManager = function () {
             supportedExtensionsText: getAttributeValue(element, 'data-coreai-chat-supported-extensions-text'),
             existingDocuments: parseJsonAttribute(element, 'data-coreai-chat-existing-documents', 'CoreAI chat existing documents') ?? undefined,
             initialPrompt: getAttributeValue(element, 'data-coreai-chat-initial-prompt'),
+            sessionUrlTemplate: getAttributeValue(element, 'data-coreai-chat-session-url-template'),
             userLabel: getAttributeValue(element, 'data-coreai-chat-user-label'),
             assistantLabel: getAttributeValue(element, 'data-coreai-chat-assistant-label'),
             copyTitle: getAttributeValue(element, 'data-coreai-chat-copy-title'),

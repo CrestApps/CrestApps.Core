@@ -35,6 +35,7 @@
          data-coreai-chat-widget-profile-name="@_profile.Name"
          data-coreai-chat-widget-profile-display-text="@(_profile.DisplayText ?? _profile.Name)"
          data-coreai-chat-widget-profile-welcome-message="@_profile.WelcomeMessage"
+         data-coreai-chat-widget-profile-initial-prompt="@_initialPrompt"
          data-coreai-chat-widget-profile-chat-mode="@_chatMode"
          data-coreai-chat-widget-profile-tts-voice-name="@_ttsVoiceName"
          data-coreai-chat-widget-profile-enable-session-metrics="@_metricsEnabled.ToString().ToLowerInvariant()"
@@ -51,6 +52,7 @@
          data-coreai-chat-input-element-selector="#widget-chat-input"
          data-coreai-chat-send-button-element-selector="#widget-send-btn"
          data-coreai-chat-placeholder-element-selector="#widget-placeholder"
+         data-coreai-chat-initial-prompt="@_initialPrompt"
          data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-mode="@_chatMode"
          data-coreai-chat-mic-button-element-selector="#widget-mic-btn"
@@ -199,6 +201,7 @@
 @code {
     private AIProfile _profile;
     private string _welcomeMessage = "What do you want to know?";
+    private string _initialPrompt;
     private string _widgetShellStyle = "visibility:hidden;";
     private ChatMode _chatMode = ChatMode.TextInput;
     private bool _metricsEnabled;
@@ -259,6 +262,10 @@
         _welcomeMessage = !string.IsNullOrWhiteSpace(selectedProfile.WelcomeMessage)
             ? selectedProfile.WelcomeMessage
             : "What do you want to know?";
+
+        _initialPrompt = selectedProfile.TryGet<AIProfileMetadata>(out var profileMetadata)
+            ? profileMetadata.InitialPrompt?.Trim()
+            : null;
 
         var hasTtsDeployment = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
         var speechToTextEnabled = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
