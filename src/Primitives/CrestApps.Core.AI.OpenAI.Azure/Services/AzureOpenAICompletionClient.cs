@@ -242,22 +242,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                 }
                 else
                 {
-                    var result = new Microsoft.Extensions.AI.ChatResponseUpdate
-                    {
-                        ResponseId = update.CompletionId,
-                        CreatedAt = update.CreatedAt,
-                        ModelId = update.Model,
-                        Contents = update.ContentUpdate.Select(x => new Microsoft.Extensions.AI.TextContent(x.Text)).Cast<Microsoft.Extensions.AI.AIContent>().ToList(),
-                    };
-                    if (update.FinishReason is not null)
-                    {
-                        result.FinishReason = new Microsoft.Extensions.AI.ChatFinishReason(update.FinishReason?.ToString());
-                    }
-
-                    if (update.Role is not null)
-                    {
-                        result.Role = new Microsoft.Extensions.AI.ChatRole(update.Role.ToString().ToLowerInvariant());
-                    }
+                    var result = CreateStreamingResponseUpdate(update);
 
                     responseId ??= result.ResponseId;
                     modelId ??= result.ModelId;
@@ -294,6 +279,42 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                     """)],
             };
         }
+    }
+
+    /// <summary>
+    /// Converts one Azure streaming update into the framework streaming update shape.
+    /// </summary>
+    /// <param name="update">The Azure streaming update.</param>
+    /// <returns>The framework streaming update.</returns>
+    internal static Microsoft.Extensions.AI.ChatResponseUpdate CreateStreamingResponseUpdate(StreamingChatCompletionUpdate update)
+    {
+        var contentUpdate = update.ContentUpdate;
+        var contents = new List<Microsoft.Extensions.AI.AIContent>(contentUpdate.Count);
+
+        foreach (var content in contentUpdate)
+        {
+            contents.Add(new Microsoft.Extensions.AI.TextContent(content.Text));
+        }
+
+        var result = new Microsoft.Extensions.AI.ChatResponseUpdate
+        {
+            ResponseId = update.CompletionId,
+            CreatedAt = update.CreatedAt,
+            ModelId = update.Model,
+            Contents = contents,
+        };
+
+        if (update.FinishReason is not null)
+        {
+            result.FinishReason = new Microsoft.Extensions.AI.ChatFinishReason(update.FinishReason?.ToString());
+        }
+
+        if (update.Role is not null)
+        {
+            result.Role = new Microsoft.Extensions.AI.ChatRole(update.Role.ToString().ToLowerInvariant());
+        }
+
+        return result;
     }
 
     private async Task ProcessToolCallsAsync(List<ChatMessage> prompts, IEnumerable<ChatToolCall> toolCalls, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)

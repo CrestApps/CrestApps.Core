@@ -617,6 +617,76 @@ public sealed class AzureOpenAICompletionClientPromptTests
     }
 
     /// <summary>
+    /// Verifies Azure streaming update conversion preserves metadata and content order.
+    /// </summary>
+    [Fact]
+    public void CreateStreamingResponseUpdate_WithMetadataAndContent_PreservesContract()
+    {
+        var createdAt = new DateTimeOffset(2026, 7, 16, 1, 2, 3, TimeSpan.Zero);
+        var update = OpenAIChatModelFactory.StreamingChatCompletionUpdate(
+            completionId: "completion-1",
+            contentUpdate: new ChatMessageContent(
+            [
+                ChatMessageContentPart.CreateTextPart("first"),
+                ChatMessageContentPart.CreateImagePart(BinaryData.FromBytes([1, 2]), "image/png"),
+                ChatMessageContentPart.CreateTextPart("third"),
+            ]),
+            functionCallUpdate: null,
+            toolCallUpdates: [],
+            role: ChatMessageRole.Assistant,
+            refusalUpdate: null,
+            contentTokenLogProbabilities: [],
+            refusalTokenLogProbabilities: [],
+            finishReason: ChatFinishReason.Stop,
+            createdAt: createdAt,
+            model: "model-1",
+            systemFingerprint: "fingerprint-1",
+            usage: null);
+
+        var result = AzureOpenAICompletionClient.CreateStreamingResponseUpdate(update);
+
+        Assert.Equal("completion-1", result.ResponseId);
+        Assert.Equal(createdAt, result.CreatedAt);
+        Assert.Equal("model-1", result.ModelId);
+        Assert.Equal("Stop", result.FinishReason.ToString());
+        Assert.Equal("assistant", result.Role.ToString());
+        Assert.Collection(
+            result.Contents,
+            content => Assert.Equal("first", Assert.IsType<TextContent>(content).Text),
+            content => Assert.Equal(string.Empty, Assert.IsType<TextContent>(content).Text),
+            content => Assert.Equal("third", Assert.IsType<TextContent>(content).Text));
+    }
+
+    /// <summary>
+    /// Verifies Azure streaming update conversion leaves nullable metadata unset.
+    /// </summary>
+    [Fact]
+    public void CreateStreamingResponseUpdate_WithoutNullableMetadata_LeavesValuesUnset()
+    {
+        var update = OpenAIChatModelFactory.StreamingChatCompletionUpdate(
+            completionId: "completion-2",
+            contentUpdate: new ChatMessageContent(),
+            functionCallUpdate: null,
+            toolCallUpdates: [],
+            role: null,
+            refusalUpdate: null,
+            contentTokenLogProbabilities: [],
+            refusalTokenLogProbabilities: [],
+            finishReason: null,
+            createdAt: default,
+            model: null,
+            systemFingerprint: null,
+            usage: null);
+
+        var result = AzureOpenAICompletionClient.CreateStreamingResponseUpdate(update);
+
+        Assert.Equal("completion-2", result.ResponseId);
+        Assert.Null(result.FinishReason);
+        Assert.Null(result.Role);
+        Assert.Empty(result.Contents);
+    }
+
+    /// <summary>
     /// Invokes a completion path and drains streaming output when requested.
     /// </summary>
     /// <param name="client">The completion client.</param>

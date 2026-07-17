@@ -1864,3 +1864,30 @@ order, duplicate references, and source-object identity remain stable. A null co
 tolerated without throwing, null elements still fail eagerly during filtering, and `int.MinValue` through
 `1` continue to mean all eligible history while positive values above `1`, including `int.MaxValue`, mean
 the eligible tail.
+
+## Azure OpenAI streaming update conversion
+
+Run the comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*AzureOpenAIStreamingUpdateConversionBenchmarks*'
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8, the short-run job, .NET 10.0.5,
+and an Apple M2. Each operation converts 1,000 synthetic Azure streaming updates. Global setup
+fails unless the legacy LINQ projection and production converter produce identical response IDs,
+creation times, model IDs, finish reasons, roles, content counts, and text content in ordinal order.
+
+| Content parts per update | Legacy | Current | Change |
+| ---: | ---: | ---: | ---: |
+| 1 | 241.4 us / 408.67 KB | 102.0 us / 330.54 KB | 57.7% faster / 19.1% fewer allocations |
+| 8 | 345.8 us / 822.79 KB | 358.8 us / 713.40 KB | 13.3% fewer allocations; timing neutral |
+| 64 | 3,332.9 us / 4,393.56 KB | 2,131.6 us / 3,776.29 KB | 36.0% faster / 14.1% fewer allocations |
+
+The retained path replaces the per-update `Select`/`Cast` iterator chain with a pre-sized list and a
+single typed loop. It preserves the previous behavior of creating one `TextContent` for every SDK
+content part, including non-text parts whose SDK `Text` value is an empty string. Allocation
+reduction is deterministic across all tested chunk sizes; the eight-part timing result was noisy, so
+only its allocation reduction is claimed.
