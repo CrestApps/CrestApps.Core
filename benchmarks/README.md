@@ -1665,3 +1665,85 @@ Consolidating the existing FTP and SFTP handlers onto the remote-file base would
 download-size limit, while replacing the stream-reader path could change encoding and BOM behavior.
 Tool argument and metadata prompt micro-optimizations remain dominated by remote calls or sorting,
 so production keeps their simpler implementations.
+
+## EntityCore chat-session document I/O
+
+Run the retained paging and save comparisons, plus the rejected narrow-deserialization
+experiment, from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*EntityCoreAIChatSession*Benchmarks*'
+```
+
+These same-process measurements use BenchmarkDotNet 0.15.8 on .NET 10.0.5 and an Apple M2.
+Paging uses two warmups and six measured iterations. Saves use one invocation per iteration,
+five warmups, and fifteen measured iterations so each result represents one database update.
+All payloads contain valid ASCII JSON with exact 1 KB, 64 KB, or 1 MB lengths.
+
+### Retained page projection
+
+The production page query now selects only the indexed summary columns and serialized content,
+instead of materializing both `AIChatSessionRecord` and `DocumentRecord`. Full
+`AIChatSession` deserialization remains deferred so malformed-payload exception timing and
+validation semantics are unchanged.
+
+| Payload | Rows | Legacy allocation | Projected allocation | Change |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 KB | 1 | 41.02 KB | 48.54 KB | 7.52 KB more |
+| 1 KB | 20 | 145.29 KB | 142.32 KB | 2.0% fewer |
+| 1 KB | 200 | 1,136.22 KB | 1,029.56 KB | 9.4% fewer |
+| 64 KB | 1 | 229.80 KB | 237.85 KB | 8.05 KB more |
+| 64 KB | 20 | 3,926.47 KB | 3,922.89 KB | 3.58 KB fewer |
+| 64 KB | 200 | 38,941.85 KB | 38,834.27 KB | 107.58 KB fewer |
+| 1 MB | 1 | 3,110.54 KB | 3,119.01 KB | 8.47 KB more |
+| 1 MB | 20 | 61,530.82 KB | 61,527.22 KB | 3.60 KB fewer |
+| 1 MB | 200 | 614,945.54 KB | 614,832.63 KB | 112.91 KB fewer |
+
+The MVC session page requests up to 200 rows, where the projection consistently removes about
+107-113 KB. One-row controls expose a roughly 8 KB fixed projection cost. Timing varied heavily
+once SQLite and large-object collections dominated, so no page-latency claim is made. The view's
+two `Any()` checks use LINQ's cheap-count path and do not repeat JSON deserialization.
+
+### Retained update path
+
+Existing session updates now query the indexed record without loading the previous JSON document.
+A key-only `DocumentRecord` is attached and only its content property is marked modified. The
+manager updates `LastActivityUtc` on every save, so explicitly staging the document write matches
+the existing write-path intent.
+
+| Payload | Legacy allocation | Current allocation | Change |
+| ---: | ---: | ---: | ---: |
+| 1 KB | 91.45 KB | 92.31 KB | Allocations effectively unchanged |
+| 64 KB | 406.45 KB | 281.31 KB | 30.8% fewer |
+| 1 MB | 5,206.45 KB | 3,161.31 KB | 39.3% fewer |
+
+Save timings varied materially across repeated in-memory SQLite runs, so no latency claim is made.
+The removed payload-sized allocation and database read are deterministic. Regression coverage
+verifies that a large existing document is replaced, only document content is marked modified,
+the document type remains intact, and the updated session round-trips.
+
+### Narrow summary deserialization rejected
+
+Deserializing a timestamp-only type is substantially cheaper on valid documents:
+
+| Payload | Rows | Full session | Timestamp-only projection |
+| ---: | ---: | ---: | ---: |
+| 1 KB | 1 | 0.939 us / 2,216 B | 0.336 us / 32 B |
+| 1 KB | 20 | 18.914 us / 44,320 B | 7.787 us / 640 B |
+| 1 KB | 200 | 181.700 us / 443,200 B | 60.134 us / 6,400 B |
+| 64 KB | 1 | 12.458 us / 66,728 B | 6.400 us / 32 B |
+| 64 KB | 20 | 234.966 us / 1,334,560 B | 124.059 us / 640 B |
+| 64 KB | 200 | 2.208 ms / 13,345,600 B | 1.182 ms / 6,400 B |
+| 1 MB | 1 | 0.205 ms / 1,050,417 B | 0.082 ms / 32 B |
+| 1 MB | 20 | 4.298 ms / 21,007,783 B | 1.674 ms / 640 B |
+| 1 MB | 200 | 42.689 ms / 210,079,914 B | 17.375 ms / 6,400 B |
+
+The narrow path was rejected despite these gains. It accepts corrupt known properties that full
+deserialization rejects, including invalid `CreatedUtc`, object-shaped `Documents`, and string
+enum values. Production therefore continues to deserialize the full `AIChatSession`, preserving
+missing and null timestamps, case-insensitive names, last-duplicate-wins behavior, large nested
+payloads, malformed JSON failures, and failures from malformed non-summary properties. A value-type
+page projection was also rejected because it allocated more at 200 rows and produced worse timing
+than the retained anonymous reference projection.

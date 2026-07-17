@@ -85,17 +85,39 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         var skip = (page - 1) * pageSize;
         var total = await query.CountAsync(cancellationToken);
         var records = await query
-            .Include(x => x.Document)
             .OrderByDescending(x => x.CreatedUtc)
             .ThenByDescending(x => x.LastActivityUtc)
             .Skip(skip)
             .Take(pageSize)
+            .Select(x => new
+            {
+                x.SessionId,
+                x.ProfileId,
+                x.Title,
+                x.UserId,
+                x.ClientId,
+                x.Status,
+                x.CreatedUtc,
+                DocumentContent = x.Document.Content,
+                x.LastActivityUtc,
+            })
             .ToListAsync(cancellationToken);
 
         return new AIChatSessionResult
         {
             Count = total,
-            Sessions = records.Select(s => new AIChatSessionEntry { SessionId = s.SessionId, ProfileId = s.ProfileId, Title = s.Title, UserId = s.UserId, ClientId = s.ClientId, Status = s.Status, CreatedUtc = s.CreatedUtc, ModifiedUtc = EntityCoreStoreSerializer.Deserialize<AIChatSession>(s.Document.Content).ModifiedUtc, LastActivityUtc = s.LastActivityUtc, }),
+            Sessions = records.Select(s => new AIChatSessionEntry
+            {
+                SessionId = s.SessionId,
+                ProfileId = s.ProfileId,
+                Title = s.Title,
+                UserId = s.UserId,
+                ClientId = s.ClientId,
+                Status = s.Status,
+                CreatedUtc = s.CreatedUtc,
+                ModifiedUtc = EntityCoreStoreSerializer.Deserialize<AIChatSession>(s.DocumentContent).ModifiedUtc,
+                LastActivityUtc = s.LastActivityUtc,
+            }),
         };
     }
 
@@ -170,7 +192,6 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
 
         chatSession.LastActivityUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var record = await _dbContext.AIChatSessionRecords
-            .Include(x => x.Document)
             .FirstOrDefaultAsync(x => x.SessionId == chatSession.SessionId, cancellationToken);
 
         if (record is null)
@@ -301,7 +322,7 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         };
     }
 
-    private static void UpdateRecord(AIChatSessionRecord record, AIChatSession session)
+    private void UpdateRecord(AIChatSessionRecord record, AIChatSession session)
     {
         record.ProfileId = session.ProfileId;
         record.Title = session.Title;
@@ -310,6 +331,18 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
         record.Status = session.Status;
         record.CreatedUtc = session.CreatedUtc;
         record.LastActivityUtc = session.LastActivityUtc;
-        record.Document.Content = EntityCoreStoreSerializer.Serialize(session);
+        var document = _dbContext.Documents.Local.FirstOrDefault(x => x.Id == record.DocumentId);
+
+        if (document is null)
+        {
+            document = new DocumentRecord
+            {
+                Id = record.DocumentId,
+            };
+            _dbContext.Documents.Attach(document);
+        }
+
+        document.Content = EntityCoreStoreSerializer.Serialize(session);
+        _dbContext.Entry(document).Property(x => x.Content).IsModified = true;
     }
 }

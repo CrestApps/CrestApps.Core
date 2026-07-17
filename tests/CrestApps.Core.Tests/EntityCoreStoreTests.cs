@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.DataSources;
@@ -7,6 +8,7 @@ using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Data.EntityCore;
+using CrestApps.Core.Data.EntityCore.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
@@ -242,6 +244,180 @@ public sealed class EntityCoreStoreTests
         Assert.Equal(1, await sessionManager.DeleteAllAsync(profile.ItemId, cancellationToken));
         await committer.CommitAsync(cancellationToken);
         Assert.Null(await sessionManager.FindAsync(session.SessionId, cancellationToken));
+    }
+
+    [Theory]
+    [InlineData("{}", null)]
+    [InlineData("""{"ModifiedUtc":null}""", null)]
+    [InlineData("""{"modifiedutc":"2026-07-13T12:34:56.789Z"}""", "2026-07-13T12:34:56.789Z")]
+    [InlineData("""{"ModifiedUtc":"2026-07-13T12:34:56Z","MODIFIEDUTC":"2026-07-14T01:02:03Z"}""", "2026-07-14T01:02:03Z")]
+    public async Task Entity_core_chat_session_page_preserves_modified_utc_payload_semantics(
+        string payload,
+        string expectedModifiedUtc)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var result = await AddRawSessionAndPageAsync(scope.ServiceProvider, payload, cancellationToken);
+
+        var entry = Assert.Single(result.Sessions);
+        var expected = expectedModifiedUtc is null
+            ? (DateTime?)null
+            : DateTime.Parse(
+                expectedModifiedUtc,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind);
+
+        Assert.Equal(expected, entry.ModifiedUtc);
+    }
+
+    [Fact]
+    public async Task Entity_core_chat_session_page_handles_large_nested_payload()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var expectedModifiedUtc = new DateTime(2026, 7, 13, 12, 34, 56, DateTimeKind.Utc);
+        var payload = JsonSerializer.Serialize(new AIChatSession
+        {
+            ModifiedUtc = expectedModifiedUtc,
+            Properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Nested"] = new
+                {
+                    Values = Enumerable.Range(0, 64)
+                        .Select(index => new
+                        {
+                            Index = index,
+                            Text = new string((char)('a' + index % 26), 16 * 1024),
+                        })
+                        .ToArray(),
+                },
+            },
+        });
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var result = await AddRawSessionAndPageAsync(scope.ServiceProvider, payload, cancellationToken);
+
+        Assert.True(payload.Length > 1_048_576);
+        Assert.Equal(expectedModifiedUtc, Assert.Single(result.Sessions).ModifiedUtc);
+    }
+
+    [Theory]
+    [InlineData("{\"ModifiedUtc\":\"2026-07-13T12:34:56Z\"")]
+    [InlineData("""{"ModifiedUtc":"not-a-date"}""")]
+    [InlineData("""{"ModifiedUtc":"2026-07-13T12:34:56Z","CreatedUtc":"not-a-date"}""")]
+    [InlineData("""{"ModifiedUtc":"2026-07-13T12:34:56Z","Documents":{}}""")]
+    [InlineData("""{"ModifiedUtc":"2026-07-13T12:34:56Z","Status":"Active"}""")]
+    public async Task Entity_core_chat_session_page_rejects_malformed_payloads(string payload)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var result = await AddRawSessionAndPageAsync(scope.ServiceProvider, payload, cancellationToken);
+
+        Assert.Throws<JsonException>(() => result.Sessions.ToArray());
+    }
+
+    [Fact]
+    public async Task Entity_core_chat_session_page_supports_view_style_multiple_enumeration()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstModifiedUtc = new DateTime(2026, 7, 13, 12, 34, 56, DateTimeKind.Utc);
+        var secondModifiedUtc = firstModifiedUtc.AddMinutes(1);
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var dbContext = services.GetRequiredService<CrestAppsEntityDbContext>();
+        AddRawSession(dbContext, "session-payload-1", firstModifiedUtc, firstModifiedUtc);
+        AddRawSession(dbContext, "session-payload-2", secondModifiedUtc, secondModifiedUtc);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var result = await services.GetRequiredService<IAIChatSessionManager>().PageAsync(
+            1,
+            200,
+            new AIChatSessionQueryContext
+            {
+                ProfileId = "profile-payload",
+            },
+            cancellationToken);
+
+        Assert.True(result.Sessions.Any());
+        Assert.True(result.Sessions.Any());
+
+        var entries = result.Sessions.OrderByDescending(entry => entry.CreatedUtc).ToArray();
+
+        Assert.Equal(2, entries.Length);
+        Assert.Equal(secondModifiedUtc, entries[0].ModifiedUtc);
+        Assert.Equal(firstModifiedUtc, entries[1].ModifiedUtc);
+    }
+
+    [Fact]
+    public async Task Entity_core_chat_session_update_replaces_large_document_payload()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var createdUtc = new DateTime(2026, 7, 13, 12, 34, 56, DateTimeKind.Utc);
+        var originalPayload = JsonSerializer.Serialize(new AIChatSession
+        {
+            SessionId = "session-update",
+            ProfileId = "profile-payload",
+            Title = "Original",
+            CreatedUtc = createdUtc,
+            LastActivityUtc = createdUtc,
+            Properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Payload"] = new string('x', 1_048_576),
+            },
+        });
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var dbContext = services.GetRequiredService<CrestAppsEntityDbContext>();
+        AddRawSession(
+            dbContext,
+            "session-update",
+            createdUtc,
+            originalPayload);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+
+        var updatedModifiedUtc = createdUtc.AddMinutes(1);
+        await services.GetRequiredService<IAIChatSessionManager>().SaveAsync(
+            new AIChatSession
+            {
+                SessionId = "session-update",
+                ProfileId = "profile-payload",
+                Title = "Updated",
+                CreatedUtc = createdUtc,
+                ModifiedUtc = updatedModifiedUtc,
+                LastActivityUtc = createdUtc,
+                Properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Updated"] = true,
+                },
+            },
+            cancellationToken);
+
+        var documentEntry = Assert.Single(dbContext.ChangeTracker.Entries<DocumentRecord>());
+
+        Assert.True(documentEntry.Property(x => x.Content).IsModified);
+        Assert.False(documentEntry.Property(x => x.Type).IsModified);
+
+        await services.GetRequiredService<IStoreCommitter>().CommitAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+
+        var stored = await services.GetRequiredService<IAIChatSessionManager>()
+            .FindByIdAsync("session-update", cancellationToken);
+
+        Assert.Equal("Updated", stored.Title);
+        Assert.Equal(updatedModifiedUtc, stored.ModifiedUtc);
+        Assert.True(stored.Properties.ContainsKey("Updated"));
+        Assert.Equal(
+            typeof(AIChatSession).FullName,
+            await dbContext.Documents.Select(x => x.Type).SingleAsync(cancellationToken));
     }
 
     [Fact]
@@ -622,6 +798,67 @@ public sealed class EntityCoreStoreTests
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task<AIChatSessionResult> AddRawSessionAndPageAsync(
+        IServiceProvider services,
+        string payload,
+        CancellationToken cancellationToken)
+    {
+        var dbContext = services.GetRequiredService<CrestAppsEntityDbContext>();
+        AddRawSession(
+            dbContext,
+            "session-payload",
+            new DateTime(2026, 7, 13, 12, 34, 56, DateTimeKind.Utc),
+            payload);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return await services.GetRequiredService<IAIChatSessionManager>().PageAsync(
+            1,
+            10,
+            new AIChatSessionQueryContext
+            {
+                ProfileId = "profile-payload",
+            },
+            cancellationToken);
+    }
+
+    private static void AddRawSession(
+        CrestAppsEntityDbContext dbContext,
+        string sessionId,
+        DateTime createdUtc,
+        DateTime? modifiedUtc)
+    {
+        AddRawSession(
+            dbContext,
+            sessionId,
+            createdUtc,
+            JsonSerializer.Serialize(new AIChatSession
+            {
+                ModifiedUtc = modifiedUtc,
+            }));
+    }
+
+    private static void AddRawSession(
+        CrestAppsEntityDbContext dbContext,
+        string sessionId,
+        DateTime createdUtc,
+        string payload)
+    {
+        dbContext.AIChatSessionRecords.Add(new AIChatSessionRecord
+        {
+            Document = new DocumentRecord
+            {
+                Type = typeof(AIChatSession).FullName!,
+                Content = payload,
+            },
+            SessionId = sessionId,
+            ProfileId = "profile-payload",
+            Title = sessionId,
+            Status = ChatSessionStatus.Active,
+            CreatedUtc = createdUtc,
+            LastActivityUtc = createdUtc,
+        });
     }
 
     private sealed class EntityCoreTestHarness : IAsyncDisposable

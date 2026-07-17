@@ -23,6 +23,7 @@
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
+    <ProjectReference Include="../../src/Stores/CrestApps.Core.Data.EntityCore/CrestApps.Core.Data.EntityCore.csproj" />
     <ProjectReference Include="../../src/Stores/CrestApps.Core.Data.YesSql/CrestApps.Core.Data.YesSql.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />
     <ProjectReference Include="../../src/Utilities/CrestApps.Core.Support/CrestApps.Core.Support.csproj" />
