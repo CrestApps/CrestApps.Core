@@ -1747,3 +1747,35 @@ missing and null timestamps, case-insensitive names, last-duplicate-wins behavio
 payloads, malformed JSON failures, and failures from malformed non-summary properties. A value-type
 page projection was also rejected because it allocated more at 200 rows and produced worse timing
 than the retained anonymous reference projection.
+
+## Citation reference rescan candidate
+
+Run the streaming citation reference rescan comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*CitationReferenceRescan*'
+```
+
+The measurements use BenchmarkDotNet 0.15.8, ShortRun, .NET 10.0.5, and an Apple M2.
+The current benchmark reproduces the production streaming path by adding one tool reference and
+collecting after each add-event. The candidate models resolving only the newly added reference.
+
+| Resolution | References | Current | Incremental candidate | Candidate allocation change |
+| --- | ---: | ---: | ---: | ---: |
+| Resolved | 16 | 5.508 us / 7.36 KB | 1.918 us / 6.16 KB | 16.3% fewer |
+| Resolved | 64 | 43.727 us / 29.83 KB | 8.680 us / 25.08 KB | 15.9% fewer |
+| Resolved | 256 | 469.723 us / 125.88 KB | 58.690 us / 103.85 KB | 17.5% fewer |
+| Unresolved | 16 | 13.454 us / 31.92 KB | 2.405 us / 5.41 KB | 83.1% fewer |
+| Unresolved | 64 | 178.551 us / 452.08 KB | 7.897 us / 22.08 KB | 95.1% fewer |
+| Unresolved | 256 | 3,116.132 us / 6,998.88 KB | 38.663 us / 91.85 KB | 98.7% fewer |
+
+The incremental candidate was rejected. It is output-equivalent for deterministic, side-effect-free
+resolvers, but it changes the documented resolver call-count contract for unresolved references from
+one retry per later add-event to one attempt total. A resolver can observe those calls, become
+resolvable later, or use the per-call metadata object identity, so the large unresolved-case savings
+are not behavior-preserving. The resolved-case allocation reduction is only about 16-18% and comes
+from a path that normally runs once per streamed citation add-event, so production keeps the existing
+full-rescan implementation. Characterization tests pin the current retry behavior, no-new-reference
+short-circuit, preemptive-reference interaction, and deterministic output contract.
