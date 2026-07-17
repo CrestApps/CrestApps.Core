@@ -2101,3 +2101,23 @@ and normalization bonuses, primary-rule score/severity precedence, first-seen or
 stable equal-score reason selection, duplicate/null reason handling, telemetry mutation timing, and
 exact reason text while avoiding the repeated LINQ aggregation and sort allocations. No source
 experiments were rejected in this checkpoint run.
+
+## Templates and utilities log sanitization
+
+| Scenario | Legacy replace chain | Current scanner | Change |
+| --- | ---: | ---: | ---: |
+| Clean short value | 15.004 ns / 0 B | 4.122 ns / 0 B | 72.5% faster / allocation-free in both paths |
+| Line-feed-only repeated value | 1,849.278 ns / 2,328 B | 1,425.801 ns / 2,328 B | 22.9% faster / allocations unchanged |
+| Carriage-return-only repeated value | 2,100.703 ns / 2,328 B | 1,480.079 ns / 2,328 B | 29.5% faster / allocations unchanged |
+| Mixed short CR/LF value | 73.764 ns / 160 B | 46.769 ns / 80 B | 36.6% faster / 50.0% fewer allocations |
+| Mixed 1 KB CR/LF value | 2,905.393 ns / 4,152 B | 1,569.335 ns / 2,000 B | 46.0% faster / 51.8% fewer allocations |
+| Mixed 100 KB CR/LF value | 245,460.283 ns / 410,038 B | 132,591.583 ns / 197,431 B | 46.0% faster / 51.9% fewer allocations |
+
+The retained `SanitizeForLog` implementation scans for carriage-return and line-feed characters
+before allocating. Values that do not need sanitization return unchanged, preserving the prior
+ordinal output while avoiding the two replace calls. When both CR and LF are present, the scanner
+creates only the final sanitized string instead of the intermediate string created by the legacy
+replace chain. Single-newline-kind inputs still require one final string allocation, so the retained
+benefit there is latency only; the allocation-first acceptance is based on the mixed CR/LF logging
+inputs common to injected or platform-combined log values. The benchmark global setup compares the
+legacy reproduction with production for every scenario before measurement.

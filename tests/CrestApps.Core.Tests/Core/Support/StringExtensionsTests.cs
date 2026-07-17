@@ -181,4 +181,59 @@ public sealed class StringExtensionsTests
         Assert.Equal(content, title);
         Assert.NotSame(content, title);
     }
+
+    /// <summary>
+    /// Verifies that null log content sanitizes to an empty string.
+    /// </summary>
+    [Fact]
+    public void SanitizeForLog_NullValue_ReturnsEmptyString()
+    {
+        string value = null;
+
+        var sanitized = value.SanitizeForLog();
+
+        Assert.Same(string.Empty, sanitized);
+    }
+
+    /// <summary>
+    /// Verifies that content without line breaks is preserved exactly.
+    /// </summary>
+    [Fact]
+    public void SanitizeForLog_ValueWithoutLineBreaks_ReturnsOriginalValue()
+    {
+        var value = "Provider-01: ready\t✓";
+
+        var sanitized = value.SanitizeForLog();
+
+        Assert.Equal(value, sanitized);
+        Assert.Same(value, sanitized);
+    }
+
+    /// <summary>
+    /// Verifies that carriage returns and line feeds are removed without changing other characters.
+    /// </summary>
+    [Theory]
+    [InlineData("alpha\rbeta", "alphabeta")]
+    [InlineData("alpha\nbeta", "alphabeta")]
+    [InlineData("alpha\r\nbeta", "alphabeta")]
+    [InlineData("\r\nalpha\n\rbeta\r\n", "alphabeta")]
+    [InlineData("alpha\u2028beta\u2029\ngamma\rdelta", "alpha\u2028beta\u2029gammadelta")]
+    public void SanitizeForLog_LineBreaks_RemovesOnlyCarriageReturnsAndLineFeeds(string value, string expected)
+    {
+        var sanitized = value.SanitizeForLog();
+
+        Assert.Equal(expected, sanitized);
+    }
+
+    /// <summary>
+    /// Verifies that empty content remains empty.
+    /// </summary>
+    [Fact]
+    public void SanitizeForLog_EmptyValue_ReturnsEmptyString()
+    {
+        var sanitized = string.Empty.SanitizeForLog();
+
+        Assert.Same(string.Empty, sanitized);
+    }
+
 }

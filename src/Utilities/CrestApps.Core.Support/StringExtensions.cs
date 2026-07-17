@@ -9,7 +9,56 @@ public static class StringExtensions
     /// <param name="value">The value.</param>
     public static string SanitizeForLog(this string value)
     {
-        return value?.Replace("\r", "").Replace("\n", "") ?? string.Empty;
+        if (value is null)
+        {
+            return string.Empty;
+        }
+
+        var valueSpan = value.AsSpan();
+        var firstLineBreakIndex = valueSpan.IndexOfAny('\r', '\n');
+
+        if (firstLineBreakIndex < 0)
+        {
+            return value;
+        }
+
+        var lineBreakCount = CountLineBreakCharacters(valueSpan[firstLineBreakIndex..]);
+
+        return string.Create(value.Length - lineBreakCount, value, static (buffer, source) =>
+        {
+            var destinationIndex = 0;
+
+            foreach (var character in source)
+            {
+                if (character is '\r' or '\n')
+                {
+                    continue;
+                }
+
+                buffer[destinationIndex] = character;
+                destinationIndex++;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Counts carriage return and line feed characters in the value.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns>The number of line break characters.</returns>
+    private static int CountLineBreakCharacters(ReadOnlySpan<char> value)
+    {
+        var count = 0;
+
+        foreach (var character in value)
+        {
+            if (character is '\r' or '\n')
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>
@@ -33,5 +82,4 @@ public static class StringExtensions
 
         return firstLine.Trim().ToString();
     }
-
 }
