@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,9 +15,11 @@ namespace CrestApps.Core.Filters;
 /// </summary>
 /// <remarks>
 /// Hub methods that perform fire-and-forget async work (e.g., streaming via
-/// <c>ChannelReader</c>) must call <see cref="IStoreCommitter.CommitAsync"/> explicitly
-/// from inside the async lambda, because the hub method returns before the work
-/// completes and this filter commits too early for those cases.
+/// <c>ChannelReader&lt;T&gt;</c> or <c>IAsyncEnumerable&lt;T&gt;</c>) must call
+/// <see cref="IStoreCommitter.CommitAsync"/> explicitly from inside the async lambda,
+/// because the hub method returns before the work completes. This filter detects such
+/// streaming results and skips committing for them, so it never commits concurrently
+/// with the still-running background task on the same non-thread-safe store session.
 /// </remarks>
 public sealed class StoreCommitterHubFilter : IHubFilter
 {
@@ -42,6 +45,22 @@ public sealed class StoreCommitterHubFilter : IHubFilter
     {
         var result = await next(invocationContext);
 
+        // Streaming hub methods (returning ChannelReader<T> or IAsyncEnumerable<T>) run their
+        // work fire-and-forget and return before it completes. They commit their own staged
+        // writes from inside the async lambda. Committing here would run concurrently with that
+        // still-running background task on the same non-thread-safe store session, which can
+        // drop or corrupt writes (the race only manifests when the background work completes
+        // quickly, e.g. against a fast completion provider). Skip the commit for those results.
+        if (IsStreamingResult(result))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("StoreCommitterHubFilter skipping commit after streaming hub method '{HubMethod}' on hub '{HubName}' (result type '{ResultType}'); the streaming method self-commits.", invocationContext.HubMethodName, invocationContext.Hub.GetType().Name, result?.GetType().Name ?? "null");
+            }
+
+            return result;
+        }
+
         var committer = invocationContext.ServiceProvider.GetRequiredService<IStoreCommitter>();
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -51,6 +70,34 @@ public sealed class StoreCommitterHubFilter : IHubFilter
         await committer.CommitAsync();
 
         return result;
+    }
+
+    private static bool IsStreamingResult(object? result)
+    {
+        if (result is null)
+        {
+            return false;
+        }
+
+        var type = result.GetType();
+
+        foreach (var interfaceType in type.GetInterfaces())
+        {
+            if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+            {
+                return true;
+            }
+        }
+
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(ChannelReader<>))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
