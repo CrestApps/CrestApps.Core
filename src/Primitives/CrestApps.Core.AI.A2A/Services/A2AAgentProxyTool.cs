@@ -15,6 +15,25 @@ namespace CrestApps.Core.AI.A2A.Services;
 /// </summary>
 internal sealed class A2AAgentProxyTool : AIFunction
 {
+    private static readonly JsonElement _jsonSchema = JsonElement.Parse(
+        """
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "The message or task to send to the remote agent for processing."
+            },
+            "contextId": {
+              "type": "string",
+              "description": "An optional context identifier to maintain conversation continuity with the remote agent."
+            }
+          },
+          "required": ["message"]
+        }
+
+        """);
+
     private readonly string _agentName;
     private readonly string _description;
     private readonly string _endpoint;
@@ -43,24 +62,8 @@ internal sealed class A2AAgentProxyTool : AIFunction
 
     public override string Description => _description;
 
-    public override JsonElement JsonSchema { get; } = JsonElement.Parse(
-        """
-        {
-          "type": "object",
-          "properties": {
-            "message": {
-              "type": "string",
-              "description": "The message or task to send to the remote agent for processing."
-            },
-            "contextId": {
-              "type": "string",
-              "description": "An optional context identifier to maintain conversation continuity with the remote agent."
-            }
-          },
-          "required": ["message"]
-        }
+    public override JsonElement JsonSchema => _jsonSchema;
 
-        """);
     public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object>()
     {
         ["Strict"] = false,
@@ -143,7 +146,17 @@ internal sealed class A2AAgentProxyTool : AIFunction
         }
     }
 
-    private static bool TryGetString(AIFunctionArguments arguments, string key, out string value)
+    /// <summary>
+    /// Gets a string argument from a direct string or JSON string value.
+    /// </summary>
+    /// <param name="arguments">The function arguments.</param>
+    /// <param name="key">The argument key.</param>
+    /// <param name="value">The extracted string value.</param>
+    /// <returns><see langword="true"/> when a string value was found; otherwise, <see langword="false"/>.</returns>
+    private static bool TryGetString(
+        AIFunctionArguments arguments,
+        string key,
+        out string value)
     {
         value = null;
 
@@ -167,7 +180,12 @@ internal sealed class A2AAgentProxyTool : AIFunction
         return false;
     }
 
-    private static string ExtractTextFromResponse(A2AResponse response)
+    /// <summary>
+    /// Extracts ordered text content from an A2A message or task response.
+    /// </summary>
+    /// <param name="response">The A2A response.</param>
+    /// <returns>The response text, or <see langword="null"/> when no usable text exists.</returns>
+    internal static string ExtractTextFromResponse(A2AResponse response)
     {
         if (response is AgentMessage message)
         {
@@ -184,7 +202,6 @@ internal sealed class A2AAgentProxyTool : AIFunction
             {
                 var artifactTexts = task.Artifacts
                     .SelectMany(a => a.Parts?.OfType<TextPart>() ?? [])
-
                     .Select(p => p.Text);
 
                 var combined = string.Join(string.Empty, artifactTexts);

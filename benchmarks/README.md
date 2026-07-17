@@ -1891,3 +1891,19 @@ single typed loop. It preserves the previous behavior of creating one `TextConte
 content part, including non-text parts whose SDK `Text` value is an empty string. Allocation
 reduction is deterministic across all tested chunk sizes; the eight-part timing result was noisy, so
 only its allocation reduction is claimed.
+
+## A2A proxy tool schema parsing
+
+| Proxy tools created | Legacy per-instance schema parse | Shared schema | Change |
+| ---: | ---: | ---: | ---: |
+| 1 | 1,340.81 ns / 1,184 B | 94.96 ns / 384 B | 92.9% faster / 67.6% fewer allocations |
+| 100 | 97,453.01 ns / 118,400 B | 12,855.47 ns / 38,400 B | 86.8% faster / 67.6% fewer allocations |
+
+The retained change shares the immutable JSON schema used by A2A proxy tools while keeping each
+proxy's mutable additional-properties dictionary isolated. The benchmark constructs tools entirely
+in memory and excludes remote agent calls, so it measures registry/tool materialization rather than
+network-bound proxy invocation.
+
+A response text-extraction rewrite was not retained for this checkpoint. A2A proxy execution is
+normally dominated by the remote `SendMessageAsync` call, so characterization tests lock the exact
+message, artifact, status fallback, null-text, and no-text contract without changing that path.
