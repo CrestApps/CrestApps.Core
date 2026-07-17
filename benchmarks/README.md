@@ -1907,3 +1907,30 @@ network-bound proxy invocation.
 A response text-extraction rewrite was not retained for this checkpoint. A2A proxy execution is
 normally dominated by the remote `SendMessageAsync` call, so characterization tests lock the exact
 message, artifact, status fallback, null-text, and no-text contract without changing that path.
+
+## Elasticsearch source-document mapping
+
+| Scenario | Legacy | Current | Change |
+| --- | ---: | ---: | ---: |
+| Direct dotted fields, 1,000 documents | 558.4 us / 1.27 MB | 506.4 us / 1.14 MB | 9.3% faster / 10.2% fewer allocations |
+| Direct dotted fields, 10,000 documents | 5,703.0 us / 12.66 MB | 4,616.2 us / 11.37 MB | 19.0% faster / 10.2% fewer allocations |
+| Nested fields, 1,000 documents | 697.0 us / 1.63 MB | 781.1 us / 1.14 MB | 30.1% fewer allocations; timing noisy |
+| Nested fields, 10,000 documents | 8,627.5 us / 16.33 MB | 8,383.6 us / 11.37 MB | 2.8% faster / 30.4% fewer allocations |
+
+The source-document benchmark compares the legacy per-document dotted-path splitting and default
+field dictionary sizing with the current reusable field-path mapper in the same process. Setup
+verifies exact key, title, content, field ordering, comparer, and recursively converted raw field
+values for every generated document before measurement. The retained production change precomputes
+key, title, and content path segments once per read operation and sizes the copied field dictionary
+from the source JSON object. Direct dotted properties still keep direct-property precedence, while
+nested mappings remove repeated `Split('.')` array and segment allocations on the sustained
+per-document path. PostgreSQL identifier helper changes were rejected because that sanitization runs
+once per query setup and is not a sustained per-document hot path.
+
+Run this comparison from the repository root:
+
+```bash
+dotnet run -c Release -f net10.0 \
+  --project benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj \
+  -- --filter '*ElasticsearchSourceDocumentMappingBenchmarks*' --buildTimeout 600
+```
