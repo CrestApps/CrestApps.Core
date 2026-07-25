@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Security;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.YesSql.Indexes;
 using CrestApps.Core.Data.YesSql.Indexes.A2A;
@@ -20,6 +21,7 @@ using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
+using CrestApps.Core.Data.YesSql.Indexes.Tooling;
 using CrestApps.Core.Data.YesSql.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Models;
@@ -259,10 +261,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
         AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(services, static o => o.AICollectionName);
+        AddYesSqlSourceDocumentCatalog<AIToolInstance, AIToolInstanceIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProviderConnectionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDeploymentIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIToolInstanceIndexProvider>());
 
         return services;
     }

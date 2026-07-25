@@ -30,6 +30,7 @@
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2ACatalog
 @inject ICatalog<McpConnection> McpCatalog
+@inject ICatalog<AIToolInstance> ToolInstanceCatalog
 @inject IAIDataSourceStore DataSourceStore
 @inject IAIDocumentStore DocumentStore
 @inject ISearchIndexProfileStore IndexProfileStore
@@ -617,6 +618,30 @@ else if (_model != null)
                             }
                         }
 
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                        @if (_model.AvailableToolInstances.Count == 0)
+                        {
+                            <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-3 small">Select the preconfigured tool instances this profile can use. Each instance carries its own settings and description.</p>
+                            @foreach (var instance in _model.AvailableToolInstances)
+                            {
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" checked="@instance.IsSelected" @onchange="e => ToggleToolInstance(instance.ItemId, (bool)e.Value)" id="toolinstance_@instance.ItemId" />
+                                    <label class="form-check-label" for="toolinstance_@instance.ItemId">
+                                        <strong>@instance.DisplayText</strong>
+                                        <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                        @if (!string.IsNullOrEmpty(instance.Description))
+                                        {
+                                            <br /><small class="text-muted">@instance.Description</small>
+                                        }
+                                    </label>
+                                </div>
+                            }
+                        }
+
                         <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
                         @if (_model.AvailableTools.Count == 0)
                         {
@@ -1152,6 +1177,7 @@ else if (_model != null)
         _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
+        _model.SelectedToolInstanceIds = await GetValidToolInstanceIdsAsync(_model.SelectedToolInstanceIds);
         _model.ApplyTo(existing);
 
         if (_removedDocumentIds.Count > 0)
@@ -1181,12 +1207,14 @@ else if (_model != null)
         _model.SelectedAgentNames = _model.AvailableAgents.Where(a => a.IsSelected).Select(a => a.Name).ToArray();
         _model.SelectedA2AConnectionIds = _model.AvailableA2AConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
         _model.SelectedMcpConnectionIds = _model.AvailableMcpConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
+        _model.SelectedToolInstanceIds = _model.AvailableToolInstances.Where(i => i.IsSelected).Select(i => i.ItemId).ToArray();
     }
 
     private void ToggleTool(string name, bool v) { var t = _model.AvailableTools.FirstOrDefault(x => x.Name == name); if (t != null) t.IsSelected = v; }
     private void ToggleAgent(string name, bool v) { var a = _model.AvailableAgents.FirstOrDefault(x => x.Name == name); if (a != null) a.IsSelected = v; }
     private void ToggleA2A(string id, bool v) { var c = _model.AvailableA2AConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
     private void ToggleMcp(string id, bool v) { var c = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
+    private void ToggleToolInstance(string id, bool v) { var i = _model.AvailableToolInstances.FirstOrDefault(x => x.ItemId == id); if (i != null) i.IsSelected = v; }
     private void SelectAllTools() { foreach (var t in _model.AvailableTools) t.IsSelected = true; }
     private void DeselectAllTools() { foreach (var t in _model.AvailableTools) t.IsSelected = false; }
     private void AddExtractionEntry() => _model.DataExtractionEntries.Add(new DataExtractionEntryItem());
@@ -1345,6 +1373,11 @@ else if (_model != null)
         _model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase)
             .Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId) }).ToList();
 
+        var toolInstances = await ToolInstanceCatalog.GetAllAsync();
+        var selectedToolInstanceIds = new HashSet<string>(_model.SelectedToolInstanceIds ?? [], StringComparer.Ordinal);
+        _model.AvailableToolInstances = toolInstances.OrderBy(i => i.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, DisplayText = i.DisplayText, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceIds.Contains(i.ItemId) }).ToList();
+
         var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(_model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         _model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
@@ -1410,6 +1443,13 @@ else if (_model != null)
     private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await McpCatalog.GetAllAsync()).Select(c => c.ItemId).ToHashSet(StringComparer.Ordinal);
+
+        return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private async Task<string[]> GetValidToolInstanceIdsAsync(IEnumerable<string> selectedIds)
+    {
+        var allIds = (await ToolInstanceCatalog.GetAllAsync()).Select(i => i.ItemId).ToHashSet(StringComparer.Ordinal);
 
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }

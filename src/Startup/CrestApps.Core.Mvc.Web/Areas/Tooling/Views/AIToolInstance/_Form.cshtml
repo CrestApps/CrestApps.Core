@@ -1,0 +1,168 @@
+@using CrestApps.Core.AI.Tooling.Instances
+@using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels
+@model AIToolInstanceViewModel
+
+<form asp-action="@(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Edit")" method="post">
+    @if (!string.IsNullOrEmpty(Model.ItemId))
+    {
+        <input asp-for="ItemId" type="hidden" />
+    }
+    <input asp-for="Source" type="hidden" />
+
+    <div class="col-md-8">
+        <div class="alert alert-secondary">
+            <i class="bi bi-info-circle"></i> Definition: <strong>HTTP API Request</strong>. This instance calls an external HTTP API
+            using the settings below. The AI model only supplies the arguments you allow.
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="DisplayText" class="form-label">Name</label>
+            <input asp-for="DisplayText" class="form-control" placeholder="Weather API" />
+            <span asp-validation-for="DisplayText" class="text-danger"></span>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="Description" class="form-label">Description (shown to the AI model)</label>
+            <textarea asp-for="Description" class="form-control" rows="3"
+                      placeholder="Gets the current weather for a city from the Weather API. Use this when the user asks about the weather."></textarea>
+            <div class="form-text">Describe exactly what this instance does so the model can distinguish it from other instances.</div>
+            <span asp-validation-for="Description" class="text-danger"></span>
+        </div>
+
+        <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
+
+        <div class="mb-3">
+            <label asp-for="BaseUrl" class="form-label">Base URL</label>
+            <input asp-for="BaseUrl" class="form-control" placeholder="https://api.example.com/v1/resource" />
+            <span asp-validation-for="BaseUrl" class="text-danger"></span>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="HttpMethod" class="form-label">HTTP method</label>
+            <select asp-for="HttpMethod" class="form-select">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+                <option value="DELETE">DELETE</option>
+            </select>
+            <span asp-validation-for="HttpMethod" class="text-danger"></span>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="DefaultHeaders" class="form-label">Default headers (JSON object)</label>
+            <textarea asp-for="DefaultHeaders" class="form-control" rows="4" placeholder="{ &quot;Accept&quot;: &quot;application/json&quot; }"></textarea>
+            <span asp-validation-for="DefaultHeaders" class="text-danger"></span>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="TimeoutSeconds" class="form-label">Timeout (seconds, optional)</label>
+            <input asp-for="TimeoutSeconds" class="form-control" type="number" min="1" max="600" placeholder="30" />
+            <span asp-validation-for="TimeoutSeconds" class="text-danger"></span>
+        </div>
+
+        <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-shield-lock"></i> Authentication</h5>
+
+        <div class="mb-3">
+            <label asp-for="AuthenticationType" class="form-label">Authentication type</label>
+            <select asp-for="AuthenticationType" class="form-select" id="authType">
+                @foreach (var authType in Enum.GetValues<HttpApiRequestAuthenticationType>())
+                {
+                    <option value="@((int)authType)" data-auth-type="@authType">@authType</option>
+                }
+            </select>
+        </div>
+
+        <div id="apiKeyFields" class="auth-fields">
+            <div class="mb-3">
+                <label asp-for="ApiKeyHeaderName" class="form-label">API key header name</label>
+                <input asp-for="ApiKeyHeaderName" class="form-control" placeholder="X-Api-Key" />
+                <span asp-validation-for="ApiKeyHeaderName" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="ApiKey" class="form-label">API key</label>
+                <input asp-for="ApiKey" class="form-control" type="password" autocomplete="new-password" />
+                @if (Model.HasApiKey)
+                {
+                    <div class="form-text">Leave blank to keep the existing API key.</div>
+                }
+                <span asp-validation-for="ApiKey" class="text-danger"></span>
+            </div>
+        </div>
+
+        <div id="bearerFields" class="auth-fields">
+            <div class="mb-3">
+                <label asp-for="BearerToken" class="form-label">Bearer token</label>
+                <input asp-for="BearerToken" class="form-control" type="password" autocomplete="new-password" />
+                @if (Model.HasBearerToken)
+                {
+                    <div class="form-text">Leave blank to keep the existing bearer token.</div>
+                }
+                <span asp-validation-for="BearerToken" class="text-danger"></span>
+            </div>
+        </div>
+
+        <div id="basicFields" class="auth-fields">
+            <div class="mb-3">
+                <label asp-for="BasicUsername" class="form-label">Username</label>
+                <input asp-for="BasicUsername" class="form-control" />
+                <span asp-validation-for="BasicUsername" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="BasicPassword" class="form-label">Password</label>
+                <input asp-for="BasicPassword" class="form-control" type="password" autocomplete="new-password" />
+                @if (Model.HasBasicPassword)
+                {
+                    <div class="form-text">Leave blank to keep the existing password.</div>
+                }
+                <span asp-validation-for="BasicPassword" class="text-danger"></span>
+            </div>
+        </div>
+
+        <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
+        <p class="text-muted small">Choose which parts of the request the AI model is allowed to fill in at invocation time.</p>
+
+        <div class="form-check mb-2">
+            <input asp-for="AllowModelProvidedPath" class="form-check-input" type="checkbox" />
+            <label asp-for="AllowModelProvidedPath" class="form-check-label">Allow the model to provide a relative path appended to the base URL</label>
+        </div>
+        <div class="form-check mb-2">
+            <input asp-for="AllowModelProvidedQuery" class="form-check-input" type="checkbox" />
+            <label asp-for="AllowModelProvidedQuery" class="form-check-label">Allow the model to provide query string parameters</label>
+        </div>
+        <div class="form-check mb-2">
+            <input asp-for="AllowModelProvidedBody" class="form-check-input" type="checkbox" />
+            <label asp-for="AllowModelProvidedBody" class="form-check-label">Allow the model to provide a request body</label>
+        </div>
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
+            <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+        </div>
+    </div>
+</form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const authType = document.getElementById('authType');
+        const authGroups = {
+            ApiKey: ['apiKeyFields'],
+            Bearer: ['bearerFields'],
+            Basic: ['basicFields']
+        };
+
+        function updateAuthVisibility() {
+            document.querySelectorAll('.auth-fields').forEach(element => element.style.display = 'none');
+            const selectedAuthType = authType.selectedOptions.length > 0 ? authType.selectedOptions[0].dataset.authType : null;
+            (authGroups[selectedAuthType] || []).forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.style.display = '';
+                }
+            });
+        }
+
+        authType.addEventListener('change', updateAuthVisibility);
+        updateAuthVisibility();
+    });
+</script>

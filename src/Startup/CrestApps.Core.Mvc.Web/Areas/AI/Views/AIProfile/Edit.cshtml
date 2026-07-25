@@ -525,6 +525,36 @@
                         }
                     }
 
+                    <!-- AI Tool Instances Section -->
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                    @if (Model.AvailableToolInstances.Count == 0)
+                    {
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-3 small">Select the preconfigured tool instances this profile can use. Each instance carries its own settings and description.</p>
+                        @foreach (var instance in Model.AvailableToolInstances)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="SelectedToolInstanceIds" value="@instance.ItemId" id="toolinstance_@instance.ItemId"
+                                @(instance.IsSelected ? "checked" : "") />
+                                <label class="form-check-label" for="toolinstance_@instance.ItemId">
+                                    <strong>@instance.DisplayText</strong>
+                                    <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                    @if (!string.IsNullOrEmpty(instance.Description))
+                                    {
+                                        <br />
+
+                                        <small class="text-muted">@instance.Description</small>
+                                    }
+                                </label>
+                            </div>
+                        }
+                    }
+
                     <!-- AI Tools Section -->
                     <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
                     @if (Model.AvailableTools.Count == 0)

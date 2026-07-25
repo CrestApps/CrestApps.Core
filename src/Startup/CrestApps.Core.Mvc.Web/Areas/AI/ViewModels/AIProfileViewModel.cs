@@ -8,9 +8,11 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Security;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
+using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
 using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -100,6 +102,10 @@ public sealed class AIProfileViewModel
     // MCP Connections
     public string[] SelectedMcpConnectionIds { get; set; } = [];
     public List<McpConnectionSelectionItem> AvailableMcpConnections { get; set; } = [];
+
+    // AI Tool Instances
+    public string[] SelectedToolInstanceIds { get; set; } = [];
+    public List<AIToolInstanceSelectionItem> AvailableToolInstances { get; set; } = [];
 
     // Prompt Templates
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
@@ -298,6 +304,11 @@ public sealed class AIProfileViewModel
             vm.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
         }
 
+        if (profile.TryGet<AIProfileToolInstanceMetadata>(out var toolInstanceMetadata))
+        {
+            vm.SelectedToolInstanceIds = toolInstanceMetadata.InstanceIds ?? [];
+        }
+
         if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
         {
             vm.PromptTemplates = (promptMetadata.Templates ?? [])
@@ -440,6 +451,14 @@ public sealed class AIProfileViewModel
         profile.Alter<AIProfileMcpMetadata>(x =>
         {
             x.ConnectionIds = SelectedMcpConnectionIds?
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray() ?? [];
+        });
+
+        profile.Alter<AIProfileToolInstanceMetadata>(x =>
+        {
+            x.InstanceIds = SelectedToolInstanceIds?
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];

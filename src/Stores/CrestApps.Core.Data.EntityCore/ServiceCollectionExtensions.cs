@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Security;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -127,6 +128,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
         services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
         services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
+        services.AddSourceDocumentCatalog<AIToolInstance, SourceDocumentCatalog<AIToolInstance>>();
 
         return services;
     }
