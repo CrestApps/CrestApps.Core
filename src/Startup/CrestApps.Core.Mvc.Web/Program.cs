@@ -182,8 +182,8 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
 
 // Registers the built-in HTTP API request tool definition. Users can create one or more configured
 // instances of this definition (each with its own endpoint, auth, and description) and attach them to
-// AI profiles or chat interactions under "AI Tool Instances".
-builder.Services.AddApiRequestToolInstance();
+// AI profiles or chat interactions under "AI Tool Definitions".
+builder.Services.AddApiRequestToolSource();
 
 // =============================================================================
 // 5. BACKGROUND TASKS AND PIPELINE

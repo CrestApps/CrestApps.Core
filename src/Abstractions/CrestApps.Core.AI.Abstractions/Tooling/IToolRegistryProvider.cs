@@ -12,7 +12,7 @@ public interface IToolRegistryProvider
     /// Retrieves all tool entries available from this provider, scoped to the given context.
     /// </summary>
     /// <param name="context">The completion context containing configured tool names,
-    /// instance IDs, and MCP connection IDs that scope the returned tools.</param>
+    /// tool definition IDs, and MCP connection IDs that scope the returned tools.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A read-only list of tool registry entries from this provider.</returns>
     Task<IReadOnlyList<ToolRegistryEntry>> GetToolsAsync(

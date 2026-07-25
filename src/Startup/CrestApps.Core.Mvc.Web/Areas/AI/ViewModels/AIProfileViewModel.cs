@@ -103,9 +103,9 @@ public sealed class AIProfileViewModel
     public string[] SelectedMcpConnectionIds { get; set; } = [];
     public List<McpConnectionSelectionItem> AvailableMcpConnections { get; set; } = [];
 
-    // AI Tool Instances
-    public string[] SelectedToolInstanceIds { get; set; } = [];
-    public List<AIToolInstanceSelectionItem> AvailableToolInstances { get; set; } = [];
+    // AI Tool Definitions
+    public string[] SelectedToolDefinitionIds { get; set; } = [];
+    public List<AIToolDefinitionSelectionItem> AvailableToolDefinitions { get; set; } = [];
 
     // Prompt Templates
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
@@ -304,9 +304,9 @@ public sealed class AIProfileViewModel
             vm.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
         }
 
-        if (profile.TryGet<AIProfileToolInstanceMetadata>(out var toolInstanceMetadata))
+        if (profile.TryGet<AIProfileToolDefinitionMetadata>(out var toolInstanceMetadata))
         {
-            vm.SelectedToolInstanceIds = toolInstanceMetadata.InstanceIds ?? [];
+            vm.SelectedToolDefinitionIds = toolInstanceMetadata.DefinitionIds ?? [];
         }
 
         if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
@@ -456,9 +456,9 @@ public sealed class AIProfileViewModel
                 .ToArray() ?? [];
         });
 
-        profile.Alter<AIProfileToolInstanceMetadata>(x =>
+        profile.Alter<AIProfileToolDefinitionMetadata>(x =>
         {
-            x.InstanceIds = SelectedToolInstanceIds?
+            x.DefinitionIds = SelectedToolDefinitionIds?
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];

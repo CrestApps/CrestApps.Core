@@ -470,21 +470,21 @@
                         }
                     }
 
-                    <!-- AI Tool Instances Section -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
-                    @if (Model.AvailableToolInstances.Count == 0)
+                    <!-- AI Tool Definitions Section -->
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Definitions</h6>
+                    @if (Model.AvailableToolDefinitions.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.
+                            <i class="bi bi-info-circle"></i> No tool definitions are configured. Add them under <strong>AI Tool Definitions</strong> first.
                         </div>
                     }
                     else
                     {
-                        <p class="text-muted mb-3 small">Select the preconfigured tool instances this profile can use. Each instance carries its own settings and description.</p>
-                        @foreach (var instance in Model.AvailableToolInstances)
+                        <p class="text-muted mb-3 small">Select the preconfigured tool definitions this profile can use. Each definition carries its own settings and description.</p>
+                        @foreach (var instance in Model.AvailableToolDefinitions)
                         {
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" name="SelectedToolInstanceIds" value="@instance.ItemId" id="toolinstance_@instance.ItemId"
+                                <input class="form-check-input" type="checkbox" name="SelectedToolDefinitionIds" value="@instance.ItemId" id="toolinstance_@instance.ItemId"
                                 @(instance.IsSelected ? "checked" : "") />
                                 <label class="form-check-label" for="toolinstance_@instance.ItemId">
                                     <strong>@instance.DisplayText</strong>

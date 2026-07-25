@@ -39,7 +39,7 @@ public sealed class AIProfileController : Controller
     private readonly IAIProfileTemplateManager _templateManager;
     private readonly ICatalog<A2AConnection> _a2aConnectionCatalog;
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
-    private readonly ICatalog<AIToolInstance> _toolInstanceCatalog;
+    private readonly ICatalog<AIToolDefinition> _toolInstanceCatalog;
     private readonly IAIDocumentStore _documentStore;
     private readonly AIProfileDocumentService _profileDocumentService;
     private readonly AIProfileTemplateDocumentService _templateDocumentService;
@@ -59,7 +59,7 @@ public sealed class AIProfileController : Controller
         IAIProfileTemplateManager templateManager,
         ICatalog<A2AConnection> a2aConnectionCatalog,
         ICatalog<McpConnection> mcpConnectionCatalog,
-        ICatalog<AIToolInstance> toolInstanceCatalog,
+        ICatalog<AIToolDefinition> toolInstanceCatalog,
         IAIDocumentStore documentStore,
         AIProfileDocumentService profileDocumentService,
         AIProfileTemplateDocumentService templateDocumentService,
@@ -159,7 +159,7 @@ public sealed class AIProfileController : Controller
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
-        model.SelectedToolInstanceIds = await GetValidToolInstanceIdsAsync(model.SelectedToolInstanceIds);
+        model.SelectedToolDefinitionIds = await GetValidToolDefinitionIdsAsync(model.SelectedToolDefinitionIds);
         model.ApplyTo(profile);
         // Assign ItemId early so document processing can use it as a reference.
         profile.ItemId = Guid.NewGuid().ToString("N");
@@ -222,7 +222,7 @@ public sealed class AIProfileController : Controller
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
-        model.SelectedToolInstanceIds = await GetValidToolInstanceIdsAsync(model.SelectedToolInstanceIds);
+        model.SelectedToolDefinitionIds = await GetValidToolDefinitionIdsAsync(model.SelectedToolDefinitionIds);
         model.ApplyTo(existing);
         if (RemovedDocumentIds is { Length: > 0 })
         {
@@ -301,9 +301,9 @@ public sealed class AIProfileController : Controller
         var mcpConnections = await _mcpConnectionCatalog.GetAllAsync();
         var selectedMcpIds = new HashSet<string>(model.SelectedMcpConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId), }).ToList();
-        var toolInstances = await _toolInstanceCatalog.GetAllAsync();
-        var selectedToolInstanceIds = new HashSet<string>(model.SelectedToolInstanceIds ?? [], StringComparer.Ordinal);
-        model.AvailableToolInstances = toolInstances.OrderBy(i => i.DisplayText, StringComparer.OrdinalIgnoreCase).Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, DisplayText = i.DisplayText, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceIds.Contains(i.ItemId), }).ToList();
+        var toolDefinitions = await _toolInstanceCatalog.GetAllAsync();
+        var selectedToolDefinitionIds = new HashSet<string>(model.SelectedToolDefinitionIds ?? [], StringComparer.Ordinal);
+        model.AvailableToolDefinitions = toolDefinitions.OrderBy(i => i.DisplayText, StringComparer.OrdinalIgnoreCase).Select(i => new AIToolDefinitionSelectionItem { ItemId = i.ItemId, DisplayText = i.DisplayText, Description = i.Description, Source = i.Source, IsSelected = selectedToolDefinitionIds.Contains(i.ItemId), }).ToList();
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
@@ -370,7 +370,7 @@ public sealed class AIProfileController : Controller
             .ToArray();
     }
 
-    private async Task<string[]> GetValidToolInstanceIdsAsync(IEnumerable<string> selectedIds)
+    private async Task<string[]> GetValidToolDefinitionIdsAsync(IEnumerable<string> selectedIds)
     {
         var allIds = (await _toolInstanceCatalog.GetAllAsync()).Select(i => i.ItemId).ToHashSet(StringComparer.Ordinal);
 

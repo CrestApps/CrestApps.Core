@@ -87,7 +87,7 @@ const sidebars = {
                 'core/response-handlers',
                 'core/signalr',
                 'core/tools',
-                'core/tool-instances',
+                'core/tool-definitions',
                 'core/use-cases',
             ],
         },

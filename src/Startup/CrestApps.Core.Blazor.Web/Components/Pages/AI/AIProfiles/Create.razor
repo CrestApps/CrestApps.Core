@@ -29,7 +29,7 @@
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2ACatalog
 @inject ICatalog<McpConnection> McpCatalog
-@inject ICatalog<AIToolInstance> ToolInstanceCatalog
+@inject ICatalog<AIToolDefinition> ToolDefinitionCatalog
 @inject IAIDataSourceStore DataSourceStore
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject ITemplateService TemplateService
@@ -670,19 +670,19 @@
                         }
                     }
 
-                    <!-- AI Tool Instances -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
-                    @if (_model.AvailableToolInstances.Count == 0)
+                    <!-- AI Tool Definitions -->
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Definitions</h6>
+                    @if (_model.AvailableToolDefinitions.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
+                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No tool definitions are configured. Add them under <strong>AI Tool Definitions</strong> first.</div>
                     }
                     else
                     {
-                        <p class="text-muted mb-3 small">Select the preconfigured tool instances this profile can use. Each instance carries its own settings and description.</p>
-                        @foreach (var instance in _model.AvailableToolInstances)
+                        <p class="text-muted mb-3 small">Select the preconfigured tool definitions this profile can use. Each definition carries its own settings and description.</p>
+                        @foreach (var instance in _model.AvailableToolDefinitions)
                         {
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" checked="@instance.IsSelected" @onchange="e => ToggleToolInstance(instance.ItemId, (bool)e.Value)" id="toolinstance_@instance.ItemId" />
+                                <input class="form-check-input" type="checkbox" checked="@instance.IsSelected" @onchange="e => ToggleToolDefinition(instance.ItemId, (bool)e.Value)" id="toolinstance_@instance.ItemId" />
                                 <label class="form-check-label" for="toolinstance_@instance.ItemId">
                                     <strong>@instance.DisplayText</strong>
                                     <span class="badge bg-info text-dark ms-1">@instance.Source</span>
@@ -1285,7 +1285,7 @@
         _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
-        _model.SelectedToolInstanceIds = await GetValidToolInstanceIdsAsync(_model.SelectedToolInstanceIds);
+        _model.SelectedToolDefinitionIds = await GetValidToolDefinitionIdsAsync(_model.SelectedToolDefinitionIds);
 
         var profile = new AIProfile { Type = AIProfileType.Chat };
         _model.ApplyTo(profile);
@@ -1315,7 +1315,7 @@
         _model.SelectedAgentNames = _model.AvailableAgents.Where(a => a.IsSelected).Select(a => a.Name).ToArray();
         _model.SelectedA2AConnectionIds = _model.AvailableA2AConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
         _model.SelectedMcpConnectionIds = _model.AvailableMcpConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
-        _model.SelectedToolInstanceIds = _model.AvailableToolInstances.Where(i => i.IsSelected).Select(i => i.ItemId).ToArray();
+        _model.SelectedToolDefinitionIds = _model.AvailableToolDefinitions.Where(i => i.IsSelected).Select(i => i.ItemId).ToArray();
     }
 
     private void ToggleTool(string name, bool isSelected)
@@ -1354,9 +1354,9 @@
         }
     }
 
-    private void ToggleToolInstance(string id, bool isSelected)
+    private void ToggleToolDefinition(string id, bool isSelected)
     {
-        var instance = _model.AvailableToolInstances.FirstOrDefault(i => i.ItemId == id);
+        var instance = _model.AvailableToolDefinitions.FirstOrDefault(i => i.ItemId == id);
         if (instance != null)
         {
             instance.IsSelected = isSelected;
@@ -1527,17 +1527,17 @@
                 IsSelected = selectedMcpIds.Contains(c.ItemId),
             }).ToList();
 
-        var toolInstances = await ToolInstanceCatalog.GetAllAsync();
-        var selectedToolInstanceIds = new HashSet<string>(_model.SelectedToolInstanceIds ?? [], StringComparer.Ordinal);
-        _model.AvailableToolInstances = toolInstances
+        var toolDefinitions = await ToolDefinitionCatalog.GetAllAsync();
+        var selectedToolDefinitionIds = new HashSet<string>(_model.SelectedToolDefinitionIds ?? [], StringComparer.Ordinal);
+        _model.AvailableToolDefinitions = toolDefinitions
             .OrderBy(i => i.DisplayText, StringComparer.OrdinalIgnoreCase)
-            .Select(i => new AIToolInstanceSelectionItem
+            .Select(i => new AIToolDefinitionSelectionItem
             {
                 ItemId = i.ItemId,
                 DisplayText = i.DisplayText,
                 Description = i.Description,
                 Source = i.Source,
-                IsSelected = selectedToolInstanceIds.Contains(i.ItemId),
+                IsSelected = selectedToolDefinitionIds.Contains(i.ItemId),
             }).ToList();
 
         var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
@@ -1633,9 +1633,9 @@
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    private async Task<string[]> GetValidToolInstanceIdsAsync(IEnumerable<string> selectedIds)
+    private async Task<string[]> GetValidToolDefinitionIdsAsync(IEnumerable<string> selectedIds)
     {
-        var allIds = (await ToolInstanceCatalog.GetAllAsync()).Select(i => i.ItemId).ToHashSet(StringComparer.Ordinal);
+        var allIds = (await ToolDefinitionCatalog.GetAllAsync()).Select(i => i.ItemId).ToHashSet(StringComparer.Ordinal);
 
         return (selectedIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
