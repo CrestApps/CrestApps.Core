@@ -71,6 +71,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ToastNotificationService>();
+builder.Services.AddSharedAIChatProtection();
 
 // =============================================================================
 // 5. AUTHENTICATION & AUTHORIZATION
@@ -195,6 +196,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection()
     .UseStaticFiles()
     .UseRouting()
+    .UseSharedAIChatProtection()
     .UseAuthentication()
     .UseAuthorization()
     .UseAntiforgery();
@@ -245,6 +247,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
         await next();
     });
 });
+
 app.MapHub<AIChatHub>("/hubs/ai-chat");
 app.MapHub<ChatInteractionHub>("/hubs/chat-interaction");
 app.MapMcp("mcp");

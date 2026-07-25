@@ -17,8 +17,7 @@ public sealed class AIChatSessionEvent : ExtensibleEntity, IModifiedUtcAwareMode
     public string ProfileId { get; set; }
 
     /// <summary>
-    /// Gets or sets the persistent anonymous visitor identifier.
-    /// Generated on the client side and stored in localStorage for cross-session tracking.
+    /// Gets or sets the persistent visitor identifier resolved by the configured visitor-identity strategy.
     /// </summary>
     public string VisitorId { get; set; }
 
@@ -31,6 +30,16 @@ public sealed class AIChatSessionEvent : ExtensibleEntity, IModifiedUtcAwareMode
     /// Gets or sets whether the user was authenticated during this session.
     /// </summary>
     public bool IsAuthenticated { get; set; }
+
+    /// <summary>
+    /// Gets or sets the captured remote-address value for this session when plain-text or encrypted storage is enabled.
+    /// </summary>
+    public string RemoteAddress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the hashed remote-address signal captured for this session when enabled.
+    /// </summary>
+    public string RemoteAddressHash { get; set; }
 
     /// <summary>
     /// Gets or sets the UTC timestamp when the session started.

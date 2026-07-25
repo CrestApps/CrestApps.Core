@@ -16,7 +16,7 @@ namespace CrestApps.Core.Mvc.Web.Areas.DataSources.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class AIDataSourceController : Controller
 {
-    private readonly ICatalogManager<AIDataSource> _manager;
+    private readonly ISourceCatalogManager<AIDataSource> _manager;
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly IServiceProvider _serviceProvider;
@@ -25,7 +25,7 @@ public sealed class AIDataSourceController : Controller
     private readonly IReadOnlyList<AIDataSourceSourceDescriptor> _sourceDescriptors;
 
     public AIDataSourceController(
-        ICatalogManager<AIDataSource> manager,
+        ISourceCatalogManager<AIDataSource> manager,
         ISearchIndexProfileStore indexProfileStore,
         IAIDataSourceIndexingQueue indexingQueue,
         IServiceProvider serviceProvider,
@@ -76,7 +76,7 @@ public sealed class AIDataSourceController : Controller
             return View(model);
         }
 
-        var dataSource = await _manager.NewAsync();
+        var dataSource = await _manager.NewAsync(model.Source, cancellationToken: HttpContext.RequestAborted);
         dataSource.CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         model.ApplyTo(dataSource, _dataProtectionProvider.CreateProtector(AIDataSourceProtectionConstants.SourceSecretPurpose));

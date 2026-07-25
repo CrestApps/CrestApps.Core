@@ -1,6 +1,6 @@
 using System.Text.Json;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -45,7 +45,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
             return;
         }
 
-        var dataSourceCatalog = _serviceProvider.GetService<ICatalog<AIDataSource>>();
+        var dataSourceCatalog = _serviceProvider.GetService<IAIDataSourceStore>();
         if (dataSourceCatalog == null)
         {
             _logger.LogDebug("Skipping chat interaction data source settings because no AI data source catalog is registered.");

@@ -156,7 +156,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return ValueTask.FromResult<SearchIndexProfile>(null);
         }
 
-        public ValueTask<SearchIndexProfile> FindByNameAsync(string name)
+        public ValueTask<SearchIndexProfile> FindByNameAsync(string name, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult<SearchIndexProfile>(null);
         }
@@ -184,9 +184,14 @@ public sealed class SearchIndexProfileProvisioningServiceTests
             return ValueTask.FromResult<IEnumerable<SearchIndexProfile>>([]);
         }
 
-        public Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type)
+        public Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyCollection<SearchIndexProfile>>([]);
+        }
+
+        public ValueTask<SearchIndexProfile> NewAsync(string name, JsonNode data = null, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(new SearchIndexProfile { Name = name });
         }
 
         public ValueTask<SearchIndexProfile> NewAsync(JsonNode data = null, CancellationToken cancellationToken = default)

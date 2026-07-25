@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
@@ -8,7 +9,6 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
-using CrestApps.Core.Services;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -101,7 +101,7 @@ public sealed class DataSourceSearchTool : AIFunction
                 return "No data source is configured for this profile.";
             }
 
-            var dataSourceStore = arguments.Services.GetRequiredService<ICatalog<AIDataSource>>();
+            var dataSourceStore = arguments.Services.GetRequiredService<IAIDataSourceStore>();
             var dataSource = await dataSourceStore.FindByIdAsync(dataSourceId, cancellationToken);
 
             if (dataSource == null)

@@ -1,10 +1,9 @@
 using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
-using System.Net.Http;
 
 namespace CrestApps.Core.Elasticsearch.Services;
 

@@ -1,10 +1,12 @@
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Models;
+using CrestApps.Core.AI.Chat.Security;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Services;
@@ -102,8 +104,12 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddDataProtection();
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<AIVisitorIdentityOptions>();
+        services.AddOptions<AIChatEndpointRateLimitingOptions>();
+        services.AddSingleton<IAIVisitorIdentityResolver, DefaultAIVisitorIdentityResolver>();
         services.AddCoreAIChatNotifications();
         services.AddCoreAIChatSessionProcessing();
         services.TryAddScoped<CompositeAIReferenceLinkResolver>();
@@ -146,6 +152,40 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.ConfigureCrestAppsChatHubOptions<THub>();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures visitor-identity handling for chat interactions.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The visitor-identity configuration action.</param>
+    public static CrestAppsChatInteractionsBuilder ConfigureVisitorIdentity(
+        this CrestAppsChatInteractionsBuilder builder,
+        Action<AIVisitorIdentityOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        builder.Services.Configure(configure);
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures chat rate-limit partitioning for chat interactions.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">The chat rate-limiting configuration action.</param>
+    public static CrestAppsChatInteractionsBuilder ConfigureChatRateLimiting(
+        this CrestAppsChatInteractionsBuilder builder,
+        Action<AIChatRateLimitingOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        builder.Services.Configure(configure);
 
         return builder;
     }

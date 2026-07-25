@@ -2,6 +2,8 @@ using CrestApps.Core.AI.Chat.Hubs;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
+using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
@@ -10,7 +12,7 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
 /// MVC-specific AI chat hub. Inherits all behavior from <see cref="AIChatHubCore"/>.
 /// Uses constructor-injected services directly (no ShellScope needed).
 /// </summary>
-[Authorize]
+[AllowAnonymous]
 public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
 {
     public AIChatHub(
@@ -19,6 +21,20 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
         ILogger<AIChatHub> logger)
         : base(services, timeProvider, logger)
     {
+    }
+
+    /// <inheritdoc />
+    protected override Task<bool> AuthorizeProfileAsync(IServiceProvider services, AIProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var widgetSettings = services.GetRequiredService<SiteSettingsStore>().Get<AIChatAdminWidgetSettings>();
+
+        return Task.FromResult(AIChatWidgetAccessEvaluator.CanAccessProfile(
+            Context.User,
+            widgetSettings.ProfileId,
+            profile.ItemId));
     }
 
     protected override void CollectStreamingReferences(

@@ -1,6 +1,5 @@
-using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -81,7 +80,7 @@ internal sealed class AIDataSourceSearchDocumentHandler : ISearchDocumentHandler
         }
 
         var indexProfileManager = _serviceProvider.GetService<ISearchIndexProfileManager>();
-        var dataSourceCatalog = _serviceProvider.GetService<ICatalog<AIDataSource>>();
+        var dataSourceCatalog = _serviceProvider.GetService<IAIDataSourceStore>();
 
         if (indexProfileManager == null || dataSourceCatalog == null)
         {

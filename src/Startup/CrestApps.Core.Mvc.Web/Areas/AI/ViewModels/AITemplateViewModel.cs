@@ -149,20 +149,14 @@ public sealed class AITemplateViewModel
 
     public CopilotAuthenticationType CopilotAuthenticationType { get; set; }
 
-    // Prompt Security override (per-profile).
-    public bool? SecurityIsEnabled { get; set; }
+    // Anti-spam throttle overrides. Leave blank to inherit the site-wide default.
+    public int? SecurityMaxMessagesPerWindow { get; set; }
 
-    public bool? SecurityEnableInjectionDetection { get; set; }
+    public int? SecurityRateLimitWindowSeconds { get; set; }
 
-    public bool? SecurityEnableOutputFiltering { get; set; }
+    public int? SecurityMaxAnonymousSessionsPerWindow { get; set; }
 
-    public bool? SecurityEnableSecurityPreamble { get; set; }
-
-    public bool? SecurityEnableInputDelimiters { get; set; }
-
-    public int? SecurityMaxPromptLength { get; set; }
-
-    public PromptRiskLevel? SecurityBlockingThreshold { get; set; }
+    public int? SecurityAnonymousSessionRateLimitWindowSeconds { get; set; }
 
     [BindNever]
     public IEnumerable<SelectListItem> ChatDeployments { get; set; } = [];
@@ -348,13 +342,14 @@ public sealed class AITemplateViewModel
 
             if (template.TryGet<PromptSecurityProfileSettings>(out var securitySettings))
             {
-                model.SecurityIsEnabled = securitySettings.IsEnabled;
-                model.SecurityEnableInjectionDetection = securitySettings.EnableInjectionDetection;
-                model.SecurityEnableOutputFiltering = securitySettings.EnableOutputFiltering;
-                model.SecurityEnableSecurityPreamble = securitySettings.EnableSecurityPreamble;
-                model.SecurityEnableInputDelimiters = securitySettings.EnableInputDelimiters;
-                model.SecurityMaxPromptLength = securitySettings.MaxPromptLength;
-                model.SecurityBlockingThreshold = securitySettings.BlockingThreshold;
+                model.SecurityMaxMessagesPerWindow = securitySettings.MaxMessagesPerWindow;
+                model.SecurityRateLimitWindowSeconds = securitySettings.RateLimitWindow.HasValue
+                    ? (int)Math.Round(securitySettings.RateLimitWindow.Value.TotalSeconds)
+                    : null;
+                model.SecurityMaxAnonymousSessionsPerWindow = securitySettings.MaxAnonymousSessionsPerWindow;
+                model.SecurityAnonymousSessionRateLimitWindowSeconds = securitySettings.AnonymousSessionRateLimitWindow.HasValue
+                    ? (int)Math.Round(securitySettings.AnonymousSessionRateLimitWindow.Value.TotalSeconds)
+                    : null;
             }
         }
 
@@ -583,13 +578,14 @@ public sealed class AITemplateViewModel
 
             template.Put(new PromptSecurityProfileSettings
             {
-                IsEnabled = SecurityIsEnabled,
-                EnableInjectionDetection = SecurityEnableInjectionDetection,
-                EnableOutputFiltering = SecurityEnableOutputFiltering,
-                EnableSecurityPreamble = SecurityEnableSecurityPreamble,
-                EnableInputDelimiters = SecurityEnableInputDelimiters,
-                MaxPromptLength = SecurityMaxPromptLength,
-                BlockingThreshold = SecurityBlockingThreshold,
+                MaxMessagesPerWindow = SecurityMaxMessagesPerWindow,
+                RateLimitWindow = SecurityRateLimitWindowSeconds.HasValue
+                    ? TimeSpan.FromSeconds(SecurityRateLimitWindowSeconds.Value)
+                    : null,
+                MaxAnonymousSessionsPerWindow = SecurityMaxAnonymousSessionsPerWindow,
+                AnonymousSessionRateLimitWindow = SecurityAnonymousSessionRateLimitWindowSeconds.HasValue
+                    ? TimeSpan.FromSeconds(SecurityAnonymousSessionRateLimitWindowSeconds.Value)
+                    : null,
             });
         }
         else

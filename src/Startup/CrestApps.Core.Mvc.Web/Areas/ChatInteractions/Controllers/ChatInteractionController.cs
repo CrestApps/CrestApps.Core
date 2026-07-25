@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Models;
@@ -37,14 +38,12 @@ namespace CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Controllers;
 public sealed class ChatInteractionController : Controller
 {
     private readonly ICatalogManager<ChatInteraction> _interactionManager;
-    private readonly ICatalog<ChatInteraction> _interactionCatalog;
     private readonly IChatInteractionPromptStore _promptStore;
     private readonly IAIDeploymentStore _deploymentCatalog;
     private readonly ICatalog<A2AConnection> _a2aConnectionCatalog;
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
-    private readonly ICatalog<AIDataSource> _dataSourceCatalog;
+    private readonly IAIDataSourceStore _dataSourceCatalog;
     private readonly IAIProfileManager _profileManager;
-    private readonly IAIProfileTemplateManager _templateManager;
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
@@ -65,14 +64,12 @@ public sealed class ChatInteractionController : Controller
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
-        ICatalog<ChatInteraction> interactionCatalog,
         IChatInteractionPromptStore promptStore,
         IAIDeploymentStore deploymentCatalog,
         ICatalog<A2AConnection> a2aConnectionCatalog,
         ICatalog<McpConnection> mcpConnectionCatalog,
-        ICatalog<AIDataSource> dataSourceCatalog,
+        IAIDataSourceStore dataSourceCatalog,
         IAIProfileManager profileManager,
-        IAIProfileTemplateManager templateManager,
         IAIDocumentStore documentStore,
         IAIDocumentChunkStore chunkStore,
         IDocumentFileStore fileStore,
@@ -91,14 +88,12 @@ public sealed class ChatInteractionController : Controller
         IOptions<AIToolDefinitionOptions> toolOptions)
     {
         _interactionManager = interactionManager;
-        _interactionCatalog = interactionCatalog;
         _promptStore = promptStore;
         _deploymentCatalog = deploymentCatalog;
         _a2aConnectionCatalog = a2aConnectionCatalog;
         _mcpConnectionCatalog = mcpConnectionCatalog;
         _dataSourceCatalog = dataSourceCatalog;
         _profileManager = profileManager;
-        _templateManager = templateManager;
         _documentStore = documentStore;
         _chunkStore = chunkStore;
         _fileStore = fileStore;
@@ -113,7 +108,6 @@ public sealed class ChatInteractionController : Controller
         _anthropicOptions = anthropicOptions;
         _anthropicClientService = anthropicClientService;
         _copilotOptions = copilotOptions;
-
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
     }

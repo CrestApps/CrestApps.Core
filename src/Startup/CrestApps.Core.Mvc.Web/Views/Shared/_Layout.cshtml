@@ -182,7 +182,7 @@
     @await RenderSectionAsync("Scripts", required: false)
     @await Html.PartialAsync("_ToastNotifications")
 
-    @if (User.Identity.IsAuthenticated && !string.Equals(ViewContext.RouteData.Values["area"]?.ToString(), "AIChat", StringComparison.OrdinalIgnoreCase))
+    @if (!string.Equals(ViewContext.RouteData.Values["area"]?.ToString(), "AIChat", StringComparison.OrdinalIgnoreCase))
     {
         @await Html.PartialAsync("~/Areas/AIChat/Views/Shared/_ChatWidget.cshtml")
     }

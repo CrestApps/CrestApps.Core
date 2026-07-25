@@ -11,14 +11,24 @@
     var prompts = ViewData["Prompts"] as IReadOnlyList<AIChatSessionPrompt>;
     ViewData["Title"] = "Chat - " + (Model.DisplayText ?? Model.Name);
     var sessionId = session?.SessionId ?? "";
-    var messages = prompts?.Select(m => new
+    var initialPrompt = Model.TryGet<AIProfileMetadata>(out var profileMetadataVal)
+        ? profileMetadataVal.InitialPrompt?.Trim()
+        : null;
+    var promptMessages = prompts?.Select(m => new
     {
         role = m.Role.Value,
         content = m.Content,
         id = m.ItemId,
         title = m.Title,
         references = m.References,
-    }) ?? [];
+    }).ToArray() ?? [];
+
+    // When opening a new chat with no session and the profile has an initial
+    // prompt, include it as the first assistant message so the UI renders it
+    // immediately without committing anything to the database.
+    object[] messages = promptMessages.Length == 0 && !string.IsNullOrWhiteSpace(initialPrompt)
+        ? [new { role = "assistant", content = initialPrompt, id = (string)null, title = Model.PromptSubject, references = (IDictionary<string, AICompletionReference>)null }]
+        : promptMessages;
     var placeholderMessage = !string.IsNullOrWhiteSpace(Model.WelcomeMessage)
         ? Model.WelcomeMessage
         : "What do you want to know?";
@@ -185,6 +195,7 @@
      data-coreai-chat-send-button-element-selector="#send-btn"
      data-coreai-chat-placeholder-element-selector="#chat-placeholder"
      data-coreai-chat-messages="@JsonSerializer.Serialize(messages)"
+     data-coreai-chat-session-url-template="@Url.Action("Chat", "AIChat", new { area = "AIChat"})?sessionId={sessionId}"
      data-coreai-chat-metrics-enabled="@metricsEnabled.ToString().ToLowerInvariant()"
      data-coreai-chat-mode="@chatMode"
      data-coreai-chat-mic-button-element-selector="#chat-mic-btn"

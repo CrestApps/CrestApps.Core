@@ -1,8 +1,8 @@
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -27,7 +27,7 @@ public sealed class AIDataSourceSearchDocumentHandlerTests
         indexProfileManager.Setup(manager => manager.FindByIdAsync(sourceProfile.ItemId, cancellationToken))
             .ReturnsAsync(sourceProfile);
 
-        var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
+        var dataSourceCatalog = new Mock<IAIDataSourceStore>();
         dataSourceCatalog.Setup(catalog => catalog.GetAllAsync(cancellationToken))
             .ReturnsAsync(
             [
@@ -71,7 +71,7 @@ public sealed class AIDataSourceSearchDocumentHandlerTests
         indexProfileManager.Setup(manager => manager.FindByIdAsync(sourceProfile.ItemId, cancellationToken))
             .ReturnsAsync(sourceProfile);
 
-        var dataSourceCatalog = new Mock<ICatalog<AIDataSource>>();
+        var dataSourceCatalog = new Mock<IAIDataSourceStore>();
         dataSourceCatalog.Setup(catalog => catalog.GetAllAsync(cancellationToken))
             .ReturnsAsync(
             [

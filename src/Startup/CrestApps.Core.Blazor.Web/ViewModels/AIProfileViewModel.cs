@@ -180,20 +180,14 @@ public sealed class AIProfileViewModel
 
     public int CopilotAuthenticationType { get; set; }
 
-    // Prompt Security override (per-profile)
-    public string SecurityIsEnabled { get; set; } = string.Empty;
+    // Anti-spam throttle overrides (per-profile). Leave blank to inherit the site-wide default.
+    public int? SecurityMaxMessagesPerWindow { get; set; }
 
-    public string SecurityEnableInjectionDetection { get; set; } = string.Empty;
+    public int? SecurityRateLimitWindowSeconds { get; set; }
 
-    public string SecurityEnableOutputFiltering { get; set; } = string.Empty;
+    public int? SecurityMaxAnonymousSessionsPerWindow { get; set; }
 
-    public string SecurityEnableSecurityPreamble { get; set; } = string.Empty;
-
-    public string SecurityEnableInputDelimiters { get; set; } = string.Empty;
-
-    public int? SecurityMaxPromptLength { get; set; }
-
-    public string SecurityBlockingThreshold { get; set; } = string.Empty;
+    public int? SecurityAnonymousSessionRateLimitWindowSeconds { get; set; }
 
     // Dropdown options (populated at load time)
     public List<KeyValuePair<string, string>> DataSources { get; set; } = [];
@@ -382,13 +376,14 @@ public sealed class AIProfileViewModel
 
         if (profile.TryGetSettings<PromptSecurityProfileSettings>(out var securitySettings))
         {
-            vm.SecurityIsEnabled = securitySettings.IsEnabled?.ToString() ?? string.Empty;
-            vm.SecurityEnableInjectionDetection = securitySettings.EnableInjectionDetection?.ToString() ?? string.Empty;
-            vm.SecurityEnableOutputFiltering = securitySettings.EnableOutputFiltering?.ToString() ?? string.Empty;
-            vm.SecurityEnableSecurityPreamble = securitySettings.EnableSecurityPreamble?.ToString() ?? string.Empty;
-            vm.SecurityEnableInputDelimiters = securitySettings.EnableInputDelimiters?.ToString() ?? string.Empty;
-            vm.SecurityMaxPromptLength = securitySettings.MaxPromptLength;
-            vm.SecurityBlockingThreshold = securitySettings.BlockingThreshold?.ToString() ?? string.Empty;
+            vm.SecurityMaxMessagesPerWindow = securitySettings.MaxMessagesPerWindow;
+            vm.SecurityRateLimitWindowSeconds = securitySettings.RateLimitWindow.HasValue
+                ? (int)Math.Round(securitySettings.RateLimitWindow.Value.TotalSeconds)
+                : null;
+            vm.SecurityMaxAnonymousSessionsPerWindow = securitySettings.MaxAnonymousSessionsPerWindow;
+            vm.SecurityAnonymousSessionRateLimitWindowSeconds = securitySettings.AnonymousSessionRateLimitWindow.HasValue
+                ? (int)Math.Round(securitySettings.AnonymousSessionRateLimitWindow.Value.TotalSeconds)
+                : null;
         }
 
         return vm;
@@ -616,16 +611,17 @@ public sealed class AIProfileViewModel
             profile.Remove<CopilotSessionMetadata>();
         }
 
-        // Per-profile prompt security override.
+        // Per-profile anti-spam throttle override.
         profile.WithSettings(new PromptSecurityProfileSettings
         {
-            IsEnabled = bool.TryParse(SecurityIsEnabled, out var se) ? se : null,
-            EnableInjectionDetection = bool.TryParse(SecurityEnableInjectionDetection, out var sid) ? sid : null,
-            EnableOutputFiltering = bool.TryParse(SecurityEnableOutputFiltering, out var sof) ? sof : null,
-            EnableSecurityPreamble = bool.TryParse(SecurityEnableSecurityPreamble, out var ssp) ? ssp : null,
-            EnableInputDelimiters = bool.TryParse(SecurityEnableInputDelimiters, out var sdl) ? sdl : null,
-            MaxPromptLength = SecurityMaxPromptLength,
-            BlockingThreshold = Enum.TryParse<PromptRiskLevel>(SecurityBlockingThreshold, out var sbt) ? sbt : null,
+            MaxMessagesPerWindow = SecurityMaxMessagesPerWindow,
+            RateLimitWindow = SecurityRateLimitWindowSeconds.HasValue
+                ? TimeSpan.FromSeconds(SecurityRateLimitWindowSeconds.Value)
+                : null,
+            MaxAnonymousSessionsPerWindow = SecurityMaxAnonymousSessionsPerWindow,
+            AnonymousSessionRateLimitWindow = SecurityAnonymousSessionRateLimitWindowSeconds.HasValue
+                ? TimeSpan.FromSeconds(SecurityAnonymousSessionRateLimitWindowSeconds.Value)
+                : null,
         });
     }
 }

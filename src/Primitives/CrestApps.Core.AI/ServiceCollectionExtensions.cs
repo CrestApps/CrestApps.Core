@@ -69,9 +69,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IAIProfileTemplateManager, DefaultAIProfileTemplateManager>();
-        services.TryAddScoped<ICatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
-        services.TryAddScoped<INamedCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
-        services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
+        services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => (ISourceCatalogManager<AIProfileTemplate>)sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfileTemplate>, AIProfileTemplateCatalogHandler>());
 
@@ -169,7 +167,6 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
         services.TryAddScoped<IConnectionAuthHeaderBuilder, DefaultConnectionAuthHeaderBuilder>();
         services.TryAddScoped<IAIProfileManager, DefaultAIProfileManager>();
-        services.TryAddScoped<ICatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
         services.TryAddScoped<INamedCatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
 
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(EmbeddedResourceAIProfileTemplateProvider)))
@@ -445,12 +442,10 @@ public static class ServiceCollectionExtensions
 
             return snapshot.Value.ApplySiteOverrides(settings.CurrentValue);
         });
-
         // Register the Framework-level deployment manager.
         services.TryAddScoped<IAIDeploymentManager, DefaultAIDeploymentManager>();
-        services.TryAddScoped<ICatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
-        services.TryAddScoped<INamedCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
-        services.TryAddScoped<ISourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
+        services.TryAddScoped<IAIDeploymentManager, DefaultAIDeploymentManager>();
+        services.TryAddScoped<ISourceCatalogManager<AIDeployment>>(sp => (ISourceCatalogManager<AIDeployment>)sp.GetRequiredService<IAIDeploymentManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIDeployment>>(sp => sp.GetRequiredService<IAIDeploymentManager>());
 
         services.TryAddSingleton<IExternalChatRelayManager, ExternalChatRelayConnectionManager>();
@@ -532,9 +527,11 @@ public static class ServiceCollectionExtensions
     private static void AddPromotSecurityLayer(this IServiceCollection services)
     {
         // Prompt security services.
+        services.AddOptions<AIChatRateLimitingOptions>();
         services.AddOptions<PromptSecurityOptions>();
         services.TryAddSingleton<PromptSecurityRiskScoringEngine>();
         services.TryAddSingleton<IChatRateLimiter, DefaultChatRateLimiter>();
+        services.TryAddSingleton<IChatSessionStartRateLimiter, DefaultChatSessionStartRateLimiter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, SystemRoleInjectionRule>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, InstructionOverrideRule>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptSecurityRule, PersonaJailbreakRule>());

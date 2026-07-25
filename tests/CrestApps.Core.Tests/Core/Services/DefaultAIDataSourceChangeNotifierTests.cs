@@ -1,6 +1,6 @@
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -13,7 +13,7 @@ public sealed class DefaultAIDataSourceChangeNotifierTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var queue = new AIDataSourceIndexingQueue(NullLogger<AIDataSourceIndexingQueue>.Instance);
-        var catalog = new Mock<ICatalog<AIDataSource>>();
+        var catalog = new Mock<IAIDataSourceStore>();
         catalog.Setup(store => store.FindByIdAsync("ds-1", cancellationToken))
             .ReturnsAsync(new AIDataSource
             {
@@ -37,7 +37,7 @@ public sealed class DefaultAIDataSourceChangeNotifierTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var queue = new AIDataSourceIndexingQueue(NullLogger<AIDataSourceIndexingQueue>.Instance);
-        var catalog = new Mock<ICatalog<AIDataSource>>();
+        var catalog = new Mock<IAIDataSourceStore>();
         catalog.Setup(store => store.FindByIdAsync("missing", cancellationToken))
             .ReturnsAsync((AIDataSource)null);
 

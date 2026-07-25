@@ -3,6 +3,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Data.EntityCore.Models;
 using CrestApps.Core.Data.EntityCore.Services;
@@ -122,6 +123,7 @@ public class EntityCoreAIChatSessionSaveBenchmarks
         await using var dbContext = CreateDbContext();
         var manager = new EntityCoreAIChatSessionManager(
             new HttpContextAccessor(),
+            new NullAIVisitorIdentityResolver(),
             dbContext,
             Array.Empty<IConversationDocumentCleanupService>(),
             _timeProvider);

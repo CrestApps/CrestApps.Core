@@ -281,6 +281,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return PromptSecurityResult.Safe;
         }
 
+        var visitorIdentity = ResolveVisitorIdentity(services);
         var context = new PromptSecurityContext
         {
             Prompt = prompt,
@@ -289,6 +290,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             Profile = profile,
             User = Context.User,
             ConnectionId = Context.ConnectionId,
+            VisitorId = visitorIdentity.VisitorId,
+            RemoteAddressHash = visitorIdentity.RemoteAddressHash,
+            RemoteAddress = visitorIdentity.RemoteAddress,
         };
 
         return await securityService.ValidateInputAsync(context, cancellationToken);
@@ -557,13 +561,22 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 return;
             }
 
+            var sessionStartLimitResult = await EvaluateSessionStartRateLimitAsync(services, profile, Context.ConnectionAborted);
+
+            if (sessionStartLimitResult.IsThrottled)
+            {
+                await Clients.Caller.ReceiveError(GetSessionStartRateLimitMessage(sessionStartLimitResult));
+
+                return;
+            }
+
             var chatSession = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
             if (!string.IsNullOrWhiteSpace(initialResponseHandlerName))
             {
                 chatSession.ResponseHandlerName = initialResponseHandlerName.Trim();
             }
 
-            await SaveChatSessionAsync(sessionManager, chatSession);
+            await SaveChatSessionAsync(services, sessionManager, chatSession);
             var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId));
             await Clients.Caller.LoadSession(CreateSessionPayload(chatSession, profile, prompts));
@@ -1130,7 +1143,30 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
         var handlerResolver = services.GetRequiredService<IChatResponseHandlerResolver>();
         var sessionHandlers = services.GetRequiredService<IEnumerable<IAIChatSessionHandler>>();
-        var (chatSession, isNew) = await GetOrCreateSessionAsync(services, sessionId, profile, prompt);
+        AIChatSession chatSession;
+        bool isNew;
+
+        try
+        {
+            (chatSession, isNew) = await GetOrCreateSessionAsync(services, sessionId, profile, prompt);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await Clients.Caller.ReceiveError(ex.Message);
+
+            return;
+        }
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                "[ChatPersist] Resolved session {SessionId} (isNew={IsNew}) on connection {ConnectionId} using services scope {ServicesHash}.",
+                chatSession.SessionId,
+                isNew,
+                Context.ConnectionId,
+                services.GetHashCode());
+        }
+
         await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
         var utcNow = GetUtcNow();
         if (IsEndedStatus(chatSession.Status))
@@ -1146,6 +1182,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             chatSession.Title = await GenerateSessionTitleAsync(services, profile, prompt);
         }
 
+        await EnsureInitialPromptAsync(promptStore, profile, chatSession, cancellationToken);
+
         var userPromptRecord = new AIChatSessionPrompt
         {
             ItemId = GenerateId(),
@@ -1156,6 +1194,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         };
         await promptStore.CreateAsync(userPromptRecord, cancellationToken);
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                "[ChatPersist] Staged user prompt {ItemId} for session {SessionId}; store now reports {StagedCount} prompt(s) (promptStore {StoreHash}).",
+                userPromptRecord.ItemId,
+                chatSession.SessionId,
+                existingPrompts.Count,
+                promptStore.GetHashCode());
+        }
+
         var conversationHistory = ChatConversationHistoryBuilder.Build(
             existingPrompts,
             userPromptRecord);
@@ -1177,7 +1225,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (handlerResult.IsDeferred)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
-            await SaveChatSessionAsync(sessionManager, chatSession);
+            await SaveChatSessionAsync(services, sessionManager, chatSession);
 
             return;
         }
@@ -1261,7 +1309,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                         Content = GetOutputBlockedMessage(),
                     };
                     await writer.WriteAsync(blockedMessage, cancellationToken);
-                    await SaveChatSessionAsync(sessionManager, chatSession);
+                    await SaveChatSessionAsync(services, sessionManager, chatSession);
 
                     return;
                 }
@@ -1271,6 +1319,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             assistantMessage.ContentItemIds = contentItemIds.ToList();
             assistantMessage.References = references;
             await promptStore.CreateAsync(assistantMessage, cancellationToken);
+
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    "[ChatPersist] Staged assistant prompt {ItemId} for session {SessionId}.",
+                    assistantMessage.ItemId,
+                    chatSession.SessionId);
+            }
         }
 
         var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
@@ -1281,9 +1337,18 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             Prompts = prompts,
             ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds,
         };
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                "[ChatPersist] Session {SessionId} has {StagedCount} prompt(s) staged before final commit.",
+                chatSession.SessionId,
+                prompts.Count);
+        }
+
         await sessionHandlers.InvokeAsync((h, ctx) => h.MessageCompletedAsync(ctx), context, Logger);
         await OnMessageCompletedAsync(services, context);
-        await SaveChatSessionAsync(sessionManager, chatSession);
+        await SaveChatSessionAsync(services, sessionManager, chatSession);
     }
 
     /// <summary>
@@ -1302,7 +1367,19 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var aiTemplateEngine = services.GetRequiredService<ITemplateEngine>();
         var completionContextBuilder = services.GetRequiredService<IAICompletionContextBuilder>();
         var completionService = services.GetRequiredService<IAICompletionService>();
-        (var chatSession, _) = await GetOrCreateSessionAsync(services, sessionId, parentProfile, userPrompt: profile.Name);
+        AIChatSession chatSession;
+
+        try
+        {
+            (chatSession, _) = await GetOrCreateSessionAsync(services, sessionId, parentProfile, userPrompt: profile.Name);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await Clients.Caller.ReceiveError(ex.Message);
+
+            return;
+        }
+
         var generatedPrompt = await aiTemplateEngine.RenderAsync(profile.PromptTemplate, new Dictionary<string, object>() { ["Profile"] = profile, ["Session"] = chatSession, }, cancellationToken);
         var assistantMessage = new AIChatSessionPrompt
         {
@@ -1345,7 +1422,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         assistantMessage.ContentItemIds = contentItemIds.ToList();
         assistantMessage.References = references;
         await promptStore.CreateAsync(assistantMessage, cancellationToken);
-        await SaveChatSessionAsync(sessionManager, chatSession);
+        await SaveChatSessionAsync(services, sessionManager, chatSession);
     }
 
     /// <summary>
@@ -1398,6 +1475,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             }
         }
 
+        var sessionStartLimitResult = await EvaluateSessionStartRateLimitAsync(services, profile, Context.ConnectionAborted);
+
+        if (sessionStartLimitResult.IsThrottled)
+        {
+            throw new InvalidOperationException(GetSessionStartRateLimitMessage(sessionStartLimitResult));
+        }
+
         var chatSession = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
         chatSession.Title = await GenerateSessionTitleAsync(services, profile, userPrompt);
         if (string.IsNullOrEmpty(chatSession.Title))
@@ -1406,6 +1490,92 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         }
 
         return (chatSession, true);
+    }
+
+    /// <summary>
+    /// Persists the profile initial prompt for a session only when the first real user prompt arrives.
+    /// </summary>
+    /// <param name="promptStore">The prompt store.</param>
+    /// <param name="profile">The active profile.</param>
+    /// <param name="chatSession">The chat session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    protected virtual async Task EnsureInitialPromptAsync(
+        IAIChatSessionPromptStore promptStore,
+        AIProfile profile,
+        AIChatSession chatSession,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(promptStore);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(chatSession);
+
+        if (profile.Type != AIProfileType.Chat ||
+            !profile.TryGet<AIProfileMetadata>(out var profileMetadata) ||
+            string.IsNullOrWhiteSpace(profileMetadata.InitialPrompt))
+        {
+            return;
+        }
+
+        if (await promptStore.CountAsync(chatSession.SessionId) > 0)
+        {
+            return;
+        }
+
+        await promptStore.CreateAsync(new AIChatSessionPrompt
+        {
+            ItemId = GenerateId(),
+            SessionId = chatSession.SessionId,
+            Role = ChatRole.Assistant,
+            Title = profile.PromptSubject,
+            Content = profileMetadata.InitialPrompt,
+            CreatedUtc = chatSession.CreatedUtc,
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Builds a session-start rate-limit message.
+    /// </summary>
+    /// <param name="result">The rate-limit result.</param>
+    protected virtual string GetSessionStartRateLimitMessage(RateLimitResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return $"Too many new chat sessions were started from this visitor. Please wait {result.RetryAfterSeconds} second(s) and try again.";
+    }
+
+    private static AIVisitorIdentity ResolveVisitorIdentity(IServiceProvider services)
+    {
+        var visitorIdentityResolver = services.GetService<IAIVisitorIdentityResolver>();
+
+        if (visitorIdentityResolver is null)
+        {
+            return new AIVisitorIdentity();
+        }
+
+        return visitorIdentityResolver.Resolve();
+    }
+
+    private async Task<RateLimitResult> EvaluateSessionStartRateLimitAsync(IServiceProvider services, AIProfile profile, CancellationToken cancellationToken)
+    {
+        var sessionStartRateLimiter = services.GetService<IChatSessionStartRateLimiter>();
+
+        if (sessionStartRateLimiter is null)
+        {
+            return RateLimitResult.Allowed;
+        }
+
+        var visitorIdentity = ResolveVisitorIdentity(services);
+
+        return await sessionStartRateLimiter.EvaluateAsync(new PromptSecurityContext
+        {
+            ProfileId = profile.ItemId,
+            Profile = profile,
+            User = Context.User,
+            ConnectionId = Context.ConnectionId,
+            VisitorId = visitorIdentity.VisitorId,
+            RemoteAddressHash = visitorIdentity.RemoteAddressHash,
+            RemoteAddress = visitorIdentity.RemoteAddress,
+        }, cancellationToken);
     }
 
     private static bool IsEndedStatus(ChatSessionStatus status)
@@ -1447,20 +1617,44 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <summary>
     /// Saves chat session.
     /// </summary>
+    /// <param name="services">The service provider used to resolve the store committer.</param>
     /// <param name="sessionManager">The session manager.</param>
     /// <param name="chatSession">The chat session.</param>
-    protected virtual async Task SaveChatSessionAsync(IAIChatSessionManager sessionManager, AIChatSession chatSession)
+    protected virtual async Task SaveChatSessionAsync(IServiceProvider services, IAIChatSessionManager sessionManager, AIChatSession chatSession)
     {
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(sessionManager);
         ArgumentNullException.ThrowIfNull(chatSession);
 
         await sessionManager.SaveAsync(chatSession);
 
-        var committer = _services.GetService<IStoreCommitter>();
+        var committer = services.GetRequiredService<IStoreCommitter>();
 
-        if (committer != null)
+        if (Logger.IsEnabled(LogLevel.Debug))
         {
-            await committer.CommitAsync();
+            Logger.LogDebug(
+                "[ChatPersist] Committing session {SessionId} using committer {CommitterHash} resolved from services scope {ServicesHash}.",
+                chatSession.SessionId,
+                committer.GetHashCode(),
+                services.GetHashCode());
+        }
+
+        await committer.CommitAsync();
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            var promptStore = services.GetService<IAIChatSessionPromptStore>();
+
+            if (promptStore is not null)
+            {
+                var persistedCount = await promptStore.CountAsync(chatSession.SessionId);
+
+                Logger.LogDebug(
+                    "[ChatPersist] After commit, session {SessionId} reports {PersistedCount} persisted prompt(s) (promptStore {StoreHash}).",
+                    chatSession.SessionId,
+                    persistedCount,
+                    promptStore.GetHashCode());
+            }
         }
     }
 

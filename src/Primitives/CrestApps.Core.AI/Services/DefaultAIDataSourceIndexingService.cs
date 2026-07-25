@@ -6,7 +6,6 @@ using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -21,7 +20,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     private const int BatchSize = 250;
     private const int MaxChunkIdsPerDocument = 1000;
 
-    private readonly ICatalog<AIDataSource> _dataSourceCatalog;
+    private readonly IAIDataSourceStore _dataSourceCatalog;
     private readonly ISearchIndexProfileManager _indexProfileManager;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _aiClientFactory;
@@ -42,7 +41,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public DefaultAIDataSourceIndexingService(
-        ICatalog<AIDataSource> dataSourceCatalog,
+        IAIDataSourceStore dataSourceCatalog,
         ISearchIndexProfileManager indexProfileManager,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory aiClientFactory,
@@ -381,7 +380,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return null;
         }
 
-        var knowledgeBaseProfile = await _indexProfileManager.FindByNameAsync(dataSource.AIKnowledgeBaseIndexProfileName);
+        var knowledgeBaseProfile = await _indexProfileManager.FindByNameAsync(dataSource.AIKnowledgeBaseIndexProfileName, cancellationToken);
         if (knowledgeBaseProfile == null)
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index profile '{IndexProfileName}' was not found.", dataSource.ItemId, dataSource.AIKnowledgeBaseIndexProfileName);

@@ -1,4 +1,5 @@
 @page "/ai-chat/chat/{SessionId}"
+@page "/ai-chat/new/{ProfileId}"
 @attribute [Authorize(Policy = "Admin")]
 @using System.Text.Json
 @using CrestApps.Core.AI
@@ -78,6 +79,7 @@ else
          data-coreai-chat-send-button-element-selector="#send-btn"
          data-coreai-chat-placeholder-element-selector="#chat-placeholder"
          data-coreai-chat-messages="@_messagesJson"
+         data-coreai-chat-session-url-template="/ai-chat/chat/{sessionId}"
          data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-mode="@_chatMode"
          data-coreai-chat-mic-button-element-selector="#chat-mic-btn"
@@ -151,10 +153,14 @@ else
     [Parameter]
     public string SessionId { get; set; }
 
+    [Parameter]
+    public string ProfileId { get; set; }
+
     private AIProfile _profile;
     private string _profileDisplayText;
     private string _sessionId;
     private string _welcomeMessage;
+    private string _initialPrompt;
     private bool _allowSessionDocuments;
     private bool _metricsEnabled;
     private bool _textToSpeechEnabled;
@@ -169,25 +175,28 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (string.IsNullOrEmpty(SessionId))
-        {
-            Navigation.NavigateTo("/ai/profiles");
+        AIChatSession session = null;
 
-            return;
+        if (!string.IsNullOrEmpty(SessionId))
+        {
+            session = await SessionManager.FindByIdAsync(SessionId);
+            if (session == null)
+            {
+                Navigation.NavigateTo("/ai/profiles");
+
+                return;
+            }
+
+            _sessionId = session.SessionId;
+            _existingDocuments = session.Documents ?? new List<ChatDocumentInfo>();
+
+            _profile = await ProfileManager.FindByIdAsync(session.ProfileId);
+        }
+        else if (!string.IsNullOrEmpty(ProfileId))
+        {
+            _profile = await ProfileManager.FindByIdAsync(ProfileId);
         }
 
-        var session = await SessionManager.FindByIdAsync(SessionId);
-        if (session == null)
-        {
-            Navigation.NavigateTo("/ai/profiles");
-
-            return;
-        }
-
-        _sessionId = session.SessionId;
-        _existingDocuments = session.Documents ?? new List<ChatDocumentInfo>();
-
-        _profile = await ProfileManager.FindByIdAsync(session.ProfileId);
         if (_profile == null)
         {
             Navigation.NavigateTo("/ai/profiles");
@@ -199,6 +208,11 @@ else
         _welcomeMessage = !string.IsNullOrWhiteSpace(_profile.WelcomeMessage)
             ? _profile.WelcomeMessage
             : "What do you want to know?";
+
+        if (_profile.TryGet<AIProfileMetadata>(out var profileMetadata))
+        {
+            _initialPrompt = profileMetadata.InitialPrompt?.Trim();
+        }
 
         _allowSessionDocuments = _profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta) && sessionDocMeta.AllowSessionDocuments;
         _metricsEnabled = _profile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics;
@@ -226,12 +240,28 @@ else
         _supportedExtensionsAccept = ChatDocumentOptions.Value.GetAllowedFileExtensionsAcceptValue(_allowImageUploads, _allowSessionDocuments);
         _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(_allowImageUploads, _allowSessionDocuments);
 
-        var prompts = await PromptStore.GetPromptsAsync(_sessionId);
-        var messages = prompts
-            .Select(m => new { role = m.Role.Value, content = m.Content, id = m.ItemId, title = m.Title, references = m.References })
-            .ToArray();
+        if (!string.IsNullOrEmpty(_sessionId))
+        {
+            var prompts = await PromptStore.GetPromptsAsync(_sessionId);
+            var messages = prompts
+                .Select(m => new { role = m.Role.Value, content = m.Content, id = m.ItemId, title = m.Title, references = m.References })
+                .ToArray();
 
-        _messagesJson = JsonSerializer.Serialize(messages);
+            _messagesJson = JsonSerializer.Serialize(messages);
+        }
+        else if (!string.IsNullOrWhiteSpace(_initialPrompt))
+        {
+            // When opening a new chat with no session and the profile has an initial
+            // prompt, include it as the first assistant message so the UI renders it
+            // immediately without committing anything to the database.
+            var initialMessages = new[]
+            {
+                new { role = "assistant", content = _initialPrompt, id = (string)null, title = _profile.PromptSubject, references = (IDictionary<string, AICompletionReference>)null }
+            };
+
+            _messagesJson = JsonSerializer.Serialize(initialMessages);
+        }
+
         _existingDocumentsJson = JsonSerializer.Serialize(_existingDocuments);
     }
 

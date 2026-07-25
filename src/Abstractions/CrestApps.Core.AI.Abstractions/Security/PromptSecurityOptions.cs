@@ -75,10 +75,21 @@ public sealed class PromptSecurityOptions
     /// Gets or sets the maximum number of messages per session that can be sent
     /// within the rate limit window. Set to zero to disable rate limiting.
     /// </summary>
-    public int MaxMessagesPerWindow { get; set; }
+    public int MaxMessagesPerWindow { get; set; } = 20;
 
     /// <summary>
     /// Gets or sets the rate limit window duration.
     /// </summary>
     public TimeSpan RateLimitWindow { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Gets or sets the maximum number of anonymous chat sessions that can be started
+    /// within the anonymous session rate-limit window. Set to zero to disable this limit.
+    /// </summary>
+    public int MaxAnonymousSessionsPerWindow { get; set; } = 5;
+
+    /// <summary>
+    /// Gets or sets the anonymous session-start rate-limit window duration.
+    /// </summary>
+    public TimeSpan AnonymousSessionRateLimitWindow { get; set; } = TimeSpan.FromMinutes(10);
 }

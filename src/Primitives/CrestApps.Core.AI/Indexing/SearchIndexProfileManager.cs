@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Indexing;
 /// <summary>
 /// Represents the search Index Profile Manager.
 /// </summary>
-public sealed class SearchIndexProfileManager : CatalogManager<SearchIndexProfile>, ISearchIndexProfileManager
+public sealed class SearchIndexProfileManager : NamedCatalogManager<SearchIndexProfile>, ISearchIndexProfileManager
 {
     private readonly ISearchIndexProfileStore _store;
     private readonly IEnumerable<IIndexProfileHandler> _handlers;
@@ -37,22 +37,19 @@ public sealed class SearchIndexProfileManager : CatalogManager<SearchIndexProfil
     /// Finds by name.
     /// </summary>
     /// <param name="name">The name.</param>
-    public ValueTask<SearchIndexProfile> FindByNameAsync(string name)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(name);
-
-        return _store.FindByNameAsync(name);
-    }
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public new ValueTask<SearchIndexProfile> FindByNameAsync(string name, CancellationToken cancellationToken = default)
+        => base.FindByNameAsync(name, cancellationToken);
 
     /// <summary>
     /// Gets by type.
     /// </summary>
     /// <param name="type">The type.</param>
-    public Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type)
+    public Task<IReadOnlyCollection<SearchIndexProfile>> GetByTypeAsync(string type, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(type);
 
-        return _store.GetByTypeAsync(type);
+        return _store.GetByTypeAsync(type, cancellationToken);
     }
 
     /// <summary>

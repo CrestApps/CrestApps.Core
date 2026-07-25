@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using CrestApps.Core.Models;
 using Microsoft.Extensions.Logging;
 
@@ -6,7 +7,7 @@ namespace CrestApps.Core.Services;
 /// <summary>
 /// Represents the named Catalog Manager.
 /// </summary>
-public class NamedCatalogManager<T> : CatalogManager<T>, INamedCatalogManager<T>
+public class NamedCatalogManager<T> : CatalogManagerBase<T>, INamedCatalogManager<T>
     where T : CatalogItem, INameAwareModel, new()
 {
     protected readonly INamedCatalog<T> NamedCatalog;
@@ -21,7 +22,7 @@ public class NamedCatalogManager<T> : CatalogManager<T>, INamedCatalogManager<T>
         INamedCatalog<T> catalog,
         IEnumerable<ICatalogEntryHandler<T>> handlers,
         ILogger<NamedCatalogManager<T>> logger)
-    : base(catalog, handlers, logger)
+        : base(catalog, handlers, logger)
     {
         NamedCatalog = catalog;
     }
@@ -58,5 +59,38 @@ public class NamedCatalogManager<T> : CatalogManager<T>, INamedCatalogManager<T>
         }
 
         return entry!;
+    }
+
+    /// <summary>
+    /// Asynchronously creates a new model instance, optionally populating it from JSON data.
+    /// </summary>
+    /// <param name="data">Optional JSON data to seed the new model.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A newly created and initialized model instance.</returns>
+    public virtual async ValueTask<T> NewAsync(JsonNode? data = null, CancellationToken cancellationToken = default)
+    {
+        return await InitializeNewEntryAsync(new T(), data, cancellationToken);
+    }
+
+    /// <summary>
+    /// Asynchronously creates a new model instance pre-assigned to the specified name,
+    /// optionally populating it from JSON data.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="data">The data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A newly created and initialized model instance assigned to the specified name.</returns>
+    public virtual async ValueTask<T> NewAsync(string name, JsonNode? data = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        var entry = new T();
+        SetName(entry, name);
+
+        entry = await InitializeNewEntryAsync(entry, data, cancellationToken);
+
+        SetName(entry, name);
+
+        return entry;
     }
 }

@@ -562,69 +562,31 @@
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.LockSystemMessage" /><label class="form-check-label">Lock system message</label></div><div class="form-text">Prevent modification of the system message after creation.</div></div>
 
                         <hr />
-                        <h6 class="text-muted"><i class="bi bi-shield-lock"></i> Prompt Security Override</h6>
-                        <p class="text-muted small">Override the site-level prompt security defaults for profiles created from this template.</p>
+                        <h6 class="text-muted"><i class="bi bi-shield-lock"></i> Anti-Spam Throttle Override</h6>
+                        <p class="text-muted small">Override the site-level anti-spam throttle limits for profiles created from this template. Leave a field empty to inherit the global setting.</p>
 
                         <div class="mb-3">
-                            <label class="form-label">Security layer</label>
-                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityIsEnabled">
-                                <option value="">Use default</option>
-                                <option value="True">Enabled</option>
-                                <option value="False">Disabled</option>
-                            </InputSelect>
+                            <label class="form-label">Max messages per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. Leave blank to inherit the site default; set to 0 to disable message throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxMessagesPerWindow" />
+                            <div class="form-text">Leave empty to use the site default. Set to 0 to disable message throttling.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Injection detection</label>
-                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableInjectionDetection">
-                                <option value="">Use default</option>
-                                <option value="True">Enabled</option>
-                                <option value="False">Disabled</option>
-                            </InputSelect>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Output filtering</label>
-                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableOutputFiltering">
-                                <option value="">Use default</option>
-                                <option value="True">Enabled</option>
-                                <option value="False">Disabled</option>
-                            </InputSelect>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Security preamble</label>
-                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableSecurityPreamble">
-                                <option value="">Use default</option>
-                                <option value="True">Enabled</option>
-                                <option value="False">Disabled</option>
-                            </InputSelect>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Input delimiters</label>
-                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityEnableInputDelimiters">
-                                <option value="">Use default</option>
-                                <option value="True">Enabled</option>
-                                <option value="False">Disabled</option>
-                            </InputSelect>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Max prompt length</label>
-                            <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxPromptLength" />
+                            <label class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityRateLimitWindowSeconds" />
                             <div class="form-text">Leave empty to use the site default.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Blocking threshold</label>
-                            <InputSelect class="form-select" style="max-width: 300px;" @bind-Value="_model.SecurityBlockingThreshold">
-                                <option value="">Use default</option>
-                                <option value="@PromptRiskLevel.Low">Low</option>
-                                <option value="@PromptRiskLevel.Medium">Medium</option>
-                                <option value="@PromptRiskLevel.High">High</option>
-                                <option value="@PromptRiskLevel.Critical">Critical</option>
-                            </InputSelect>
+                            <label class="form-label">Max anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous chat sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. Leave blank to inherit the site default; set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxAnonymousSessionsPerWindow" />
+                            <div class="form-text">Leave empty to use the site default. Set to 0 to disable anonymous session-start throttling.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityAnonymousSessionRateLimitWindowSeconds" />
+                            <div class="form-text">Leave empty to use the site default.</div>
                         </div>
                     </div>
                 </div>

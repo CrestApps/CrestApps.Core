@@ -4,9 +4,9 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using YesSql;
 using ISession = YesSql.ISession;
@@ -16,6 +16,7 @@ namespace CrestApps.Core.Data.YesSql.Services;
 public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IAIVisitorIdentityResolver _visitorIdentityResolver;
     private readonly ISession _session;
     private readonly IAIChatSessionPromptStore _promptStore;
     private readonly IEnumerable<IConversationDocumentCleanupService> _documentCleanupServices;
@@ -33,6 +34,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
     /// <param name="options">The options.</param>
     public YesSqlAIChatSessionManager(
         IHttpContextAccessor httpContextAccessor,
+        IAIVisitorIdentityResolver visitorIdentityResolver,
         ISession session,
         IAIChatSessionPromptStore promptStore,
         IEnumerable<IConversationDocumentCleanupService> documentCleanupServices,
@@ -40,6 +42,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
         IOptions<YesSqlStoreOptions> options)
     {
         _httpContextAccessor = httpContextAccessor;
+        _visitorIdentityResolver = visitorIdentityResolver;
         _session = session;
         _promptStore = promptStore;
         _documentCleanupServices = documentCleanupServices;
@@ -132,27 +135,21 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 
         var user = _httpContextAccessor.HttpContext?.User;
         var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier) ?? user?.Identity?.Name;
+        var visitorIdentity = _visitorIdentityResolver.Resolve();
+        session.RemoteAddress = visitorIdentity.RemoteAddress;
+        session.RemoteAddressHash = visitorIdentity.RemoteAddressHash;
 
         if (!string.IsNullOrEmpty(userId))
         {
             session.UserId = userId;
         }
+        else
+        {
+            session.ClientId = visitorIdentity.VisitorId;
+        }
 
         if (profile.Type == AIProfileType.Chat)
         {
-            if (profile.TryGet<AIProfileMetadata>(out var profileMetadata) && !string.IsNullOrWhiteSpace(profileMetadata.InitialPrompt))
-            {
-                await _promptStore.CreateAsync(new AIChatSessionPrompt
-                {
-                    ItemId = UniqueId.GenerateId(),
-                    SessionId = session.SessionId,
-                    Role = ChatRole.Assistant,
-                    Title = profile.PromptSubject,
-                    Content = profileMetadata.InitialPrompt,
-                    CreatedUtc = now,
-                }, cancellationToken);
-            }
-
             var handlerSettings = profile.GetOrCreateSettings<ResponseHandlerProfileSettings>();
 
             if (!string.IsNullOrEmpty(handlerSettings.InitialResponseHandlerName))

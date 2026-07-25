@@ -77,6 +77,7 @@ public sealed class SettingsController : Controller
         var adminWidgetSettings = _siteSettings.Get<AIChatAdminWidgetSettings>();
         var chatSessionProcessingSettings = _siteSettings.Get<AIChatSessionProcessingOptions>();
         var promptSecuritySettings = _siteSettings.Get<PromptSecurityOptions>();
+        var visitorIdentitySettings = _siteSettings.Get<AIVisitorIdentityOptions>();
 
         var model = new SettingsViewModel
         {
@@ -137,6 +138,11 @@ public sealed class SettingsController : Controller
             SecurityEnableAuditLogging = promptSecuritySettings.EnableAuditLogging,
             SecurityMaxPromptLength = promptSecuritySettings.MaxPromptLength,
             SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
+            SecurityMaxMessagesPerWindow = promptSecuritySettings.MaxMessagesPerWindow,
+            SecurityRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.RateLimitWindow.TotalSeconds),
+            SecurityMaxAnonymousSessionsPerWindow = promptSecuritySettings.MaxAnonymousSessionsPerWindow,
+            SecurityAnonymousSessionRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.AnonymousSessionRateLimitWindow.TotalSeconds),
+            SecurityRemoteAddressMode = visitorIdentitySettings.RemoteAddressMode,
         };
 
         await NormalizeDeploymentSelectorsAsync(model);
@@ -204,6 +210,26 @@ public sealed class SettingsController : Controller
         if (model.SecurityMaxPromptLength < 100 || model.SecurityMaxPromptLength > 100000)
         {
             ModelState.AddModelError(nameof(model.SecurityMaxPromptLength), "Must be between 100 and 100,000.");
+        }
+
+        if (model.SecurityMaxMessagesPerWindow < 0 || model.SecurityMaxMessagesPerWindow > 1000)
+        {
+            ModelState.AddModelError(nameof(model.SecurityMaxMessagesPerWindow), "Must be between 0 and 1,000.");
+        }
+
+        if (model.SecurityRateLimitWindowSeconds < 1 || model.SecurityRateLimitWindowSeconds > 86400)
+        {
+            ModelState.AddModelError(nameof(model.SecurityRateLimitWindowSeconds), "Must be between 1 and 86,400 seconds.");
+        }
+
+        if (model.SecurityMaxAnonymousSessionsPerWindow < 0 || model.SecurityMaxAnonymousSessionsPerWindow > 500)
+        {
+            ModelState.AddModelError(nameof(model.SecurityMaxAnonymousSessionsPerWindow), "Must be between 0 and 500.");
+        }
+
+        if (model.SecurityAnonymousSessionRateLimitWindowSeconds < 1 || model.SecurityAnonymousSessionRateLimitWindowSeconds > 86400)
+        {
+            ModelState.AddModelError(nameof(model.SecurityAnonymousSessionRateLimitWindowSeconds), "Must be between 1 and 86,400 seconds.");
         }
 
         if (!string.IsNullOrWhiteSpace(model.AdminWidgetPrimaryColor) &&
@@ -388,7 +414,15 @@ public sealed class SettingsController : Controller
             EnableAuditLogging = model.SecurityEnabled && model.SecurityEnableAuditLogging,
             MaxPromptLength = model.SecurityMaxPromptLength,
             BlockingThreshold = model.SecurityBlockingThreshold,
+            MaxMessagesPerWindow = model.SecurityMaxMessagesPerWindow,
+            RateLimitWindow = TimeSpan.FromSeconds(model.SecurityRateLimitWindowSeconds),
+            MaxAnonymousSessionsPerWindow = model.SecurityMaxAnonymousSessionsPerWindow,
+            AnonymousSessionRateLimitWindow = TimeSpan.FromSeconds(model.SecurityAnonymousSessionRateLimitWindowSeconds),
         });
+
+        var visitorIdentitySettings = _siteSettings.Get<AIVisitorIdentityOptions>();
+        visitorIdentitySettings.RemoteAddressMode = model.SecurityRemoteAddressMode;
+        _siteSettings.Set(visitorIdentitySettings);
 
         // Persist everything to disk in a single atomic file write.
         await _siteSettings.SaveChangesAsync();

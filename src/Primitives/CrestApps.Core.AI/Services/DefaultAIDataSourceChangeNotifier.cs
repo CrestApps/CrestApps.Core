@@ -1,6 +1,5 @@
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Services;
 
@@ -9,7 +8,7 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class DefaultAIDataSourceChangeNotifier : IAIDataSourceChangeNotifier
 {
-    private readonly ICatalog<AIDataSource> _dataSourceCatalog;
+    private readonly IAIDataSourceStore _dataSourceCatalog;
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
 
     /// <summary>
@@ -18,7 +17,7 @@ public sealed class DefaultAIDataSourceChangeNotifier : IAIDataSourceChangeNotif
     /// <param name="dataSourceCatalog">The data source catalog.</param>
     /// <param name="indexingQueue">The indexing queue.</param>
     public DefaultAIDataSourceChangeNotifier(
-        ICatalog<AIDataSource> dataSourceCatalog,
+        IAIDataSourceStore dataSourceCatalog,
         IAIDataSourceIndexingQueue indexingQueue)
     {
         _dataSourceCatalog = dataSourceCatalog;

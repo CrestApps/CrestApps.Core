@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Support;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -18,6 +19,7 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
 {
     private readonly ConcurrentDictionary<string, SlidingWindowEntry> _windows = new(StringComparer.OrdinalIgnoreCase);
     private readonly TimeProvider _timeProvider;
+    private readonly IOptions<AIChatRateLimitingOptions> _rateLimitingOptions;
     private readonly IOptions<PromptSecurityOptions> _options;
     private readonly ILogger<DefaultChatRateLimiter> _logger;
 
@@ -29,10 +31,12 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
     /// <param name="logger">The logger.</param>
     public DefaultChatRateLimiter(
         TimeProvider timeProvider,
+        IOptions<AIChatRateLimitingOptions> rateLimitingOptions,
         IOptions<PromptSecurityOptions> options,
         ILogger<DefaultChatRateLimiter> logger)
     {
         _timeProvider = timeProvider;
+        _rateLimitingOptions = rateLimitingOptions;
         _options = options;
         _logger = logger;
     }
@@ -59,49 +63,61 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
             return ValueTask.FromResult(RateLimitResult.Allowed);
         }
 
-        var key = ResolveKey(context);
         var now = _timeProvider.GetUtcNow();
         var windowStart = now - window;
+        var keys = ChatRateLimitKeyResolver.ResolveMessageKeys(context, _rateLimitingOptions.Value);
 
-        var entry = _windows.GetOrAdd(key, static _ => new SlidingWindowEntry());
-
-        int currentCount;
-
-        lock (entry.Lock)
+        if (keys.Count == 0)
         {
-            // Evict timestamps outside the current window.
-            while (entry.Timestamps.Count > 0 && entry.Timestamps.Peek() <= windowStart)
+            return ValueTask.FromResult(RateLimitResult.Allowed);
+        }
+
+        foreach (var key in keys)
+        {
+            var entry = _windows.GetOrAdd(key, static _ => new SlidingWindowEntry());
+
+            lock (entry.Lock)
             {
-                entry.Timestamps.Dequeue();
-            }
-
-            currentCount = entry.Timestamps.Count;
-
-            if (currentCount >= maxMessages)
-            {
-                // Calculate retry-after as the time until the oldest entry expires.
-                var oldestInWindow = entry.Timestamps.Peek();
-                var retryAfter = (int)Math.Ceiling((oldestInWindow + window - now).TotalSeconds);
-
-                if (retryAfter < 1)
+                // Evict timestamps outside the current window.
+                while (entry.Timestamps.Count > 0 && entry.Timestamps.Peek() <= windowStart)
                 {
-                    retryAfter = 1;
+                    entry.Timestamps.Dequeue();
                 }
 
-                _logger.LogWarning(
-                    "Rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s, Session={SessionId}",
-                    key,
-                    currentCount,
-                    maxMessages,
-                    retryAfter,
-                    context.SessionId);
+                var currentCount = entry.Timestamps.Count;
 
-                return ValueTask.FromResult(RateLimitResult.Throttled(retryAfter, currentCount, maxMessages));
+                if (currentCount >= maxMessages)
+                {
+                    // Calculate retry-after as the time until the oldest entry expires.
+                    var oldestInWindow = entry.Timestamps.Peek();
+                    var retryAfter = (int)Math.Ceiling((oldestInWindow + window - now).TotalSeconds);
+
+                    if (retryAfter < 1)
+                    {
+                        retryAfter = 1;
+                    }
+
+                    _logger.LogWarning(
+                        "Rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s, Session={SessionId}",
+                        key.SanitizeForLog(),
+                        currentCount,
+                        maxMessages,
+                        retryAfter,
+                        context.SessionId.SanitizeForLog());
+
+                    return ValueTask.FromResult(RateLimitResult.Throttled(retryAfter, currentCount, maxMessages));
+                }
             }
+        }
 
-            // Record this request.
-            entry.Timestamps.Enqueue(now);
-            currentCount = entry.Timestamps.Count;
+        foreach (var key in keys)
+        {
+            var entry = _windows.GetOrAdd(key, static _ => new SlidingWindowEntry());
+
+            lock (entry.Lock)
+            {
+                entry.Timestamps.Enqueue(now);
+            }
         }
 
         return ValueTask.FromResult(RateLimitResult.Allowed);
@@ -117,31 +133,6 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
         {
             _windows.TryRemove(sessionId, out _);
         }
-    }
-
-    private static string ResolveKey(PromptSecurityContext context)
-    {
-        // Prefer user identity for keying (prevents bypass via new connections).
-        var userId = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-        if (!string.IsNullOrWhiteSpace(userId))
-        {
-            return $"user:{userId}";
-        }
-
-        // Fall back to session ID (covers anonymous users).
-        if (!string.IsNullOrWhiteSpace(context.SessionId))
-        {
-            return $"session:{context.SessionId}";
-        }
-
-        // Final fallback to connection ID.
-        if (!string.IsNullOrWhiteSpace(context.ConnectionId))
-        {
-            return $"conn:{context.ConnectionId}";
-        }
-
-        return "unknown";
     }
 
     private sealed class SlidingWindowEntry

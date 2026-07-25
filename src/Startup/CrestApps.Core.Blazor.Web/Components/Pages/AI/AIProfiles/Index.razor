@@ -2,10 +2,8 @@
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
-@using CrestApps.Core.AI.Chat
 @using CrestApps.Core.Services
 @inject IAIProfileManager ProfileManager
-@inject IAIChatSessionManager SessionManager
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -124,13 +122,12 @@ else
         await LoadProfilesAsync();
     }
 
-    private async Task StartNewChatAsync(AIProfile profile)
+    private Task StartNewChatAsync(AIProfile profile)
     {
-        var session = await SessionManager.NewAsync(profile, new NewAIChatSessionContext());
-        session.Title = profile.DisplayText ?? profile.Name;
-        await SessionManager.SaveAsync(session);
-        await StoreCommitter.CommitAsync();
+        // Navigate to the chat page without creating a session. The session
+        // will be created when the user sends their first message via SignalR.
+        Navigation.NavigateTo($"/ai-chat/new/{profile.ItemId}");
 
-        Navigation.NavigateTo($"/ai-chat/chat/{session.SessionId}");
+        return Task.CompletedTask;
     }
 }

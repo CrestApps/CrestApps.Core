@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using CrestApps.Core.Models;
 using Microsoft.Extensions.Logging;
 
@@ -6,7 +7,7 @@ namespace CrestApps.Core.Services;
 /// <summary>
 /// Represents the named Source Catalog Manager.
 /// </summary>
-public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatalogManager<T>, ISourceCatalogManager<T>, INamedSourceCatalogManager<T>
+public class NamedSourceCatalogManager<T> : CatalogManagerBase<T>, INamedSourceCatalogManager<T>
     where T : CatalogItem, INameAwareModel, ISourceAwareModel, new()
 {
     protected readonly INamedSourceCatalog<T> NamedSourceCatalog;
@@ -64,5 +65,94 @@ public class NamedSourceCatalogManager<T> : SourceCatalogManager<T>, INamedCatal
         }
 
         return entry!;
+    }
+
+    /// <summary>
+    /// Gets the operation.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async ValueTask<IEnumerable<T>> GetAsync(string source, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
+        var entries = await NamedSourceCatalog.GetAsync(source, cancellationToken);
+
+        foreach (var entry in entries)
+        {
+            await LoadAsync(entry, cancellationToken);
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Finds by source.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public async ValueTask<IEnumerable<T>> FindBySourceAsync(string source, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
+        var entries = (await Catalog.GetAllAsync(cancellationToken)).Where(x => x.Source == source);
+
+        foreach (var entry in entries)
+        {
+            await LoadAsync(entry, cancellationToken);
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Asynchronously creates a new model instance pre-assigned to the specified source,
+    /// optionally populating it from JSON data.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="data">The data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A newly created and initialized model instance assigned to the specified source.</returns>
+    public virtual async ValueTask<T> NewAsync(string source, JsonNode? data = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
+        var entry = new T
+        {
+            Source = source,
+        };
+
+        entry = await InitializeNewEntryAsync(entry, data, cancellationToken);
+        entry.Source = source;
+
+        return entry;
+    }
+
+    /// <summary>
+    /// Asynchronously creates a new model instance pre-assigned to the specified name and source,
+    /// optionally populating it from JSON data.
+    /// </summary>
+    /// <param name="name">The name.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="data">The data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A newly created and initialized model instance assigned to the specified name and source.</returns>
+    public virtual async ValueTask<T> NewAsync(string name, string source, JsonNode? data = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentException.ThrowIfNullOrEmpty(source);
+
+        var entry = new T
+        {
+            Source = source,
+        };
+
+        SetName(entry, name);
+
+        entry = await InitializeNewEntryAsync(entry, data, cancellationToken);
+        entry.Source = source;
+        SetName(entry, name);
+
+        return entry;
     }
 }

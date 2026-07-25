@@ -124,7 +124,7 @@ public sealed class ArticleIndexingService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var indexProfiles = await _indexProfileStore.GetByTypeAsync(IndexProfileTypes.Articles);
+        var indexProfiles = await _indexProfileStore.GetByTypeAsync(IndexProfileTypes.Articles, cancellationToken);
 
         if (indexProfiles.Count == 0)
         {

@@ -79,7 +79,12 @@ public sealed class DefaultChatRateLimiterTests
     [Fact]
     public async Task EvaluateAsync_DifferentSessions_TrackedIndependently()
     {
-        var limiter = CreateLimiter(maxMessages: 2);
+        var limiter = CreateLimiter(
+            maxMessages: 2,
+            rateLimitingOptions: new AIChatRateLimitingOptions
+            {
+                AnonymousMessagePartitions = ChatRateLimitPartition.Session,
+            });
         var context1 = CreateContext(sessionId: "session-1");
         var context2 = CreateContext(sessionId: "session-2");
 
@@ -110,6 +115,56 @@ public sealed class DefaultChatRateLimiterTests
 
         // Third request from the same user (different session) should be throttled.
         var result = await limiter.EvaluateAsync(context1, TestContext.Current.CancellationToken);
+        Assert.True(result.IsThrottled);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_KeysAnonymousTrafficByVisitorIdAcrossSessions()
+    {
+        var limiter = CreateLimiter(maxMessages: 2);
+        var context1 = CreateContext(sessionId: "session-A", visitorId: "visitor-1");
+        var context2 = CreateContext(sessionId: "session-B", visitorId: "visitor-1");
+
+        await limiter.EvaluateAsync(context1, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context2, TestContext.Current.CancellationToken);
+
+        var result = await limiter.EvaluateAsync(context1, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_UsesRemoteAddressHashFallbackWhenVisitorIdChanges()
+    {
+        var limiter = CreateLimiter(maxMessages: 2);
+        var context1 = CreateContext(sessionId: "session-A", visitorId: "visitor-1", remoteAddressHash: "ip-1");
+        var context2 = CreateContext(sessionId: "session-B", visitorId: "visitor-2", remoteAddressHash: "ip-1");
+
+        await limiter.EvaluateAsync(context1, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context2, TestContext.Current.CancellationToken);
+
+        var result = await limiter.EvaluateAsync(context1, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_UsesPlainTextRemoteAddressWhenConfigured()
+    {
+        var limiter = CreateLimiter(
+            maxMessages: 2,
+            rateLimitingOptions: new AIChatRateLimitingOptions
+            {
+                AnonymousMessagePartitions = ChatRateLimitPartition.NetworkAddress,
+            });
+        var context1 = CreateContext(sessionId: "session-A", visitorId: "visitor-1", remoteAddress: "203.0.113.10");
+        var context2 = CreateContext(sessionId: "session-B", visitorId: "visitor-2", remoteAddress: "203.0.113.10");
+
+        await limiter.EvaluateAsync(context1, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context2, TestContext.Current.CancellationToken);
+
+        var result = await limiter.EvaluateAsync(context1, TestContext.Current.CancellationToken);
+
         Assert.True(result.IsThrottled);
     }
 
@@ -154,9 +209,45 @@ public sealed class DefaultChatRateLimiterTests
     }
 
     [Fact]
+    public async Task EvaluateAsync_ProfileOverridesCount_InheritsWindowFromSite()
+    {
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+
+        // Site default: 100 messages within a 60 second window.
+        var limiter = CreateLimiter(maxMessages: 100, windowSeconds: 60, timeProvider: fakeTime);
+        var context = CreateContext();
+        context.Profile = new AIProfile { ItemId = "profile-1" };
+
+        // Profile overrides only the count and leaves the window null so it inherits the site window.
+        context.Profile.WithSettings(new PromptSecurityProfileSettings
+        {
+            MaxMessagesPerWindow = 2,
+        });
+
+        // The count override applies (throttled after 2, not the site default of 100).
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        var blocked = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        Assert.True(blocked.IsThrottled);
+
+        // Advancing past the inherited 60 second site window frees the quota again,
+        // proving the null profile window fell back to the site setting.
+        fakeTime.Advance(TimeSpan.FromSeconds(61));
+
+        var allowed = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.False(allowed.IsThrottled);
+    }
+
+    [Fact]
     public async Task Reset_ClearsSessionTracking()
     {
-        var limiter = CreateLimiter(maxMessages: 2);
+        var limiter = CreateLimiter(
+            maxMessages: 2,
+            rateLimitingOptions: new AIChatRateLimitingOptions
+            {
+                AnonymousMessagePartitions = ChatRateLimitPartition.Session,
+            });
         var context = CreateContext(sessionId: "session-to-reset");
 
         await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
@@ -204,6 +295,7 @@ public sealed class DefaultChatRateLimiterTests
     private static DefaultChatRateLimiter CreateLimiter(
         int maxMessages,
         int windowSeconds = 60,
+        AIChatRateLimitingOptions rateLimitingOptions = null,
         TimeProvider timeProvider = null)
     {
         var options = Options.Create(new PromptSecurityOptions
@@ -214,13 +306,17 @@ public sealed class DefaultChatRateLimiterTests
 
         return new DefaultChatRateLimiter(
             timeProvider ?? TimeProvider.System,
+            Options.Create(rateLimitingOptions ?? new AIChatRateLimitingOptions()),
             options,
             NullLogger<DefaultChatRateLimiter>.Instance);
     }
 
     private static PromptSecurityContext CreateContext(
         string sessionId = "test-session",
-        System.Security.Claims.ClaimsPrincipal user = null)
+        System.Security.Claims.ClaimsPrincipal user = null,
+        string visitorId = null,
+        string remoteAddressHash = null,
+        string remoteAddress = null)
     {
         return new PromptSecurityContext
         {
@@ -229,6 +325,9 @@ public sealed class DefaultChatRateLimiterTests
             ProfileId = "profile-1",
             User = user,
             ConnectionId = "conn-1",
+            VisitorId = visitorId,
+            RemoteAddressHash = remoteAddressHash,
+            RemoteAddress = remoteAddress,
         };
     }
 
