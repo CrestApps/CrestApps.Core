@@ -484,7 +484,7 @@
                         @foreach (var instance in Model.AvailableToolInstances)
                         {
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" name="SelectedToolInstanceIds" value="@instance.ItemId" id="toolinstance_@instance.ItemId"
+                                <input class="form-check-input" type="checkbox" name="SelectedToolInstanceNames" value="@instance.Name" id="toolinstance_@instance.ItemId"
                                 @(instance.IsSelected ? "checked" : "") />
                                 <label class="form-check-label" for="toolinstance_@instance.ItemId">
                                     <strong>@instance.DisplayText</strong>

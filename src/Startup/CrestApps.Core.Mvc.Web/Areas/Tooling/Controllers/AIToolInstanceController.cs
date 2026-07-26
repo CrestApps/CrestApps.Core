@@ -228,6 +228,27 @@ public sealed class AIToolInstanceController : Controller
                 }
 
                 break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                if (string.IsNullOrWhiteSpace(model.TokenEndpoint))
+                {
+                    ModelState.AddModelError(nameof(model.TokenEndpoint), "Token endpoint is required.");
+                }
+                else if (!Uri.TryCreate(model.TokenEndpoint, UriKind.Absolute, out _))
+                {
+                    ModelState.AddModelError(nameof(model.TokenEndpoint), "Token endpoint must be a valid absolute URL.");
+                }
+
+                if (string.IsNullOrWhiteSpace(model.ClientId))
+                {
+                    ModelState.AddModelError(nameof(model.ClientId), "Client ID is required.");
+                }
+
+                if ((!isEditing || !model.HasClientSecret) && string.IsNullOrWhiteSpace(model.ClientSecret))
+                {
+                    ModelState.AddModelError(nameof(model.ClientSecret), "Client secret is required.");
+                }
+
+                break;
         }
 
         if (!string.IsNullOrWhiteSpace(model.DefaultHeaders))
@@ -299,6 +320,12 @@ public sealed class AIToolInstanceController : Controller
                 settings.BasicUsername = model.BasicUsername?.Trim();
                 settings.BasicPassword = ProtectOrReuse(model.BasicPassword, existing.BasicPassword, protector);
                 break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                settings.TokenEndpoint = model.TokenEndpoint?.Trim();
+                settings.ClientId = model.ClientId?.Trim();
+                settings.ClientSecret = ProtectOrReuse(model.ClientSecret, existing.ClientSecret, protector);
+                settings.Scope = model.Scope?.Trim();
+                break;
         }
 
         instance.Put(settings);
@@ -331,6 +358,10 @@ public sealed class AIToolInstanceController : Controller
             model.HasBearerToken = !string.IsNullOrEmpty(settings.BearerToken);
             model.BasicUsername = settings.BasicUsername;
             model.HasBasicPassword = !string.IsNullOrEmpty(settings.BasicPassword);
+            model.TokenEndpoint = settings.TokenEndpoint;
+            model.ClientId = settings.ClientId;
+            model.HasClientSecret = !string.IsNullOrEmpty(settings.ClientSecret);
+            model.Scope = settings.Scope;
             model.AllowModelProvidedPath = settings.AllowModelProvidedPath;
             model.AllowModelProvidedQuery = settings.AllowModelProvidedQuery;
             model.AllowModelProvidedBody = settings.AllowModelProvidedBody;

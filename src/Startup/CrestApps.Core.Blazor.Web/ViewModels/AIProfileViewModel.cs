@@ -109,7 +109,7 @@ public sealed class AIProfileViewModel
     public List<McpConnectionSelectionItem> AvailableMcpConnections { get; set; } = [];
 
     // AI Tool Instances
-    public string[] SelectedToolInstanceIds { get; set; } = [];
+    public string[] SelectedToolInstanceNames { get; set; } = [];
 
     public List<AIToolInstanceSelectionItem> AvailableToolInstances { get; set; } = [];
 
@@ -318,9 +318,9 @@ public sealed class AIProfileViewModel
             vm.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
         }
 
-        if (profile.TryGet<AIProfileToolInstanceMetadata>(out var toolInstanceMetadata))
+        if (profile.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata))
         {
-            vm.SelectedToolInstanceIds = toolInstanceMetadata.InstanceIds ?? [];
+            vm.SelectedToolInstanceNames = toolInstanceMetadata.InstanceNames ?? [];
         }
 
         if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
@@ -468,10 +468,10 @@ public sealed class AIProfileViewModel
                 .ToArray() ?? [];
         });
 
-        profile.Alter<AIProfileToolInstanceMetadata>(x =>
+        profile.Alter<AIToolInstanceMetadata>(x =>
         {
-            x.InstanceIds = SelectedToolInstanceIds?
-                .Where(id => !string.IsNullOrWhiteSpace(id))
+            x.InstanceNames = SelectedToolInstanceNames?
+                .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];
         });
@@ -775,6 +775,11 @@ public sealed class AIToolInstanceSelectionItem
     /// Gets or sets the instance identifier.
     /// </summary>
     public string ItemId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the unique instance name. Used as the stable reference stored on the profile.
+    /// </summary>
+    public string Name { get; set; }
 
     /// <summary>
     /// Gets or sets the instance display text.

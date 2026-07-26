@@ -39,7 +39,7 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
     }
 
     /// <summary>
-    /// Gets the tool entries for the configured instance identifiers on the completion context.
+    /// Gets the tool entries for the configured instance names on the completion context.
     /// </summary>
     /// <param name="context">The completion context that scopes available tools.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
@@ -47,31 +47,32 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
         AICompletionContext context,
         CancellationToken cancellationToken = default)
     {
-        var instanceIds = context?.ToolInstanceIds;
+        var instanceNames = context?.ToolInstanceNames;
 
-        if (instanceIds is null || instanceIds.Length == 0)
+        if (instanceNames is null || instanceNames.Length == 0)
         {
             return [];
         }
 
-        var catalog = _serviceProvider.GetService<ISourceCatalog<AIToolInstance>>();
+        var catalog = _serviceProvider.GetService<INamedCatalog<AIToolInstance>>();
 
         if (catalog is null)
         {
             return [];
         }
 
-        var instances = await catalog.GetAsync(instanceIds, cancellationToken);
-
-        if (instances.Count == 0)
-        {
-            return [];
-        }
-
         var entries = new List<ToolRegistryEntry>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var instance in instances)
+        foreach (var instanceName in instanceNames)
         {
+            if (string.IsNullOrEmpty(instanceName) || !seenNames.Add(instanceName))
+            {
+                continue;
+            }
+
+            var instance = await catalog.FindByNameAsync(instanceName, cancellationToken);
+
             if (instance is null || string.IsNullOrEmpty(instance.Source))
             {
                 continue;
@@ -82,8 +83,8 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
             if (source is null)
             {
                 _logger.LogWarning(
-                    "AI tool instance '{InstanceId}' references unknown source '{Source}'. Skipping.",
-                    instance.ItemId, instance.Source);
+                    "AI tool instance '{InstanceName}' references unknown source '{Source}'. Skipping.",
+                    instance.Name, instance.Source);
 
                 continue;
             }
@@ -96,7 +97,7 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
 
             entries.Add(new ToolRegistryEntry
             {
-                Id = $"tool-instance:{instance.ItemId}",
+                Id = $"tool-instance:{instance.Name}",
                 Name = functionName,
                 Description = description,
                 Source = ToolRegistryEntrySource.Local,
@@ -118,8 +119,8 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
         {
             _logger.LogError(
                 ex,
-                "Failed to create tool for instance '{InstanceId}' from source '{Source}'.",
-                toolContext.Instance.ItemId, toolContext.Instance.Source);
+                "Failed to create tool for instance '{InstanceName}' from source '{Source}'.",
+                toolContext.Instance.Name, toolContext.Instance.Source);
 
             return null;
         }

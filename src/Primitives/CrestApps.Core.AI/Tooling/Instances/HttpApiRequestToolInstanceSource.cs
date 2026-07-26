@@ -25,6 +25,6 @@ public sealed class HttpApiRequestToolInstanceSource : IAIToolInstanceSource
             ? stored
             : new HttpApiRequestToolSettings();
 
-        return new HttpApiRequestToolFunction(context.FunctionName, context.Description, settings);
+        return new HttpApiRequestToolFunction(context.FunctionName, context.Description, settings, context.Instance);
     }
 }

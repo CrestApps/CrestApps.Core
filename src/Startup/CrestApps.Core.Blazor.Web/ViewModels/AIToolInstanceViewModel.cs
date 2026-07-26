@@ -92,6 +92,31 @@ public sealed class AIToolInstanceViewModel
     public bool HasBasicPassword { get; set; }
 
     /// <summary>
+    /// Gets or sets the OAuth 2.0 token endpoint used to acquire access tokens.
+    /// </summary>
+    public string TokenEndpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the OAuth 2.0 client identifier.
+    /// </summary>
+    public string ClientId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the OAuth 2.0 client secret.
+    /// </summary>
+    public string ClientSecret { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a protected client secret is already stored.
+    /// </summary>
+    public bool HasClientSecret { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional OAuth 2.0 scope requested when acquiring an access token.
+    /// </summary>
+    public string Scope { get; set; }
+
+    /// <summary>
     /// Gets or sets the static headers, as a JSON object, always added to the request.
     /// </summary>
     public string DefaultHeaders { get; set; } = "{}";

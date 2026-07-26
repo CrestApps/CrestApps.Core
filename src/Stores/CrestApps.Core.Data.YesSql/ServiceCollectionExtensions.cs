@@ -261,7 +261,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
         AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(services, static o => o.AICollectionName);
-        AddYesSqlSourceDocumentCatalog<AIToolInstance, AIToolInstanceIndex>(services, static o => o.AICollectionName);
+        AddYesSqlNamedSourceDocumentCatalog<AIToolInstance, AIToolInstanceIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProviderConnectionIndexProvider>());

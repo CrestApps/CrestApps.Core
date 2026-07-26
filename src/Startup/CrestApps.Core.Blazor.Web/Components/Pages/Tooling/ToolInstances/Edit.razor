@@ -159,6 +159,38 @@ else
                 </div>
             }
 
+            @if (_model.AuthenticationType == HttpApiRequestAuthenticationType.OAuth2)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Token endpoint</label>
+                    <InputText @bind-Value="_model.TokenEndpoint" class="form-control" placeholder="https://login.example.com/oauth2/token" />
+                    <ValidationMessage For="() => _model.TokenEndpoint" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Client ID</label>
+                    <InputText @bind-Value="_model.ClientId" class="form-control" autocomplete="off" />
+                    <ValidationMessage For="() => _model.ClientId" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Client secret</label>
+                    <input type="password" class="form-control" @bind="_model.ClientSecret" autocomplete="new-password" />
+                    @if (_model.HasClientSecret)
+                    {
+                        <div class="form-text">Leave blank to keep the existing client secret.</div>
+                    }
+                    <ValidationMessage For="() => _model.ClientSecret" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Scope (optional)</label>
+                    <InputText @bind-Value="_model.Scope" class="form-control" placeholder="api://resource/.default" />
+                </div>
+
+                <p class="text-muted small">The access token is requested on demand, cached securely on the instance, and refreshed automatically.</p>
+            }
+
             <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
             <p class="text-muted small">Choose which parts of the request the AI model is allowed to fill in at invocation time.</p>
 
@@ -291,6 +323,27 @@ else
                 }
 
                 break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                if (string.IsNullOrWhiteSpace(model.TokenEndpoint))
+                {
+                    _errors.Add("Token endpoint is required.");
+                }
+                else if (!Uri.TryCreate(model.TokenEndpoint, UriKind.Absolute, out _))
+                {
+                    _errors.Add("Token endpoint must be a valid absolute URL.");
+                }
+
+                if (string.IsNullOrWhiteSpace(model.ClientId))
+                {
+                    _errors.Add("Client ID is required.");
+                }
+
+                if ((!isEditing || !model.HasClientSecret) && string.IsNullOrWhiteSpace(model.ClientSecret))
+                {
+                    _errors.Add("Client secret is required.");
+                }
+
+                break;
         }
 
         if (!string.IsNullOrWhiteSpace(model.DefaultHeaders))
@@ -346,6 +399,12 @@ else
                 settings.BasicUsername = model.BasicUsername?.Trim();
                 settings.BasicPassword = ProtectOrReuse(model.BasicPassword, existing.BasicPassword, protector);
                 break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                settings.TokenEndpoint = model.TokenEndpoint?.Trim();
+                settings.ClientId = model.ClientId?.Trim();
+                settings.ClientSecret = ProtectOrReuse(model.ClientSecret, existing.ClientSecret, protector);
+                settings.Scope = model.Scope?.Trim();
+                break;
         }
 
         instance.Put(settings);
@@ -378,6 +437,10 @@ else
             model.HasBearerToken = !string.IsNullOrEmpty(settings.BearerToken);
             model.BasicUsername = settings.BasicUsername;
             model.HasBasicPassword = !string.IsNullOrEmpty(settings.BasicPassword);
+            model.TokenEndpoint = settings.TokenEndpoint;
+            model.ClientId = settings.ClientId;
+            model.HasClientSecret = !string.IsNullOrEmpty(settings.ClientSecret);
+            model.Scope = settings.Scope;
             model.AllowModelProvidedPath = settings.AllowModelProvidedPath;
             model.AllowModelProvidedQuery = settings.AllowModelProvidedQuery;
             model.AllowModelProvidedBody = settings.AllowModelProvidedBody;

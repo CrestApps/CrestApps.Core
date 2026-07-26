@@ -64,11 +64,11 @@ public sealed class AICompletionContext
     public string[] AgentNames { get; set; }
 
     /// <summary>
-    /// Gets or sets the configured tool instance identifiers available to this request. Each identifier
-    /// refers to an <c>AIToolInstance</c> that binds a developer-defined tool source to user-provided
-    /// settings and is surfaced to the model as a distinct function.
+    /// Gets or sets the configured tool instance names available to this request. Each name refers to an
+    /// <c>AIToolInstance</c> that binds a developer-defined tool source to user-provided settings and is
+    /// surfaced to the model as a distinct function.
     /// </summary>
-    public string[] ToolInstanceIds { get; set; }
+    public string[] ToolInstanceNames { get; set; }
 
     /// <summary>
     /// Gets or sets the MCP (Model Context Protocol) connection identifiers available to this request.

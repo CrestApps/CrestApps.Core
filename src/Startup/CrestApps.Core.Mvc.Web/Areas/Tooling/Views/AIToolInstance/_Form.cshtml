@@ -128,6 +128,34 @@
                 </div>
             </div>
 
+            <div id="oauth2Fields" class="auth-fields">
+                <div class="mb-3">
+                    <label asp-for="TokenEndpoint" class="form-label">Token endpoint</label>
+                    <input asp-for="TokenEndpoint" class="form-control" placeholder="https://login.example.com/oauth2/token" />
+                    <span asp-validation-for="TokenEndpoint" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="ClientId" class="form-label">Client ID</label>
+                    <input asp-for="ClientId" class="form-control" autocomplete="off" />
+                    <span asp-validation-for="ClientId" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="ClientSecret" class="form-label">Client secret</label>
+                    <input asp-for="ClientSecret" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasClientSecret)
+                    {
+                        <div class="form-text">Leave blank to keep the existing client secret.</div>
+                    }
+                    <span asp-validation-for="ClientSecret" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Scope" class="form-label">Scope (optional)</label>
+                    <input asp-for="Scope" class="form-control" placeholder="api://resource/.default" />
+                    <span asp-validation-for="Scope" class="text-danger"></span>
+                </div>
+                <div class="form-text">The access token is requested on demand, cached securely on the instance, and refreshed automatically.</div>
+            </div>
+
             <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
             <p class="text-muted small">Choose which parts of the request the AI model is allowed to fill in at invocation time.</p>
 
@@ -158,7 +186,8 @@
         const authGroups = {
             ApiKey: ['apiKeyFields'],
             Bearer: ['bearerFields'],
-            Basic: ['basicFields']
+            Basic: ['basicFields'],
+            OAuth2: ['oauth2Fields']
         };
 
         function updateAuthVisibility() {

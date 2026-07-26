@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.AI;
@@ -30,6 +32,7 @@ public sealed class HttpApiRequestToolFunction : AIFunction
     private readonly string _name;
     private readonly string _description;
     private readonly HttpApiRequestToolSettings _settings;
+    private readonly AIToolInstance _instance;
     private readonly JsonElement _jsonSchema;
 
     /// <summary>
@@ -38,7 +41,16 @@ public sealed class HttpApiRequestToolFunction : AIFunction
     /// <param name="name">The function name exposed to the AI model.</param>
     /// <param name="description">The description exposed to the AI model.</param>
     /// <param name="settings">The user-provided settings that configure the request.</param>
-    public HttpApiRequestToolFunction(string name, string description, HttpApiRequestToolSettings settings)
+    /// <param name="instance">
+    /// The configured tool instance the function belongs to. Used to cache OAuth 2.0 token state across
+    /// requests. May be <see langword="null"/> (for example in tests), in which case token caching is
+    /// performed in-memory for the lifetime of the function only.
+    /// </param>
+    public HttpApiRequestToolFunction(
+        string name,
+        string description,
+        HttpApiRequestToolSettings settings,
+        AIToolInstance instance = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(settings);
@@ -48,6 +60,7 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             ? name
             : description;
         _settings = settings;
+        _instance = instance;
         _jsonSchema = BuildSchema(settings);
     }
 
@@ -108,7 +121,7 @@ public sealed class HttpApiRequestToolFunction : AIFunction
         var method = ResolveMethod();
         using var request = new HttpRequestMessage(method, requestUri);
 
-        ApplyAuthentication(request, services);
+        await ApplyAuthenticationAsync(request, services, logger, cancellationToken);
         ApplyDefaultHeaders(request);
         ApplyBody(request, method, arguments);
 
@@ -197,7 +210,11 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             : HttpMethod.Parse(_settings.HttpMethod.Trim().ToUpperInvariant());
     }
 
-    private void ApplyAuthentication(HttpRequestMessage request, IServiceProvider services)
+    private async Task ApplyAuthenticationAsync(
+        HttpRequestMessage request,
+        IServiceProvider services,
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
         switch (_settings.AuthenticationType)
         {
@@ -236,6 +253,251 @@ public sealed class HttpApiRequestToolFunction : AIFunction
                 }
 
                 break;
+
+            case HttpApiRequestAuthenticationType.OAuth2:
+                var accessToken = await EnsureAccessTokenAsync(services, logger, cancellationToken);
+
+                if (!string.IsNullOrWhiteSpace(accessToken))
+                {
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                }
+
+                break;
+        }
+    }
+
+    private async Task<string> EnsureAccessTokenAsync(
+        IServiceProvider services,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.TokenEndpoint))
+        {
+            logger?.LogWarning("AI tool '{ToolName}' is configured for OAuth2 but has no token endpoint.", _name);
+
+            return null;
+        }
+
+        var timeProvider = services?.GetService<TimeProvider>() ?? TimeProvider.System;
+        var now = timeProvider.GetUtcNow();
+
+        HttpApiRequestTokenState state = null;
+
+        if (_instance is not null && _instance.TryGet<HttpApiRequestTokenState>(out var cached))
+        {
+            state = cached;
+        }
+
+        if (state is not null &&
+            !string.IsNullOrEmpty(state.AccessToken) &&
+            state.ExpiresAtUtc is { } expiresAt &&
+            expiresAt > now.AddSeconds(30))
+        {
+            return Unprotect(services, state.AccessToken);
+        }
+
+        var refreshToken = state is not null && !string.IsNullOrEmpty(state.RefreshToken)
+            ? Unprotect(services, state.RefreshToken)
+            : null;
+
+        var result = await RequestTokenAsync(services, refreshToken, logger, cancellationToken);
+
+        if (result is null || string.IsNullOrEmpty(result.AccessToken))
+        {
+            // Fall back to any previously cached token, even if it may be expired.
+            return state is not null
+                ? Unprotect(services, state.AccessToken)
+                : null;
+        }
+
+        var expiresAtUtc = result.ExpiresInSeconds is > 0
+            ? now.AddSeconds(result.ExpiresInSeconds.Value)
+            : now.AddMinutes(55);
+
+        var newState = new HttpApiRequestTokenState
+        {
+            AccessToken = Protect(services, result.AccessToken),
+            RefreshToken = string.IsNullOrEmpty(result.RefreshToken)
+                ? state?.RefreshToken
+                : Protect(services, result.RefreshToken),
+            TokenType = result.TokenType,
+            ExpiresAtUtc = expiresAtUtc,
+        };
+
+        await PersistTokenStateAsync(services, newState, logger, cancellationToken);
+
+        return result.AccessToken;
+    }
+
+    private async Task<OAuthTokenResult> RequestTokenAsync(
+        IServiceProvider services,
+        string refreshToken,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(refreshToken))
+        {
+            var refreshed = await PostTokenRequestAsync(services, new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["grant_type"] = "refresh_token",
+                ["refresh_token"] = refreshToken,
+            }, logger, cancellationToken);
+
+            if (refreshed is not null)
+            {
+                return refreshed;
+            }
+        }
+
+        return await PostTokenRequestAsync(services, new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["grant_type"] = "client_credentials",
+        }, logger, cancellationToken);
+    }
+
+    private async Task<OAuthTokenResult> PostTokenRequestAsync(
+        IServiceProvider services,
+        Dictionary<string, string> parameters,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var clientId = _settings.ClientId;
+        var clientSecret = Unprotect(services, _settings.ClientSecret);
+
+        if (!string.IsNullOrEmpty(clientId))
+        {
+            parameters["client_id"] = clientId;
+        }
+
+        if (!string.IsNullOrEmpty(clientSecret))
+        {
+            parameters["client_secret"] = clientSecret;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_settings.Scope))
+        {
+            parameters["scope"] = _settings.Scope.Trim();
+        }
+
+        try
+        {
+            var httpClient = CreateHttpClient(services);
+            using var tokenRequest = new HttpRequestMessage(HttpMethod.Post, _settings.TokenEndpoint.Trim())
+            {
+                Content = new FormUrlEncodedContent(parameters),
+            };
+
+            using var response = await httpClient.SendAsync(tokenRequest, cancellationToken);
+            var payload = response.Content is null
+                ? string.Empty
+                : await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.LogWarning(
+                    "AI tool '{ToolName}' token request to {Endpoint} failed with status {StatusCode}.",
+                    _name, _settings.TokenEndpoint, (int)response.StatusCode);
+
+                return null;
+            }
+
+            return ParseTokenResponse(payload);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "AI tool '{ToolName}' token request to {Endpoint} failed.", _name, _settings.TokenEndpoint);
+
+            return null;
+        }
+    }
+
+    private static OAuthTokenResult ParseTokenResponse(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            var root = document.RootElement;
+
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("access_token", out var accessTokenElement) ||
+                accessTokenElement.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            var result = new OAuthTokenResult
+            {
+                AccessToken = accessTokenElement.GetString(),
+            };
+
+            if (root.TryGetProperty("refresh_token", out var refreshElement) && refreshElement.ValueKind == JsonValueKind.String)
+            {
+                result.RefreshToken = refreshElement.GetString();
+            }
+
+            if (root.TryGetProperty("token_type", out var typeElement) && typeElement.ValueKind == JsonValueKind.String)
+            {
+                result.TokenType = typeElement.GetString();
+            }
+
+            if (root.TryGetProperty("expires_in", out var expiresElement))
+            {
+                if (expiresElement.ValueKind == JsonValueKind.Number && expiresElement.TryGetInt32(out var seconds))
+                {
+                    result.ExpiresInSeconds = seconds;
+                }
+                else if (expiresElement.ValueKind == JsonValueKind.String &&
+                    int.TryParse(expiresElement.GetString(), out var parsedSeconds))
+                {
+                    result.ExpiresInSeconds = parsedSeconds;
+                }
+            }
+
+            return result;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private async Task PersistTokenStateAsync(
+        IServiceProvider services,
+        HttpApiRequestTokenState state,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (_instance is null)
+        {
+            return;
+        }
+
+        // Cache in-memory so a subsequent tool call within the same request reuses the token.
+        _instance.Put(state);
+
+        var catalog = services?.GetService<ICatalog<AIToolInstance>>();
+
+        if (catalog is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await catalog.UpdateAsync(_instance, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "AI tool '{ToolName}' could not persist the cached OAuth2 token state.", _name);
         }
     }
 
@@ -299,6 +561,25 @@ public sealed class HttpApiRequestToolFunction : AIFunction
         effectiveToken = cancellationToken;
 
         return new NoopDisposable();
+    }
+
+    private static string Protect(IServiceProvider services, string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        var provider = services?.GetService<IDataProtectionProvider>();
+
+        if (provider is null)
+        {
+            return value;
+        }
+
+        return provider
+            .CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose)
+            .Protect(value);
     }
 
     private static string Unprotect(IServiceProvider services, string value)
@@ -435,5 +716,16 @@ public sealed class HttpApiRequestToolFunction : AIFunction
         public void Dispose()
         {
         }
+    }
+
+    private sealed class OAuthTokenResult
+    {
+        public string AccessToken { get; set; }
+
+        public string RefreshToken { get; set; }
+
+        public string TokenType { get; set; }
+
+        public int? ExpiresInSeconds { get; set; }
     }
 }

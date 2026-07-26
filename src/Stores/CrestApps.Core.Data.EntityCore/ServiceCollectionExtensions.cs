@@ -128,7 +128,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
         services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
         services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
-        services.AddSourceDocumentCatalog<AIToolInstance, SourceDocumentCatalog<AIToolInstance>>();
+        services.AddNamedSourceDocumentCatalog<AIToolInstance, NamedSourceDocumentCatalog<AIToolInstance>>();
 
         return services;
     }

@@ -11,6 +11,11 @@ public sealed class AIToolInstanceSelectionItem
     public string ItemId { get; set; }
 
     /// <summary>
+    /// Gets or sets the unique instance name. Used as the stable reference stored on the profile.
+    /// </summary>
+    public string Name { get; set; }
+
+    /// <summary>
     /// Gets or sets the instance display text.
     /// </summary>
     public string DisplayText { get; set; }

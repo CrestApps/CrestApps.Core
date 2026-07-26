@@ -129,7 +129,7 @@ public sealed class AIToolInstanceTests
 
         var context = new AICompletionContext
         {
-            ToolInstanceIds = ["weather-a", "weather-b"],
+            ToolInstanceNames = ["weather_a", "weather_b"],
         };
 
         var entries = await registryProvider.GetToolsAsync(context, TestContext.Current.CancellationToken);
@@ -184,7 +184,7 @@ public sealed class AIToolInstanceTests
 
         var context = new AICompletionContext
         {
-            ToolInstanceIds = ["orphan"],
+            ToolInstanceNames = ["orphan"],
         };
 
         var entries = await registryProvider.GetToolsAsync(context, TestContext.Current.CancellationToken);
@@ -264,6 +264,101 @@ public sealed class AIToolInstanceTests
         Assert.Equal("https://api.example.com/fixed", handler.LastRequest!.RequestUri!.ToString());
     }
 
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_AcquiresCachesAndReusesToken()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"tok1\",\"token_type\":\"Bearer\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = "https://api.example.com",
+            HttpMethod = "GET",
+            AuthenticationType = HttpApiRequestAuthenticationType.OAuth2,
+            TokenEndpoint = tokenEndpoint,
+            ClientId = "client",
+            ClientSecret = "secret",
+            Scope = "api.read",
+            AllowModelProvidedPath = false,
+            AllowModelProvidedQuery = false,
+            AllowModelProvidedBody = false,
+        };
+
+        var instance = new AIToolInstance
+        {
+            ItemId = "oauth-1",
+            Source = HttpApiRequestToolConstants.SourceName,
+            Name = "oauth_tool",
+        };
+        instance.Put(settings);
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.TokenRequestCount);
+        Assert.Single(handler.ApiRequests);
+        Assert.Equal("Bearer", handler.ApiRequests[0].Headers.Authorization!.Scheme);
+        Assert.Equal("tok1", handler.ApiRequests[0].Headers.Authorization.Parameter);
+        Assert.Contains("grant_type=client_credentials", handler.TokenRequestBodies[0]);
+        Assert.True(instance.TryGet<HttpApiRequestTokenState>(out var cachedState));
+        Assert.Equal("tok1", cachedState.AccessToken);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.TokenRequestCount);
+        Assert.Equal(2, handler.ApiRequests.Count);
+        Assert.Equal("tok1", handler.ApiRequests[1].Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_UsesRefreshTokenWhenAccessTokenExpired()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"tok2\",\"token_type\":\"Bearer\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = "https://api.example.com",
+            HttpMethod = "GET",
+            AuthenticationType = HttpApiRequestAuthenticationType.OAuth2,
+            TokenEndpoint = tokenEndpoint,
+            ClientId = "client",
+            ClientSecret = "secret",
+            AllowModelProvidedPath = false,
+            AllowModelProvidedQuery = false,
+            AllowModelProvidedBody = false,
+        };
+
+        var instance = new AIToolInstance
+        {
+            ItemId = "oauth-2",
+            Source = HttpApiRequestToolConstants.SourceName,
+            Name = "oauth_tool",
+        };
+        instance.Put(settings);
+        instance.Put(new HttpApiRequestTokenState
+        {
+            AccessToken = "old-token",
+            RefreshToken = "refresh-1",
+            TokenType = "Bearer",
+            ExpiresAtUtc = time.GetUtcNow().AddMinutes(-5),
+        });
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.TokenRequestCount);
+        Assert.Contains("grant_type=refresh_token", handler.TokenRequestBodies[0]);
+        Assert.Contains("refresh_token=refresh-1", handler.TokenRequestBodies[0]);
+        Assert.Equal("tok2", handler.ApiRequests[0].Headers.Authorization!.Parameter);
+    }
+
     private static AIToolInstance CreateWeatherInstance(string itemId, string name, string description)
     {
         var instance = new AIToolInstance
@@ -287,11 +382,11 @@ public sealed class AIToolInstanceTests
 
     private static ServiceProvider BuildProvider(IReadOnlyCollection<AIToolInstance> instances)
     {
-        var catalog = new Mock<ISourceCatalog<AIToolInstance>>();
+        var catalog = new Mock<INamedCatalog<AIToolInstance>>();
         catalog
-            .Setup(c => c.GetAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> ids, CancellationToken _) =>
-                instances.Where(d => ids.Contains(d.ItemId)).ToArray());
+            .Setup(c => c.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string name, CancellationToken _) =>
+                instances.FirstOrDefault(d => string.Equals(d.Name, name, StringComparison.OrdinalIgnoreCase)));
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -310,11 +405,21 @@ public sealed class AIToolInstanceTests
         return services.BuildServiceProvider();
     }
 
+    private static ServiceProvider BuildOAuthProvider(HttpMessageHandler handler, TimeProvider timeProvider)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IHttpClientFactory>(new StubHttpClientFactory(handler));
+        services.AddSingleton(timeProvider);
+
+        return services.BuildServiceProvider();
+    }
+
     private sealed class StubHttpClientFactory : IHttpClientFactory
     {
-        private readonly CapturingHttpMessageHandler _handler;
+        private readonly HttpMessageHandler _handler;
 
-        public StubHttpClientFactory(CapturingHttpMessageHandler handler)
+        public StubHttpClientFactory(HttpMessageHandler handler)
         {
             _handler = handler;
         }
@@ -353,6 +458,68 @@ public sealed class AIToolInstanceTests
             {
                 Content = new StringContent(_responseBody),
             };
+        }
+    }
+
+    private sealed class OAuthRoutingHandler : HttpMessageHandler
+    {
+        private readonly string _tokenEndpoint;
+        private readonly Queue<string> _tokenResponses;
+
+        public OAuthRoutingHandler(string tokenEndpoint, params string[] tokenResponses)
+        {
+            _tokenEndpoint = tokenEndpoint;
+            _tokenResponses = new Queue<string>(tokenResponses);
+        }
+
+        public int TokenRequestCount { get; private set; }
+
+        public List<string> TokenRequestBodies { get; } = [];
+
+        public List<HttpRequestMessage> ApiRequests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (string.Equals(request.RequestUri!.ToString(), _tokenEndpoint, StringComparison.Ordinal))
+            {
+                TokenRequestCount++;
+
+                if (request.Content is not null)
+                {
+                    TokenRequestBodies.Add(await request.Content.ReadAsStringAsync(cancellationToken));
+                }
+
+                var body = _tokenResponses.Count > 1
+                    ? _tokenResponses.Dequeue()
+                    : _tokenResponses.Peek();
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(body),
+                };
+            }
+
+            ApiRequests.Add(request);
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}"),
+            };
+        }
+    }
+
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _now;
+
+        public FixedTimeProvider(DateTimeOffset now)
+        {
+            _now = now;
+        }
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            return _now;
         }
     }
 }

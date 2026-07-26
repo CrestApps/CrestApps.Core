@@ -24,4 +24,10 @@ public enum HttpApiRequestAuthenticationType
     /// HTTP basic authentication (username and password) is applied.
     /// </summary>
     Basic = 3,
+
+    /// <summary>
+    /// OAuth 2.0 client-credentials (with optional refresh-token reuse). The tool requests an access
+    /// token from the configured token endpoint, caches it on the instance, and refreshes it as needed.
+    /// </summary>
+    OAuth2 = 4,
 }

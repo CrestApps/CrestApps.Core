@@ -50,6 +50,27 @@ public sealed class HttpApiRequestToolSettings
     public string BasicPassword { get; set; }
 
     /// <summary>
+    /// Gets or sets the OAuth 2.0 token endpoint the tool requests access tokens from when
+    /// <see cref="AuthenticationType"/> is <see cref="HttpApiRequestAuthenticationType.OAuth2"/>.
+    /// </summary>
+    public string TokenEndpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the OAuth 2.0 client identifier.
+    /// </summary>
+    public string ClientId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the OAuth 2.0 client secret. May be data-protected at rest.
+    /// </summary>
+    public string ClientSecret { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional OAuth 2.0 scope requested when acquiring an access token.
+    /// </summary>
+    public string Scope { get; set; }
+
+    /// <summary>
     /// Gets or sets static headers that are always added to the request.
     /// </summary>
     public Dictionary<string, string> DefaultHeaders { get; set; }

@@ -71,7 +71,7 @@ IAIToolInstanceSource  ──►  AIToolInstance (user settings)  ──►  AIT
 
 1. A developer registers a **source** with `AddAIToolInstanceSource<TSource>(name, configure)`.
 2. A user creates one or more **instances** from that source, each with a unique name, a description, and its own stored settings.
-3. The user attaches instances to an AI profile (via `AIProfileToolInstanceMetadata`).
+3. The user attaches instances to an AI profile (via `AIToolInstanceMetadata`).
 4. During completion, `ToolInstanceRegistryProvider` materializes each referenced instance into a distinct `AITool` whose function name and description are unique per instance.
 5. The resulting `AITool` flows into `ChatOptions.Tools` through `Microsoft.Extensions.AI`, so **every client (OpenAI, Azure OpenAI, …) works with no client-specific code**.
 
@@ -98,7 +98,8 @@ public sealed class HttpApiRequestToolInstanceSource : IAIToolInstanceSource
             : new HttpApiRequestToolSettings();
 
         // FunctionName and Description are unique per instance so the model can tell them apart.
-        return new HttpApiRequestToolFunction(context.FunctionName, context.Description, settings);
+        // Pass the instance so the tool can cache state (for example OAuth 2.0 tokens) on it.
+        return new HttpApiRequestToolFunction(context.FunctionName, context.Description, settings, context.Instance);
     }
 }
 ```
@@ -142,9 +143,10 @@ builder.Services.AddAIToolInstanceSource<HttpApiRequestToolInstanceSource>(
     });
 ```
 
-`AddAIToolInstanceSource<TSource>(name, configure)` does three things:
+`AddAIToolInstanceSource<TSource>(name, configure, useDefaultRegistry = true)` does the following:
 
-- calls `AddCoreAIToolInstances()` for you (registers the catalog handler, completion-context builder handler, and the default registry provider);
+- calls `AddCoreAIToolInstances()` for you (registers the catalog handler and the completion-context builder handler);
+- when `useDefaultRegistry` is `true` (the default), calls `AddDefaultAIToolInstanceRegistry()` to register the built-in `ToolInstanceRegistryProvider`. Pass `useDefaultRegistry: false` to opt out and supply [your own registry provider](#custom-tool-registry-providers) instead;
 - registers the source as a **keyed** scoped `IAIToolInstanceSource`, keyed by `name` (the value stored as each instance's `Source`);
 - records the source's display metadata in `AIOptions.ToolInstanceSources[name]` via the `configure` delegate.
 
@@ -172,10 +174,11 @@ Each instance captures:
 |---|---|
 | `BaseUrl` | The endpoint the request targets. |
 | `HttpMethod` | `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. |
-| `AuthenticationType` | `None`, `ApiKey`, `Bearer`, or `Basic`. |
+| `AuthenticationType` | `None`, `ApiKey`, `Bearer`, `Basic`, or `OAuth2`. |
 | `ApiKey` / `ApiKeyHeaderName` | API-key auth (header defaults to `X-Api-Key`). |
 | `BearerToken` | Bearer token (`Authorization: Bearer …`). |
 | `BasicUsername` / `BasicPassword` | HTTP basic auth. |
+| `TokenEndpoint` / `ClientId` / `ClientSecret` / `Scope` | OAuth 2.0 client-credentials settings used to obtain (and refresh) a token automatically. |
 | `DefaultHeaders` | Static headers always added. |
 | `AllowModelProvidedPath` / `…Query` / `…Body` | Which open arguments the model may supply. |
 | `TimeoutSeconds` | Optional per-request timeout. |
@@ -195,7 +198,27 @@ The tool exposes only the open arguments you enable (`path`, `query`, `body`) an
 }
 ```
 
-## Creating Instances (as a User)
+### OAuth 2.0 token caching
+
+When an instance uses `AuthenticationType = OAuth2`, the tool obtains an access token from the configured `TokenEndpoint` the first time it runs and **caches it on the instance** so subsequent calls do not re-authenticate:
+
+1. Before each request the tool reads the cached `HttpApiRequestTokenState` from the instance (via `TryGet`). If a non-expired access token is present, it is reused.
+2. Otherwise it requests a new token. If a refresh token was previously stored, it first tries `grant_type=refresh_token`; if that is unavailable it falls back to `grant_type=client_credentials` using `ClientId` / `ClientSecret` / `Scope`.
+3. The returned access token, refresh token, token type, and expiry are data-protected and persisted back onto the instance with `Put(...)`, then saved through the catalog so the cache survives across requests and restarts.
+
+The access and refresh tokens are protected at rest with the same `HttpApiRequestToolConstants.DataProtectionPurpose` purpose as the other credentials. Because the cache lives on the `AIToolInstance` itself, each instance maintains its own independent token, and no token is ever exposed to the model.
+
+## How Clients Invoke Instances
+
+Instances are **provider-agnostic** — there is no OpenAI-, Azure OpenAI-, or Azure AI Inference-specific code anywhere in the flow:
+
+1. `ToolInstanceRegistryProvider` turns each referenced instance into an ordinary `Microsoft.Extensions.AI.AIFunction` (via its source's `CreateTool`), with a unique per-instance `Name`, `Description`, and JSON schema of the open arguments.
+2. Those functions are placed on `ChatOptions.Tools`.
+3. Every supported client — OpenAI, Azure OpenAI, Azure AI Inference, Ollama, … — is a `Microsoft.Extensions.AI` `IChatClient`. The client serializes each `AIFunction`'s name, description, and schema into that provider's native "tools"/"functions" wire format.
+4. When the model decides to call one, it returns a function-call naming the instance and supplying **only the open arguments** (for example `path`, `query`, `body`). The `FunctionInvokingChatClient` matches the name and calls `AIFunction.InvokeAsync(...)`.
+5. The tool merges the model-supplied open arguments with the instance's **stored settings** (endpoint, authentication, headers) — which the model never sees — and performs the request.
+
+This is why the same instance works identically across all clients: the model only ever sees names, descriptions, and open-argument schemas, while the fixed configuration and secrets stay on the instance.
 
 In the sample hosts, open **AI Tool Instances**, then:
 
@@ -208,16 +231,16 @@ Repeat to add **multiple instances from the same source** — each with a differ
 
 ## Attaching Instances to a Profile
 
-Instances only reach the model when a profile references them. The sample hosts add a checkbox section on the AI profile Create/Edit pages; the selected instance IDs are stored via `AIProfileToolInstanceMetadata`:
+Instances only reach the model when a profile references them. The sample hosts add a checkbox section on the AI profile Create/Edit pages; the selected instance **names** are stored via `AIToolInstanceMetadata` (a generic metadata type usable by both AI profiles and chat interactions):
 
 ```csharp
-profile.Alter<AIProfileToolInstanceMetadata>(metadata =>
+profile.Alter<AIToolInstanceMetadata>(metadata =>
 {
-    metadata.InstanceIds = selectedInstanceIds;
+    metadata.InstanceNames = selectedInstanceNames;
 });
 ```
 
-At completion time, `AIToolInstanceCompletionContextBuilderHandler` copies those IDs onto `AICompletionContext.ToolInstanceIds`, and the registry provider surfaces each as a distinct tool.
+At completion time, `AIToolInstanceCompletionContextBuilderHandler` copies those names onto `AICompletionContext.ToolInstanceNames`, and the registry provider looks each one up by name and surfaces it as a distinct tool.
 
 ## Custom Tool Registry Providers
 
@@ -228,10 +251,11 @@ Tools reach the model through the aggregated `IToolRegistryProvider` abstraction
 ```csharp
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Services;
 
 public sealed class PermissionAwareToolRegistryProvider : IToolRegistryProvider
 {
-    private readonly ISourceCatalog<AIToolInstance> _catalog;
+    private readonly INamedCatalog<AIToolInstance> _catalog;
     private readonly IAuthorizationService _authorization;
     // ... resolve the current user, sources, etc.
 
@@ -239,18 +263,24 @@ public sealed class PermissionAwareToolRegistryProvider : IToolRegistryProvider
         AICompletionContext context,
         CancellationToken cancellationToken = default)
     {
-        var ids = context?.ToolInstanceIds;
+        var names = context?.ToolInstanceNames;
 
-        if (ids is null || ids.Length == 0)
+        if (names is null || names.Length == 0)
         {
             return [];
         }
 
-        var instances = await _catalog.GetAsync(ids, cancellationToken);
         var entries = new List<ToolRegistryEntry>();
 
-        foreach (var instance in instances)
+        foreach (var name in names)
         {
+            var instance = await _catalog.FindByNameAsync(name, cancellationToken);
+
+            if (instance is null)
+            {
+                continue;
+            }
+
             // Only expose instances the current user is permitted to use.
             if (!await IsAuthorizedAsync(instance, cancellationToken))
             {
@@ -265,16 +295,22 @@ public sealed class PermissionAwareToolRegistryProvider : IToolRegistryProvider
 }
 ```
 
-Register it and, if you want it to replace the built-in behavior, remove the default provider:
+Register your provider and **opt out of the default one** so the built-in provider does not also surface ungated tools. Do this by passing `useDefaultRegistry: false` when registering the source, then registering your provider explicitly:
 
 ```csharp
-// Add your provider alongside the default one:
-builder.Services.AddScoped<IToolRegistryProvider, PermissionAwareToolRegistryProvider>();
+// Register the source WITHOUT the default registry provider.
+builder.Services.AddAIToolInstanceSource<HttpApiRequestToolInstanceSource>(
+    HttpApiRequestToolConstants.SourceName,
+    options => { /* ... */ },
+    useDefaultRegistry: false);
 
-// Or replace the default provider entirely:
-builder.Services.RemoveAll<IToolRegistryProvider>();
+// Register only your gated provider.
 builder.Services.AddScoped<IToolRegistryProvider, PermissionAwareToolRegistryProvider>();
 ```
+
+:::warning
+Do **not** call `services.RemoveAll<IToolRegistryProvider>()` to swap the default provider. `IToolRegistryProvider` is an aggregated abstraction — other framework features register their own providers, and removing all of them strips out those tools too. Use the `useDefaultRegistry: false` opt-out instead, and if you also want the built-in behavior alongside yours, simply leave `useDefaultRegistry` at its default (`true`) and add your provider in addition.
+:::
 
 This is exactly how downstream products layer their own authorization on top of the same abstractions — for example, the Orchard Core CMS integration ships a `LocalToolRegistryProvider` that checks per-instance permissions before exposing each tool.
 
@@ -313,7 +349,7 @@ var arguments = new AIFunctionArguments
 var result = await function.InvokeAsync(arguments);
 ```
 
-To verify that multiple instances surface distinctly, build a service provider with the source registered as a keyed `IAIToolInstanceSource` plus an `ISourceCatalog<AIToolInstance>` returning two instances, then assert `ToolInstanceRegistryProvider.GetToolsAsync` returns two entries with distinct `Name` and `Description`.
+To verify that multiple instances surface distinctly, build a service provider with the source registered as a keyed `IAIToolInstanceSource` plus an `INamedCatalog<AIToolInstance>` whose `FindByNameAsync` returns two instances, then assert `ToolInstanceRegistryProvider.GetToolsAsync` (with `context.ToolInstanceNames` set to the two names) returns two entries with distinct `Name` and `Description`.
 
 :::tip
 The sample projects (`CrestApps.Core.Mvc.Web` and `CrestApps.Core.Blazor.Web`) register the `http-api-request` source and include the full management UI. Run the Aspire host and add two HTTP API instances to see them appear to the model as separate functions.
