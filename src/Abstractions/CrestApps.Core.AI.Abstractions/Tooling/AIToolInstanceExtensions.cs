@@ -14,10 +14,20 @@ public static class AIToolInstanceExtensions
     private const int HashSuffixLength = 8;
 
     /// <summary>
+    /// The namespace prefix applied to every tool-instance function name. User-configured instances are
+    /// named from arbitrary user input, whereas tools registered in code via <c>AddCoreAITool</c> are
+    /// surfaced to the model under their bare registered name. Prefixing every instance function name
+    /// guarantees a user-chosen instance name can never collide with a code-registered tool name in the
+    /// single function namespace the AI model sees.
+    /// </summary>
+    public const string FunctionNamePrefix = "tool_instance_";
+
+    /// <summary>
     /// Builds the unique function name presented to the AI model for the supplied instance. The name is
     /// derived from the instance's unique <see cref="AIToolInstance.Name"/> (falling back to its
-    /// identifier) and is sanitized to the characters allowed by chat-completion providers (letters,
-    /// digits, underscores, and hyphens) and capped at 64 characters. When sanitizing or truncating would
+    /// identifier), sanitized to the characters allowed by chat-completion providers (letters, digits,
+    /// underscores, and hyphens), prefixed with <see cref="FunctionNamePrefix"/> so it can never collide
+    /// with a code-registered tool name, and capped at 64 characters. When sanitizing or truncating would
     /// change the value, a short deterministic hash of the original unique name is appended so two distinct
     /// instance names can never collapse to the same function name.
     /// </summary>
@@ -35,25 +45,26 @@ public static class AIToolInstanceExtensions
 
         if (string.IsNullOrEmpty(name))
         {
-            return "tool_instance";
+            return FunctionNamePrefix + ComputeShortHash(original ?? string.Empty);
         }
 
+        var maxBaseLength = MaxFunctionNameLength - FunctionNamePrefix.Length;
         var isLossy = !string.Equals(name, original, StringComparison.Ordinal);
 
-        if (isLossy || name.Length > MaxFunctionNameLength)
+        if (isLossy || name.Length > maxBaseLength)
         {
             var suffix = "_" + ComputeShortHash(original);
-            var maxBaseLength = MaxFunctionNameLength - suffix.Length;
+            var maxTruncatedLength = maxBaseLength - suffix.Length;
 
-            if (name.Length > maxBaseLength)
+            if (name.Length > maxTruncatedLength)
             {
-                name = name[..maxBaseLength];
+                name = name[..maxTruncatedLength];
             }
 
             name += suffix;
         }
 
-        return name;
+        return FunctionNamePrefix + name;
     }
 
     private static string Sanitize(string value)

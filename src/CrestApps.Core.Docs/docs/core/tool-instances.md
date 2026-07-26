@@ -79,7 +79,7 @@ IAIToolInstanceSource  ──►  AIToolInstance (user settings)  ──►  AIT
 4. During completion, `ToolInstanceRegistryProvider` materializes each referenced instance into a distinct `AITool` whose function name and description are unique per instance.
 5. The resulting `AITool` flows into `ChatOptions.Tools` through `Microsoft.Extensions.AI`, so **every client (OpenAI, Azure OpenAI, …) works with no client-specific code**.
 
-Distinct per-instance function names are produced by `AIToolInstance.GetFunctionName()`, which sanitizes the instance's unique `Name` to the characters chat-completion providers allow. When sanitizing or truncating to 64 characters would change the value, a short deterministic hash of the original name is appended so two distinct names can never collapse to the same function name.
+Distinct per-instance function names are produced by `AIToolInstance.GetFunctionName()`, which sanitizes the instance's unique `Name` to the characters chat-completion providers allow and prefixes it with `AIToolInstanceExtensions.FunctionNamePrefix` (`tool_instance_`). The prefix guarantees a user-chosen instance name can never collide with a tool registered in code via `AddCoreAITool` — those are surfaced to the model under their bare registered name, so both kinds of tool coexist in the single function namespace the model sees without clashing. When sanitizing or truncating to 64 characters would change the value, a short deterministic hash of the original name is appended so two distinct names can never collapse to the same function name.
 
 ## Authoring a Source
 

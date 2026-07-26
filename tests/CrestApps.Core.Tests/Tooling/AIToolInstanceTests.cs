@@ -30,7 +30,23 @@ public sealed class AIToolInstanceTests
 
         var name = instance.GetFunctionName();
 
-        Assert.Equal("get_weather", name);
+        Assert.Equal("tool_instance_get_weather", name);
+    }
+
+    [Fact]
+    public void GetFunctionName_IsPrefixedSoItCannotCollideWithCodeRegisteredTools()
+    {
+        var instance = new AIToolInstance
+        {
+            ItemId = "abc123",
+            Source = "http-api-request",
+            Name = "get-weather",
+        };
+
+        var name = instance.GetFunctionName();
+
+        Assert.StartsWith(AIToolInstanceExtensions.FunctionNamePrefix, name);
+        Assert.NotEqual("get-weather", name);
     }
 
     [Fact]
@@ -47,7 +63,7 @@ public sealed class AIToolInstanceTests
 
         Assert.DoesNotContain(' ', name);
         Assert.DoesNotContain('!', name);
-        Assert.StartsWith("weird_name_", name);
+        Assert.StartsWith("tool_instance_weird_name_", name);
     }
 
     [Fact]
@@ -89,7 +105,7 @@ public sealed class AIToolInstanceTests
 
         var name = instance.GetFunctionName();
 
-        Assert.Equal("abc123", name);
+        Assert.Equal("tool_instance_abc123", name);
     }
 
     [Fact]
