@@ -43,6 +43,10 @@ The framework also ships a built-in source — the [HTTP API Request tool](#buil
 
 Either way, once a source is registered, users create instances in the management UI, give each a unique **name** and a clear **description**, and attach one or more instances to an AI profile or a chat interaction. Each instance appears to the model as a distinct callable function.
 
+:::note
+The examples above use YesSql, but the feature works with Entity Framework Core too — swap `AddYesSqlStores()` for `AddEntityCoreStores()`. See [Persistence](#persistence) for complete examples of both providers.
+:::
+
 ## Problem & Solution
 
 A [custom AI tool](tools) exposes a function whose arguments are always supplied by the model. That is perfect for stateless helpers (calculator, weather), but it does not fit tools that must be *configured before use*, such as:
@@ -109,11 +113,11 @@ public sealed class HttpApiRequestToolInstanceSource : IAIToolInstanceSource
 }
 ```
 
-The returned tool is an ordinary `Microsoft.Extensions.AI.AIFunction`. Read the settings the user captured, resolve any services you need from `AIFunctionArguments.Services`, and only accept the open arguments you allow the model to supply. The source's *display* metadata (display name, description, category) is provided at registration time — not on the class — so no separate options or builder types are required.
+The returned tool is an ordinary `Microsoft.Extensions.AI.AIFunction`. Read the configuration the user captured, resolve any services you need from `AIFunctionArguments.Services`, and only accept the open arguments you allow the model to supply. The source's *display* metadata (display name, description, category) is provided at registration time — not on the class — so no separate options or builder types are required.
 
-### Persisting settings on the instance
+### Persisting metadata on the instance
 
-`AIToolInstance` extends the framework's [extensible entity](extensible-entity), so a source persists its own strongly typed settings model in the instance's properties:
+`AIToolInstance` extends the framework's [extensible entity](extensible-entity), so a source persists its own strongly typed configuration as metadata on the instance:
 
 ```csharp
 // When saving (UI/controller):
@@ -231,17 +235,7 @@ The access and refresh tokens are protected at rest with the same `HttpApiReques
 Token and credential protection depends on a registered `IDataProtectionProvider` (ASP.NET Core apps have one by default). If no provider is resolvable, the source degrades gracefully and stores the values unprotected, so make sure data protection is configured in production.
 :::
 
-## How Clients Invoke Instances
-
-Instances are **provider-agnostic** — there is no OpenAI-, Azure OpenAI-, or Azure AI Inference-specific code anywhere in the flow:
-
-1. `ToolInstanceRegistryProvider` turns each referenced instance into an ordinary `Microsoft.Extensions.AI.AIFunction` (via its source's `CreateTool`), with a unique per-instance `Name`, `Description`, and JSON schema of the open arguments.
-2. Those functions are placed on `ChatOptions.Tools`.
-3. Every supported client — OpenAI, Azure OpenAI, Azure AI Inference, Ollama, … — is a `Microsoft.Extensions.AI` `IChatClient`. The client serializes each `AIFunction`'s name, description, and schema into that provider's native "tools"/"functions" wire format.
-4. When the model decides to call one, it returns a function-call naming the instance and supplying **only the open arguments** (for example `path`, `query`, `body`). The `FunctionInvokingChatClient` matches the name and calls `AIFunction.InvokeAsync(...)`.
-5. The tool merges the model-supplied open arguments with the instance's **stored settings** (endpoint, authentication, headers) — which the model never sees — and performs the request.
-
-This is why the same instance works identically across all clients: the model only ever sees names, descriptions, and open-argument schemas, while the fixed configuration and secrets stay on the instance.
+## Creating Instances in the Sample Hosts
 
 In the sample hosts, open **AI Tool Instances**, then:
 
@@ -362,27 +356,46 @@ Register your provider and **opt out of the default one** so the built-in provid
 builder.Services.AddScoped<IToolRegistryProvider, PermissionAwareToolRegistryProvider>();
 ```
 
-:::warning
-Do **not** call `services.RemoveAll<IToolRegistryProvider>()` to swap the default provider. `IToolRegistryProvider` is an aggregated abstraction — other framework features register their own providers, and removing all of them strips out those tools too. Use the `useDefaultRegistry: false` opt-out instead, and if you also want the built-in behavior alongside yours, simply leave `useDefaultRegistry` at its default (`true`) and add your provider in addition.
-:::
-
 This is exactly how downstream products layer their own authorization on top of the same abstractions — for example, the Orchard Core CMS integration ships a `LocalToolRegistryProvider` that checks per-instance permissions before exposing each tool.
 
 ## Persistence
 
-Tool instances are stored through the `AIToolInstance` catalog. Because the feature does not register a store on its own, register one on the **tool-instances** builder — not on the AI suite — so it matches the provider your app already uses:
+Tool instances are stored through the `AIToolInstance` catalog. Because the feature does not register a store on its own, register one on the **tool-instances** builder — not on the AI suite — so it matches the provider your app already uses. Register the same provider you use for the rest of the AI suite.
+
+### YesSql
 
 ```csharp
-.AddToolInstances(toolInstances => toolInstances
-    .AddYesSqlStores()          // or .AddEntityCoreStores()
-    .AddHttpApiRequestSource()
-)
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddYesSqlStores()
+        .AddToolInstances(toolInstances => toolInstances
+            .AddYesSqlStores()
+            .AddHttpApiRequestSource()
+        )
+    )
+);
 ```
 
-- **YesSql** — `AddYesSqlStores()` registers the catalog and the `AIToolInstanceIndex`. Create the index table during startup with `CreateAIToolInstanceIndexSchemaAsync()`.
-- **Entity Framework Core** — `AddEntityCoreStores()` registers the source-document catalog.
+`AddYesSqlStores()` registers the catalog and the `AIToolInstanceIndex`. Create the index table during startup with `CreateAIToolInstanceIndexSchemaAsync()`.
 
-Only the store, the source (`AddSource<TSource>(...)`), and the management UI are app-specific.
+### Entity Framework Core
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddEntityCoreStores()
+        .AddToolInstances(toolInstances => toolInstances
+            .AddEntityCoreStores()
+            .AddHttpApiRequestSource()
+        )
+    )
+    .AddEntityCoreSqliteDataStore("Data Source=App_Data\\crestapps.db")
+);
+```
+
+`AddEntityCoreStores()` registers the source-document catalog for `AIToolInstance`; the schema is created and migrated by the Entity Framework Core data store, so no extra index step is required.
+
+Only the store, the source (`AddSource<TSource>(...)`), and the management UI are app-specific. The `CrestApps.Core.Mvc.Web` sample uses YesSql and `CrestApps.Core.Blazor.Web` uses Entity Framework Core, so each provider has a working reference host.
 
 ## Testing
 
