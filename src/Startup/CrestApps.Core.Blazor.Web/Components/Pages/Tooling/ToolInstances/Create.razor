@@ -37,15 +37,8 @@
         </div>
 
         <div class="mb-3">
-            <label class="form-label">Title</label>
-            <InputText @bind-Value="_model.DisplayText" @bind-Value:after="OnTitleChanged" class="form-control" placeholder="Weather API" />
-            <ValidationMessage For="() => _model.DisplayText" />
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Technical name <span class="text-danger">*</span></label>
-            <InputText @bind-Value="_model.Name" @bind-Value:after="() => _nameEdited = true" class="form-control" placeholder="WeatherApi" />
-            <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
+            <label class="form-label">Name <span class="text-danger">*</span></label>
+            <InputText @bind-Value="_model.Name" class="form-control" placeholder="WeatherApi" />
             <div class="form-text">This becomes the unique function name exposed to the AI model, so it must be unique.</div>
             <ValidationMessage For="() => _model.Name" />
         </div>
@@ -130,14 +123,14 @@
         {
             <div class="mb-3">
                 <label class="form-label">Username</label>
-                <InputText @bind-Value="_model.BasicUsername" class="form-control" />
-                <ValidationMessage For="() => _model.BasicUsername" />
+                <InputText @bind-Value="_model.Username" class="form-control" />
+                <ValidationMessage For="() => _model.Username" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-control" @bind="_model.BasicPassword" autocomplete="new-password" />
-                <ValidationMessage For="() => _model.BasicPassword" />
+                <input type="password" class="form-control" @bind="_model.Password" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.Password" />
             </div>
         }
 
@@ -162,11 +155,23 @@
             </div>
 
             <div class="mb-3">
+                <label class="form-label">Username (optional)</label>
+                <InputText @bind-Value="_model.Username" class="form-control" />
+                <ValidationMessage For="() => _model.Username" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" @bind="_model.Password" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.Password" />
+            </div>
+
+            <div class="mb-3">
                 <label class="form-label">Scope (optional)</label>
                 <InputText @bind-Value="_model.Scope" class="form-control" placeholder="api://resource/.default" />
             </div>
 
-            <p class="text-muted small">The access token is requested on demand, cached securely on the instance, and refreshed automatically.</p>
+            <p class="text-muted small">The access token is requested on demand, cached securely on the instance, and refreshed automatically. Providing a username uses the OAuth 2.0 password grant.</p>
         }
 
         <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
@@ -200,30 +205,6 @@
     };
 
     private List<string> _errors = [];
-    private bool _nameEdited;
-
-    private void OnTitleChanged()
-    {
-        if (!_nameEdited)
-        {
-            _model.Name = Slugify(_model.DisplayText);
-        }
-    }
-
-    private static string Slugify(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var sanitized = new string(value
-            .Select(c => char.IsLetterOrDigit(c) || c is '_' or '-' ? c : '_')
-            .ToArray())
-            .Trim('_');
-
-        return sanitized.Length > 64 ? sanitized[..64] : sanitized;
-    }
 
     private async Task HandleSubmitAsync()
     {
@@ -257,11 +238,6 @@
         else if (await IsDuplicateNameAsync(model.Name, model.ItemId))
         {
             _errors.Add("A tool instance with this name already exists. The name must be unique.");
-        }
-
-        if (string.IsNullOrWhiteSpace(model.DisplayText))
-        {
-            _errors.Add("Display text is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.Description))
@@ -305,12 +281,12 @@
 
                 break;
             case HttpApiRequestAuthenticationType.Basic:
-                if (string.IsNullOrWhiteSpace(model.BasicUsername))
+                if (string.IsNullOrWhiteSpace(model.Username))
                 {
                     _errors.Add("Username is required.");
                 }
 
-                if ((!isEditing || !model.HasBasicPassword) && string.IsNullOrWhiteSpace(model.BasicPassword))
+                if ((!isEditing || !model.HasPassword) && string.IsNullOrWhiteSpace(model.Password))
                 {
                     _errors.Add("Password is required.");
                 }
@@ -334,6 +310,13 @@
                 if ((!isEditing || !model.HasClientSecret) && string.IsNullOrWhiteSpace(model.ClientSecret))
                 {
                     _errors.Add("Client secret is required.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Username) &&
+                    (!isEditing || !model.HasPassword) &&
+                    string.IsNullOrWhiteSpace(model.Password))
+                {
+                    _errors.Add("Password is required when a username is provided.");
                 }
 
                 break;
@@ -369,7 +352,6 @@
     private void Apply(AIToolInstanceViewModel model, AIToolInstance instance)
     {
         instance.Name = model.Name.Trim();
-        instance.DisplayText = model.DisplayText.Trim();
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = TimeProvider.GetUtcNow().UtcDateTime;
 
@@ -400,13 +382,15 @@
                 settings.BearerToken = ProtectOrReuse(model.BearerToken, existing.BearerToken, protector);
                 break;
             case HttpApiRequestAuthenticationType.Basic:
-                settings.BasicUsername = model.BasicUsername?.Trim();
-                settings.BasicPassword = ProtectOrReuse(model.BasicPassword, existing.BasicPassword, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
                 break;
             case HttpApiRequestAuthenticationType.OAuth2:
                 settings.TokenEndpoint = model.TokenEndpoint?.Trim();
                 settings.ClientId = model.ClientId?.Trim();
                 settings.ClientSecret = ProtectOrReuse(model.ClientSecret, existing.ClientSecret, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
                 settings.Scope = model.Scope?.Trim();
                 break;
         }

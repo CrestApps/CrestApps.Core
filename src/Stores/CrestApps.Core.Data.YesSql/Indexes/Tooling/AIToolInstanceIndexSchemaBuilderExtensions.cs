@@ -20,8 +20,7 @@ public static class AIToolInstanceIndexSchemaBuilderExtensions
         await schemaBuilder.CreateMapIndexTableAsync<AIToolInstanceIndex>(table => table
             .Column<string>(nameof(AIToolInstanceIndex.ItemId), column => column.WithLength(26))
             .Column<string>(nameof(AIToolInstanceIndex.Name), column => column.WithLength(255))
-            .Column<string>(nameof(AIToolInstanceIndex.DisplayText), column => column.WithLength(255))
-            .Column<string>(nameof(AIToolInstanceIndex.Source), column => column.WithLength(50)),
+            .Column<string>(nameof(AIToolInstanceIndex.Source), column => column.WithLength(255)),
             collection: options?.AICollectionName);
 
         await schemaBuilder.AlterIndexTableAsync<AIToolInstanceIndex>(

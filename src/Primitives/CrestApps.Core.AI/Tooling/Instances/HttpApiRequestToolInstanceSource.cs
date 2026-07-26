@@ -15,16 +15,21 @@ public sealed class HttpApiRequestToolInstanceSource : IAIToolInstanceSource
     /// <summary>
     /// Creates the <see cref="HttpApiRequestToolFunction"/> bound to the supplied instance's settings.
     /// </summary>
-    /// <param name="context">The context describing the instance and the function metadata to expose.</param>
+    /// <param name="instance">The configured tool instance whose settings should be bound to the produced tool.</param>
     /// <returns>The configured HTTP request function.</returns>
-    public AITool CreateTool(AIToolInstanceSourceContext context)
+    public AITool CreateTool(AIToolInstance instance)
     {
-        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(instance);
 
-        var settings = context.Instance.TryGet<HttpApiRequestToolSettings>(out var stored)
+        var settings = instance.TryGet<HttpApiRequestToolSettings>(out var stored)
             ? stored
             : new HttpApiRequestToolSettings();
 
-        return new HttpApiRequestToolFunction(context.FunctionName, context.Description, settings, context.Instance);
+        var functionName = instance.GetFunctionName();
+        var description = string.IsNullOrWhiteSpace(instance.Description)
+            ? functionName
+            : instance.Description;
+
+        return new HttpApiRequestToolFunction(functionName, description, settings, instance);
     }
 }

@@ -37,6 +37,18 @@ public sealed class ChatInteractionViewModel
     public string[] SelectedToolNames { get; set; } = [];
     public List<ToolSelectionItem> AvailableTools { get; set; } = [];
 
+    // AI Tool Instances
+
+    /// <summary>
+    /// Gets or sets the selected AI tool instance names.
+    /// </summary>
+    public string[] SelectedToolInstanceNames { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the available AI tool instances.
+    /// </summary>
+    public List<AIToolInstanceSelectionItem> AvailableToolInstances { get; set; } = [];
+
     // AI Agents
     public string[] SelectedAgentNames { get; set; } = [];
     public List<AgentSelectionItem> AvailableAgents { get; set; } = [];

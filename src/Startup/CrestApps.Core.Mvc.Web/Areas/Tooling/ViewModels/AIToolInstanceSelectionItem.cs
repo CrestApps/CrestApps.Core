@@ -1,7 +1,7 @@
 namespace CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
 
 /// <summary>
-/// Represents a selectable tool instance shown when configuring an AI profile.
+/// Represents a selectable tool instance shown when configuring an AI profile or chat interaction.
 /// </summary>
 public sealed class AIToolInstanceSelectionItem
 {
@@ -11,14 +11,9 @@ public sealed class AIToolInstanceSelectionItem
     public string ItemId { get; set; }
 
     /// <summary>
-    /// Gets or sets the unique instance name. Used as the stable reference stored on the profile.
+    /// Gets or sets the unique instance name used as the stable reference.
     /// </summary>
     public string Name { get; set; }
-
-    /// <summary>
-    /// Gets or sets the instance display text.
-    /// </summary>
-    public string DisplayText { get; set; }
 
     /// <summary>
     /// Gets or sets the instance description shown to the model.

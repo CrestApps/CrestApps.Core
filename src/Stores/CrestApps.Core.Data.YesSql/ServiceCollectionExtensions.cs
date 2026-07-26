@@ -238,6 +238,36 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers YesSql-backed stores for the AI tool instances feature on the tool instances builder.
+    /// This includes a named-source document catalog for <see cref="AIToolInstance"/> and its index provider.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAIToolInstancesBuilder AddYesSqlStores(this CrestAppsAIToolInstancesBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIToolInstanceStoresYesSql();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the AI tool instances feature.
+    /// This includes a named-source document catalog for <see cref="AIToolInstance"/> and its index provider.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIToolInstanceStoresYesSql(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        AddYesSqlNamedSourceDocumentCatalog<AIToolInstance, AIToolInstanceIndex>(services, static o => o.AICollectionName);
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIToolInstanceIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers YesSql-backed stores for the core AI services feature.
     /// This includes a catalog for <see cref="AIProfile"/>
     /// and multi-source binding sources for <see cref="AIProviderConnection"/> and <see cref="AIDeployment"/>.
@@ -261,12 +291,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<YesSqlAIProfileStore>());
         AddYesSqlNamedSourceBindingSource<AIProviderConnection, AIProviderConnectionIndex>(services, static o => o.AICollectionName);
         AddYesSqlNamedSourceBindingSource<AIDeployment, AIDeploymentIndex>(services, static o => o.AICollectionName);
-        AddYesSqlNamedSourceDocumentCatalog<AIToolInstance, AIToolInstanceIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProviderConnectionIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDeploymentIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIToolInstanceIndexProvider>());
 
         return services;
     }

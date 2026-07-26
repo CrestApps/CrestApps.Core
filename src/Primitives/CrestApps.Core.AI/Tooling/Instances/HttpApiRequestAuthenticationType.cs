@@ -26,8 +26,10 @@ public enum HttpApiRequestAuthenticationType
     Basic = 3,
 
     /// <summary>
-    /// OAuth 2.0 client-credentials (with optional refresh-token reuse). The tool requests an access
-    /// token from the configured token endpoint, caches it on the instance, and refreshes it as needed.
+    /// OAuth 2.0. When a username is configured the resource owner password grant is used; otherwise the
+    /// client credentials grant is used. In both cases the tool requests an access token from the
+    /// configured token endpoint, caches it on the instance, and reuses a stored refresh token when
+    /// available before requesting a new token.
     /// </summary>
     OAuth2 = 4,
 }

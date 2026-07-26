@@ -48,7 +48,7 @@ public sealed class AIToolInstanceController : Controller
     public async Task<IActionResult> Index()
     {
         var items = (await _catalog.GetAllAsync())
-            .OrderBy(instance => instance.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         return View(items);
@@ -88,7 +88,7 @@ public sealed class AIToolInstanceController : Controller
             CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime,
         };
 
-        Apply(model, instance);
+        Apply(model, instance, isNew: true);
 
         await _catalog.CreateAsync(instance);
 
@@ -133,7 +133,7 @@ public sealed class AIToolInstanceController : Controller
             return View(model);
         }
 
-        Apply(model, instance);
+        Apply(model, instance, isNew: false);
 
         await _catalog.UpdateAsync(instance);
 
@@ -164,16 +164,11 @@ public sealed class AIToolInstanceController : Controller
     {
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            ModelState.AddModelError(nameof(model.Name), "A unique technical name is required.");
+            ModelState.AddModelError(nameof(model.Name), "A unique name is required.");
         }
         else
         {
             await ValidateUniqueNameAsync(model.Name, model.ItemId);
-        }
-
-        if (string.IsNullOrWhiteSpace(model.DisplayText))
-        {
-            ModelState.AddModelError(nameof(model.DisplayText), "Display text is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.Description))
@@ -217,14 +212,14 @@ public sealed class AIToolInstanceController : Controller
 
                 break;
             case HttpApiRequestAuthenticationType.Basic:
-                if (string.IsNullOrWhiteSpace(model.BasicUsername))
+                if (string.IsNullOrWhiteSpace(model.Username))
                 {
-                    ModelState.AddModelError(nameof(model.BasicUsername), "Username is required.");
+                    ModelState.AddModelError(nameof(model.Username), "Username is required.");
                 }
 
-                if ((!isEditing || !model.HasBasicPassword) && string.IsNullOrWhiteSpace(model.BasicPassword))
+                if ((!isEditing || !model.HasPassword) && string.IsNullOrWhiteSpace(model.Password))
                 {
-                    ModelState.AddModelError(nameof(model.BasicPassword), "Password is required.");
+                    ModelState.AddModelError(nameof(model.Password), "Password is required.");
                 }
 
                 break;
@@ -246,6 +241,13 @@ public sealed class AIToolInstanceController : Controller
                 if ((!isEditing || !model.HasClientSecret) && string.IsNullOrWhiteSpace(model.ClientSecret))
                 {
                     ModelState.AddModelError(nameof(model.ClientSecret), "Client secret is required.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Username) &&
+                    (!isEditing || !model.HasPassword) &&
+                    string.IsNullOrWhiteSpace(model.Password))
+                {
+                    ModelState.AddModelError(nameof(model.Password), "Password is required when a username is provided.");
                 }
 
                 break;
@@ -283,10 +285,13 @@ public sealed class AIToolInstanceController : Controller
         }
     }
 
-    private void Apply(AIToolInstanceViewModel model, AIToolInstance instance)
+    private void Apply(AIToolInstanceViewModel model, AIToolInstance instance, bool isNew)
     {
-        instance.Name = model.Name.Trim();
-        instance.DisplayText = model.DisplayText.Trim();
+        if (isNew)
+        {
+            instance.Name = model.Name.Trim();
+        }
+
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
@@ -317,13 +322,15 @@ public sealed class AIToolInstanceController : Controller
                 settings.BearerToken = ProtectOrReuse(model.BearerToken, existing.BearerToken, protector);
                 break;
             case HttpApiRequestAuthenticationType.Basic:
-                settings.BasicUsername = model.BasicUsername?.Trim();
-                settings.BasicPassword = ProtectOrReuse(model.BasicPassword, existing.BasicPassword, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
                 break;
             case HttpApiRequestAuthenticationType.OAuth2:
                 settings.TokenEndpoint = model.TokenEndpoint?.Trim();
                 settings.ClientId = model.ClientId?.Trim();
                 settings.ClientSecret = ProtectOrReuse(model.ClientSecret, existing.ClientSecret, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
                 settings.Scope = model.Scope?.Trim();
                 break;
         }
@@ -343,7 +350,6 @@ public sealed class AIToolInstanceController : Controller
             ItemId = instance.ItemId,
             Source = instance.Source,
             Name = instance.Name,
-            DisplayText = instance.DisplayText,
             Description = instance.Description,
             DefaultHeaders = "{}",
         };
@@ -356,8 +362,8 @@ public sealed class AIToolInstanceController : Controller
             model.ApiKeyHeaderName = string.IsNullOrWhiteSpace(settings.ApiKeyHeaderName) ? "X-Api-Key" : settings.ApiKeyHeaderName;
             model.HasApiKey = !string.IsNullOrEmpty(settings.ApiKey);
             model.HasBearerToken = !string.IsNullOrEmpty(settings.BearerToken);
-            model.BasicUsername = settings.BasicUsername;
-            model.HasBasicPassword = !string.IsNullOrEmpty(settings.BasicPassword);
+            model.Username = settings.Username;
+            model.HasPassword = !string.IsNullOrEmpty(settings.Password);
             model.TokenEndpoint = settings.TokenEndpoint;
             model.ClientId = settings.ClientId;
             model.HasClientSecret = !string.IsNullOrEmpty(settings.ClientSecret);

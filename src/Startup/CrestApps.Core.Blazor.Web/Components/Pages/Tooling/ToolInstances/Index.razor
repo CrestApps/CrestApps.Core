@@ -46,7 +46,7 @@ else
                 @foreach (var instance in _instances)
                 {
                     <tr>
-                        <td><strong>@instance.DisplayText</strong><br /><code class="small">@instance.Name</code></td>
+                        <td><strong>@instance.Name</strong></td>
                         <td><span class="badge bg-info text-dark">@instance.Source</span></td>
                         <td><small class="text-muted">@instance.Description</small></td>
                         <td>
@@ -77,7 +77,7 @@ else
         var all = await Catalog.GetAllAsync();
 
         _instances = all
-            .OrderBy(instance => instance.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 

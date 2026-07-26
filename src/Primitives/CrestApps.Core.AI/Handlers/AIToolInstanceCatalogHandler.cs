@@ -108,12 +108,6 @@ internal sealed class AIToolInstanceCatalogHandler : CatalogEntryHandlerBase<AIT
                 S["A unique name is required."], [nameof(AIToolInstance.Name)]));
         }
 
-        if (string.IsNullOrWhiteSpace(context.Model.DisplayText))
-        {
-            context.Result.Fail(new ValidationResult(
-                S["Display text is required."], [nameof(AIToolInstance.DisplayText)]));
-        }
-
         if (string.IsNullOrWhiteSpace(context.Model.Description))
         {
             context.Result.Fail(new ValidationResult(
@@ -189,10 +183,9 @@ internal sealed class AIToolInstanceCatalogHandler : CatalogEntryHandlerBase<AIT
         if (isNew)
         {
             json.TryUpdateTrimmedStringValue(nameof(AIToolInstance.Source), value => instance.Source = value);
+            json.TryUpdateTrimmedStringValue(nameof(AIToolInstance.Name), value => instance.Name = value);
         }
 
-        json.TryUpdateTrimmedStringValue(nameof(AIToolInstance.Name), value => instance.Name = value);
-        json.TryUpdateTrimmedStringValue(nameof(AIToolInstance.DisplayText), value => instance.DisplayText = value);
         json.TryUpdateTrimmedStringValue(nameof(AIToolInstance.Description), value => instance.Description = value);
         json.TryUpdateTrimmedStringValue(nameof(AIToolInstance.OwnerId), value => instance.OwnerId = value);
         json.TryUpdateTrimmedStringValue(nameof(AIToolInstance.Author), value => instance.Author = value);

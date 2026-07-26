@@ -17,17 +17,18 @@
             </div>
 
             <div class="mb-3">
-                <label asp-for="DisplayText" class="form-label">Title</label>
-                <input asp-for="DisplayText" class="form-control" id="instanceTitle" placeholder="e.g., Weather API" />
-                <span asp-validation-for="DisplayText" class="text-danger"></span>
-            </div>
-
-            <div class="mb-3">
-                <label asp-for="Name" class="form-label">Technical name <span class="text-danger">*</span></label>
-                <input asp-for="Name" class="form-control" id="instanceTechName" required placeholder="e.g., WeatherApi" />
-                <span asp-validation-for="Name" class="text-danger"></span>
-                <div class="form-text">Auto-generated from the title. You may override it before saving.</div>
-                <div class="form-text">This becomes the unique function name exposed to the AI model, so it must be unique.</div>
+                <label asp-for="Name" class="form-label">Name <span class="text-danger">*</span></label>
+                @if (string.IsNullOrEmpty(Model.ItemId))
+                {
+                    <input asp-for="Name" class="form-control" required placeholder="e.g., Weather API" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                    <div class="form-text">Shown in the UI. The model function name is derived from this value, so it must be unique. It cannot be changed after creation.</div>
+                }
+                else
+                {
+                    <input asp-for="Name" class="form-control" readonly />
+                    <div class="form-text">The name is fixed after creation because profiles and chat interactions reference this instance by name.</div>
+                }
             </div>
 
             <div class="mb-3">
@@ -111,20 +112,20 @@
                 </div>
             </div>
 
-            <div id="basicFields" class="auth-fields">
+            <div id="credentialFields" class="auth-fields">
                 <div class="mb-3">
-                    <label asp-for="BasicUsername" class="form-label">Username</label>
-                    <input asp-for="BasicUsername" class="form-control" />
-                    <span asp-validation-for="BasicUsername" class="text-danger"></span>
+                    <label asp-for="Username" class="form-label">Username</label>
+                    <input asp-for="Username" class="form-control" />
+                    <span asp-validation-for="Username" class="text-danger"></span>
                 </div>
                 <div class="mb-3">
-                    <label asp-for="BasicPassword" class="form-label">Password</label>
-                    <input asp-for="BasicPassword" class="form-control" type="password" autocomplete="new-password" />
-                    @if (Model.HasBasicPassword)
+                    <label asp-for="Password" class="form-label">Password</label>
+                    <input asp-for="Password" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasPassword)
                     {
                         <div class="form-text">Leave blank to keep the existing password.</div>
                     }
-                    <span asp-validation-for="BasicPassword" class="text-danger"></span>
+                    <span asp-validation-for="Password" class="text-danger"></span>
                 </div>
             </div>
 
@@ -153,7 +154,7 @@
                     <input asp-for="Scope" class="form-control" placeholder="api://resource/.default" />
                     <span asp-validation-for="Scope" class="text-danger"></span>
                 </div>
-                <div class="form-text">The access token is requested on demand, cached securely on the instance, and refreshed automatically.</div>
+                <div class="form-text">The access token is requested on demand, cached securely on the instance, and refreshed automatically. Providing a username uses the OAuth 2.0 password grant.</div>
             </div>
 
             <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
@@ -186,8 +187,8 @@
         const authGroups = {
             ApiKey: ['apiKeyFields'],
             Bearer: ['bearerFields'],
-            Basic: ['basicFields'],
-            OAuth2: ['oauth2Fields']
+            Basic: ['credentialFields'],
+            OAuth2: ['oauth2Fields', 'credentialFields']
         };
 
         function updateAuthVisibility() {
@@ -204,25 +205,5 @@
         authType.addEventListener('change', updateAuthVisibility);
         updateAuthVisibility();
 
-        const title = document.getElementById('instanceTitle');
-        const techName = document.getElementById('instanceTechName');
-        let techNameEdited = techName.value.length > 0;
-
-        techName.addEventListener('input', function () {
-            techNameEdited = techName.value.length > 0;
-        });
-
-        function slugify(value) {
-            return value
-                .replace(/[^a-zA-Z0-9_-]+/g, '_')
-                .replace(/^_+|_+$/g, '')
-                .slice(0, 64);
-        }
-
-        title.addEventListener('input', function () {
-            if (!techNameEdited) {
-                techName.value = slugify(title.value);
-            }
-        });
     });
 </script>

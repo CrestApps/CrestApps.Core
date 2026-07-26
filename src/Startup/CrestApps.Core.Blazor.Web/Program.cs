@@ -38,7 +38,6 @@ using CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 // =============================================================================
@@ -103,6 +102,10 @@ builder.Services
             .AddEntityCoreStores()
             .ConfigureChatHubOptions<ChatInteractionHub>()
          )
+        .AddToolInstances(toolInstances => toolInstances
+            .AddHttpApiRequestSource()
+            .AddEntityCoreStores()
+        )
         .AddDocumentProcessing(documentProcessing => documentProcessing
             .AddEntityCoreStores()
             .AddOpenXml()
@@ -174,17 +177,6 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
     .WithDescription("Logs an email request with the supplied recipient, subject, and message.")
     .WithCategory("Communications")
     .Selectable();
-
-// Registers the built-in HTTP API request tool instance source (blueprint). Users can create one or
-// more configured instances of this source (each with its own endpoint, auth, and description) and
-// attach them to AI profiles under "AI Tool Instances".
-builder.Services.AddHttpClient(HttpApiRequestToolConstants.HttpClientName);
-builder.Services.AddAIToolInstanceSource<HttpApiRequestToolInstanceSource>(HttpApiRequestToolConstants.SourceName, options =>
-{
-    options.DisplayName = new LocalizedString(HttpApiRequestToolConstants.SourceName, "HTTP API Request");
-    options.Description = new LocalizedString(HttpApiRequestToolConstants.SourceName, "Calls an external HTTP API using preconfigured settings (endpoint, authentication, headers).");
-    options.Category = "Integrations";
-});
 
 // =============================================================================
 // 5. BACKGROUND TASKS AND PIPELINE

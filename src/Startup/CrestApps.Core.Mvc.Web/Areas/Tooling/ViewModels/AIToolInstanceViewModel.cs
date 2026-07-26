@@ -20,16 +20,10 @@ public sealed class AIToolInstanceViewModel
     public string Source { get; set; }
 
     /// <summary>
-    /// Gets or sets the unique technical name used to derive the function name exposed to the AI model.
+    /// Gets or sets the unique name shown in the UI and used to derive the function name exposed to the AI model.
     /// </summary>
     [Required]
     public string Name { get; set; }
-
-    /// <summary>
-    /// Gets or sets the human-readable name shown in management surfaces.
-    /// </summary>
-    [Required]
-    public string DisplayText { get; set; }
 
     /// <summary>
     /// Gets or sets the description shown to the AI model so it can distinguish this instance from
@@ -79,19 +73,19 @@ public sealed class AIToolInstanceViewModel
     public bool HasBearerToken { get; set; }
 
     /// <summary>
-    /// Gets or sets the username used for basic authentication.
+    /// Gets or sets the username used for basic authentication or the OAuth 2.0 password grant.
     /// </summary>
-    public string BasicUsername { get; set; }
+    public string Username { get; set; }
 
     /// <summary>
-    /// Gets or sets the password used for basic authentication.
+    /// Gets or sets the password used for basic authentication or the OAuth 2.0 password grant.
     /// </summary>
-    public string BasicPassword { get; set; }
+    public string Password { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether a protected basic password is already stored.
+    /// Gets or sets a value indicating whether a protected password is already stored.
     /// </summary>
-    public bool HasBasicPassword { get; set; }
+    public bool HasPassword { get; set; }
 
     /// <summary>
     /// Gets or sets the OAuth 2.0 token endpoint used to acquire access tokens.

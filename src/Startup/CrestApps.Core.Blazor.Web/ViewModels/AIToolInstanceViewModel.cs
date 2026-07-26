@@ -25,12 +25,6 @@ public sealed class AIToolInstanceViewModel
     public string Name { get; set; }
 
     /// <summary>
-    /// Gets or sets the human-readable name shown in management surfaces.
-    /// </summary>
-    [Required]
-    public string DisplayText { get; set; }
-
-    /// <summary>
     /// Gets or sets the description shown to the AI model so it can distinguish this instance from other instances.
     /// </summary>
     [Required]
@@ -79,17 +73,17 @@ public sealed class AIToolInstanceViewModel
     /// <summary>
     /// Gets or sets the username used for basic authentication.
     /// </summary>
-    public string BasicUsername { get; set; }
+    public string Username { get; set; }
 
     /// <summary>
     /// Gets or sets the password used for basic authentication.
     /// </summary>
-    public string BasicPassword { get; set; }
+    public string Password { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether a protected basic password is already stored.
     /// </summary>
-    public bool HasBasicPassword { get; set; }
+    public bool HasPassword { get; set; }
 
     /// <summary>
     /// Gets or sets the OAuth 2.0 token endpoint used to acquire access tokens.

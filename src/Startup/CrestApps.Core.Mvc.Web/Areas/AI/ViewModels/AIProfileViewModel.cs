@@ -306,7 +306,7 @@ public sealed class AIProfileViewModel
 
         if (profile.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata))
         {
-            vm.SelectedToolInstanceNames = toolInstanceMetadata.InstanceNames ?? [];
+            vm.SelectedToolInstanceNames = toolInstanceMetadata.ToolInstanceNames ?? [];
         }
 
         if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
@@ -458,7 +458,7 @@ public sealed class AIProfileViewModel
 
         profile.Alter<AIToolInstanceMetadata>(x =>
         {
-            x.InstanceNames = SelectedToolInstanceNames?
+            x.ToolInstanceNames = SelectedToolInstanceNames?
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];

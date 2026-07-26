@@ -16,11 +16,14 @@ namespace CrestApps.Core.AI.Orchestration;
 /// their own descriptions.
 /// </summary>
 /// <remarks>
-/// Projects that need custom logic (for example, permission checks before exposing an instance) can
-/// register their own <see cref="IToolRegistryProvider"/> alongside or in place of this one. The registry
-/// aggregates every registered provider, so a custom provider simply adds another source of tools.
+/// Projects that need custom logic (for example, permission checks before exposing an instance) have two
+/// options: register an additional <see cref="IToolRegistryProvider"/> alongside this one, or subclass this
+/// provider and override <see cref="ShouldIncludeInstanceAsync"/> to filter instances while reusing the
+/// entry-building logic. Register the subclass instead of the default (call
+/// <c>AddToolInstances(useDefaultRegistry: false)</c> and register your provider) to fully control which
+/// instances reach the model.
 /// </remarks>
-internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
+public class ToolInstanceRegistryProvider : IToolRegistryProvider
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ToolInstanceRegistryProvider> _logger;
@@ -78,6 +81,11 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
                 continue;
             }
 
+            if (!await ShouldIncludeInstanceAsync(instance, context, cancellationToken))
+            {
+                continue;
+            }
+
             var source = _serviceProvider.GetKeyedService<IAIToolInstanceSource>(instance.Source);
 
             if (source is null)
@@ -92,8 +100,7 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
             var functionName = instance.GetFunctionName();
             var description = !string.IsNullOrWhiteSpace(instance.Description)
                 ? instance.Description
-                : instance.DisplayText ?? functionName;
-            var toolContext = new AIToolInstanceSourceContext(instance, functionName, description);
+                : functionName;
 
             entries.Add(new ToolRegistryEntry
             {
@@ -102,25 +109,40 @@ internal sealed class ToolInstanceRegistryProvider : IToolRegistryProvider
                 Description = description,
                 Source = ToolRegistryEntrySource.Local,
                 SourceId = instance.Source,
-                CreateAsync = _ => ValueTask.FromResult(SafeCreate(source, toolContext)),
+                CreateAsync = _ => ValueTask.FromResult(SafeCreate(source, instance)),
             });
         }
 
         return entries;
     }
 
-    private AITool SafeCreate(IAIToolInstanceSource source, AIToolInstanceSourceContext toolContext)
+    /// <summary>
+    /// Determines whether the resolved tool instance should be surfaced to the model for the current
+    /// completion context. The default implementation includes every instance. Override this to apply
+    /// custom rules such as per-user permission checks while reusing the built-in entry-building logic.
+    /// </summary>
+    /// <param name="instance">The resolved tool instance.</param>
+    /// <param name="context">The completion context that scopes available tools.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns><see langword="true"/> to include the instance; otherwise <see langword="false"/>.</returns>
+    protected virtual ValueTask<bool> ShouldIncludeInstanceAsync(
+        AIToolInstance instance,
+        AICompletionContext context,
+        CancellationToken cancellationToken)
+        => ValueTask.FromResult(true);
+
+    private AITool SafeCreate(IAIToolInstanceSource source, AIToolInstance instance)
     {
         try
         {
-            return source.CreateTool(toolContext);
+            return source.CreateTool(instance);
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
                 "Failed to create tool for instance '{InstanceName}' from source '{Source}'.",
-                toolContext.Instance.Name, toolContext.Instance.Source);
+                instance.Name, instance.Source);
 
             return null;
         }

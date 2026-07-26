@@ -45,15 +45,9 @@ else
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Title</label>
-                <InputText @bind-Value="_model.DisplayText" class="form-control" placeholder="Weather API" />
-                <ValidationMessage For="() => _model.DisplayText" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Technical name</label>
+                <label class="form-label">Name</label>
                 <input class="form-control" value="@_model.Name" disabled />
-                <div class="form-text">The technical name is the function name exposed to the AI model and cannot be changed after creation.</div>
+                <div class="form-text">The name is the function name exposed to the AI model and cannot be changed after creation.</div>
             </div>
 
             <div class="mb-3">
@@ -144,18 +138,18 @@ else
             {
                 <div class="mb-3">
                     <label class="form-label">Username</label>
-                    <InputText @bind-Value="_model.BasicUsername" class="form-control" />
-                    <ValidationMessage For="() => _model.BasicUsername" />
+                    <InputText @bind-Value="_model.Username" class="form-control" />
+                    <ValidationMessage For="() => _model.Username" />
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Password</label>
-                    <input type="password" class="form-control" @bind="_model.BasicPassword" autocomplete="new-password" />
-                    @if (_model.HasBasicPassword)
+                    <input type="password" class="form-control" @bind="_model.Password" autocomplete="new-password" />
+                    @if (_model.HasPassword)
                     {
                         <div class="form-text">Leave blank to keep the existing password.</div>
                     }
-                    <ValidationMessage For="() => _model.BasicPassword" />
+                    <ValidationMessage For="() => _model.Password" />
                 </div>
             }
 
@@ -184,11 +178,27 @@ else
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-label">Username (optional)</label>
+                    <InputText @bind-Value="_model.Username" class="form-control" />
+                    <ValidationMessage For="() => _model.Username" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-control" @bind="_model.Password" autocomplete="new-password" />
+                    @if (_model.HasPassword)
+                    {
+                        <div class="form-text">Leave blank to keep the existing password.</div>
+                    }
+                    <ValidationMessage For="() => _model.Password" />
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label">Scope (optional)</label>
                     <InputText @bind-Value="_model.Scope" class="form-control" placeholder="api://resource/.default" />
                 </div>
 
-                <p class="text-muted small">The access token is requested on demand, cached securely on the instance, and refreshed automatically.</p>
+                <p class="text-muted small">The access token is requested on demand, cached securely on the instance, and refreshed automatically. Providing a username uses the OAuth 2.0 password grant.</p>
             }
 
             <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
@@ -266,9 +276,9 @@ else
 
     private void Validate(AIToolInstanceViewModel model, bool isEditing)
     {
-        if (string.IsNullOrWhiteSpace(model.DisplayText))
+        if (string.IsNullOrWhiteSpace(model.Name))
         {
-            _errors.Add("Display text is required.");
+            _errors.Add("Name is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.Description))
@@ -312,12 +322,12 @@ else
 
                 break;
             case HttpApiRequestAuthenticationType.Basic:
-                if (string.IsNullOrWhiteSpace(model.BasicUsername))
+                if (string.IsNullOrWhiteSpace(model.Username))
                 {
                     _errors.Add("Username is required.");
                 }
 
-                if ((!isEditing || !model.HasBasicPassword) && string.IsNullOrWhiteSpace(model.BasicPassword))
+                if ((!isEditing || !model.HasPassword) && string.IsNullOrWhiteSpace(model.Password))
                 {
                     _errors.Add("Password is required.");
                 }
@@ -343,6 +353,13 @@ else
                     _errors.Add("Client secret is required.");
                 }
 
+                if (!string.IsNullOrWhiteSpace(model.Username) &&
+                    (!isEditing || !model.HasPassword) &&
+                    string.IsNullOrWhiteSpace(model.Password))
+                {
+                    _errors.Add("Password is required when a username is provided.");
+                }
+
                 break;
         }
 
@@ -366,7 +383,6 @@ else
 
     private void Apply(AIToolInstanceViewModel model, AIToolInstance instance)
     {
-        instance.DisplayText = model.DisplayText.Trim();
         instance.Description = model.Description.Trim();
 
         var protector = DataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
@@ -396,13 +412,15 @@ else
                 settings.BearerToken = ProtectOrReuse(model.BearerToken, existing.BearerToken, protector);
                 break;
             case HttpApiRequestAuthenticationType.Basic:
-                settings.BasicUsername = model.BasicUsername?.Trim();
-                settings.BasicPassword = ProtectOrReuse(model.BasicPassword, existing.BasicPassword, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
                 break;
             case HttpApiRequestAuthenticationType.OAuth2:
                 settings.TokenEndpoint = model.TokenEndpoint?.Trim();
                 settings.ClientId = model.ClientId?.Trim();
                 settings.ClientSecret = ProtectOrReuse(model.ClientSecret, existing.ClientSecret, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
                 settings.Scope = model.Scope?.Trim();
                 break;
         }
@@ -422,7 +440,6 @@ else
             ItemId = instance.ItemId,
             Source = instance.Source,
             Name = instance.Name,
-            DisplayText = instance.DisplayText,
             Description = instance.Description,
             DefaultHeaders = "{}",
         };
@@ -435,8 +452,8 @@ else
             model.ApiKeyHeaderName = string.IsNullOrWhiteSpace(settings.ApiKeyHeaderName) ? "X-Api-Key" : settings.ApiKeyHeaderName;
             model.HasApiKey = !string.IsNullOrEmpty(settings.ApiKey);
             model.HasBearerToken = !string.IsNullOrEmpty(settings.BearerToken);
-            model.BasicUsername = settings.BasicUsername;
-            model.HasBasicPassword = !string.IsNullOrEmpty(settings.BasicPassword);
+            model.Username = settings.Username;
+            model.HasPassword = !string.IsNullOrEmpty(settings.Password);
             model.TokenEndpoint = settings.TokenEndpoint;
             model.ClientId = settings.ClientId;
             model.HasClientSecret = !string.IsNullOrEmpty(settings.ClientSecret);

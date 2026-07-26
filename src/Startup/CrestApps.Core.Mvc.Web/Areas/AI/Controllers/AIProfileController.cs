@@ -303,7 +303,7 @@ public sealed class AIProfileController : Controller
         model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId), }).ToList();
         var toolInstances = await _toolInstanceCatalog.GetAllAsync();
         var selectedToolInstanceNames = new HashSet<string>(model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableToolInstances = toolInstances.OrderBy(i => i.DisplayText, StringComparer.OrdinalIgnoreCase).Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, Name = i.Name, DisplayText = i.DisplayText, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceNames.Contains(i.Name), }).ToList();
+        model.AvailableToolInstances = toolInstances.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, Name = i.Name, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceNames.Contains(i.Name), }).ToList();
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();

@@ -12,16 +12,17 @@ public sealed class AIToolInstanceSourceEntry
     /// <summary>
     /// Initializes a new instance of the <see cref="AIToolInstanceSourceEntry"/> class.
     /// </summary>
-    /// <param name="sourceName">The unique registered name of the tool instance source.</param>
-    public AIToolInstanceSourceEntry(string sourceName)
+    /// <param name="source">The unique registered name of the tool instance source.</param>
+    public AIToolInstanceSourceEntry(string source)
     {
-        SourceName = sourceName;
+        Source = source;
     }
 
     /// <summary>
-    /// Gets the unique registered name of the tool instance source.
+    /// Gets the unique registered name of the tool instance source. This value is stored as the
+    /// <see cref="CrestApps.Core.Models.SourceCatalogEntry.Source"/> of every instance created from it.
     /// </summary>
-    public string SourceName { get; }
+    public string Source { get; }
 
     /// <summary>
     /// Gets or sets the friendly display name shown when choosing this source to configure a new instance.
@@ -36,5 +37,5 @@ public sealed class AIToolInstanceSourceEntry
     /// <summary>
     /// Gets or sets an optional category used to group sources in the management UI.
     /// </summary>
-    public string Category { get; set; }
+    public LocalizedString Category { get; set; }
 }

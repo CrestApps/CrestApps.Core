@@ -320,7 +320,7 @@ public sealed class AIProfileViewModel
 
         if (profile.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata))
         {
-            vm.SelectedToolInstanceNames = toolInstanceMetadata.InstanceNames ?? [];
+            vm.SelectedToolInstanceNames = toolInstanceMetadata.ToolInstanceNames ?? [];
         }
 
         if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
@@ -470,7 +470,7 @@ public sealed class AIProfileViewModel
 
         profile.Alter<AIToolInstanceMetadata>(x =>
         {
-            x.InstanceNames = SelectedToolInstanceNames?
+            x.ToolInstanceNames = SelectedToolInstanceNames?
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];
@@ -780,11 +780,6 @@ public sealed class AIToolInstanceSelectionItem
     /// Gets or sets the unique instance name. Used as the stable reference stored on the profile.
     /// </summary>
     public string Name { get; set; }
-
-    /// <summary>
-    /// Gets or sets the instance display text.
-    /// </summary>
-    public string DisplayText { get; set; }
 
     /// <summary>
     /// Gets or sets the instance description shown to the model.

@@ -684,7 +684,7 @@
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" checked="@instance.IsSelected" @onchange="e => ToggleToolInstance(instance.ItemId, (bool)e.Value)" id="toolinstance_@instance.ItemId" />
                                 <label class="form-check-label" for="toolinstance_@instance.ItemId">
-                                    <strong>@instance.DisplayText</strong>
+                                    <strong>@instance.Name</strong>
                                     <span class="badge bg-info text-dark ms-1">@instance.Source</span>
                                     @if (!string.IsNullOrEmpty(instance.Description))
                                     {
@@ -1530,12 +1530,11 @@
         var toolInstances = await ToolInstanceCatalog.GetAllAsync();
         var selectedToolInstanceNames = new HashSet<string>(_model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);
         _model.AvailableToolInstances = toolInstances
-            .OrderBy(i => i.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .Select(i => new AIToolInstanceSelectionItem
             {
                 ItemId = i.ItemId,
                 Name = i.Name,
-                DisplayText = i.DisplayText,
                 Description = i.Description,
                 Source = i.Source,
                 IsSelected = selectedToolInstanceNames.Contains(i.Name),

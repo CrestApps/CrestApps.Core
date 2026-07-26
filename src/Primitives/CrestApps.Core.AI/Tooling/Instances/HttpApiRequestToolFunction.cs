@@ -171,7 +171,8 @@ public sealed class HttpApiRequestToolFunction : AIFunction
 
     private Uri BuildRequestUri(AIFunctionArguments arguments)
     {
-        var url = _settings.BaseUrl.Trim();
+        var baseUri = new Uri(_settings.BaseUrl.Trim(), UriKind.Absolute);
+        var url = baseUri.ToString();
 
         if (_settings.AllowModelProvidedPath &&
             TryGetString(arguments, "path", out var path) &&
@@ -200,7 +201,19 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             }
         }
 
-        return new Uri(url, UriKind.Absolute);
+        var requestUri = new Uri(url, UriKind.Absolute);
+
+        // The endpoint is fixed by the instance configuration; the model may only extend the path/query.
+        // Reject any request that would leave the configured scheme/host/port to prevent SSRF redirection
+        // to arbitrary (for example internal) hosts.
+        if (requestUri.Scheme != baseUri.Scheme ||
+            !string.Equals(requestUri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) ||
+            requestUri.Port != baseUri.Port)
+        {
+            throw new InvalidOperationException("The resolved request URL must stay on the configured base host.");
+        }
+
+        return requestUri;
     }
 
     private HttpMethod ResolveMethod()
@@ -243,10 +256,10 @@ public sealed class HttpApiRequestToolFunction : AIFunction
                 break;
 
             case HttpApiRequestAuthenticationType.Basic:
-                if (!string.IsNullOrWhiteSpace(_settings.BasicUsername))
+                if (!string.IsNullOrWhiteSpace(_settings.Username))
                 {
-                    var password = Unprotect(services, _settings.BasicPassword);
-                    var raw = $"{_settings.BasicUsername}:{password}";
+                    var password = Unprotect(services, _settings.Password);
+                    var raw = $"{_settings.Username}:{password}";
                     var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
 
                     request.Headers.Authorization = new AuthenticationHeaderValue("Basic", encoded);
@@ -347,6 +360,18 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             {
                 return refreshed;
             }
+        }
+
+        // When a resource owner username is configured, use the OAuth 2.0 password grant; otherwise fall
+        // back to the client credentials grant.
+        if (!string.IsNullOrWhiteSpace(_settings.Username))
+        {
+            return await PostTokenRequestAsync(services, new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["grant_type"] = "password",
+                ["username"] = _settings.Username.Trim(),
+                ["password"] = Unprotect(services, _settings.Password) ?? string.Empty,
+            }, logger, cancellationToken);
         }
 
         return await PostTokenRequestAsync(services, new Dictionary<string, string>(StringComparer.Ordinal)
@@ -611,11 +636,9 @@ public sealed class HttpApiRequestToolFunction : AIFunction
 
     private static string CombineUrl(string baseUrl, string path)
     {
-        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute))
-        {
-            return absolute.ToString();
-        }
-
+        // The model-provided path is always treated as a relative segment appended to the configured base
+        // URL. Absolute URLs are never honored here so the model cannot redirect the request to a different
+        // host; BuildRequestUri additionally verifies the final host matches the configured base host.
         return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
     }
 

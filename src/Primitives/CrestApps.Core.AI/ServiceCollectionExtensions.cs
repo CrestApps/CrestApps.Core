@@ -191,8 +191,6 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDeployment>, AIDeploymentCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());
 
-        services.AddCoreAIToolInstances();
-
         return services;
     }
 
@@ -408,6 +406,44 @@ public static class ServiceCollectionExtensions
         if (configure is not null)
         {
             configure(new CrestAppsAIMemoryBuilder(builder.Services));
+        }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the AI tool instances feature: parameterized, user-configured tools built from
+    /// developer-defined <see cref="IAIToolInstanceSource"/> blueprints. Registers the core services and,
+    /// by default, the built-in registry provider that surfaces configured instances to every orchestrator.
+    /// Use the supplied builder to register one or more sources with
+    /// <c>AddSource&lt;TSource&gt;(name, configure)</c> or the built-in HTTP source with
+    /// <c>AddHttpApiRequestSource()</c>, and to register the persistence stores with
+    /// <c>AddYesSqlStores()</c> or <c>AddEntityCoreStores()</c>.
+    /// </summary>
+    /// <param name="builder">The AI suite builder.</param>
+    /// <param name="configure">An optional delegate used to register tool instance sources and stores.</param>
+    /// <param name="useDefaultRegistry">
+    /// When <see langword="true"/> (the default), registers the built-in
+    /// <see cref="ToolInstanceRegistryProvider"/>. Pass <see langword="false"/> to supply your own
+    /// <see cref="IToolRegistryProvider"/> instead — for example to enforce per-user permissions.
+    /// </param>
+    public static CrestAppsAISuiteBuilder AddToolInstances(
+        this CrestAppsAISuiteBuilder builder,
+        Action<CrestAppsAIToolInstancesBuilder> configure = null,
+        bool useDefaultRegistry = true)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIToolInstances();
+
+        if (useDefaultRegistry)
+        {
+            builder.Services.AddDefaultAIToolInstanceRegistryProvider();
+        }
+
+        if (configure is not null)
+        {
+            configure(new CrestAppsAIToolInstancesBuilder(builder.Services));
         }
 
         return builder;

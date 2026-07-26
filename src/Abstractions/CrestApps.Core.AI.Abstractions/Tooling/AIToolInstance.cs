@@ -16,18 +16,13 @@ namespace CrestApps.Core.AI.Tooling;
 /// exposed to the AI model. Multiple instances may be created from the same source, each with different
 /// settings and a distinct <see cref="Description"/> so the model can tell them apart.
 /// </remarks>
-public sealed class AIToolInstance : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIToolInstance>
+public sealed class AIToolInstance : SourceCatalogEntry, INameAwareModel, IModifiedUtcAwareModel, ICloneable<AIToolInstance>
 {
     /// <summary>
     /// Gets or sets the unique technical name for this tool instance. This value is the basis for the
     /// function name exposed to the AI model, so it must be unique across all configured instances.
     /// </summary>
     public string Name { get; set; }
-
-    /// <summary>
-    /// Gets or sets the human-readable display text shown in management and selection surfaces.
-    /// </summary>
-    public string DisplayText { get; set; }
 
     /// <summary>
     /// Gets or sets the natural-language description presented to the AI model. This is the primary
@@ -57,7 +52,8 @@ public sealed class AIToolInstance : SourceCatalogEntry, INameAwareModel, IDispl
     public string OwnerId { get; set; }
 
     /// <summary>
-    /// Creates a shallow copy of this instance, sharing the same <see cref="ExtensibleEntity.Properties"/> reference.
+    /// Creates a deep copy of this instance. The <see cref="ExtensibleEntity.Properties"/> dictionary is
+    /// cloned so mutations on the copy (for example caching an OAuth token) never leak back to the original.
     /// </summary>
     /// <returns>A new <see cref="AIToolInstance"/> with the same values.</returns>
     public AIToolInstance Clone()
@@ -67,13 +63,12 @@ public sealed class AIToolInstance : SourceCatalogEntry, INameAwareModel, IDispl
             ItemId = ItemId,
             Source = Source,
             Name = Name,
-            DisplayText = DisplayText,
             Description = Description,
             CreatedUtc = CreatedUtc,
             ModifiedUtc = ModifiedUtc,
             Author = Author,
             OwnerId = OwnerId,
-            Properties = Properties,
+            Properties = Properties?.Clone() ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase),
         };
     }
 }

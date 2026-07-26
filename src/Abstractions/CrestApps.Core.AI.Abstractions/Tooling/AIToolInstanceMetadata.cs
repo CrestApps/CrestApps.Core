@@ -11,5 +11,5 @@ public sealed class AIToolInstanceMetadata
     /// <summary>
     /// Gets or sets the unique names of the configured tool instances available to the resource.
     /// </summary>
-    public string[] InstanceNames { get; set; }
+    public string[] ToolInstanceNames { get; set; }
 }

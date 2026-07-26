@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
@@ -46,7 +47,35 @@ public sealed class AIToolInstanceTests
 
         Assert.DoesNotContain(' ', name);
         Assert.DoesNotContain('!', name);
-        Assert.Equal("weird_name_", name);
+        Assert.StartsWith("weird_name_", name);
+    }
+
+    [Fact]
+    public void GetFunctionName_ProducesDistinctNamesWhenSanitizationWouldCollide()
+    {
+        var first = new AIToolInstance { ItemId = "one", Source = "http-api-request", Name = "weather.api" };
+        var second = new AIToolInstance { ItemId = "two", Source = "http-api-request", Name = "weather_api" };
+
+        var firstName = first.GetFunctionName();
+        var secondName = second.GetFunctionName();
+
+        Assert.NotEqual(firstName, secondName);
+        Assert.DoesNotContain('.', firstName);
+        Assert.True(firstName.Length <= 64);
+        Assert.True(secondName.Length <= 64);
+    }
+
+    [Fact]
+    public void Clone_CreatesIndependentPropertiesCopy()
+    {
+        var original = new AIToolInstance { ItemId = "i", Source = "s", Name = "n", Description = "d" };
+        original.Put(new HttpApiRequestToolSettings { BaseUrl = "https://api.example.com" });
+
+        var clone = original.Clone();
+        clone.Put(new HttpApiRequestTokenState { AccessToken = "tok" });
+
+        Assert.False(original.TryGet<HttpApiRequestTokenState>(out _));
+        Assert.True(clone.TryGet<HttpApiRequestTokenState>(out _));
     }
 
     [Fact]
@@ -96,7 +125,7 @@ public sealed class AIToolInstanceTests
         {
             options.DisplayName = new LocalizedString(HttpApiRequestToolConstants.SourceName, "HTTP API Request");
             options.Description = new LocalizedString(HttpApiRequestToolConstants.SourceName, "Calls an external HTTP API.");
-            options.Category = "Integrations";
+            options.Category = new LocalizedString("Integrations", "Integrations");
         });
 
         using var provider = services.BuildServiceProvider();
@@ -109,7 +138,7 @@ public sealed class AIToolInstanceTests
         var options = provider.GetRequiredService<IOptions<AIOptions>>().Value;
 
         Assert.True(options.ToolInstanceSources.TryGetValue(HttpApiRequestToolConstants.SourceName, out var entry));
-        Assert.Equal("Integrations", entry.Category);
+        Assert.Equal("Integrations", entry.Category.Value);
         Assert.Equal("HTTP API Request", entry.DisplayName.Value);
     }
 
@@ -150,7 +179,7 @@ public sealed class AIToolInstanceTests
     }
 
     [Fact]
-    public async Task GetToolsAsync_ReturnsEmptyWhenNoInstanceIds()
+    public async Task GetToolsAsync_ReturnsEmptyWhenNoInstanceNames()
     {
         var provider = BuildProvider([]);
         var registryProvider = new ToolInstanceRegistryProvider(
@@ -172,7 +201,6 @@ public sealed class AIToolInstanceTests
                 ItemId = "orphan",
                 Source = "not-registered",
                 Name = "orphan",
-                DisplayText = "Orphan",
                 Description = "References a missing source.",
             },
         };
@@ -265,6 +293,34 @@ public sealed class AIToolInstanceTests
     }
 
     [Fact]
+    public async Task HttpApiRequestToolFunction_KeepsModelProvidedPathOnConfiguredHost()
+    {
+        var handler = new CapturingHttpMessageHandler(HttpStatusCode.OK, "{}");
+        var provider = BuildHttpProvider(handler);
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = "https://api.example.com/v1",
+            HttpMethod = "GET",
+            AuthenticationType = HttpApiRequestAuthenticationType.None,
+            AllowModelProvidedPath = true,
+        };
+
+        var function = new HttpApiRequestToolFunction("weather", "Gets the weather.", settings);
+
+        var arguments = new AIFunctionArguments
+        {
+            ["path"] = "https://evil.example.net/steal",
+            Services = provider,
+        };
+
+        await function.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(handler.LastRequest);
+        Assert.Equal("api.example.com", handler.LastRequest!.RequestUri!.Host);
+    }
+
+    [Fact]
     public async Task HttpApiRequestToolFunction_OAuth2_AcquiresCachesAndReusesToken()
     {
         const string tokenEndpoint = "https://login.example.com/token";
@@ -314,6 +370,50 @@ public sealed class AIToolInstanceTests
     }
 
     [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_ProtectsCachedTokenWhenDataProtectionAvailable()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"tok-secret\",\"token_type\":\"Bearer\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time, withDataProtection: true);
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = "https://api.example.com",
+            HttpMethod = "GET",
+            AuthenticationType = HttpApiRequestAuthenticationType.OAuth2,
+            TokenEndpoint = tokenEndpoint,
+            ClientId = "client",
+            ClientSecret = "secret",
+            AllowModelProvidedPath = false,
+            AllowModelProvidedQuery = false,
+            AllowModelProvidedBody = false,
+        };
+
+        var instance = new AIToolInstance
+        {
+            ItemId = "oauth-dp",
+            Source = HttpApiRequestToolConstants.SourceName,
+            Name = "oauth_dp",
+        };
+        instance.Put(settings);
+
+        var function = new HttpApiRequestToolFunction("oauth_dp", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.True(instance.TryGet<HttpApiRequestTokenState>(out var state));
+        Assert.NotEqual("tok-secret", state.AccessToken);
+
+        var unprotected = provider
+            .GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose)
+            .Unprotect(state.AccessToken);
+
+        Assert.Equal("tok-secret", unprotected);
+    }
+
+    [Fact]
     public async Task HttpApiRequestToolFunction_OAuth2_UsesRefreshTokenWhenAccessTokenExpired()
     {
         const string tokenEndpoint = "https://login.example.com/token";
@@ -359,6 +459,48 @@ public sealed class AIToolInstanceTests
         Assert.Equal("tok2", handler.ApiRequests[0].Headers.Authorization!.Parameter);
     }
 
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_UsesPasswordGrantWhenUsernameConfigured()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"tok3\",\"token_type\":\"Bearer\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = "https://api.example.com",
+            HttpMethod = "GET",
+            AuthenticationType = HttpApiRequestAuthenticationType.OAuth2,
+            TokenEndpoint = tokenEndpoint,
+            ClientId = "client",
+            ClientSecret = "secret",
+            Username = "resource-owner",
+            Password = "owner-secret",
+            AllowModelProvidedPath = false,
+            AllowModelProvidedQuery = false,
+            AllowModelProvidedBody = false,
+        };
+
+        var instance = new AIToolInstance
+        {
+            ItemId = "oauth-3",
+            Source = HttpApiRequestToolConstants.SourceName,
+            Name = "oauth_tool",
+        };
+        instance.Put(settings);
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.TokenRequestCount);
+        Assert.Contains("grant_type=password", handler.TokenRequestBodies[0]);
+        Assert.Contains("username=resource-owner", handler.TokenRequestBodies[0]);
+        Assert.Contains("password=owner-secret", handler.TokenRequestBodies[0]);
+        Assert.Equal("tok3", handler.ApiRequests[0].Headers.Authorization!.Parameter);
+    }
+
     private static AIToolInstance CreateWeatherInstance(string itemId, string name, string description)
     {
         var instance = new AIToolInstance
@@ -366,7 +508,6 @@ public sealed class AIToolInstanceTests
             ItemId = itemId,
             Source = HttpApiRequestToolConstants.SourceName,
             Name = name,
-            DisplayText = itemId,
             Description = description,
         };
 
@@ -405,12 +546,17 @@ public sealed class AIToolInstanceTests
         return services.BuildServiceProvider();
     }
 
-    private static ServiceProvider BuildOAuthProvider(HttpMessageHandler handler, TimeProvider timeProvider)
+    private static ServiceProvider BuildOAuthProvider(HttpMessageHandler handler, TimeProvider timeProvider, bool withDataProtection = false)
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IHttpClientFactory>(new StubHttpClientFactory(handler));
         services.AddSingleton(timeProvider);
+
+        if (withDataProtection)
+        {
+            services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+        }
 
         return services.BuildServiceProvider();
     }

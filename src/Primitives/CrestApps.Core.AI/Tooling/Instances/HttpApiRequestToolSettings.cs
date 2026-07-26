@@ -40,14 +40,17 @@ public sealed class HttpApiRequestToolSettings
     public string BearerToken { get; set; }
 
     /// <summary>
-    /// Gets or sets the username used for basic authentication.
+    /// Gets or sets the username used for basic authentication, or the resource owner username used for
+    /// the OAuth 2.0 password grant when <see cref="AuthenticationType"/> is
+    /// <see cref="HttpApiRequestAuthenticationType.OAuth2"/>.
     /// </summary>
-    public string BasicUsername { get; set; }
+    public string Username { get; set; }
 
     /// <summary>
-    /// Gets or sets the password used for basic authentication. May be data-protected at rest.
+    /// Gets or sets the password used for basic authentication, or the resource owner password used for
+    /// the OAuth 2.0 password grant. May be data-protected at rest.
     /// </summary>
-    public string BasicPassword { get; set; }
+    public string Password { get; set; }
 
     /// <summary>
     /// Gets or sets the OAuth 2.0 token endpoint the tool requests access tokens from when

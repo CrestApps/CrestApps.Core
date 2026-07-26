@@ -26,6 +26,7 @@ using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
+using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Mvc.Web.Tools;
@@ -38,7 +39,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 // =============================================================================
@@ -123,6 +123,10 @@ builder.Services
         .AddMcpClient(mcp => mcp
             .AddYesSqlStores()
         )
+        .AddToolInstances(toolInstances => toolInstances
+            .AddHttpApiRequestSource()
+            .AddYesSqlStores()
+        )
         .AddMcpServer(mcpServer => mcpServer
             .AddYesSqlStores()
             .AddFtpResources()
@@ -182,16 +186,7 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
     .WithCategory("Communications")
     .Selectable();
 
-// Registers the built-in HTTP API request tool instance source (blueprint). Users can create one or
-// more configured instances of this source (each with its own endpoint, auth, and description) and
-// attach them to AI profiles or chat interactions under "AI Tool Instances".
-builder.Services.AddHttpClient(HttpApiRequestToolConstants.HttpClientName);
-builder.Services.AddAIToolInstanceSource<HttpApiRequestToolInstanceSource>(HttpApiRequestToolConstants.SourceName, options =>
-{
-    options.DisplayName = new LocalizedString(HttpApiRequestToolConstants.SourceName, "HTTP API Request");
-    options.Description = new LocalizedString(HttpApiRequestToolConstants.SourceName, "Calls an external HTTP API using preconfigured settings (endpoint, authentication, headers).");
-    options.Category = "Integrations";
-});
+builder.Services.AddScoped<IChatInteractionSettingsHandler, AIToolInstanceChatInteractionSettingsHandler>();
 
 // =============================================================================
 // 5. BACKGROUND TASKS AND PIPELINE
