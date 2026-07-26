@@ -13,6 +13,7 @@ public sealed class AIOptions
     private readonly Dictionary<string, AIDeploymentProviderEntry> _deployments = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AIProviderConnectionOptionsEntry> _connectionSources = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AITemplateSourceEntry> _templateSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AIToolInstanceSourceEntry> _toolInstanceSources = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets the clients.
@@ -66,6 +67,17 @@ public sealed class AIOptions
         get
         {
             return _templateSources;
+        }
+    }
+
+    /// <summary>
+    /// Gets the registered tool instance sources, keyed by source name.
+    /// </summary>
+    public IReadOnlyDictionary<string, AIToolInstanceSourceEntry> ToolInstanceSources
+    {
+        get
+        {
+            return _toolInstanceSources;
         }
     }
 
@@ -179,5 +191,32 @@ public sealed class AIOptions
         }
 
         _templateSources[name] = entry;
+    }
+
+    /// <summary>
+    /// Registers or updates the display metadata for a tool instance source.
+    /// </summary>
+    /// <param name="name">The unique registered name of the tool instance source.</param>
+    /// <param name="configure">An optional delegate used to configure the source entry.</param>
+    public void AddToolInstanceSource(string name, Action<AIToolInstanceSourceEntry> configure = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        if (!_toolInstanceSources.TryGetValue(name, out var entry))
+        {
+            entry = new AIToolInstanceSourceEntry(name);
+        }
+
+        if (configure != null)
+        {
+            configure(entry);
+        }
+
+        if (string.IsNullOrEmpty(entry.DisplayName))
+        {
+            entry.DisplayName = new LocalizedString(name, name);
+        }
+
+        _toolInstanceSources[name] = entry;
     }
 }

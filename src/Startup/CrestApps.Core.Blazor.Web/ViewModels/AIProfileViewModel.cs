@@ -108,10 +108,10 @@ public sealed class AIProfileViewModel
 
     public List<McpConnectionSelectionItem> AvailableMcpConnections { get; set; } = [];
 
-    // AI Tool Definitions
-    public string[] SelectedToolDefinitionIds { get; set; } = [];
+    // AI Tool Instances
+    public string[] SelectedToolInstanceIds { get; set; } = [];
 
-    public List<AIToolDefinitionSelectionItem> AvailableToolDefinitions { get; set; } = [];
+    public List<AIToolInstanceSelectionItem> AvailableToolInstances { get; set; } = [];
 
     // Prompt Templates
     public List<PromptTemplateSelectionItem> PromptTemplates { get; set; } = [];
@@ -318,9 +318,9 @@ public sealed class AIProfileViewModel
             vm.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
         }
 
-        if (profile.TryGet<AIProfileToolDefinitionMetadata>(out var toolInstanceMetadata))
+        if (profile.TryGet<AIProfileToolInstanceMetadata>(out var toolInstanceMetadata))
         {
-            vm.SelectedToolDefinitionIds = toolInstanceMetadata.DefinitionIds ?? [];
+            vm.SelectedToolInstanceIds = toolInstanceMetadata.InstanceIds ?? [];
         }
 
         if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
@@ -468,9 +468,9 @@ public sealed class AIProfileViewModel
                 .ToArray() ?? [];
         });
 
-        profile.Alter<AIProfileToolDefinitionMetadata>(x =>
+        profile.Alter<AIProfileToolInstanceMetadata>(x =>
         {
-            x.DefinitionIds = SelectedToolDefinitionIds?
+            x.InstanceIds = SelectedToolInstanceIds?
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];
@@ -767,9 +767,9 @@ public sealed class McpConnectionSelectionItem
 }
 
 /// <summary>
-/// Represents a selectable AI tool definition shown when configuring an AI profile.
+/// Represents a selectable AI tool instance shown when configuring an AI profile.
 /// </summary>
-public sealed class AIToolDefinitionSelectionItem
+public sealed class AIToolInstanceSelectionItem
 {
     /// <summary>
     /// Gets or sets the instance identifier.
@@ -787,7 +787,7 @@ public sealed class AIToolDefinitionSelectionItem
     public string Description { get; set; }
 
     /// <summary>
-    /// Gets or sets the definition name that produced the instance.
+    /// Gets or sets the source name that produced the instance.
     /// </summary>
     public string Source { get; set; }
 
