@@ -1,14 +1,17 @@
 @page "/tooling/instances/edit/{Id}"
 @attribute [Authorize(Policy = "Admin")]
 @using System.Text.Json
+@using CrestApps.Core.AI
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.AI.Tooling.Instances
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
 @inject ISourceCatalog<AIToolInstance> Catalog
 @inject IDataProtectionProvider DataProtectionProvider
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
+@inject IOptions<AIOptions> AIOptions
 
 <PageTitle>Edit Tool Instance</PageTitle>
 
@@ -39,9 +42,10 @@ else
                 </div>
             }
 
-            <div class="alert alert-secondary">
-                <i class="bi bi-info-circle"></i> Source: <strong>HTTP API Request</strong>. This instance calls an external HTTP API
-                using the settings below. The AI model only supplies the arguments you allow.
+            <div class="mb-3">
+                <label class="form-label">Source</label>
+                <input class="form-control" value="@GetSourceDisplayName(_model.Source)" readonly />
+                <div class="form-text">The source is fixed after creation.</div>
             </div>
 
             <div class="mb-3">
@@ -58,6 +62,8 @@ else
                 <ValidationMessage For="() => _model.Description" />
             </div>
 
+            @if (string.Equals(_model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+            {
             <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
 
             <div class="mb-3">
@@ -216,6 +222,7 @@ else
                 <InputCheckbox @bind-Value="_model.AllowModelProvidedBody" class="form-check-input" />
                 <label class="form-check-label">Allow the model to provide a request body</label>
             </div>
+            }
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
@@ -234,6 +241,17 @@ else
     private AIToolInstanceViewModel _model;
     private bool _notFound;
     private List<string> _errors = [];
+
+    private string GetSourceDisplayName(string source)
+    {
+        if (!string.IsNullOrEmpty(source) &&
+            AIOptions.Value.ToolInstanceSources.TryGetValue(source, out var entry))
+        {
+            return entry.DisplayName?.Value ?? source;
+        }
+
+        return source;
+    }
 
     protected override async Task OnInitializedAsync()
     {

@@ -7,13 +7,24 @@
     {
         <input asp-for="ItemId" type="hidden" />
     }
-    <input asp-for="Source" type="hidden" />
-
     <div class="row">
         <div class="col-md-8">
-            <div class="alert alert-secondary">
-                <i class="bi bi-info-circle"></i> Source: <strong>HTTP API Request</strong>. This instance calls an external HTTP API
-                using the settings below. The AI model only supplies the arguments you allow.
+            <div class="mb-3">
+                <label asp-for="Source" class="form-label">Source <span class="text-danger">*</span></label>
+                @if (string.IsNullOrEmpty(Model.ItemId))
+                {
+                    <select asp-for="Source" class="form-select" asp-items="Model.Sources" id="sourceSelect">
+                        <option value="">Select source</option>
+                    </select>
+                    <span asp-validation-for="Source" class="text-danger"></span>
+                    <div class="form-text">Choose the tool source. The fields below change based on the selected source.</div>
+                }
+                else
+                {
+                    <input asp-for="Source" type="hidden" />
+                    <input class="form-control" value="@Model.Source" readonly id="sourceSelect" />
+                    <div class="form-text">The source is fixed after creation.</div>
+                }
             </div>
 
             <div class="mb-3">
@@ -39,7 +50,9 @@
                 <span asp-validation-for="Description" class="text-danger"></span>
             </div>
 
+            <div class="source-fields" data-source="http-api-request">
             <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
+
 
             <div class="mb-3">
                 <label asp-for="BaseUrl" class="form-label">Base URL</label>
@@ -172,6 +185,7 @@
                 <input asp-for="AllowModelProvidedBody" class="form-check-input" type="checkbox" />
                 <label asp-for="AllowModelProvidedBody" class="form-check-label">Allow the model to provide a request body</label>
             </div>
+            </div>
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
@@ -183,6 +197,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const sourceSelect = document.getElementById('sourceSelect');
         const authType = document.getElementById('authType');
         const authGroups = {
             ApiKey: ['apiKeyFields'],
@@ -191,9 +206,16 @@
             OAuth2: ['oauth2Fields', 'credentialFields']
         };
 
+        function updateSourceVisibility() {
+            const selectedSource = sourceSelect ? sourceSelect.value : null;
+            document.querySelectorAll('.source-fields').forEach(element => {
+                element.style.display = element.dataset.source === selectedSource ? '' : 'none';
+            });
+        }
+
         function updateAuthVisibility() {
             document.querySelectorAll('.auth-fields').forEach(element => element.style.display = 'none');
-            const selectedAuthType = authType.selectedOptions.length > 0 ? authType.selectedOptions[0].dataset.authType : null;
+            const selectedAuthType = authType && authType.selectedOptions.length > 0 ? authType.selectedOptions[0].dataset.authType : null;
             (authGroups[selectedAuthType] || []).forEach(id => {
                 const element = document.getElementById(id);
                 if (element) {
@@ -202,8 +224,15 @@
             });
         }
 
-        authType.addEventListener('change', updateAuthVisibility);
-        updateAuthVisibility();
+        if (sourceSelect) {
+            sourceSelect.addEventListener('change', updateSourceVisibility);
+        }
 
+        if (authType) {
+            authType.addEventListener('change', updateAuthVisibility);
+        }
+
+        updateSourceVisibility();
+        updateAuthVisibility();
     });
 </script>

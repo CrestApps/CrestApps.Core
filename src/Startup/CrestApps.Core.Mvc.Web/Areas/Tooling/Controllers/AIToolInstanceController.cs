@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
@@ -6,12 +7,15 @@ using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Tooling.Controllers;
 
 /// <summary>
-/// Manages HTTP API request tool instances. Each instance is a preconfigured, model-invokable tool that
-/// carries its own endpoint, authentication, headers, and a description used to disambiguate instances.
+/// Manages tool instances. Each instance is a preconfigured, model-invokable tool created from a registered
+/// source; the built-in HTTP API request source carries its own endpoint, authentication, headers, and a
+/// description used to disambiguate instances.
 /// </summary>
 [Area("Tooling")]
 [Authorize(Policy = "Admin")]
@@ -25,6 +29,7 @@ public sealed class AIToolInstanceController : Controller
     private readonly ISourceCatalog<AIToolInstance> _catalog;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
+    private readonly AIOptions _aiOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIToolInstanceController"/> class.
@@ -32,14 +37,17 @@ public sealed class AIToolInstanceController : Controller
     /// <param name="catalog">The tool instance catalog.</param>
     /// <param name="dataProtectionProvider">The data protection provider used to protect secrets.</param>
     /// <param name="timeProvider">The time provider used for timestamps.</param>
+    /// <param name="aiOptions">The AI options used to enumerate registered tool instance sources.</param>
     public AIToolInstanceController(
         ISourceCatalog<AIToolInstance> catalog,
         IDataProtectionProvider dataProtectionProvider,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IOptions<AIOptions> aiOptions)
     {
         _catalog = catalog;
         _dataProtectionProvider = dataProtectionProvider;
         _timeProvider = timeProvider;
+        _aiOptions = aiOptions.Value;
     }
 
     /// <summary>
@@ -59,9 +67,12 @@ public sealed class AIToolInstanceController : Controller
     /// </summary>
     public IActionResult Create()
     {
+        var sources = BuildSourceList();
+
         return View(new AIToolInstanceViewModel
         {
-            Source = HttpApiRequestToolConstants.SourceName,
+            Source = sources.FirstOrDefault()?.Value ?? HttpApiRequestToolConstants.SourceName,
+            Sources = sources,
             DefaultHeaders = "{}",
         });
     }
@@ -78,13 +89,15 @@ public sealed class AIToolInstanceController : Controller
 
         if (!ModelState.IsValid)
         {
+            model.Sources = BuildSourceList();
+
             return View(model);
         }
 
         var instance = new AIToolInstance
         {
             ItemId = UniqueId.GenerateId(),
-            Source = HttpApiRequestToolConstants.SourceName,
+            Source = model.Source,
             CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime,
         };
 
@@ -126,10 +139,14 @@ public sealed class AIToolInstanceController : Controller
             return NotFound();
         }
 
+        model.Source = instance.Source;
+
         await ValidateAsync(model, true);
 
         if (!ModelState.IsValid)
         {
+            model.Sources = BuildSourceList();
+
             return View(model);
         }
 
@@ -160,8 +177,29 @@ public sealed class AIToolInstanceController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    private List<SelectListItem> BuildSourceList()
+    {
+        return _aiOptions.ToolInstanceSources
+            .OrderBy(entry => entry.Value.DisplayName?.Value ?? entry.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(entry => new SelectListItem
+            {
+                Value = entry.Key,
+                Text = entry.Value.DisplayName?.Value ?? entry.Key,
+            })
+            .ToList();
+    }
+
     private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing)
     {
+        if (string.IsNullOrWhiteSpace(model.Source))
+        {
+            ModelState.AddModelError(nameof(model.Source), "A source is required.");
+        }
+        else if (!_aiOptions.ToolInstanceSources.ContainsKey(model.Source))
+        {
+            ModelState.AddModelError(nameof(model.Source), "The selected source is not registered.");
+        }
+
         if (string.IsNullOrWhiteSpace(model.Name))
         {
             ModelState.AddModelError(nameof(model.Name), "A unique name is required.");
@@ -174,6 +212,11 @@ public sealed class AIToolInstanceController : Controller
         if (string.IsNullOrWhiteSpace(model.Description))
         {
             ModelState.AddModelError(nameof(model.Description), "A description is required so the AI model can tell instances apart.");
+        }
+
+        if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
         }
 
         if (string.IsNullOrWhiteSpace(model.BaseUrl))

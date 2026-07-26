@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using CrestApps.Core.AI.Tooling.Instances;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
 
@@ -18,6 +19,11 @@ public sealed class AIToolInstanceViewModel
     /// Gets or sets the tool source name (the catalog source).
     /// </summary>
     public string Source { get; set; }
+
+    /// <summary>
+    /// Gets or sets the registered tool sources shown in the source dropdown when creating an instance.
+    /// </summary>
+    public IReadOnlyList<SelectListItem> Sources { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the unique name shown in the UI and used to derive the function name exposed to the AI model.

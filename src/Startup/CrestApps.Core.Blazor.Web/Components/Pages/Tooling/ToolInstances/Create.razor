@@ -2,15 +2,18 @@
 @attribute [Authorize(Policy = "Admin")]
 @using System.Text.Json
 @using CrestApps.Core
+@using CrestApps.Core.AI
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.AI.Tooling.Instances
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
 @inject ISourceCatalog<AIToolInstance> Catalog
 @inject IDataProtectionProvider DataProtectionProvider
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject TimeProvider TimeProvider
+@inject IOptions<AIOptions> AIOptions
 
 <PageTitle>Create Tool Instance</PageTitle>
 
@@ -31,9 +34,16 @@
             </div>
         }
 
-        <div class="alert alert-secondary">
-            <i class="bi bi-info-circle"></i> Source: <strong>HTTP API Request</strong>. This instance calls an external HTTP API
-            using the settings below. The AI model only supplies the arguments you allow.
+        <div class="mb-3">
+            <label class="form-label">Source <span class="text-danger">*</span></label>
+            <select class="form-select" value="@_model.Source" @onchange="OnSourceChanged">
+                <option value="">Select source</option>
+                @foreach (var source in AIOptions.Value.ToolInstanceSources)
+                {
+                    <option value="@source.Key" selected="@string.Equals(source.Key, _model.Source, StringComparison.OrdinalIgnoreCase)">@(source.Value.DisplayName?.Value ?? source.Key)</option>
+                }
+            </select>
+            <div class="form-text">Choose the tool source. The fields below change based on the selected source.</div>
         </div>
 
         <div class="mb-3">
@@ -51,6 +61,8 @@
             <ValidationMessage For="() => _model.Description" />
         </div>
 
+        @if (string.Equals(_model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
         <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
 
         <div class="mb-3">
@@ -189,6 +201,7 @@
             <InputCheckbox @bind-Value="_model.AllowModelProvidedBody" class="form-check-input" />
             <label class="form-check-label">Allow the model to provide a request body</label>
         </div>
+        }
 
         <div class="mt-4">
             <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create</button>
@@ -206,6 +219,11 @@
 
     private List<string> _errors = [];
 
+    private void OnSourceChanged(ChangeEventArgs e)
+    {
+        _model.Source = e.Value?.ToString();
+    }
+
     private async Task HandleSubmitAsync()
     {
         _errors.Clear();
@@ -219,7 +237,7 @@
         var instance = new AIToolInstance
         {
             ItemId = UniqueId.GenerateId(),
-            Source = HttpApiRequestToolConstants.SourceName,
+            Source = _model.Source,
             CreatedUtc = TimeProvider.GetUtcNow().UtcDateTime,
         };
 
@@ -231,6 +249,15 @@
 
     private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing)
     {
+        if (string.IsNullOrWhiteSpace(model.Source))
+        {
+            _errors.Add("A source is required.");
+        }
+        else if (!AIOptions.Value.ToolInstanceSources.ContainsKey(model.Source))
+        {
+            _errors.Add("The selected source is not registered.");
+        }
+
         if (string.IsNullOrWhiteSpace(model.Name))
         {
             _errors.Add("A unique technical name is required.");
@@ -243,6 +270,11 @@
         if (string.IsNullOrWhiteSpace(model.Description))
         {
             _errors.Add("A description is required so the AI model can tell instances apart.");
+        }
+
+        if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
         }
 
         if (string.IsNullOrWhiteSpace(model.BaseUrl))
