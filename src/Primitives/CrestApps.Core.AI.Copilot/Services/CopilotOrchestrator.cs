@@ -468,7 +468,9 @@ public sealed class CopilotOrchestrator : IOrchestrator
     /// Combines conversation history with the current user message so Copilot
     /// has full multi-turn context within a single stateless session.
     /// </summary>
-    private static string BuildPromptWithHistory(OrchestrationContext context)
+    /// <param name="context">The orchestration context.</param>
+    /// <returns>The complete Copilot prompt.</returns>
+    internal static string BuildPromptWithHistory(OrchestrationContext context)
     {
         if (context.ConversationHistory is not { Count: > 0 })
         {
@@ -477,9 +479,12 @@ public sealed class CopilotOrchestrator : IOrchestrator
 
         using var sb = ZString.CreateStringBuilder();
         sb.AppendLine("[Conversation History]");
+
         foreach (var message in context.ConversationHistory)
         {
-            if (string.IsNullOrEmpty(message.Text))
+            var text = message.Text;
+
+            if (string.IsNullOrEmpty(text))
             {
                 continue;
             }
@@ -497,7 +502,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
                 continue;
             }
 
-            sb.AppendLine(message.Text);
+            sb.AppendLine(text);
         }
 
         sb.AppendLine();
@@ -535,19 +540,39 @@ public sealed class CopilotOrchestrator : IOrchestrator
             return;
         }
 
+        AppendMcpServerDescription(sessionConfig, connections);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("CopilotOrchestrator: Configured {Count} MCP connection(s): [{Connections}]", connections.Count, string.Join(", ", connections.Select(c => c.DisplayText ?? c.ItemId)));
+        }
+    }
+
+    /// <summary>
+    /// Appends the available MCP server descriptions to the Copilot system message.
+    /// </summary>
+    /// <param name="sessionConfig">The Copilot session configuration.</param>
+    /// <param name="connections">The MCP connections to describe.</param>
+    internal static void AppendMcpServerDescription(
+        SessionConfig sessionConfig,
+        IReadOnlyCollection<McpConnection> connections)
+    {
         // TODO: When the Copilot SDK adds native McpServers support on SessionConfig,
         // configure each connection directly. For now, describe available MCP servers
         // in the system message so Copilot is aware of them.
         using var mcpDescription = ZString.CreateStringBuilder();
         mcpDescription.AppendLine();
         mcpDescription.AppendLine("[Available MCP Servers]");
+
         foreach (var connection in connections)
         {
             mcpDescription.Append("- ");
             mcpDescription.Append(connection.DisplayText ?? connection.ItemId);
+
             if (connection.Source == McpConstants.TransportTypes.Sse)
             {
-                if (connection.TryGet<SseMcpConnectionMetadata>(out var sseMetadata) && sseMetadata.Endpoint is not null)
+                if (connection.TryGet<SseMcpConnectionMetadata>(out var sseMetadata) &&
+                    sseMetadata.Endpoint is not null)
                 {
                     mcpDescription.Append(" (SSE: ");
                     mcpDescription.Append(sseMetadata.Endpoint);
@@ -556,7 +581,8 @@ public sealed class CopilotOrchestrator : IOrchestrator
             }
             else if (connection.Source == McpConstants.TransportTypes.StdIo)
             {
-                if (connection.TryGet<StdioMcpConnectionMetadata>(out var stdioMetadata) && !string.IsNullOrEmpty(stdioMetadata.Command))
+                if (connection.TryGet<StdioMcpConnectionMetadata>(out var stdioMetadata) &&
+                    !string.IsNullOrEmpty(stdioMetadata.Command))
                 {
                     mcpDescription.Append(" (StdIO: ");
                     mcpDescription.Append(stdioMetadata.Command);
@@ -578,11 +604,6 @@ public sealed class CopilotOrchestrator : IOrchestrator
             {
                 Content = mcpDescription.ToString(),
             };
-        }
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogDebug("CopilotOrchestrator: Configured {Count} MCP connection(s): [{Connections}]", connections.Count, string.Join(", ", connections.Select(c => c.DisplayText ?? c.ItemId)));
         }
     }
 

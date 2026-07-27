@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -10,6 +12,10 @@ namespace CrestApps.Core.AI.Mcp;
 /// </summary>
 public static partial class McpResourceUri
 {
+    private const int MaxCachedMatchers = 256;
+
+    private static readonly ConcurrentDictionary<MatcherCacheKey, TemplateMatcher> _matcherCache = new();
+
     /// <summary>
     /// Attempts to match an actual URI against a URI template pattern and extract variable values.
     /// For example, template "recipe-step-schema://my-resource/{stepName}" matched against
@@ -31,6 +37,50 @@ public static partial class McpResourceUri
         uriTemplate = uriTemplate.Trim();
         actualUri = actualUri.Trim();
 
+        var matcher = GetMatcher(uriTemplate);
+
+        return matcher.TryMatch(actualUri, out variables);
+    }
+
+    /// <summary>
+    /// Gets or creates the matcher for the URI template and current culture.
+    /// </summary>
+    /// <param name="uriTemplate">The trimmed URI template.</param>
+    /// <returns>The template matcher.</returns>
+    private static TemplateMatcher GetMatcher(string uriTemplate)
+    {
+        var cacheKey = new MatcherCacheKey(uriTemplate, CultureInfo.CurrentCulture);
+
+        if (_matcherCache.TryGetValue(cacheKey, out var cachedMatcher))
+        {
+            return cachedMatcher;
+        }
+
+        var matcher = CreateMatcher(uriTemplate);
+
+        if (_matcherCache.Count >= MaxCachedMatchers ||
+            !_matcherCache.TryAdd(cacheKey, matcher))
+        {
+            return _matcherCache.TryGetValue(cacheKey, out cachedMatcher)
+                ? cachedMatcher
+                : matcher;
+        }
+
+        if (_matcherCache.Count > MaxCachedMatchers)
+        {
+            _matcherCache.TryRemove(cacheKey, out _);
+        }
+
+        return matcher;
+    }
+
+    /// <summary>
+    /// Creates a matcher that preserves the existing regular-expression matching behavior.
+    /// </summary>
+    /// <param name="uriTemplate">The trimmed URI template.</param>
+    /// <returns>The template matcher.</returns>
+    private static TemplateMatcher CreateMatcher(string uriTemplate)
+    {
         // Collect all variable matches first so we know which is the last one.
         var matches = new List<(int Index, int Length, string Name)>();
 
@@ -75,28 +125,8 @@ public static partial class McpResourceUri
         regexBuilder.Append('$');
 
         var regex = new Regex(regexBuilder.ToString(), RegexOptions.IgnoreCase);
-        var regexMatch = regex.Match(actualUri);
 
-        if (!regexMatch.Success)
-        {
-            return false;
-        }
-
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var name in variableNames)
-        {
-            var group = regexMatch.Groups[name];
-
-            if (group.Success)
-            {
-                result[name] = Uri.UnescapeDataString(group.Value);
-            }
-        }
-
-        variables = result;
-
-        return true;
+        return new TemplateMatcher(regex, variableNames.ToArray());
     }
 
     /// <summary>
@@ -106,6 +136,71 @@ public static partial class McpResourceUri
     public static bool IsTemplate(string uri)
     {
         return !string.IsNullOrWhiteSpace(uri) && uri.AsSpan().Trim().Contains('{');
+    }
+
+    private readonly record struct MatcherCacheKey(string UriTemplate, CultureInfo Culture);
+
+    private sealed class TemplateMatcher
+    {
+        private readonly Regex _regex;
+        private readonly string[] _variableNames;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TemplateMatcher"/> class.
+        /// </summary>
+        /// <param name="regex">The regular expression used to match the URI.</param>
+        /// <param name="variableNames">The ordered URI template variable names.</param>
+        public TemplateMatcher(Regex regex, string[] variableNames)
+        {
+            _regex = regex;
+            _variableNames = variableNames;
+        }
+
+        /// <summary>
+        /// Attempts to match an actual URI and extract the template variables.
+        /// </summary>
+        /// <param name="actualUri">The trimmed actual URI.</param>
+        /// <param name="variables">When successful, the extracted variable name-value pairs.</param>
+        /// <returns><c>true</c> when the URI matches; otherwise, <c>false</c>.</returns>
+        public bool TryMatch(string actualUri, out IReadOnlyDictionary<string, string> variables)
+        {
+            variables = null;
+
+            if (_variableNames.Length == 0)
+            {
+                if (!_regex.IsMatch(actualUri))
+                {
+                    return false;
+                }
+
+                variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                return true;
+            }
+
+            var regexMatch = _regex.Match(actualUri);
+
+            if (!regexMatch.Success)
+            {
+                return false;
+            }
+
+            var result = new Dictionary<string, string>(_variableNames.Length, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var name in _variableNames)
+            {
+                var group = regexMatch.Groups[name];
+
+                if (group.Success)
+                {
+                    result[name] = Uri.UnescapeDataString(group.Value);
+                }
+            }
+
+            variables = result;
+
+            return true;
+        }
     }
 
     [GeneratedRegex(@"\{(\w+)\}")]

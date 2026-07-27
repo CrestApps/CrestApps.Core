@@ -252,6 +252,8 @@ public sealed class DataExtractionService
         List<ExtractionResult> results)
     {
         var changeSet = new ExtractionChangeSet();
+        var entryIndex = new ExtractionEntryIndex(settings.DataExtractionEntries);
+        string configuredFields = null;
 
         foreach (var result in results)
         {
@@ -260,17 +262,23 @@ public sealed class DataExtractionService
                 continue;
             }
 
-            var match = FindMatchingEntry(settings, result);
+            var match = FindMatchingEntry(entryIndex, result);
 
             if (match == null)
             {
                 if (!string.IsNullOrWhiteSpace(result.Name))
                 {
+                    configuredFields ??= string.Join(
+                        ", ",
+                        settings.DataExtractionEntries
+                            .Select(entry => entry.Name)
+                            .Where(name => !string.IsNullOrWhiteSpace(name))
+                            .Select(name => name.SanitizeForLog()));
                     _logger.LogWarning(
                         "Ignoring extracted field '{FieldName}' for session '{SessionId}' because no configured extraction field matched. Configured fields: {ConfiguredFields}.",
                         result.Name.SanitizeForLog(),
                         session.SessionId,
-                        string.Join(", ", settings.DataExtractionEntries.Select(entry => entry.Name).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.SanitizeForLog())));
+                        configuredFields);
                 }
 
                 continue;
@@ -333,85 +341,33 @@ public sealed class DataExtractionService
     }
 
     private MatchedExtractionEntry FindMatchingEntry(
-        AIProfileDataExtractionSettings settings,
+        ExtractionEntryIndex entryIndex,
         ExtractionResult result)
     {
-        if (string.IsNullOrWhiteSpace(result?.Name))
-        {
-            return null;
-        }
+        var match = entryIndex.Find(result?.Name);
 
-        var directMatch = settings.DataExtractionEntries.FirstOrDefault(entry =>
-            string.Equals(entry.Name, result.Name, StringComparison.OrdinalIgnoreCase));
-
-        if (directMatch != null)
-        {
-            return new MatchedExtractionEntry(directMatch, ClassifyField(result.Name), false);
-        }
-
-        var normalizedResultName = NormalizeFieldName(result.Name);
-
-        if (string.IsNullOrEmpty(normalizedResultName))
-        {
-            return null;
-        }
-
-        var normalizedMatch = settings.DataExtractionEntries.FirstOrDefault(entry =>
-            string.Equals(NormalizeFieldName(entry.Name), normalizedResultName, StringComparison.OrdinalIgnoreCase));
-
-        if (normalizedMatch != null)
+        if (match?.MatchKind == ExtractionMatchKind.Normalized)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(
                     "Mapped extracted field '{ExtractedFieldName}' to configured field '{ConfiguredFieldName}' for session data extraction.",
                     result.Name.SanitizeForLog(),
-                    normalizedMatch.Name.SanitizeForLog());
+                    match.Entry.Name.SanitizeForLog());
             }
-
-            return new MatchedExtractionEntry(normalizedMatch, ClassifyField(result.Name), false);
         }
-
-        var resultFieldKind = ClassifyField(result.Name);
-
-        if (resultFieldKind == ExtractionFieldKind.Unknown)
+        else if (match?.MatchKind == ExtractionMatchKind.Semantic)
         {
-            return null;
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Mapped extracted field '{ExtractedFieldName}' to configured field '{ConfiguredFieldName}' for session data extraction using semantic aliasing.",
+                    result.Name.SanitizeForLog(),
+                    match.Entry.Name.SanitizeForLog());
+            }
         }
 
-        var semanticMatch = settings.DataExtractionEntries.FirstOrDefault(entry => IsSemanticMatch(entry, resultFieldKind));
-
-        if (semanticMatch == null)
-        {
-            return null;
-        }
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogDebug(
-                "Mapped extracted field '{ExtractedFieldName}' to configured field '{ConfiguredFieldName}' for session data extraction using semantic aliasing.",
-                result.Name.SanitizeForLog(),
-                semanticMatch.Name.SanitizeForLog());
-        }
-
-        return new MatchedExtractionEntry(semanticMatch, resultFieldKind, true);
-    }
-
-    private static bool IsSemanticMatch(DataExtractionEntry entry, ExtractionFieldKind resultFieldKind)
-    {
-        var entryFieldKind = ClassifyField(entry?.Name, entry?.Description);
-
-        if (resultFieldKind == ExtractionFieldKind.PhoneNumber)
-        {
-            return entryFieldKind == ExtractionFieldKind.PhoneNumber;
-        }
-
-        if (resultFieldKind is ExtractionFieldKind.FirstName or ExtractionFieldKind.LastName or ExtractionFieldKind.FullName)
-        {
-            return entryFieldKind == ExtractionFieldKind.FullName;
-        }
-
-        return false;
+        return match;
     }
 
     private static string ResolveSingleValue(
@@ -449,14 +405,21 @@ public sealed class DataExtractionService
 
         if (resultFieldKind == ExtractionFieldKind.FirstName)
         {
-            return existingParts.Length > 1
-                ? string.Join(' ', [incomingValue, .. existingParts.Skip(1)])
-                : incomingValue;
+            if (existingParts.Length == 1)
+            {
+                return incomingValue;
+            }
+
+            existingParts[0] = incomingValue;
+
+            return string.Join(' ', existingParts);
         }
 
         if (existingParts.Length > 1)
         {
-            return string.Join(' ', [.. existingParts.Take(existingParts.Length - 1), incomingValue]);
+            existingParts[^1] = incomingValue;
+
+            return string.Join(' ', existingParts);
         }
 
         return string.Concat(existingParts[0], " ", incomingValue);
@@ -668,6 +631,13 @@ public sealed class DataExtractionService
         var normalizedName = NormalizeFieldName(name);
         var normalizedDescription = NormalizeFieldName(description);
 
+        return ClassifyNormalizedField(normalizedName, normalizedDescription);
+    }
+
+    private static ExtractionFieldKind ClassifyNormalizedField(
+        string normalizedName,
+        string normalizedDescription)
+    {
         if (ContainsAny(normalizedName, normalizedDescription, "phone", "phonenumber", "telephone", "mobile", "cell"))
         {
             return ExtractionFieldKind.PhoneNumber;
@@ -798,12 +768,118 @@ public sealed class DataExtractionService
         public double Confidence { get; set; }
     }
 
-    private sealed record MatchedExtractionEntry(
+    internal sealed record MatchedExtractionEntry(
         DataExtractionEntry Entry,
         ExtractionFieldKind ResultFieldKind,
-        bool IsSemanticAlias);
+        ExtractionMatchKind MatchKind)
+    {
+        /// <summary>
+        /// Gets whether the configured field was selected through semantic aliasing.
+        /// </summary>
+        public bool IsSemanticAlias => MatchKind == ExtractionMatchKind.Semantic;
+    }
 
-    private enum ExtractionFieldKind
+    internal sealed class ExtractionEntryIndex
+    {
+        private readonly Dictionary<string, DataExtractionEntry> _directEntries;
+        private readonly Dictionary<string, DataExtractionEntry> _normalizedEntries;
+        private readonly DataExtractionEntry _fullNameEntry;
+        private readonly DataExtractionEntry _phoneEntry;
+
+        /// <summary>
+        /// Initializes a new per-extraction-call index for the configured entries.
+        /// </summary>
+        /// <param name="entries">The configured data-extraction entries in precedence order.</param>
+        public ExtractionEntryIndex(IReadOnlyCollection<DataExtractionEntry> entries)
+        {
+            _directEntries = new Dictionary<string, DataExtractionEntry>(entries.Count, StringComparer.OrdinalIgnoreCase);
+            _normalizedEntries = new Dictionary<string, DataExtractionEntry>(entries.Count, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var entry in entries)
+            {
+                if (!string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    _directEntries.TryAdd(entry.Name, entry);
+                }
+
+                var normalizedName = NormalizeFieldName(entry.Name);
+
+                if (!string.IsNullOrEmpty(normalizedName))
+                {
+                    _normalizedEntries.TryAdd(normalizedName, entry);
+                }
+
+                var entryFieldKind = ClassifyNormalizedField(normalizedName, NormalizeFieldName(entry.Description));
+
+                if (_phoneEntry == null && entryFieldKind == ExtractionFieldKind.PhoneNumber)
+                {
+                    _phoneEntry = entry;
+                }
+
+                if (_fullNameEntry == null && entryFieldKind == ExtractionFieldKind.FullName)
+                {
+                    _fullNameEntry = entry;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finds the highest-precedence configured entry for an extracted result name.
+        /// </summary>
+        /// <param name="resultName">The extracted result name.</param>
+        /// <returns>The matched entry and match metadata, or <see langword="null"/> when no entry matches.</returns>
+        public MatchedExtractionEntry Find(string resultName)
+        {
+            if (string.IsNullOrWhiteSpace(resultName))
+            {
+                return null;
+            }
+
+            if (_directEntries.TryGetValue(resultName, out var directMatch))
+            {
+                return new MatchedExtractionEntry(
+                    directMatch,
+                    ClassifyField(resultName),
+                    ExtractionMatchKind.Direct);
+            }
+
+            var normalizedResultName = NormalizeFieldName(resultName);
+
+            if (string.IsNullOrEmpty(normalizedResultName))
+            {
+                return null;
+            }
+
+            if (_normalizedEntries.TryGetValue(normalizedResultName, out var normalizedMatch))
+            {
+                return new MatchedExtractionEntry(
+                    normalizedMatch,
+                    ClassifyNormalizedField(normalizedResultName, null),
+                    ExtractionMatchKind.Normalized);
+            }
+
+            var resultFieldKind = ClassifyNormalizedField(normalizedResultName, null);
+            var semanticMatch = resultFieldKind switch
+            {
+                ExtractionFieldKind.PhoneNumber => _phoneEntry,
+                ExtractionFieldKind.FirstName or ExtractionFieldKind.LastName or ExtractionFieldKind.FullName => _fullNameEntry,
+                _ => null,
+            };
+
+            return semanticMatch == null
+                ? null
+                : new MatchedExtractionEntry(semanticMatch, resultFieldKind, ExtractionMatchKind.Semantic);
+        }
+    }
+
+    internal enum ExtractionMatchKind
+    {
+        Direct,
+        Normalized,
+        Semantic,
+    }
+
+    internal enum ExtractionFieldKind
     {
         Unknown,
         FullName,

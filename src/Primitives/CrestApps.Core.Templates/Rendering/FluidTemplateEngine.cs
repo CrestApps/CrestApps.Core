@@ -124,36 +124,151 @@ public sealed class FluidTemplateEngine : ITemplateEngine
             return string.Empty;
         }
 
-        var lines = text.Split('\n');
-        var builder = new List<string>(lines.Length);
-        var previousWasBlank = true;
+        var normalizedLength = GetNormalizedLength(text.AsSpan(), out var changed);
 
-        foreach (var rawLine in lines)
+        if (normalizedLength == 0)
         {
-            var trimmed = rawLine.TrimEnd('\r').Trim();
+            return string.Empty;
+        }
 
-            if (trimmed.Length == 0)
+        if (!changed && normalizedLength == text.Length)
+        {
+            return text;
+        }
+
+        return string.Create(
+            normalizedLength,
+            text,
+            static (destination, value) => WriteNormalizedWhitespace(value.AsSpan(), destination));
+    }
+
+    /// <summary>
+    /// Calculates the normalized output length and determines whether the input can be returned unchanged.
+    /// </summary>
+    /// <param name="text">The rendered template text.</param>
+    /// <param name="changed">Receives whether normalization changes the input.</param>
+    /// <returns>The normalized output length.</returns>
+    private static int GetNormalizedLength(ReadOnlySpan<char> text, out bool changed)
+    {
+        var normalizedLength = 0;
+        var hasContent = false;
+        var pendingBlankLine = false;
+        changed = false;
+
+        while (true)
+        {
+            var newlineIndex = text.IndexOf('\n');
+            var rawLine = newlineIndex >= 0
+                ? text[..newlineIndex]
+                : text;
+            var line = rawLine.Trim();
+
+            if (line.IsEmpty)
             {
-                if (!previousWasBlank)
+                if (!rawLine.IsEmpty)
                 {
-                    builder.Add(string.Empty);
-                    previousWasBlank = true;
+                    changed = true;
                 }
 
-                continue;
+                if (!hasContent || pendingBlankLine)
+                {
+                    changed = true;
+                }
+                else
+                {
+                    pendingBlankLine = true;
+                }
+            }
+            else
+            {
+                if (line.Length != rawLine.Length)
+                {
+                    changed = true;
+                }
+
+                if (hasContent)
+                {
+                    normalizedLength++;
+
+                    if (pendingBlankLine)
+                    {
+                        normalizedLength++;
+                    }
+                }
+
+                normalizedLength += line.Length;
+                hasContent = true;
+                pendingBlankLine = false;
             }
 
-            builder.Add(trimmed);
-            previousWasBlank = false;
+            if (newlineIndex < 0)
+            {
+                break;
+            }
+
+            text = text[(newlineIndex + 1)..];
         }
 
-        // Remove trailing blank lines.
-        while (builder.Count > 0 && builder[^1].Length == 0)
+        if (pendingBlankLine)
         {
-            builder.RemoveAt(builder.Count - 1);
+            changed = true;
         }
 
-        return string.Join('\n', builder);
+        return normalizedLength;
+    }
+
+    /// <summary>
+    /// Writes normalized whitespace directly into the final string buffer.
+    /// </summary>
+    /// <param name="text">The rendered template text.</param>
+    /// <param name="destination">The final string buffer.</param>
+    private static void WriteNormalizedWhitespace(
+        ReadOnlySpan<char> text,
+        Span<char> destination)
+    {
+        var position = 0;
+        var hasContent = false;
+        var pendingBlankLine = false;
+
+        while (true)
+        {
+            var newlineIndex = text.IndexOf('\n');
+            var line = (newlineIndex >= 0
+                ? text[..newlineIndex]
+                : text).Trim();
+
+            if (line.IsEmpty)
+            {
+                if (hasContent)
+                {
+                    pendingBlankLine = true;
+                }
+            }
+            else
+            {
+                if (hasContent)
+                {
+                    destination[position++] = '\n';
+
+                    if (pendingBlankLine)
+                    {
+                        destination[position++] = '\n';
+                    }
+                }
+
+                line.CopyTo(destination[position..]);
+                position += line.Length;
+                hasContent = true;
+                pendingBlankLine = false;
+            }
+
+            if (newlineIndex < 0)
+            {
+                return;
+            }
+
+            text = text[(newlineIndex + 1)..];
+        }
     }
 
     private static FluidParser CreateParser()

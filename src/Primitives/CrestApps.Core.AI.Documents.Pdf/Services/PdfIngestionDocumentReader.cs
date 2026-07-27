@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DataIngestion;
 using UglyToad.PdfPig;
+
 namespace CrestApps.Core.AI.Documents.Pdf.Services;
 
 /// <summary>
@@ -27,31 +28,52 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
             throw new NotSupportedException($"Media type '{mediaType}' is not supported. Only '{PdfMediaType}' is accepted.");
         }
 
+        ArgumentNullException.ThrowIfNull(source);
+
+        MemoryStream buffer = null;
+        var workingStream = source;
+
         if (source.CanSeek)
         {
             source.Position = 0;
         }
-
-        await using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, cancellationToken);
-        buffer.Position = 0;
-
-        using var pdf = PdfDocument.Open(buffer);
-        var document = new IngestionDocument(identifier);
-
-        foreach (var page in pdf.GetPages())
+        else
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var section = GetPageSection(page);
-
-            if (section.Elements.Count > 0)
-            {
-                document.Sections.Add(section);
-            }
+            buffer = new MemoryStream();
+            await source.CopyToAsync(buffer, cancellationToken);
+            buffer.Position = 0;
+            workingStream = buffer;
         }
 
-        return document;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            using var pdf = PdfDocument.Open(workingStream);
+            var document = new IngestionDocument(identifier);
+
+            for (var pageNumber = 1; pageNumber <= pdf.NumberOfPages; pageNumber++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var page = pdf.GetPage(pageNumber);
+                var section = GetPageSection(page);
+
+                if (section.Elements.Count > 0)
+                {
+                    document.Sections.Add(section);
+                }
+            }
+
+            return document;
+        }
+        finally
+        {
+            if (buffer != null)
+            {
+                await buffer.DisposeAsync();
+            }
+        }
     }
 
     private static IngestionDocumentSection GetPageSection(UglyToad.PdfPig.Content.Page pdfPage)

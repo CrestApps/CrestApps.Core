@@ -126,6 +126,55 @@ public sealed class AIFunctionArgumentsExtensionsTests
         Assert.Equal("three", value[2]);
     }
 
+    [Fact]
+    public static void TryGetFirst_WhenObjectJsonElementUsesDifferentCasing_UsesCaseInsensitiveOptions()
+    {
+        using var doc = JsonDocument.Parse("{\"NAME\":\"Jace\",\"AGE\":10}");
+
+        var arguments = new AIFunctionArguments()
+        {
+            { "child", doc.RootElement },
+        };
+
+        var result = arguments.TryGetFirst<Person>("child", out var value);
+
+        Assert.True(result);
+        Assert.Equal("Jace", value.Name);
+        Assert.Equal(10, value.Age);
+    }
+
+    [Fact]
+    public static void TryGetFirst_WhenJsonNullTargetsNullableType_ReturnsTrueWithNull()
+    {
+        using var doc = JsonDocument.Parse("null");
+
+        var arguments = new AIFunctionArguments()
+        {
+            { "age", doc.RootElement },
+        };
+
+        var result = arguments.TryGetFirst<int?>("age", out var value);
+
+        Assert.True(result);
+        Assert.Null(value);
+    }
+
+    [Fact]
+    public static void TryGetFirst_WhenJsonElementCannotConvert_ReturnsFalse()
+    {
+        using var doc = JsonDocument.Parse("\"not-a-number\"");
+
+        var arguments = new AIFunctionArguments()
+        {
+            { "age", doc.RootElement },
+        };
+
+        var result = arguments.TryGetFirst<int>("age", out var value);
+
+        Assert.False(result);
+        Assert.Equal(0, value);
+    }
+
     private sealed class Person
     {
         public string Name { get; set; }

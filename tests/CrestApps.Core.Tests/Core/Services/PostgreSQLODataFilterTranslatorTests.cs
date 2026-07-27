@@ -128,6 +128,42 @@ public sealed class PostgreSQLODataFilterTranslatorTests
     }
 
     [Fact]
+    public void Translate_NestedParentheses_PreservesGrouping()
+    {
+        var result = _translator.Translate("(category eq 'news' or category eq 'blog') and status ne 'draft'");
+
+        Assert.Equal(
+            "(((\"filters\"#>>'{category}' = 'news' OR \"filters\"#>>'{category}' = 'blog')) AND \"filters\"#>>'{status}' <> 'draft')",
+            result);
+    }
+
+    [Fact]
+    public void Translate_UppercaseOperators_AreHandledCaseInsensitively()
+    {
+        var result = _translator.Translate("CATEGORY EQ 'news' AND STATUS NE 'draft'");
+
+        Assert.Equal(
+            "(\"filters\"#>>'{CATEGORY}' = 'news' AND \"filters\"#>>'{STATUS}' <> 'draft')",
+            result);
+    }
+
+    [Fact]
+    public void Translate_FunctionValueContainingComma_RemainsSingleValue()
+    {
+        var result = _translator.Translate("contains(title, 'hello, world')");
+
+        Assert.Equal("\"filters\"#>>'{title}' ILIKE '%hello, world%'", result);
+    }
+
+    [Fact]
+    public void Translate_IncompleteExpression_ReturnsTrueFragment()
+    {
+        var result = _translator.Translate("category");
+
+        Assert.Equal("TRUE", result);
+    }
+
+    [Fact]
     public void SanitizeTableName_InvalidCharacters_Throws()
     {
         Assert.Throws<InvalidOperationException>(() => PostgreSQLHelpers.SanitizeTableName("my\"table';DROP--"));

@@ -58,12 +58,27 @@ public static class McpServerBuilderExtensions
 
                         if (sdkTools is not null)
                         {
-                            foreach (var sdkTool in sdkTools)
+                            using var sdkToolEnumerator = sdkTools.GetEnumerator();
+
+                            if (sdkToolEnumerator.MoveNext())
                             {
-                                if (!tools.Any(t => t.Name == sdkTool.ProtocolTool.Name))
+                                var toolNames = new HashSet<string>(tools.Count, StringComparer.Ordinal);
+
+                                foreach (var tool in tools)
                                 {
-                                    tools.Add(sdkTool.ProtocolTool);
+                                    toolNames.Add(tool.Name);
                                 }
+
+                                do
+                                {
+                                    var sdkTool = sdkToolEnumerator.Current;
+
+                                    if (toolNames.Add(sdkTool.ProtocolTool.Name))
+                                    {
+                                        tools.Add(sdkTool.ProtocolTool);
+                                    }
+                                }
+                                while (sdkToolEnumerator.MoveNext());
                             }
                         }
 

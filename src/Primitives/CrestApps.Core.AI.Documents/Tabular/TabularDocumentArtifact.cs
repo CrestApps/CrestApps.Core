@@ -23,12 +23,20 @@ public sealed class TabularDocumentArtifact
     /// <param name="fileName">The source file name.</param>
     public static TabularDocumentArtifact FromDelimitedContent(string content, string fileName)
     {
-        var (header, rows) = DelimitedDataParser.Parse(content, fileName);
+        var records = DelimitedDataParser.ParseRecords(content, fileName);
+
+        if (records.Count == 0)
+        {
+            return new TabularDocumentArtifact();
+        }
+
+        var header = records[0];
+        records.RemoveAt(0);
 
         return new TabularDocumentArtifact
         {
-            Header = header.ToList(),
-            Rows = rows.Select(row => row.ToList()).ToList(),
+            Header = header,
+            Rows = records,
         };
     }
 }

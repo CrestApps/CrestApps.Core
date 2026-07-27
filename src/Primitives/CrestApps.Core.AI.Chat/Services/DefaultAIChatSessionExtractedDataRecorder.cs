@@ -39,18 +39,39 @@ public sealed class DefaultAIChatSessionExtractedDataRecorder : IAIChatSessionEx
         ArgumentNullException.ThrowIfNull(session);
         ArgumentException.ThrowIfNullOrWhiteSpace(session.SessionId);
 
-        var values = session.ExtractedData
-            .Where(pair => pair.Value.Values.Count > 0)
-            .ToDictionary(
-                pair => pair.Key,
-                pair => pair.Value.Values.ToList(),
-                StringComparer.OrdinalIgnoreCase);
+        var extractedData = session.ExtractedData;
+        ArgumentNullException.ThrowIfNull(extractedData, "source");
 
-        if (values.Count == 0)
+        var retainedCount = 0;
+
+        foreach (var pair in extractedData)
+        {
+            if (pair.Value.Values.Count > 0)
+            {
+                retainedCount++;
+            }
+        }
+
+        if (retainedCount == 0)
         {
             await _store.DeleteAsync(session.SessionId, cancellationToken);
 
             return;
+        }
+
+        Dictionary<string, List<string>> values = null;
+
+        foreach (var pair in extractedData)
+        {
+            if (pair.Value.Values.Count == 0)
+            {
+                continue;
+            }
+
+            values ??= new Dictionary<string, List<string>>(
+                retainedCount,
+                StringComparer.OrdinalIgnoreCase);
+            values.Add(pair.Key, pair.Value.Values.ToList());
         }
 
         await _store.SaveAsync(

@@ -36,17 +36,27 @@ public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
     /// </summary>
     public async Task<IList<Prompt>> ListAsync()
     {
-        var prompts = (await _catalog.GetAllAsync())
-            .Where(entry => entry.Prompt != null)
-            .Select(entry => entry.Prompt)
-            .ToList();
+        var catalogEntries = await _catalog.GetAllAsync();
+        var prompts = new List<Prompt>(catalogEntries.Count);
+        var promptNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var entry in catalogEntries)
+        {
+            if (entry.Prompt is null)
+            {
+                continue;
+            }
+
+            prompts.Add(entry.Prompt);
+            promptNames.Add(entry.Prompt.Name);
+        }
 
         // Include prompts from registered providers (e.g., agent skill files).
         foreach (var provider in _promptProviders)
         {
             foreach (var skillPrompt in await provider.GetPromptsAsync())
             {
-                if (!prompts.Any(prompt => prompt.Name == skillPrompt.ProtocolPrompt.Name))
+                if (promptNames.Add(skillPrompt.ProtocolPrompt.Name))
                 {
                     prompts.Add(skillPrompt.ProtocolPrompt);
                 }
@@ -56,7 +66,7 @@ public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
         // Include prompts registered via the MCP C# SDK.
         foreach (var sdkPrompt in _sdkPrompts)
         {
-            if (!prompts.Any(prompt => prompt.Name == sdkPrompt.ProtocolPrompt.Name))
+            if (promptNames.Add(sdkPrompt.ProtocolPrompt.Name))
             {
                 prompts.Add(sdkPrompt.ProtocolPrompt);
             }

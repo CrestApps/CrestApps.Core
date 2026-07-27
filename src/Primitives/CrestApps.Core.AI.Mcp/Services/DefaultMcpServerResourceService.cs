@@ -123,14 +123,28 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
 
     private async Task<IList<Resource>> GetAllResourcesAsync()
     {
-        var resources = (await _catalog.GetAllAsync()).Where(entry => entry.Resource != null).Select(entry => entry.Resource).ToList();
+        var catalogEntries = await _catalog.GetAllAsync();
+        var resources = new List<Resource>(catalogEntries.Count);
+        var resourceUris = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var entry in catalogEntries)
+        {
+            if (entry.Resource is null)
+            {
+                continue;
+            }
+
+            resources.Add(entry.Resource);
+            resourceUris.Add(entry.Resource.Uri);
+        }
 
         // Include resources from registered providers (e.g., agent skill files).
         foreach (var provider in _resourceProviders)
         {
             foreach (var skillResource in await provider.GetResourcesAsync())
             {
-                if (skillResource.ProtocolResource is not null && !resources.Any(resource => resource.Uri == skillResource.ProtocolResource.Uri))
+                if (skillResource.ProtocolResource is not null &&
+                    resourceUris.Add(skillResource.ProtocolResource.Uri))
                 {
                     resources.Add(skillResource.ProtocolResource);
                 }
@@ -140,7 +154,8 @@ public sealed class DefaultMcpServerResourceService : IMcpServerResourceService
         // Include resources registered via the MCP C# SDK.
         foreach (var sdkResource in _sdkResources)
         {
-            if (sdkResource.ProtocolResource is not null && !resources.Any(resource => resource.Uri == sdkResource.ProtocolResource.Uri))
+            if (sdkResource.ProtocolResource is not null &&
+                resourceUris.Add(sdkResource.ProtocolResource.Uri))
             {
                 resources.Add(sdkResource.ProtocolResource);
             }

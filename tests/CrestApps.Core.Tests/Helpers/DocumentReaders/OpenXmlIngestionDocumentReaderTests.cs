@@ -98,6 +98,24 @@ public sealed class OpenXmlIngestionDocumentReaderTests
         Assert.Equal("1", row[33]);
     }
 
+    /// <summary>
+    /// Verifies that sparse spreadsheet rows retain the reader's exact tab-separated output and document ordering.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_ExcelWithSparseAndEmptyCells_PreservesExactOutputAndRowOrder()
+    {
+        using var stream = CreateExcelWithSparseAndEmptyCells();
+
+        var result = await _reader.ReadAsync(stream, "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TestContext.Current.CancellationToken);
+
+        Assert.Single(result.Sections);
+        Assert.Collection(
+            result.Sections[0].Elements,
+            element => Assert.Equal("\t\tShared value", element.Text),
+            element => Assert.Equal($"First{new string('\t', 26)}Beyond Z", element.Text),
+            element => Assert.Equal("Inline value", element.Text));
+    }
+
     [Fact]
     public async Task ReadAsync_ExcelWithBooleanValues_ExtractsRows()
     {
@@ -418,6 +436,110 @@ public sealed class OpenXmlIngestionDocumentReaderTests
             worksheetPart.Worksheet = new Worksheet(sheetData);
             var sheets = workbookPart.Workbook.AppendChild(new Sheets());
             sheets.AppendChild(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Sheet1", });
+        }
+
+        stream.Position = 0;
+
+        return stream;
+    }
+
+    /// <summary>
+    /// Creates a workbook containing shared and inline strings, sparse cells, trailing empty cells,
+    /// a completely empty row, references beyond column Z, and nonsequential row indexes.
+    /// </summary>
+    /// <returns>The workbook stream positioned at the beginning.</returns>
+    private static MemoryStream CreateExcelWithSparseAndEmptyCells()
+    {
+        var stream = new MemoryStream();
+
+        using (var doc = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
+        {
+            var workbookPart = doc.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var sharedStringPart = workbookPart.AddNewPart<SharedStringTablePart>();
+            sharedStringPart.SharedStringTable = new SharedStringTable(
+                new SharedStringItem(new DocumentFormat.OpenXml.Spreadsheet.Text("Shared value")));
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+
+            var sparseSharedRow = new Row
+            {
+                RowIndex = 20,
+            };
+            sparseSharedRow.Append(
+                new Cell
+                {
+                    CellReference = "C20",
+                    DataType = CellValues.SharedString,
+                    CellValue = new CellValue("0"),
+                },
+                new Cell
+                {
+                    CellReference = "E20",
+                    DataType = CellValues.InlineString,
+                    InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(string.Empty)),
+                });
+            sheetData.AppendChild(sparseSharedRow);
+
+            var emptyRow = new Row
+            {
+                RowIndex = 10,
+            };
+            emptyRow.AppendChild(new Cell
+            {
+                CellReference = "B10",
+                DataType = CellValues.InlineString,
+                InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(string.Empty)),
+            });
+            sheetData.AppendChild(emptyRow);
+
+            var beyondZRow = new Row
+            {
+                RowIndex = 5,
+            };
+            beyondZRow.Append(
+                new Cell
+                {
+                    CellReference = "A5",
+                    DataType = CellValues.InlineString,
+                    InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text("First")),
+                },
+                new Cell
+                {
+                    CellReference = "AA5",
+                    DataType = CellValues.InlineString,
+                    InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text("Beyond Z")),
+                },
+                new Cell
+                {
+                    CellReference = "AC5",
+                    DataType = CellValues.InlineString,
+                    InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(string.Empty)),
+                });
+            sheetData.AppendChild(beyondZRow);
+
+            var inlineRow = new Row
+            {
+                RowIndex = 30,
+            };
+            inlineRow.AppendChild(new Cell
+            {
+                CellReference = "A30",
+                DataType = CellValues.InlineString,
+                InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text("Inline value")),
+            });
+            sheetData.AppendChild(inlineRow);
+
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.AppendChild(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "Sheet1",
+            });
         }
 
         stream.Position = 0;

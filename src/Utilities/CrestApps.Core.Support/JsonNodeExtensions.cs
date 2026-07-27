@@ -547,9 +547,10 @@ public static class JsonNodeExtensions
     }
 
     /// <summary>
-    /// Gets raw value.
+    /// Converts a JSON node to its recursively detached raw .NET representation.
     /// </summary>
     /// <param name="node">The node.</param>
+    /// <returns>The raw value.</returns>
     public static object GetRawValue(this JsonNode node)
     {
         if (node == null)
@@ -559,11 +560,8 @@ public static class JsonNodeExtensions
 
         return node switch
         {
-            JsonObject jsonObject => jsonObject.ToDictionary(
-                property => property.Key,
-                property => property.Value.GetRawValue(),
-                StringComparer.OrdinalIgnoreCase),
-            JsonArray jsonArray => jsonArray.Select(static item => item.GetRawValue()).ToList(),
+            JsonObject jsonObject => GetRawObject(jsonObject),
+            JsonArray jsonArray => GetRawArray(jsonArray),
             JsonValue jsonValue when jsonValue.TryGetValue<string>(out var stringValue) => stringValue,
             JsonValue jsonValue when jsonValue.TryGetValue<long>(out var longValue) => longValue,
             JsonValue jsonValue when jsonValue.TryGetValue<double>(out var doubleValue) => doubleValue,
@@ -571,5 +569,41 @@ public static class JsonNodeExtensions
             JsonValue jsonValue when jsonValue.TryGetValue<DateTime>(out var dateValue) => dateValue,
             _ => node.ToJsonString(),
         };
+    }
+
+    /// <summary>
+    /// Converts a JSON object to a case-insensitive dictionary.
+    /// </summary>
+    /// <param name="jsonObject">The JSON object.</param>
+    /// <returns>The converted dictionary.</returns>
+    private static Dictionary<string, object> GetRawObject(JsonObject jsonObject)
+    {
+        var values = new Dictionary<string, object>(
+            jsonObject.Count,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var property in jsonObject)
+        {
+            values.Add(property.Key, property.Value.GetRawValue());
+        }
+
+        return values;
+    }
+
+    /// <summary>
+    /// Converts a JSON array to a list.
+    /// </summary>
+    /// <param name="jsonArray">The JSON array.</param>
+    /// <returns>The converted list.</returns>
+    private static List<object> GetRawArray(JsonArray jsonArray)
+    {
+        var values = new List<object>(jsonArray.Count);
+
+        foreach (var item in jsonArray)
+        {
+            values.Add(item.GetRawValue());
+        }
+
+        return values;
     }
 }

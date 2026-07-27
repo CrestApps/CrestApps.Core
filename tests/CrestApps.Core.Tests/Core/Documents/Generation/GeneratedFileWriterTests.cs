@@ -1,9 +1,11 @@
+using System.IO.Compression;
 using System.Text;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Documents.Pdf.Services;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CrestApps.Core.Tests.Core.Documents.Generation;
 
@@ -124,6 +126,43 @@ public class GeneratedFileWriterTests
     }
 
     [Fact]
+    public async Task WordWriter_PreservesMultilineTextAcrossLineEndings()
+    {
+        var content = new GeneratedFileContent
+        {
+            Text = "First\r\n\r\nSecond\nThird",
+        };
+
+        await using var stream = new MemoryStream();
+        await new WordGeneratedFileWriter().WriteAsync(content, stream, TestContext.Current.CancellationToken);
+
+        stream.Position = 0;
+        using var document = WordprocessingDocument.Open(stream, isEditable: false);
+        var paragraphs = document.MainDocumentPart!.Document.Body!
+            .Elements<Paragraph>()
+            .Select(paragraph => paragraph.InnerText)
+            .ToArray();
+
+        Assert.Equal(["First", string.Empty, "Second", "Third"], paragraphs);
+    }
+
+    [Fact]
+    public async Task WordWriter_WritesToNonSeekableDestination()
+    {
+        var content = new GeneratedFileContent
+        {
+            Text = "Non-seekable destination",
+        };
+
+        var bytes = await WriteToNonSeekableDestinationAsync(new WordGeneratedFileWriter(), content);
+
+        await using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, isEditable: false);
+
+        Assert.Contains("Non-seekable destination", document.MainDocumentPart!.Document.Body!.InnerText);
+    }
+
+    [Fact]
     public async Task PdfWriter_ProducesPdfSignature()
     {
         var content = new GeneratedFileContent
@@ -141,12 +180,48 @@ public class GeneratedFileWriterTests
         Assert.Equal("%PDF", Encoding.ASCII.GetString(bytes, 0, 4));
     }
 
+    [Fact]
+    public async Task PdfWriter_WritesToNonSeekableDestination()
+    {
+        var content = new GeneratedFileContent
+        {
+            Text = "Non-seekable destination",
+        };
+
+        var bytes = await WriteToNonSeekableDestinationAsync(new PdfGeneratedFileWriter(), content);
+
+        Assert.True(bytes.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(bytes, 0, 4));
+    }
+
     private static async Task<string> WriteAsync(IGeneratedFileWriter writer, GeneratedFileContent content)
     {
         await using var stream = new MemoryStream();
         await writer.WriteAsync(content, stream, TestContext.Current.CancellationToken);
 
         return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static async Task<byte[]> WriteToNonSeekableDestinationAsync(
+        IGeneratedFileWriter writer,
+        GeneratedFileContent content)
+    {
+        await using var compressed = new MemoryStream();
+
+        await using (var destination = new GZipStream(compressed, CompressionLevel.Fastest, leaveOpen: true))
+        {
+            Assert.False(destination.CanSeek);
+
+            await writer.WriteAsync(content, destination, TestContext.Current.CancellationToken);
+        }
+
+        compressed.Position = 0;
+
+        await using var decompressor = new GZipStream(compressed, CompressionMode.Decompress);
+        await using var output = new MemoryStream();
+        await decompressor.CopyToAsync(output, TestContext.Current.CancellationToken);
+
+        return output.ToArray();
     }
 
     private static string CellText(Cell cell)

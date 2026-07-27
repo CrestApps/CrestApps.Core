@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace CrestApps.Core.Support.Json;
 
 /// <summary>
@@ -8,6 +6,9 @@ namespace CrestApps.Core.Support.Json;
 /// </summary>
 public static class JsonExtractor
 {
+    private const string CodeFence = "```";
+    private const string JsonLanguage = "json";
+
     /// <summary>
     /// Extracts the first valid JSON object from text that may include markdown code
     /// fences, surrounding prose, or other non-JSON content.
@@ -41,6 +42,10 @@ public static class JsonExtractor
     /// Extracts the content of a markdown code fence from text.
     /// </summary>
     /// <param name="text">The text that may be wrapped in markdown code fences.</param>
+    /// <remarks>
+    /// The first non-overlapping triple-backtick pair is used. Only an immediate lowercase
+    /// <c>json</c> prefix is omitted; other language labels remain part of the extracted content.
+    /// </remarks>
     /// <returns>The content inside the code fence, or <see langword="null"/> if no fence was found.</returns>
     public static string ExtractFromCodeFence(string text)
     {
@@ -49,13 +54,28 @@ public static class JsonExtractor
             return null;
         }
 
-        var match = Regex.Match(
-            text,
-            @"```(?:json)?\s*\n?([\s\S]*?)\n?\s*```",
-            RegexOptions.None,
-            TimeSpan.FromSeconds(1));
+        var openingIndex = text.IndexOf(CodeFence, StringComparison.Ordinal);
 
-        return match.Success ? match.Groups[1].Value.Trim() : null;
+        if (openingIndex < 0)
+        {
+            return null;
+        }
+
+        var contentStart = openingIndex + CodeFence.Length;
+
+        if (text.AsSpan(contentStart).StartsWith(JsonLanguage, StringComparison.Ordinal))
+        {
+            contentStart += JsonLanguage.Length;
+        }
+
+        var closingIndex = text.IndexOf(CodeFence, contentStart, StringComparison.Ordinal);
+
+        if (closingIndex < 0)
+        {
+            return null;
+        }
+
+        return text.AsSpan(contentStart, closingIndex - contentStart).Trim().ToString();
     }
 
     /// <summary>

@@ -118,7 +118,7 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
             yield break;
         }
 
-        var idList = documentIds.Where(id => !string.IsNullOrEmpty(id)).ToList();
+        var idList = DataSourceAzureAISearchDocumentIdFilterBuilder.FilterDocumentIds(documentIds);
 
         if (idList.Count == 0)
         {
@@ -133,7 +133,7 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
 
         if (filterField != null)
         {
-            var filterValues = string.Join(" or ", idList.Select(id => $"{filterField} eq '{SanitizeODataValue(id)}'"));
+            var filterValues = DataSourceAzureAISearchDocumentIdFilterBuilder.BuildFilter(idList, filterField);
 
             var searchOptions = new SearchOptions
             {
@@ -245,14 +245,5 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
             Content = content,
             Fields = fields,
         };
-    }
-
-    /// <summary>
-    /// Escapes a value for safe use in an OData filter expression by replacing
-    /// single quotes with doubled single quotes.
-    /// </summary>
-    private static string SanitizeODataValue(string value)
-    {
-        return value.Replace("'", "''");
     }
 }

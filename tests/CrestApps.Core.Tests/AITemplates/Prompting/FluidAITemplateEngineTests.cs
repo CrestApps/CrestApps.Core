@@ -213,6 +213,32 @@ public sealed class FluidAITemplateEngineTests
     }
 
     [Fact]
+    public void NormalizeWhitespace_CrLfAndWhitespaceOnlyLines_NormalizesWithoutCarriageReturns()
+    {
+        var input = " \r\n\tLine 1\t\r\n \t \r\n\r\n  Line 2  \r\n";
+
+        var result = FluidTemplateEngine.NormalizeWhitespace(input);
+
+        Assert.Equal("Line 1\n\nLine 2", result);
+    }
+
+    [Fact]
+    public void NormalizeWhitespace_WhitespaceOnlyText_ReturnsEmpty()
+    {
+        var result = FluidTemplateEngine.NormalizeWhitespace(" \t\r\n \r\n\t ");
+
+        Assert.Equal(string.Empty, result);
+    }
+
+    [Fact]
+    public void NormalizeWhitespace_WhitespaceOnlyLineBetweenContent_NormalizesTheLine()
+    {
+        var result = FluidTemplateEngine.NormalizeWhitespace("Line 1\n \t \nLine 2");
+
+        Assert.Equal("Line 1\n\nLine 2", result);
+    }
+
+    [Fact]
     public async Task RenderAsync_NormalizesWhitespaceFromLiquidBlocks()
     {
         var template = """

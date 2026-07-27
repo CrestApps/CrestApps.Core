@@ -58,11 +58,25 @@ internal sealed class DefaultToolRegistry : IToolRegistry
             return availableEntries;
         }
 
-        var entriesByName = availableEntries
-            .GroupBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
-        var resolvedEntries = new List<ToolRegistryEntry>();
-        var resolvedEntryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var entriesByName = new Dictionary<string, List<ToolRegistryEntry>>(
+            availableEntries.Count,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in availableEntries)
+        {
+            if (!entriesByName.TryGetValue(entry.Name, out var entries))
+            {
+                entries = [];
+                entriesByName.Add(entry.Name, entries);
+            }
+
+            entries.Add(entry);
+        }
+
+        var resolvedEntries = new List<ToolRegistryEntry>(availableEntries.Count);
+        var resolvedEntryIds = new HashSet<string>(
+            availableEntries.Count,
+            StringComparer.OrdinalIgnoreCase);
         var dependencyToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in availableEntries)

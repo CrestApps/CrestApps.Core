@@ -131,7 +131,7 @@ internal sealed class AzureAISearchAIDataSourceSourceHandler : IAIDataSourceSour
 
         if (!string.IsNullOrWhiteSpace(dataSource.KeyFieldName))
         {
-            var filter = string.Join(" or ", ids.Select(id => $"{dataSource.KeyFieldName} eq '{id.Replace("'", "''", StringComparison.Ordinal)}'"));
+            var filter = DataSourceAzureAISearchDocumentIdFilterBuilder.BuildFilter(ids, dataSource.KeyFieldName);
             var options = new global::Azure.Search.Documents.SearchOptions
             {
                 Filter = filter,

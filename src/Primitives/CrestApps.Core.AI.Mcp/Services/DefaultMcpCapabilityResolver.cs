@@ -79,7 +79,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
                 return McpCapabilityResolutionResult.Empty;
             }
 
-            var capabilitiesList = new List<McpServerCapabilities>();
+            var capabilitiesList = new List<McpServerCapabilities>(connections.Count);
 
             foreach (var connection in connections)
             {
@@ -209,7 +209,8 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
 
         var promptVector = NormalizeL2(promptEmbeddings[0].Vector.ToArray());
 
-        var candidates = new List<McpCapabilityCandidate>();
+        var candidates = new List<McpCapabilityCandidate>(
+            Math.Clamp(_resolverOptions.TopK, 0, capabilityEmbeddings.Count));
 
         foreach (var embedding in capabilityEmbeddings)
         {
@@ -254,11 +255,19 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
             return null;
         }
 
-        var candidates = new List<McpCapabilityCandidate>();
+        var candidates = new List<McpCapabilityCandidate>(
+            Math.Clamp(_resolverOptions.TopK, 0, entries.Count));
+        var tokensByText = new Dictionary<string, HashSet<string>>(
+            entries.Count,
+            StringComparer.Ordinal);
 
         foreach (var entry in entries)
         {
-            var capabilityTokens = _tokenizer.Tokenize(entry.Text);
+            if (!tokensByText.TryGetValue(entry.Text, out var capabilityTokens))
+            {
+                capabilityTokens = _tokenizer.Tokenize(entry.Text);
+                tokensByText.Add(entry.Text, capabilityTokens);
+            }
 
             if (capabilityTokens.Count == 0)
             {
@@ -318,7 +327,10 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         List<McpCapabilityCandidate> embeddingCandidates,
         List<McpCapabilityCandidate> keywordCandidates)
     {
-        var map = new Dictionary<string, McpCapabilityCandidate>(StringComparer.OrdinalIgnoreCase);
+        var capacity = (embeddingCandidates?.Count ?? 0) + (keywordCandidates?.Count ?? 0);
+        var map = new Dictionary<string, McpCapabilityCandidate>(
+            capacity,
+            StringComparer.OrdinalIgnoreCase);
 
         AddToMap(map, embeddingCandidates);
         AddToMap(map, keywordCandidates);
@@ -382,6 +394,13 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
 
         foreach (var server in capabilitiesList)
         {
+            entries.EnsureCapacity(
+                entries.Count +
+                (server.Tools?.Count ?? 0) +
+                (server.Prompts?.Count ?? 0) +
+                (server.Resources?.Count ?? 0) +
+                (server.ResourceTemplates?.Count ?? 0));
+
             AddEntries(entries, server, server.Tools, McpCapabilityType.Tool);
             AddEntries(entries, server, server.Prompts, McpCapabilityType.Prompt);
             AddEntries(entries, server, server.Resources, McpCapabilityType.Resource);
@@ -409,17 +428,6 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
                 }
 
                 var uriText = item.UriTemplate ?? item.Uri;
-                var parts = new List<string>(3) { item.Name };
-
-                if (!string.IsNullOrWhiteSpace(uriText))
-                {
-                    parts.Add(uriText);
-                }
-
-                if (!string.IsNullOrWhiteSpace(item.Description))
-                {
-                    parts.Add(item.Description);
-                }
 
                 entries.Add(new CapabilityEntry
                 {
@@ -428,10 +436,40 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
                     Name = item.Name,
                     Description = item.Description ?? string.Empty,
                     Type = type,
-                    Text = string.Join(": ", parts),
+                    Text = BuildCapabilityText(item.Name, uriText, item.Description),
                 });
             }
         }
+    }
+
+    /// <summary>
+    /// Builds the exact text representation used for keyword tokenization.
+    /// </summary>
+    /// <param name="name">The capability name.</param>
+    /// <param name="uriText">The optional resource URI or URI template.</param>
+    /// <param name="description">The optional capability description.</param>
+    /// <returns>The capability text.</returns>
+    private static string BuildCapabilityText(
+        string name,
+        string uriText,
+        string description)
+    {
+        if (!string.IsNullOrWhiteSpace(uriText))
+        {
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                return $"{name}: {uriText}: {description}";
+            }
+
+            return string.Concat(name, ": ", uriText);
+        }
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            return string.Concat(name, ": ", description);
+        }
+
+        return name;
     }
 
     private static McpCapabilityResolutionResult BuildResult(List<CapabilityEntry> entries, float score)

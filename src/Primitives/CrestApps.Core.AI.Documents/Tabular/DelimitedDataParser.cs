@@ -17,13 +17,7 @@ internal static class DelimitedDataParser
     /// <returns>The parsed header and data rows. Both are empty when no records are found.</returns>
     public static (IReadOnlyList<string> Header, IReadOnlyList<IReadOnlyList<string>> Rows) Parse(string content, string fileName)
     {
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return ([], []);
-        }
-
-        var delimiter = DetectDelimiter(content, fileName);
-        var records = ParseRecords(content, delimiter);
+        var records = ParseRecords(content, fileName);
 
         if (records.Count == 0)
         {
@@ -34,6 +28,22 @@ internal static class DelimitedDataParser
         var rows = records.Count > 1 ? records.GetRange(1, records.Count - 1) : [];
 
         return (header, rows.Cast<IReadOnlyList<string>>().ToList());
+    }
+
+    /// <summary>
+    /// Parses the provided delimited content into mutable records without projecting or copying them.
+    /// </summary>
+    /// <param name="content">The raw delimited content.</param>
+    /// <param name="fileName">The original file name, used to infer the delimiter.</param>
+    /// <returns>The parsed records, including the header as the first record.</returns>
+    internal static List<List<string>> ParseRecords(string content, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return [];
+        }
+
+        return ParseRecords(content, DetectDelimiter(content, fileName));
     }
 
     private static char DetectDelimiter(string content, string fileName)

@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 
 namespace CrestApps.Core.Tests.Core.Services;
@@ -66,6 +67,112 @@ public sealed class MultiSourceNamedCatalogTests
         // Assert
         Assert.Equal(2, source.ReadCount);
         Assert.Equal(2, entries.Count);
+    }
+
+    [Fact]
+    public async Task GetAsync_ReturnsCaseInsensitiveIdMatchesInCatalogOrder()
+    {
+        var source = new CountingConnectionSource(
+        [
+            CreateConnection("connection-1", "first"),
+            CreateConnection("connection-2", "second"),
+            CreateConnection("connection-3", "third"),
+        ]);
+        var store = new DefaultAIProviderConnectionStore([source]);
+
+        var entries = await store.GetAsync(
+            ["CONNECTION-3", "connection-1"],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["connection-1", "connection-3"], entries.Select(entry => entry.ItemId));
+    }
+
+    [Fact]
+    public async Task PageAsync_ReturnsFilteredSortedPageAndTotalCount()
+    {
+        var source = new CountingConnectionSource(
+        [
+            CreateConnection("connection-1", "Zulu"),
+            CreateConnection("connection-2", "Alpha"),
+            CreateConnection("connection-3", "Alpine"),
+            CreateConnection("connection-4", "Beta"),
+        ]);
+        var store = new DefaultAIProviderConnectionStore([source]);
+
+        var page = await store.PageAsync(
+            2,
+            1,
+            new QueryContext
+            {
+                Name = "Al",
+                Sorted = true,
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, page.Count);
+        var entry = Assert.Single(page.Entries);
+        Assert.Equal("Alpine", entry.Name);
+    }
+
+    [Fact]
+    public async Task PageAsync_ReturnsUnfilteredPageInCatalogOrder()
+    {
+        var source = new CountingConnectionSource(
+        [
+            CreateConnection("connection-1", "first"),
+            CreateConnection("connection-2", "second"),
+            CreateConnection("connection-3", "third"),
+        ]);
+        var store = new DefaultAIProviderConnectionStore([source]);
+
+        var page = await store.PageAsync(
+            2,
+            1,
+            new QueryContext(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, page.Count);
+        var entry = Assert.Single(page.Entries);
+        Assert.Equal("connection-2", entry.ItemId);
+    }
+
+    [Fact]
+    public async Task PageAsync_AppliesSourceFilterFromDerivedCatalog()
+    {
+        var source = new CountingConnectionSource(
+        [
+            CreateConnection("connection-1", "first", "Azure"),
+            CreateConnection("connection-2", "second", "OpenAI"),
+            CreateConnection("connection-3", "third", "Azure"),
+        ]);
+        var store = new DefaultAIProviderConnectionStore([source]);
+
+        var page = await store.PageAsync(
+            1,
+            10,
+            new QueryContext
+            {
+                Source = "OpenAI",
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, page.Count);
+        var entry = Assert.Single(page.Entries);
+        Assert.Equal("connection-2", entry.ItemId);
+    }
+
+    private static AIProviderConnection CreateConnection(
+        string itemId,
+        string name,
+        string source = "Azure")
+    {
+        return new AIProviderConnection
+        {
+            ItemId = itemId,
+            Name = name,
+            ClientName = "Azure",
+            Source = source,
+        };
     }
 
     private sealed class CountingConnectionSource(List<AIProviderConnection> entries) : IWritableNamedSourceCatalogSource<AIProviderConnection>

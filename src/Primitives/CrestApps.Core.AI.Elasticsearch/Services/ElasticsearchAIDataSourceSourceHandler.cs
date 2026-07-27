@@ -134,6 +134,10 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
         var (client, metadata) = Resolve(dataSource);
 
         var searchAfterValue = default(string);
+        var keyFieldPath = ElasticsearchSourceDocumentMapper.CreateFieldPath(dataSource.KeyFieldName);
+        var titleFieldPath = ElasticsearchSourceDocumentMapper.CreateFieldPath(dataSource.TitleFieldName);
+        var contentFieldPath = ElasticsearchSourceDocumentMapper.CreateFieldPath(dataSource.ContentFieldName);
+
         while (!cancellationToken.IsCancellationRequested)
         {
             var response = searchAfterValue == null
@@ -159,7 +163,13 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
                     continue;
                 }
 
-                yield return CreateDocumentPair(dataSource, hit.Id, hit.Source);
+                yield return CreateDocumentPair(
+                    dataSource,
+                    keyFieldPath,
+                    titleFieldPath,
+                    contentFieldPath,
+                    hit.Id,
+                    hit.Source);
             }
 
             var lastSort = response.Hits.Last().Sort;
@@ -199,6 +209,10 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
             yield break;
         }
 
+        var keyFieldPath = ElasticsearchSourceDocumentMapper.CreateFieldPath(dataSource.KeyFieldName);
+        var titleFieldPath = ElasticsearchSourceDocumentMapper.CreateFieldPath(dataSource.TitleFieldName);
+        var contentFieldPath = ElasticsearchSourceDocumentMapper.CreateFieldPath(dataSource.ContentFieldName);
+
         foreach (var hit in response.Hits)
         {
             if (hit.Source == null)
@@ -206,23 +220,41 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
                 continue;
             }
 
-            yield return CreateDocumentPair(dataSource, hit.Id, hit.Source);
+            yield return CreateDocumentPair(
+                dataSource,
+                keyFieldPath,
+                titleFieldPath,
+                contentFieldPath,
+                hit.Id,
+                hit.Source);
         }
     }
 
-    private static KeyValuePair<string, SourceDocument> CreateDocumentPair(AIDataSource dataSource, string nativeId, System.Text.Json.Nodes.JsonObject source)
+    private static KeyValuePair<string, SourceDocument> CreateDocumentPair(
+        AIDataSource dataSource,
+        ElasticsearchFieldPath keyFieldPath,
+        ElasticsearchFieldPath titleFieldPath,
+        ElasticsearchFieldPath contentFieldPath,
+        string nativeId,
+        System.Text.Json.Nodes.JsonObject source)
     {
         var key = nativeId;
         if (!string.IsNullOrWhiteSpace(dataSource.KeyFieldName))
         {
-            var keyNode = ResolveFieldValue(source, dataSource.KeyFieldName);
+            var keyNode = ElasticsearchSourceDocumentMapper.ResolveFieldValue(source, keyFieldPath);
             if (keyNode != null)
             {
                 key = keyNode.GetStringValue() ?? key;
             }
         }
 
-        return new KeyValuePair<string, SourceDocument>(key, ExtractDocument(source, dataSource.TitleFieldName, dataSource.ContentFieldName));
+        return new KeyValuePair<string, SourceDocument>(
+            key,
+            ElasticsearchSourceDocumentMapper.ExtractDocument(
+                source,
+                titleFieldPath,
+                contentFieldPath,
+                treatWhitespaceAsEmpty: true));
     }
 
     private (ElasticsearchClient Client, ElasticsearchSourceMetadata Metadata) Resolve(AIDataSource dataSource)
@@ -270,71 +302,22 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
 
     private static SourceDocument ExtractDocument(System.Text.Json.Nodes.JsonObject source, string titleFieldName, string contentFieldName)
     {
-        string title = null;
-        string content = null;
-
-        if (!string.IsNullOrWhiteSpace(titleFieldName))
-        {
-            title = ResolveFieldValue(source, titleFieldName).GetStringValue();
-        }
-
-        if (!string.IsNullOrWhiteSpace(contentFieldName))
-        {
-            content = ResolveFieldValue(source, contentFieldName).GetStringValue();
-        }
-
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            content = source.ToJsonString();
-        }
-
-        if (string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(content))
-        {
-            title = content.ExtractTitleFromContent();
-        }
-
-        var fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-        foreach (var property in source)
-        {
-            fields[property.Key] = property.Value.GetRawValue();
-        }
-
-        return new SourceDocument
-        {
-            Title = title,
-            Content = content,
-            Fields = fields,
-        };
+        return ElasticsearchSourceDocumentMapper.ExtractDocument(
+            source,
+            ElasticsearchSourceDocumentMapper.CreateFieldPath(titleFieldName),
+            ElasticsearchSourceDocumentMapper.CreateFieldPath(contentFieldName),
+            treatWhitespaceAsEmpty: true);
     }
 
     private static System.Text.Json.Nodes.JsonNode ResolveFieldValue(System.Text.Json.Nodes.JsonObject source, string fieldPath)
     {
-        if (source == null || string.IsNullOrWhiteSpace(fieldPath))
+        if (string.IsNullOrWhiteSpace(fieldPath))
         {
             return null;
         }
 
-        if (source.TryGetPropertyValue(fieldPath, out var directNode))
-        {
-            return directNode;
-        }
-
-        if (!fieldPath.Contains('.'))
-        {
-            return null;
-        }
-
-        System.Text.Json.Nodes.JsonNode current = source;
-        foreach (var segment in fieldPath.Split('.'))
-        {
-            if (current is not System.Text.Json.Nodes.JsonObject obj || !obj.TryGetPropertyValue(segment, out var next))
-            {
-                return null;
-            }
-
-            current = next;
-        }
-
-        return current;
+        return ElasticsearchSourceDocumentMapper.ResolveFieldValue(
+            source,
+            ElasticsearchSourceDocumentMapper.CreateFieldPath(fieldPath));
     }
 }

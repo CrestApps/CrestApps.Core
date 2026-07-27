@@ -55,7 +55,7 @@ public sealed class OpenXmlTabularDocumentArtifactBuilder : ITabularDocumentArti
         }
 
         List<string> header = null;
-        var rows = new List<List<string>>(4096);
+        var rows = new List<List<string>>();
         OpenXmlTabularWorksheetReader.ReadNonEmptyRows(
             workbookPart,
             fileName,

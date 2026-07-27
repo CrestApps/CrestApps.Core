@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Benchmarks" />
     <InternalsVisibleTo Include="CrestApps.OrchardCore.Tests" />
     <InternalsVisibleTo Include="CrestApps.Core.Tests" />
   </ItemGroup>

@@ -68,6 +68,28 @@ public sealed class PdfIngestionDocumentReaderTests
         Assert.Contains("Hello PDF world", paragraph.Text);
     }
 
+    [Fact]
+    public async Task ReadAsync_SeekableSourceAtEnd_RewindsAndLeavesSourceOpen()
+    {
+        var reader = new PdfIngestionDocumentReader();
+        await using var source = CreatePdfWithText("Seekable PDF source");
+        source.Position = source.Length;
+
+        var document = await reader.ReadAsync(
+            source,
+            "seekable.pdf",
+            PdfMediaType,
+            TestContext.Current.CancellationToken);
+
+        var section = Assert.Single(document.Sections);
+        var paragraph = Assert.IsType<Microsoft.Extensions.DataIngestion.IngestionDocumentParagraph>(
+            Assert.Single(section.Elements));
+        Assert.Contains("Seekable PDF source", paragraph.Text);
+
+        source.Position = 0;
+        Assert.Equal((byte)'%', source.ReadByte());
+    }
+
     private static MemoryStream CreatePdfWithText(string text)
     {
         var builder = new PdfDocumentBuilder();

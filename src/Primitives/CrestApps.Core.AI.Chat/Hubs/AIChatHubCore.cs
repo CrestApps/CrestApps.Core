@@ -1194,28 +1194,19 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         };
         await promptStore.CreateAsync(userPromptRecord, cancellationToken);
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
-        var conversationHistorySource = existingPrompts.ToList();
-
         if (Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.LogDebug(
                 "[ChatPersist] Staged user prompt {ItemId} for session {SessionId}; store now reports {StagedCount} prompt(s) (promptStore {StoreHash}).",
                 userPromptRecord.ItemId,
                 chatSession.SessionId,
-                conversationHistorySource.Count,
+                existingPrompts.Count,
                 promptStore.GetHashCode());
         }
 
-        if (!conversationHistorySource.Any(x => x.ItemId == userPromptRecord.ItemId))
-        {
-            conversationHistorySource.Add(userPromptRecord);
-        }
-
-        var conversationHistory = conversationHistorySource
-            .OrderBy(x => x.CreatedUtc)
-            .Where(x => !x.IsGeneratedPrompt)
-            .Select(p => new ChatMessage(p.Role, p.Content))
-            .ToList();
+        var conversationHistory = ChatConversationHistoryBuilder.Build(
+            existingPrompts,
+            userPromptRecord);
         // Resolve the chat response handler for this session.
         var chatMode = profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) ? chatModeSettings.ChatMode : ChatMode.TextInput;
         var handler = handlerResolver.Resolve(chatSession.ResponseHandlerName, chatMode);
@@ -1701,7 +1692,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 continue;
             }
 
-            var base64Audio = Convert.ToBase64String(audioData.ToArray());
+            var base64Audio = Convert.ToBase64String(audioData.Span);
 
             await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
         }
@@ -1749,7 +1740,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     continue;
                 }
 
-                var base64Audio = Convert.ToBase64String(audioData.ToArray());
+                var base64Audio = Convert.ToBase64String(audioData.Span);
                 await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
             }
 

@@ -18,7 +18,7 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
     public const string TemplatesDirectoryPath = "Templates";
 
     private readonly TemplateOptions _options;
-    private readonly IEnumerable<ITemplateParser> _parsers;
+    private readonly Dictionary<string, ITemplateParser> _parsersByExtension;
     private readonly ILogger<FileSystemTemplateProvider> _logger;
 
     /// <summary>
@@ -33,7 +33,7 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
         ILogger<FileSystemTemplateProvider> logger)
     {
         _options = options.Value;
-        _parsers = parsers;
+        _parsersByExtension = CreateParserLookup(parsers);
         _logger = logger;
     }
 
@@ -63,7 +63,7 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
 
     private void DiscoverTemplates(string templatesDirectory, string sourcePath, List<Template> templates)
     {
-        foreach (var file in Directory.GetFiles(templatesDirectory))
+        foreach (var file in Directory.EnumerateFiles(templatesDirectory))
         {
             var extension = Path.GetExtension(file);
             var parser = GetParserForExtension(extension);
@@ -100,17 +100,34 @@ public sealed class FileSystemTemplateProvider : ITemplateProvider
 
     private ITemplateParser GetParserForExtension(string extension)
     {
-        foreach (var parser in _parsers)
+        return _parsersByExtension.TryGetValue(extension, out var parser)
+            ? parser
+            : null;
+    }
+
+    /// <summary>
+    /// Creates an immutable parser lookup while preserving first-registration precedence.
+    /// </summary>
+    /// <param name="parsers">The registered template parsers.</param>
+    /// <returns>The parser lookup keyed by file extension.</returns>
+    private static Dictionary<string, ITemplateParser> CreateParserLookup(
+        IEnumerable<ITemplateParser> parsers)
+    {
+        var parsersByExtension = new Dictionary<string, ITemplateParser>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var parser in parsers)
         {
             foreach (var supported in parser.SupportedExtensions)
             {
-                if (string.Equals(supported, extension, StringComparison.OrdinalIgnoreCase))
+                if (supported is null)
                 {
-                    return parser;
+                    continue;
                 }
+
+                parsersByExtension.TryAdd(supported, parser);
             }
         }
 
-        return null;
+        return parsersByExtension;
     }
 }

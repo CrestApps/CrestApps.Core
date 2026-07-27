@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Mcp;
 
 namespace CrestApps.Core.Tests.Core.Mcp;
@@ -79,6 +80,27 @@ public sealed class McpResourceUriTests
 
         Assert.True(result);
         Assert.Equal("Feature", variables["stepName"]);
+    }
+
+    [Fact]
+    public void TryMatch_CachedMatcherPreservesCurrentCultureCaseRules()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+
+            Assert.True(McpResourceUri.TryMatch("FILE://server/{path}", "file://server/report.txt", out _));
+
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+
+            Assert.False(McpResourceUri.TryMatch("FILE://server/{path}", "file://server/report.txt", out _));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
     }
 
     [Fact]
@@ -235,6 +257,68 @@ public sealed class McpResourceUriTests
         Assert.Equal("myrepo", variables["repo"]);
 
         Assert.Equal("src/main.cs", variables["file"]);
+    }
+
+    [Fact]
+    public void TryMatch_WithAdjacentVariables_PreservesGreedyCaptureOrder()
+    {
+        var template = "data://{prefix}{path}";
+        var uri = "data://ab";
+
+        var result = McpResourceUri.TryMatch(template, uri, out var variables);
+
+        Assert.True(result);
+        Assert.Equal("a", variables["prefix"]);
+        Assert.Equal("b", variables["path"]);
+    }
+
+    [Fact]
+    public void TryMatch_WithDuplicateVariableNames_UsesLastCapture()
+    {
+        var template = "data://{id}/{id}";
+        var uri = "data://first/second";
+
+        var result = McpResourceUri.TryMatch(template, uri, out var variables);
+
+        Assert.True(result);
+        Assert.Single(variables);
+        Assert.Equal("second", variables["id"]);
+    }
+
+    [Fact]
+    public void TryMatch_WithTrailingLiteral_CapturesThroughEarlierSuffixes()
+    {
+        var template = "file://server/{path}.json";
+        var uri = "file://server/archive.json/manifest.json";
+
+        var result = McpResourceUri.TryMatch(template, uri, out var variables);
+
+        Assert.True(result);
+        Assert.Equal("archive.json/manifest", variables["path"]);
+    }
+
+    [Fact]
+    public void TryMatch_WithEncodedSlash_DecodesAfterMatching()
+    {
+        var template = "file://server/{path}";
+        var uri = "file://server/folder%2Freport.txt";
+
+        var result = McpResourceUri.TryMatch(template, uri, out var variables);
+
+        Assert.True(result);
+        Assert.Equal("folder/report.txt", variables["path"]);
+    }
+
+    [Fact]
+    public void TryMatch_WithNonPlaceholderBraces_TreatsThemAsLiteralText()
+    {
+        var template = "file://server/{path-name}";
+        var uri = "file://server/{path-name}";
+
+        var result = McpResourceUri.TryMatch(template, uri, out var variables);
+
+        Assert.True(result);
+        Assert.Empty(variables);
     }
 
     [Fact]

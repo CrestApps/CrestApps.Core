@@ -82,9 +82,8 @@ public sealed class AIChatSessionExtractedDataIndexProvider : IndexProvider<AICh
 
                 var valuesText = string.Join(
                     '\n',
-                    record.Values
-                        .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                        .SelectMany(pair => pair.Value.Select(value => $"{pair.Key}:{value}")));
+                    fieldNames.SelectMany(
+                        name => record.Values[name].Select(value => $"{name}:{value}")));
 
                 return new AIChatSessionExtractedDataIndex
                 {

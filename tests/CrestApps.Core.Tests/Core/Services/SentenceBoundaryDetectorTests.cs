@@ -91,12 +91,93 @@ public sealed class SentenceBoundaryDetectorTests
     // --- Abbreviations are case-insensitive ---
 
     [Theory]
-    [InlineData("Talk to MR.")]
-    [InlineData("Talk to mr.")]
-    [InlineData("Ask DR.")]
+    [InlineData("Talk to Mr.")]
+    [InlineData("Talk to mR.")]
+    [InlineData("Talk to Mrs.")]
+    [InlineData("Talk to mRs.")]
+    [InlineData("Talk to Ms.")]
+    [InlineData("Talk to mS.")]
+    [InlineData("Ask Dr.")]
+    [InlineData("Ask dR.")]
+    [InlineData("See Prof.")]
+    [InlineData("See pRoF.")]
+    [InlineData("John Sr.")]
+    [InlineData("John sR.")]
+    [InlineData("Mike Jr.")]
+    [InlineData("Mike jR.")]
+    [InlineData("Apples etc.")]
+    [InlineData("Apples eTc.")]
+    [InlineData("Red vs.")]
+    [InlineData("Red vS.")]
     public void EndsWithSentenceBoundary_WhenAbbreviationCaseInsensitive_ShouldReturnFalse(string text)
     {
         Assert.False(SentenceBoundaryDetector.EndsWithSentenceBoundary(text));
+    }
+
+    [Theory]
+    [InlineData("Mr.")]
+    [InlineData("mRs.")]
+    [InlineData("MS.")]
+    [InlineData("dR.")]
+    [InlineData("PrOf.")]
+    [InlineData("SR.")]
+    [InlineData("jr.")]
+    [InlineData("EtC.")]
+    [InlineData("Vs.")]
+    public void EndsWithSentenceBoundary_WhenEntireTextIsAbbreviation_ShouldReturnFalse(string text)
+    {
+        Assert.False(SentenceBoundaryDetector.EndsWithSentenceBoundary(text));
+    }
+
+    [Theory]
+    [InlineData("Talk to Mr. ")]
+    [InlineData("Talk to mRs.\t")]
+    [InlineData("Ask DR.\r")]
+    [InlineData("See pRoF. \t\r")]
+    public void EndsWithSentenceBoundary_WhenAbbreviationHasTrailingWhitespace_ShouldReturnFalse(string text)
+    {
+        Assert.False(SentenceBoundaryDetector.EndsWithSentenceBoundary(text));
+    }
+
+    [Theory]
+    [InlineData("Talk\tto\tMr.")]
+    [InlineData("Talk to\tMr.")]
+    [InlineData("Talk\nto\nMr.")]
+    [InlineData("\tMr.")]
+    [InlineData("\nMr.")]
+    public void EndsWithSentenceBoundary_WhenFinalWordIsPrecededOnlyByTabsOrNewlines_ShouldReturnTrue(string text)
+    {
+        Assert.True(SentenceBoundaryDetector.EndsWithSentenceBoundary(text));
+    }
+
+    [Theory]
+    [InlineData("Talk to Mr.\")")]
+    [InlineData("Talk to mRs.']")]
+    [InlineData("Ask DR.}")]
+    [InlineData("See pRoF.\") \t")]
+    public void EndsWithSentenceBoundary_WhenAbbreviationHasTrailingWrapper_ShouldReturnTrue(string text)
+    {
+        Assert.True(SentenceBoundaryDetector.EndsWithSentenceBoundary(text));
+    }
+
+    [Theory]
+    [InlineData("Talk to Mŕ.")]
+    [InlineData("Talk to Mı.")]
+    [InlineData("Talk to Ｍｒ.")]
+    public void EndsWithSentenceBoundary_WhenTextIsNonAsciiNearAbbreviation_ShouldReturnTrue(string text)
+    {
+        Assert.True(SentenceBoundaryDetector.EndsWithSentenceBoundary(text));
+    }
+
+    [Theory]
+    [InlineData("Talk to r.")]
+    [InlineData("Talk to XMr.")]
+    [InlineData("Talk to Amr.")]
+    [InlineData("Talk to Mr..")]
+    [InlineData("Talk to etc..")]
+    public void EndsWithSentenceBoundary_WhenTextPartiallyMatchesAbbreviation_ShouldReturnTrue(string text)
+    {
+        Assert.True(SentenceBoundaryDetector.EndsWithSentenceBoundary(text));
     }
 
     // --- Soft boundaries (, ; : -) below threshold ---

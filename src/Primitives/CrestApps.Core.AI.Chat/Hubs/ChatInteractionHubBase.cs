@@ -1028,18 +1028,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             }
 
             var existingPrompts = await promptStore.GetPromptsAsync(itemId);
-            var conversationHistorySource = existingPrompts.ToList();
-
-            if (!conversationHistorySource.Any(x => x.ItemId == userPrompt.ItemId))
-            {
-                conversationHistorySource.Add(userPrompt);
-            }
-
-            var conversationHistory = conversationHistorySource
-                .OrderBy(x => x.CreatedUtc)
-                .Where(x => !x.IsGeneratedPrompt)
-                .Select(p => new ChatMessage(p.Role, p.Text))
-                .ToList();
+            var conversationHistory = ChatConversationHistoryBuilder.Build(
+                existingPrompts,
+                userPrompt);
 
             var chatMode = await GetChatModeAsync(services);
             var handler = handlerResolver.Resolve(interaction.ResponseHandlerName, chatMode);
@@ -1196,7 +1187,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 continue;
             }
 
-            var base64Audio = Convert.ToBase64String(audioData.ToArray());
+            var base64Audio = Convert.ToBase64String(audioData.Span);
 
             await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
         }
@@ -1247,7 +1238,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     continue;
                 }
 
-                var base64Audio = Convert.ToBase64String(audioData.ToArray());
+                var base64Audio = Convert.ToBase64String(audioData.Span);
                 await Clients.Caller.ReceiveAudioChunk(identifier, base64Audio, audioContent.MediaType ?? "audio/mp3");
             }
 

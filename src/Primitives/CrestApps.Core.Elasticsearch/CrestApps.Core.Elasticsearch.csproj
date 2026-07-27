@@ -21,6 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Elasticsearch" />
+    <InternalsVisibleTo Include="CrestApps.Core.Benchmarks" />
     <InternalsVisibleTo Include="CrestApps.Core.Tests" />
   </ItemGroup>
 

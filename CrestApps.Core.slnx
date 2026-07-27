@@ -10,6 +10,10 @@
     <File Path="README.md" />
     <File Path="SECURITY.md" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <File Path="benchmarks/README.md" />
+    <Project Path="benchmarks/CrestApps.Core.Benchmarks/CrestApps.Core.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/CrestApps.Core.Docs/CrestApps.Core.Docs.csproj" />
   </Folder>
