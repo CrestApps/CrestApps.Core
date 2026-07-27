@@ -91,7 +91,7 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
             if (!string.IsNullOrEmpty(documentKey))
             {
                 yield return new KeyValuePair<string, SourceDocument>(
-                    documentKey, ExtractDocument(doc, titleFieldName, contentFieldName));
+                    documentKey, ExtractDocument(doc, documentKey, titleFieldName, contentFieldName));
             }
         }
     }
@@ -165,7 +165,7 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
                 if (!string.IsNullOrEmpty(documentKey))
                 {
                     yield return new KeyValuePair<string, SourceDocument>(
-                        documentKey, ExtractDocument(doc, titleFieldName, contentFieldName));
+                        documentKey, ExtractDocument(doc, documentKey, titleFieldName, contentFieldName));
                 }
             }
         }
@@ -200,16 +200,17 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
                         : id;
 
                     yield return new KeyValuePair<string, SourceDocument>(
-                        documentKey, ExtractDocument(document, titleFieldName, contentFieldName));
+                        documentKey, ExtractDocument(document, documentKey, titleFieldName, contentFieldName));
                 }
             }
         }
     }
 
-    private static SourceDocument ExtractDocument(SearchDocument doc, string titleFieldName, string contentFieldName)
+    private static SourceDocument ExtractDocument(SearchDocument doc, string documentKey, string titleFieldName, string contentFieldName)
     {
         string title = null;
-        string content;
+        string content = null;
+        var contentIsSerializedDocument = false;
 
         if (!string.IsNullOrEmpty(titleFieldName) && doc.TryGetValue(titleFieldName, out var titleValue))
         {
@@ -220,16 +221,15 @@ internal sealed class DataSourceAzureAISearchDocumentReader : IDataSourceDocumen
         {
             content = contentValue?.ToString();
         }
-        else
+
+        if (string.IsNullOrEmpty(content))
         {
             // Fallback: serialize the full document as content.
             content = JsonSerializer.Serialize(doc);
+            contentIsSerializedDocument = true;
         }
 
-        if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(content))
-        {
-            title = content.ExtractTitleFromContent();
-        }
+        title = DocumentTitleResolver.Resolve(title, content, contentIsSerializedDocument, documentKey);
 
         // Populate all source fields for filter field propagation.
         var fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);

@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
+using CrestApps.Core.Support;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -241,20 +242,24 @@ public sealed class DataSourceSearchTool : AIFunction
 
                 if (!string.IsNullOrEmpty(result.ReferenceId) && !seenReferences.ContainsKey(result.ReferenceId))
                 {
-                    seenReferences[result.ReferenceId] = (invocationContext.NextReferenceIndex(), textNormalizer.NormalizeTitle(result.Title), result.ReferenceType);
+                    seenReferences[result.ReferenceId] = (invocationContext.NextReferenceIndex(), ResolveReferenceTitle(textNormalizer, result.Title, result.ReferenceId), result.ReferenceType);
                 }
 
                 var refLabel = !string.IsNullOrEmpty(result.ReferenceId) && seenReferences.TryGetValue(result.ReferenceId, out var entry)
                 ? $"[doc:{entry.Index}]"
                 : $"[doc:{invocationContext.NextReferenceIndex()}]";
 
+                var displayTitle = !string.IsNullOrEmpty(result.ReferenceId) && seenReferences.TryGetValue(result.ReferenceId, out var titleEntry)
+                    ? titleEntry.Title
+                    : ResolveReferenceTitle(textNormalizer, result.Title, result.ReferenceId);
+
                 builder.AppendLine("---");
 
-                if (!string.IsNullOrWhiteSpace(result.Title))
+                if (!string.IsNullOrWhiteSpace(displayTitle))
                 {
                     builder.Append(refLabel);
                     builder.Append(" Title: ");
-                    builder.AppendLine(result.Title);
+                    builder.AppendLine(displayTitle);
                 }
 
                 builder.Append(refLabel);
@@ -298,6 +303,25 @@ public sealed class DataSourceSearchTool : AIFunction
 
             return "An error occurred while searching the data source.";
         }
+    }
+
+    /// <summary>
+    /// Resolves a citation title that never exposes a serialized source document.
+    /// </summary>
+    /// <param name="textNormalizer">The text normalizer.</param>
+    /// <param name="title">The indexed document title.</param>
+    /// <param name="referenceId">The document reference identifier used as the fallback title.</param>
+    /// <returns>The resolved citation title.</returns>
+    private static string ResolveReferenceTitle(IAITextNormalizer textNormalizer, string title, string referenceId)
+    {
+        var normalizedTitle = textNormalizer.NormalizeTitle(title);
+
+        if (string.IsNullOrWhiteSpace(normalizedTitle) || DocumentTitleResolver.LooksLikeSerializedDocument(normalizedTitle))
+        {
+            return referenceId;
+        }
+
+        return normalizedTitle;
     }
 
     private static AIDataSourceRagMetadata GetRagMetadata(AIToolExecutionContext executionContext)

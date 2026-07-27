@@ -23,18 +23,21 @@ internal static class ElasticsearchSourceDocumentMapper
     /// Extracts a source document from an Elasticsearch JSON source.
     /// </summary>
     /// <param name="source">The Elasticsearch JSON source.</param>
+    /// <param name="documentKey">The resolved document key used as the fallback title.</param>
     /// <param name="titleFieldPath">The reusable title field path.</param>
     /// <param name="contentFieldPath">The reusable content field path.</param>
     /// <param name="treatWhitespaceAsEmpty">A value indicating whether whitespace-only values should use fallback content.</param>
     /// <returns>The extracted source document.</returns>
     internal static SourceDocument ExtractDocument(
         JsonObject source,
+        string documentKey,
         ElasticsearchFieldPath titleFieldPath,
         ElasticsearchFieldPath contentFieldPath,
         bool treatWhitespaceAsEmpty)
     {
         string title = null;
         string content = null;
+        var contentIsSerializedDocument = false;
 
         if (IsConfigured(titleFieldPath.OriginalName, treatWhitespaceAsEmpty))
         {
@@ -49,12 +52,10 @@ internal static class ElasticsearchSourceDocumentMapper
         if (IsMissing(content, treatWhitespaceAsEmpty))
         {
             content = source.ToJsonString();
+            contentIsSerializedDocument = true;
         }
 
-        if (IsMissing(title, treatWhitespaceAsEmpty) && !IsMissing(content, treatWhitespaceAsEmpty))
-        {
-            title = content.ExtractTitleFromContent();
-        }
+        title = DocumentTitleResolver.Resolve(title, content, contentIsSerializedDocument, documentKey);
 
         var fields = new Dictionary<string, object>(source.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var property in source)

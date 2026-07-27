@@ -8,6 +8,7 @@ using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Support;
 using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
@@ -295,7 +296,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             {
                 seenReferences[result.ReferenceId] = (
                     invocationContext?.NextReferenceIndex() ?? seenReferences.Count + 1,
-                    _textNormalizer.NormalizeTitle(result.Title),
+                    ResolveReferenceTitle(result.Title, result.ReferenceId),
                     result.ReferenceType);
             }
 
@@ -349,6 +350,24 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         }
 
         orchestrationContext.SystemMessageBuilder.Append(stringBuilder);
+    }
+
+    /// <summary>
+    /// Resolves a citation title that never exposes a serialized source document.
+    /// </summary>
+    /// <param name="title">The indexed document title.</param>
+    /// <param name="referenceId">The document reference identifier used as the fallback title.</param>
+    /// <returns>The resolved citation title.</returns>
+    private string ResolveReferenceTitle(string title, string referenceId)
+    {
+        var normalizedTitle = _textNormalizer.NormalizeTitle(title);
+
+        if (string.IsNullOrWhiteSpace(normalizedTitle) || DocumentTitleResolver.LooksLikeSerializedDocument(normalizedTitle))
+        {
+            return referenceId;
+        }
+
+        return normalizedTitle;
     }
 
     private static AIDataSourceRagMetadata GetRagMetadata(object resource)

@@ -174,6 +174,16 @@ public sealed class AIDataSourceController : Controller
             ModelState.AddModelError(nameof(model.Source), "Source type is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(model.KeyFieldName))
+        {
+            ModelState.AddModelError(nameof(model.KeyFieldName), "Key field name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.TitleFieldName))
+        {
+            ModelState.AddModelError(nameof(model.TitleFieldName), "Title field name is required.");
+        }
+
         if (string.IsNullOrWhiteSpace(model.ContentFieldName))
         {
             ModelState.AddModelError(nameof(model.ContentFieldName), "Content field name is required.");
