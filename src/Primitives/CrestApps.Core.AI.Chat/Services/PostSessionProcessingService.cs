@@ -382,7 +382,7 @@ public sealed class PostSessionProcessingService
             new(ChatRole.User, prompt),
         };
 
-        var tools = await ResolveToolsAsync(session.SessionId, settings.ToolNames, tasksToProcess);
+        var tools = await ResolveToolsAsync(session.SessionId, settings.ToolNames, settings.ToolInstanceNames, tasksToProcess);
 
         // When tools are configured (e.g., sendEmail), use non-generic GetResponseAsync
         // to allow tool execution. The generic version uses structured output which
@@ -1394,11 +1394,13 @@ public sealed class PostSessionProcessingService
     private async Task<IList<AITool>> ResolveToolsAsync(
         string sessionId,
         string[] profileToolNames,
+        string[] profileToolInstanceNames,
         List<PostSessionTask> tasks)
     {
         var toolNames = CollectToolNames(profileToolNames, tasks);
+        var toolInstanceNames = CollectNames(profileToolInstanceNames);
 
-        if (toolNames is null || toolNames.Length == 0)
+        if (toolNames.Length == 0 && toolInstanceNames.Length == 0)
         {
             if (_logger.IsEnabled(LogLevel.Information))
             {
@@ -1413,15 +1415,17 @@ public sealed class PostSessionProcessingService
         if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation(
-                "Resolving {ToolCount} tool(s) for post-session processing of session '{SessionId}': [{ToolNames}].",
+                "Resolving {ToolCount} tool(s) and {ToolInstanceCount} tool instance(s) for post-session processing of session '{SessionId}': [{ToolNames}].",
                 toolNames.Length,
+                toolInstanceNames.Length,
                 sessionId,
-                string.Join(", ", toolNames));
+                string.Join(", ", toolNames.Concat(toolInstanceNames)));
         }
 
         var completionContext = new AICompletionContext
         {
             ToolNames = toolNames,
+            ToolInstanceNames = toolInstanceNames,
         };
 
         var entries = await _toolRegistry.GetAllAsync(completionContext);
@@ -1433,7 +1437,7 @@ public sealed class PostSessionProcessingService
                 _logger.LogWarning(
                     "Tool registry returned no entries for post-session processing of session '{SessionId}'. Requested tool names: [{ToolNames}].",
                     sessionId,
-                    string.Join(", ", toolNames));
+                    string.Join(", ", toolNames.Concat(toolInstanceNames)));
             }
 
             return null;
@@ -1516,6 +1520,26 @@ public sealed class PostSessionProcessingService
         }
 
         return toolNames.Count > 0 ? [.. toolNames] : [];
+    }
+
+    private static string[] CollectNames(string[] names)
+    {
+        if (names is null || names.Length == 0)
+        {
+            return [];
+        }
+
+        var distinctNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in names)
+        {
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                distinctNames.Add(name);
+            }
+        }
+
+        return distinctNames.Count > 0 ? [.. distinctNames] : [];
     }
 
     private async Task<string> RenderTranscriptAsync(

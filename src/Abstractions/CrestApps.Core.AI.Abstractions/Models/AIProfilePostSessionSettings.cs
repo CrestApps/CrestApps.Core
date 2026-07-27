@@ -22,4 +22,10 @@ public sealed class AIProfilePostSessionSettings
     /// When tools are configured, the AI model can invoke them during post-session analysis.
     /// </summary>
     public string[] ToolNames { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the AI tool instance names to make available during post-session processing.
+    /// When instances are configured, the AI model can invoke them during post-session analysis.
+    /// </summary>
+    public string[] ToolInstanceNames { get; set; } = [];
 }
