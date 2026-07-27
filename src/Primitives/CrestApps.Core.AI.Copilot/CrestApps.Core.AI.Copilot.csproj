@@ -35,6 +35,9 @@
     <PropertyGroup>
       <_CopilotTargetsTemplate>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\$(CopilotTargetsTemplateFile)'))</_CopilotTargetsTemplate>
       <_GeneratedCopilotTargets>$([System.String]::Copy('$(_CopilotTargetsTemplate)').Replace('__GitHubCopilotSdkVersion__', '$(GitHubCopilotSdkVersion)'))</_GeneratedCopilotTargets>
+      <!-- WriteLinesToFile treats Lines as an item list, so semicolons and percent signs in the
+           template would otherwise be split or interpreted instead of written verbatim. -->
+      <_GeneratedCopilotTargets>$([MSBuild]::Escape('$(_GeneratedCopilotTargets)'))</_GeneratedCopilotTargets>
     </PropertyGroup>
 
     <MakeDir Directories="$(GeneratedBuildTransitiveDir)" />
