@@ -158,6 +158,8 @@ public sealed class AIProfileViewModel
 
     public List<PostSessionTaskItem> PostSessionTasks { get; set; } = [];
 
+    public string[] PostSessionToolInstanceNames { get; set; } = [];
+
     // Template
     public string SelectedTemplateId { get; set; }
 
@@ -267,6 +269,7 @@ public sealed class AIProfileViewModel
                 Options = string.Join(Environment.NewLine, t.Options.Select(o => o.Value)),
                 SelectedToolNames = t.ToolNames ?? [],
             }).ToList(),
+            PostSessionToolInstanceNames = postSessionSettings.ToolInstanceNames ?? [],
 
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
@@ -594,6 +597,10 @@ public sealed class AIProfileViewModel
             .ToList(),
                 ToolNames = t.SelectedToolNames ?? [],
             }).ToList();
+            s.ToolInstanceNames = PostSessionToolInstanceNames?
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray() ?? [];
         });
 
         profile.Alter<MemoryMetadata>(m =>

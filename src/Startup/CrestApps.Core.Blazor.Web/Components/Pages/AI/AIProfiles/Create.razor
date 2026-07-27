@@ -996,6 +996,34 @@
 
                     @if (_model.EnablePostSessionProcessing)
                     {
+                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-plugin"></i> Post-session Tool Instances</h6>
+                        @if (_model.AvailableToolInstances.Count == 0)
+                        {
+                            <p class="text-muted small">No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</p>
+                        }
+                        else
+                        {
+                            <p class="text-muted small mb-3">Select the preconfigured tool instances the AI model may call while post-session processing runs.</p>
+                            @foreach (var instance in _model.AvailableToolInstances)
+                            {
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input" id="postsession_toolinstance_@instance.ItemId"
+                                           checked="@IsPostSessionToolInstanceSelected(instance.Name)"
+                                           @onchange="e => TogglePostSessionToolInstance(instance.Name, (bool)e.Value)" />
+                                    <label class="form-check-label" for="postsession_toolinstance_@instance.ItemId">
+                                        <strong>@instance.Name</strong>
+                                        <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                        @if (!string.IsNullOrEmpty(instance.Description))
+                                        {
+                                            <br /><small class="text-muted">@instance.Description</small>
+                                        }
+                                    </label>
+                                </div>
+                            }
+                        }
+
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-list-task"></i> Tasks</h6>
+
                         @for (var i = 0; i < _model.PostSessionTasks.Count; i++)
                         {
                             var index = i;
@@ -1286,6 +1314,7 @@
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
         _model.SelectedToolInstanceNames = await GetValidToolInstanceNamesAsync(_model.SelectedToolInstanceNames);
+        _model.PostSessionToolInstanceNames = await GetValidToolInstanceNamesAsync(_model.PostSessionToolInstanceNames);
 
         var profile = new AIProfile { Type = AIProfileType.Chat };
         _model.ApplyTo(profile);
@@ -1381,6 +1410,17 @@
         else if (!selected) list.Remove(name);
         task.SelectedToolNames = list.ToArray();
     }
+
+    private void TogglePostSessionToolInstance(string name, bool selected)
+    {
+        var list = (_model.PostSessionToolInstanceNames ?? []).ToList();
+        if (selected && !list.Contains(name, StringComparer.OrdinalIgnoreCase)) list.Add(name);
+        else if (!selected) list.RemoveAll(existing => string.Equals(existing, name, StringComparison.OrdinalIgnoreCase));
+        _model.PostSessionToolInstanceNames = list.ToArray();
+    }
+
+    private bool IsPostSessionToolInstanceSelected(string name)
+        => (_model.PostSessionToolInstanceNames ?? []).Contains(name, StringComparer.OrdinalIgnoreCase);
 
     private IEnumerable<IGrouping<string, PromptTemplateOptionItem>> FilteredPromptTemplateGroups =>
         _model.AvailablePromptTemplates

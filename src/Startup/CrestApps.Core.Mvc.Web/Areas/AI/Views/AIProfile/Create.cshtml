@@ -781,6 +781,38 @@
                     </div>
 
                     <div id="postSessionTasksSection" class="mb-3 @(Model.EnablePostSessionProcessing ? "" : "d-none")">
+                        <!-- Post-session Tool Instances -->
+                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-plugin"></i> Post-session Tool Instances</h6>
+                        @if (Model.AvailableToolInstances.Count == 0)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-3 small">Select the preconfigured tool instances the AI model may call while post-session processing runs.</p>
+                            @foreach (var instance in Model.AvailableToolInstances)
+                            {
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="PostSessionToolInstanceNames" value="@instance.Name" id="postSessionToolInstance_@instance.ItemId"
+                                    @(Model.PostSessionToolInstanceNames.Contains(instance.Name, StringComparer.OrdinalIgnoreCase) ? "checked" : "") />
+                                    <label class="form-check-label" for="postSessionToolInstance_@instance.ItemId">
+                                        <strong>@instance.Name</strong>
+                                        <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                        @if (!string.IsNullOrEmpty(instance.Description))
+                                        {
+                                            <br />
+
+                                            <small class="text-muted">@instance.Description</small>
+                                        }
+                                    </label>
+                                </div>
+                            }
+                        }
+
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-list-task"></i> Tasks</h6>
+
                         <div id="post-session-tasks"></div>
                         <button type="button" class="btn btn-sm btn-outline-primary" id="add-task-btn">
                             <i class="bi bi-plus-circle"></i> Add Task
