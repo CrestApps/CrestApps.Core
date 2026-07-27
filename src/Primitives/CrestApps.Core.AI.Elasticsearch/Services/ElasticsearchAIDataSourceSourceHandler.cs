@@ -252,6 +252,7 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
             key,
             ElasticsearchSourceDocumentMapper.ExtractDocument(
                 source,
+                key,
                 titleFieldPath,
                 contentFieldPath,
                 treatWhitespaceAsEmpty: true));
@@ -300,10 +301,11 @@ internal sealed class ElasticsearchAIDataSourceSourceHandler : IAIDataSourceSour
         return (client, metadata);
     }
 
-    private static SourceDocument ExtractDocument(System.Text.Json.Nodes.JsonObject source, string titleFieldName, string contentFieldName)
+    private static SourceDocument ExtractDocument(System.Text.Json.Nodes.JsonObject source, string documentKey, string titleFieldName, string contentFieldName)
     {
         return ElasticsearchSourceDocumentMapper.ExtractDocument(
             source,
+            documentKey,
             ElasticsearchSourceDocumentMapper.CreateFieldPath(titleFieldName),
             ElasticsearchSourceDocumentMapper.CreateFieldPath(contentFieldName),
             treatWhitespaceAsEmpty: true);

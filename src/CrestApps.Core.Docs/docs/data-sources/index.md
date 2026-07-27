@@ -43,6 +43,18 @@ The built-in source types are:
 
 `SearchIndexProfile` remains the default source type and the simplest option when your content is already indexed through CrestApps.Core.
 
+## Field Mapping
+
+Every `AIDataSource` maps three source fields:
+
+| Property | Purpose |
+| --- | --- |
+| `KeyFieldName` | The source field that identifies the document. It becomes the citation reference id. |
+| `TitleFieldName` | The source field used as the document title in citations and chat references. |
+| `ContentFieldName` | The source field holding the text body that is chunked and embedded. |
+
+The sample MVC and Blazor hosts require all three fields when creating or editing a data source. Map them explicitly: when a title is not mapped, the framework falls back to the document key and never uses the serialized source document as a title, so citations stay readable and never leak the full document payload.
+
 ## What is Vector Search?
 
 If you are new to AI-powered search, here is a brief primer on the concepts that data sources rely on.

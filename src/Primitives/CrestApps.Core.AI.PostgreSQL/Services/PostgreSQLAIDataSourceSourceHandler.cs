@@ -109,7 +109,7 @@ internal sealed class PostgreSQLAIDataSourceSourceHandler : IAIDataSourceSourceH
                 var row = ReadRow(reader);
                 var key = ResolveKey(row, dataSource.KeyFieldName);
 
-                yield return new KeyValuePair<string, SourceDocument>(key, ExtractDocument(row, dataSource.TitleFieldName, dataSource.ContentFieldName));
+                yield return new KeyValuePair<string, SourceDocument>(key, ExtractDocument(row, key, dataSource.TitleFieldName, dataSource.ContentFieldName));
             }
 
             if (rowCount < 1000)
@@ -157,7 +157,7 @@ internal sealed class PostgreSQLAIDataSourceSourceHandler : IAIDataSourceSourceH
             var row = ReadRow(reader);
             var key = ResolveKey(row, dataSource.KeyFieldName);
 
-            yield return new KeyValuePair<string, SourceDocument>(key, ExtractDocument(row, dataSource.TitleFieldName, dataSource.ContentFieldName));
+            yield return new KeyValuePair<string, SourceDocument>(key, ExtractDocument(row, key, dataSource.TitleFieldName, dataSource.ContentFieldName));
         }
     }
 
@@ -213,10 +213,11 @@ internal sealed class PostgreSQLAIDataSourceSourceHandler : IAIDataSourceSourceH
         return null;
     }
 
-    private static SourceDocument ExtractDocument(Dictionary<string, object> row, string titleFieldName, string contentFieldName)
+    private static SourceDocument ExtractDocument(Dictionary<string, object> row, string documentKey, string titleFieldName, string contentFieldName)
     {
         string title = null;
         string content = null;
+        var contentIsSerializedDocument = false;
 
         if (!string.IsNullOrWhiteSpace(titleFieldName) && row.TryGetValue(titleFieldName, out var titleValue) && titleValue != null)
         {
@@ -237,12 +238,10 @@ internal sealed class PostgreSQLAIDataSourceSourceHandler : IAIDataSourceSourceH
             }
 
             content = json.ToJsonString();
+            contentIsSerializedDocument = true;
         }
 
-        if (string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(content))
-        {
-            title = content.ExtractTitleFromContent();
-        }
+        title = DocumentTitleResolver.Resolve(title, content, contentIsSerializedDocument, documentKey);
 
         var fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var kvp in row)

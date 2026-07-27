@@ -180,7 +180,7 @@ internal sealed class AzureAISearchAIDataSourceSourceHandler : IAIDataSourceSour
             key = configuredKeyValue?.ToString() ?? key;
         }
 
-        return new KeyValuePair<string, SourceDocument>(key, ExtractDocument(document, dataSource.TitleFieldName, dataSource.ContentFieldName));
+        return new KeyValuePair<string, SourceDocument>(key, ExtractDocument(document, key, dataSource.TitleFieldName, dataSource.ContentFieldName));
     }
 
     private (global::Azure.Search.Documents.SearchClient SearchClient, AzureAISearchSourceMetadata Metadata) Resolve(AIDataSource dataSource)
@@ -208,7 +208,7 @@ internal sealed class AzureAISearchAIDataSourceSourceHandler : IAIDataSourceSour
         return (client, metadata);
     }
 
-    private static SourceDocument ExtractDocument(SearchDocument document, string titleFieldName, string contentFieldName)
+    private static SourceDocument ExtractDocument(SearchDocument document, string documentKey, string titleFieldName, string contentFieldName)
     {
         string title = null;
         string content = null;
@@ -223,15 +223,15 @@ internal sealed class AzureAISearchAIDataSourceSourceHandler : IAIDataSourceSour
             content = contentValue?.ToString();
         }
 
+        var contentIsSerializedDocument = false;
+
         if (string.IsNullOrWhiteSpace(content))
         {
             content = System.Text.Json.JsonSerializer.Serialize(document);
+            contentIsSerializedDocument = true;
         }
 
-        if (string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(content))
-        {
-            title = content.ExtractTitleFromContent();
-        }
+        title = DocumentTitleResolver.Resolve(title, content, contentIsSerializedDocument, documentKey);
 
         var fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var kvp in document)

@@ -70,7 +70,7 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
                 var key = ResolveKey(row, keyFieldName);
 
                 yield return new KeyValuePair<string, SourceDocument>(
-                    key, ExtractDocument(row, titleFieldName, contentFieldName));
+                    key, ExtractDocument(row, key, titleFieldName, contentFieldName));
             }
 
             if (rowCount < BatchSize)
@@ -134,7 +134,7 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
             var key = ResolveKey(row, keyFieldName);
 
             yield return new KeyValuePair<string, SourceDocument>(
-                key, ExtractDocument(row, titleFieldName, contentFieldName));
+                key, ExtractDocument(row, key, titleFieldName, contentFieldName));
         }
     }
 
@@ -167,10 +167,11 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
         return null;
     }
 
-    private static SourceDocument ExtractDocument(Dictionary<string, object> row, string titleFieldName, string contentFieldName)
+    private static SourceDocument ExtractDocument(Dictionary<string, object> row, string documentKey, string titleFieldName, string contentFieldName)
     {
         string title = null;
         string content = null;
+        var contentIsSerializedDocument = false;
 
         if (!string.IsNullOrEmpty(titleFieldName) && row.TryGetValue(titleFieldName, out var titleValue) && titleValue != null)
         {
@@ -191,12 +192,10 @@ internal sealed class DataSourcePostgreSQLDocumentReader : IDataSourceDocumentRe
             }
 
             content = jsonObj.ToJsonString();
+            contentIsSerializedDocument = true;
         }
 
-        if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(content))
-        {
-            title = content.ExtractTitleFromContent();
-        }
+        title = DocumentTitleResolver.Resolve(title, content, contentIsSerializedDocument, documentKey);
 
         var fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var kvp in row)

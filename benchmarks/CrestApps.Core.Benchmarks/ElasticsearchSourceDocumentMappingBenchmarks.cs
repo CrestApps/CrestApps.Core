@@ -55,9 +55,10 @@ public class ElasticsearchSourceDocumentMappingBenchmarks
         {
             var legacyKey = LegacyResolveKey(_sources[index]);
             var currentKey = CurrentResolveKey(_sources[index]);
-            var legacyDocument = LegacyExtractDocument(_sources[index], TitleFieldName, ContentFieldName);
+            var legacyDocument = LegacyExtractDocument(_sources[index], legacyKey, TitleFieldName, ContentFieldName);
             var currentDocument = ElasticsearchSourceDocumentMapper.ExtractDocument(
                 _sources[index],
+                currentKey,
                 _titleFieldPath,
                 _contentFieldPath,
                 treatWhitespaceAsEmpty: false);
@@ -78,7 +79,7 @@ public class ElasticsearchSourceDocumentMappingBenchmarks
         foreach (var source in _sources)
         {
             var key = LegacyResolveKey(source);
-            var document = LegacyExtractDocument(source, TitleFieldName, ContentFieldName);
+            var document = LegacyExtractDocument(source, key, TitleFieldName, ContentFieldName);
             checksum += key.Length + document.Title.Length + document.Content.Length + document.Fields.Count;
         }
 
@@ -99,6 +100,7 @@ public class ElasticsearchSourceDocumentMappingBenchmarks
             var key = CurrentResolveKey(source);
             var document = ElasticsearchSourceDocumentMapper.ExtractDocument(
                 source,
+                key,
                 _titleFieldPath,
                 _contentFieldPath,
                 treatWhitespaceAsEmpty: false);
@@ -120,11 +122,13 @@ public class ElasticsearchSourceDocumentMappingBenchmarks
 
     private static SourceDocument LegacyExtractDocument(
         JsonObject source,
+        string documentKey,
         string titleFieldName,
         string contentFieldName)
     {
         string title = null;
         string content = null;
+        var contentIsSerializedDocument = false;
 
         if (!string.IsNullOrEmpty(titleFieldName))
         {
@@ -141,12 +145,10 @@ public class ElasticsearchSourceDocumentMappingBenchmarks
         if (string.IsNullOrEmpty(content))
         {
             content = source.ToJsonString();
+            contentIsSerializedDocument = true;
         }
 
-        if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(content))
-        {
-            title = content.ExtractTitleFromContent();
-        }
+        title = DocumentTitleResolver.Resolve(title, content, contentIsSerializedDocument, documentKey);
 
         var fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in source)

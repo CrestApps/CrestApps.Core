@@ -43,6 +43,7 @@ public sealed class SearchProviderSourceDocumentMappingTests
             mapperType,
             "ExtractDocument",
             row,
+            "document-1",
             "title",
             "body");
         var key = Invoke<string>(
@@ -73,18 +74,70 @@ public sealed class SearchProviderSourceDocumentMappingTests
             PostgreSQLReaderType,
             "ExtractDocument",
             coreRow,
+            "document-1",
             "title",
             "body");
         var aiDocument = Invoke<SourceDocument>(
             PostgreSQLHandlerType,
             "ExtractDocument",
             aiRow,
+            "document-1",
             "title",
             "body");
 
         Assert.Equal("   ", coreDocument.Content);
         Assert.NotEqual("   ", aiDocument.Content);
         Assert.Contains("\"body\":\"   \"", aiDocument.Content, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies PostgreSQL mapping falls back to the document key instead of the serialized document when no title is mapped.
+    /// </summary>
+    /// <param name="mapperType">The provider mapper type.</param>
+    [Theory]
+    [MemberData(nameof(PostgreSQLMapperTypes))]
+    public void PostgreSQLExtractDocument_WhenTitleIsNotMapped_ShouldUseDocumentKey(Type mapperType)
+    {
+        var row = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["id"] = "document-1",
+            ["Body"] = "Mapped content",
+        };
+
+        var document = Invoke<SourceDocument>(
+            mapperType,
+            "ExtractDocument",
+            row,
+            "document-1",
+            null,
+            null);
+
+        Assert.Equal("document-1", document.Title);
+    }
+
+    /// <summary>
+    /// Verifies Elasticsearch mapping falls back to the document key instead of the serialized document when no title is mapped.
+    /// </summary>
+    /// <param name="mapperType">The provider mapper type.</param>
+    [Theory]
+    [MemberData(nameof(ElasticsearchMapperTypes))]
+    public void ElasticsearchExtractDocument_WhenTitleIsNotMapped_ShouldUseDocumentKey(Type mapperType)
+    {
+        var source = new JsonObject
+        {
+            ["id"] = "document-1",
+            ["body"] = "Mapped content",
+        };
+
+        var document = Invoke<SourceDocument>(
+            mapperType,
+            "ExtractDocument",
+            source,
+            "document-1",
+            null,
+            null);
+
+        Assert.Equal("document-1", document.Title);
     }
 
     /// <summary>
@@ -135,6 +188,7 @@ public sealed class SearchProviderSourceDocumentMappingTests
             mapperType,
             "ExtractDocument",
             source,
+            "document-1",
             "content.title",
             "content.body");
 
@@ -158,12 +212,14 @@ public sealed class SearchProviderSourceDocumentMappingTests
             ElasticsearchReaderType,
             "ExtractDocument",
             coreSource,
+            "document-1",
             "title",
             "body");
         var aiDocument = Invoke<SourceDocument>(
             ElasticsearchHandlerType,
             "ExtractDocument",
             aiSource,
+            "document-1",
             "title",
             "body");
 

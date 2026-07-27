@@ -94,6 +94,7 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
                     key,
                     ElasticsearchSourceDocumentMapper.ExtractDocument(
                         hit.Source,
+                        key,
                         titleFieldPath,
                         contentFieldPath,
                         treatWhitespaceAsEmpty: false));
@@ -182,16 +183,18 @@ internal sealed class DataSourceElasticsearchDocumentReader : IDataSourceDocumen
                 key,
                 ElasticsearchSourceDocumentMapper.ExtractDocument(
                     hit.Source,
+                    key,
                     titleFieldPath,
                     contentFieldPath,
                     treatWhitespaceAsEmpty: false));
         }
     }
 
-    private static SourceDocument ExtractDocument(JsonObject source, string titleFieldName, string contentFieldName)
+    private static SourceDocument ExtractDocument(JsonObject source, string documentKey, string titleFieldName, string contentFieldName)
     {
         return ElasticsearchSourceDocumentMapper.ExtractDocument(
             source,
+            documentKey,
             ElasticsearchSourceDocumentMapper.CreateFieldPath(titleFieldName),
             ElasticsearchSourceDocumentMapper.CreateFieldPath(contentFieldName),
             treatWhitespaceAsEmpty: false);

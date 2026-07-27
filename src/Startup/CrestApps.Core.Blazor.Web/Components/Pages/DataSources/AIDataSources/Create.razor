@@ -248,15 +248,15 @@
             <h5>Field Mapping</h5>
 
             <div class="mb-3">
-                <label class="form-label">Key field name</label>
+                <label class="form-label">Key field name <span class="text-danger">*</span></label>
                 <InputText @bind-Value="_model.KeyFieldName" class="form-control" placeholder="e.g., id" />
-                <div class="form-text">The source index field that maps to the document key. Leave empty to use the native document ID.</div>
+                <div class="form-text">The source index field that maps to the document key.</div>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Title field name</label>
+                <label class="form-label">Title field name <span class="text-danger">*</span></label>
                 <InputText @bind-Value="_model.TitleFieldName" class="form-control" placeholder="e.g., title" />
-                <div class="form-text">The source index field that maps to the document title.</div>
+                <div class="form-text">The source index field that maps to the document title. Without it, citations fall back to the document ID.</div>
             </div>
 
             <div class="mb-3">
@@ -318,6 +318,16 @@
         if (string.IsNullOrWhiteSpace(model.Source))
         {
             _errors.Add("Source type is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.KeyFieldName))
+        {
+            _errors.Add("Key field name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.TitleFieldName))
+        {
+            _errors.Add("Title field name is required.");
         }
 
         if (string.IsNullOrWhiteSpace(model.ContentFieldName))

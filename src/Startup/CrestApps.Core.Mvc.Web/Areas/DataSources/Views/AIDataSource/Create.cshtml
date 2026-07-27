@@ -216,17 +216,17 @@
             <h5>Field Mapping</h5>
 
             <div class="mb-3">
-                <label asp-for="KeyFieldName" class="form-label">Key field name</label>
-                <input asp-for="KeyFieldName" class="form-control" placeholder="e.g., id" />
+                <label asp-for="KeyFieldName" class="form-label">Key field name <span class="text-danger">*</span></label>
+                <input asp-for="KeyFieldName" class="form-control" required placeholder="e.g., id" />
                 <span asp-validation-for="KeyFieldName" class="text-danger"></span>
-                <div class="form-text">The source field that maps to the document key. Leave empty to use the native document ID.</div>
+                <div class="form-text">The source field that maps to the document key.</div>
             </div>
 
             <div class="mb-3">
-                <label asp-for="TitleFieldName" class="form-label">Title field name</label>
-                <input asp-for="TitleFieldName" class="form-control" placeholder="e.g., title" />
+                <label asp-for="TitleFieldName" class="form-label">Title field name <span class="text-danger">*</span></label>
+                <input asp-for="TitleFieldName" class="form-control" required placeholder="e.g., title" />
                 <span asp-validation-for="TitleFieldName" class="text-danger"></span>
-                <div class="form-text">The source field that maps to the document title.</div>
+                <div class="form-text">The source field that maps to the document title. Without it, citations fall back to the document ID.</div>
             </div>
 
             <div class="mb-3">
