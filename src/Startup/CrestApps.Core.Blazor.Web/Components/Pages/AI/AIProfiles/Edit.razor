@@ -1002,6 +1002,27 @@ else if (_model != null)
                                                     }
                                                 }
                                             }
+
+                                            <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                                            @if (_model.AvailableToolInstances.Count == 0)
+                                            {
+                                                <p class="text-muted small">No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</p>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var instance in _model.AvailableToolInstances)
+                                                {
+                                                    <div class="form-check mb-1">
+                                                        <input type="checkbox" class="form-check-input" id="task@(index)_toolinstance_@instance.ItemId"
+                                                               checked="@task.SelectedToolInstanceNames.Contains(instance.Name, StringComparer.OrdinalIgnoreCase)"
+                                                               @onchange="e => ToggleTaskToolInstance(task, instance.Name, (bool)e.Value)" />
+                                                        <label class="form-check-label" for="task@(index)_toolinstance_@instance.ItemId">
+                                                            <strong>@instance.Name</strong>
+                                                            <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                                        </label>
+                                                    </div>
+                                                }
+                                            }
                                         </div>
                                     </div>
                                 </div>
@@ -1178,6 +1199,12 @@ else if (_model != null)
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
         _model.SelectedToolInstanceNames = await GetValidToolInstanceNamesAsync(_model.SelectedToolInstanceNames);
+
+        foreach (var task in _model.PostSessionTasks)
+        {
+            task.SelectedToolInstanceNames = await GetValidToolInstanceNamesAsync(task.SelectedToolInstanceNames);
+        }
+
         _model.ApplyTo(existing);
 
         if (_removedDocumentIds.Count > 0)
@@ -1231,6 +1258,14 @@ else if (_model != null)
         if (selected && !list.Contains(name)) list.Add(name);
         else if (!selected) list.Remove(name);
         task.SelectedToolNames = list.ToArray();
+    }
+
+    private void ToggleTaskToolInstance(PostSessionTaskItem task, string name, bool selected)
+    {
+        var list = (task.SelectedToolInstanceNames ?? []).ToList();
+        if (selected && !list.Contains(name, StringComparer.OrdinalIgnoreCase)) list.Add(name);
+        else if (!selected) list.RemoveAll(existing => string.Equals(existing, name, StringComparison.OrdinalIgnoreCase));
+        task.SelectedToolInstanceNames = list.ToArray();
     }
 
     private IEnumerable<IGrouping<string, PromptTemplateOptionItem>> FilteredPromptTemplateGroups =>
