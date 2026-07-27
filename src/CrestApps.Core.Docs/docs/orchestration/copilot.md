@@ -35,6 +35,37 @@ public class MyController(IOrchestratorResolver resolver)
 }
 ```
 
+## Copilot CLI Acquisition
+
+The Copilot orchestrator runs on top of the GitHub Copilot CLI. Referencing `CrestApps.Core.AI.Copilot` is all a host needs to do: the package re-imports the `GitHub.Copilot.SDK` build targets, which download the CLI for the current runtime identifier during build and copy it to `runtimes/<rid>/native/` in the output folder. No manual install step is required.
+
+The package layers two improvements on top of the SDK's default acquisition.
+
+**A machine-wide CLI cache.** The SDK caches the CLI under the intermediate output path, which is per project *and* per configuration, so a solution with several referencing projects downloads the same large tarball once per project, and again for every fresh clone, worktree, or CI agent. The package redirects that to a shared cache under the NuGet global packages folder, so the CLI is downloaded once and reused everywhere. That folder is already restored per machine and is commonly cached by CI pipelines, so build agents benefit as well.
+
+**Automatic npm registry resolution.** The SDK downloads the CLI tarball from `https://registry.npmjs.org`, and MSBuild's `DownloadFile` task cannot read npm configuration. Machines and build agents behind a corporate proxy or an artifact mirror usually block that host, so the build fails with a connectivity error even though npm itself is configured correctly. The package resolves the effective registry from the `NPM_CONFIG_REGISTRY` environment variable, falling back to `npm config get registry`, and uses that instead. The lookup only runs when a download is actually about to happen, and silently falls back to the SDK default when npm is unavailable or reports something that is not a URL.
+
+Both behaviors are opt-out and never override a value you set yourself.
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `CopilotUseSharedCliCache` | `true` | Set to `false` to keep the SDK's per-project cache. |
+| `CopilotCliCacheDir` | `<nuget-packages>/.crestapps/copilot-cli/` | Location of the shared cache. Point this at a pre-seeded directory to build without network access. |
+| `CopilotResolveNpmRegistry` | `true` | Set to `false` to always use the SDK default registry. |
+| `CopilotNpmRegistryUrl` | resolved from npm | Pin a registry explicitly. An explicit value always wins over resolution. |
+
+These are ordinary MSBuild properties, so set them in `Directory.Build.props` to apply them across a solution:
+
+```xml
+<Project>
+  <PropertyGroup>
+    <CopilotCliCacheDir>$(MSBuildThisFileDirectory).copilot-cli\</CopilotCliCacheDir>
+  </PropertyGroup>
+</Project>
+```
+
+The SDK's own `CopilotCliBinaryPath` (use an already-downloaded binary) and `CopilotSkipCliDownload` (skip acquisition entirely) properties continue to work and take precedence over everything above.
+
 ## Problem & Solution
 
 The [default orchestrator](./index.md) manages the full agentic pipeline — tool calling, progressive scoping, RAG injection, and streaming — using `Microsoft.Extensions.AI`. This works well when you control the provider connection and model selection.
