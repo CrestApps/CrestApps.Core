@@ -231,6 +231,53 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessAsync_WithTaskLevelToolInstanceNames_ShouldForwardThemToTheRegistry()
+    {
+        // Arrange: task-level tool instance names alone should enable the shared tools path.
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks = [new PostSessionTask
+            {
+                Name = "summary",
+                Type = PostSessionTaskType.Semantic,
+                Instructions = "Summarize the conversation.",
+                ToolInstanceNames = ["crm-lookup"],
+            }, ];
+            s.ToolNames = [];
+            s.ToolInstanceNames = [];
+        });
+        var session = CreateSession();
+        var prompts = CreatePrompts();
+        var mockTool = new TestAIFunction("crm-lookup");
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        AICompletionContext capturedContext = null;
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>()))
+            .Callback<AICompletionContext, CancellationToken>((completionContext, _) => capturedContext = completionContext)
+            .ReturnsAsync(new List<ToolRegistryEntry> { CreateToolEntry("crm-lookup", mockTool) });
+        var mockChatClient = new Mock<IChatClient>();
+        var responseMessage = new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"User asked about pricing and was given options.\"}]}");
+        var chatResponse = new ChatResponse(responseMessage);
+        mockChatClient.Setup(c => c
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(chatResponse);
+        var mockTemplateService = new Mock<ITemplateService>();
+        mockTemplateService.Setup(t => t
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Rendered prompt");
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
+
+        // Act
+        await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        // Assert: the task-level instance names were forwarded to the registry.
+        Assert.NotNull(capturedContext);
+        Assert.Equal(["crm-lookup"], capturedContext.ToolInstanceNames);
+        Assert.Empty(capturedContext.ToolNames);
+    }
+
+    [Fact]
     public async Task ProcessAsync_WhenToolResponseContainsOnlyInvalidTaskEntriesWithoutToolCalls_ShouldFallBackToNoToolsStructuredPass()
     {
         var profile = CreateProfile();

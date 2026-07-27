@@ -141,7 +141,6 @@ public sealed class AIProfileViewModel
     // Post Session Processing
     public bool EnablePostSessionProcessing { get; set; }
     public List<PostSessionTaskItem> PostSessionTasks { get; set; } = [];
-    public string[] PostSessionToolInstanceNames { get; set; } = [];
 
     // Template
     public string SelectedTemplateId { get; set; }
@@ -254,8 +253,8 @@ public sealed class AIProfileViewModel
                 AllowMultipleValues = t.AllowMultipleValues,
                 Options = string.Join(Environment.NewLine, t.Options.Select(o => o.Value)),
                 SelectedToolNames = t.ToolNames ?? [],
+                SelectedToolInstanceNames = t.ToolInstanceNames ?? [],
             }).ToList(),
-            PostSessionToolInstanceNames = postSessionSettings.ToolInstanceNames ?? [],
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
 
@@ -583,11 +582,8 @@ public sealed class AIProfileViewModel
             .Select(o => new PostSessionTaskOption { Value = o.Trim() })
             .ToList(),
                 ToolNames = t.SelectedToolNames ?? [],
+                ToolInstanceNames = t.SelectedToolInstanceNames ?? [],
             }).ToList();
-            s.ToolInstanceNames = PostSessionToolInstanceNames?
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.Ordinal)
-                .ToArray() ?? [];
         });
 
         profile.Alter<MemoryMetadata>(m =>
@@ -677,6 +673,8 @@ public sealed class PostSessionTaskItem
     public string Options { get; set; }
 
     public string[] SelectedToolNames { get; set; } = [];
+
+    public string[] SelectedToolInstanceNames { get; set; } = [];
 }
 
 public sealed class PromptTemplateSelectionItem

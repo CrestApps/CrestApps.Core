@@ -1397,8 +1397,8 @@ public sealed class PostSessionProcessingService
         string[] profileToolInstanceNames,
         List<PostSessionTask> tasks)
     {
-        var toolNames = CollectToolNames(profileToolNames, tasks);
-        var toolInstanceNames = CollectNames(profileToolInstanceNames);
+        var toolNames = CollectNames(profileToolNames, tasks, static task => task.ToolNames);
+        var toolInstanceNames = CollectNames(profileToolInstanceNames, tasks, static task => task.ToolInstanceNames);
 
         if (toolNames.Length == 0 && toolInstanceNames.Length == 0)
         {
@@ -1485,61 +1485,40 @@ public sealed class PostSessionProcessingService
         return tools.Count > 0 ? tools : null;
     }
 
-    private static string[] CollectToolNames(
-        string[] profileToolNames,
-        List<PostSessionTask> tasks)
+    private static string[] CollectNames(
+        string[] profileNames,
+        List<PostSessionTask> tasks,
+        Func<PostSessionTask, string[]> taskNamesSelector)
     {
-        var toolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (profileToolNames is not null)
-        {
-            foreach (var name in profileToolNames)
-            {
-                if (!string.IsNullOrWhiteSpace(name))
-                {
-                    toolNames.Add(name);
-                }
-            }
-        }
+        AddNames(names, profileNames);
 
         if (tasks is not null)
         {
             foreach (var task in tasks)
             {
-                if (task.ToolNames is not null)
-                {
-                    foreach (var name in task.ToolNames)
-                    {
-                        if (!string.IsNullOrWhiteSpace(name))
-                        {
-                            toolNames.Add(name);
-                        }
-                    }
-                }
+                AddNames(names, taskNamesSelector(task));
             }
         }
 
-        return toolNames.Count > 0 ? [.. toolNames] : [];
+        return names.Count > 0 ? [.. names] : [];
     }
 
-    private static string[] CollectNames(string[] names)
+    private static void AddNames(HashSet<string> target, string[] names)
     {
-        if (names is null || names.Length == 0)
+        if (names is null)
         {
-            return [];
+            return;
         }
-
-        var distinctNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var name in names)
         {
             if (!string.IsNullOrWhiteSpace(name))
             {
-                distinctNames.Add(name);
+                target.Add(name);
             }
         }
-
-        return distinctNames.Count > 0 ? [.. distinctNames] : [];
     }
 
     private async Task<string> RenderTranscriptAsync(

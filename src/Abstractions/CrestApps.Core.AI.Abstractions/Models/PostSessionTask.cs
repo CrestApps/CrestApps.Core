@@ -40,4 +40,9 @@ public sealed class PostSessionTask
     /// Gets or sets the AI tool names available to this task during post-session processing.
     /// </summary>
     public string[] ToolNames { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the AI tool instance names available to this task during post-session processing.
+    /// </summary>
+    public string[] ToolInstanceNames { get; set; } = [];
 }
