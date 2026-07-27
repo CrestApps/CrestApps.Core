@@ -23,6 +23,7 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
+using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Templates.Services;
@@ -61,6 +62,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
+    private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
@@ -85,7 +87,8 @@ public sealed class ChatInteractionController : Controller
         ClaudeClientService anthropicClientService,
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
-        IOptions<AIToolDefinitionOptions> toolOptions)
+        IOptions<AIToolDefinitionOptions> toolOptions,
+        ISourceCatalog<AIToolInstance> toolInstanceCatalog)
     {
         _interactionManager = interactionManager;
         _promptStore = promptStore;
@@ -110,6 +113,7 @@ public sealed class ChatInteractionController : Controller
         _copilotOptions = copilotOptions;
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
+        _toolInstanceCatalog = toolInstanceCatalog;
     }
 
     public async Task<IActionResult> Index()
@@ -199,6 +203,7 @@ public sealed class ChatInteractionController : Controller
         interaction.TryGet<PromptTemplateMetadata>(out var promptMetadata);
         interaction.TryGet<ClaudeSessionMetadata>(out var anthropicMetadata);
         interaction.TryGet<DocumentsMetadata>(out var documentMetadata);
+        interaction.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata);
 
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
@@ -236,6 +241,7 @@ public sealed class ChatInteractionController : Controller
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
             SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
             SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],
+            SelectedToolInstanceNames = toolInstanceMetadata?.ToolInstanceNames ?? [],
             SelectedAgentNames = interaction.AgentNames?.ToArray() ?? [],
             PromptTemplates = (promptMetadata?.Templates ?? [])
                 .Where(template => !string.IsNullOrWhiteSpace(template.TemplateId))
@@ -357,6 +363,21 @@ public sealed class ChatInteractionController : Controller
         .OrderBy(t => t.Category)
         .ThenBy(t => t.Title)
         .ToList();
+
+        // AI Tool Instances
+        var toolInstances = await _toolInstanceCatalog.GetAllAsync();
+        var selectedToolInstanceNames = new HashSet<string>(model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);
+        model.AvailableToolInstances = toolInstances
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(instance => new AIToolInstanceSelectionItem
+            {
+                ItemId = instance.ItemId,
+                Name = instance.Name,
+                Description = instance.Description,
+                Source = instance.Source,
+                IsSelected = selectedToolInstanceNames.Contains(instance.Name),
+            })
+            .ToList();
 
         // AI Agents
         var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
@@ -498,6 +519,21 @@ public sealed class ChatInteractionController : Controller
         .ThenBy(t => t.Title)
         .ToList();
 
+        // AI Tool Instances
+        var toolInstances = await _toolInstanceCatalog.GetAllAsync();
+        var selectedToolInstanceNames = new HashSet<string>(model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);
+        model.AvailableToolInstances = toolInstances
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(instance => new AIToolInstanceSelectionItem
+            {
+                ItemId = instance.ItemId,
+                Name = instance.Name,
+                Description = instance.Description,
+                Source = instance.Source,
+                IsSelected = selectedToolInstanceNames.Contains(instance.Name),
+            })
+            .ToList();
+
         // AI Agents
         var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
@@ -561,6 +597,7 @@ public sealed class ChatInteractionController : Controller
     private async Task ApplyMetadataAsync(ChatInteraction interaction, ChatInteractionViewModel model)
     {
         var dataSourceId = await ResolveDataSourceIdAsync(model.DataSourceId);
+        var toolInstanceNames = await GetValidToolInstanceNamesAsync(model.SelectedToolInstanceNames);
 
         interaction.Alter<DataSourceMetadata>(metadata =>
         {
@@ -583,6 +620,11 @@ public sealed class ChatInteractionController : Controller
         interaction.Alter<PromptTemplateMetadata>(metadata =>
         {
             metadata.SetSelections(BuildPromptTemplateSelections(model.PromptTemplates));
+        });
+
+        interaction.Alter<AIToolInstanceMetadata>(metadata =>
+        {
+            metadata.ToolInstanceNames = toolInstanceNames.ToArray();
         });
 
         if (string.Equals(model.OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
@@ -697,6 +739,19 @@ public sealed class ChatInteractionController : Controller
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))
 
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task<List<string>> GetValidToolInstanceNamesAsync(IEnumerable<string> selectedNames)
+    {
+        var validToolInstanceNames = (await _toolInstanceCatalog.GetAllAsync())
+            .Select(instance => instance.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return (selectedNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name) && validToolInstanceNames.Contains(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

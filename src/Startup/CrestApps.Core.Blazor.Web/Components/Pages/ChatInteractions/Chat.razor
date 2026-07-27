@@ -24,6 +24,7 @@
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2AConnectionCatalog
 @inject ICatalog<McpConnection> McpConnectionCatalog
+@inject ISourceCatalog<AIToolInstance> ToolInstanceCatalog
 @inject ICatalog<AIDataSource> DataSourceCatalog
 @inject IAIProfileManager ProfileManager
 @inject IAIProfileTemplateManager TemplateManager
@@ -356,6 +357,38 @@ else
                                 </div>
 
                                 <div class="settings-group mb-4">
+                                    <h6 class="mb-2">Tool Instances</h6>
+                                    @if (_model.AvailableToolInstances.Count == 0)
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle"></i> No tool instances configured.
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var item in _model.AvailableToolInstances)
+                                            {
+                                                <label class="list-group-item d-flex align-items-start gap-2">
+                                                    <input class="form-check-input capability-checkbox mt-1" type="checkbox" data-group="toolInstanceNames" value="@item.Name" checked="@item.IsSelected" />
+                                                    <span>
+                                                        <strong>@item.Name</strong>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Description</span>
+                                                        }
+                                                        @if (!string.IsNullOrWhiteSpace(item.Source))
+                                                        {
+                                                            <span class="d-block small text-muted">@item.Source</span>
+                                                        }
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="settings-group mb-4">
                                     <h6 class="mb-2">Agents</h6>
                                     @if (_model.AvailableAgents.Count == 0)
                                     {
@@ -536,6 +569,7 @@ else
         interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata);
         interaction.TryGet<PromptTemplateMetadata>(out var promptTemplateMetadata);
         interaction.TryGet<DocumentsMetadata>(out var documentMetadata);
+        interaction.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata);
 
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
@@ -585,6 +619,7 @@ else
             SelectedA2AConnectionIds = interaction.A2AConnectionIds?.ToArray() ?? [],
             SelectedMcpConnectionIds = interaction.McpConnectionIds?.ToArray() ?? [],
             SelectedToolNames = interaction.ToolNames?.ToArray() ?? [],
+            SelectedToolInstanceNames = toolInstanceMetadata?.ToolInstanceNames ?? [],
             SelectedAgentNames = interaction.AgentNames?.ToArray() ?? [],
             PromptTemplates = promptTemplateMetadata?.Templates?.Select(selection => new PromptTemplateSelectionItem
             {
@@ -730,6 +765,19 @@ else
             })
             .OrderBy(t => t.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var toolInstances = await ToolInstanceCatalog.GetAllAsync();
+        model.AvailableToolInstances = toolInstances
+            .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(i => new AIToolInstanceSelectionItem
+            {
+                ItemId = i.ItemId,
+                Name = i.Name,
+                Description = i.Description,
+                Source = i.Source,
+                IsSelected = model.SelectedToolInstanceNames.Contains(i.Name, StringComparer.OrdinalIgnoreCase),
+            })
             .ToList();
 
         var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);

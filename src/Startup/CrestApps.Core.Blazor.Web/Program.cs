@@ -20,6 +20,7 @@ using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.PostgreSQL;
+using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Blazor.Web;
 using CrestApps.Core.Blazor.Web.Areas.AIChat.Endpoints;
@@ -101,6 +102,10 @@ builder.Services
             .AddEntityCoreStores()
             .ConfigureChatHubOptions<ChatInteractionHub>()
          )
+        .AddToolInstances(toolInstances => toolInstances
+            .AddHttpApiRequestSource()
+            .AddEntityCoreStores()
+        )
         .AddDocumentProcessing(documentProcessing => documentProcessing
             .AddEntityCoreStores()
             .AddOpenXml()

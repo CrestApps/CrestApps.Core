@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
+using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
 using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -46,6 +47,11 @@ internal sealed class ChatInteractionChatViewModel
     public string[] SelectedToolNames { get; set; } = [];
 
     public List<ToolSelectionItem> AvailableTools { get; set; } = [];
+
+    // AI Tool Instances
+    public string[] SelectedToolInstanceNames { get; set; } = [];
+
+    public List<AIToolInstanceSelectionItem> AvailableToolInstances { get; set; } = [];
 
     // AI Agents
     public string[] SelectedAgentNames { get; set; } = [];

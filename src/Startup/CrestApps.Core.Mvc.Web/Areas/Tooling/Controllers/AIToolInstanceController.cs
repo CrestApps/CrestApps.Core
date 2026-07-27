@@ -1,0 +1,425 @@
+using System.Text.Json;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Tooling.Instances;
+using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Options;
+
+namespace CrestApps.Core.Mvc.Web.Areas.Tooling.Controllers;
+
+/// <summary>
+/// Manages tool instances. Each instance is a preconfigured, model-invokable tool created from a registered
+/// source; the built-in HTTP API request source carries its own endpoint, authentication, headers, and a
+/// description used to disambiguate instances.
+/// </summary>
+[Area("Tooling")]
+[Authorize(Policy = "Admin")]
+public sealed class AIToolInstanceController : Controller
+{
+    private static readonly JsonSerializerOptions _indentedJsonOptions = new()
+    {
+        WriteIndented = true,
+    };
+
+    private readonly ISourceCatalog<AIToolInstance> _catalog;
+    private readonly IDataProtectionProvider _dataProtectionProvider;
+    private readonly TimeProvider _timeProvider;
+    private readonly AIOptions _aiOptions;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIToolInstanceController"/> class.
+    /// </summary>
+    /// <param name="catalog">The tool instance catalog.</param>
+    /// <param name="dataProtectionProvider">The data protection provider used to protect secrets.</param>
+    /// <param name="timeProvider">The time provider used for timestamps.</param>
+    /// <param name="aiOptions">The AI options used to enumerate registered tool instance sources.</param>
+    public AIToolInstanceController(
+        ISourceCatalog<AIToolInstance> catalog,
+        IDataProtectionProvider dataProtectionProvider,
+        TimeProvider timeProvider,
+        IOptions<AIOptions> aiOptions)
+    {
+        _catalog = catalog;
+        _dataProtectionProvider = dataProtectionProvider;
+        _timeProvider = timeProvider;
+        _aiOptions = aiOptions.Value;
+    }
+
+    /// <summary>
+    /// Lists all configured tool instances.
+    /// </summary>
+    public async Task<IActionResult> Index()
+    {
+        var items = (await _catalog.GetAllAsync())
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return View(items);
+    }
+
+    /// <summary>
+    /// Renders the create form.
+    /// </summary>
+    public IActionResult Create()
+    {
+        var sources = BuildSourceList();
+
+        return View(new AIToolInstanceViewModel
+        {
+            Source = sources.FirstOrDefault()?.Value ?? HttpApiRequestToolConstants.SourceName,
+            Sources = sources,
+            DefaultHeaders = "{}",
+        });
+    }
+
+    /// <summary>
+    /// Handles the create form submission.
+    /// </summary>
+    /// <param name="model">The submitted view model.</param>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(AIToolInstanceViewModel model)
+    {
+        await ValidateAsync(model, false);
+
+        if (!ModelState.IsValid)
+        {
+            model.Sources = BuildSourceList();
+
+            return View(model);
+        }
+
+        var instance = new AIToolInstance
+        {
+            ItemId = UniqueId.GenerateId(),
+            Source = model.Source,
+            CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime,
+        };
+
+        Apply(model, instance, isNew: true);
+
+        await _catalog.CreateAsync(instance);
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Renders the edit form.
+    /// </summary>
+    /// <param name="id">The instance identifier.</param>
+    public async Task<IActionResult> Edit(string id)
+    {
+        var instance = await _catalog.FindByIdAsync(id);
+
+        if (instance == null)
+        {
+            return NotFound();
+        }
+
+        return View(ToViewModel(instance));
+    }
+
+    /// <summary>
+    /// Handles the edit form submission.
+    /// </summary>
+    /// <param name="model">The submitted view model.</param>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(AIToolInstanceViewModel model)
+    {
+        var instance = await _catalog.FindByIdAsync(model.ItemId);
+
+        if (instance == null)
+        {
+            return NotFound();
+        }
+
+        model.Source = instance.Source;
+
+        await ValidateAsync(model, true);
+
+        if (!ModelState.IsValid)
+        {
+            model.Sources = BuildSourceList();
+
+            return View(model);
+        }
+
+        Apply(model, instance, isNew: false);
+
+        await _catalog.UpdateAsync(instance);
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Deletes a tool instance.
+    /// </summary>
+    /// <param name="id">The instance identifier.</param>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(string id)
+    {
+        var instance = await _catalog.FindByIdAsync(id);
+
+        if (instance == null)
+        {
+            return NotFound();
+        }
+
+        await _catalog.DeleteAsync(instance);
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    private List<SelectListItem> BuildSourceList()
+    {
+        return _aiOptions.ToolInstanceSources
+            .OrderBy(entry => entry.Value.DisplayName?.Value ?? entry.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(entry => new SelectListItem
+            {
+                Value = entry.Key,
+                Text = entry.Value.DisplayName?.Value ?? entry.Key,
+            })
+            .ToList();
+    }
+
+    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing)
+    {
+        if (string.IsNullOrWhiteSpace(model.Source))
+        {
+            ModelState.AddModelError(nameof(model.Source), "A source is required.");
+        }
+        else if (!_aiOptions.ToolInstanceSources.ContainsKey(model.Source))
+        {
+            ModelState.AddModelError(nameof(model.Source), "The selected source is not registered.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Name))
+        {
+            ModelState.AddModelError(nameof(model.Name), "A unique name is required.");
+        }
+        else
+        {
+            await ValidateUniqueNameAsync(model.Name, model.ItemId);
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Description))
+        {
+            ModelState.AddModelError(nameof(model.Description), "A description is required so the AI model can tell instances apart.");
+        }
+
+        if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.BaseUrl))
+        {
+            ModelState.AddModelError(nameof(model.BaseUrl), "Base URL is required.");
+        }
+        else if (!Uri.TryCreate(model.BaseUrl, UriKind.Absolute, out _))
+        {
+            ModelState.AddModelError(nameof(model.BaseUrl), "Base URL must be a valid absolute URL.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.HttpMethod))
+        {
+            ModelState.AddModelError(nameof(model.HttpMethod), "HTTP method is required.");
+        }
+
+        switch (model.AuthenticationType)
+        {
+            case HttpApiRequestAuthenticationType.ApiKey:
+                if (string.IsNullOrWhiteSpace(model.ApiKeyHeaderName))
+                {
+                    ModelState.AddModelError(nameof(model.ApiKeyHeaderName), "API key header name is required.");
+                }
+
+                if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
+                {
+                    ModelState.AddModelError(nameof(model.ApiKey), "API key is required.");
+                }
+
+                break;
+            case HttpApiRequestAuthenticationType.Bearer:
+                if ((!isEditing || !model.HasBearerToken) && string.IsNullOrWhiteSpace(model.BearerToken))
+                {
+                    ModelState.AddModelError(nameof(model.BearerToken), "Bearer token is required.");
+                }
+
+                break;
+            case HttpApiRequestAuthenticationType.Basic:
+                if (string.IsNullOrWhiteSpace(model.Username))
+                {
+                    ModelState.AddModelError(nameof(model.Username), "Username is required.");
+                }
+
+                if ((!isEditing || !model.HasPassword) && string.IsNullOrWhiteSpace(model.Password))
+                {
+                    ModelState.AddModelError(nameof(model.Password), "Password is required.");
+                }
+
+                break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                if (string.IsNullOrWhiteSpace(model.TokenEndpoint))
+                {
+                    ModelState.AddModelError(nameof(model.TokenEndpoint), "Token endpoint is required.");
+                }
+                else if (!Uri.TryCreate(model.TokenEndpoint, UriKind.Absolute, out _))
+                {
+                    ModelState.AddModelError(nameof(model.TokenEndpoint), "Token endpoint must be a valid absolute URL.");
+                }
+
+                if (string.IsNullOrWhiteSpace(model.ClientId))
+                {
+                    ModelState.AddModelError(nameof(model.ClientId), "Client ID is required.");
+                }
+
+                if ((!isEditing || !model.HasClientSecret) && string.IsNullOrWhiteSpace(model.ClientSecret))
+                {
+                    ModelState.AddModelError(nameof(model.ClientSecret), "Client secret is required.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Username) &&
+                    (!isEditing || !model.HasPassword) &&
+                    string.IsNullOrWhiteSpace(model.Password))
+                {
+                    ModelState.AddModelError(nameof(model.Password), "Password is required when a username is provided.");
+                }
+
+                break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(model.DefaultHeaders))
+        {
+            try
+            {
+                _ = JsonSerializer.Deserialize<Dictionary<string, string>>(model.DefaultHeaders);
+            }
+            catch (JsonException)
+            {
+                ModelState.AddModelError(nameof(model.DefaultHeaders), "Default headers must be a valid JSON object.");
+            }
+        }
+
+        if (model.TimeoutSeconds is < 1 or > 600)
+        {
+            ModelState.AddModelError(nameof(model.TimeoutSeconds), "Timeout must be between 1 and 600 seconds.");
+        }
+    }
+
+    private async Task ValidateUniqueNameAsync(string name, string currentItemId)
+    {
+        var existing = await _catalog.GetAllAsync();
+
+        var duplicate = existing.Any(entry =>
+            !string.Equals(entry.ItemId, currentItemId, StringComparison.Ordinal) &&
+            string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (duplicate)
+        {
+            ModelState.AddModelError(nameof(AIToolInstanceViewModel.Name), "A tool instance with this name already exists. The name must be unique.");
+        }
+    }
+
+    private void Apply(AIToolInstanceViewModel model, AIToolInstance instance, bool isNew)
+    {
+        if (isNew)
+        {
+            instance.Name = model.Name.Trim();
+        }
+
+        instance.Description = model.Description.Trim();
+        instance.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        var protector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
+        var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = model.BaseUrl?.Trim(),
+            HttpMethod = string.IsNullOrWhiteSpace(model.HttpMethod) ? "GET" : model.HttpMethod.Trim().ToUpperInvariant(),
+            AuthenticationType = model.AuthenticationType,
+            AllowModelProvidedPath = model.AllowModelProvidedPath,
+            AllowModelProvidedQuery = model.AllowModelProvidedQuery,
+            AllowModelProvidedBody = model.AllowModelProvidedBody,
+            TimeoutSeconds = model.TimeoutSeconds,
+            DefaultHeaders = string.IsNullOrWhiteSpace(model.DefaultHeaders)
+                ? []
+                : JsonSerializer.Deserialize<Dictionary<string, string>>(model.DefaultHeaders) ?? [],
+        };
+
+        switch (model.AuthenticationType)
+        {
+            case HttpApiRequestAuthenticationType.ApiKey:
+                settings.ApiKeyHeaderName = model.ApiKeyHeaderName?.Trim();
+                settings.ApiKey = ProtectOrReuse(model.ApiKey, existing.ApiKey, protector);
+                break;
+            case HttpApiRequestAuthenticationType.Bearer:
+                settings.BearerToken = ProtectOrReuse(model.BearerToken, existing.BearerToken, protector);
+                break;
+            case HttpApiRequestAuthenticationType.Basic:
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
+                break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                settings.TokenEndpoint = model.TokenEndpoint?.Trim();
+                settings.ClientId = model.ClientId?.Trim();
+                settings.ClientSecret = ProtectOrReuse(model.ClientSecret, existing.ClientSecret, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
+                settings.Scope = model.Scope?.Trim();
+                break;
+        }
+
+        instance.Put(settings);
+    }
+
+    private static string ProtectOrReuse(string newValue, string existingValue, IDataProtector protector)
+    {
+        return string.IsNullOrWhiteSpace(newValue) ? existingValue : protector.Protect(newValue);
+    }
+
+    private static AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
+    {
+        var model = new AIToolInstanceViewModel
+        {
+            ItemId = instance.ItemId,
+            Source = instance.Source,
+            Name = instance.Name,
+            Description = instance.Description,
+            DefaultHeaders = "{}",
+        };
+
+        if (instance.TryGet<HttpApiRequestToolSettings>(out var settings))
+        {
+            model.BaseUrl = settings.BaseUrl;
+            model.HttpMethod = string.IsNullOrWhiteSpace(settings.HttpMethod) ? "GET" : settings.HttpMethod;
+            model.AuthenticationType = settings.AuthenticationType;
+            model.ApiKeyHeaderName = string.IsNullOrWhiteSpace(settings.ApiKeyHeaderName) ? "X-Api-Key" : settings.ApiKeyHeaderName;
+            model.HasApiKey = !string.IsNullOrEmpty(settings.ApiKey);
+            model.HasBearerToken = !string.IsNullOrEmpty(settings.BearerToken);
+            model.Username = settings.Username;
+            model.HasPassword = !string.IsNullOrEmpty(settings.Password);
+            model.TokenEndpoint = settings.TokenEndpoint;
+            model.ClientId = settings.ClientId;
+            model.HasClientSecret = !string.IsNullOrEmpty(settings.ClientSecret);
+            model.Scope = settings.Scope;
+            model.AllowModelProvidedPath = settings.AllowModelProvidedPath;
+            model.AllowModelProvidedQuery = settings.AllowModelProvidedQuery;
+            model.AllowModelProvidedBody = settings.AllowModelProvidedBody;
+            model.TimeoutSeconds = settings.TimeoutSeconds;
+            model.DefaultHeaders = settings.DefaultHeaders is { Count: > 0 }
+                ? JsonSerializer.Serialize(settings.DefaultHeaders, _indentedJsonOptions)
+                : "{}";
+        }
+
+        return model;
+    }
+}

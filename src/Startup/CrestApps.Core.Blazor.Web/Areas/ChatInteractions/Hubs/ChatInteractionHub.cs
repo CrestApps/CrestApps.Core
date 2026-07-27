@@ -1,10 +1,14 @@
+using System.Text.Json;
 using CrestApps.Core.AI.Chat.Hubs;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models;
+using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Hubs;
 
@@ -54,6 +58,27 @@ public sealed class ChatInteractionHub : ChatInteractionHubBase
         var settings = _siteSettings.Get<ChatInteractionSettings>();
 
         return Task.FromResult(settings.EnableTextToSpeechPlayback);
+    }
+
+    protected override async Task ApplyCoreSettingsAsync(
+        IServiceProvider services,
+        ChatInteraction interaction,
+        JsonElement settings)
+    {
+        await base.ApplyCoreSettingsAsync(services, interaction, settings);
+
+        var validToolInstanceNames = (await services.GetRequiredService<ISourceCatalog<AIToolInstance>>().GetAllAsync())
+            .Select(instance => instance.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        interaction.Alter<AIToolInstanceMetadata>(metadata =>
+        {
+            metadata.ToolInstanceNames = (JsonHelper.GetStringArray(settings, "toolInstanceNames") ?? [])
+                .Where(name => !string.IsNullOrWhiteSpace(name) && validToolInstanceNames.Contains(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        });
     }
 
     protected override Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)

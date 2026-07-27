@@ -20,11 +20,13 @@ using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.PostgreSQL;
+using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Endpoints;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Hubs;
+using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Handlers;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
 using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Mvc.Web.Tools;
@@ -121,6 +123,10 @@ builder.Services
         .AddMcpClient(mcp => mcp
             .AddYesSqlStores()
         )
+        .AddToolInstances(toolInstances => toolInstances
+            .AddHttpApiRequestSource()
+            .AddYesSqlStores()
+        )
         .AddMcpServer(mcpServer => mcpServer
             .AddYesSqlStores()
             .AddFtpResources()
@@ -179,6 +185,8 @@ builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
     .WithDescription("Logs an email request with the supplied recipient, subject, and message.")
     .WithCategory("Communications")
     .Selectable();
+
+builder.Services.AddScoped<IChatInteractionSettingsHandler, AIToolInstanceChatInteractionSettingsHandler>();
 
 // =============================================================================
 // 5. BACKGROUND TASKS AND PIPELINE

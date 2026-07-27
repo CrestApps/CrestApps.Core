@@ -1,0 +1,238 @@
+@using CrestApps.Core.AI.Tooling.Instances
+@using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels
+@model AIToolInstanceViewModel
+
+<form asp-action="@(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Edit")" method="post">
+    @if (!string.IsNullOrEmpty(Model.ItemId))
+    {
+        <input asp-for="ItemId" type="hidden" />
+    }
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label asp-for="Source" class="form-label">Source <span class="text-danger">*</span></label>
+                @if (string.IsNullOrEmpty(Model.ItemId))
+                {
+                    <select asp-for="Source" class="form-select" asp-items="Model.Sources" id="sourceSelect">
+                        <option value="">Select source</option>
+                    </select>
+                    <span asp-validation-for="Source" class="text-danger"></span>
+                    <div class="form-text">Choose the tool source. The fields below change based on the selected source.</div>
+                }
+                else
+                {
+                    <input asp-for="Source" type="hidden" />
+                    <input class="form-control" value="@Model.Source" readonly id="sourceSelect" />
+                    <div class="form-text">The source is fixed after creation.</div>
+                }
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">Name <span class="text-danger">*</span></label>
+                @if (string.IsNullOrEmpty(Model.ItemId))
+                {
+                    <input asp-for="Name" class="form-control" required placeholder="e.g., Weather API" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                    <div class="form-text">Shown in the UI. The model function name is derived from this value, so it must be unique. It cannot be changed after creation.</div>
+                }
+                else
+                {
+                    <input asp-for="Name" class="form-control" readonly />
+                    <div class="form-text">The name is fixed after creation because profiles and chat interactions reference this instance by name.</div>
+                }
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label">Description (shown to the AI model)</label>
+                <textarea asp-for="Description" class="form-control" rows="3"
+                          placeholder="Gets the current weather for a city from the Weather API. Use this when the user asks about the weather."></textarea>
+                <div class="form-text">Describe exactly what this instance does so the model can distinguish it from other instances.</div>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+
+            <div class="source-fields" data-source="http-api-request">
+            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
+
+
+            <div class="mb-3">
+                <label asp-for="BaseUrl" class="form-label">Base URL</label>
+                <input asp-for="BaseUrl" class="form-control" placeholder="https://api.example.com/v1/resource" />
+                <span asp-validation-for="BaseUrl" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="HttpMethod" class="form-label">HTTP method</label>
+                <select asp-for="HttpMethod" class="form-select">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+                <span asp-validation-for="HttpMethod" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="DefaultHeaders" class="form-label">Default headers (JSON object)</label>
+                <textarea asp-for="DefaultHeaders" class="form-control" rows="4" placeholder="{ &quot;Accept&quot;: &quot;application/json&quot; }"></textarea>
+                <span asp-validation-for="DefaultHeaders" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="TimeoutSeconds" class="form-label">Timeout (seconds, optional)</label>
+                <input asp-for="TimeoutSeconds" class="form-control" type="number" min="1" max="600" placeholder="30" />
+                <span asp-validation-for="TimeoutSeconds" class="text-danger"></span>
+            </div>
+
+            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-shield-lock"></i> Authentication</h5>
+
+            <div class="mb-3">
+                <label asp-for="AuthenticationType" class="form-label">Authentication type</label>
+                <select asp-for="AuthenticationType" class="form-select" id="authType">
+                    @foreach (var authType in Enum.GetValues<HttpApiRequestAuthenticationType>())
+                    {
+                        <option value="@((int)authType)" data-auth-type="@authType">@authType</option>
+                    }
+                </select>
+            </div>
+
+            <div id="apiKeyFields" class="auth-fields">
+                <div class="mb-3">
+                    <label asp-for="ApiKeyHeaderName" class="form-label">API key header name</label>
+                    <input asp-for="ApiKeyHeaderName" class="form-control" placeholder="X-Api-Key" />
+                    <span asp-validation-for="ApiKeyHeaderName" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="ApiKey" class="form-label">API key</label>
+                    <input asp-for="ApiKey" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasApiKey)
+                    {
+                        <div class="form-text">Leave blank to keep the existing API key.</div>
+                    }
+                    <span asp-validation-for="ApiKey" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div id="bearerFields" class="auth-fields">
+                <div class="mb-3">
+                    <label asp-for="BearerToken" class="form-label">Bearer token</label>
+                    <input asp-for="BearerToken" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasBearerToken)
+                    {
+                        <div class="form-text">Leave blank to keep the existing bearer token.</div>
+                    }
+                    <span asp-validation-for="BearerToken" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div id="credentialFields" class="auth-fields">
+                <div class="mb-3">
+                    <label asp-for="Username" class="form-label">Username</label>
+                    <input asp-for="Username" class="form-control" />
+                    <span asp-validation-for="Username" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label">Password</label>
+                    <input asp-for="Password" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasPassword)
+                    {
+                        <div class="form-text">Leave blank to keep the existing password.</div>
+                    }
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div id="oauth2Fields" class="auth-fields">
+                <div class="mb-3">
+                    <label asp-for="TokenEndpoint" class="form-label">Token endpoint</label>
+                    <input asp-for="TokenEndpoint" class="form-control" placeholder="https://login.example.com/oauth2/token" />
+                    <span asp-validation-for="TokenEndpoint" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="ClientId" class="form-label">Client ID</label>
+                    <input asp-for="ClientId" class="form-control" autocomplete="off" />
+                    <span asp-validation-for="ClientId" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="ClientSecret" class="form-label">Client secret</label>
+                    <input asp-for="ClientSecret" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasClientSecret)
+                    {
+                        <div class="form-text">Leave blank to keep the existing client secret.</div>
+                    }
+                    <span asp-validation-for="ClientSecret" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Scope" class="form-label">Scope (optional)</label>
+                    <input asp-for="Scope" class="form-control" placeholder="api://resource/.default" />
+                    <span asp-validation-for="Scope" class="text-danger"></span>
+                </div>
+                <div class="form-text">The access token is requested on demand, cached securely on the instance, and refreshed automatically. Providing a username uses the OAuth 2.0 password grant.</div>
+            </div>
+
+            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
+            <p class="text-muted small">Choose which parts of the request the AI model is allowed to fill in at invocation time.</p>
+
+            <div class="form-check mb-2">
+                <input asp-for="AllowModelProvidedPath" class="form-check-input" type="checkbox" />
+                <label asp-for="AllowModelProvidedPath" class="form-check-label">Allow the model to provide a relative path appended to the base URL</label>
+            </div>
+            <div class="form-check mb-2">
+                <input asp-for="AllowModelProvidedQuery" class="form-check-input" type="checkbox" />
+                <label asp-for="AllowModelProvidedQuery" class="form-check-label">Allow the model to provide query string parameters</label>
+            </div>
+            <div class="form-check mb-2">
+                <input asp-for="AllowModelProvidedBody" class="form-check-input" type="checkbox" />
+                <label asp-for="AllowModelProvidedBody" class="form-check-label">Allow the model to provide a request body</label>
+            </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const sourceSelect = document.getElementById('sourceSelect');
+        const authType = document.getElementById('authType');
+        const authGroups = {
+            ApiKey: ['apiKeyFields'],
+            Bearer: ['bearerFields'],
+            Basic: ['credentialFields'],
+            OAuth2: ['oauth2Fields', 'credentialFields']
+        };
+
+        function updateSourceVisibility() {
+            const selectedSource = sourceSelect ? sourceSelect.value : null;
+            document.querySelectorAll('.source-fields').forEach(element => {
+                element.style.display = element.dataset.source === selectedSource ? '' : 'none';
+            });
+        }
+
+        function updateAuthVisibility() {
+            document.querySelectorAll('.auth-fields').forEach(element => element.style.display = 'none');
+            const selectedAuthType = authType && authType.selectedOptions.length > 0 ? authType.selectedOptions[0].dataset.authType : null;
+            (authGroups[selectedAuthType] || []).forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.style.display = '';
+                }
+            });
+        }
+
+        if (sourceSelect) {
+            sourceSelect.addEventListener('change', updateSourceVisibility);
+        }
+
+        if (authType) {
+            authType.addEventListener('change', updateAuthVisibility);
+        }
+
+        updateSourceVisibility();
+        updateAuthVisibility();
+    });
+</script>

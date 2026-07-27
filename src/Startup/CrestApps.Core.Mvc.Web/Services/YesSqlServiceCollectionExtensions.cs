@@ -19,6 +19,7 @@ using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
+using CrestApps.Core.Data.YesSql.Indexes.Tooling;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.Indexes;
@@ -143,6 +144,7 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProviderConnectionIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateA2AConnectionIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateMcpConnectionIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateAIToolInstanceIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateMcpPromptIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateMcpResourceIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIDeploymentIndexSchemaAsync(storeOptions));

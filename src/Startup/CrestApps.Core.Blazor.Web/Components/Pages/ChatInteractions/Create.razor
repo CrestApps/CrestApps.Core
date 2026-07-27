@@ -24,6 +24,7 @@
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2AConnectionCatalog
 @inject ICatalog<McpConnection> McpConnectionCatalog
+@inject ISourceCatalog<AIToolInstance> ToolInstanceCatalog
 @inject ICatalog<AIDataSource> DataSourceCatalog
 @inject IAIProfileManager ProfileManager
 @inject IAIProfileTemplateManager TemplateManager
@@ -305,6 +306,34 @@
                         }
                     }
 
+                    <!-- AI Tool Instances -->
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> Tool Instances</h6>
+                    @if (_model.AvailableToolInstances.Count == 0)
+                    {
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i> No tool instances are configured.
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-3 small">Select the preconfigured tool instances this interaction can use. Each instance carries its own settings and description.</p>
+                        @foreach (var instance in _model.AvailableToolInstances)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="toolinstance_@instance.ItemId" checked="@instance.IsSelected"
+                                       @onchange="(e) => instance.IsSelected = (bool)e.Value" />
+                                <label class="form-check-label" for="toolinstance_@instance.ItemId">
+                                    <strong>@instance.Name</strong>
+                                    <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                    @if (!string.IsNullOrEmpty(instance.Description))
+                                    {
+                                        <br /><small class="text-muted">@instance.Description</small>
+                                    }
+                                </label>
+                            </div>
+                        }
+                    }
+
                     <!-- A2A Connections -->
                     <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> Agent to Agent Hosts</h6>
                     @if (_model.AvailableA2AConnections.Count == 0)
@@ -512,6 +541,21 @@
             .OrderBy(t => t.Category).ThenBy(t => t.Title)
             .ToList();
 
+        // AI Tool Instances
+        var toolInstances = await ToolInstanceCatalog.GetAllAsync();
+        var selectedToolInstanceNames = new HashSet<string>(_model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);
+        _model.AvailableToolInstances = toolInstances
+            .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(i => new AIToolInstanceSelectionItem
+            {
+                ItemId = i.ItemId,
+                Name = i.Name,
+                Description = i.Description,
+                Source = i.Source,
+                IsSelected = selectedToolInstanceNames.Contains(i.Name),
+            })
+            .ToList();
+
         // AI Agents
         var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
         _model.AvailableAgents = agentProfiles
@@ -628,8 +672,17 @@
         interaction.A2AConnectionIds = _model.AvailableA2AConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToList();
         interaction.McpConnectionIds = _model.AvailableMcpConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToList();
         interaction.ToolNames = _model.AvailableTools.Where(t => t.IsSelected).Select(t => t.Name).ToList();
+        _model.SelectedToolInstanceNames = _model.AvailableToolInstances.Where(i => i.IsSelected).Select(i => i.Name).ToArray();
         interaction.AgentNames = _model.AvailableAgents.Where(a => a.IsSelected).Select(a => a.Name).ToList();
         interaction.CreatedUtc = DateTime.UtcNow;
+
+        interaction.Alter<AIToolInstanceMetadata>(metadata =>
+        {
+            metadata.ToolInstanceNames = _model.SelectedToolInstanceNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        });
 
         if (!string.IsNullOrWhiteSpace(_model.DataSourceId))
         {

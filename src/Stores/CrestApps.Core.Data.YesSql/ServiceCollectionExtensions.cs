@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Security;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.YesSql.Indexes;
 using CrestApps.Core.Data.YesSql.Indexes.A2A;
@@ -20,6 +21,7 @@ using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
+using CrestApps.Core.Data.YesSql.Indexes.Tooling;
 using CrestApps.Core.Data.YesSql.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Models;
@@ -233,6 +235,36 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreIndexingStoresYesSql();
 
         return builder;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the AI tool instances feature on the tool instances builder.
+    /// This includes a named-source document catalog for <see cref="AIToolInstance"/> and its index provider.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAIToolInstancesBuilder AddYesSqlStores(this CrestAppsAIToolInstancesBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIToolInstanceStoresYesSql();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the AI tool instances feature.
+    /// This includes a named-source document catalog for <see cref="AIToolInstance"/> and its index provider.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIToolInstanceStoresYesSql(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        AddYesSqlNamedSourceDocumentCatalog<AIToolInstance, AIToolInstanceIndex>(services, static o => o.AICollectionName);
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIToolInstanceIndexProvider>());
+
+        return services;
     }
 
     /// <summary>

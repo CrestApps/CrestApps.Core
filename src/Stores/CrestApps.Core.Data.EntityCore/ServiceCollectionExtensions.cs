@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Security;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -89,6 +90,7 @@ public static class ServiceCollectionExtensions
             .AddCatalogManagers();
 
         services.AddCoreAIServicesStoresEntityCore();
+        services.AddCoreAIToolInstanceStoresEntityCore();
         services.AddCoreAIProfileTemplateStoresEntityCore();
         services.AddCoreAIA2AClientStoresEntityCore();
         services.AddCoreAIMcpClientStoresEntityCore();
@@ -127,6 +129,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INamedSourceCatalog<AIProfile>>(sp => sp.GetRequiredService<EntityCoreAIProfileStore>());
         services.AddEntityCoreNamedSourceBindingSource<AIProviderConnection>();
         services.AddEntityCoreNamedSourceBindingSource<AIDeployment>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the AI tool instances feature.
+    /// This includes a named-source document catalog for <see cref="AIToolInstance"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIToolInstanceStoresEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddNamedSourceDocumentCatalog<AIToolInstance, NamedSourceDocumentCatalog<AIToolInstance>>();
 
         return services;
     }
@@ -466,6 +482,20 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddCoreAIDocumentProcessingStoresEntityCore();
         builder.Services.AddCoreAIDataSourceStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the AI tool instances feature on the tool instances builder.
+    /// This includes a named-source document catalog for <see cref="AIToolInstance"/>.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAIToolInstancesBuilder AddEntityCoreStores(this CrestAppsAIToolInstancesBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIToolInstanceStoresEntityCore();
 
         return builder;
     }

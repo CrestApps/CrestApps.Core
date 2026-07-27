@@ -1,0 +1,437 @@
+@page "/tooling/instances/create"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text.Json
+@using CrestApps.Core
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.AI.Tooling.Instances
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject ISourceCatalog<AIToolInstance> Catalog
+@inject IDataProtectionProvider DataProtectionProvider
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject TimeProvider TimeProvider
+@inject IOptions<AIOptions> AIOptions
+
+<PageTitle>Create Tool Instance</PageTitle>
+
+<h2><i class="bi bi-plus-circle"></i> Create Tool Instance</h2>
+<hr />
+
+<EditForm FormName="tooling-toolinstances-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <DataAnnotationsValidator />
+
+    <div class="col-md-8">
+        @if (_errors.Count > 0)
+        {
+            <div class="alert alert-danger">
+                @foreach (var error in _errors)
+                {
+                    <div>@error</div>
+                }
+            </div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label">Source <span class="text-danger">*</span></label>
+            <select class="form-select" value="@_model.Source" @onchange="OnSourceChanged">
+                <option value="">Select source</option>
+                @foreach (var source in AIOptions.Value.ToolInstanceSources)
+                {
+                    <option value="@source.Key" selected="@string.Equals(source.Key, _model.Source, StringComparison.OrdinalIgnoreCase)">@(source.Value.DisplayName?.Value ?? source.Key)</option>
+                }
+            </select>
+            <div class="form-text">Choose the tool source. The fields below change based on the selected source.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Name <span class="text-danger">*</span></label>
+            <InputText @bind-Value="_model.Name" class="form-control" placeholder="WeatherApi" />
+            <div class="form-text">This becomes the unique function name exposed to the AI model, so it must be unique.</div>
+            <ValidationMessage For="() => _model.Name" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Description (shown to the AI model)</label>
+            <InputTextArea @bind-Value="_model.Description" class="form-control" rows="3"
+                           placeholder="Gets the current weather for a city from the Weather API. Use this when the user asks about the weather." />
+            <div class="form-text">Describe exactly what this instance does so the model can distinguish it from other instances.</div>
+            <ValidationMessage For="() => _model.Description" />
+        </div>
+
+        @if (string.Equals(_model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+        <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
+
+        <div class="mb-3">
+            <label class="form-label">Base URL</label>
+            <InputText @bind-Value="_model.BaseUrl" class="form-control" placeholder="https://api.example.com/v1/resource" />
+            <ValidationMessage For="() => _model.BaseUrl" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">HTTP method</label>
+            <InputSelect @bind-Value="_model.HttpMethod" class="form-select">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+                <option value="DELETE">DELETE</option>
+            </InputSelect>
+            <ValidationMessage For="() => _model.HttpMethod" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Default headers (JSON object)</label>
+            <InputTextArea @bind-Value="_model.DefaultHeaders" class="form-control" rows="4" placeholder="{ &quot;Accept&quot;: &quot;application/json&quot; }" />
+            <ValidationMessage For="() => _model.DefaultHeaders" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Timeout (seconds, optional)</label>
+            <InputNumber @bind-Value="_model.TimeoutSeconds" class="form-control" min="1" max="600" placeholder="30" />
+            <ValidationMessage For="() => _model.TimeoutSeconds" />
+        </div>
+
+        <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-shield-lock"></i> Authentication</h5>
+
+        <div class="mb-3">
+            <label class="form-label">Authentication type</label>
+            <InputSelect @bind-Value="_model.AuthenticationType" class="form-select">
+                @foreach (var authType in Enum.GetValues<HttpApiRequestAuthenticationType>())
+                {
+                    <option value="@authType">@authType</option>
+                }
+            </InputSelect>
+        </div>
+
+        @if (_model.AuthenticationType == HttpApiRequestAuthenticationType.ApiKey)
+        {
+            <div class="mb-3">
+                <label class="form-label">API key header name</label>
+                <InputText @bind-Value="_model.ApiKeyHeaderName" class="form-control" placeholder="X-Api-Key" />
+                <ValidationMessage For="() => _model.ApiKeyHeaderName" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">API key</label>
+                <input type="password" class="form-control" @bind="_model.ApiKey" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.ApiKey" />
+            </div>
+        }
+
+        @if (_model.AuthenticationType == HttpApiRequestAuthenticationType.Bearer)
+        {
+            <div class="mb-3">
+                <label class="form-label">Bearer token</label>
+                <input type="password" class="form-control" @bind="_model.BearerToken" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.BearerToken" />
+            </div>
+        }
+
+        @if (_model.AuthenticationType == HttpApiRequestAuthenticationType.Basic)
+        {
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <InputText @bind-Value="_model.Username" class="form-control" />
+                <ValidationMessage For="() => _model.Username" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" @bind="_model.Password" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.Password" />
+            </div>
+        }
+
+        @if (_model.AuthenticationType == HttpApiRequestAuthenticationType.OAuth2)
+        {
+            <div class="mb-3">
+                <label class="form-label">Token endpoint</label>
+                <InputText @bind-Value="_model.TokenEndpoint" class="form-control" placeholder="https://login.example.com/oauth2/token" />
+                <ValidationMessage For="() => _model.TokenEndpoint" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Client ID</label>
+                <InputText @bind-Value="_model.ClientId" class="form-control" autocomplete="off" />
+                <ValidationMessage For="() => _model.ClientId" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Client secret</label>
+                <input type="password" class="form-control" @bind="_model.ClientSecret" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.ClientSecret" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Username (optional)</label>
+                <InputText @bind-Value="_model.Username" class="form-control" />
+                <ValidationMessage For="() => _model.Username" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" @bind="_model.Password" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.Password" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Scope (optional)</label>
+                <InputText @bind-Value="_model.Scope" class="form-control" placeholder="api://resource/.default" />
+            </div>
+
+            <p class="text-muted small">The access token is requested on demand, cached securely on the instance, and refreshed automatically. Providing a username uses the OAuth 2.0 password grant.</p>
+        }
+
+        <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
+        <p class="text-muted small">Choose which parts of the request the AI model is allowed to fill in at invocation time.</p>
+
+        <div class="form-check mb-2">
+            <InputCheckbox @bind-Value="_model.AllowModelProvidedPath" class="form-check-input" />
+            <label class="form-check-label">Allow the model to provide a relative path appended to the base URL</label>
+        </div>
+        <div class="form-check mb-2">
+            <InputCheckbox @bind-Value="_model.AllowModelProvidedQuery" class="form-check-input" />
+            <label class="form-check-label">Allow the model to provide query string parameters</label>
+        </div>
+        <div class="form-check mb-2">
+            <InputCheckbox @bind-Value="_model.AllowModelProvidedBody" class="form-check-input" />
+            <label class="form-check-label">Allow the model to provide a request body</label>
+        </div>
+        }
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create</button>
+            <a href="/tooling/instances" class="btn btn-secondary">Cancel</a>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private AIToolInstanceViewModel _model = new()
+    {
+        Source = HttpApiRequestToolConstants.SourceName,
+        DefaultHeaders = "{}",
+    };
+
+    private List<string> _errors = [];
+
+    private void OnSourceChanged(ChangeEventArgs e)
+    {
+        _model.Source = e.Value?.ToString();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors.Clear();
+        await ValidateAsync(_model, false);
+
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        var instance = new AIToolInstance
+        {
+            ItemId = UniqueId.GenerateId(),
+            Source = _model.Source,
+            CreatedUtc = TimeProvider.GetUtcNow().UtcDateTime,
+        };
+
+        Apply(_model, instance);
+        await Catalog.CreateAsync(instance);
+        await StoreCommitter.CommitAsync();
+        Navigation.NavigateTo("/tooling/instances");
+    }
+
+    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing)
+    {
+        if (string.IsNullOrWhiteSpace(model.Source))
+        {
+            _errors.Add("A source is required.");
+        }
+        else if (!AIOptions.Value.ToolInstanceSources.ContainsKey(model.Source))
+        {
+            _errors.Add("The selected source is not registered.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Name))
+        {
+            _errors.Add("A unique technical name is required.");
+        }
+        else if (await IsDuplicateNameAsync(model.Name, model.ItemId))
+        {
+            _errors.Add("A tool instance with this name already exists. The name must be unique.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Description))
+        {
+            _errors.Add("A description is required so the AI model can tell instances apart.");
+        }
+
+        if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.BaseUrl))
+        {
+            _errors.Add("Base URL is required.");
+        }
+        else if (!Uri.TryCreate(model.BaseUrl, UriKind.Absolute, out _))
+        {
+            _errors.Add("Base URL must be a valid absolute URL.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.HttpMethod))
+        {
+            _errors.Add("HTTP method is required.");
+        }
+
+        switch (model.AuthenticationType)
+        {
+            case HttpApiRequestAuthenticationType.ApiKey:
+                if (string.IsNullOrWhiteSpace(model.ApiKeyHeaderName))
+                {
+                    _errors.Add("API key header name is required.");
+                }
+
+                if ((!isEditing || !model.HasApiKey) && string.IsNullOrWhiteSpace(model.ApiKey))
+                {
+                    _errors.Add("API key is required.");
+                }
+
+                break;
+            case HttpApiRequestAuthenticationType.Bearer:
+                if ((!isEditing || !model.HasBearerToken) && string.IsNullOrWhiteSpace(model.BearerToken))
+                {
+                    _errors.Add("Bearer token is required.");
+                }
+
+                break;
+            case HttpApiRequestAuthenticationType.Basic:
+                if (string.IsNullOrWhiteSpace(model.Username))
+                {
+                    _errors.Add("Username is required.");
+                }
+
+                if ((!isEditing || !model.HasPassword) && string.IsNullOrWhiteSpace(model.Password))
+                {
+                    _errors.Add("Password is required.");
+                }
+
+                break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                if (string.IsNullOrWhiteSpace(model.TokenEndpoint))
+                {
+                    _errors.Add("Token endpoint is required.");
+                }
+                else if (!Uri.TryCreate(model.TokenEndpoint, UriKind.Absolute, out _))
+                {
+                    _errors.Add("Token endpoint must be a valid absolute URL.");
+                }
+
+                if (string.IsNullOrWhiteSpace(model.ClientId))
+                {
+                    _errors.Add("Client ID is required.");
+                }
+
+                if ((!isEditing || !model.HasClientSecret) && string.IsNullOrWhiteSpace(model.ClientSecret))
+                {
+                    _errors.Add("Client secret is required.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Username) &&
+                    (!isEditing || !model.HasPassword) &&
+                    string.IsNullOrWhiteSpace(model.Password))
+                {
+                    _errors.Add("Password is required when a username is provided.");
+                }
+
+                break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(model.DefaultHeaders))
+        {
+            try
+            {
+                _ = JsonSerializer.Deserialize<Dictionary<string, string>>(model.DefaultHeaders);
+            }
+            catch (JsonException)
+            {
+                _errors.Add("Default headers must be a valid JSON object.");
+            }
+        }
+
+        if (model.TimeoutSeconds is < 1 or > 600)
+        {
+            _errors.Add("Timeout must be between 1 and 600 seconds.");
+        }
+    }
+
+    private async Task<bool> IsDuplicateNameAsync(string name, string currentItemId)
+    {
+        var existing = await Catalog.GetAllAsync();
+
+        return existing.Any(entry =>
+            !string.Equals(entry.ItemId, currentItemId, StringComparison.Ordinal) &&
+            string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void Apply(AIToolInstanceViewModel model, AIToolInstance instance)
+    {
+        instance.Name = model.Name.Trim();
+        instance.Description = model.Description.Trim();
+        instance.ModifiedUtc = TimeProvider.GetUtcNow().UtcDateTime;
+
+        var protector = DataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
+        var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = model.BaseUrl?.Trim(),
+            HttpMethod = string.IsNullOrWhiteSpace(model.HttpMethod) ? "GET" : model.HttpMethod.Trim().ToUpperInvariant(),
+            AuthenticationType = model.AuthenticationType,
+            AllowModelProvidedPath = model.AllowModelProvidedPath,
+            AllowModelProvidedQuery = model.AllowModelProvidedQuery,
+            AllowModelProvidedBody = model.AllowModelProvidedBody,
+            TimeoutSeconds = model.TimeoutSeconds,
+            DefaultHeaders = string.IsNullOrWhiteSpace(model.DefaultHeaders)
+                ? []
+                : JsonSerializer.Deserialize<Dictionary<string, string>>(model.DefaultHeaders) ?? [],
+        };
+
+        switch (model.AuthenticationType)
+        {
+            case HttpApiRequestAuthenticationType.ApiKey:
+                settings.ApiKeyHeaderName = model.ApiKeyHeaderName?.Trim();
+                settings.ApiKey = ProtectOrReuse(model.ApiKey, existing.ApiKey, protector);
+                break;
+            case HttpApiRequestAuthenticationType.Bearer:
+                settings.BearerToken = ProtectOrReuse(model.BearerToken, existing.BearerToken, protector);
+                break;
+            case HttpApiRequestAuthenticationType.Basic:
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
+                break;
+            case HttpApiRequestAuthenticationType.OAuth2:
+                settings.TokenEndpoint = model.TokenEndpoint?.Trim();
+                settings.ClientId = model.ClientId?.Trim();
+                settings.ClientSecret = ProtectOrReuse(model.ClientSecret, existing.ClientSecret, protector);
+                settings.Username = model.Username?.Trim();
+                settings.Password = ProtectOrReuse(model.Password, existing.Password, protector);
+                settings.Scope = model.Scope?.Trim();
+                break;
+        }
+
+        instance.Put(settings);
+    }
+
+    private static string ProtectOrReuse(string newValue, string existingValue, IDataProtector protector)
+    {
+        return string.IsNullOrWhiteSpace(newValue) ? existingValue : protector.Protect(newValue);
+    }
+}

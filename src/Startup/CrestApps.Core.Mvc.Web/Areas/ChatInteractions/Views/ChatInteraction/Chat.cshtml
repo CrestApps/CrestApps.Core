@@ -402,6 +402,30 @@
                         </div>
                     }
 
+                    <!-- AI Tool Instances -->
+                    @if (Model.AvailableToolInstances.Count > 0)
+                    {
+                        <div class="capability-section">
+                            <h6 class="small fw-bold mb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                            @foreach (var instance in Model.AvailableToolInstances)
+                            {
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input capability-checkbox" type="checkbox"
+                                           value="@instance.Name" id="chat_toolinstance_@instance.ItemId" data-group="toolInstanceNames"
+                                           @(instance.IsSelected ? "checked" : "") />
+                                    <label class="form-check-label" for="chat_toolinstance_@instance.ItemId">
+                                        @instance.Name
+                                        <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                        @if (!string.IsNullOrEmpty(instance.Description))
+                                        {
+                                            <br /><span class="text-muted" style="font-size:0.7rem;">@instance.Description</span>
+                                        }
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    }
+
                     <!-- A2A Connections -->
                     @if (Model.AvailableA2AConnections.Any())
                     {
@@ -446,6 +470,7 @@
                     }
 
                     @if (Model.AvailableAgents.Count == 0 && Model.AvailableTools.Count == 0
+                        && Model.AvailableToolInstances.Count == 0
                         && !Model.AvailableA2AConnections.Any() && !Model.AvailableMcpConnections.Any())
                     {
                         <div class="text-muted small text-center py-3">
