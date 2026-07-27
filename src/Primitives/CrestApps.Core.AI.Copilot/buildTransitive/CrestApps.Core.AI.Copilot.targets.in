@@ -18,6 +18,12 @@
     <_GitHubCopilotSdkVersion Condition="'$(_GitHubCopilotSdkVersion)' == ''">__GitHubCopilotSdkVersion__</_GitHubCopilotSdkVersion>
     <_GitHubCopilotSdkPackageRoot>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))</_GitHubCopilotSdkPackageRoot>
     <_GitHubCopilotSdkBuildDir>$(_GitHubCopilotSdkPackageRoot)github.copilot.sdk/$(_GitHubCopilotSdkVersion)/build</_GitHubCopilotSdkBuildDir>
+    <!--
+      The SDK assigns its own default to CopilotNpmRegistryUrl while it is being imported below,
+      so record whether the consumer supplied a value before that happens. Without this marker the
+      registry resolution further down cannot tell an explicit choice apart from the SDK default.
+    -->
+    <_CopilotNpmRegistryUrlWasSet Condition="'$(CopilotNpmRegistryUrl)' != ''">true</_CopilotNpmRegistryUrlWasSet>
   </PropertyGroup>
 
   <Import Project="$(_GitHubCopilotSdkBuildDir)/GitHub.Copilot.SDK.targets"
@@ -27,6 +33,103 @@
           Condition="'$(CopilotSkipCliDownload)' != 'true'">
     <Error Condition="!Exists('$(_GitHubCopilotSdkBuildDir)/GitHub.Copilot.SDK.targets')"
            Text="GitHub.Copilot.SDK build targets not found. Expected at '$(_GitHubCopilotSdkBuildDir)'. Ensure the GitHub.Copilot.SDK NuGet package (version $(_GitHubCopilotSdkVersion)) is restored." />
+  </Target>
+
+  <!--
+    The SDK caches the downloaded Copilot CLI under the intermediate output path, which is
+    per project and per configuration. A solution with several projects that reference this
+    package therefore downloads the same ~100 MB tarball once per project, and again for every
+    fresh clone, worktree, configuration or CI agent.
+
+    Redirect that to a machine wide cache so the CLI is downloaded once and reused everywhere.
+    The default location lives under the NuGet global packages folder because that folder is
+    already restored per machine and is commonly cached by CI pipelines.
+
+    Set CopilotCliCacheDir to relocate the cache, or CopilotUseSharedCliCache=false to opt out
+    and keep the SDK default behavior.
+  -->
+  <PropertyGroup>
+    <CopilotUseSharedCliCache Condition="'$(CopilotUseSharedCliCache)' == ''">true</CopilotUseSharedCliCache>
+    <CopilotCliCacheDir Condition="'$(CopilotCliCacheDir)' == '' And '$(_GitHubCopilotSdkPackageRoot)' != ''">$(_GitHubCopilotSdkPackageRoot).crestapps/copilot-cli/</CopilotCliCacheDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CopilotUseSharedCliCache)' == 'true' And '$(CopilotSkipCliDownload)' != 'true' And '$(CopilotCliBinaryPath)' == '' And '$(CopilotCliCacheDir)' != '' And '$(CopilotCliVersion)' != '' And '$(_CopilotPlatform)' != ''">
+    <_CopilotSharedCliDir>$([MSBuild]::EnsureTrailingSlash('$(CopilotCliCacheDir)'))$(CopilotCliVersion)/$(_CopilotPlatform)/</_CopilotSharedCliDir>
+    <_CopilotSharedCliPath>$(_CopilotSharedCliDir)$(_CopilotBinary)</_CopilotSharedCliPath>
+    <!--
+      When the shared copy already exists, hand it to the SDK so the download is skipped entirely.
+      Both the public and the private property are assigned because the SDK maps one onto the other
+      before this file is evaluated.
+    -->
+    <CopilotCliBinaryPath Condition="Exists('$(_CopilotSharedCliPath)')">$(_CopilotSharedCliPath)</CopilotCliBinaryPath>
+    <_CopilotCliBinaryPath Condition="Exists('$(_CopilotSharedCliPath)')">$(_CopilotSharedCliPath)</_CopilotCliBinaryPath>
+  </PropertyGroup>
+
+  <!--
+    The SDK downloads the CLI tarball from https://registry.npmjs.org unless CopilotNpmRegistryUrl
+    is set, and MSBuild's DownloadFile task cannot read npm configuration. Developer machines and
+    build agents behind a corporate proxy or an artifact mirror usually block that host, so the
+    build fails with a connectivity error even though npm itself is configured correctly.
+
+    Ask npm for its effective registry and use that. Resolution only runs when a download is about
+    to happen, and silently falls back to the SDK default when npm is unavailable or reports
+    something that is not a URL.
+
+    Set CopilotNpmRegistryUrl to pin a registry explicitly, or CopilotResolveNpmRegistry=false to
+    disable the lookup.
+  -->
+  <PropertyGroup>
+    <CopilotResolveNpmRegistry Condition="'$(CopilotResolveNpmRegistry)' == ''">true</CopilotResolveNpmRegistry>
+    <_CopilotDefaultNpmRegistryUrl>https://registry.npmjs.org</_CopilotDefaultNpmRegistryUrl>
+  </PropertyGroup>
+
+  <Target Name="_ResolveCopilotNpmRegistry" BeforeTargets="_DownloadCopilotCli"
+          Condition="'$(CopilotResolveNpmRegistry)' == 'true' And '$(_CopilotNpmRegistryUrlWasSet)' != 'true' And ('$(CopilotNpmRegistryUrl)' == '' Or '$(CopilotNpmRegistryUrl)' == '$(_CopilotDefaultNpmRegistryUrl)') And '$(CopilotCliBinaryPath)' == '' And '$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+    <PropertyGroup>
+      <_CopilotResolvedNpmRegistry Condition="'$(NPM_CONFIG_REGISTRY)' != ''">$(NPM_CONFIG_REGISTRY)</_CopilotResolvedNpmRegistry>
+    </PropertyGroup>
+
+    <Exec Command="npm config get registry"
+          Condition="'$(_CopilotResolvedNpmRegistry)' == ''"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          EchoOff="true"
+          StandardOutputImportance="low"
+          StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_CopilotNpmConfigOutput" />
+      <Output TaskParameter="ExitCode" PropertyName="_CopilotNpmConfigExitCode" />
+    </Exec>
+
+    <PropertyGroup Condition="'$(_CopilotResolvedNpmRegistry)' == '' And '$(_CopilotNpmConfigExitCode)' == '0' And '$(_CopilotNpmConfigOutput)' != ''">
+      <_CopilotNpmConfigOutput>$(_CopilotNpmConfigOutput.Trim())</_CopilotNpmConfigOutput>
+      <_CopilotResolvedNpmRegistry Condition="$(_CopilotNpmConfigOutput.StartsWith('http'))">$(_CopilotNpmConfigOutput)</_CopilotResolvedNpmRegistry>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(_CopilotResolvedNpmRegistry)' != ''">
+      <CopilotNpmRegistryUrl>$(_CopilotResolvedNpmRegistry)</CopilotNpmRegistryUrl>
+    </PropertyGroup>
+
+    <Message Importance="normal" Condition="'$(_CopilotResolvedNpmRegistry)' != ''"
+             Text="Using the npm registry '$(CopilotNpmRegistryUrl)' to download the Copilot CLI." />
+  </Target>
+
+  <!--
+    Promote a freshly downloaded CLI into the shared cache so later builds skip the download.
+    The binary is staged under a unique name first so that projects building in parallel cannot
+    observe a partially written file.
+  -->
+  <Target Name="_CacheCopilotCliForReuse" AfterTargets="_DownloadCopilotCli"
+          Condition="'$(_CopilotSharedCliPath)' != '' And '$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotCliBinaryPath)' != '' And !Exists('$(_CopilotSharedCliPath)')">
+    <PropertyGroup>
+      <_CopilotSharedCliStagingPath>$(_CopilotSharedCliPath).$([System.Guid]::NewGuid().ToString('N')).tmp</_CopilotSharedCliStagingPath>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(_CopilotSharedCliDir)" Condition="Exists('$(_CopilotCliBinaryPath)')" />
+    <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFiles="$(_CopilotSharedCliStagingPath)"
+          Condition="Exists('$(_CopilotCliBinaryPath)')" />
+    <Move SourceFiles="$(_CopilotSharedCliStagingPath)" DestinationFiles="$(_CopilotSharedCliPath)"
+          Condition="Exists('$(_CopilotSharedCliStagingPath)')" />
+    <Delete Files="$(_CopilotSharedCliStagingPath)" Condition="Exists('$(_CopilotSharedCliStagingPath)')" />
   </Target>
 
 </Project>
