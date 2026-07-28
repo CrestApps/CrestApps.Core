@@ -297,10 +297,27 @@ var httpContext = Context.GetHttpContext();
 :::danger
 Do not resolve the caller through `IHttpContextAccessor` in code that runs during a hub invocation. SignalR dispatches hub methods outside the request pipeline, so `IHttpContextAccessor.HttpContext` is unreliable and is frequently `null`, particularly over WebSockets and when running behind a SignalR backplane or Azure SignalR Service. See [Use HttpContext in ASP.NET Core SignalR](https://learn.microsoft.com/aspnet/core/signalr/httpcontext).
 
-This applies to services you call from a hub as well. A service that reads `IHttpContextAccessor.HttpContext?.User` behaves differently when it is invoked from a controller than when it is invoked from a hub. If such a service makes a security decision, pass `Context.User` into it explicitly rather than letting it resolve the user itself.
+This applies to services you call from a hub as well. A service that reads `IHttpContextAccessor.HttpContext?.User` behaves differently when it is invoked from a controller than when it is invoked from a hub. If such a service makes a security decision, pass `Context.User` into it explicitly, or resolve the caller through `IUserAccessor`, rather than letting it resolve the user itself.
 :::
 
-This matters for tool authorization. `IAIToolAccessEvaluator` receives the `ClaimsPrincipal` that the completion pipeline resolved, and tools the caller is not authorized to use are removed from the request and reported in a warning log entry. See [Tools](./tools) for the evaluator contract and the logging behavior.
+For services that cannot take the principal as a parameter, the framework provides `IUserAccessor`. It returns the principal the current hub invocation is running as, and falls back to `IHttpContextAccessor.HttpContext?.User` when no hub invocation is in progress. The built-in AI chat hubs publish the connection's principal for the duration of every invocation, so a service that reads `IUserAccessor.User` sees the same caller whether it was reached over SignalR or over a regular HTTP request. See [Tools](./tools) for the accessor contract and how to publish the principal from a custom hub.
+
+```csharp
+public sealed class MyService
+{
+    private readonly IUserAccessor _userAccessor;
+
+    public MyService(IUserAccessor userAccessor)
+    {
+        _userAccessor = userAccessor;
+    }
+
+    public bool IsCallerAuthenticated()
+        => _userAccessor.User?.Identity?.IsAuthenticated == true;
+}
+```
+
+This matters for tool authorization. `IAIToolAccessEvaluator` receives the `ClaimsPrincipal` that the completion pipeline resolved through `IUserAccessor`, and tools the caller is not authorized to use are removed from the request and reported in a warning log entry. See [Tools](./tools) for the evaluator contract and the logging behavior.
 
 ## Scale-out with Redis Backplane
 
