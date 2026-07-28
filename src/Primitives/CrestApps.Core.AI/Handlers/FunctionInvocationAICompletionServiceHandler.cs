@@ -65,6 +65,7 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
 
         var user = _httpContextAccessor.HttpContext?.User;
         var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        List<string> deniedToolNames = null;
 
         // Snapshot a stable partition before authorization or factory callbacks can mutate the source.
         var orderedEntries = new ToolRegistryEntry[scopedEntries.Count];
@@ -94,6 +95,8 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
             // unauthorized invocation via prompt injection.
             if (!await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
             {
+                (deniedToolNames ??= []).Add(entry.Name);
+
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
                     _logger.LogDebug(
@@ -116,7 +119,7 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
                     _logger.LogDebug(
-                        "Skipping tool '{ToolName}' from {Source} ({Id}) ? name already registered.",
+                        "Skipping tool '{ToolName}' from {Source} ({Id}) - name already registered.",
                         entry.Name, entry.Source, entry.Id);
                 }
 
@@ -140,6 +143,15 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
             {
                 _logger.LogError(ex, "Failed to create tool '{ToolName}' ({Id}). Skipping.", entry.Name, entry.Id);
             }
+        }
+
+        if (deniedToolNames is not null)
+        {
+            // Surface the denial above Debug level. Otherwise the caller only sees a degraded
+            // answer with no indication that the configured tools were removed.
+            _logger.LogWarning(
+                "The current user is not authorized to use the following AI tools, which were excluded from the request: {ToolNames}.",
+                string.Join(", ", deniedToolNames));
         }
     }
 }

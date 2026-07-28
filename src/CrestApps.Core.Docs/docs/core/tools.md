@@ -133,17 +133,18 @@ builder.Services
 
 ### `IAIToolAccessEvaluator`
 
-Override this to control which tools are available in a given context:
+Override this to control which tools the current user is allowed to invoke:
 
 ```csharp
 public interface IAIToolAccessEvaluator
 {
-    ValueTask<bool> IsAccessibleAsync(
-        AIToolMetadataEntry tool,
-        AICompletionContext context,
-        CancellationToken cancellationToken = default);
+    Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName);
 }
 ```
+
+The default implementation permits every tool. Hosts that enforce permissions, such as the Orchard Core integration, replace it with an authorization-aware implementation.
+
+Tools the user is not authorized for are excluded from the request instead of failing it, so the model simply answers without that capability. Because a missing tool permission usually looks like an incomplete answer, every excluded tool is reported once per request with a `Warning` log entry that lists the denied tool names.
 
 ## Custom Tool Registry Provider
 
