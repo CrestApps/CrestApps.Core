@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.Core.Orchestration;
@@ -87,6 +88,39 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
         Assert.Equal(3, entries.Count);
     }
 
+    [Fact]
+    public async Task ConfigureAsync_WhenToolsAreDenied_ExcludesThemAndLogsASingleWarning()
+    {
+        var evaluator = new RecordingToolAccessEvaluator
+        {
+            DeniedToolNames = { "denied-first", "denied-second" },
+        };
+        var allowedTool = new TestAIFunction("allowed-tool");
+        IReadOnlyList<ToolRegistryEntry> entries =
+        [
+            CreateEntry("denied-first", "denied-first", ToolRegistryEntrySource.Local, new TestAIFunction("denied-first-tool")),
+            CreateEntry("allowed", "allowed", ToolRegistryEntrySource.Local, allowedTool),
+            CreateEntry("denied-second", "denied-second", ToolRegistryEntrySource.McpServer, new TestAIFunction("denied-second-tool")),
+        ];
+        var completionContext = new AICompletionContext();
+        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
+        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
+        var logger = new CapturingLogger<FunctionInvocationAICompletionServiceHandler>();
+        var handler = new FunctionInvocationAICompletionServiceHandler(
+            evaluator,
+            new HttpContextAccessor(),
+            new EmptyServiceProvider(),
+            logger);
+
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal([allowedTool], context.ChatOptions.Tools);
+
+        var warning = Assert.Single(logger.Messages, message => message.Level == LogLevel.Warning);
+        Assert.Contains("denied-first", warning.Message);
+        Assert.Contains("denied-second", warning.Message);
+    }
+
     private static ToolRegistryEntry CreateEntry(
         string id,
         string name,
@@ -106,11 +140,34 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
     {
         public List<string> ToolNames { get; } = [];
 
+        public HashSet<string> DeniedToolNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName)
         {
             ToolNames.Add(toolName);
 
-            return Task.FromResult(true);
+            return Task.FromResult(!DeniedToolNames.Contains(toolName));
+        }
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message)> Messages { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception exception,
+            Func<TState, Exception, string> formatter)
+        {
+            Messages.Add((logLevel, formatter(state, exception)));
         }
     }
 
