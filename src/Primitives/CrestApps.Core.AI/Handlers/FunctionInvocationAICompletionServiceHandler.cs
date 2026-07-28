@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Security;
 using CrestApps.Core.AI.Tooling;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Handlers;
@@ -20,7 +20,7 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
     public const string ScopedEntriesKey = "_scopedToolEntries";
 
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IUserAccessor _userAccessor;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<FunctionInvocationAICompletionServiceHandler> _logger;
 
@@ -28,17 +28,17 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
     /// Initializes a new instance of the <see cref="FunctionInvocationAICompletionServiceHandler"/> class.
     /// </summary>
     /// <param name="toolAccessEvaluator">The tool access evaluator.</param>
-    /// <param name="httpContextAccessor">The http context accessor.</param>
+    /// <param name="userAccessor">The accessor that resolves the principal owning the current request.</param>
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="logger">The logger.</param>
     public FunctionInvocationAICompletionServiceHandler(
         IAIToolAccessEvaluator toolAccessEvaluator,
-        IHttpContextAccessor httpContextAccessor,
+        IUserAccessor userAccessor,
         IServiceProvider serviceProvider,
         ILogger<FunctionInvocationAICompletionServiceHandler> logger)
     {
         _toolAccessEvaluator = toolAccessEvaluator;
-        _httpContextAccessor = httpContextAccessor;
+        _userAccessor = userAccessor;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -63,7 +63,7 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
 
         context.ChatOptions.Tools ??= [];
 
-        var user = _httpContextAccessor.HttpContext?.User;
+        var user = _userAccessor.User;
         var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         List<string> deniedToolNames = null;
 
@@ -93,7 +93,10 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
             // like Claude/Copilot manage their own tool selection), MCP tools surfaced here should
             // still be subject to the same per-user access policy as Local tools to prevent
             // unauthorized invocation via prompt injection.
-            if (!await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
+            // A null principal means there is no caller at all, such as a background task, so the
+            // request is treated as a trusted server-side invocation. An unauthenticated caller is
+            // represented by a non-null principal and is still evaluated.
+            if (user is not null && !await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
             {
                 (deniedToolNames ??= []).Add(entry.Name);
 

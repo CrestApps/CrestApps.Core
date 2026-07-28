@@ -1,6 +1,8 @@
 using CrestApps.Core.Builders;
 using CrestApps.Core.Filters;
+using CrestApps.Core.Security;
 using CrestApps.Core.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +59,12 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddScoped<IODataValidator, ODataFilterValidator>();
+
+        // The user accessor falls back to the HTTP request principal, so the HTTP context accessor
+        // must be available even for hosts that never registered it explicitly.
+
+        services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddSingleton<IUserAccessor, UserAccessor>();
 
         return services;
     }

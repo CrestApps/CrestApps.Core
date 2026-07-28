@@ -5,7 +5,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
-using Microsoft.AspNetCore.Http;
+using CrestApps.Core.Security;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -42,17 +42,17 @@ public class FunctionInvocationToolOrderingBenchmarks
         await VerifyEquivalenceAsync(entries);
 
         var evaluator = new AllowAllToolAccessEvaluator();
-        var httpContextAccessor = new HttpContextAccessor();
+        var userAccessor = CreateUserAccessor();
         var serviceProvider = new EmptyServiceProvider();
 
         _legacyHandler = new LegacyFunctionInvocationHandler(
             evaluator,
-            httpContextAccessor,
+            userAccessor,
             serviceProvider,
             NullLogger<LegacyFunctionInvocationHandler>.Instance);
         _currentHandler = new FunctionInvocationAICompletionServiceHandler(
             evaluator,
-            httpContextAccessor,
+            userAccessor,
             serviceProvider,
             NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
         _legacyContext = CreateContext(entries);
@@ -123,20 +123,30 @@ public class FunctionInvocationToolOrderingBenchmarks
         return new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
     }
 
+    private static StaticUserAccessor CreateUserAccessor()
+    {
+        return new StaticUserAccessor
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Name, "benchmark")],
+                "Benchmark")),
+        };
+    }
+
     private static async Task VerifyEquivalenceAsync(IReadOnlyList<ToolRegistryEntry> entries)
     {
         var legacyEvaluator = new RecordingToolAccessEvaluator();
         var currentEvaluator = new RecordingToolAccessEvaluator();
-        var httpContextAccessor = new HttpContextAccessor();
+        var userAccessor = CreateUserAccessor();
         var serviceProvider = new EmptyServiceProvider();
         var legacy = new LegacyFunctionInvocationHandler(
             legacyEvaluator,
-            httpContextAccessor,
+            userAccessor,
             serviceProvider,
             NullLogger<LegacyFunctionInvocationHandler>.Instance);
         var current = new FunctionInvocationAICompletionServiceHandler(
             currentEvaluator,
-            httpContextAccessor,
+            userAccessor,
             serviceProvider,
             NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
         var legacyContext = CreateContext(entries);
@@ -160,6 +170,11 @@ public class FunctionInvocationToolOrderingBenchmarks
         {
             return _allowed;
         }
+    }
+
+    private sealed class StaticUserAccessor : IUserAccessor
+    {
+        public ClaimsPrincipal User { get; set; }
     }
 
     private sealed class RecordingToolAccessEvaluator : IAIToolAccessEvaluator
@@ -209,18 +224,18 @@ public class FunctionInvocationToolOrderingBenchmarks
     private sealed class LegacyFunctionInvocationHandler
     {
         private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
-        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IUserAccessor _userAccessor;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<LegacyFunctionInvocationHandler> _logger;
 
         public LegacyFunctionInvocationHandler(
             IAIToolAccessEvaluator toolAccessEvaluator,
-            IHttpContextAccessor httpContextAccessor,
+            IUserAccessor userAccessor,
             IServiceProvider serviceProvider,
             ILogger<LegacyFunctionInvocationHandler> logger)
         {
             _toolAccessEvaluator = toolAccessEvaluator;
-            _httpContextAccessor = httpContextAccessor;
+            _userAccessor = userAccessor;
             _serviceProvider = serviceProvider;
             _logger = logger;
         }
@@ -242,14 +257,14 @@ public class FunctionInvocationToolOrderingBenchmarks
 
             context.ChatOptions.Tools ??= [];
 
-            var user = _httpContextAccessor.HttpContext?.User;
+            var user = _userAccessor.User;
             var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var orderedEntries = scopedEntries
                 .OrderBy(entry => entry.Source == ToolRegistryEntrySource.McpServer ? 1 : 0);
 
             foreach (var entry in orderedEntries)
             {
-                if (!await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
+                if (user is not null && !await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
                 {
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
