@@ -11,5 +11,4 @@ This section tracks `CrestApps.Core` releases and notable repository-level chang
 
 | Version | Highlights |
 | --- | --- |
-| [1.1.0](v1.1.0) | In-development release; adds versioned documentation with a version selector while `main` keeps updating the Latest docs |
 | [1.0.0](v1.0.0) | Initial standalone release plus merged configuration catalogs, automatic AI tool dependency expansion, clearer quick-start guidance, and deployment configuration diagnostics |
