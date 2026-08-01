@@ -266,6 +266,7 @@ public sealed class AIProfileViewModel
                 AllowMultipleValues = t.AllowMultipleValues,
                 Options = string.Join(Environment.NewLine, t.Options.Select(o => o.Value)),
                 SelectedToolNames = t.ToolNames ?? [],
+                SelectedToolInstanceNames = t.ToolInstanceNames ?? [],
             }).ToList(),
 
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
@@ -593,6 +594,7 @@ public sealed class AIProfileViewModel
             .Select(o => new PostSessionTaskOption { Value = o.Trim() })
             .ToList(),
                 ToolNames = t.SelectedToolNames ?? [],
+                ToolInstanceNames = t.SelectedToolInstanceNames ?? [],
             }).ToList();
         });
 
@@ -682,6 +684,8 @@ public sealed class PostSessionTaskItem
     public string Options { get; set; }
 
     public string[] SelectedToolNames { get; set; } = [];
+
+    public string[] SelectedToolInstanceNames { get; set; } = [];
 }
 
 public sealed class PromptTemplateSelectionItem

@@ -11,6 +11,7 @@ using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Security;
+using CrestApps.Core.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Extensions;
 using CrestApps.Core.Services;
@@ -70,6 +71,33 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     protected virtual Task ExecuteInScopeAsync(Func<IServiceProvider, Task> action)
     {
         return action(_services);
+    }
+
+    /// <summary>
+    /// Executes an action within a service scope, assigning the caller's principal to
+    /// <see cref="IUserAccessor"/> so that services can authorize the invocation.
+    /// </summary>
+    /// <param name="action">The action.</param>
+    private async Task RunInScopeAsync(Func<IServiceProvider, Task> action)
+    {
+        // Capture the principal eagerly. The hub caller context is not guaranteed to remain
+        // available once the invocation returns, which matters for the streaming path that does
+        // not await the scope.
+        var user = Context?.User;
+
+        await ExecuteInScopeAsync(async services =>
+        {
+            var userAccessor = services.GetService<IUserAccessor>();
+
+            if (userAccessor is not null)
+            {
+                // The accessor tracks the principal with an AsyncLocal, so the assignment is
+                // scoped to this invocation and never leaks to other connections.
+                userAccessor.User = user;
+            }
+
+            await action(services);
+        });
     }
 
     /// <summary>
@@ -467,7 +495,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     public virtual ChannelReader<CompletionPartialMessage> SendMessage(string profileId, string prompt, string sessionId, string sessionProfileId, CancellationToken cancellationToken)
     {
         var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
-        _ = ExecuteInScopeAsync(services => HandleSendMessageAsync(channel.Writer, services, profileId, prompt, sessionId, sessionProfileId, cancellationToken));
+        _ = RunInScopeAsync(services => HandleSendMessageAsync(channel.Writer, services, profileId, prompt, sessionId, sessionProfileId, cancellationToken));
 
         return channel.Reader;
     }
@@ -486,7 +514,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
             var profileManager = services.GetRequiredService<IAIProfileManager>();
@@ -534,7 +562,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
             var profileManager = services.GetRequiredService<IAIProfileManager>();
@@ -596,7 +624,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
             var profileManager = services.GetRequiredService<IAIProfileManager>();
@@ -675,7 +703,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             try
             {
@@ -748,7 +776,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var cancellationToken = Context.ConnectionAborted;
         try
         {
-            await ExecuteInScopeAsync(async services =>
+            await RunInScopeAsync(async services =>
             {
                 var profileManager = services.GetRequiredService<IAIProfileManager>();
                 var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
@@ -864,7 +892,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var cancellationToken = Context.ConnectionAborted;
         try
         {
-            await ExecuteInScopeAsync(async services =>
+            await RunInScopeAsync(async services =>
             {
                 var profileManager = services.GetRequiredService<IAIProfileManager>();
                 var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
@@ -954,7 +982,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var cancellationToken = Context.ConnectionAborted;
         try
         {
-            await ExecuteInScopeAsync(async services =>
+            await RunInScopeAsync(async services =>
             {
                 var profileManager = services.GetRequiredService<IAIProfileManager>();
                 var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();

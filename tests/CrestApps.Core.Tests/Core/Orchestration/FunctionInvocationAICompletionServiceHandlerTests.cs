@@ -1,9 +1,10 @@
 using System.Security.Claims;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Security;
 using CrestApps.Core.AI.Tooling;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.Core.Orchestration;
@@ -40,7 +41,7 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
         var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
         var handler = new FunctionInvocationAICompletionServiceHandler(
             evaluator,
-            new HttpContextAccessor(),
+            new TestUserAccessor(),
             new EmptyServiceProvider(),
             NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
 
@@ -76,7 +77,7 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
         var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
         var handler = new FunctionInvocationAICompletionServiceHandler(
             evaluator,
-            new HttpContextAccessor(),
+            new TestUserAccessor(),
             new EmptyServiceProvider(),
             NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
 
@@ -85,6 +86,98 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
         Assert.Equal(["first", "second"], evaluator.ToolNames);
         Assert.Equal([firstTool, secondTool], context.ChatOptions.Tools);
         Assert.Equal(3, entries.Count);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenToolsAreDenied_ExcludesThemAndLogsASingleWarning()
+    {
+        var evaluator = new RecordingToolAccessEvaluator
+        {
+            DeniedToolNames = { "denied-first", "denied-second" },
+        };
+        var allowedTool = new TestAIFunction("allowed-tool");
+        IReadOnlyList<ToolRegistryEntry> entries =
+        [
+            CreateEntry("denied-first", "denied-first", ToolRegistryEntrySource.Local, new TestAIFunction("denied-first-tool")),
+            CreateEntry("allowed", "allowed", ToolRegistryEntrySource.Local, allowedTool),
+            CreateEntry("denied-second", "denied-second", ToolRegistryEntrySource.McpServer, new TestAIFunction("denied-second-tool")),
+        ];
+        var completionContext = new AICompletionContext();
+        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
+        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
+        var logger = new CapturingLogger<FunctionInvocationAICompletionServiceHandler>();
+        var handler = new FunctionInvocationAICompletionServiceHandler(
+            evaluator,
+            new TestUserAccessor(),
+            new EmptyServiceProvider(),
+            logger);
+
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal([allowedTool], context.ChatOptions.Tools);
+
+        var warning = Assert.Single(logger.Messages, message => message.Level == LogLevel.Warning);
+        Assert.Contains("denied-first", warning.Message);
+        Assert.Contains("denied-second", warning.Message);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenThereIsNoCaller_SkipsAuthorizationAndKeepsEveryTool()
+    {
+        // Arrange
+        var evaluator = new RecordingToolAccessEvaluator
+        {
+            DeniedToolNames = { "denied" },
+        };
+        var deniedTool = new TestAIFunction("denied-tool");
+        IReadOnlyList<ToolRegistryEntry> entries =
+        [
+            CreateEntry("denied", "denied", ToolRegistryEntrySource.Local, deniedTool),
+        ];
+        var completionContext = new AICompletionContext();
+        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
+        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
+        var handler = new FunctionInvocationAICompletionServiceHandler(
+            evaluator,
+            new TestUserAccessor(user: null),
+            new EmptyServiceProvider(),
+            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(evaluator.ToolNames);
+        Assert.Equal([deniedTool], context.ChatOptions.Tools);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenCallerIsAnonymous_StillEvaluatesAuthorization()
+    {
+        // Arrange
+        var evaluator = new RecordingToolAccessEvaluator
+        {
+            DeniedToolNames = { "denied" },
+        };
+        IReadOnlyList<ToolRegistryEntry> entries =
+        [
+            CreateEntry("denied", "denied", ToolRegistryEntrySource.Local, new TestAIFunction("denied-tool")),
+        ];
+        var completionContext = new AICompletionContext();
+        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
+        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
+        var handler = new FunctionInvocationAICompletionServiceHandler(
+            evaluator,
+            new TestUserAccessor(new ClaimsPrincipal(new ClaimsIdentity())),
+            new EmptyServiceProvider(),
+            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["denied"], evaluator.ToolNames);
+        Assert.Empty(context.ChatOptions.Tools);
     }
 
     private static ToolRegistryEntry CreateEntry(
@@ -106,12 +199,50 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
     {
         public List<string> ToolNames { get; } = [];
 
+        public HashSet<string> DeniedToolNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName)
         {
             ToolNames.Add(toolName);
 
-            return Task.FromResult(true);
+            return Task.FromResult(!DeniedToolNames.Contains(toolName));
         }
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message)> Messages { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception exception,
+            Func<TState, Exception, string> formatter)
+        {
+            Messages.Add((logLevel, formatter(state, exception)));
+        }
+    }
+
+    private sealed class TestUserAccessor : IUserAccessor
+    {
+        public TestUserAccessor()
+            : this(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "test-user")], "Test")))
+        {
+        }
+
+        public TestUserAccessor(ClaimsPrincipal user)
+        {
+            User = user;
+        }
+
+        public ClaimsPrincipal User { get; set; }
     }
 
     private sealed class EmptyServiceProvider : IServiceProvider

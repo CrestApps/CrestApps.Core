@@ -8,6 +8,8 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Security;
+using CrestApps.Core.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
@@ -65,6 +67,33 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     protected virtual Task ExecuteInScopeAsync(Func<IServiceProvider, Task> action)
     {
         return action(_services);
+    }
+
+    /// <summary>
+    /// Executes an action within a service scope, assigning the caller's principal to
+    /// <see cref="IUserAccessor"/> so that services can authorize the invocation.
+    /// </summary>
+    /// <param name="action">The action.</param>
+    private async Task RunInScopeAsync(Func<IServiceProvider, Task> action)
+    {
+        // Capture the principal eagerly. The hub caller context is not guaranteed to remain
+        // available once the invocation returns, which matters for the streaming path that does
+        // not await the scope.
+        var user = Context?.User;
+
+        await ExecuteInScopeAsync(async services =>
+        {
+            var userAccessor = services.GetService<IUserAccessor>();
+
+            if (userAccessor is not null)
+            {
+                // The accessor tracks the principal with an AsyncLocal, so the assignment is
+                // scoped to this invocation and never leaks to other connections.
+                userAccessor.User = user;
+            }
+
+            await action(services);
+        });
     }
 
     /// <summary>
@@ -442,7 +471,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     public virtual ChannelReader<CompletionPartialMessage> SendMessage(string itemId, string prompt, CancellationToken cancellationToken)
     {
         var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
-        _ = ExecuteInScopeAsync(services => HandlePromptAsync(channel.Writer, services, itemId, prompt, cancellationToken));
+        _ = RunInScopeAsync(services => HandlePromptAsync(channel.Writer, services, itemId, prompt, cancellationToken));
 
         return channel.Reader;
     }
@@ -461,7 +490,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
             var promptStore = services.GetRequiredService<IChatInteractionPromptStore>();
@@ -501,7 +530,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
             var settingsHandlers = services.GetRequiredService<IEnumerable<IChatInteractionSettingsHandler>>();
@@ -574,7 +603,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
             var promptStore = services.GetRequiredService<IChatInteractionPromptStore>();
@@ -624,7 +653,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return;
         }
 
-        await ExecuteInScopeAsync(async services =>
+        await RunInScopeAsync(async services =>
         {
             try
             {
@@ -683,7 +712,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         var cancellationToken = Context.ConnectionAborted;
         try
         {
-            await ExecuteInScopeAsync(async services =>
+            await RunInScopeAsync(async services =>
             {
                 var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
                 var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
@@ -792,7 +821,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         var cancellationToken = Context.ConnectionAborted;
         try
         {
-            await ExecuteInScopeAsync(async services =>
+            await RunInScopeAsync(async services =>
             {
                 var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
                 var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
@@ -872,7 +901,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         var cancellationToken = Context.ConnectionAborted;
         try
         {
-            await ExecuteInScopeAsync(async services =>
+            await RunInScopeAsync(async services =>
             {
                 var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
                 var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();

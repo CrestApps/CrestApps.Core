@@ -133,17 +133,52 @@ builder.Services
 
 ### `IAIToolAccessEvaluator`
 
-Override this to control which tools are available in a given context:
+Override this to control which tools the current user is allowed to invoke:
 
 ```csharp
 public interface IAIToolAccessEvaluator
 {
-    ValueTask<bool> IsAccessibleAsync(
-        AIToolMetadataEntry tool,
-        AICompletionContext context,
-        CancellationToken cancellationToken = default);
+    Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName);
 }
 ```
+
+The default implementation permits every tool. Hosts that enforce permissions, such as the Orchard Core integration, replace it with an authorization-aware implementation.
+
+Tools the user is not authorized for are excluded from the request instead of failing it, so the model simply answers without that capability. Because a missing tool permission usually looks like an incomplete answer, every excluded tool is reported once per request with a `Warning` log entry that lists the denied tool names.
+
+### `IUserAccessor`
+
+The principal passed to the evaluator comes from `IUserAccessor`, not from `IHttpContextAccessor`:
+
+```csharp
+public interface IUserAccessor
+{
+    ClaimsPrincipal User { get; set; }
+}
+```
+
+It follows the same shape as `IHttpContextAccessor`. The default implementation resolves the caller in two steps:
+
+1. If a principal was assigned on the current asynchronous flow, that principal wins.
+2. Otherwise it falls back to `HttpContext.User` for ordinary HTTP requests.
+
+This indirection exists because `IHttpContextAccessor.HttpContext` is unreliable inside SignalR hub invocations. Long-lived transports such as WebSockets, backplane-delivered invocations, and hosted SignalR services all run hub methods outside the request that opened the connection, so the accessor is frequently `null` there. The built-in hubs therefore assign `Context.User` at the start of every invocation:
+
+```csharp
+userAccessor.User = Context.User;
+
+await DoWorkAsync();
+```
+
+The principal is tracked with an `AsyncLocal<T>`, exactly as `HttpContextAccessor` tracks the current request, so the assignment is confined to the invocation that made it. Concurrent connections never observe one another's caller, and the value does not leak back to the caller of the method that assigned it.
+
+:::info Null means "no caller"
+`User` returns `null` only when there is no caller at all, such as a background task, a workflow, or a recipe running server-side. Authorization is skipped in that case and every tool stays available, because trusted server-side code is not a security boundary.
+
+An unauthenticated caller is different: hubs and HTTP requests always provide a non-`null` `ClaimsPrincipal` with an unauthenticated identity, so the evaluator still runs and can grant or deny tools based on whatever the host allows anonymous users to do.
+:::
+
+Custom hosts that invoke completions outside of an HTTP request or a hub should assign the caller themselves so tool authorization sees the right principal.
 
 ## Custom Tool Registry Provider
 
