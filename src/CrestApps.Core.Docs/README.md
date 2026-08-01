@@ -29,11 +29,11 @@ tracks `main`. Each released version is frozen under `versioned_docs/` and
 
 Versions are created automatically on qualifying tag pushes (`vX.Y.0`) by the
 `deploy_docs.yml` GitHub Actions workflow, which snapshots the current docs as
-`X.Y.x` (for example, `v1.0.0` produces the `1.0.x` version). To cut a version
-manually:
+`X.Y` (for example, `v1.0.0` produces the `1.0` version, served under `/docs/1.0/`).
+To cut a version manually:
 
 ```bash
-npx docusaurus docs:version 1.0.x
+npx docusaurus docs:version 1.0
 ```
 
 Commit the generated `versioned_docs/`, `versioned_sidebars/`, and `versions.json`
