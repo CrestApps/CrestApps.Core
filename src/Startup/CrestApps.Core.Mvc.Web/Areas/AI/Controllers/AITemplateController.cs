@@ -18,6 +18,7 @@ using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
+using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Templates.Services;
@@ -48,6 +49,8 @@ public sealed class AITemplateController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
+    private readonly AIModelParameterViewService _modelParameterViewService;
+
     public AITemplateController(
         ICatalog<AIProfileTemplate> catalog,
         ICatalog<AIDeployment> deploymentCatalog,
@@ -64,7 +67,8 @@ public sealed class AITemplateController : Controller
         ClaudeClientService anthropicClientService,
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
-        IOptions<AIToolDefinitionOptions> toolOptions)
+        IOptions<AIToolDefinitionOptions> toolOptions,
+        AIModelParameterViewService modelParameterViewService)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -82,6 +86,7 @@ public sealed class AITemplateController : Controller
         _copilotOptions = copilotOptions;
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
+        _modelParameterViewService = modelParameterViewService;
     }
 
     public async Task<IActionResult> Index()
@@ -191,6 +196,8 @@ public sealed class AITemplateController : Controller
 
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)
     {
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
+
         var allDeployments = await _deploymentCatalog.GetAllAsync();
         model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();

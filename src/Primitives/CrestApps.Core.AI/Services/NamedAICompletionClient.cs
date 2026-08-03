@@ -165,7 +165,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         try
         {
-            var chatOptions = await GetChatOptionsAsync(context, deployment.ModelName, false);
+            var chatOptions = await GetChatOptionsAsync(context, deployment, false);
 
             var chatClient = await BuildClientAsync(deployment, context, chatOptions);
 
@@ -216,7 +216,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             throw new AIDeploymentConfigurationException("The resolved chat deployment is missing a model name.");
         }
 
-        var chatOptions = await GetChatOptionsAsync(context, deployment.ModelName, true);
+        var chatOptions = await GetChatOptionsAsync(context, deployment, true);
 
         var chatClient = await BuildClientAsync(deployment, context, chatOptions);
 
@@ -324,7 +324,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         }
     }
 
-    private async Task<ChatOptions> GetChatOptionsAsync(AICompletionContext context, string deploymentName, bool isStreaming)
+    private async Task<ChatOptions> GetChatOptionsAsync(AICompletionContext context, AIDeployment deployment, bool isStreaming)
     {
         var chatOptions = new ChatOptions()
         {
@@ -335,11 +335,12 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             MaxOutputTokens = context.MaxTokens,
         };
 
-        var supportFunctions = SupportFunctionInvocation(context, deploymentName);
+        var supportFunctions = SupportFunctionInvocation(context, deployment.ModelName);
 
         var configureContext = new CompletionServiceConfigureContext(chatOptions, context, supportFunctions)
         {
-            DeploymentName = deploymentName,
+            DeploymentName = deployment.ModelName,
+            Deployment = deployment,
             ClientName = ClientName,
             IsStreaming = isStreaming,
         };

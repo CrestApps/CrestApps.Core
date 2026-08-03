@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -16,6 +17,7 @@ public sealed class AIDeploymentController : Controller
     private readonly IAIDeploymentStore _deploymentStore;
     private readonly INamedSourceCatalog<AIDeployment> _deploymentCatalog;
     private readonly IAIProviderConnectionStore _connectionCatalog;
+    private readonly IAIModelCapabilityService _capabilityService;
 
     private static readonly List<SelectListItem> _providers =
     [
@@ -36,11 +38,13 @@ public sealed class AIDeploymentController : Controller
     public AIDeploymentController(
         IAIDeploymentStore deploymentStore,
         INamedSourceCatalog<AIDeployment> deploymentCatalog,
-        IAIProviderConnectionStore connectionCatalog)
+        IAIProviderConnectionStore connectionCatalog,
+        IAIModelCapabilityService capabilityService)
     {
         _deploymentStore = deploymentStore;
         _deploymentCatalog = deploymentCatalog;
         _connectionCatalog = connectionCatalog;
+        _capabilityService = capabilityService;
     }
 
     public async Task<IActionResult> Index()
@@ -258,6 +262,8 @@ public sealed class AIDeploymentController : Controller
             .Where(static purpose => purpose != AIDeploymentPurpose.None)
             .Select(static purpose => new SelectListItem(purpose.ToString(), purpose.ToString()))
             .ToList();
+
+        model.MergeRegisteredCapabilities(_capabilityService.GetRegisteredFeatures(), _capabilityService.GetRegisteredParameters());
     }
 
     private async Task ValidateUniqueNameAsync(string technicalName, string currentItemId = null)

@@ -1,0 +1,208 @@
+@using CrestApps.Core.AI.Models
+@model CrestApps.Core.Mvc.Web.Models.ModelParameterEditorViewModel
+
+@if (Model is not null && Model.HasParameters)
+{
+    <div class="model-parameters" id="@(Model.ElementPrefix)-container"
+         data-deployment-field="@Model.DeploymentFieldName"
+         data-capabilities="@Model.CapabilitiesJson">
+        <div class="alert alert-secondary py-2 mb-3 d-none" id="@(Model.ElementPrefix)-empty" role="status">
+            The selected deployment does not expose any configurable model parameters.
+        </div>
+        @foreach (var parameter in Model.Parameters)
+        {
+            var fieldId = $"{Model.ElementPrefix}-{parameter.ElementId}";
+            var fieldName = $"{Model.FieldPrefix}[{parameter.Name}]";
+            <div class="mb-3 d-none" data-model-parameter="@parameter.Name" id="@(fieldId)-wrapper">
+                <label class="form-label" for="@fieldId">@parameter.DisplayName</label>
+                @switch (parameter.Kind)
+                {
+                    case AIModelParameterKind.Choice:
+                        <select class="form-select" id="@fieldId" name="@fieldName" disabled>
+                            <option value="" data-default-option>Use deployment default</option>
+                            @foreach (var option in parameter.AllowedValues)
+                            {
+                                <option value="@option.Value" selected="@(string.Equals(option.Value, parameter.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@option.DisplayName</option>
+                            }
+                        </select>
+                        break;
+                    case AIModelParameterKind.Boolean:
+                        <select class="form-select" id="@fieldId" name="@fieldName" disabled>
+                            <option value="" data-default-option>Use deployment default</option>
+                            <option value="true" selected="@(string.Equals(parameter.Value, "true", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Enabled</option>
+                            <option value="false" selected="@(string.Equals(parameter.Value, "false", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Disabled</option>
+                        </select>
+                        break;
+                    case AIModelParameterKind.Number:
+                    case AIModelParameterKind.Integer:
+                        <input type="number" class="form-control" id="@fieldId" name="@fieldName"
+                               value="@parameter.Value" placeholder="Use deployment default"
+                               step="@(parameter.Kind == AIModelParameterKind.Integer ? "1" : "any")" disabled />
+                        break;
+                    default:
+                        <input type="text" class="form-control" id="@fieldId" name="@fieldName"
+                               value="@parameter.Value" placeholder="Use deployment default" disabled />
+                        break;
+                }
+                @if (!string.IsNullOrWhiteSpace(parameter.Description))
+                {
+                    <div class="form-text">@parameter.Description</div>
+                }
+            </div>
+        }
+    </div>
+
+    <script>
+        (function () {
+            function initModelParameters(container) {
+                if (!container || container.dataset.initialized === 'true') {
+                    return;
+                }
+
+                container.dataset.initialized = 'true';
+
+                var capabilities = {};
+
+                try {
+                    capabilities = JSON.parse(container.dataset.capabilities || '{}');
+                } catch (e) {
+                    capabilities = {};
+                }
+
+                var deploymentField = container.dataset.deploymentField;
+                var deploymentSelect = deploymentField ? document.querySelector('[name="' + deploymentField + '"]') : null;
+                var emptyNotice = container.querySelector('[id$="-empty"]');
+
+                function lookup(deploymentName) {
+                    if (!deploymentName) {
+                        return null;
+                    }
+
+                    var keys = Object.keys(capabilities);
+
+                    for (var i = 0; i < keys.length; i++) {
+                        if (keys[i].toLowerCase() === deploymentName.toLowerCase()) {
+                            return capabilities[keys[i]];
+                        }
+                    }
+
+                    return null;
+                }
+
+                function applyChoice(input, metadata) {
+                    var allowed = metadata.allowedValues;
+                    var defaultOption = input.querySelector('[data-default-option]');
+
+                    if (defaultOption) {
+                        defaultOption.textContent = metadata.defaultValue
+                            ? 'Use deployment default (' + metadata.defaultValue + ')'
+                            : 'Use deployment default';
+                    }
+
+                    var lowered = allowed ? allowed.map(function (v) { return String(v).toLowerCase(); }) : null;
+                    var selectedIsAllowed = !input.value;
+
+                    Array.prototype.forEach.call(input.options, function (option) {
+                        if (!option.value) {
+                            return;
+                        }
+
+                        var supported = !lowered || lowered.indexOf(option.value.toLowerCase()) >= 0;
+                        option.hidden = !supported;
+                        option.disabled = !supported;
+
+                        if (supported && option.selected) {
+                            selectedIsAllowed = true;
+                        }
+                    });
+
+                    if (!selectedIsAllowed) {
+                        input.value = '';
+                    }
+                }
+
+                function applyNumeric(input, metadata) {
+                    if (metadata.minimum !== null && metadata.minimum !== undefined) {
+                        input.min = metadata.minimum;
+                    } else {
+                        input.removeAttribute('min');
+                    }
+
+                    if (metadata.maximum !== null && metadata.maximum !== undefined) {
+                        input.max = metadata.maximum;
+                    } else {
+                        input.removeAttribute('max');
+                    }
+
+                    if (metadata.step !== null && metadata.step !== undefined) {
+                        input.step = metadata.step;
+                    }
+
+                    input.placeholder = metadata.defaultValue
+                        ? 'Use deployment default (' + metadata.defaultValue + ')'
+                        : 'Use deployment default';
+                }
+
+                function refresh() {
+                    var supported = lookup(deploymentSelect ? deploymentSelect.value : null);
+                    var visibleCount = 0;
+
+                    Array.prototype.forEach.call(container.querySelectorAll('[data-model-parameter]'), function (wrapper) {
+                        var name = wrapper.getAttribute('data-model-parameter');
+                        var metadata = supported ? supported[name] : null;
+                        var input = wrapper.querySelector('select, input');
+
+                        if (!metadata) {
+                            wrapper.classList.add('d-none');
+
+                            if (input) {
+                                input.disabled = true;
+                            }
+
+                            return;
+                        }
+
+                        visibleCount++;
+                        wrapper.classList.remove('d-none');
+
+                        if (!input) {
+                            return;
+                        }
+
+                        input.disabled = false;
+
+                        if (input.tagName === 'SELECT') {
+                            applyChoice(input, metadata);
+                        } else if (input.type === 'number') {
+                            applyNumeric(input, metadata);
+                        } else {
+                            input.placeholder = metadata.defaultValue
+                                ? 'Use deployment default (' + metadata.defaultValue + ')'
+                                : 'Use deployment default';
+                        }
+                    });
+
+                    if (emptyNotice) {
+                        emptyNotice.classList.toggle('d-none', visibleCount > 0);
+                    }
+                }
+
+                if (deploymentSelect) {
+                    deploymentSelect.addEventListener('change', refresh);
+                }
+
+                refresh();
+            }
+
+            function initAll() {
+                Array.prototype.forEach.call(document.querySelectorAll('.model-parameters'), initModelParameters);
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initAll);
+            } else {
+                initAll();
+            }
+        })();
+    </script>
+}

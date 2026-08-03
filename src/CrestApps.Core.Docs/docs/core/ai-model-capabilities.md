@@ -1,0 +1,323 @@
+---
+sidebar_label: Model Capabilities
+sidebar_position: 16
+title: AI Model Capabilities
+description: Metadata-driven model features and model parameters that describe what an AI deployment supports and which options its consumers may configure.
+---
+
+# AI Model Capabilities
+
+> A registry of **model features** and **model parameters** that lets deployments declare what their
+> model supports, so editors render only the relevant options and the runtime only sends supported values.
+
+## Why this exists
+
+Different models expose different knobs. A reasoning model accepts a reasoning effort level, a small
+chat model does not. Without metadata, every new knob turns into hardcoded, provider-specific UI and
+provider-specific request-building code.
+
+The capability system replaces that with two extensible concepts:
+
+| Concept | Shape | Example |
+| --- | --- | --- |
+| **Model feature** | A binary capability. The deployment either supports it or it does not. | `toolCalling`, `reasoning`, `streaming` |
+| **Model parameter** | A configurable option carrying metadata: kind, allowed values, range, and a default. | `reasoningEffort` |
+
+Definitions are registered once at startup. An **AI Deployment** then declares which of those
+definitions its model actually exposes, optionally narrowing the allowed values. AI Profiles, AI
+Profile Templates, and Chat Interactions store the selected values. At request time the framework
+binds the selected values into the outgoing request.
+
+:::info
+Model features are **not** the same as `AIDeploymentPurpose`. `Purpose` (`Chat`, `Utility`,
+`Embedding`, `Image`, …) drives *routing* — which deployment is picked for a given job. Features
+describe *capabilities within* a deployment and deliberately avoid duplicating routing concerns.
+:::
+
+## Quick Start
+
+```csharp
+builder.Services.AddCoreAIModelCapabilities();
+```
+
+:::info
+You rarely need to call this directly — `AddCoreAIServices()` chains it automatically.
+:::
+
+## Built-in definitions
+
+### Features
+
+| Name | Constant | Description |
+| --- | --- | --- |
+| `toolCalling` | `AIModelFeatureNames.ToolCalling` | The model can call tools and functions supplied with the request. |
+| `structuredOutputs` | `AIModelFeatureNames.StructuredOutputs` | The model can return responses that follow a supplied JSON schema. |
+| `streaming` | `AIModelFeatureNames.Streaming` | The model can stream response updates as they are produced. |
+| `reasoning` | `AIModelFeatureNames.Reasoning` | The model performs internal reasoning before producing an answer. |
+| `audioInput` | `AIModelFeatureNames.AudioInput` | The model accepts audio input. |
+| `audioOutput` | `AIModelFeatureNames.AudioOutput` | The model produces audio output. |
+| `webSearch` | `AIModelFeatureNames.WebSearch` | The model can search the web while producing a response. |
+| `computerUse` | `AIModelFeatureNames.ComputerUse` | The model can operate a computer or browser environment. |
+
+### Parameters
+
+| Name | Constant | Kind | Allowed values | Default |
+| --- | --- | --- | --- | --- |
+| `reasoningEffort` | `AIModelParameterNames.ReasoningEffort` | `Choice` | `None` (shown as *Minimal*), `Low`, `Medium`, `High`, `ExtraHigh` | `Medium` |
+
+`reasoningEffort` maps onto `Microsoft.Extensions.AI.ChatOptions.Reasoning.Effort`, so it is
+provider-agnostic and ships in the core AI package rather than in a provider module.
+
+## Declaring what a deployment supports
+
+Capability metadata is stored on the deployment through the
+[extensible entity](./extensible-entity.md) `Properties` bag using `AIDeploymentModelMetadata`:
+
+```csharp
+deployment.Put(new AIDeploymentModelMetadata
+{
+    Features =
+    [
+        AIModelFeatureNames.ToolCalling,
+        AIModelFeatureNames.Reasoning,
+    ],
+    Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+    {
+        [AIModelParameterNames.ReasoningEffort] = new AIDeploymentModelParameter
+        {
+            AllowedValues = ["Low", "Medium", "High"],
+            DefaultValue = "Medium",
+        },
+    },
+});
+```
+
+Because `AIDeploymentCatalogHandler` deep-merges `Properties`, the same metadata can be supplied from
+configuration or a recipe with no extra code:
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "Deployments": [
+        {
+          "Name": "gpt-5-chat",
+          "ModelName": "gpt-5",
+          "ConnectionName": "openai",
+          "Properties": {
+            "AIDeploymentModelMetadata": {
+              "Features": [ "toolCalling", "reasoning", "streaming" ],
+              "Parameters": {
+                "reasoningEffort": {
+                  "AllowedValues": [ "Low", "Medium", "High" ],
+                  "DefaultValue": "Medium"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+A deployment-level parameter entry may narrow or override the registered definition:
+
+| Property | Effect |
+| --- | --- |
+| `AllowedValues` | Restricts a `Choice` parameter to a subset of the registered options. |
+| `DefaultValue` | Overrides the registered default. Ignored when the value is not valid for the parameter. |
+| `Minimum`, `Maximum`, `Step` | Overrides the numeric bounds for `Number` and `Integer` parameters. |
+
+## Resolving capabilities
+
+`IAIModelCapabilityService` merges the registered definitions with the deployment metadata and returns
+only what the deployment exposes:
+
+```csharp
+public sealed class MyService
+{
+    private readonly IAIModelCapabilityService _capabilityService;
+
+    public MyService(IAIModelCapabilityService capabilityService)
+    {
+        _capabilityService = capabilityService;
+    }
+
+    public async Task<bool> SupportsReasoningAsync(string deploymentName)
+    {
+        var capabilities = await _capabilityService.GetCapabilitiesAsync(deploymentName);
+
+        return capabilities.SupportsFeature(AIModelFeatureNames.Reasoning);
+    }
+}
+```
+
+| Member | Description |
+| --- | --- |
+| `GetRegisteredFeatures()` | Every registered feature descriptor, ordered. |
+| `GetRegisteredParameters()` | Every registered parameter descriptor, ordered. |
+| `GetCapabilities(AIDeployment)` | Resolves capabilities from an already loaded deployment. |
+| `GetCapabilitiesAsync(string, CancellationToken)` | Loads the deployment by name and resolves its capabilities. |
+
+The returned `AIDeploymentCapabilities` exposes `Features`, `Parameters`, `SupportsFeature`,
+`SupportsParameter`, and `GetParameter`. Descriptors are cloned, so the registered definitions are
+never mutated by a deployment override.
+
+## Storing selected values
+
+Consumers store their selections with `AIModelParametersMetadata`, again through the extensible
+entity `Properties` bag:
+
+```csharp
+profile.Put(new AIModelParametersMetadata
+{
+    Values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [AIModelParameterNames.ReasoningEffort] = "High",
+    },
+});
+```
+
+This works on `AIProfile`, `AIProfileTemplate`, and `ChatInteraction`. Profile and chat interaction
+context builder handlers copy the stored values onto `AICompletionContext.ModelParameters` before the
+request is built.
+
+### Markdown profile templates
+
+Markdown-authored profile templates can set values through the `ModelParameters` front-matter key.
+Pairs are `name=value`, separated by `;` or by a new line:
+
+```markdown
+---
+Name: Deep research
+ModelParameters: reasoningEffort=High
+---
+
+You are a meticulous research assistant.
+```
+
+## Runtime binding
+
+`ModelParametersAICompletionServiceHandler` runs as an `IAICompletionServiceHandler` and is the single
+enforcement point:
+
+1. It iterates only the parameters the **deployment** exposes. A value stored for an unsupported
+   parameter is ignored and never leaves the process.
+2. When the stored value is missing or invalid for the resolved descriptor, the deployment default is
+   used and a warning is logged.
+3. If an `IAIModelParameterBinder` is registered for the parameter, the binder shapes the request.
+4. Otherwise the value is written to `ChatOptions.AdditionalProperties` so providers that read raw
+   properties still receive it.
+
+`ReasoningEffortModelParameterBinder` implements step 3 for `reasoningEffort` by setting
+`ChatOptions.Reasoning.Effort`.
+
+:::note
+Azure OpenAI builds `OpenAI.Chat.ChatCompletionOptions` directly instead of going through
+`Microsoft.Extensions.AI.ChatOptions`. `AzureOpenAICompletionClient` therefore translates the resolved
+reasoning effort onto `ChatCompletionOptions.ReasoningEffortLevel` as well, so both request paths
+behave the same.
+:::
+
+## Registering your own definitions
+
+Any module can contribute definitions during startup.
+
+```csharp
+services.AddAIModelFeature(
+    "imageInput",
+    new LocalizedString("imageInput", "Image input"),
+    feature =>
+    {
+        feature.Description = new LocalizedString("imageInput", "The model accepts image input.");
+        feature.Order = 90;
+    });
+
+services.AddAIModelParameter(
+    "verbosity",
+    new LocalizedString("verbosity", "Verbosity"),
+    parameter =>
+    {
+        parameter.Kind = AIModelParameterKind.Choice;
+        parameter.DefaultValue = "medium";
+        parameter.AllowedValues =
+        [
+            new AIModelParameterOption { Value = "low", DisplayName = new LocalizedString("low", "Low") },
+            new AIModelParameterOption { Value = "medium", DisplayName = new LocalizedString("medium", "Medium") },
+            new AIModelParameterOption { Value = "high", DisplayName = new LocalizedString("high", "High") },
+        ];
+    });
+```
+
+Registering the same name again updates the existing descriptor instead of adding a duplicate, so a
+provider module can refine a definition contributed by another module.
+
+### Parameter kinds
+
+| Kind | Editor | Notes |
+| --- | --- | --- |
+| `Choice` | Drop-down | Requires `AllowedValues`. |
+| `Number` | Numeric input | Honors `Minimum`, `Maximum`, and `Step`. |
+| `Integer` | Numeric input | Honors `Minimum`, `Maximum`, and `Step`. |
+| `Boolean` | Drop-down of `true` / `false` | |
+| `Text` | Free-text input | |
+
+### Custom binders
+
+Implement `IAIModelParameterBinder` when a parameter needs to shape the request beyond
+`AdditionalProperties`:
+
+```csharp
+public sealed class VerbosityModelParameterBinder : IAIModelParameterBinder
+{
+    public string ParameterName => "verbosity";
+
+    public ValueTask BindAsync(AIModelParameterBindingContext context, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        context.ChatOptions.AdditionalProperties ??= [];
+        context.ChatOptions.AdditionalProperties["verbosity"] = context.Value;
+
+        return ValueTask.CompletedTask;
+    }
+}
+```
+
+```csharp
+services.AddScoped<IAIModelParameterBinder, VerbosityModelParameterBinder>();
+```
+
+The binding context exposes the resolved `Descriptor`, the selected `Value`, the `ChatOptions` being
+built, the `CompletionContext`, and the `Deployment`.
+
+## Sample host editors
+
+Both sample hosts render the metadata rather than hardcoding options.
+
+- **AI Deployment editor** — lists every registered feature as a checkbox and every registered
+  parameter with a *supported* toggle, an allowed-values selector, a default value, and numeric bounds
+  where applicable.
+- **AI Profile, AI Profile Template, and Chat Interaction editors** — render only the parameters the
+  selected deployment supports, restricted to that deployment's allowed values.
+
+In `CrestApps.Core.Mvc.Web` the server renders every registered parameter inside hidden, disabled
+wrappers together with a deployment-to-capability JSON map; a small script shows, enables, and filters
+the fields when the deployment selection changes. Disabled inputs are not posted, so an unsupported
+value can never be submitted. In `CrestApps.Core.Blazor.Web` the components re-render reactively and
+prune values that the newly selected deployment does not support.
+
+:::note
+The GitHub Copilot and Claude orchestrators keep their own effort settings
+(`CopilotReasoningEffort`, `ClaudeEffortLevel`). Those are orchestrator/session-level options rather
+than deployment-level model parameters and are intentionally left unchanged.
+:::
+
+## Related
+
+- [AI Core](./ai-core.md)
+- [AI Profiles](./ai-profiles.md)
+- [AI Templates](./ai-templates.md)
+- [Extensible Entity](./extensible-entity.md)

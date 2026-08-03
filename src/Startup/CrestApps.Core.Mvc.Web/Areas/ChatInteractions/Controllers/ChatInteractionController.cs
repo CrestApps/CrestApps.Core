@@ -24,6 +24,7 @@ using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Templates.Services;
@@ -63,6 +64,7 @@ public sealed class ChatInteractionController : Controller
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
+    private readonly AIModelParameterViewService _modelParameterViewService;
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
@@ -88,7 +90,8 @@ public sealed class ChatInteractionController : Controller
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
-        ISourceCatalog<AIToolInstance> toolInstanceCatalog)
+        ISourceCatalog<AIToolInstance> toolInstanceCatalog,
+        AIModelParameterViewService modelParameterViewService)
     {
         _interactionManager = interactionManager;
         _promptStore = promptStore;
@@ -114,6 +117,7 @@ public sealed class ChatInteractionController : Controller
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
         _toolInstanceCatalog = toolInstanceCatalog;
+        _modelParameterViewService = modelParameterViewService;
     }
 
     public async Task<IActionResult> Index()
@@ -290,6 +294,8 @@ public sealed class ChatInteractionController : Controller
 
     private async Task PopulateDropdownsAsync(ChatInteractionViewModel model)
     {
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
+
         var deployments = await _deploymentCatalog.GetAllAsync();
         model.Deployments = deployments
             .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
@@ -625,6 +631,15 @@ public sealed class ChatInteractionController : Controller
         interaction.Alter<AIToolInstanceMetadata>(metadata =>
         {
             metadata.ToolInstanceNames = toolInstanceNames.ToArray();
+        });
+
+        interaction.Alter<AIModelParametersMetadata>(metadata =>
+        {
+            metadata.Values = model.ModelParameters is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(
+                    model.ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+                    StringComparer.OrdinalIgnoreCase);
         });
 
         if (string.Equals(model.OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))

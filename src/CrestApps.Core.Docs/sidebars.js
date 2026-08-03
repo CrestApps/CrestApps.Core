@@ -38,6 +38,7 @@ const sidebars = {
                 'core/ai-core',
                 'core/ai-documents',
                 'core/ai-memory',
+                'core/ai-model-capabilities',
                 'core/ai-templates',
                 'core/chat',
                 'core/context-builders',

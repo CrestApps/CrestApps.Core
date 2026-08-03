@@ -1,0 +1,158 @@
+@using System.Globalization
+@using CrestApps.Core.AI.Capabilities
+@using CrestApps.Core.AI.Models
+@inject IAIModelCapabilityService CapabilityService
+
+@if (_capabilities.Parameters.Count > 0)
+{
+    @foreach (var parameter in _capabilities.Parameters)
+    {
+        var parameterName = parameter.Name;
+        var elementId = $"modelParameter_{parameterName.Replace('.', '_')}";
+        <div class="mb-3">
+            <label class="form-label" for="@elementId">@(parameter.DisplayName?.Value ?? parameter.Name)</label>
+            @if (parameter.Kind == AIModelParameterKind.Choice)
+            {
+                <select id="@elementId"
+                        class="form-select"
+                        value="@GetValue(parameterName)"
+                        @onchange="args => SetValue(parameterName, args.Value?.ToString())">
+                    <option value="">@BuildDefaultLabel(parameter)</option>
+                    @foreach (var option in parameter.AllowedValues)
+                    {
+                        <option value="@option.Value" selected="@string.Equals(option.Value, GetValue(parameterName), StringComparison.OrdinalIgnoreCase)">@(option.DisplayName?.Value ?? option.Value)</option>
+                    }
+                </select>
+            }
+            else if (parameter.Kind == AIModelParameterKind.Boolean)
+            {
+                <select id="@elementId"
+                        class="form-select"
+                        value="@GetValue(parameterName)"
+                        @onchange="args => SetValue(parameterName, args.Value?.ToString())">
+                    <option value="">@BuildDefaultLabel(parameter)</option>
+                    <option value="true" selected="@string.Equals("true", GetValue(parameterName), StringComparison.OrdinalIgnoreCase)">Enabled</option>
+                    <option value="false" selected="@string.Equals("false", GetValue(parameterName), StringComparison.OrdinalIgnoreCase)">Disabled</option>
+                </select>
+            }
+            else if (parameter.Kind == AIModelParameterKind.Number || parameter.Kind == AIModelParameterKind.Integer)
+            {
+                <input id="@elementId"
+                       type="number"
+                       class="form-control"
+                       min="@parameter.Minimum"
+                       max="@parameter.Maximum"
+                       step="@(parameter.Step?.ToString(CultureInfo.InvariantCulture) ?? (parameter.Kind == AIModelParameterKind.Integer ? "1" : "any"))"
+                       placeholder="@BuildDefaultLabel(parameter)"
+                       value="@GetValue(parameterName)"
+                       @onchange="args => SetValue(parameterName, args.Value?.ToString())" />
+            }
+            else
+            {
+                <input id="@elementId"
+                       class="form-control"
+                       placeholder="@BuildDefaultLabel(parameter)"
+                       value="@GetValue(parameterName)"
+                       @onchange="args => SetValue(parameterName, args.Value?.ToString())" />
+            }
+            @if (parameter.Description is not null && !string.IsNullOrWhiteSpace(parameter.Description.Value))
+            {
+                <div class="form-text">@parameter.Description.Value</div>
+            }
+        </div>
+    }
+}
+else if (ShowEmptyNotice)
+{
+    <div class="alert alert-secondary py-2 mb-3" role="status">
+        The selected deployment does not expose any configurable model parameters.
+    </div>
+}
+
+@code {
+    private AIDeploymentCapabilities _capabilities = AIDeploymentCapabilities.Empty;
+    private string _loadedDeploymentName;
+
+    /// <summary>
+    /// Gets or sets the technical name of the deployment whose parameters are rendered.
+    /// </summary>
+    [Parameter]
+    public string DeploymentName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the selected parameter values keyed by the registered parameter technical name.
+    /// </summary>
+    [Parameter]
+    public Dictionary<string, string> Values { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a notice is rendered when the deployment exposes no parameters.
+    /// </summary>
+    [Parameter]
+    public bool ShowEmptyNotice { get; set; } = true;
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.Equals(_loadedDeploymentName, DeploymentName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _loadedDeploymentName = DeploymentName;
+        _capabilities = string.IsNullOrWhiteSpace(DeploymentName)
+            ? AIDeploymentCapabilities.Empty
+            : await CapabilityService.GetCapabilitiesAsync(DeploymentName);
+
+        PruneUnsupportedValues();
+    }
+
+    private void PruneUnsupportedValues()
+    {
+        if (Values is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var key in Values.Keys.ToArray())
+        {
+            var descriptor = _capabilities.GetParameter(key);
+
+            if (descriptor is null || !descriptor.IsValidValue(Values[key]))
+            {
+                Values.Remove(key);
+            }
+        }
+    }
+
+    private string GetValue(string parameterName)
+    {
+        return Values is not null && Values.TryGetValue(parameterName, out var value)
+            ? value
+            : string.Empty;
+    }
+
+    private void SetValue(string parameterName, string value)
+    {
+        if (Values is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            Values.Remove(parameterName);
+
+            return;
+        }
+
+        Values[parameterName] = value;
+    }
+
+    private static string BuildDefaultLabel(AIModelParameterDescriptor parameter)
+    {
+        return string.IsNullOrWhiteSpace(parameter.DefaultValue)
+            ? "Use deployment default"
+            : $"Use deployment default ({parameter.DefaultValue})";
+    }
+}

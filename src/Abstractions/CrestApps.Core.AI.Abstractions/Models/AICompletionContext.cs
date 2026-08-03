@@ -117,6 +117,13 @@ public sealed class AICompletionContext
     }
 
     /// <summary>
+    /// Gets the model parameter values selected for this request, keyed by the registered
+    /// parameter technical name. Values for parameters that the resolved deployment does not
+    /// expose are discarded before the request is sent to the provider.
+    /// </summary>
+    public Dictionary<string, string> ModelParameters { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Gets the additional provider-specific properties applied to the completion request.
     /// </summary>
     public Dictionary<string, object> AdditionalProperties { get; } = new(StringComparer.OrdinalIgnoreCase);
