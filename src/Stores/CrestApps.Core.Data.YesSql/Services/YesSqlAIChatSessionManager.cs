@@ -175,7 +175,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
 
         if (storedSession == null)
         {
-            await _session.SaveAsync(chatSession, _collection);
+            await _session.SaveAsync(chatSession, false, _collection, CancellationToken.None);
 
             return;
         }
@@ -185,7 +185,7 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
             CopySession(chatSession, storedSession);
         }
 
-        await _session.SaveAsync(storedSession, _collection);
+        await _session.SaveAsync(storedSession, false, _collection, CancellationToken.None);
     }
 
     /// <summary>

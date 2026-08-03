@@ -328,8 +328,9 @@ public sealed class YesSqlAIChatSessionManagerTests
             .Setup(session => session.SaveAsync(
                 It.IsAny<AIChatSession>(),
                 It.IsAny<bool>(),
-                It.IsAny<string>()))
-            .Callback<object, bool, string>((session, _, _) => stagedSession = (AIChatSession)session)
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<object, bool, string, CancellationToken>((session, _, _, _) => stagedSession = (AIChatSession)session)
             .Returns(Task.CompletedTask);
         var sessionManager = new YesSqlAIChatSessionManager(
             new Mock<IHttpContextAccessor>(MockBehavior.Strict).Object,
