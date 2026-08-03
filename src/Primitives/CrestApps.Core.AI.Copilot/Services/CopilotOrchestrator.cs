@@ -422,7 +422,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             return;
         }
 
-        await session.Rpc.Permissions.SetAllowAllAsync(true, GitHub.Copilot.Rpc.PermissionsSetAllowAllSource.Rpc, cancellationToken);
+        await session.Rpc.Permissions.SetAllowAllAsync(GitHub.Copilot.Rpc.PermissionsAllowAllMode.On, source: GitHub.Copilot.Rpc.PermissionsSetAllowAllSource.Rpc, cancellationToken: cancellationToken);
     }
 #pragma warning restore GHCP001
 

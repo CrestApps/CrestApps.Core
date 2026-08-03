@@ -48,7 +48,7 @@ public sealed class YesSqlAIChatSessionExtractedDataStore : IAIChatSessionExtrac
 
         if (existing is null)
         {
-            await _session.SaveAsync(record, _collection);
+            await _session.SaveAsync(record, false, _collection, CancellationToken.None);
 
             return;
         }
@@ -80,7 +80,7 @@ public sealed class YesSqlAIChatSessionExtractedDataStore : IAIChatSessionExtrac
             }
         }
 
-        await _session.SaveAsync(existing, _collection);
+        await _session.SaveAsync(existing, false, _collection, CancellationToken.None);
     }
 
     /// <summary>

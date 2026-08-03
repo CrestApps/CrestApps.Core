@@ -1,5 +1,19 @@
 <Project>
 
+  <!--
+    OllamaSharp ships a Roslyn source generator (OllamaSharp.SourceGenerators) built
+    against a newer compiler than the currently pinned .NET SDK provides, which fails
+    the build with CS9057. The generator is not used by this repository, so strip it
+    from the analyzer set before compilation across every project (it also flows
+    transitively into hosts that reference the Ollama provider). Revisit once the
+    SDK's bundled Roslyn version catches up with the analyzer's target.
+  -->
+  <Target Name="RemoveIncompatibleOllamaSharpAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="$([System.String]::Copy('%(Analyzer.Identity)').Contains('OllamaSharp.SourceGenerators'))" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="RegenerateFrameworkAssemblyAttributes"
           BeforeTargets="GenerateTargetFrameworkMonikerAttribute"
           Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true' and '$(TargetFrameworkMonikerAssemblyAttributesPath)' != ''">

@@ -55,8 +55,8 @@ public sealed class YesSqlAIChatSessionExtractedDataStoreTests
         var session = CreateSessionStore(existing);
         object stagedRecord = null;
         session
-            .Setup(store => store.SaveAsync(It.IsAny<object>(), It.IsAny<bool>(), It.IsAny<string>()))
-            .Callback<object, bool, string>((saved, _, _) => stagedRecord = saved)
+            .Setup(store => store.SaveAsync(It.IsAny<object>(), It.IsAny<bool>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<object, bool, string, CancellationToken>((saved, _, _, _) => stagedRecord = saved)
             .Returns(Task.CompletedTask);
         var extractedDataStore = new YesSqlAIChatSessionExtractedDataStore(
             session.Object,
