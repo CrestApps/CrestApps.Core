@@ -5,6 +5,8 @@ repository. The detailed conventions live in
 [`.github/copilot-instructions.md`](.github/copilot-instructions.md); read that file
 first and follow it for build, test, coding, and documentation rules.
 
+- Use ASD-STE100 Simplified Technical English for all responses.
+
 ## Project overview
 
 `CrestApps.Core` is the standalone framework repository for the CrestApps shared
