@@ -69,6 +69,7 @@ Keep the docs focused on `CrestApps.Core`. If you need to mention the Orchard Co
 
 - Follow `.editorconfig`
 - Prefer constructor injection
+- Use ASD-STE100 Simplified Technical English for all responses
 - Do not add `ArgumentNullException.ThrowIf...` guards in constructors
 - Add null guards in public implementation methods when a non-nullable input is required and the method does not intentionally support `null`
 - Skip null guards for nullable or intentionally null-tolerant parameters
