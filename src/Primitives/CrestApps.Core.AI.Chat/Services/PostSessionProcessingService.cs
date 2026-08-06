@@ -286,12 +286,12 @@ public sealed class PostSessionProcessingService
             return null;
         }
 
-        if (!prompts.Any(x => x.Role == ChatRole.User))
+        if (!prompts.Any(x => x.Role == ChatRole.User && !x.IsGeneratedPrompt && !string.IsNullOrWhiteSpace(x.Content)))
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(
-                    "Post-session processing skipped for session '{SessionId}' because there isn't any user prompts.",
+                    "Post-session processing skipped for session '{SessionId}' because there isn't any user prompt with meaningful content to evaluate.",
                     session.SessionId);
             }
 
@@ -415,7 +415,7 @@ public sealed class PostSessionProcessingService
             messages,
             tasksToProcess,
             "structured output path",
-            false,
+            true,
             cancellationToken);
     }
 
@@ -655,13 +655,11 @@ public sealed class PostSessionProcessingService
 
         if (result?.Tasks == null)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug(
-                    "Post-session structured output for session '{SessionId}' ({Reason}) returned no tasks.",
-                    session.SessionId,
-                    reason);
-            }
+            _logger.LogWarning(
+                "Post-session structured output for session '{SessionId}' ({Reason}) returned a response that could not be parsed into structured task results. The AI call succeeded but produced no usable JSON. RawResponsePreview='{ResponsePreview}'.",
+                session.SessionId,
+                reason,
+                CreateResponseLogPreview(responseText));
 
             if (failWhenStructuredResultMissing)
             {
