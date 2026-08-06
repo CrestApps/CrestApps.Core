@@ -1,7 +1,6 @@
 using CrestApps.Core.AI.Documents.Endpoints;
 using CrestApps.Core.AI.Profiles;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 
 namespace CrestApps.Core.AI.Documents.Services;
 
@@ -10,19 +9,14 @@ namespace CrestApps.Core.AI.Documents.Services;
 /// </summary>
 public sealed class DocumentAIReferenceLinkResolver : IAIReferenceLinkResolver
 {
-    private readonly LinkGenerator _linkGenerator;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DocumentAIReferenceLinkResolver"/> class.
     /// </summary>
-    /// <param name="linkGenerator">The link generator.</param>
     /// <param name="httpContextAccessor">The http context accessor.</param>
-    public DocumentAIReferenceLinkResolver(
-        LinkGenerator linkGenerator,
-        IHttpContextAccessor httpContextAccessor)
+    public DocumentAIReferenceLinkResolver(IHttpContextAccessor httpContextAccessor)
     {
-        _linkGenerator = linkGenerator;
         _httpContextAccessor = httpContextAccessor;
     }
 
@@ -38,12 +32,17 @@ public sealed class DocumentAIReferenceLinkResolver : IAIReferenceLinkResolver
             return null;
         }
 
-        return _linkGenerator.GetPathByName(
-            _httpContextAccessor.HttpContext,
-            DownloadAIDocument.DefaultRouteName,
-            new RouteValueDictionary
-            {
-                ["documentId"] = referenceId,
-            });
+        // Build the path directly from the static route pattern instead of resolving by endpoint
+        // name. Name-based link generation forces ASP.NET Core to validate that every endpoint name
+        // is globally unique, which throws in multi-tenant hosts where other modules register the
+        // same named API endpoints across tenants.
+        var relativePath = "/" + DownloadAIDocument.RoutePattern.Replace(
+            "{documentId}",
+            Uri.EscapeDataString(referenceId),
+            StringComparison.Ordinal);
+
+        var pathBase = _httpContextAccessor.HttpContext?.Request.PathBase ?? PathString.Empty;
+
+        return pathBase.Add(relativePath).Value;
     }
 }

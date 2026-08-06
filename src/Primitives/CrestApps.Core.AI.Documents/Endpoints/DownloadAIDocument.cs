@@ -18,13 +18,18 @@ public static class DownloadAIDocument
     public const string DefaultRouteName = "DownloadAIDocument";
 
     /// <summary>
+    /// The static route pattern mapped for the AI document download endpoint.
+    /// </summary>
+    public const string RoutePattern = "ai/documents/{documentId}/download";
+
+    /// <summary>
     /// Adds the shared AI document download endpoint used by citation links.
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="routeName">The route name.</param>
     public static IEndpointRouteBuilder AddDownloadAIDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = DefaultRouteName)
     {
-        var endpoint = builder.MapGet("ai/documents/{documentId}/download", HandleAsync);
+        var endpoint = builder.MapGet(RoutePattern, HandleAsync);
 
         if (!string.IsNullOrEmpty(routeName))
         {
