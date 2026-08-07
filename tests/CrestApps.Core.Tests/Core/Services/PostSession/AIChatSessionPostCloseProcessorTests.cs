@@ -109,12 +109,12 @@ public sealed class AIChatSessionPostCloseProcessorTests
         var result = session.PostSessionResults["summary"];
         Assert.Equal(1, result.Attempts);
         Assert.Equal(PostSessionTaskResultStatus.Pending, result.Status);
-        Assert.Equal("Task produced no result during attempt 1.", result.ErrorMessage);
+        Assert.Equal("No result was returned for this task during attempt 1. The AI produced no parseable result, or the session had no content to evaluate.", result.ErrorMessage);
         Assert.Null(result.ProcessedAtUtc);
         Assert.Single(result.AttemptHistory);
         Assert.Equal(1, result.AttemptHistory[0].AttemptNumber);
         Assert.Equal(PostSessionTaskResultStatus.Pending, result.AttemptHistory[0].Status);
-        Assert.Equal("Task produced no result during attempt 1.", result.AttemptHistory[0].ErrorMessage);
+        Assert.Equal("No result was returned for this task during attempt 1. The AI produced no parseable result, or the session had no content to evaluate.", result.AttemptHistory[0].ErrorMessage);
         Assert.Equal(now, result.AttemptHistory[0].RecordedAtUtc);
     }
 
@@ -137,7 +137,7 @@ public sealed class AIChatSessionPostCloseProcessorTests
         var result = session.PostSessionResults["summary"];
         Assert.Equal(processor.MaxPostCloseAttempts, result.Attempts);
         Assert.Equal(PostSessionTaskResultStatus.Failed, result.Status);
-        Assert.Equal($"Task produced no result after {processor.MaxPostCloseAttempts} attempt(s).", result.ErrorMessage);
+        Assert.Equal($"No result was returned for this task after {processor.MaxPostCloseAttempts} attempt(s). The AI produced no parseable result, or the session had no content to evaluate.", result.ErrorMessage);
         Assert.Equal(now, result.ProcessedAtUtc);
         Assert.Single(result.AttemptHistory);
         Assert.Equal(processor.MaxPostCloseAttempts, result.AttemptHistory[0].AttemptNumber);
