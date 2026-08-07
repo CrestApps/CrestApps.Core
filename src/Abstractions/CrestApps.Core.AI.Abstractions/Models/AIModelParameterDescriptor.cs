@@ -123,7 +123,7 @@ public sealed class AIModelParameterDescriptor
 
             case AIModelParameterKind.Integer:
             case AIModelParameterKind.Number:
-                if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+                if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) || !double.IsFinite(number))
                 {
                     return false;
                 }

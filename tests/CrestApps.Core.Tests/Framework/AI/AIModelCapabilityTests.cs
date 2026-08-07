@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -218,6 +219,23 @@ public sealed class AIModelCapabilityTests
         Assert.False(descriptor.IsValidValue("12.5"));
     }
 
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void IsValidValue_ForNumberParameter_ShouldRejectNonFiniteValues(string value)
+    {
+        // Arrange
+        var descriptor = new AIModelParameterDescriptor
+        {
+            Name = "sampling",
+            Kind = AIModelParameterKind.Number,
+        };
+
+        // Act & Assert
+        Assert.False(descriptor.IsValidValue(value));
+    }
+
     [Fact]
     public async Task ConfigureAsync_WhenDeploymentExposesReasoningEffort_ShouldApplyTheSelectedValue()
     {
@@ -268,6 +286,36 @@ public sealed class AIModelCapabilityTests
 
         // Assert
         Assert.Equal(ReasoningEffort.Low, context.ChatOptions.Reasoning?.Effort);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenTheSelectedValueIsNotSupported_ShouldLogWarning()
+    {
+        // Arrange
+        var logger = new Mock<ILogger<ModelParametersAICompletionServiceHandler>>();
+        var handler = CreateHandler(logger: logger);
+        var deployment = CreateDeployment(new AIDeploymentModelParameter
+        {
+            AllowedValues = ["Low", "Medium"],
+            DefaultValue = "Low",
+        });
+        var context = CreateConfigureContext(deployment, ("reasoningEffort", "High"));
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+#pragma warning disable CA1873
+        logger.Verify(
+            value => value.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString().Contains(AIModelParameterNames.ReasoningEffort, StringComparison.Ordinal)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+#pragma warning restore CA1873
     }
 
     [Fact]
@@ -324,6 +372,171 @@ public sealed class AIModelCapabilityTests
         // Assert
         Assert.NotNull(context.ChatOptions.AdditionalProperties);
         Assert.Equal("high", context.ChatOptions.AdditionalProperties["verbosity"]);
+    }
+
+    [Theory]
+    [InlineData(AIModelParameterKind.Integer, "12", 12L)]
+    [InlineData(AIModelParameterKind.Number, "0.5", 0.5d)]
+    [InlineData(AIModelParameterKind.Boolean, "true", true)]
+    public async Task ConfigureAsync_WhenNoBinderIsRegistered_ShouldWriteTypedPrimitiveToAdditionalProperties(
+        AIModelParameterKind kind,
+        string storedValue,
+        object expected)
+    {
+        // Arrange
+        var options = new AIModelCapabilityOptions();
+        options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
+        {
+            descriptor.Kind = kind;
+            descriptor.Minimum = 0;
+            descriptor.Maximum = 100;
+        });
+
+        var deployment = new AIDeployment
+        {
+            Name = "gpt-5",
+        };
+
+        deployment.Put(new AIDeploymentModelMetadata
+        {
+            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["customParameter"] = new AIDeploymentModelParameter(),
+            },
+        });
+
+        var handler = CreateHandler(options);
+        var context = CreateConfigureContext(deployment, ("customParameter", storedValue));
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(context.ChatOptions.AdditionalProperties);
+        var actual = context.ChatOptions.AdditionalProperties["customParameter"];
+        Assert.Equal(expected, actual);
+        Assert.IsType(expected.GetType(), actual);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenNoBinderIsRegistered_ShouldConvertExponentIntegerToLong()
+    {
+        // Arrange
+        var options = new AIModelCapabilityOptions();
+        options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
+        {
+            descriptor.Kind = AIModelParameterKind.Integer;
+        });
+
+        var deployment = new AIDeployment
+        {
+            Name = "gpt-5",
+        };
+
+        deployment.Put(new AIDeploymentModelMetadata
+        {
+            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["customParameter"] = new AIDeploymentModelParameter(),
+            },
+        });
+
+        var handler = CreateHandler(options);
+        var context = CreateConfigureContext(deployment, ("customParameter", "1e3"));
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(context.ChatOptions.AdditionalProperties);
+        Assert.Equal(1000L, context.ChatOptions.AdditionalProperties["customParameter"]);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenNoBinderIsRegistered_ShouldConvertMaxInt64WithoutOverflow()
+    {
+        // Arrange
+        var options = new AIModelCapabilityOptions();
+        options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
+        {
+            descriptor.Kind = AIModelParameterKind.Integer;
+        });
+
+        var deployment = new AIDeployment
+        {
+            Name = "gpt-5",
+        };
+
+        deployment.Put(new AIDeploymentModelMetadata
+        {
+            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["customParameter"] = new AIDeploymentModelParameter(),
+            },
+        });
+
+        var handler = CreateHandler(options);
+
+        // long.MaxValue rounds up to 2^63 as a double, so a double-based cast would overflow. The value
+        // just above it must be skipped while the exact maximum converts correctly.
+        var context = CreateConfigureContext(deployment, ("customParameter", "9223372036854775807"));
+        var overflowContext = CreateConfigureContext(deployment, ("customParameter", "9223372036854775808"));
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+        await handler.ConfigureAsync(overflowContext, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(long.MaxValue, context.ChatOptions.AdditionalProperties["customParameter"]);
+        Assert.Null(overflowContext.ChatOptions.AdditionalProperties);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenNoBinderIsRegisteredAndValueCannotConvert_ShouldSkipAndLogWarning()
+    {
+        // Arrange
+        var options = new AIModelCapabilityOptions();
+        options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
+        {
+            descriptor.Kind = AIModelParameterKind.Integer;
+        });
+
+        var deployment = new AIDeployment
+        {
+            Name = "gpt-5",
+        };
+
+        deployment.Put(new AIDeploymentModelMetadata
+        {
+            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["customParameter"] = new AIDeploymentModelParameter(),
+            },
+        });
+
+        var logger = new Mock<ILogger<ModelParametersAICompletionServiceHandler>>();
+        var handler = CreateHandler(options, logger);
+
+        // A value larger than long.MaxValue passes the descriptor's numeric validation but cannot be
+        // represented as a 64-bit integer, so it must be skipped rather than sent as a string.
+        var context = CreateConfigureContext(deployment, ("customParameter", "1e30"));
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(context.ChatOptions.AdditionalProperties);
+#pragma warning disable CA1873
+        logger.Verify(
+            value => value.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString().Contains("customParameter", StringComparison.Ordinal)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+#pragma warning restore CA1873
     }
 
     [Fact]
@@ -429,13 +642,15 @@ public sealed class AIModelCapabilityTests
         return new DefaultAIModelCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
     }
 
-    private static ModelParametersAICompletionServiceHandler CreateHandler(AIModelCapabilityOptions options = null)
+    private static ModelParametersAICompletionServiceHandler CreateHandler(
+        AIModelCapabilityOptions options = null,
+        Mock<ILogger<ModelParametersAICompletionServiceHandler>> logger = null)
     {
         var service = new DefaultAIModelCapabilityService(Options.Create(options ?? CreateOptions()), Mock.Of<IAIDeploymentStore>());
 
         return new ModelParametersAICompletionServiceHandler(
             service,
             [new ReasoningEffortModelParameterBinder()],
-            NullLogger<ModelParametersAICompletionServiceHandler>.Instance);
+            logger?.Object ?? NullLogger<ModelParametersAICompletionServiceHandler>.Instance);
     }
 }

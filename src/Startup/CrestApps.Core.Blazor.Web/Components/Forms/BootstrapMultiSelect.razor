@@ -1,0 +1,103 @@
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<select id="@ElementId"
+        class="selectpicker"
+        multiple
+        title="@Title"
+        data-live-search="true"
+        size="@Math.Min(Math.Max(Options.Count, 1), 6)"
+        @key="ElementId"
+        @onchange="OnNativeChange">
+    @foreach (var option in Options)
+    {
+        <option value="@option.Value" selected="@SelectedValues.Contains(option.Value)">@option.Text</option>
+    }
+</select>
+
+@code {
+    private bool _initialized;
+
+    /// <summary>
+    /// Gets or sets the DOM identifier assigned to the rendered <c>select</c> element.
+    /// </summary>
+    [Parameter]
+    public string ElementId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the placeholder shown when no value is selected.
+    /// </summary>
+    [Parameter]
+    public string Title { get; set; }
+
+    /// <summary>
+    /// Gets or sets the selectable options.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<BootstrapMultiSelectOption> Options { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the values that are selected when the component is first rendered.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyCollection<string> SelectedValues { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the selection changes.
+    /// </summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<string>> SelectedValuesChanged { get; set; }
+
+    // The bootstrap-select plugin replaces the native control with its own DOM. Re-rendering the
+    // element from Blazor would clobber that DOM, so the component renders once and then stops
+    // rendering, letting the plugin own the element for its lifetime.
+    protected override bool ShouldRender()
+        => !_initialized;
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _initialized)
+        {
+            return;
+        }
+
+        _initialized = true;
+        await JS.InvokeVoidAsync("crestappsBootstrapSelect.init", ElementId);
+    }
+
+    private async Task OnNativeChange(ChangeEventArgs args)
+    {
+        var values = args.Value switch
+        {
+            string[] selected => selected,
+            string single => string.IsNullOrEmpty(single) ? [] : [single],
+            _ => (IReadOnlyList<string>)[],
+        };
+
+        await SelectedValuesChanged.InvokeAsync(values);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("crestappsBootstrapSelect.dispose", ElementId);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    /// <summary>
+    /// Represents a single selectable option.
+    /// </summary>
+    /// <param name="Value">The option value.</param>
+    /// <param name="Text">The option display text.</param>
+    public sealed record BootstrapMultiSelectOption(string Value, string Text);
+}

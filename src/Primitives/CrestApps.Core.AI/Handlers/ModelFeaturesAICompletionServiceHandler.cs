@@ -1,7 +1,6 @@
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Handlers;
@@ -45,24 +44,7 @@ public sealed class ModelFeaturesAICompletionServiceHandler : IAICompletionServi
 
         var capabilities = _capabilityService.GetCapabilities(context.Deployment);
 
-        if (!capabilities.SupportsFeature(AIModelFeatureNames.ToolCalling) && context.ChatOptions.Tools is { Count: > 0 })
-        {
-            _logger.LogWarning(
-                "Deployment '{Deployment}' does not declare the '{Feature}' feature. {Count} tool(s) were removed from the request.",
-                context.DeploymentName, AIModelFeatureNames.ToolCalling, context.ChatOptions.Tools.Count);
-
-            context.ChatOptions.Tools = null;
-            context.ChatOptions.ToolMode = null;
-        }
-
-        if (!capabilities.SupportsFeature(AIModelFeatureNames.StructuredOutputs) && context.ChatOptions.ResponseFormat is ChatResponseFormatJson)
-        {
-            _logger.LogWarning(
-                "Deployment '{Deployment}' does not declare the '{Feature}' feature. The JSON response format was removed from the request.",
-                context.DeploymentName, AIModelFeatureNames.StructuredOutputs);
-
-            context.ChatOptions.ResponseFormat = null;
-        }
+        ModelFeatureEnforcement.Enforce(context.ChatOptions, capabilities, context.DeploymentName, _logger);
 
         return Task.CompletedTask;
     }

@@ -59,11 +59,12 @@ You rarely need to call this directly — `AddCoreAIServices()` chains it automa
 | `audioInput` | `AIModelFeatureNames.AudioInput` | | The model accepts audio input. |
 | `audioOutput` | `AIModelFeatureNames.AudioOutput` | | The model produces audio output. |
 | `videoInput` | `AIModelFeatureNames.VideoInput` | | The model can understand video inputs. |
-| `computerUse` | `AIModelFeatureNames.ComputerUse` | | The model can operate a computer or browser environment. |
+| `videoOutput` | `AIModelFeatureNames.VideoOutput` | | The model can generate video. |
 
 These represent **trained capabilities** the underlying model was built with. Provider-hosted tools
-(such as a web-search tool the provider runs on your behalf) are *not* modeled as features because
-almost any tool-calling model can be handed such a tool — they are ordinary tools, not a trained
+(such as a web-search tool the provider runs on your behalf, or a computer-use tool) are *not* modeled
+as features because almost any tool-calling model can be handed such a tool — they are ordinary tools,
+not a trained
 trait. Set `AIModelFeatureDescriptor.EnabledByDefault` when registering a feature to pre-select it on
 newly created deployments; existing deployments are never changed by this flag.
 
@@ -364,9 +365,12 @@ Both sample hosts render the metadata rather than hardcoding options.
 In `CrestApps.Core.Mvc.Web` the server renders every registered parameter inside hidden, disabled
 wrappers together with a deployment-to-capability JSON map; a small script shows, enables, and filters
 the fields when the deployment selection changes. Disabled inputs are not posted, so an unsupported
-value can never be submitted. The deployment editor's allowed-values selectors use the
+value can never be submitted. Both the `CrestApps.Core.Mvc.Web` and `CrestApps.Core.Blazor.Web`
+deployment editors render the allowed-values selectors with the
 [`@crestapps/bootstrap-select`](https://github.com/CrestApps/bootstrap-select) picker for a searchable
-multi-select experience. In `CrestApps.Core.Blazor.Web` the components re-render reactively and prune
+multi-select experience, so the two hosts present the same editing UI. In `CrestApps.Core.Blazor.Web`
+the picker is wrapped in an isolated `BootstrapMultiSelect` component that initializes the plugin once
+through a small JS interop module and reports selection changes back to Blazor, and the components prune
 values that the newly selected deployment does not support.
 
 :::note

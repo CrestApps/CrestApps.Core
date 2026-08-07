@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Models;
@@ -73,6 +74,23 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
             deployment.ModelName,
             _serviceProvider,
             _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
+
+        // Enforce the deployment's declared trained features as the terminal layer, immediately above
+        // the provider-facing client and below any pipeline middleware supplied through
+        // configurePipeline. This guarantees unsupported options are removed even when middleware adds
+        // them, and it also covers callers that resolve the client and call it directly outside the
+        // completion pipeline. The capability service is optional so hosts that do not register the
+        // capability services keep working unchanged.
+        var capabilityService = _serviceProvider.GetService<IAIModelCapabilityService>();
+
+        if (capabilityService is not null)
+        {
+            client = new CapabilityEnforcingChatClient(
+                client,
+                deployment,
+                capabilityService,
+                _serviceProvider.GetRequiredService<ILogger<CapabilityEnforcingChatClient>>());
+        }
 
         return BuildChatClient(client, configurePipeline);
     }

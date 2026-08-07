@@ -445,7 +445,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         return optionsContext.SystemFunctions;
     }
 
-    private static ChatCompletionOptions GetOptions(AICompletionContext context, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions, Microsoft.Extensions.AI.ChatOptions resolvedOptions = null)
+    private ChatCompletionOptions GetOptions(AICompletionContext context, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions, Microsoft.Extensions.AI.ChatOptions resolvedOptions = null)
     {
         var chatOptions = new ChatCompletionOptions()
         {
@@ -475,7 +475,7 @@ omit optional fields, or split the operation into multiple smaller calls.
     }
 
 #pragma warning disable OPENAI001 // ChatCompletionOptions.ReasoningEffortLevel is an evaluation-only API in the OpenAI SDK.
-    private static void ApplyReasoningEffort(ChatCompletionOptions chatOptions, Microsoft.Extensions.AI.ChatOptions resolvedOptions)
+    private void ApplyReasoningEffort(ChatCompletionOptions chatOptions, Microsoft.Extensions.AI.ChatOptions resolvedOptions)
     {
         var effort = resolvedOptions?.Reasoning?.Effort;
 
@@ -489,8 +489,19 @@ omit optional fields, or split the operation into multiple smaller calls.
             Microsoft.Extensions.AI.ReasoningEffort.None => ChatReasoningEffortLevel.Minimal,
             Microsoft.Extensions.AI.ReasoningEffort.Low => ChatReasoningEffortLevel.Low,
             Microsoft.Extensions.AI.ReasoningEffort.Medium => ChatReasoningEffortLevel.Medium,
+            Microsoft.Extensions.AI.ReasoningEffort.High => ChatReasoningEffortLevel.High,
+            // The Azure/OpenAI SDK does not expose a level above High, so ExtraHigh (and any future
+            // value) is clamped to the highest level the SDK supports. This is logged so the downgrade
+            // is observable rather than silent.
             _ => ChatReasoningEffortLevel.High,
         };
+
+        if (effort.Value is Microsoft.Extensions.AI.ReasoningEffort.ExtraHigh)
+        {
+            _logger.LogWarning(
+                "The reasoning effort '{Effort}' is not supported by the Azure OpenAI SDK and was clamped to '{Applied}'.",
+                effort.Value, ChatReasoningEffortLevel.High);
+        }
     }
 #pragma warning restore OPENAI001
 

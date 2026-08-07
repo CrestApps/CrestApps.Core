@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -67,6 +68,39 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
     }
 
     [Fact]
+    public async Task ConfigureAsync_WhenDeploymentDoesNotDeclareToolCalling_ShouldLogWarning()
+    {
+        // Arrange
+        var logger = new Mock<ILogger<ModelFeaturesAICompletionServiceHandler>>();
+        var handler = CreateHandler(logger);
+        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var context = CreateContext(deployment, tools: true);
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        VerifyWarningLogged(logger, AIModelFeatureNames.ToolCalling);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenDeploymentDoesNotDeclareToolCalling_ShouldClearToolModeEvenWithoutTools()
+    {
+        // Arrange
+        var handler = CreateHandler();
+        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var context = CreateContext(deployment, tools: false);
+        context.ChatOptions.ToolMode = ChatToolMode.RequireAny;
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(context.ChatOptions.Tools);
+        Assert.Null(context.ChatOptions.ToolMode);
+    }
+
+    [Fact]
     public async Task ConfigureAsync_WhenDeploymentDoesNotDeclareStructuredOutputs_ShouldRemoveJsonResponseFormat()
     {
         // Arrange
@@ -80,6 +114,23 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
 
         // Assert
         Assert.Null(context.ChatOptions.ResponseFormat);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenDeploymentDoesNotDeclareStructuredOutputs_ShouldLogWarning()
+    {
+        // Arrange
+        var logger = new Mock<ILogger<ModelFeaturesAICompletionServiceHandler>>();
+        var handler = CreateHandler(logger);
+        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var context = CreateContext(deployment, tools: false);
+        context.ChatOptions.ResponseFormat = ChatResponseFormat.Json;
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        VerifyWarningLogged(logger, AIModelFeatureNames.StructuredOutputs);
     }
 
     [Fact]
@@ -113,7 +164,9 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
         Assert.Contains(AIModelFeatureNames.ImageInput, options.Features.Keys);
         Assert.Contains(AIModelFeatureNames.ImageOutput, options.Features.Keys);
         Assert.Contains(AIModelFeatureNames.VideoInput, options.Features.Keys);
+        Assert.Contains(AIModelFeatureNames.VideoOutput, options.Features.Keys);
         Assert.DoesNotContain("webSearch", options.Features.Keys);
+        Assert.DoesNotContain("computerUse", options.Features.Keys);
         Assert.True(options.Features[AIModelFeatureNames.ToolCalling].EnabledByDefault);
         Assert.True(options.Features[AIModelFeatureNames.Streaming].EnabledByDefault);
         Assert.False(options.Features[AIModelFeatureNames.Reasoning].EnabledByDefault);
@@ -173,7 +226,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
         };
     }
 
-    private static ModelFeaturesAICompletionServiceHandler CreateHandler()
+    private static ModelFeaturesAICompletionServiceHandler CreateHandler(Mock<ILogger<ModelFeaturesAICompletionServiceHandler>> logger = null)
     {
         var options = new AIModelCapabilityOptions();
         options.AddFeature(AIModelFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
@@ -181,7 +234,22 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
 
         var service = new DefaultAIModelCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
 
-        return new ModelFeaturesAICompletionServiceHandler(service, NullLogger<ModelFeaturesAICompletionServiceHandler>.Instance);
+        return new ModelFeaturesAICompletionServiceHandler(service, logger?.Object ?? NullLogger<ModelFeaturesAICompletionServiceHandler>.Instance);
+    }
+
+    private static void VerifyWarningLogged(Mock<ILogger<ModelFeaturesAICompletionServiceHandler>> logger, string feature)
+    {
+#pragma warning disable CA1873
+        logger.Verify(
+            value => value.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString().Contains(feature, StringComparison.Ordinal)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+#pragma warning restore CA1873
     }
 
     private sealed class TestAIFunction : AIFunction

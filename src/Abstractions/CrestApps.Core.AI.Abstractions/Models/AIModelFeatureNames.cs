@@ -52,7 +52,7 @@ public static class AIModelFeatureNames
     public const string VideoInput = "videoInput";
 
     /// <summary>
-    /// The model can operate a computer or browser environment.
+    /// The model can generate video.
     /// </summary>
-    public const string ComputerUse = "computerUse";
+    public const string VideoOutput = "videoOutput";
 }

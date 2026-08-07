@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
@@ -65,14 +66,75 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
 
             if (binder is null)
             {
-                context.ChatOptions.AdditionalProperties ??= [];
-                context.ChatOptions.AdditionalProperties[descriptor.Name] = value;
+                if (TryConvertValue(descriptor, value, out var converted))
+                {
+                    context.ChatOptions.AdditionalProperties ??= [];
+                    context.ChatOptions.AdditionalProperties[descriptor.Name] = converted;
+                }
+                else
+                {
+                    _logger.LogWarning("The value '{Value}' could not be converted for the model parameter '{Parameter}'. The parameter was skipped.", value, descriptor.Name);
+                }
 
                 continue;
             }
 
             await binder.BindAsync(bindingContext, cancellationToken);
         }
+    }
+
+    private static bool TryConvertValue(AIModelParameterDescriptor descriptor, string value, out object converted)
+    {
+        // The value has already been validated against the descriptor, so conversion is expected to
+        // succeed. Converting to the underlying primitive avoids sending numeric and Boolean values as
+        // quoted strings, which some providers reject. When conversion cannot produce the typed value,
+        // the parameter is skipped rather than sent as a mismatched string.
+        switch (descriptor.Kind)
+        {
+            case AIModelParameterKind.Integer:
+                // Parse through decimal so the Int64 bounds are checked exactly. Using double would
+                // round long.MaxValue up to 2^63, allowing an out-of-range value to overflow the cast.
+                if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var integral) &&
+                    integral == Math.Truncate(integral) &&
+                    integral >= long.MinValue &&
+                    integral <= long.MaxValue)
+                {
+                    converted = (long)integral;
+
+                    return true;
+                }
+
+                break;
+
+            case AIModelParameterKind.Number:
+                if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number))
+                {
+                    converted = number;
+
+                    return true;
+                }
+
+                break;
+
+            case AIModelParameterKind.Boolean:
+                if (bool.TryParse(value, out var boolean))
+                {
+                    converted = boolean;
+
+                    return true;
+                }
+
+                break;
+
+            default:
+                converted = value;
+
+                return true;
+        }
+
+        converted = null;
+
+        return false;
     }
 
     private string GetValue(AICompletionContext completionContext, AIModelParameterDescriptor descriptor)

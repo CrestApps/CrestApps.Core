@@ -259,9 +259,9 @@ public static class ServiceCollectionExtensions
                 feature.Description = new LocalizedString(AIModelFeatureNames.VideoInput, "The model can understand video inputs.");
                 feature.Order = 90;
             })
-            .AddAIModelFeature(AIModelFeatureNames.ComputerUse, new LocalizedString(AIModelFeatureNames.ComputerUse, "Computer use"), feature =>
+            .AddAIModelFeature(AIModelFeatureNames.VideoOutput, new LocalizedString(AIModelFeatureNames.VideoOutput, "Video output"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.ComputerUse, "The model can operate a computer or browser environment.");
+                feature.Description = new LocalizedString(AIModelFeatureNames.VideoOutput, "The model can generate video.");
                 feature.Order = 100;
             });
 

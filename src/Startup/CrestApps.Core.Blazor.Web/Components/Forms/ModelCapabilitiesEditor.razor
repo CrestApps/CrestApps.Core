@@ -19,11 +19,11 @@
             <div class="mb-4">
                 <label class="form-label fw-semibold">Trained features</label>
                 <p class="text-muted small mb-2">Capabilities the underlying model was trained with. Only declared features are sent to the provider.</p>
-                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "Trained Features"))
+                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "Trained Features").OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
                 {
                     <div class="mb-2">
                         <div class="text-uppercase text-muted small">@group.Key</div>
-                        @foreach (var feature in group)
+                        @foreach (var feature in group.OrderBy(feature => feature.DisplayName?.Value ?? feature.Name, StringComparer.OrdinalIgnoreCase))
                         {
                             var featureName = feature.Name;
                             var dependentParameters = Model.ModelParameters
@@ -147,18 +147,11 @@
                     <div class="row g-2">
                         <div class="col-md-7">
                             <label class="form-label small">Supported values</label>
-                            @foreach (var option in parameter.AvailableValues)
-                            {
-                                var optionValue = option.Value;
-                                <div class="form-check">
-                                    <input id="parameter_@(parameter.ElementId)_@optionValue"
-                                           type="checkbox"
-                                           class="form-check-input"
-                                           checked="@parameter.SelectedAllowedValues.Contains(optionValue)"
-                                           @onchange="args => ToggleAllowedValue(parameter, optionValue, args)" />
-                                    <label class="form-check-label" for="parameter_@(parameter.ElementId)_@optionValue">@(option.DisplayName?.Value ?? option.Value)</label>
-                                </div>
-                            }
+                            <BootstrapMultiSelect ElementId="@($"parameter_{parameter.ElementId}_values")"
+                                                  Title="All registered values"
+                                                  Options="@parameter.AvailableValues.Select(option => new BootstrapMultiSelect.BootstrapMultiSelectOption(option.Value, option.DisplayName?.Value ?? option.Value)).ToList()"
+                                                  SelectedValues="@parameter.SelectedAllowedValues"
+                                                  SelectedValuesChanged="values => SetAllowedValues(parameter, values)" />
                             <div class="form-text">Leave nothing selected to support every registered value.</div>
                         </div>
                         <div class="col-md-5">
@@ -210,15 +203,8 @@
         parameter.IsSupported = args.Value is true;
     }
 
-    private static void ToggleAllowedValue(AIDeploymentModelParameterViewModel parameter, string optionValue, ChangeEventArgs args)
+    private static void SetAllowedValues(AIDeploymentModelParameterViewModel parameter, IReadOnlyList<string> values)
     {
-        if (args.Value is true)
-        {
-            parameter.SelectedAllowedValues.Add(optionValue);
-        }
-        else
-        {
-            parameter.SelectedAllowedValues.Remove(optionValue);
-        }
+        parameter.SelectedAllowedValues = new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
     }
 }
