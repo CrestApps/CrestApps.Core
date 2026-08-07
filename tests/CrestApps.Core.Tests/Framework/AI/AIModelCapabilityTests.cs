@@ -87,6 +87,46 @@ public sealed class AIModelCapabilityTests
     }
 
     [Fact]
+    public void GetCapabilities_WhenParameterRequiresAFeatureTheDeploymentDoesNotDeclare_ShouldExcludeTheParameter()
+    {
+        // Arrange
+        var service = CreateService(out _);
+        var deployment = new AIDeployment
+        {
+            Name = "gpt-5",
+        };
+
+        deployment.Put(new AIDeploymentModelMetadata
+        {
+            Features = [],
+            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            {
+                [AIModelParameterNames.ReasoningEffort] = new AIDeploymentModelParameter(),
+            },
+        });
+
+        // Act
+        var descriptor = service.GetCapabilities(deployment).GetParameter(AIModelParameterNames.ReasoningEffort);
+
+        // Assert
+        Assert.Null(descriptor);
+    }
+
+    [Fact]
+    public void GetCapabilities_WhenParameterRequiresADeclaredFeature_ShouldExposeTheParameter()
+    {
+        // Arrange
+        var service = CreateService(out _);
+        var deployment = CreateDeployment(new AIDeploymentModelParameter());
+
+        // Act
+        var descriptor = service.GetCapabilities(deployment).GetParameter(AIModelParameterNames.ReasoningEffort);
+
+        // Assert
+        Assert.NotNull(descriptor);
+    }
+
+    [Fact]
     public void GetCapabilities_WhenDeploymentOverridesDefault_ShouldUseTheOverride()
     {
         // Arrange
@@ -375,6 +415,7 @@ public sealed class AIModelCapabilityTests
         {
             descriptor.Kind = reasoningEffort.Kind;
             descriptor.DefaultValue = reasoningEffort.DefaultValue;
+            descriptor.RequiredFeature = AIModelFeatureNames.Reasoning;
             descriptor.AllowedValues = reasoningEffort.AllowedValues;
         });
 

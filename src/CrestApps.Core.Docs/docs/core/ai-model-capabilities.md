@@ -302,7 +302,10 @@ services.AddAIModelParameter(
 When `RequiredFeature` is set, the deployment editor only shows the parameter while the matching
 feature checkbox is enabled, and clearing the feature also clears the dependent parameter so a
 contradictory combination (for example a `reasoningEffort` value on a model that is not a reasoning
-model) can never be saved.
+model) can never be saved. The relationship is also enforced in the framework:
+`IAIModelCapabilityService.GetCapabilities` excludes a parameter whose `RequiredFeature` is not among
+the deployment's declared features, so `ModelParametersAICompletionServiceHandler` never applies it —
+regardless of how the metadata was authored.
 
 ### Parameter kinds
 
@@ -348,10 +351,11 @@ built, the `CompletionContext`, and the `Deployment`.
 Both sample hosts render the metadata rather than hardcoding options.
 
 - **AI Deployment editor** — lists every registered feature as a checkbox under a **Trained features**
-  heading (features flagged `EnabledByDefault` are pre-checked on new deployments) and every registered
-  parameter with a *supported* toggle, an allowed-values selector, a default value, and numeric bounds
-  where applicable. A parameter that declares a `RequiredFeature` is only shown while the matching
-  feature is enabled.
+  heading (features flagged `EnabledByDefault` are pre-checked on new deployments). A parameter that
+  declares a `RequiredFeature` is rendered inline beneath its feature checkbox and is only shown while
+  that feature is enabled; the **Model parameters** heading only appears for parameters that are not
+  linked to a feature. Each parameter offers a *supported* toggle, an allowed-values selector, a default
+  value, and numeric bounds where applicable.
 - **AI Profile, AI Profile Template, and Chat Interaction editors** — render only the parameters the
   selected deployment supports, restricted to that deployment's allowed values, and show the selected
   deployment's declared trained capabilities as read-only badges so operators can see what the model

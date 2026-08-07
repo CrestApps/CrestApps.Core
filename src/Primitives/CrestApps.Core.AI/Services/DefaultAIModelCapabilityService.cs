@@ -52,12 +52,20 @@ public sealed class DefaultAIModelCapabilityService : IAIModelCapabilityService
         }
 
         var features = new List<AIModelFeatureDescriptor>();
+        var declaredFeatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (metadata.Features is { Length: > 0 })
         {
             foreach (var featureName in metadata.Features)
             {
-                if (!string.IsNullOrWhiteSpace(featureName) && _options.Features.TryGetValue(featureName, out var descriptor))
+                if (string.IsNullOrWhiteSpace(featureName))
+                {
+                    continue;
+                }
+
+                declaredFeatures.Add(featureName);
+
+                if (_options.Features.TryGetValue(featureName, out var descriptor))
                 {
                     features.Add(descriptor);
                 }
@@ -71,6 +79,15 @@ public sealed class DefaultAIModelCapabilityService : IAIModelCapabilityService
             foreach (var (parameterName, overrides) in metadata.Parameters)
             {
                 if (string.IsNullOrWhiteSpace(parameterName) || !_options.Parameters.TryGetValue(parameterName, out var descriptor))
+                {
+                    continue;
+                }
+
+                // A parameter that depends on a trained feature is only exposed when the deployment
+                // declares that feature. This guarantees, at the framework level, that dependent
+                // parameters (for example reasoningEffort) are never applied to a model that lacks the
+                // capability, regardless of how the metadata was authored.
+                if (!string.IsNullOrWhiteSpace(descriptor.RequiredFeature) && !declaredFeatures.Contains(descriptor.RequiredFeature))
                 {
                     continue;
                 }
