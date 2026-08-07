@@ -17,8 +17,9 @@
         @if (Model.AvailableFeatures.Count > 0)
         {
             <div class="mb-4">
-                <label class="form-label fw-semibold">Model features</label>
-                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "General"))
+                <label class="form-label fw-semibold">Trained features</label>
+                <p class="text-muted small mb-2">Capabilities the underlying model was trained with. Only declared features are sent to the provider.</p>
+                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "Trained Features"))
                 {
                     <div class="mb-2">
                         <div class="text-uppercase text-muted small">@group.Key</div>
@@ -154,6 +155,16 @@
 
         _mergedModel = Model;
         Model.MergeRegisteredCapabilities(CapabilityService.GetRegisteredFeatures(), CapabilityService.GetRegisteredParameters());
+
+        // Apply the default trained features once when a brand-new deployment is being created.
+        // Existing deployments (identified by an item id) keep their saved selection untouched.
+        if (string.IsNullOrEmpty(Model.ItemId) && Model.SelectedFeatures.Count == 0)
+        {
+            foreach (var feature in Model.AvailableFeatures.Where(static feature => feature.EnabledByDefault))
+            {
+                Model.SelectedFeatures.Add(feature.Name);
+            }
+        }
     }
 
     private void ToggleFeature(string featureName, ChangeEventArgs args)

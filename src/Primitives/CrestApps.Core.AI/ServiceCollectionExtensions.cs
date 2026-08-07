@@ -216,6 +216,7 @@ public static class ServiceCollectionExtensions
             {
                 feature.Description = new LocalizedString(AIModelFeatureNames.ToolCalling, "The model can call tools and functions supplied with the request.");
                 feature.Order = 10;
+                feature.EnabledByDefault = true;
             })
             .AddAIModelFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString(AIModelFeatureNames.StructuredOutputs, "Structured outputs"), feature =>
             {
@@ -226,31 +227,42 @@ public static class ServiceCollectionExtensions
             {
                 feature.Description = new LocalizedString(AIModelFeatureNames.Streaming, "The model can stream response updates as they are produced.");
                 feature.Order = 30;
+                feature.EnabledByDefault = true;
             })
             .AddAIModelFeature(AIModelFeatureNames.Reasoning, new LocalizedString(AIModelFeatureNames.Reasoning, "Reasoning"), feature =>
             {
                 feature.Description = new LocalizedString(AIModelFeatureNames.Reasoning, "The model performs internal reasoning before producing an answer.");
                 feature.Order = 40;
             })
+            .AddAIModelFeature(AIModelFeatureNames.ImageInput, new LocalizedString(AIModelFeatureNames.ImageInput, "Image input (vision)"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.ImageInput, "The model can understand image inputs.");
+                feature.Order = 50;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.ImageOutput, new LocalizedString(AIModelFeatureNames.ImageOutput, "Image output"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.ImageOutput, "The model can generate images.");
+                feature.Order = 60;
+            })
             .AddAIModelFeature(AIModelFeatureNames.AudioInput, new LocalizedString(AIModelFeatureNames.AudioInput, "Audio input"), feature =>
             {
                 feature.Description = new LocalizedString(AIModelFeatureNames.AudioInput, "The model accepts audio input.");
-                feature.Order = 50;
+                feature.Order = 70;
             })
             .AddAIModelFeature(AIModelFeatureNames.AudioOutput, new LocalizedString(AIModelFeatureNames.AudioOutput, "Audio output"), feature =>
             {
                 feature.Description = new LocalizedString(AIModelFeatureNames.AudioOutput, "The model produces audio output.");
-                feature.Order = 60;
+                feature.Order = 80;
             })
-            .AddAIModelFeature(AIModelFeatureNames.WebSearch, new LocalizedString(AIModelFeatureNames.WebSearch, "Web search"), feature =>
+            .AddAIModelFeature(AIModelFeatureNames.VideoInput, new LocalizedString(AIModelFeatureNames.VideoInput, "Video input"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.WebSearch, "The model can search the web while producing a response.");
-                feature.Order = 70;
+                feature.Description = new LocalizedString(AIModelFeatureNames.VideoInput, "The model can understand video inputs.");
+                feature.Order = 90;
             })
             .AddAIModelFeature(AIModelFeatureNames.ComputerUse, new LocalizedString(AIModelFeatureNames.ComputerUse, "Computer use"), feature =>
             {
                 feature.Description = new LocalizedString(AIModelFeatureNames.ComputerUse, "The model can operate a computer or browser environment.");
-                feature.Order = 80;
+                feature.Order = 100;
             });
 
         services.AddAIModelParameter(AIModelParameterNames.ReasoningEffort, new LocalizedString(AIModelParameterNames.ReasoningEffort, "Reasoning effort"), parameter =>
@@ -646,6 +658,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IOrchestrationContextBuilder, DefaultOrchestrationContextBuilder>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, FunctionInvocationAICompletionServiceHandler>());
+
+        // Registered after the tool-adding handler so it can strip tools and other options that the
+        // resolved deployment does not declare support for.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, ModelFeaturesAICompletionServiceHandler>());
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, DataSourceAICompletionContextBuilderHandler>());
 

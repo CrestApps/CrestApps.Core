@@ -35,6 +35,13 @@ public sealed class ModelParameterEditorViewModel
     public string CapabilitiesJson { get; set; } = "{}";
 
     /// <summary>
+    /// Gets or sets the per-deployment trained feature map serialized as JSON and consumed by the editor
+    /// script to render the read-only capability badges. Keyed by deployment name, each value is the list
+    /// of trained feature display names the deployment declares.
+    /// </summary>
+    public string FeaturesJson { get; set; } = "{}";
+
+    /// <summary>
     /// Gets a value indicating whether at least one parameter is registered.
     /// </summary>
     public bool HasParameters

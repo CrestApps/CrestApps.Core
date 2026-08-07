@@ -66,8 +66,34 @@ public sealed class AIModelParameterViewService
         }
 
         model.CapabilitiesJson = JsonSerializer.Serialize(await BuildCapabilityMapAsync(), ModelParameterCapabilityViewModel.SerializerOptions);
+        model.FeaturesJson = JsonSerializer.Serialize(await BuildFeatureMapAsync(), ModelParameterCapabilityViewModel.SerializerOptions);
 
         return model;
+    }
+
+    private async Task<Dictionary<string, string[]>> BuildFeatureMapAsync()
+    {
+        var map = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        var deployments = await _deploymentCatalog.GetAllAsync();
+
+        foreach (var deployment in deployments)
+        {
+            if (string.IsNullOrWhiteSpace(deployment.Name))
+            {
+                continue;
+            }
+
+            var capabilities = _capabilityService.GetCapabilities(deployment);
+
+            if (capabilities.Features.Count == 0)
+            {
+                continue;
+            }
+
+            map[deployment.Name] = [.. capabilities.Features.Select(feature => feature.DisplayName?.Value ?? feature.Name)];
+        }
+
+        return map;
     }
 
     private async Task<Dictionary<string, Dictionary<string, ModelParameterCapabilityViewModel>>> BuildCapabilityMapAsync()

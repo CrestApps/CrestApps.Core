@@ -16,8 +16,9 @@
         @if (Model.AvailableFeatures.Any())
         {
             <div class="mb-4">
-                <label class="form-label fw-semibold">Model features</label>
-                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "General"))
+                <label class="form-label fw-semibold">Trained features</label>
+                <p class="text-muted small mb-2">Capabilities the underlying model was trained with. Only declared features are sent to the provider.</p>
+                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "Trained Features"))
                 {
                     <div class="mb-2">
                         <div class="text-uppercase text-muted small">@group.Key</div>
@@ -79,8 +80,11 @@
                                     <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_SelectedAllowedValues">Supported values</label>
                                     <select id="ModelParameters_@(parameter.ElementId)_SelectedAllowedValues"
                                             name="ModelParameters[@i].SelectedAllowedValues"
-                                            class="form-select"
+                                            class="form-select selectpicker"
+                                            data-model-allowed-values
                                             multiple
+                                            title="All registered values"
+                                            data-live-search="true"
                                             size="@Math.Min(parameter.AvailableValues.Count(), 6)">
                                         @foreach (var option in parameter.AvailableValues)
                                         {
@@ -169,6 +173,17 @@
                     }
                 });
             });
+
+            if (typeof window.Selectpicker === 'function') {
+                Array.prototype.forEach.call(document.querySelectorAll('select[data-model-allowed-values]'), function (select) {
+                    if (select.dataset.selectpicker === 'true') {
+                        return;
+                    }
+
+                    select.dataset.selectpicker = 'true';
+                    new window.Selectpicker(select, { liveSearch: true });
+                });
+            }
         }
 
         if (document.readyState === 'loading') {

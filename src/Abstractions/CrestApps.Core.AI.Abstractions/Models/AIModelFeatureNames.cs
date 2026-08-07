@@ -27,6 +27,16 @@ public static class AIModelFeatureNames
     public const string Reasoning = "reasoning";
 
     /// <summary>
+    /// The model can understand image inputs (vision).
+    /// </summary>
+    public const string ImageInput = "imageInput";
+
+    /// <summary>
+    /// The model can generate images.
+    /// </summary>
+    public const string ImageOutput = "imageOutput";
+
+    /// <summary>
     /// The model accepts audio input.
     /// </summary>
     public const string AudioInput = "audioInput";
@@ -37,12 +47,12 @@ public static class AIModelFeatureNames
     public const string AudioOutput = "audioOutput";
 
     /// <summary>
+    /// The model can understand video inputs.
+    /// </summary>
+    public const string VideoInput = "videoInput";
+
+    /// <summary>
     /// The model can operate a computer or browser environment.
     /// </summary>
     public const string ComputerUse = "computerUse";
-
-    /// <summary>
-    /// The model can search the web as part of producing a response.
-    /// </summary>
-    public const string WebSearch = "webSearch";
 }

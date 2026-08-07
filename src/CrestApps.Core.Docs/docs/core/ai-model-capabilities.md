@@ -48,16 +48,24 @@ You rarely need to call this directly — `AddCoreAIServices()` chains it automa
 
 ### Features
 
-| Name | Constant | Description |
-| --- | --- | --- |
-| `toolCalling` | `AIModelFeatureNames.ToolCalling` | The model can call tools and functions supplied with the request. |
-| `structuredOutputs` | `AIModelFeatureNames.StructuredOutputs` | The model can return responses that follow a supplied JSON schema. |
-| `streaming` | `AIModelFeatureNames.Streaming` | The model can stream response updates as they are produced. |
-| `reasoning` | `AIModelFeatureNames.Reasoning` | The model performs internal reasoning before producing an answer. |
-| `audioInput` | `AIModelFeatureNames.AudioInput` | The model accepts audio input. |
-| `audioOutput` | `AIModelFeatureNames.AudioOutput` | The model produces audio output. |
-| `webSearch` | `AIModelFeatureNames.WebSearch` | The model can search the web while producing a response. |
-| `computerUse` | `AIModelFeatureNames.ComputerUse` | The model can operate a computer or browser environment. |
+| Name | Constant | Default on new deployments | Description |
+| --- | --- | --- | --- |
+| `toolCalling` | `AIModelFeatureNames.ToolCalling` | ✅ | The model can call tools and functions supplied with the request. |
+| `structuredOutputs` | `AIModelFeatureNames.StructuredOutputs` | | The model can return responses that follow a supplied JSON schema. |
+| `streaming` | `AIModelFeatureNames.Streaming` | ✅ | The model can stream response updates as they are produced. |
+| `reasoning` | `AIModelFeatureNames.Reasoning` | | The model performs internal reasoning before producing an answer. |
+| `imageInput` | `AIModelFeatureNames.ImageInput` | | The model can understand image inputs (vision). |
+| `imageOutput` | `AIModelFeatureNames.ImageOutput` | | The model can generate images. |
+| `audioInput` | `AIModelFeatureNames.AudioInput` | | The model accepts audio input. |
+| `audioOutput` | `AIModelFeatureNames.AudioOutput` | | The model produces audio output. |
+| `videoInput` | `AIModelFeatureNames.VideoInput` | | The model can understand video inputs. |
+| `computerUse` | `AIModelFeatureNames.ComputerUse` | | The model can operate a computer or browser environment. |
+
+These represent **trained capabilities** the underlying model was built with. Provider-hosted tools
+(such as a web-search tool the provider runs on your behalf) are *not* modeled as features because
+almost any tool-calling model can be handed such a tool — they are ordinary tools, not a trained
+trait. Set `AIModelFeatureDescriptor.EnabledByDefault` when registering a feature to pre-select it on
+newly created deployments; existing deployments are never changed by this flag.
 
 ### Parameters
 
@@ -214,6 +222,23 @@ enforcement point:
 `ReasoningEffortModelParameterBinder` implements step 3 for `reasoningEffort` by setting
 `ChatOptions.Reasoning.Effort`.
 
+### Feature enforcement
+
+`ModelFeaturesAICompletionServiceHandler` enforces the **features** a deployment declares. It runs
+after the tool-adding handlers so it can strip options that depend on an unsupported trained
+capability:
+
+- When the deployment does not declare `toolCalling`, any `ChatOptions.Tools` and `ChatOptions.ToolMode`
+  are cleared before the request leaves the process.
+- When the deployment does not declare `structuredOutputs`, a JSON `ChatOptions.ResponseFormat` is
+  removed.
+
+Enforcement is **opt-in**: it only applies to deployments that declare capability metadata. A
+deployment with no `AIDeploymentModelMetadata` is treated as unconstrained, so existing configurations
+keep working unchanged. Combined with the parameter handler above, this guarantees that neither
+unsupported parameters (for example `reasoningEffort`) nor unsupported options (tools, structured
+output) are sent to a model that was not trained for them.
+
 :::note
 Azure OpenAI builds `OpenAI.Chat.ChatCompletionOptions` directly instead of going through
 `Microsoft.Extensions.AI.ChatOptions`. `AzureOpenAICompletionClient` therefore translates the resolved
@@ -227,12 +252,12 @@ Any module can contribute definitions during startup.
 
 ```csharp
 services.AddAIModelFeature(
-    "imageInput",
-    new LocalizedString("imageInput", "Image input"),
+    "webSearch",
+    new LocalizedString("webSearch", "Web search"),
     feature =>
     {
-        feature.Description = new LocalizedString("imageInput", "The model accepts image input.");
-        feature.Order = 90;
+        feature.Description = new LocalizedString("webSearch", "The provider runs a hosted web-search tool for this model.");
+        feature.Order = 200;
     });
 
 services.AddAIModelParameter(
@@ -297,17 +322,22 @@ built, the `CompletionContext`, and the `Deployment`.
 
 Both sample hosts render the metadata rather than hardcoding options.
 
-- **AI Deployment editor** — lists every registered feature as a checkbox and every registered
+- **AI Deployment editor** — lists every registered feature as a checkbox under a **Trained features**
+  heading (features flagged `EnabledByDefault` are pre-checked on new deployments) and every registered
   parameter with a *supported* toggle, an allowed-values selector, a default value, and numeric bounds
   where applicable.
 - **AI Profile, AI Profile Template, and Chat Interaction editors** — render only the parameters the
-  selected deployment supports, restricted to that deployment's allowed values.
+  selected deployment supports, restricted to that deployment's allowed values, and show the selected
+  deployment's declared trained capabilities as read-only badges so operators can see what the model
+  supports.
 
 In `CrestApps.Core.Mvc.Web` the server renders every registered parameter inside hidden, disabled
 wrappers together with a deployment-to-capability JSON map; a small script shows, enables, and filters
 the fields when the deployment selection changes. Disabled inputs are not posted, so an unsupported
-value can never be submitted. In `CrestApps.Core.Blazor.Web` the components re-render reactively and
-prune values that the newly selected deployment does not support.
+value can never be submitted. The deployment editor's allowed-values selectors use the
+[`@crestapps/bootstrap-select`](https://github.com/CrestApps/bootstrap-select) picker for a searchable
+multi-select experience. In `CrestApps.Core.Blazor.Web` the components re-render reactively and prune
+values that the newly selected deployment does not support.
 
 :::note
 The GitHub Copilot and Claude orchestrators keep their own effort settings

@@ -3,6 +3,20 @@
 @using CrestApps.Core.AI.Models
 @inject IAIModelCapabilityService CapabilityService
 
+@if (_capabilities.Features.Count > 0)
+{
+    <div class="mb-3">
+        <label class="form-label d-block mb-1">Model capabilities</label>
+        <div class="d-flex flex-wrap gap-1">
+            @foreach (var feature in _capabilities.Features)
+            {
+                <span class="badge rounded-pill text-bg-info">@(feature.DisplayName?.Value ?? feature.Name)</span>
+            }
+        </div>
+        <div class="form-text">Trained capabilities the selected deployment declares support for.</div>
+    </div>
+}
+
 @if (_capabilities.Parameters.Count > 0)
 {
     @foreach (var parameter in _capabilities.Parameters)

@@ -38,4 +38,10 @@ public sealed class AIModelFeatureDescriptor
     /// Gets or sets the sort order used when features are listed. Lower values are listed first.
     /// </summary>
     public int Order { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the feature is selected by default when a new
+    /// deployment is created. Existing deployments are unaffected by this value.
+    /// </summary>
+    public bool EnabledByDefault { get; set; }
 }

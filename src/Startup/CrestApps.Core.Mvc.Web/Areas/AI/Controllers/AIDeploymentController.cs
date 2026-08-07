@@ -62,6 +62,13 @@ public sealed class AIDeploymentController : Controller
         var model = new AIDeploymentViewModel();
         await PopulateDropdownsAsync(model);
 
+        model.SelectedFeatures =
+        [
+            .. model.AvailableFeatures
+                .Where(static feature => feature.EnabledByDefault)
+                .Select(static feature => feature.Name)
+        ];
+
         return View(model);
     }
 

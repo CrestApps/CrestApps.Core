@@ -104,6 +104,11 @@ public sealed class AIDeploymentModelFeatureViewModel
     public string Category { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the feature is selected by default on new deployments.
+    /// </summary>
+    public bool EnabledByDefault { get; set; }
+
+    /// <summary>
     /// Gets a slug safe for use inside an element identifier.
     /// </summary>
     public string ElementId
@@ -229,6 +234,7 @@ public sealed class AIDeploymentViewModel
                 DisplayName = feature.DisplayName?.Value ?? feature.Name,
                 Description = feature.Description?.Value,
                 Category = feature.Category,
+                EnabledByDefault = feature.EnabledByDefault,
             })
         ];
 
