@@ -51,6 +51,10 @@
             <label class="form-label fw-semibold">Model parameters</label>
             @foreach (var parameter in Model.ModelParameters)
             {
+                if (!IsParameterAvailable(parameter))
+                {
+                    continue;
+                }
                 <div class="border rounded p-3 mb-2">
                     <div class="form-check">
                         <input id="parameter_@parameter.ElementId"
@@ -176,7 +180,22 @@
         else
         {
             Model.SelectedFeatures.Remove(featureName);
+
+            foreach (var parameter in Model.ModelParameters.Where(parameter => string.Equals(parameter.RequiredFeature, featureName, StringComparison.OrdinalIgnoreCase)))
+            {
+                parameter.IsSupported = false;
+            }
         }
+    }
+
+    private bool IsParameterAvailable(AIDeploymentModelParameterViewModel parameter)
+    {
+        if (string.IsNullOrWhiteSpace(parameter.RequiredFeature))
+        {
+            return true;
+        }
+
+        return Model.SelectedFeatures.Contains(parameter.RequiredFeature, StringComparer.OrdinalIgnoreCase);
     }
 
     private static void ToggleParameter(AIDeploymentModelParameterViewModel parameter, ChangeEventArgs args)

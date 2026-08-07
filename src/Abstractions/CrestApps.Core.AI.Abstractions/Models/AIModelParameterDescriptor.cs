@@ -65,6 +65,13 @@ public sealed class AIModelParameterDescriptor
     public string Category { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional name of a trained feature this parameter depends on. When set, the
+    /// parameter is only meaningful for deployments that declare the matching
+    /// <see cref="AIModelFeatureDescriptor"/>, and editors should hide it unless that feature is enabled.
+    /// </summary>
+    public string RequiredFeature { get; set; }
+
+    /// <summary>
     /// Gets or sets the sort order used when parameters are listed. Lower values are listed first.
     /// </summary>
     public int Order { get; set; }
@@ -89,6 +96,7 @@ public sealed class AIModelParameterDescriptor
             Step = Step,
             DefaultValue = DefaultValue,
             Category = Category,
+            RequiredFeature = RequiredFeature,
             Order = Order,
         };
     }

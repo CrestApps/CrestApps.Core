@@ -65,6 +65,13 @@ public sealed class AIDeploymentModelParameterViewModel
     public AIModelParameterKind Kind { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional trained feature this parameter depends on. When set, the editor only
+    /// shows the parameter while the matching feature is enabled.
+    /// </summary>
+    [BindNever]
+    public string RequiredFeature { get; set; }
+
+    /// <summary>
     /// Gets or sets every value registered for a choice parameter.
     /// </summary>
     [BindNever]
@@ -258,6 +265,7 @@ public sealed class AIDeploymentViewModel
             row.DisplayName = descriptor.DisplayName?.Value ?? descriptor.Name;
             row.Description = descriptor.Description?.Value;
             row.Kind = descriptor.Kind;
+            row.RequiredFeature = descriptor.RequiredFeature;
             row.AvailableValues =
             [
                 .. descriptor.AllowedValues.Select(option => new SelectListItem(option.DisplayName?.Value ?? option.Value, option.Value))

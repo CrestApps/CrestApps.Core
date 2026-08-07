@@ -270,6 +270,7 @@ public static class ServiceCollectionExtensions
             parameter.Description = new LocalizedString(AIModelParameterNames.ReasoningEffort, "Controls how much internal reasoning the model applies before answering. Higher values produce more thoughtful answers with increased latency and cost.");
             parameter.Kind = AIModelParameterKind.Choice;
             parameter.DefaultValue = nameof(ReasoningEffort.Medium);
+            parameter.RequiredFeature = AIModelFeatureNames.Reasoning;
             parameter.Order = 10;
             parameter.AllowedValues =
             [

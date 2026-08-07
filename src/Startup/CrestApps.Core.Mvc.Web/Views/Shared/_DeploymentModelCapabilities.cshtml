@@ -30,7 +30,8 @@
                                        name="SelectedFeatures"
                                        type="checkbox"
                                        value="@feature.Name"
-                                       class="form-check-input"
+                                       class="form-check-input model-feature-toggle"
+                                       data-feature-name="@feature.Name"
                                        @(isChecked ? "checked" : "") />
                                 <label class="form-check-label" for="SelectedFeatures_@feature.ElementId">
                                     @feature.DisplayName
@@ -53,7 +54,12 @@
             {
                 var parameter = Model.ModelParameters[i];
                 var bodyId = $"modelParameterBody_{parameter.ElementId}";
-                <div class="border rounded p-3 mb-2">
+                var requiresFeature = !string.IsNullOrWhiteSpace(parameter.RequiredFeature);
+                var featureEnabled = !requiresFeature
+                    || (Model.SelectedFeatures?.Contains(parameter.RequiredFeature, StringComparer.OrdinalIgnoreCase) ?? false);
+                <div class="border rounded p-3 mb-2 @(featureEnabled ? string.Empty : "d-none")"
+                     data-model-parameter-card
+                     data-required-feature="@parameter.RequiredFeature">
                     <input type="hidden" name="ModelParameters[@i].Name" value="@parameter.Name" />
                     <div class="form-check">
                         <input id="ModelParameters_@(parameter.ElementId)_IsSupported"
@@ -184,6 +190,38 @@
                     new window.Selectpicker(select, { liveSearch: true });
                 });
             }
+
+            function applyFeatureDependencies(featureName) {
+                Array.prototype.forEach.call(document.querySelectorAll('[data-model-parameter-card]'), function (card) {
+                    var required = card.getAttribute('data-required-feature');
+
+                    if (!required || (featureName && required.toLowerCase() !== featureName.toLowerCase())) {
+                        return;
+                    }
+
+                    var toggle = document.querySelector('.model-feature-toggle[data-feature-name="' + required + '"]');
+                    var enabled = !!(toggle && toggle.checked);
+                    card.classList.toggle('d-none', !enabled);
+
+                    Array.prototype.forEach.call(card.querySelectorAll('input, select'), function (field) {
+                        field.disabled = !enabled;
+                    });
+                });
+            }
+
+            Array.prototype.forEach.call(document.querySelectorAll('.model-feature-toggle'), function (toggle) {
+                if (toggle.dataset.featureInitialized === 'true') {
+                    return;
+                }
+
+                toggle.dataset.featureInitialized = 'true';
+
+                toggle.addEventListener('change', function () {
+                    applyFeatureDependencies(toggle.getAttribute('data-feature-name'));
+                });
+            });
+
+            applyFeatureDependencies(null);
         }
 
         if (document.readyState === 'loading') {

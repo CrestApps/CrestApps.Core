@@ -306,6 +306,13 @@ public sealed class AIDeploymentModelParameterViewModel
         => Descriptor?.Kind ?? AIModelParameterKind.Text;
 
     /// <summary>
+    /// Gets the optional trained feature this parameter depends on. When set, the editor only shows the
+    /// parameter while the matching feature is enabled.
+    /// </summary>
+    public string RequiredFeature
+        => Descriptor?.RequiredFeature;
+
+    /// <summary>
     /// Gets every value registered for a choice parameter.
     /// </summary>
     public IList<AIModelParameterOption> AvailableValues

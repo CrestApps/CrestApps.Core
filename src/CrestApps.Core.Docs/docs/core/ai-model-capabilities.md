@@ -74,7 +74,9 @@ newly created deployments; existing deployments are never changed by this flag.
 | `reasoningEffort` | `AIModelParameterNames.ReasoningEffort` | `Choice` | `None` (shown as *Minimal*), `Low`, `Medium`, `High`, `ExtraHigh` | `Medium` |
 
 `reasoningEffort` maps onto `Microsoft.Extensions.AI.ChatOptions.Reasoning.Effort`, so it is
-provider-agnostic and ships in the core AI package rather than in a provider module.
+provider-agnostic and ships in the core AI package rather than in a provider module. It also declares
+`RequiredFeature = AIModelFeatureNames.Reasoning`, which links the parameter to the `reasoning` trained
+feature (see [Linking a parameter to a feature](#linking-a-parameter-to-a-feature)).
 
 ## Declaring what a deployment supports
 
@@ -279,6 +281,29 @@ services.AddAIModelParameter(
 Registering the same name again updates the existing descriptor instead of adding a duplicate, so a
 provider module can refine a definition contributed by another module.
 
+### Linking a parameter to a feature
+
+A parameter can declare that it only applies when the model exposes a specific trained feature by
+setting `RequiredFeature` to the feature name. The built-in `reasoningEffort` parameter uses this to
+depend on the `reasoning` feature:
+
+```csharp
+services.AddAIModelParameter(
+    AIModelParameterNames.ReasoningEffort,
+    new LocalizedString(AIModelParameterNames.ReasoningEffort, "Reasoning effort"),
+    parameter =>
+    {
+        parameter.Kind = AIModelParameterKind.Choice;
+        parameter.RequiredFeature = AIModelFeatureNames.Reasoning;
+        // allowed values, default, etc.
+    });
+```
+
+When `RequiredFeature` is set, the deployment editor only shows the parameter while the matching
+feature checkbox is enabled, and clearing the feature also clears the dependent parameter so a
+contradictory combination (for example a `reasoningEffort` value on a model that is not a reasoning
+model) can never be saved.
+
 ### Parameter kinds
 
 | Kind | Editor | Notes |
@@ -325,7 +350,8 @@ Both sample hosts render the metadata rather than hardcoding options.
 - **AI Deployment editor** — lists every registered feature as a checkbox under a **Trained features**
   heading (features flagged `EnabledByDefault` are pre-checked on new deployments) and every registered
   parameter with a *supported* toggle, an allowed-values selector, a default value, and numeric bounds
-  where applicable.
+  where applicable. A parameter that declares a `RequiredFeature` is only shown while the matching
+  feature is enabled.
 - **AI Profile, AI Profile Template, and Chat Interaction editors** — render only the parameters the
   selected deployment supports, restricted to that deployment's allowed values, and show the selected
   deployment's declared trained capabilities as read-only badges so operators can see what the model

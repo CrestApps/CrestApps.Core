@@ -117,6 +117,24 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
         Assert.True(options.Features[AIModelFeatureNames.ToolCalling].EnabledByDefault);
         Assert.True(options.Features[AIModelFeatureNames.Streaming].EnabledByDefault);
         Assert.False(options.Features[AIModelFeatureNames.Reasoning].EnabledByDefault);
+        Assert.Equal(AIModelFeatureNames.Reasoning, options.Parameters[AIModelParameterNames.ReasoningEffort].RequiredFeature);
+    }
+
+    [Fact]
+    public void Clone_ShouldCopyTheRequiredFeature()
+    {
+        // Arrange
+        var descriptor = new AIModelParameterDescriptor
+        {
+            Name = AIModelParameterNames.ReasoningEffort,
+            RequiredFeature = AIModelFeatureNames.Reasoning,
+        };
+
+        // Act
+        var clone = descriptor.Clone();
+
+        // Assert
+        Assert.Equal(AIModelFeatureNames.Reasoning, clone.RequiredFeature);
     }
 
     private static AIDeployment CreateDeployment(params string[] features)
