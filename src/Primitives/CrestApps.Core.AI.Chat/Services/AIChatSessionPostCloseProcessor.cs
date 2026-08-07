@@ -303,8 +303,8 @@ public sealed class AIChatSessionPostCloseProcessor
                 {
                     taskResult.ErrorMessage = string.IsNullOrWhiteSpace(taskResult.ErrorMessage)
                         ? taskResult.Attempts >= MaxPostCloseAttempts
-                            ? $"Task produced no result after {taskResult.Attempts} attempt(s)."
-                            : $"Task produced no result during attempt {taskResult.Attempts}."
+                            ? $"No result was returned for this task after {taskResult.Attempts} attempt(s). The AI produced no parseable result, or the session had no content to evaluate."
+                            : $"No result was returned for this task during attempt {taskResult.Attempts}. The AI produced no parseable result, or the session had no content to evaluate."
                         : taskResult.ErrorMessage;
 
                     if (taskResult.Attempts >= MaxPostCloseAttempts)

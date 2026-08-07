@@ -91,6 +91,88 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessAsync_WhenUserPromptsHaveOnlyWhitespaceContent_ShouldReturnNullWithoutCallingChatClient()
+    {
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks =
+            [
+                new PostSessionTask
+                {
+                    Name = "summary",
+                    Type = PostSessionTaskType.Semantic,
+                    Instructions = "Summarize the conversation.",
+                },
+            ];
+        });
+
+        var session = CreateSession();
+        var prompts = new List<AIChatSessionPrompt>
+        {
+            new()
+            {
+                Role = ChatRole.User,
+                Content = "   ",
+                CreatedUtc = DateTime.UtcNow,
+            },
+        };
+        var mockChatClient = new Mock<IChatClient>(MockBehavior.Strict);
+        var service = CreateService(chatClient: mockChatClient.Object);
+
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        mockChatClient.Verify(
+            c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenNoToolsAndResponseIsNonJson_ShouldReturnFailedResultInsteadOfNull()
+    {
+        // Arrange: no tools configured, but the model returns HTTP 200 with content that
+        // cannot be parsed into structured task results. This must surface as a Failed
+        // result (not a silent null) so the task is not retried endlessly.
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks =
+            [
+                new PostSessionTask
+                {
+                    Name = "summary",
+                    Type = PostSessionTaskType.Semantic,
+                    Instructions = "Summarize the conversation.",
+                },
+            ];
+            s.ToolNames = [];
+        });
+        var session = CreateSession();
+        var prompts = CreatePrompts();
+        var mockChatClient = new Mock<IChatClient>();
+        mockChatClient.Setup(c => c
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "I'm sorry, I can't help with that.")));
+        var mockTemplateService = new Mock<ITemplateService>();
+        mockTemplateService.Setup(t => t
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Rendered prompt");
+        var service = CreateService(chatClient: mockChatClient.Object, templateService: mockTemplateService.Object);
+
+        // Act
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        // Assert: a Failed result with a diagnostic message, not null.
+        Assert.NotNull(result);
+        Assert.True(result.ContainsKey("summary"));
+        Assert.Equal(PostSessionTaskResultStatus.Failed, result["summary"].Status);
+        Assert.NotNull(result["summary"].ErrorMessage);
+    }
+
+    [Fact]
     public async Task ProcessAsync_WithTasksAndNoTools_ShouldUseStructuredOutputPath()
     {
         // Arrange: tasks configured but no tool names — should use structured output (GetResponseAsync<T>).
