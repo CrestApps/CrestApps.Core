@@ -200,12 +200,73 @@ public sealed class CapabilityEnforcingChatClientTests
         Assert.Equal(ReasoningEffort.High, options.Reasoning.Effort);
     }
 
+    [Fact]
+    public async Task GetStreamingResponseAsync_WhenDeploymentDoesNotDeclareStreaming_ShouldBufferAsNonStreamingResponse()
+    {
+        // Arrange
+        var inner = new CapturingChatClient();
+        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var client = CreateClient(inner, deployment);
+        var updates = new List<ChatResponseUpdate>();
+
+        // Act
+        await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "Hello")], options: null, TestContext.Current.CancellationToken))
+        {
+            updates.Add(update);
+        }
+
+        // Assert
+        Assert.True(inner.NonStreamingCalled);
+        Assert.False(inner.StreamingCalled);
+        Assert.Equal("ok", string.Concat(updates.Select(update => update.Text)));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_WhenDeploymentDeclaresStreaming_ShouldStreamNormally()
+    {
+        // Arrange
+        var inner = new CapturingChatClient();
+        var deployment = CreateDeployment(AIModelFeatureNames.Streaming);
+        var client = CreateClient(inner, deployment);
+
+        // Act
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "Hello")], options: null, TestContext.Current.CancellationToken))
+        {
+        }
+
+        // Assert
+        Assert.True(inner.StreamingCalled);
+        Assert.False(inner.NonStreamingCalled);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_WhenDeploymentDeclaresNoMetadata_ShouldStreamNormally()
+    {
+        // Arrange
+        var inner = new CapturingChatClient();
+        var deployment = new AIDeployment
+        {
+            Name = "gpt-5",
+        };
+        var client = CreateClient(inner, deployment);
+
+        // Act
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "Hello")], options: null, TestContext.Current.CancellationToken))
+        {
+        }
+
+        // Assert
+        Assert.True(inner.StreamingCalled);
+        Assert.False(inner.NonStreamingCalled);
+    }
+
     private static CapabilityEnforcingChatClient CreateClient(IChatClient inner, AIDeployment deployment)
     {
         var options = new AIModelCapabilityOptions();
         options.AddFeature(AIModelFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
         options.AddFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString("Structured outputs", "Structured outputs"));
         options.AddFeature(AIModelFeatureNames.Reasoning, new LocalizedString("Reasoning", "Reasoning"));
+        options.AddFeature(AIModelFeatureNames.Streaming, new LocalizedString("Streaming", "Streaming"));
         options.AddParameter(AIModelParameterNames.ReasoningEffort, new LocalizedString("Reasoning effort", "Reasoning effort"), parameter =>
         {
             parameter.Kind = AIModelParameterKind.Choice;
@@ -262,11 +323,16 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         public ChatOptions LastOptions { get; private set; }
 
+        public bool NonStreamingCalled { get; private set; }
+
+        public bool StreamingCalled { get; private set; }
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions options = null,
             CancellationToken cancellationToken = default)
         {
+            NonStreamingCalled = true;
             LastOptions = options;
 
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "ok")));
@@ -277,6 +343,7 @@ public sealed class CapabilityEnforcingChatClientTests
             ChatOptions options = null,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            StreamingCalled = true;
             LastOptions = options;
 
             yield return new ChatResponseUpdate(ChatRole.Assistant, "ok");

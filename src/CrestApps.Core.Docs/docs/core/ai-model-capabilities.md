@@ -235,12 +235,26 @@ capability:
   are cleared before the request leaves the process.
 - When the deployment does not declare `structuredOutputs`, a JSON `ChatOptions.ResponseFormat` is
   removed.
+- When the deployment does not declare `reasoning`, `ChatOptions.Reasoning` is removed. When it does
+  declare `reasoning`, the requested effort is validated against the effective `reasoningEffort`
+  parameter and coerced to the deployment default (or removed when the parameter is not exposed).
+
+The same feature logic also runs inside a `CapabilityEnforcingChatClient` that `IAIClientFactory` wraps
+around every chat client it creates, as the terminal layer immediately above the provider-facing
+client. This guarantees enforcement even when a caller resolves an `IChatClient` from the factory and
+calls it directly, outside the completion pipeline.
+
+Because `streaming` is a method choice rather than a `ChatOptions` field, it is enforced at the call
+site: when a deployment does not declare `streaming`, a streaming request is transparently completed as
+a single non-streaming response and replayed as one streaming update. This applies both to the
+client-factory path (`CapabilityEnforcingChatClient`) and to `AzureOpenAICompletionClient`, which
+streams through the Azure SDK directly.
 
 Enforcement is **opt-in**: it only applies to deployments that declare capability metadata. A
 deployment with no `AIDeploymentModelMetadata` is treated as unconstrained, so existing configurations
 keep working unchanged. Combined with the parameter handler above, this guarantees that neither
 unsupported parameters (for example `reasoningEffort`) nor unsupported options (tools, structured
-output) are sent to a model that was not trained for them.
+output, reasoning) are sent to a model that was not trained for them.
 
 :::note
 Azure OpenAI builds `OpenAI.Chat.ChatCompletionOptions` directly instead of going through

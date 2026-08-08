@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Azure.AI.OpenAI;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
@@ -167,6 +168,13 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
 
             return result;
         }
+        catch (OperationCanceledException)
+        {
+            // Never swallow cancellation. Returning null here would make a cancelled request look like
+            // an empty completion, and it would also end a suppressed streaming fallback silently
+            // instead of propagating the cancellation like a normal streaming request.
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unable to get chat completion result from Azure OpenAI.");
@@ -195,6 +203,28 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         if (string.IsNullOrEmpty(deployment.ModelName))
         {
             _logger.LogWarning("Unable to chat. Unable to find a deployment name '{DeploymentName}' or the default deployment", context.ChatDeploymentName);
+            yield break;
+        }
+
+        if (ShouldSuppressStreaming(deployment))
+        {
+            // The deployment is not trained to stream, so complete the request without streaming and
+            // replay the single response as streaming updates. This mirrors the enforcement performed
+            // by CapabilityEnforcingChatClient on the client-factory path.
+            _logger.LogWarning(
+                "Deployment '{Deployment}' does not declare the '{Feature}' feature. The streaming request was completed as a single non-streaming response.",
+                deployment.ModelName, AIModelFeatureNames.Streaming);
+
+            var bufferedResponse = await CompleteAsync(messages, context, cancellationToken);
+
+            if (bufferedResponse is not null)
+            {
+                foreach (var update in bufferedResponse.ToChatResponseUpdates())
+                {
+                    yield return update;
+                }
+            }
+
             yield break;
         }
 
@@ -379,6 +409,25 @@ omit optional fields, or split the operation into multiple smaller calls.
                 prompts.Add(new ToolChatMessage(toolCall.Id, JsonSerializer.Serialize(new { error = "Error invoking function." })));
             }
         }
+    }
+
+    private bool ShouldSuppressStreaming(AIDeployment deployment)
+    {
+        // Only deployments that declare capability metadata are constrained, so existing
+        // configurations keep streaming exactly as before.
+        if (!deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        {
+            return false;
+        }
+
+        var capabilityService = _serviceProvider.GetService<IAIModelCapabilityService>();
+
+        if (capabilityService is null)
+        {
+            return false;
+        }
+
+        return !capabilityService.GetCapabilities(deployment).SupportsFeature(AIModelFeatureNames.Streaming);
     }
 
     private async ValueTask<(AIDeployment deployment, AIProviderConnectionEntry connection)> ResolveChatConfigurationAsync(string deploymentName)

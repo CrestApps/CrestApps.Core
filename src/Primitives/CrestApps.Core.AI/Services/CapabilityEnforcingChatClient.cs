@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
@@ -10,8 +11,10 @@ namespace CrestApps.Core.AI.Services;
 /// on every request, including requests issued directly against a client resolved from
 /// <see cref="IAIClientFactory"/> outside the completion pipeline. Options that depend on an
 /// undeclared feature (for example tools or a JSON response format) are removed before the request
-/// reaches the provider, which prevents avoidable provider validation errors such as HTTP 400.
-/// Enforcement is opt-in: only deployments that declare capability metadata are constrained.
+/// reaches the provider, which prevents avoidable provider validation errors such as HTTP 400. When a
+/// deployment does not declare the <c>streaming</c> feature, a streaming request is transparently
+/// completed as a single buffered response instead of streaming incrementally. Enforcement is opt-in:
+/// only deployments that declare capability metadata are constrained.
 /// </summary>
 internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
 {
@@ -53,7 +56,44 @@ internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
         ChatOptions options = null,
         CancellationToken cancellationToken = default)
     {
-        return base.GetStreamingResponseAsync(messages, Enforce(options), cancellationToken);
+        var enforced = Enforce(options);
+
+        if (IsStreamingSuppressed())
+        {
+            _logger.LogWarning(
+                "Deployment '{Deployment}' does not declare the '{Feature}' feature. The streaming request was completed as a single non-streaming response.",
+                _deployment.ModelName, AIModelFeatureNames.Streaming);
+
+            return BufferAsStreamAsync(messages, enforced, cancellationToken);
+        }
+
+        return base.GetStreamingResponseAsync(messages, enforced, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<ChatResponseUpdate> BufferAsStreamAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions options,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var response = await base.GetResponseAsync(messages, options, cancellationToken).ConfigureAwait(false);
+
+        foreach (var update in response.ToChatResponseUpdates())
+        {
+            yield return update;
+        }
+    }
+
+    private bool IsStreamingSuppressed()
+    {
+        // Streaming is a method choice rather than a request option, so it is enforced here by
+        // completing the request without streaming. Only deployments that declare capability metadata
+        // are constrained, which keeps existing configurations unchanged.
+        if (!_deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        {
+            return false;
+        }
+
+        return !_capabilityService.GetCapabilities(_deployment).SupportsFeature(AIModelFeatureNames.Streaming);
     }
 
     private ChatOptions Enforce(ChatOptions options)
