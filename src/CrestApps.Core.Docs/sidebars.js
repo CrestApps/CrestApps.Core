@@ -71,6 +71,7 @@ const sidebars = {
                         'mcp/client',
                         'mcp/resource-types',
                         'mcp/server',
+                        'mcp/documentation-search',
                     ],
                 },
                 {

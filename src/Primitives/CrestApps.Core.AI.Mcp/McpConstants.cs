@@ -13,6 +13,11 @@ public static class McpConstants
     public const string HttpClientName = "CrestApps.Mcp";
 
     /// <summary>
+    /// The name of the named <see cref="System.Net.Http.HttpClient"/> used by the documentation search crawler.
+    /// </summary>
+    public const string DocumentationHttpClientName = "CrestApps.Documentation";
+
+    /// <summary>
     /// Provides functionality for transport Types.
     /// </summary>
     public static class TransportTypes

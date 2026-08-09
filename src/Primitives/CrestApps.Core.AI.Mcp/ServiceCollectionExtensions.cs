@@ -1,4 +1,6 @@
+using System.Linq;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Mcp.Documentation;
 using CrestApps.Core.AI.Mcp.Functions;
 using CrestApps.Core.AI.Mcp.Handlers;
 using CrestApps.Core.AI.Mcp.Models;
@@ -220,5 +222,58 @@ public static class ServiceCollectionExtensions
         services.AddKeyedScoped<IMcpResourceTypeHandler>(type, (sp, key) => sp.GetRequiredService<THandler>());
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the opt-in documentation search tool together with the built-in documentation source
+    /// provider. The tool is not registered by any default AI registration; call this method to expose
+    /// it, then configure the documentation sites and custom sources it may scan.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">An optional action used to configure documentation sources.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddCoreAIDocumentationSearch(
+        this IServiceCollection services,
+        Action<DocumentationSearchBuilder> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions<DocumentationSearchOptions>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddHttpClient(McpConstants.DocumentationHttpClientName)
+            .AddStandardResilienceHandler();
+        services.TryAddSingleton<IDocumentationSourceProvider, DefaultDocumentationSourceProvider>();
+
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(DocumentationSearchFunction)))
+        {
+            services.AddCoreAITool<DocumentationSearchFunction>(DocumentationSearchFunction.TheName)
+                .WithCategory(DocumentationSearchFunction.Category)
+                .WithPurpose(AIToolPurposes.DataSourceSearch)
+                .WithTitle("Search documentation")
+                .WithDescription("Searches configured documentation knowledge bases and returns relevant passages with source URLs.");
+        }
+
+        configure?.Invoke(new DocumentationSearchBuilder(services));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the opt-in documentation search tool on an MCP server builder. This is a convenience
+    /// wrapper over <see cref="AddCoreAIDocumentationSearch(IServiceCollection, Action{DocumentationSearchBuilder})"/>
+    /// so a knowledge-base MCP server can expose documentation search alongside its other capabilities.
+    /// </summary>
+    /// <param name="builder">The MCP server builder.</param>
+    /// <param name="configure">An optional action used to configure documentation sources.</param>
+    /// <returns>The MCP server builder for chaining.</returns>
+    public static CrestAppsMcpServerBuilder AddDocumentationSearch(
+        this CrestAppsMcpServerBuilder builder,
+        Action<DocumentationSearchBuilder> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIDocumentationSearch(configure);
+
+        return builder;
     }
 }
