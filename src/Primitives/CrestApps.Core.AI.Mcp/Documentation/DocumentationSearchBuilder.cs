@@ -54,6 +54,71 @@ public sealed class DocumentationSearchBuilder
     }
 
     /// <summary>
+    /// Registers a documentation site that publishes a prebuilt search index as JSON (for example a
+    /// MkDocs Material <c>search_index.json</c>). The built-in source downloads the index once and
+    /// ranks its entries with keyword scoring.
+    /// </summary>
+    /// <param name="name">The unique logical name of the site.</param>
+    /// <param name="baseUrl">The base URL of the documentation site, used to resolve result URLs.</param>
+    /// <param name="configure">An optional action used to further configure the site.</param>
+    /// <returns>The same builder instance for chaining.</returns>
+    public DocumentationSearchBuilder AddSearchIndex(string name, string baseUrl, Action<DocumentationSearchIndexSite> configure = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentException.ThrowIfNullOrEmpty(baseUrl);
+
+        Services.Configure<DocumentationSearchOptions>(options =>
+        {
+            var site = new DocumentationSearchIndexSite
+            {
+                Name = name,
+                BaseUrl = baseUrl,
+            };
+
+            configure?.Invoke(site);
+
+            options.SearchIndexes.Add(site);
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a documentation site that is searchable through the Algolia DocSearch query API (the
+    /// hosted search used by many Docusaurus sites).
+    /// </summary>
+    /// <param name="name">The unique logical name of the site.</param>
+    /// <param name="applicationId">The Algolia application identifier.</param>
+    /// <param name="apiKey">The Algolia search-only API key.</param>
+    /// <param name="indexName">The Algolia index name to query.</param>
+    /// <param name="configure">An optional action used to further configure the site.</param>
+    /// <returns>The same builder instance for chaining.</returns>
+    public DocumentationSearchBuilder AddAlgoliaDocSearch(string name, string applicationId, string apiKey, string indexName, Action<AlgoliaDocSearchSite> configure = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentException.ThrowIfNullOrEmpty(applicationId);
+        ArgumentException.ThrowIfNullOrEmpty(apiKey);
+        ArgumentException.ThrowIfNullOrEmpty(indexName);
+
+        Services.Configure<DocumentationSearchOptions>(options =>
+        {
+            var site = new AlgoliaDocSearchSite
+            {
+                Name = name,
+                ApplicationId = applicationId,
+                ApiKey = apiKey,
+                IndexName = indexName,
+            };
+
+            configure?.Invoke(site);
+
+            options.AlgoliaSources.Add(site);
+        });
+
+        return this;
+    }
+
+    /// <summary>
     /// Registers a custom documentation source implementation.
     /// </summary>
     /// <typeparam name="TSource">The documentation source type.</typeparam>

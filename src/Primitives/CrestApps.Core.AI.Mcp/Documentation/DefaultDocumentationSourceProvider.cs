@@ -18,6 +18,8 @@ public sealed class DefaultDocumentationSourceProvider : IDocumentationSourcePro
     private readonly ILoggerFactory _loggerFactory;
     private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, SitemapDocumentationSource> _siteSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, SearchIndexDocumentationSource> _searchIndexSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, AlgoliaDocumentationSource> _algoliaSources = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultDocumentationSourceProvider"/> class.
@@ -60,6 +62,42 @@ public sealed class DefaultDocumentationSourceProvider : IDocumentationSourcePro
                 _httpClientFactory,
                 _timeProvider,
                 _loggerFactory.CreateLogger<SitemapDocumentationSource>()));
+
+            sources.Add(source);
+        }
+
+        foreach (var site in options.SearchIndexes)
+        {
+            if (string.IsNullOrWhiteSpace(site.Name) || string.IsNullOrWhiteSpace(site.BaseUrl))
+            {
+                continue;
+            }
+
+            var source = _searchIndexSources.GetOrAdd(site.Name, _ => new SearchIndexDocumentationSource(
+                site,
+                options,
+                _httpClientFactory,
+                _timeProvider,
+                _loggerFactory.CreateLogger<SearchIndexDocumentationSource>()));
+
+            sources.Add(source);
+        }
+
+        foreach (var site in options.AlgoliaSources)
+        {
+            if (string.IsNullOrWhiteSpace(site.Name)
+                || string.IsNullOrWhiteSpace(site.ApplicationId)
+                || string.IsNullOrWhiteSpace(site.ApiKey)
+                || string.IsNullOrWhiteSpace(site.IndexName))
+            {
+                continue;
+            }
+
+            var source = _algoliaSources.GetOrAdd(site.Name, _ => new AlgoliaDocumentationSource(
+                site,
+                options,
+                _httpClientFactory,
+                _loggerFactory.CreateLogger<AlgoliaDocumentationSource>()));
 
             sources.Add(source);
         }

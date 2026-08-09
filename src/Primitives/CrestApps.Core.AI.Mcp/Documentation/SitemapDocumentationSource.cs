@@ -11,17 +11,12 @@ namespace CrestApps.Core.AI.Mcp.Documentation;
 /// keyword scoring. The crawled corpus is cached in memory and refreshed based on
 /// <see cref="DocumentationSearchOptions.CacheDuration"/>.
 /// </summary>
-public sealed partial class SitemapDocumentationSource : IDocumentationSource
+public sealed partial class SitemapDocumentationSource : CachingDocumentationSource
 {
     private readonly DocumentationSite _site;
     private readonly DocumentationSearchOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
-    private readonly SemaphoreSlim _loadLock = new(1, 1);
-
-    private IReadOnlyList<DocumentationPage> _pages = [];
-    private DateTimeOffset _loadedAt = DateTimeOffset.MinValue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SitemapDocumentationSource"/> class.
@@ -37,102 +32,26 @@ public sealed partial class SitemapDocumentationSource : IDocumentationSource
         IHttpClientFactory httpClientFactory,
         TimeProvider timeProvider,
         ILogger logger)
+        : base(site.Name, options.CacheDuration, timeProvider)
     {
         _site = site;
         _options = options;
         _httpClientFactory = httpClientFactory;
-        _timeProvider = timeProvider;
         _logger = logger;
     }
 
     /// <inheritdoc />
-    public string Name => _site.Name;
+    protected override int MaxResults => _site.MaxResults ?? _options.MaxResultsPerSite;
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<DocumentationSearchResult>> SearchAsync(DocumentationSearchRequest request, CancellationToken cancellationToken)
+    protected override async Task<DocumentationCorpus> BuildCorpusAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        var entries = await CrawlAsync(cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(request.Query))
-        {
-            return [];
-        }
-
-        var pages = await GetPagesAsync(cancellationToken);
-
-        if (pages.Count == 0)
-        {
-            return [];
-        }
-
-        var terms = Tokenize(request.Query);
-
-        if (terms.Length == 0)
-        {
-            return [];
-        }
-
-        var maxResults = _site.MaxResults ?? _options.MaxResultsPerSite;
-
-        var scored = new List<DocumentationSearchResult>();
-
-        foreach (var page in pages)
-        {
-            var score = Score(page, terms);
-
-            if (score <= 0)
-            {
-                continue;
-            }
-
-            scored.Add(new DocumentationSearchResult
-            {
-                SourceName = _site.Name,
-                Title = string.IsNullOrWhiteSpace(page.Title) ? page.Url : page.Title,
-                Url = page.Url,
-                Snippet = BuildSnippet(page.Text, terms),
-                Score = score,
-            });
-        }
-
-        return scored
-            .OrderByDescending(result => result.Score)
-            .Take(Math.Min(request.MaxResults, maxResults))
-            .ToList();
+        return new DocumentationCorpus(entries);
     }
 
-    private async Task<IReadOnlyList<DocumentationPage>> GetPagesAsync(CancellationToken cancellationToken)
-    {
-        var now = _timeProvider.GetUtcNow();
-
-        if (_pages.Count > 0 && now - _loadedAt < _options.CacheDuration)
-        {
-            return _pages;
-        }
-
-        await _loadLock.WaitAsync(cancellationToken);
-
-        try
-        {
-            now = _timeProvider.GetUtcNow();
-
-            if (_pages.Count > 0 && now - _loadedAt < _options.CacheDuration)
-            {
-                return _pages;
-            }
-
-            _pages = await CrawlAsync(cancellationToken);
-            _loadedAt = _timeProvider.GetUtcNow();
-
-            return _pages;
-        }
-        finally
-        {
-            _loadLock.Release();
-        }
-    }
-
-    private async Task<IReadOnlyList<DocumentationPage>> CrawlAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<DocumentationCorpus.Entry>> CrawlAsync(CancellationToken cancellationToken)
     {
         var client = _httpClientFactory.CreateClient(McpConstants.DocumentationHttpClientName);
         var urls = await GetSitemapUrlsAsync(client, cancellationToken);
@@ -149,7 +68,7 @@ public sealed partial class SitemapDocumentationSource : IDocumentationSource
             urls = urls.Take(maxPages).ToList();
         }
 
-        var pages = new List<DocumentationPage>(urls.Count);
+        var pages = new List<DocumentationCorpus.Entry>(urls.Count);
         using var throttle = new SemaphoreSlim(Math.Max(1, _options.MaxConcurrentRequests));
 
         var tasks = urls.Select(async url =>
@@ -203,7 +122,7 @@ public sealed partial class SitemapDocumentationSource : IDocumentationSource
         }
     }
 
-    private async Task<DocumentationPage> FetchPageAsync(HttpClient client, string url, CancellationToken cancellationToken)
+    private async Task<DocumentationCorpus.Entry> FetchPageAsync(HttpClient client, string url, CancellationToken cancellationToken)
     {
         try
         {
@@ -216,7 +135,7 @@ public sealed partial class SitemapDocumentationSource : IDocumentationSource
                 return null;
             }
 
-            return new DocumentationPage(url, title, text);
+            return new DocumentationCorpus.Entry(url, title, text);
         }
         catch (Exception ex)
         {
@@ -237,99 +156,6 @@ public sealed partial class SitemapDocumentationSource : IDocumentationSource
         }
 
         return $"{_site.BaseUrl.TrimEnd('/')}/sitemap.xml";
-    }
-
-    private static double Score(DocumentationPage page, string[] terms)
-    {
-        double score = 0;
-        var matchedTerms = 0;
-
-        foreach (var term in terms)
-        {
-            var bodyCount = CountOccurrences(page.Text, term);
-            var titleCount = CountOccurrences(page.Title, term);
-
-            if (bodyCount == 0 && titleCount == 0)
-            {
-                continue;
-            }
-
-            matchedTerms++;
-            score += bodyCount + (titleCount * 5);
-        }
-
-        if (matchedTerms == 0)
-        {
-            return 0;
-        }
-
-        return score * matchedTerms;
-    }
-
-    private static int CountOccurrences(string text, string term)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return 0;
-        }
-
-        var count = 0;
-        var index = 0;
-
-        while ((index = text.IndexOf(term, index, StringComparison.OrdinalIgnoreCase)) >= 0)
-        {
-            count++;
-            index += term.Length;
-        }
-
-        return count;
-    }
-
-    private static string BuildSnippet(string text, string[] terms)
-    {
-        const int windowSize = 240;
-
-        var matchIndex = -1;
-
-        foreach (var term in terms)
-        {
-            var index = text.IndexOf(term, StringComparison.OrdinalIgnoreCase);
-
-            if (index >= 0 && (matchIndex < 0 || index < matchIndex))
-            {
-                matchIndex = index;
-            }
-        }
-
-        if (matchIndex < 0)
-        {
-            return text.Length <= windowSize ? text : text[..windowSize] + "…";
-        }
-
-        var start = Math.Max(0, matchIndex - (windowSize / 2));
-        var length = Math.Min(windowSize, text.Length - start);
-        var snippet = text.Substring(start, length).Trim();
-
-        if (start > 0)
-        {
-            snippet = "…" + snippet;
-        }
-
-        if (start + length < text.Length)
-        {
-            snippet += "…";
-        }
-
-        return snippet;
-    }
-
-    private static string[] Tokenize(string query)
-    {
-        return NonWordRegex()
-            .Split(query.ToLowerInvariant())
-            .Where(token => token.Length >= 2)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
     }
 
     private static string ExtractTitle(string html)
@@ -368,9 +194,4 @@ public sealed partial class SitemapDocumentationSource : IDocumentationSource
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
-
-    [GeneratedRegex(@"[^a-z0-9]+")]
-    private static partial Regex NonWordRegex();
-
-    private sealed record DocumentationPage(string Url, string Title, string Text);
 }

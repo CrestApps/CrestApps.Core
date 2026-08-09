@@ -13,6 +13,18 @@ public sealed class DocumentationSearchOptions
     public IList<DocumentationSite> Sites { get; } = [];
 
     /// <summary>
+    /// Gets the collection of documentation sites that expose a prebuilt search index as JSON (for
+    /// example MkDocs Material) that the built-in search-index source downloads and ranks.
+    /// </summary>
+    public IList<DocumentationSearchIndexSite> SearchIndexes { get; } = [];
+
+    /// <summary>
+    /// Gets the collection of documentation sites that are searchable through the Algolia DocSearch
+    /// query API.
+    /// </summary>
+    public IList<AlgoliaDocSearchSite> AlgoliaSources { get; } = [];
+
+    /// <summary>
     /// Gets or sets the default maximum number of results a single site contributes to a search.
     /// </summary>
     public int MaxResultsPerSite { get; set; } = 5;

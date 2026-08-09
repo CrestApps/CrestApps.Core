@@ -54,6 +54,57 @@ public sealed class DocumentationSearchTests
     }
 
     /// <summary>
+    /// Verifies that <see cref="DocumentationSearchBuilder.AddSearchIndex"/> records the search-index
+    /// site in the options.
+    /// </summary>
+    [Fact]
+    public void AddSearchIndex_PopulatesOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddCoreAIDocumentationSearch(docs => docs
+            .AddSearchIndex("mkdocs", "https://docs.example.com", site =>
+            {
+                site.IndexUrl = "https://docs.example.com/search/search_index.json";
+                site.MaxResults = 4;
+            }));
+
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<DocumentationSearchOptions>>().Value;
+        var site = Assert.Single(options.SearchIndexes);
+
+        Assert.Equal("mkdocs", site.Name);
+        Assert.Equal("https://docs.example.com", site.BaseUrl);
+        Assert.Equal("https://docs.example.com/search/search_index.json", site.IndexUrl);
+        Assert.Equal(4, site.MaxResults);
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="DocumentationSearchBuilder.AddAlgoliaDocSearch"/> records the Algolia
+    /// site in the options.
+    /// </summary>
+    [Fact]
+    public void AddAlgoliaDocSearch_PopulatesOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddCoreAIDocumentationSearch(docs => docs
+            .AddAlgoliaDocSearch("algolia", "APP123", "search-key", "docs-index", site => site.MaxResults = 6));
+
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<DocumentationSearchOptions>>().Value;
+        var site = Assert.Single(options.AlgoliaSources);
+
+        Assert.Equal("algolia", site.Name);
+        Assert.Equal("APP123", site.ApplicationId);
+        Assert.Equal("search-key", site.ApiKey);
+        Assert.Equal("docs-index", site.IndexName);
+        Assert.Equal(6, site.MaxResults);
+    }
+
+    /// <summary>
     /// Verifies that the source provider aggregates code-registered custom sources with the built-in
     /// crawler sources materialized from the configured sites.
     /// </summary>
@@ -64,6 +115,8 @@ public sealed class DocumentationSearchTests
         services.AddLogging();
         services.AddCoreAIDocumentationSearch(docs => docs
             .AddSite("site-1", "https://docs.example.com")
+            .AddSearchIndex("index-1", "https://mkdocs.example.com")
+            .AddAlgoliaDocSearch("algolia-1", "APP123", "search-key", "docs-index")
             .AddSource(new FakeDocumentationSource("custom-1")));
 
         using var provider = services.BuildServiceProvider();
@@ -72,6 +125,8 @@ public sealed class DocumentationSearchTests
 
         Assert.Contains(sources, source => source.Name == "custom-1");
         Assert.Contains(sources, source => source.Name == "site-1");
+        Assert.Contains(sources, source => source.Name == "index-1");
+        Assert.Contains(sources, source => source.Name == "algolia-1");
     }
 
     /// <summary>

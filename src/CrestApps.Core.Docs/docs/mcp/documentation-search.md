@@ -88,11 +88,13 @@ sitemap, so no generator-specific configuration is required.
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `Sites` | empty | The public documentation sites the crawler scans. |
+| `Sites` | empty | The public documentation sites the crawler scans through their sitemap. |
+| `SearchIndexes` | empty | The documentation sites that publish a prebuilt search index as JSON. |
+| `AlgoliaSources` | empty | The documentation sites searchable through the Algolia DocSearch API. |
 | `MaxResultsPerSite` | `5` | Default maximum results a single site contributes to a search. |
 | `MaxPagesPerSite` | `200` | Default maximum pages the crawler indexes per site. |
 | `MaxConcurrentRequests` | `4` | Maximum concurrent page requests per site while crawling. |
-| `CacheDuration` | `1 hour` | How long a crawled site corpus is cached before it is refreshed. |
+| `CacheDuration` | `1 hour` | How long a crawled or downloaded site corpus is cached before it is refreshed. |
 
 ### DocumentationSite
 
@@ -106,6 +108,74 @@ sitemap, so no generator-specific configuration is required.
 
 The first search against a site crawls its pages and caches the corpus in memory for `CacheDuration`;
 subsequent searches reuse the cache. Ranking uses lightweight keyword scoring.
+
+## Search Strategies
+
+A single documentation site can be indexed in different ways depending on what the generator publishes.
+Each strategy has its own builder method and configuration model, so you choose the one that matches the
+site — there is no single "kind" switch to configure.
+
+| Strategy | Builder method | Best for | How it works |
+|----------|----------------|----------|--------------|
+| Sitemap crawl | `AddSite(...)` | Any site that publishes `sitemap.xml` (Docusaurus, MkDocs, and most static sites). | Crawls pages, strips HTML, and ranks locally with keyword scoring. |
+| Search index | `AddSearchIndex(...)` | MkDocs Material and other sites that publish a fetchable `search_index.json`. | Downloads the prebuilt index once and ranks its entries locally. |
+| Algolia DocSearch | `AddAlgoliaDocSearch(...)` | Docusaurus sites (and others) wired to hosted Algolia DocSearch. | Forwards the query to Algolia, which performs the ranking. |
+
+### Search Index Source
+
+MkDocs Material publishes a fetchable `search_index.json`. `AddSearchIndex(...)` downloads that index
+once, caches it for `CacheDuration`, and ranks its entries with the same keyword scoring as the crawler
+— without fetching every page individually.
+
+```csharp
+.AddDocumentationSearch(docs => docs
+    .AddSearchIndex("mkdocs", "https://www.mkdocs.org", site =>
+    {
+        // Optional. Defaults to {BaseUrl}/search/search_index.json.
+        site.IndexUrl = "https://www.mkdocs.org/search/search_index.json";
+        site.MaxResults = 5;
+    }))
+```
+
+| `DocumentationSearchIndexSite` property | Description |
+|----------|-------------|
+| `Name` | Unique logical name; a caller can scope a search to this source. |
+| `BaseUrl` | Base URL used to resolve relative entry locations and the default index URL. |
+| `IndexUrl` | Optional explicit index URL. Defaults to `{BaseUrl}/search/search_index.json`. |
+| `MaxResults` | Optional per-site override for the maximum results. |
+
+:::note
+This targets the MkDocs Material `search_index.json` schema (`{ "docs": [ { "location", "title", "text" } ] }`).
+Docusaurus' `@easyops-cn/docusaurus-search-local` plugin stores a client-side Lunr index that is not a
+cleanly fetchable JSON document, so use the sitemap crawl or Algolia DocSearch for Docusaurus sites.
+:::
+
+### Algolia DocSearch Source
+
+Many Docusaurus sites use hosted Algolia DocSearch rather than a fetchable index. `AddAlgoliaDocSearch(...)`
+forwards each query to the Algolia query API and maps the returned hits to results. Because Algolia
+performs the ranking, this source issues a live query per search and does not crawl or cache a corpus.
+
+```csharp
+.AddDocumentationSearch(docs => docs
+    .AddAlgoliaDocSearch(
+        name: "docusaurus",
+        applicationId: "YOUR_APP_ID",
+        apiKey: "YOUR_SEARCH_ONLY_API_KEY",
+        indexName: "your-index",
+        site => site.MaxResults = 5))
+```
+
+| `AlgoliaDocSearchSite` property | Description |
+|----------|-------------|
+| `Name` | Unique logical name; a caller can scope a search to this source. |
+| `ApplicationId` | Algolia application identifier. |
+| `ApiKey` | Algolia **search-only** API key (never a write key). |
+| `IndexName` | Algolia index name to query. |
+| `MaxResults` | Optional per-site override for the maximum results. |
+
+Each strategy also binds from configuration through the matching `SearchIndexes` and `AlgoliaSources`
+lists on `DocumentationSearchOptions`, mirroring the `Sites` list shown above.
 
 ## Custom Sources
 
@@ -141,7 +211,8 @@ passing a `source` argument scopes the search to that single named source.
 1. `AddCoreAIDocumentationSearch(...)` registers the `search_documentation` tool, the
    `DefaultDocumentationSourceProvider`, and a named `HttpClient` with standard resilience.
 2. When invoked, the tool resolves `IDocumentationSourceProvider` to get all sources (custom sources
-   plus a `SitemapDocumentationSource` per configured site).
+   plus a `SitemapDocumentationSource`, `SearchIndexDocumentationSource`, or `AlgoliaDocumentationSource`
+   per configured site, depending on the builder method used).
 3. Each source is searched in parallel; a failing source is skipped so one broken site does not fail
    the whole search.
 4. Results are merged, ordered by descending relevance, and returned with their titles and URLs so the
