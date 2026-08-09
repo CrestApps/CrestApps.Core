@@ -41,7 +41,7 @@ public sealed class DocumentationSearchTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddCoreAIDocumentationSearch(docs => docs
-            .AddSite("crestapps", "https://core.crestapps.com", site => site.Kind = DocumentationSiteKind.Docusaurus));
+            .AddSite("crestapps", "https://core.crestapps.com", site => site.Kind = DocumentationSiteKinds.Docusaurus));
 
         using var provider = services.BuildServiceProvider();
 
@@ -50,7 +50,7 @@ public sealed class DocumentationSearchTests
 
         Assert.Equal("crestapps", site.Name);
         Assert.Equal("https://core.crestapps.com", site.BaseUrl);
-        Assert.Equal(DocumentationSiteKind.Docusaurus, site.Kind);
+        Assert.Equal(DocumentationSiteKinds.Docusaurus, site.Kind);
     }
 
     /// <summary>

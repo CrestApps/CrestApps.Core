@@ -73,8 +73,8 @@ builder.Services.Configure<DocumentationSearchOptions>(
     "MaxPagesPerSite": 200,
     "CacheDuration": "01:00:00",
     "Sites": [
-      { "Name": "crestapps", "BaseUrl": "https://core.crestapps.com", "Kind": "Docusaurus" },
-      { "Name": "orchardcore", "BaseUrl": "https://docs.orchardcore.net", "Kind": "MkDocs" }
+      { "Name": "crestapps", "BaseUrl": "https://core.crestapps.com", "Kind": "docusaurus" },
+      { "Name": "orchardcore", "BaseUrl": "https://docs.orchardcore.net", "Kind": "mkdocs" }
     ]
   }
 }
@@ -101,7 +101,7 @@ sitemap, so the `Kind` value is a hint only.
 | `Name` | Unique logical name; a caller can scope a search to this source. |
 | `BaseUrl` | Base URL of the documentation site. |
 | `SitemapUrl` | Optional explicit sitemap URL. |
-| `Kind` | `Auto`, `Docusaurus`, or `MkDocs` (hint only). |
+| `Kind` | Optional generator hint (for example `docusaurus` or `mkdocs`); any custom string is allowed. |
 | `MaxResults` | Optional per-site override for the maximum results. |
 | `MaxPages` | Optional per-site override for the maximum indexed pages. |
 
