@@ -121,6 +121,69 @@ site — there is no single "kind" switch to configure.
 | Search index | `AddSearchIndex(...)` | MkDocs Material and other sites that publish a fetchable `search_index.json`. | Downloads the prebuilt index once and ranks its entries locally. |
 | Algolia DocSearch | `AddAlgoliaDocSearch(...)` | Docusaurus sites (and others) wired to hosted Algolia DocSearch. | Forwards the query to Algolia, which performs the ranking. |
 
+### Example: a public Docusaurus site
+
+A public Docusaurus site that requires no authentication — such as
+[core.crestapps.com](https://core.crestapps.com) — only needs the sitemap crawl strategy. Docusaurus
+publishes a standard `sitemap.xml` at the site root, so `AddSite(...)` is all that is required: give the
+source a logical name and the site's base URL, and the crawler discovers `{BaseUrl}/sitemap.xml`
+automatically.
+
+```csharp
+builder.Services.AddCoreAIDocumentationSearch(docs => docs
+    .AddSite("crestapps-core", "https://core.crestapps.com"));
+```
+
+Or on the MCP server builder for a read-only knowledge-base server:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
+            .AddDocumentationSearch(docs => docs
+                .AddSite("crestapps-core", "https://core.crestapps.com")
+            )
+        )
+    )
+);
+```
+
+You can tune how much of the site is indexed and scope results with the optional `configure` action:
+
+```csharp
+.AddDocumentationSearch(docs => docs
+    .AddSite("crestapps-core", "https://core.crestapps.com", site =>
+    {
+        // Only needed if the sitemap is not at {BaseUrl}/sitemap.xml.
+        site.SitemapUrl = "https://core.crestapps.com/sitemap.xml";
+        site.MaxPages = 300;   // Cap the number of pages crawled.
+        site.MaxResults = 5;   // Cap the results this site contributes per search.
+    }))
+```
+
+The same site can also be declared in configuration instead of code:
+
+```json
+{
+  "DocumentationSearch": {
+    "Sites": [
+      { "Name": "crestapps-core", "BaseUrl": "https://core.crestapps.com" }
+    ]
+  }
+}
+```
+
+Because the site is public, no headers, API keys, or credentials are involved — the crawler issues
+plain anonymous `GET` requests through the source's resilient `HttpClient`. The first search crawls the
+site and caches the corpus for `CacheDuration`; later searches reuse the cache.
+
+:::tip
+Prefer the sitemap crawl for a public Docusaurus site. Only reach for `AddAlgoliaDocSearch(...)` when
+the site is wired to hosted Algolia DocSearch and you have its application ID, search-only API key, and
+index name.
+:::
+
 ### Search Index Source
 
 MkDocs Material publishes a fetchable `search_index.json`. `AddSearchIndex(...)` downloads that index
