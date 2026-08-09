@@ -51,6 +51,10 @@ public sealed class SettingsViewModel
 
     public bool McpServerRequireAccessPermission { get; set; } = true;
 
+    public bool McpServerExposeAllTools { get; set; }
+
+    public string McpServerExposedTools { get; set; }
+
     // Default deployment settings.
     public string DefaultChatDeploymentName { get; set; }
 

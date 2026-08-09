@@ -111,6 +111,10 @@ public sealed class SettingsController : Controller
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
             McpServerApiKey = mcpServerSettings.ApiKey,
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
+            McpServerExposeAllTools = mcpServerSettings.ExposeAllTools,
+            McpServerExposedTools = mcpServerSettings.Tools is null
+                ? string.Empty
+                : string.Join(Environment.NewLine, mcpServerSettings.Tools),
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
             CopilotHasSecret = !string.IsNullOrWhiteSpace(copilotSettings.ProtectedClientSecret),
@@ -338,6 +342,13 @@ public sealed class SettingsController : Controller
             AuthenticationType = model.McpServerAuthenticationType,
             ApiKey = model.McpServerApiKey?.Trim(),
             RequireAccessPermission = model.McpServerRequireAccessPermission,
+            ExposeAllTools = model.McpServerExposeAllTools,
+            Tools = string.IsNullOrWhiteSpace(model.McpServerExposedTools)
+                ? []
+                : model.McpServerExposedTools
+                    .Split(['\r', '\n', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
         });
 
         _siteSettings.Set(new MemoryMetadata

@@ -623,6 +623,20 @@
                         <input asp-for="McpServerRequireAccessPermission" class="form-check-input" type="checkbox" />
                         <label asp-for="McpServerRequireAccessPermission" class="form-check-label">Require administrator access for OpenId mode</label>
                     </div>
+                    <hr />
+                    <p class="text-muted mb-2">
+                        Choose which tools and configured tool instances are exposed to MCP clients. Nothing is
+                        exposed by default; list the tools to allow, or expose everything.
+                    </p>
+                    <div class="form-check form-switch mb-3">
+                        <input asp-for="McpServerExposeAllTools" class="form-check-input" type="checkbox" />
+                        <label asp-for="McpServerExposeAllTools" class="form-check-label">Expose all non-hidden tools and tool instances</label>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="McpServerExposedTools" class="form-label">Exposed tools</label>
+                        <textarea asp-for="McpServerExposedTools" class="form-control" rows="4" placeholder="One tool or tool instance name per line"></textarea>
+                        <div class="form-text">One name per line (or comma-separated). Ignored when all tools are exposed.</div>
+                    </div>
                 </div>
             </div>
 

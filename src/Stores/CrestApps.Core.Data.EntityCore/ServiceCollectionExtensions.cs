@@ -5,7 +5,6 @@ using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
-using CrestApps.Core.AI.Mcp.Documentation;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
@@ -201,23 +200,6 @@ public static class ServiceCollectionExtensions
 
         services.AddNamedDocumentCatalog<McpPrompt, NamedDocumentCatalog<McpPrompt>>();
         services.AddSourceDocumentCatalog<McpResource, SourceDocumentCatalog<McpResource>>();
-
-        return services;
-    }
-
-    /// <summary>
-    /// Registers EntityCore-backed storage for the documentation search feature. This adds a writable
-    /// binding source for <see cref="DocumentationSourceEntry"/> so documentation sources persisted in
-    /// the store are aggregated by the documentation source catalog alongside options-defined sources.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    public static IServiceCollection AddCoreAIMcpDocumentationSearchStoresEntityCore(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.AddScoped<NamedSourceDocumentCatalog<DocumentationSourceEntry>>();
-        services.AddScoped<INamedSourceCatalogSource<DocumentationSourceEntry>>(sp =>
-            new WritableCatalogBindingSource<DocumentationSourceEntry>(sp.GetRequiredService<NamedSourceDocumentCatalog<DocumentationSourceEntry>>()));
 
         return services;
     }
@@ -470,21 +452,6 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIMcpServerStoresEntityCore();
-
-        return builder;
-    }
-
-    /// <summary>
-    /// Registers EntityCore-backed storage for the documentation search feature on the documentation
-    /// search builder, so documentation sources can be persisted and managed through a UI or database
-    /// in addition to being registered in code.
-    /// </summary>
-    /// <param name="builder">The documentation search builder.</param>
-    public static DocumentationSearchBuilder AddEntityCoreStores(this DocumentationSearchBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Services.AddCoreAIMcpDocumentationSearchStoresEntityCore();
 
         return builder;
     }

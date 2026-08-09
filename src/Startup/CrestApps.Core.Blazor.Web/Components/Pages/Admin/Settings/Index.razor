@@ -724,6 +724,21 @@ else
                             <InputCheckbox id="mcpRequireAccess" @bind-Value="_model.McpServerRequireAccessPermission" class="form-check-input" />
                             <label for="mcpRequireAccess" class="form-check-label">Require administrator access for OpenId mode</label>
                         </div>
+
+                        <hr />
+                        <p class="text-muted mb-2">
+                            Choose which tools and configured tool instances are exposed to MCP clients. Nothing is
+                            exposed by default; list the tools to allow, or expose everything.
+                        </p>
+                        <div class="form-check form-switch mb-3">
+                            <InputCheckbox id="mcpExposeAll" @bind-Value="_model.McpServerExposeAllTools" class="form-check-input" />
+                            <label for="mcpExposeAll" class="form-check-label">Expose all non-hidden tools and tool instances</label>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mcpExposedTools" class="form-label">Exposed tools</label>
+                            <InputTextArea id="mcpExposedTools" @bind-Value="_model.McpServerExposedTools" class="form-control" rows="4" placeholder="One tool or tool instance name per line" />
+                            <div class="form-text">One name per line (or comma-separated). Ignored when all tools are exposed.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -870,6 +885,10 @@ else
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
             McpServerApiKey = mcpServerSettings.ApiKey,
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
+            McpServerExposeAllTools = mcpServerSettings.ExposeAllTools,
+            McpServerExposedTools = mcpServerSettings.Tools is null
+                ? string.Empty
+                : string.Join(Environment.NewLine, mcpServerSettings.Tools),
 
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
@@ -1182,6 +1201,13 @@ else
             AuthenticationType = _model.McpServerAuthenticationType,
             ApiKey = _model.McpServerApiKey?.Trim(),
             RequireAccessPermission = _model.McpServerRequireAccessPermission,
+            ExposeAllTools = _model.McpServerExposeAllTools,
+            Tools = string.IsNullOrWhiteSpace(_model.McpServerExposedTools)
+                ? []
+                : _model.McpServerExposedTools
+                    .Split(['\r', '\n', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
         });
 
         SiteSettings.Set(new MemoryMetadata

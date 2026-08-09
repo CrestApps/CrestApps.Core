@@ -13,6 +13,7 @@ using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Elasticsearch;
 using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
+using CrestApps.Core.AI.Mcp.Documentation;
 using CrestApps.Core.AI.Mcp.Ftp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Sftp;
@@ -125,16 +126,13 @@ builder.Services
         )
         .AddToolInstances(toolInstances => toolInstances
             .AddHttpApiRequestSource()
+            .AddDocumentationSearchSources()
             .AddYesSqlStores()
         )
         .AddMcpServer(mcpServer => mcpServer
             .AddYesSqlStores()
             .AddFtpResources()
             .AddSftpResources()
-            .AddDocumentationSearch(documentation => documentation
-                .AddYesSqlStores()
-                .AddSite("crestapps", "https://core.crestapps.com")
-            )
         )
         .AddSignalR(addStoreCommitterFilter: true)
         .AddA2AHost()

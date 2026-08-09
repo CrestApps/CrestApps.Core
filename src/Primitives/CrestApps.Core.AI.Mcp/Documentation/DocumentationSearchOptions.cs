@@ -1,29 +1,12 @@
 namespace CrestApps.Core.AI.Mcp.Documentation;
 
 /// <summary>
-/// Options that control the built-in documentation search sources. Configure sites in code through
-/// the documentation search builder, or bind this type from configuration to declare the public
-/// documentation sites the search tool is allowed to scan.
+/// Runtime limits that control how a built-in documentation search source crawls and ranks a single
+/// documentation site. A fresh instance with sensible defaults is created for each configured
+/// documentation search tool instance.
 /// </summary>
 public sealed class DocumentationSearchOptions
 {
-    /// <summary>
-    /// Gets the collection of public documentation sites that the built-in crawler scans.
-    /// </summary>
-    public IList<DocumentationSite> Sites { get; } = [];
-
-    /// <summary>
-    /// Gets the collection of documentation sites that expose a prebuilt search index as JSON (for
-    /// example MkDocs Material) that the built-in search-index source downloads and ranks.
-    /// </summary>
-    public IList<DocumentationSearchIndexSite> SearchIndexes { get; } = [];
-
-    /// <summary>
-    /// Gets the collection of documentation sites that are searchable through the Algolia DocSearch
-    /// query API.
-    /// </summary>
-    public IList<AlgoliaDocSearchSite> AlgoliaSources { get; } = [];
-
     /// <summary>
     /// Gets or sets the default maximum number of results a single site contributes to a search.
     /// </summary>

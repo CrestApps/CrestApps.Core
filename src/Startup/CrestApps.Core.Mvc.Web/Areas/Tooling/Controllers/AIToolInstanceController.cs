@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Mcp.Documentation;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
@@ -214,6 +215,27 @@ public sealed class AIToolInstanceController : Controller
             ModelState.AddModelError(nameof(model.Description), "A description is required so the AI model can tell instances apart.");
         }
 
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSitemap(model);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSearchIndex(model);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAlgolia(model);
+
+            return;
+        }
+
         if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -328,6 +350,54 @@ public sealed class AIToolInstanceController : Controller
         }
     }
 
+    private void ValidateSitemap(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.SitemapBaseUrl, nameof(model.SitemapBaseUrl), "Base URL", required: true);
+        ValidateAbsoluteUrl(model.SitemapUrl, nameof(model.SitemapUrl), "Sitemap URL", required: false);
+    }
+
+    private void ValidateSearchIndex(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.SearchIndexBaseUrl, nameof(model.SearchIndexBaseUrl), "Base URL", required: true);
+        ValidateAbsoluteUrl(model.SearchIndexUrl, nameof(model.SearchIndexUrl), "Search index URL", required: false);
+    }
+
+    private void ValidateAlgolia(AIToolInstanceViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.AlgoliaApplicationId))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaApplicationId), "Application ID is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.AlgoliaApiKey))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaApiKey), "Search-only API key is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.AlgoliaIndexName))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaIndexName), "Index name is required.");
+        }
+    }
+
+    private void ValidateAbsoluteUrl(string value, string key, string label, bool required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (required)
+            {
+                ModelState.AddModelError(key, $"{label} is required.");
+            }
+
+            return;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out _))
+        {
+            ModelState.AddModelError(key, $"{label} must be a valid absolute URL.");
+        }
+    }
+
     private void Apply(AIToolInstanceViewModel model, AIToolInstance instance, bool isNew)
     {
         if (isNew)
@@ -337,6 +407,44 @@ public sealed class AIToolInstanceController : Controller
 
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SitemapDocumentationToolSettings
+            {
+                BaseUrl = model.SitemapBaseUrl?.Trim(),
+                SitemapUrl = string.IsNullOrWhiteSpace(model.SitemapUrl) ? null : model.SitemapUrl.Trim(),
+                MaxResults = model.SitemapMaxResults,
+                MaxPages = model.SitemapMaxPages,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SearchIndexDocumentationToolSettings
+            {
+                BaseUrl = model.SearchIndexBaseUrl?.Trim(),
+                IndexUrl = string.IsNullOrWhiteSpace(model.SearchIndexUrl) ? null : model.SearchIndexUrl.Trim(),
+                MaxResults = model.SearchIndexMaxResults,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new AlgoliaDocumentationToolSettings
+            {
+                ApplicationId = model.AlgoliaApplicationId?.Trim(),
+                ApiKey = model.AlgoliaApiKey?.Trim(),
+                IndexName = model.AlgoliaIndexName?.Trim(),
+                MaxResults = model.AlgoliaMaxResults,
+            });
+
+            return;
+        }
 
         var protector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
         var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();
@@ -418,6 +526,29 @@ public sealed class AIToolInstanceController : Controller
             model.DefaultHeaders = settings.DefaultHeaders is { Count: > 0 }
                 ? JsonSerializer.Serialize(settings.DefaultHeaders, _indentedJsonOptions)
                 : "{}";
+        }
+
+        if (instance.TryGet<SitemapDocumentationToolSettings>(out var sitemapSettings))
+        {
+            model.SitemapBaseUrl = sitemapSettings.BaseUrl;
+            model.SitemapUrl = sitemapSettings.SitemapUrl;
+            model.SitemapMaxResults = sitemapSettings.MaxResults;
+            model.SitemapMaxPages = sitemapSettings.MaxPages;
+        }
+
+        if (instance.TryGet<SearchIndexDocumentationToolSettings>(out var searchIndexSettings))
+        {
+            model.SearchIndexBaseUrl = searchIndexSettings.BaseUrl;
+            model.SearchIndexUrl = searchIndexSettings.IndexUrl;
+            model.SearchIndexMaxResults = searchIndexSettings.MaxResults;
+        }
+
+        if (instance.TryGet<AlgoliaDocumentationToolSettings>(out var algoliaSettings))
+        {
+            model.AlgoliaApplicationId = algoliaSettings.ApplicationId;
+            model.AlgoliaApiKey = algoliaSettings.ApiKey;
+            model.AlgoliaIndexName = algoliaSettings.IndexName;
+            model.AlgoliaMaxResults = algoliaSettings.MaxResults;
         }
 
         return model;

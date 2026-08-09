@@ -299,34 +299,37 @@ services.Configure<McpServerOptions>(options =>
 
 ## Tool Exposure
 
-When your application acts as an MCP server, registered AI tools are exposed to external clients. The server endpoint's `WithListToolsHandler` and `WithCallToolHandler` callbacks delegate to your tool registry:
+When your application acts as an MCP server, tool exposure is **opt-in**. Nothing is listed or callable by default: the server only exposes the tools and configured [tool instances](../core/tool-instances.md) that you explicitly allow through the `McpServerOptions` site settings.
 
-1. **List tools** — Returns metadata (name, description, JSON schema) for all registered tools
-2. **Call tool** — Resolves the tool by name from the registry and invokes it with the provided arguments
+```csharp
+services.Configure<McpServerOptions>(options =>
+{
+    // Expose specific tools and tool instances by name.
+    options.Tools = ["crestapps-docs", "weather"];
 
-Tools registered via `AddCoreAITool<T>()` (see [Custom Tools](../core/tools.md)) are automatically available to MCP clients unless they are marked with `.Hidden()`. Hidden tools remain available to explicitly configured profiles and agents, but the shared MCP handlers do not list or invoke them directly.
+    // Or expose every non-hidden tool and tool instance.
+    options.ExposeAllTools = true;
+});
+```
+
+| Property | Effect |
+|----------|--------|
+| `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive. |
+| `ExposeAllTools` | When `true`, every non-hidden tool and tool instance is exposed and the allow-list is ignored. |
+
+Because `McpServerOptions` is backed by site settings, an operator can choose which tools to expose from the admin **Settings → MCP server** page without redeploying. The allow-list is enforced by **both** the list and call handlers, so a tool that is not exposed can neither be discovered nor invoked. `.Hidden()` tools are always excluded, even when `ExposeAllTools` is `true`.
+
+Both code-registered tools (from `AddCoreAITool<T>()`, see [Custom Tools](../core/tools.md)) and stored tool instances (from any registered [tool instance source](../core/tool-instances.md), such as the documentation search sources) participate in the same allow-list.
 
 ### Selecting which capabilities to expose
 
-`WithCrestAppsHandlers()` accepts an optional configuration delegate so a host can choose which capabilities (tools, prompts, resources) are wired in, and which tools are exposed. With no delegate, every capability is registered and all non-hidden tools are exposed — the same behavior as before.
+`WithCrestAppsHandlers()` accepts an optional configuration delegate so a host can choose which capabilities (tools, prompts, resources) are wired in. With no delegate, every capability is registered.
 
 ```csharp
-// Read-only knowledgebase server: prompts + resources, no tools
+// Read-only knowledge-base server: prompts + resources, no tools
 _ = builder.Services.AddMcpServer()
     .WithHttpTransport()
     .WithCrestAppsHandlers(handlers => handlers.WithoutTools());
-
-// Expose only tools in a category, or with a given purpose
-_ = builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithCrestAppsHandlers(handlers => handlers
-        .WithToolsInCategory("knowledgebase")
-        .WithToolsForPurpose(AIToolPurposes.DataSourceSearch));
-
-// Expose an explicit allow-list of tools by registered name
-_ = builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithCrestAppsHandlers(handlers => handlers.WithToolNames("search_documents"));
 ```
 
 The `CrestAppsMcpHandlerBuilder` exposes:
@@ -334,44 +337,11 @@ The `CrestAppsMcpHandlerBuilder` exposes:
 | Method | Effect |
 |--------|--------|
 | `WithoutTools()` | Does not register the tool list/call handlers, so the server exposes no tools. |
-| `WithoutSdkTools()` | Excludes SDK `McpServerTool` instances while keeping CrestApps tool handlers. |
 | `WithoutPrompts()` | Does not register the prompt handlers. |
 | `WithoutResources()` | Does not register the resource handlers. |
-| `WithToolsInCategory(params string[])` | Exposes only tools assigned to one of the categories. |
-| `WithToolsForPurpose(params string[])` | Exposes only tools tagged with one of the purposes. |
-| `WithToolNames(params string[])` | Exposes only tools whose registered name matches. |
-| `FilterTools(Func<AIToolDefinitionEntry, bool>)` | Exposes only tools matching a custom predicate. |
 
-Tool filters are applied to **both** the list and call handlers, so a filtered-out tool can neither be discovered nor invoked. Multiple filters are combined with logical AND (a tool must satisfy every filter); values passed within a single call are combined with logical OR. `.Hidden()` tools are always excluded regardless of filters.
+Capability registration (which handlers exist) is chosen in code, while tool exposure (which tools those handlers surface) is chosen by the `McpServerOptions` allow-list.
 
-### Toggling capabilities from configuration
-
-The capability toggles above can also be driven from configuration, so an operator can enable or disable tools, SDK tools, prompts, and resources without changing code. Pass an `IConfiguration` section to `WithCrestAppsHandlers` and it binds `McpServerHandlerOptions`:
-
-```csharp
-_ = builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithCrestAppsHandlers(
-        builder.Configuration.GetSection("Mcp:Server:Handlers"),
-        handlers => handlers.WithToolsInCategory("knowledgebase"));
-```
-
-```json
-{
-  "Mcp": {
-    "Server": {
-      "Handlers": {
-        "IncludeTools": true,
-        "IncludeSdkTools": false,
-        "IncludePrompts": true,
-        "IncludeResources": true
-      }
-    }
-  }
-}
-```
-
-`McpServerHandlerOptions` exposes nullable toggles: `IncludeTools`, `IncludeSdkTools`, `IncludePrompts`, and `IncludeResources`. **Configuration wins over code** — any toggle explicitly set in configuration overrides the value chosen in the code delegate, while a toggle left unset (`null`) keeps the code value. Because these toggles decide whether the handlers are registered (and therefore which capabilities the server advertises), they are bound eagerly at registration time.
 
 ## Server Metadata
 
