@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Moq;
@@ -285,18 +286,234 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
+    /// Verifies that excluding tools omits the tool handlers while keeping prompt and resource handlers.
+    /// </summary>
+    [Fact]
+    public void WithoutTools_OmitsToolHandlersButKeepsPromptAndResourceHandlers()
+    {
+        var services = CreateServices(handlers => handlers.WithoutTools());
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var handlers = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.Handlers;
+
+        Assert.Null(handlers.ListToolsHandler);
+        Assert.Null(handlers.CallToolHandler);
+        Assert.NotNull(handlers.ListPromptsHandler);
+        Assert.NotNull(handlers.GetPromptHandler);
+        Assert.NotNull(handlers.ListResourcesHandler);
+        Assert.NotNull(handlers.ListResourceTemplatesHandler);
+        Assert.NotNull(handlers.ReadResourceHandler);
+    }
+
+    /// <summary>
+    /// Verifies that excluding prompts omits only the prompt handlers.
+    /// </summary>
+    [Fact]
+    public void WithoutPrompts_OmitsPromptHandlersOnly()
+    {
+        var services = CreateServices(handlers => handlers.WithoutPrompts());
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var handlers = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.Handlers;
+
+        Assert.Null(handlers.ListPromptsHandler);
+        Assert.Null(handlers.GetPromptHandler);
+        Assert.NotNull(handlers.ListToolsHandler);
+        Assert.NotNull(handlers.CallToolHandler);
+        Assert.NotNull(handlers.ListResourcesHandler);
+    }
+
+    /// <summary>
+    /// Verifies that excluding resources omits only the resource handlers.
+    /// </summary>
+    [Fact]
+    public void WithoutResources_OmitsResourceHandlersOnly()
+    {
+        var services = CreateServices(handlers => handlers.WithoutResources());
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var handlers = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.Handlers;
+
+        Assert.Null(handlers.ListResourcesHandler);
+        Assert.Null(handlers.ListResourceTemplatesHandler);
+        Assert.Null(handlers.ReadResourceHandler);
+        Assert.NotNull(handlers.ListToolsHandler);
+        Assert.NotNull(handlers.ListPromptsHandler);
+    }
+
+    /// <summary>
+    /// Verifies that a category filter exposes only tools assigned to a matching category.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_WithToolsInCategory_ExposesOnlyMatchingCategory()
+    {
+        var services = CreateServices(handlers => handlers.WithToolsInCategory("knowledgebase"));
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"), entry => entry.Category = "knowledgebase");
+        AddLocalTool(services, "create-key", new TestAIFunction("create"), entry => entry.Category = "content");
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["search"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that a purpose filter exposes only tools tagged with a matching purpose.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_WithToolsForPurpose_ExposesOnlyMatchingPurpose()
+    {
+        var services = CreateServices(handlers => handlers.WithToolsForPurpose(AIToolPurposes.DataSourceSearch));
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"), entry => entry.Purpose = AIToolPurposes.DataSourceSearch);
+        AddLocalTool(services, "image-key", new TestAIFunction("image"), entry => entry.Purpose = AIToolPurposes.ContentGeneration);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["search"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that a name filter exposes only the explicitly named tools.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_WithToolNames_ExposesOnlyNamedTools()
+    {
+        var services = CreateServices(handlers => handlers.WithToolNames("search-key"));
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"));
+        AddLocalTool(services, "create-key", new TestAIFunction("create"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["search"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that combined filters are AND-composed so a tool must satisfy every filter.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_CombinedFilters_RequireEveryFilterToMatch()
+    {
+        var services = CreateServices(handlers => handlers
+            .WithToolsInCategory("knowledgebase")
+            .WithToolsForPurpose(AIToolPurposes.DataSourceSearch));
+
+        AddLocalTool(services, "match-key", new TestAIFunction("match"), entry =>
+        {
+            entry.Category = "knowledgebase";
+            entry.Purpose = AIToolPurposes.DataSourceSearch;
+        });
+        AddLocalTool(services, "category-only-key", new TestAIFunction("category-only"), entry => entry.Category = "knowledgebase");
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["match"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that excluding SDK tools omits them from the list while keeping local tools.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_WithoutSdkTools_OmitsSdkTools()
+    {
+        var services = CreateServices(
+            handlers => handlers.WithoutSdkTools(),
+            CreateSdkTool("sdk"));
+
+        AddLocalTool(services, "local-key", new TestAIFunction("local"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["local"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that a tool filtered out of the list cannot be invoked through the call handler.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_RejectsFilteredOutTool()
+    {
+        var services = CreateServices(handlers => handlers.WithToolNames("search"));
+
+        AddLocalTool(services, "search", new TestAIFunction("search"));
+        AddLocalTool(services, "create", new TestAIFunction("create"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        await Assert.ThrowsAsync<McpException>(async () =>
+            await InvokeCallToolHandlerAsync(
+                serviceProvider,
+                "create",
+                TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies that a tool that passes the filter can be invoked through the call handler.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_InvokesAllowedTool()
+    {
+        var services = CreateServices(handlers => handlers.WithToolNames("search"));
+
+        AddLocalTool(services, "search", new TestAIFunction("search"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "search",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+    }
+
+    /// <summary>
     /// Creates the MCP service collection and registers the CrestApps handlers.
     /// </summary>
     /// <param name="sdkTools">The SDK tools to register in enumeration order.</param>
     /// <returns>The configured service collection.</returns>
     private static ServiceCollection CreateServices(params McpServerTool[] sdkTools)
     {
+        return CreateServices(configure: null, sdkTools);
+    }
+
+    /// <summary>
+    /// Creates the MCP service collection and registers the CrestApps handlers with a configuration delegate.
+    /// </summary>
+    /// <param name="configure">The handler configuration delegate.</param>
+    /// <param name="sdkTools">The SDK tools to register in enumeration order.</param>
+    /// <returns>The configured service collection.</returns>
+    private static ServiceCollection CreateServices(
+        Action<CrestAppsMcpHandlerBuilder> configure,
+        params McpServerTool[] sdkTools)
+    {
         var services = new ServiceCollection();
         var builder = services.AddMcpServer();
 
         services.AddOptions<AIToolDefinitionOptions>();
         builder.WithTools(sdkTools);
-        builder.WithCrestAppsHandlers();
+        builder.WithCrestAppsHandlers(configure);
 
         return services;
     }
@@ -315,6 +532,33 @@ public sealed class McpServerBuilderExtensionsTests
         bool hidden = false)
     {
         AddLocalToolDefinition(services, registrationName, hidden);
+        services.AddKeyedSingleton<AITool>(registrationName, tool);
+    }
+
+    /// <summary>
+    /// Registers a local tool definition with custom metadata and a keyed tool instance.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="registrationName">The keyed registration name.</param>
+    /// <param name="tool">The local AI function.</param>
+    /// <param name="configureEntry">A delegate that configures the tool definition entry.</param>
+    private static void AddLocalTool(
+        IServiceCollection services,
+        string registrationName,
+        AIFunction tool,
+        Action<AIToolDefinitionEntry> configureEntry)
+    {
+        services.Configure<AIToolDefinitionOptions>(options =>
+        {
+            var entry = new AIToolDefinitionEntry(typeof(TestAIFunction))
+            {
+                Name = registrationName,
+            };
+
+            configureEntry?.Invoke(entry);
+            options.SetTool(registrationName, entry);
+        });
+
         services.AddKeyedSingleton<AITool>(registrationName, tool);
     }
 
@@ -377,7 +621,41 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
-    /// Creates an SDK MCP tool with the supplied protocol metadata.
+    /// Invokes the registered CrestApps call-tool handler.
+    /// </summary>
+    /// <param name="serviceProvider">The provider containing the registered handler.</param>
+    /// <param name="toolName">The name of the tool to invoke.</param>
+    /// <param name="cancellationToken">The cancellation token passed to the handler.</param>
+    /// <returns>The call-tool result.</returns>
+    private static async ValueTask<CallToolResult> InvokeCallToolHandlerAsync(
+        IServiceProvider serviceProvider,
+        string toolName,
+        CancellationToken cancellationToken = default)
+    {
+        var options = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value;
+        var handler = options.Handlers.CallToolHandler;
+        var server = new Mock<McpServer>();
+
+        Assert.NotNull(handler);
+        server.SetupGet(instance => instance.Services).Returns(serviceProvider);
+
+        var request = new RequestContext<CallToolRequestParams>(
+            server.Object,
+            new JsonRpcRequest
+            {
+                Method = RequestMethods.ToolsCall,
+                Id = new RequestId("1"),
+            },
+            new CallToolRequestParams
+            {
+                Name = toolName,
+            })
+        {
+            Services = serviceProvider,
+        };
+
+        return await handler(request, cancellationToken);
+    }
     /// </summary>
     /// <param name="name">The tool name.</param>
     /// <param name="description">The optional description.</param>

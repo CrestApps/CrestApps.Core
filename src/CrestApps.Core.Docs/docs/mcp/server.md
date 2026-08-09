@@ -306,6 +306,44 @@ When your application acts as an MCP server, registered AI tools are exposed to 
 
 Tools registered via `AddCoreAITool<T>()` (see [Custom Tools](../core/tools.md)) are automatically available to MCP clients unless they are marked with `.Hidden()`. Hidden tools remain available to explicitly configured profiles and agents, but the shared MCP handlers do not list or invoke them directly.
 
+### Selecting which capabilities to expose
+
+`WithCrestAppsHandlers()` accepts an optional configuration delegate so a host can choose which capabilities (tools, prompts, resources) are wired in, and which tools are exposed. With no delegate, every capability is registered and all non-hidden tools are exposed — the same behavior as before.
+
+```csharp
+// Read-only knowledgebase server: prompts + resources, no tools
+_ = builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithCrestAppsHandlers(handlers => handlers.WithoutTools());
+
+// Expose only tools in a category, or with a given purpose
+_ = builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithCrestAppsHandlers(handlers => handlers
+        .WithToolsInCategory("knowledgebase")
+        .WithToolsForPurpose(AIToolPurposes.DataSourceSearch));
+
+// Expose an explicit allow-list of tools by registered name
+_ = builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithCrestAppsHandlers(handlers => handlers.WithToolNames("search_documents"));
+```
+
+The `CrestAppsMcpHandlerBuilder` exposes:
+
+| Method | Effect |
+|--------|--------|
+| `WithoutTools()` | Does not register the tool list/call handlers, so the server exposes no tools. |
+| `WithoutSdkTools()` | Excludes SDK `McpServerTool` instances while keeping CrestApps tool handlers. |
+| `WithoutPrompts()` | Does not register the prompt handlers. |
+| `WithoutResources()` | Does not register the resource handlers. |
+| `WithToolsInCategory(params string[])` | Exposes only tools assigned to one of the categories. |
+| `WithToolsForPurpose(params string[])` | Exposes only tools tagged with one of the purposes. |
+| `WithToolNames(params string[])` | Exposes only tools whose registered name matches. |
+| `FilterTools(Func<AIToolDefinitionEntry, bool>)` | Exposes only tools matching a custom predicate. |
+
+Tool filters are applied to **both** the list and call handlers, so a filtered-out tool can neither be discovered nor invoked. Multiple filters are combined with logical AND (a tool must satisfy every filter); values passed within a single call are combined with logical OR. `.Hidden()` tools are always excluded regardless of filters.
+
 ## Server Metadata
 
 ### IMcpServerMetadataProvider

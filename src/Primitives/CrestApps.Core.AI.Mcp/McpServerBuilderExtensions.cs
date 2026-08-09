@@ -24,36 +24,60 @@ public static class McpServerBuilderExtensions
     /// <param name="builder">The builder.</param>
     public static IMcpServerBuilder WithCrestAppsHandlers(this IMcpServerBuilder builder)
     {
+        return builder.WithCrestAppsHandlers(configure: null);
+    }
+
+    /// <summary>
+    /// Registers the CrestApps MCP server handlers, letting the caller choose which capabilities
+    /// (tools, prompts, and resources) are exposed and which tools are listed and invokable. When
+    /// <paramref name="configure"/> is <see langword="null"/> every capability is registered and all
+    /// non-hidden tools are exposed, preserving the previous default behavior.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">A delegate that configures the exposed capabilities and tool filters.</param>
+    public static IMcpServerBuilder WithCrestAppsHandlers(
+        this IMcpServerBuilder builder,
+        Action<CrestAppsMcpHandlerBuilder> configure)
+    {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder
-                    .WithListToolsHandler((request, cancellationToken) =>
-                    {
-                        var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
-                        ILogger logger = null;
-                        var tools = new List<Tool>();
+        var handlerBuilder = new CrestAppsMcpHandlerBuilder();
+        configure?.Invoke(handlerBuilder);
 
-                        foreach (var (name, _) in toolDefinitions.Tools.Where(tool => !tool.Value.Hidden))
+        if (handlerBuilder.IncludeTools)
+        {
+            var includeSdkTools = handlerBuilder.IncludeSdkTools;
+
+            builder
+                .WithListToolsHandler((request, cancellationToken) =>
+                {
+                    var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
+                    ILogger logger = null;
+                    var tools = new List<Tool>();
+
+                    foreach (var (name, _) in toolDefinitions.Tools.Where(tool => !tool.Value.Hidden && handlerBuilder.IsToolAllowed(tool.Key, tool.Value)))
+                    {
+                        try
                         {
-                            try
+                            if (request.Services.GetKeyedService<AITool>(name) is AIFunction aiFunction)
                             {
-                                if (request.Services.GetKeyedService<AITool>(name) is AIFunction aiFunction)
+                                tools.Add(new Tool
                                 {
-                                    tools.Add(new Tool
-                                    {
-                                        Name = aiFunction.Name,
-                                        Description = aiFunction.Description,
-                                        InputSchema = aiFunction.JsonSchema,
-                                    });
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                logger ??= request.Services.GetRequiredService<ILogger<IMcpServerPromptService>>();
-                                logger.LogError(ex, "Error creating tool instance for '{ToolName}'.", name);
+                                    Name = aiFunction.Name,
+                                    Description = aiFunction.Description,
+                                    InputSchema = aiFunction.JsonSchema,
+                                });
                             }
                         }
+                        catch (Exception ex)
+                        {
+                            logger ??= request.Services.GetRequiredService<ILogger<IMcpServerPromptService>>();
+                            logger.LogError(ex, "Error creating tool instance for '{ToolName}'.", name);
+                        }
+                    }
 
+                    if (includeSdkTools)
+                    {
                         var sdkTools = request.Services.GetService<IEnumerable<McpServerTool>>();
 
                         if (sdkTools is not null)
@@ -81,46 +105,50 @@ public static class McpServerBuilderExtensions
                                 while (sdkToolEnumerator.MoveNext());
                             }
                         }
+                    }
 
-                        return ValueTask.FromResult(new ListToolsResult { Tools = tools });
-                    })
-                    .WithCallToolHandler(async (request, cancellationToken) =>
+                    return ValueTask.FromResult(new ListToolsResult { Tools = tools });
+                })
+                .WithCallToolHandler(async (request, cancellationToken) =>
+                {
+                    var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
+
+                    if (toolDefinitions.Tools.TryGetValue(request.Params.Name, out var definition) &&
+                        !definition.Hidden &&
+                        handlerBuilder.IsToolAllowed(request.Params.Name, definition))
                     {
-                        var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
-
-                        if (toolDefinitions.Tools.TryGetValue(request.Params.Name, out var definition) &&
-                            !definition.Hidden)
+                        if (request.Services.GetKeyedService<AITool>(request.Params.Name) is not AIFunction aiFunction)
                         {
-                            if (request.Services.GetKeyedService<AITool>(request.Params.Name) is not AIFunction aiFunction)
-                            {
-                                throw new McpException($"Failed to create tool '{request.Params.Name}'.");
-                            }
-
-                            var arguments = new AIFunctionArguments
-                            {
-                                Services = request.Services,
-                                Context = new Dictionary<object, object>
-                                {
-                                    ["mcpRequest"] = request,
-                                },
-                            };
-
-                            if (request.Params.Arguments is not null)
-                            {
-                                foreach (var kvp in request.Params.Arguments)
-                                {
-                                    arguments[kvp.Key] = kvp.Value;
-                                }
-                            }
-
-                            var result = await aiFunction.InvokeAsync(arguments, cancellationToken);
-
-                            return new CallToolResult
-                            {
-                                Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
-                            };
+                            throw new McpException($"Failed to create tool '{request.Params.Name}'.");
                         }
 
+                        var arguments = new AIFunctionArguments
+                        {
+                            Services = request.Services,
+                            Context = new Dictionary<object, object>
+                            {
+                                ["mcpRequest"] = request,
+                            },
+                        };
+
+                        if (request.Params.Arguments is not null)
+                        {
+                            foreach (var kvp in request.Params.Arguments)
+                            {
+                                arguments[kvp.Key] = kvp.Value;
+                            }
+                        }
+
+                        var result = await aiFunction.InvokeAsync(arguments, cancellationToken);
+
+                        return new CallToolResult
+                        {
+                            Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
+                        };
+                    }
+
+                    if (includeSdkTools)
+                    {
                         var sdkTools = request.Services.GetService<IEnumerable<McpServerTool>>();
                         var sdkTool = sdkTools?.FirstOrDefault(t => t.ProtocolTool.Name == request.Params.Name);
 
@@ -128,47 +156,61 @@ public static class McpServerBuilderExtensions
                         {
                             return await sdkTool.InvokeAsync(request, cancellationToken);
                         }
+                    }
 
-                        throw new McpException($"Tool '{request.Params.Name}' not found.");
-                    })
-                    .WithListPromptsHandler(async (request, cancellationToken) =>
+                    throw new McpException($"Tool '{request.Params.Name}' not found.");
+                });
+        }
+
+        if (handlerBuilder.IncludePrompts)
+        {
+            builder
+                .WithListPromptsHandler(async (request, cancellationToken) =>
+                {
+                    var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
+
+                    return new ListPromptsResult
                     {
-                        var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
+                        Prompts = await promptService.ListAsync(),
+                    };
+                })
+                .WithGetPromptHandler(async (request, cancellationToken) =>
+                {
+                    var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
 
-                        return new ListPromptsResult
-                        {
-                            Prompts = await promptService.ListAsync(),
-                        };
-                    })
-                    .WithGetPromptHandler(async (request, cancellationToken) =>
+                    return await promptService.GetAsync(request, cancellationToken);
+                });
+        }
+
+        if (handlerBuilder.IncludeResources)
+        {
+            builder
+                .WithListResourcesHandler(async (request, cancellationToken) =>
+                {
+                    var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
+
+                    return new ListResourcesResult
                     {
-                        var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
+                        Resources = await resourceService.ListAsync(),
+                    };
+                })
+                .WithListResourceTemplatesHandler(async (request, cancellationToken) =>
+                {
+                    var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                        return await promptService.GetAsync(request, cancellationToken);
-                    })
-                    .WithListResourcesHandler(async (request, cancellationToken) =>
+                    return new ListResourceTemplatesResult
                     {
-                        var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
+                        ResourceTemplates = await resourceService.ListTemplatesAsync(),
+                    };
+                })
+                .WithReadResourceHandler(async (request, cancellationToken) =>
+                {
+                    var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                        return new ListResourcesResult
-                        {
-                            Resources = await resourceService.ListAsync(),
-                        };
-                    })
-                    .WithListResourceTemplatesHandler(async (request, cancellationToken) =>
-                    {
-                        var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
+                    return await resourceService.ReadAsync(request, cancellationToken);
+                });
+        }
 
-                        return new ListResourceTemplatesResult
-                        {
-                            ResourceTemplates = await resourceService.ListTemplatesAsync(),
-                        };
-                    })
-                    .WithReadResourceHandler(async (request, cancellationToken) =>
-                    {
-                        var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
-
-                        return await resourceService.ReadAsync(request, cancellationToken);
-                    });
+        return builder;
     }
 }
