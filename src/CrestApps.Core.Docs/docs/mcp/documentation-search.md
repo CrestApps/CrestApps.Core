@@ -73,8 +73,8 @@ builder.Services.Configure<DocumentationSearchOptions>(
     "MaxPagesPerSite": 200,
     "CacheDuration": "01:00:00",
     "Sites": [
-      { "Name": "crestapps", "BaseUrl": "https://core.crestapps.com", "Kind": "docusaurus" },
-      { "Name": "orchardcore", "BaseUrl": "https://docs.orchardcore.net", "Kind": "mkdocs" }
+      { "Name": "crestapps", "BaseUrl": "https://core.crestapps.com" },
+      { "Name": "orchardcore", "BaseUrl": "https://docs.orchardcore.net" }
     ]
   }
 }
@@ -82,7 +82,7 @@ builder.Services.Configure<DocumentationSearchOptions>(
 
 The built-in crawler discovers pages through the site's `sitemap.xml`. Supply `SitemapUrl` on a site to
 override the default `{BaseUrl}/sitemap.xml` location. Both Docusaurus and MkDocs publish a standard
-sitemap, so the `Kind` value is a hint only.
+sitemap, so no generator-specific configuration is required.
 
 ### DocumentationSearchOptions
 
@@ -101,7 +101,6 @@ sitemap, so the `Kind` value is a hint only.
 | `Name` | Unique logical name; a caller can scope a search to this source. |
 | `BaseUrl` | Base URL of the documentation site. |
 | `SitemapUrl` | Optional explicit sitemap URL. |
-| `Kind` | Optional generator hint (for example `docusaurus` or `mkdocs`); any custom string is allowed. |
 | `MaxResults` | Optional per-site override for the maximum results. |
 | `MaxPages` | Optional per-site override for the maximum indexed pages. |
 

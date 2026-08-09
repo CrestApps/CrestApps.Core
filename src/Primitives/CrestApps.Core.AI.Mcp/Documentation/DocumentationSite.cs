@@ -25,13 +25,6 @@ public sealed class DocumentationSite
     public string SitemapUrl { get; set; }
 
     /// <summary>
-    /// Gets or sets the documentation generator hint for this site. Use a value from
-    /// <see cref="DocumentationSiteKinds"/> or a custom identifier. When not set, the crawler uses its
-    /// generic sitemap-based strategy.
-    /// </summary>
-    public string Kind { get; set; }
-
-    /// <summary>
     /// Gets or sets the maximum number of results this site should contribute to a search. When not
     /// set, the global <see cref="DocumentationSearchOptions.MaxResultsPerSite"/> value is used.
     /// </summary>
