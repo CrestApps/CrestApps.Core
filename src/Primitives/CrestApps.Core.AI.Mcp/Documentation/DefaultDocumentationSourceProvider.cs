@@ -1,107 +1,224 @@
 using System.Collections.Concurrent;
-using System.Net.Http;
-using Microsoft.Extensions.Logging;
+using System.Globalization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Mcp.Documentation;
 
 /// <summary>
-/// Default <see cref="IDocumentationSourceProvider"/> that combines documentation sources registered
-/// in code with built-in crawler sources materialized from <see cref="DocumentationSearchOptions.Sites"/>.
-/// Crawler sources are created once per configured site and reused so their in-memory corpus is cached.
+/// Default <see cref="IDocumentationSourceProvider"/> that combines documentation sources defined in
+/// options (through the documentation search builder), documentation sources persisted in a catalog
+/// (for example a YesSql or EntityCore store), and custom <see cref="IDocumentationSource"/>
+/// implementations registered in code. Materialized crawler sources are cached and only rebuilt when
+/// their defining entry changes so their in-memory corpus is reused across searches.
 /// </summary>
 public sealed class DefaultDocumentationSourceProvider : IDocumentationSourceProvider
 {
-    private readonly IEnumerable<IDocumentationSource> _customSources;
+    private const string OptionsSignature = "options";
+
     private readonly IOptions<DocumentationSearchOptions> _options;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly TimeProvider _timeProvider;
-    private readonly ConcurrentDictionary<string, SitemapDocumentationSource> _siteSources = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, SearchIndexDocumentationSource> _searchIndexSources = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, AlgoliaDocumentationSource> _algoliaSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IDocumentationSourceFactory> _factories;
+    private readonly ConcurrentDictionary<string, CachedSource> _cache = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultDocumentationSourceProvider"/> class.
     /// </summary>
-    /// <param name="customSources">The documentation sources registered in code.</param>
     /// <param name="options">The documentation search options.</param>
-    /// <param name="httpClientFactory">The HTTP client factory.</param>
-    /// <param name="loggerFactory">The logger factory.</param>
-    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="factories">The strategy factories used to materialize stored and options-defined entries.</param>
     public DefaultDocumentationSourceProvider(
-        IEnumerable<IDocumentationSource> customSources,
         IOptions<DocumentationSearchOptions> options,
-        IHttpClientFactory httpClientFactory,
-        ILoggerFactory loggerFactory,
-        TimeProvider timeProvider)
+        IEnumerable<IDocumentationSourceFactory> factories)
     {
-        _customSources = customSources;
         _options = options;
-        _httpClientFactory = httpClientFactory;
-        _loggerFactory = loggerFactory;
-        _timeProvider = timeProvider;
+
+        var map = new Dictionary<string, IDocumentationSourceFactory>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var factory in factories)
+        {
+            map[factory.Strategy] = factory;
+        }
+
+        _factories = map;
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<IDocumentationSource> GetSources()
+    public async ValueTask<IReadOnlyList<IDocumentationSource>> GetSourcesAsync(IServiceProvider services, CancellationToken cancellationToken = default)
     {
-        var options = _options.Value;
-        var sources = new List<IDocumentationSource>(_customSources);
+        ArgumentNullException.ThrowIfNull(services);
 
-        foreach (var site in options.Sites)
+        var sources = new List<IDocumentationSource>();
+
+        foreach (var source in services.GetServices<IDocumentationSource>())
         {
-            if (string.IsNullOrWhiteSpace(site.Name) || string.IsNullOrWhiteSpace(site.BaseUrl))
-            {
-                continue;
-            }
-
-            var source = _siteSources.GetOrAdd(site.Name, _ => new SitemapDocumentationSource(
-                site,
-                options,
-                _httpClientFactory,
-                _timeProvider,
-                _loggerFactory.CreateLogger<SitemapDocumentationSource>()));
-
             sources.Add(source);
         }
 
-        foreach (var site in options.SearchIndexes)
+        var descriptors = new List<MaterializedDescriptor>();
+
+        CollectOptionsDescriptors(descriptors);
+
+        await CollectCatalogDescriptorsAsync(services, descriptors, cancellationToken);
+
+        var liveKeys = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var descriptor in descriptors)
         {
-            if (string.IsNullOrWhiteSpace(site.Name) || string.IsNullOrWhiteSpace(site.BaseUrl))
-            {
-                continue;
-            }
+            liveKeys.Add(descriptor.Key);
 
-            var source = _searchIndexSources.GetOrAdd(site.Name, _ => new SearchIndexDocumentationSource(
-                site,
-                options,
-                _httpClientFactory,
-                _timeProvider,
-                _loggerFactory.CreateLogger<SearchIndexDocumentationSource>()));
+            var cached = _cache.AddOrUpdate(
+                descriptor.Key,
+                _ => new CachedSource(descriptor.Signature, descriptor.Factory.Create(descriptor.Entry)),
+                (_, existing) => string.Equals(existing.Signature, descriptor.Signature, StringComparison.Ordinal)
+                    ? existing
+                    : new CachedSource(descriptor.Signature, descriptor.Factory.Create(descriptor.Entry)));
 
-            sources.Add(source);
+            sources.Add(cached.Source);
         }
 
-        foreach (var site in options.AlgoliaSources)
+        foreach (var key in _cache.Keys)
         {
-            if (string.IsNullOrWhiteSpace(site.Name)
-                || string.IsNullOrWhiteSpace(site.ApplicationId)
-                || string.IsNullOrWhiteSpace(site.ApiKey)
-                || string.IsNullOrWhiteSpace(site.IndexName))
+            if (!liveKeys.Contains(key))
             {
-                continue;
+                _cache.TryRemove(key, out _);
             }
-
-            var source = _algoliaSources.GetOrAdd(site.Name, _ => new AlgoliaDocumentationSource(
-                site,
-                options,
-                _httpClientFactory,
-                _loggerFactory.CreateLogger<AlgoliaDocumentationSource>()));
-
-            sources.Add(source);
         }
 
         return sources;
+    }
+
+    private void CollectOptionsDescriptors(List<MaterializedDescriptor> descriptors)
+    {
+        var options = _options.Value;
+
+        if (_factories.TryGetValue(DocumentationSourceStrategies.Sitemap, out var sitemapFactory))
+        {
+            foreach (var site in options.Sites)
+            {
+                if (string.IsNullOrWhiteSpace(site.Name) || string.IsNullOrWhiteSpace(site.BaseUrl))
+                {
+                    continue;
+                }
+
+                var entry = new DocumentationSourceEntry
+                {
+                    Name = site.Name,
+                    Source = DocumentationSourceStrategies.Sitemap,
+                    BaseUrl = site.BaseUrl,
+                    SitemapUrl = site.SitemapUrl,
+                    MaxResults = site.MaxResults,
+                    MaxPages = site.MaxPages,
+                };
+
+                descriptors.Add(new MaterializedDescriptor($"options:sitemap:{site.Name}", OptionsSignature, sitemapFactory, entry));
+            }
+        }
+
+        if (_factories.TryGetValue(DocumentationSourceStrategies.SearchIndex, out var searchIndexFactory))
+        {
+            foreach (var site in options.SearchIndexes)
+            {
+                if (string.IsNullOrWhiteSpace(site.Name) || string.IsNullOrWhiteSpace(site.BaseUrl))
+                {
+                    continue;
+                }
+
+                var entry = new DocumentationSourceEntry
+                {
+                    Name = site.Name,
+                    Source = DocumentationSourceStrategies.SearchIndex,
+                    BaseUrl = site.BaseUrl,
+                    IndexUrl = site.IndexUrl,
+                    MaxResults = site.MaxResults,
+                };
+
+                descriptors.Add(new MaterializedDescriptor($"options:search-index:{site.Name}", OptionsSignature, searchIndexFactory, entry));
+            }
+        }
+
+        if (_factories.TryGetValue(DocumentationSourceStrategies.Algolia, out var algoliaFactory))
+        {
+            foreach (var site in options.AlgoliaSources)
+            {
+                if (string.IsNullOrWhiteSpace(site.Name)
+                    || string.IsNullOrWhiteSpace(site.ApplicationId)
+                    || string.IsNullOrWhiteSpace(site.ApiKey)
+                    || string.IsNullOrWhiteSpace(site.IndexName))
+                {
+                    continue;
+                }
+
+                var entry = new DocumentationSourceEntry
+                {
+                    Name = site.Name,
+                    Source = DocumentationSourceStrategies.Algolia,
+                    ApplicationId = site.ApplicationId,
+                    ApiKey = site.ApiKey,
+                    IndexName = site.IndexName,
+                    MaxResults = site.MaxResults,
+                };
+
+                descriptors.Add(new MaterializedDescriptor($"options:algolia:{site.Name}", OptionsSignature, algoliaFactory, entry));
+            }
+        }
+    }
+
+    private async Task CollectCatalogDescriptorsAsync(IServiceProvider services, List<MaterializedDescriptor> descriptors, CancellationToken cancellationToken)
+    {
+        var catalog = services.GetService<IDocumentationSourceCatalog>();
+
+        if (catalog is null)
+        {
+            return;
+        }
+
+        var entries = await catalog.GetAllAsync(cancellationToken);
+
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Source) || !_factories.TryGetValue(entry.Source, out var factory))
+            {
+                continue;
+            }
+
+            var signature = (entry.ModifiedUtc ?? entry.CreatedUtc).Ticks.ToString(CultureInfo.InvariantCulture);
+
+            descriptors.Add(new MaterializedDescriptor($"catalog:{entry.ItemId}", signature, factory, entry));
+        }
+    }
+
+    private sealed class MaterializedDescriptor
+    {
+        public MaterializedDescriptor(
+            string key,
+            string signature,
+            IDocumentationSourceFactory factory,
+            DocumentationSourceEntry entry)
+        {
+            Key = key;
+            Signature = signature;
+            Factory = factory;
+            Entry = entry;
+        }
+
+        public string Key { get; }
+
+        public string Signature { get; }
+
+        public IDocumentationSourceFactory Factory { get; }
+
+        public DocumentationSourceEntry Entry { get; }
+    }
+
+    private sealed class CachedSource
+    {
+        public CachedSource(string signature, IDocumentationSource source)
+        {
+            Signature = signature;
+            Source = source;
+        }
+
+        public string Signature { get; }
+
+        public IDocumentationSource Source { get; }
     }
 }

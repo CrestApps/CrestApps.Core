@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Documentation;
 using CrestApps.Core.AI.Mcp.Functions;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -109,7 +110,7 @@ public sealed class DocumentationSearchTests
     /// crawler sources materialized from the configured sites.
     /// </summary>
     [Fact]
-    public void SourceProvider_AggregatesCustomAndConfiguredSites()
+    public async Task SourceProvider_AggregatesCustomAndConfiguredSites()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -121,12 +122,41 @@ public sealed class DocumentationSearchTests
 
         using var provider = services.BuildServiceProvider();
 
-        var sources = provider.GetRequiredService<IDocumentationSourceProvider>().GetSources();
+        var sources = await provider.GetRequiredService<IDocumentationSourceProvider>()
+            .GetSourcesAsync(provider, TestContext.Current.CancellationToken);
 
         Assert.Contains(sources, source => source.Name == "custom-1");
         Assert.Contains(sources, source => source.Name == "site-1");
         Assert.Contains(sources, source => source.Name == "index-1");
         Assert.Contains(sources, source => source.Name == "algolia-1");
+    }
+
+    /// <summary>
+    /// Verifies that the source provider materializes documentation sources stored in the catalog (for
+    /// example a database-backed store) through the registered strategy factories.
+    /// </summary>
+    [Fact]
+    public async Task SourceProvider_MaterializesCatalogEntries()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddCoreAIDocumentationSearch();
+        services.AddScoped<INamedSourceCatalogSource<DocumentationSourceEntry>>(_ => new FakeCatalogSource(
+            new DocumentationSourceEntry
+            {
+                ItemId = "01HZZZDBSOURCE0000000000001",
+                Name = "stored-site",
+                Source = DocumentationSourceStrategies.Sitemap,
+                BaseUrl = "https://stored.example.com",
+            }));
+
+        using var root = services.BuildServiceProvider();
+        using var scope = root.CreateScope();
+
+        var sources = await scope.ServiceProvider.GetRequiredService<IDocumentationSourceProvider>()
+            .GetSourcesAsync(scope.ServiceProvider, TestContext.Current.CancellationToken);
+
+        Assert.Contains(sources, source => source.Name == "stored-site");
     }
 
     /// <summary>
@@ -258,9 +288,26 @@ public sealed class DocumentationSearchTests
             _sources = sources;
         }
 
-        public IReadOnlyList<IDocumentationSource> GetSources()
+        public ValueTask<IReadOnlyList<IDocumentationSource>> GetSourcesAsync(IServiceProvider services, CancellationToken cancellationToken = default)
         {
-            return _sources;
+            return ValueTask.FromResult(_sources);
+        }
+    }
+
+    private sealed class FakeCatalogSource : INamedSourceCatalogSource<DocumentationSourceEntry>
+    {
+        private readonly IReadOnlyCollection<DocumentationSourceEntry> _entries;
+
+        public FakeCatalogSource(params DocumentationSourceEntry[] entries)
+        {
+            _entries = entries;
+        }
+
+        public int Order => 0;
+
+        public ValueTask<IReadOnlyCollection<DocumentationSourceEntry>> GetEntriesAsync(IReadOnlyCollection<DocumentationSourceEntry> knownEntries, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(_entries);
         }
     }
 

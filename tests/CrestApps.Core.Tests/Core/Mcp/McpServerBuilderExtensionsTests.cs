@@ -16,6 +16,47 @@ namespace CrestApps.Core.Tests.Core.Mcp;
 public sealed class McpServerBuilderExtensionsTests
 {
     /// <summary>
+    /// Verifies that a capability toggle set through options overrides the value chosen in code, so a
+    /// host can enable or disable capabilities from configuration without changing code.
+    /// </summary>
+    [Fact]
+    public void ApplyOptions_ConfigurationWinsOverCode()
+    {
+        var handlerBuilder = new CrestAppsMcpHandlerBuilder();
+        handlerBuilder.WithoutTools();
+        handlerBuilder.WithoutSdkTools();
+
+        handlerBuilder.ApplyOptions(new McpServerHandlerOptions
+        {
+            IncludeTools = true,
+            IncludeSdkTools = true,
+            IncludePrompts = false,
+        });
+
+        Assert.True(handlerBuilder.IncludeTools);
+        Assert.True(handlerBuilder.IncludeSdkTools);
+        Assert.False(handlerBuilder.IncludePrompts);
+    }
+
+    /// <summary>
+    /// Verifies that a <see langword="null"/> capability toggle leaves the value chosen in code intact,
+    /// so unset configuration does not override explicit code choices.
+    /// </summary>
+    [Fact]
+    public void ApplyOptions_NullTogglesPreserveCodeValues()
+    {
+        var handlerBuilder = new CrestAppsMcpHandlerBuilder();
+        handlerBuilder.WithoutResources();
+
+        handlerBuilder.ApplyOptions(new McpServerHandlerOptions());
+
+        Assert.True(handlerBuilder.IncludeTools);
+        Assert.True(handlerBuilder.IncludeSdkTools);
+        Assert.True(handlerBuilder.IncludePrompts);
+        Assert.False(handlerBuilder.IncludeResources);
+    }
+
+    /// <summary>
     /// Verifies that visible local tools retain registration order, precede SDK tools, and hidden tools are omitted.
     /// </summary>
     [Fact]

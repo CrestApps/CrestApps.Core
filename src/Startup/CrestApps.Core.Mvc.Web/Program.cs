@@ -131,6 +131,10 @@ builder.Services
             .AddYesSqlStores()
             .AddFtpResources()
             .AddSftpResources()
+            .AddDocumentationSearch(documentation => documentation
+                .AddYesSqlStores()
+                .AddSite("crestapps", "https://core.crestapps.com")
+            )
         )
         .AddSignalR(addStoreCommitterFilter: true)
         .AddA2AHost()

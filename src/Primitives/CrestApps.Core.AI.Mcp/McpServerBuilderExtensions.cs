@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Mcp.Services;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -39,10 +40,48 @@ public static class McpServerBuilderExtensions
         this IMcpServerBuilder builder,
         Action<CrestAppsMcpHandlerBuilder> configure)
     {
+        return builder.WithCrestAppsHandlers(configuration: null, configure);
+    }
+
+    /// <summary>
+    /// Registers the CrestApps MCP server handlers, binding the capability toggles from the supplied
+    /// configuration section so a host can enable or disable capabilities without code. Configuration
+    /// wins over code: any capability toggle explicitly set in <paramref name="configuration"/>
+    /// overrides the value chosen in <paramref name="configure"/>.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configuration">
+    /// The configuration section bound to <see cref="McpServerHandlerOptions"/>. When
+    /// <see langword="null"/> no configuration binding is applied.
+    /// </param>
+    /// <param name="configure">A delegate that configures the exposed capabilities and tool filters.</param>
+    public static IMcpServerBuilder WithCrestAppsHandlers(
+        this IMcpServerBuilder builder,
+        IConfiguration configuration,
+        Action<CrestAppsMcpHandlerBuilder> configure)
+    {
         ArgumentNullException.ThrowIfNull(builder);
 
         var handlerBuilder = new CrestAppsMcpHandlerBuilder();
         configure?.Invoke(handlerBuilder);
+
+        if (configuration is not null)
+        {
+            var options = new McpServerHandlerOptions();
+            configuration.Bind(options);
+            handlerBuilder.ApplyOptions(options);
+
+            builder.Services.Configure<McpServerHandlerOptions>(configuration);
+        }
+
+        return builder.WithCrestAppsHandlers(handlerBuilder);
+    }
+
+    private static IMcpServerBuilder WithCrestAppsHandlers(
+        this IMcpServerBuilder builder,
+        CrestAppsMcpHandlerBuilder handlerBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
 
         if (handlerBuilder.IncludeTools)
         {

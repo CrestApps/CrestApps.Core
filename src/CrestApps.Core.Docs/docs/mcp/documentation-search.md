@@ -269,13 +269,80 @@ Custom sources and configured sites are aggregated by `IDocumentationSourceProvi
 calls the tool without a `source` argument, every source is searched and results are merged by score;
 passing a `source` argument scopes the search to that single named source.
 
+## Store-backed Sources
+
+Sites registered with `AddSite`, `AddSearchIndex`, and `AddAlgoliaDocSearch` are defined in code (or
+bound from configuration). If you want operators to add, edit, and remove documentation sources at
+runtime — through an admin UI or directly in the database — persist them in a store instead.
+
+Add a store backend to the documentation search builder:
+
+```csharp
+// YesSql
+.AddDocumentationSearch(docs => docs
+    .AddYesSqlStores())
+
+// Entity Framework Core
+.AddDocumentationSearch(docs => docs
+    .AddEntityCoreStores())
+```
+
+Store-backed sources and code/options-defined sources are aggregated together, so you can seed a few
+sites in code and let operators manage the rest from the database.
+
+Each stored source is a `DocumentationSourceEntry`. The `Strategy` field (stored in `Source`) selects
+how the entry is materialized and must match a registered `IDocumentationSourceFactory.Strategy`. The
+built-in strategies are defined by `DocumentationSourceStrategies`:
+
+| Strategy (`DocumentationSourceStrategies`) | Value | Required fields |
+| --- | --- | --- |
+| `Sitemap` | `sitemap` | `BaseUrl` (optional `SitemapUrl`, `MaxResults`, `MaxPages`) |
+| `SearchIndex` | `search-index` | `BaseUrl` (optional `IndexUrl`, `MaxResults`) |
+| `Algolia` | `algolia` | `ApplicationId`, `ApiKey`, `IndexName` (optional `MaxResults`) |
+
+Create and manage entries through the named-source catalog manager, which validates the strategy and
+its required fields and enforces a unique name:
+
+```csharp
+public sealed class DocumentationSourceService
+{
+    private readonly INamedSourceCatalogManager<DocumentationSourceEntry> _manager;
+
+    public DocumentationSourceService(INamedSourceCatalogManager<DocumentationSourceEntry> manager)
+    {
+        _manager = manager;
+    }
+
+    public async Task AddSitemapAsync(string name, string baseUrl, CancellationToken cancellationToken)
+    {
+        var entry = await _manager.NewAsync(name, DocumentationSourceStrategies.Sitemap, cancellationToken: cancellationToken);
+        entry.BaseUrl = baseUrl;
+
+        var validation = await _manager.ValidateAsync(entry, cancellationToken);
+
+        if (validation.Succeeded)
+        {
+            await _manager.CreateAsync(entry, cancellationToken);
+        }
+    }
+}
+```
+
+The provider rebuilds a stored source only when its entry changes (tracked by the entry's modified
+timestamp), so an edit in the database is picked up on the next search without restarting the host.
+
+To register a new strategy that can be stored in the catalog, implement `IDocumentationSourceFactory`
+with a new `Strategy` identifier and register it as an `IDocumentationSourceFactory`.
+
 ## How It Works
 
 1. `AddCoreAIDocumentationSearch(...)` registers the `search_documentation` tool, the
-   `DefaultDocumentationSourceProvider`, and a named `HttpClient` with standard resilience.
-2. When invoked, the tool resolves `IDocumentationSourceProvider` to get all sources (custom sources
-   plus a `SitemapDocumentationSource`, `SearchIndexDocumentationSource`, or `AlgoliaDocumentationSource`
-   per configured site, depending on the builder method used).
+   `DefaultDocumentationSourceProvider`, the strategy factories, the documentation source catalog and
+   manager, and a named `HttpClient` with standard resilience.
+2. When invoked, the tool resolves `IDocumentationSourceProvider` to get all sources: custom sources,
+   the options-defined sites, and any entries persisted in the documentation source catalog — each
+   materialized through its `IDocumentationSourceFactory` (a `SitemapDocumentationSource`,
+   `SearchIndexDocumentationSource`, or `AlgoliaDocumentationSource`).
 3. Each source is searched in parallel; a failing source is skipped so one broken site does not fail
    the whole search.
 4. Results are merged, ordered by descending relevance, and returned with their titles and URLs so the

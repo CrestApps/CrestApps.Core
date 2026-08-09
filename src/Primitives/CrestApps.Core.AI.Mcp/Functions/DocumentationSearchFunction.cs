@@ -84,7 +84,7 @@ public sealed class DocumentationSearchFunction : AIFunction
         }
 
         var provider = arguments.Services.GetRequiredService<IDocumentationSourceProvider>();
-        var sources = provider.GetSources();
+        var sources = await provider.GetSourcesAsync(arguments.Services, cancellationToken);
 
         arguments.TryGetFirstString("source", out var sourceName);
 

@@ -344,6 +344,35 @@ The `CrestAppsMcpHandlerBuilder` exposes:
 
 Tool filters are applied to **both** the list and call handlers, so a filtered-out tool can neither be discovered nor invoked. Multiple filters are combined with logical AND (a tool must satisfy every filter); values passed within a single call are combined with logical OR. `.Hidden()` tools are always excluded regardless of filters.
 
+### Toggling capabilities from configuration
+
+The capability toggles above can also be driven from configuration, so an operator can enable or disable tools, SDK tools, prompts, and resources without changing code. Pass an `IConfiguration` section to `WithCrestAppsHandlers` and it binds `McpServerHandlerOptions`:
+
+```csharp
+_ = builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithCrestAppsHandlers(
+        builder.Configuration.GetSection("Mcp:Server:Handlers"),
+        handlers => handlers.WithToolsInCategory("knowledgebase"));
+```
+
+```json
+{
+  "Mcp": {
+    "Server": {
+      "Handlers": {
+        "IncludeTools": true,
+        "IncludeSdkTools": false,
+        "IncludePrompts": true,
+        "IncludeResources": true
+      }
+    }
+  }
+}
+```
+
+`McpServerHandlerOptions` exposes nullable toggles: `IncludeTools`, `IncludeSdkTools`, `IncludePrompts`, and `IncludeResources`. **Configuration wins over code** — any toggle explicitly set in configuration overrides the value chosen in the code delegate, while a toggle left unset (`null`) keeps the code value. Because these toggles decide whether the handlers are registered (and therefore which capabilities the server advertises), they are bound eagerly at registration time.
+
 ## Server Metadata
 
 ### IMcpServerMetadataProvider

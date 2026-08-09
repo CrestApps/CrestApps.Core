@@ -244,6 +244,22 @@ public static class ServiceCollectionExtensions
             .AddStandardResilienceHandler();
         services.TryAddSingleton<IDocumentationSourceProvider, DefaultDocumentationSourceProvider>();
 
+        // Register the strategy factories used to materialize options-defined and store-backed entries.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IDocumentationSourceFactory, SitemapDocumentationSourceFactory>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IDocumentationSourceFactory, SearchIndexDocumentationSourceFactory>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IDocumentationSourceFactory, AlgoliaDocumentationSourceFactory>());
+
+        // Register the multi-source catalog so documentation sources can be persisted in a store and
+        // managed through a UI or database. The catalog is empty until a store backend adds a binding source.
+        services.TryAddScoped<IDocumentationSourceCatalog, DefaultDocumentationSourceCatalog>();
+        services.TryAddScoped<INamedSourceCatalog<DocumentationSourceEntry>>(sp => sp.GetRequiredService<IDocumentationSourceCatalog>());
+
+        services.TryAddScoped<NamedSourceCatalogManager<DocumentationSourceEntry>>();
+        services.TryAddScoped<INamedSourceCatalogManager<DocumentationSourceEntry>>(sp => sp.GetRequiredService<NamedSourceCatalogManager<DocumentationSourceEntry>>());
+        services.TryAddScoped<ISourceCatalogManager<DocumentationSourceEntry>>(sp => sp.GetRequiredService<NamedSourceCatalogManager<DocumentationSourceEntry>>());
+
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<DocumentationSourceEntry>, DocumentationSourceEntryCatalogHandler>());
+
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(DocumentationSearchFunction)))
         {
             services.AddCoreAITool<DocumentationSearchFunction>(DocumentationSearchFunction.TheName)

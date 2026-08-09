@@ -174,4 +174,38 @@ public sealed class CrestAppsMcpHandlerBuilder
     {
         (_toolFilters ??= []).Add(filter);
     }
+
+    /// <summary>
+    /// Overlays the supplied configuration-bound options onto this builder. Only options with an
+    /// explicit (non-<see langword="null"/>) value are applied, and they override any value already
+    /// set in code so configuration wins over code for the capability toggles.
+    /// </summary>
+    /// <param name="options">The configuration-bound options to overlay.</param>
+    internal void ApplyOptions(McpServerHandlerOptions options)
+    {
+        if (options is null)
+        {
+            return;
+        }
+
+        if (options.IncludeTools.HasValue)
+        {
+            IncludeTools = options.IncludeTools.Value;
+        }
+
+        if (options.IncludeSdkTools.HasValue)
+        {
+            IncludeSdkTools = options.IncludeSdkTools.Value;
+        }
+
+        if (options.IncludePrompts.HasValue)
+        {
+            IncludePrompts = options.IncludePrompts.Value;
+        }
+
+        if (options.IncludeResources.HasValue)
+        {
+            IncludeResources = options.IncludeResources.Value;
+        }
+    }
 }
