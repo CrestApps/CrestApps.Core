@@ -316,7 +316,9 @@ services.Configure<McpServerOptions>(options =>
 | Property | Effect |
 |----------|--------|
 | `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive. |
-| `ExposeAllTools` | When `true`, every tool and tool instance is exposed and the allow-list is ignored. |
+| `ExposeAllTools` | When `true`, every **selectable** tool and tool instance is exposed and the allow-list is ignored. |
+
+Only selectable tools are ever exposed over MCP. System tools (those marked `IsSystemTool`, which agents auto-include based on context) and hidden tools are never listed or callable — not even when `ExposeAllTools` is `true`.
 
 Because `McpServerOptions` is backed by site settings, an operator can choose which tools to expose from the admin **Settings → MCP server** page without redeploying. The allow-list is enforced by **both** the list and call handlers, so a tool that is not exposed can neither be discovered nor invoked.
 

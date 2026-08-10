@@ -39,7 +39,8 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
-    /// Verifies that enabling <c>ExposeAllTools</c> lists every non-hidden tool while hidden tools are omitted.
+    /// Verifies that enabling <c>ExposeAllTools</c> lists every selectable tool while hidden and system
+    /// tools are omitted, because system tools are auto-included by agents and must not be exposed over MCP.
     /// </summary>
     [Fact]
     public async Task ListToolsHandler_ExposeAllTools_ReturnsVisibleToolsAndOmitsHidden()
@@ -48,6 +49,7 @@ public sealed class McpServerBuilderExtensionsTests
 
         AddLocalTool(services, "search-key", new TestAIFunction("search"));
         AddLocalTool(services, "hidden-key", new TestAIFunction("hidden"), hidden: true);
+        AddLocalTool(services, "system-key", new TestAIFunction("system"), isSystemTool: true);
         AddLocalTool(services, "create-key", new TestAIFunction("create"));
 
         using var serviceProvider = services.BuildServiceProvider();
@@ -349,6 +351,26 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
+    /// Verifies that a system tool cannot be invoked through the call handler even when
+    /// <c>ExposeAllTools</c> is enabled, because system tools are never exposed over MCP.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_ExposeAll_RejectsSystemTool()
+    {
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
+
+        AddLocalTool(services, "system", new TestAIFunction("system"), isSystemTool: true);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        await Assert.ThrowsAsync<McpException>(async () =>
+            await InvokeCallToolHandlerAsync(
+                serviceProvider,
+                "system",
+                TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
     /// Creates the MCP service collection and registers the CrestApps handlers.
     /// </summary>
     /// <param name="configureOptions">An optional delegate that configures the exposure settings.</param>
@@ -404,13 +426,15 @@ public sealed class McpServerBuilderExtensionsTests
     /// <param name="registrationName">The keyed registration name.</param>
     /// <param name="tool">The local AI function.</param>
     /// <param name="hidden">Whether the tool is hidden.</param>
+    /// <param name="isSystemTool">Whether the tool is a system tool.</param>
     private static void AddLocalTool(
         IServiceCollection services,
         string registrationName,
         AIFunction tool,
-        bool hidden = false)
+        bool hidden = false,
+        bool isSystemTool = false)
     {
-        AddLocalToolDefinition(services, registrationName, hidden);
+        AddLocalToolDefinition(services, registrationName, hidden, isSystemTool);
         services.AddKeyedSingleton<AITool>(registrationName, tool);
     }
 
@@ -420,10 +444,12 @@ public sealed class McpServerBuilderExtensionsTests
     /// <param name="services">The service collection.</param>
     /// <param name="registrationName">The keyed registration name.</param>
     /// <param name="hidden">Whether the tool is hidden.</param>
+    /// <param name="isSystemTool">Whether the tool is a system tool.</param>
     private static void AddLocalToolDefinition(
         IServiceCollection services,
         string registrationName,
-        bool hidden = false)
+        bool hidden = false,
+        bool isSystemTool = false)
     {
         services.Configure<AIToolDefinitionOptions>(options =>
         {
@@ -432,6 +458,7 @@ public sealed class McpServerBuilderExtensionsTests
                 new AIToolDefinitionEntry(typeof(TestAIFunction))
                 {
                     Hidden = hidden,
+                    IsSystemTool = isSystemTool,
                 });
         });
     }
