@@ -349,69 +349,11 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
-    /// Verifies that excluding tools omits the tool handlers while keeping prompt and resource handlers.
-    /// </summary>
-    [Fact]
-    public void WithoutTools_OmitsToolHandlersButKeepsPromptAndResourceHandlers()
-    {
-        var services = CreateServices(handlers => handlers.WithoutTools());
-
-        using var serviceProvider = services.BuildServiceProvider();
-        var handlers = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.Handlers;
-
-        Assert.Null(handlers.ListToolsHandler);
-        Assert.Null(handlers.CallToolHandler);
-        Assert.NotNull(handlers.ListPromptsHandler);
-        Assert.NotNull(handlers.GetPromptHandler);
-        Assert.NotNull(handlers.ListResourcesHandler);
-        Assert.NotNull(handlers.ListResourceTemplatesHandler);
-        Assert.NotNull(handlers.ReadResourceHandler);
-    }
-
-    /// <summary>
-    /// Verifies that excluding prompts omits only the prompt handlers.
-    /// </summary>
-    [Fact]
-    public void WithoutPrompts_OmitsPromptHandlersOnly()
-    {
-        var services = CreateServices(handlers => handlers.WithoutPrompts());
-
-        using var serviceProvider = services.BuildServiceProvider();
-        var handlers = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.Handlers;
-
-        Assert.Null(handlers.ListPromptsHandler);
-        Assert.Null(handlers.GetPromptHandler);
-        Assert.NotNull(handlers.ListToolsHandler);
-        Assert.NotNull(handlers.CallToolHandler);
-        Assert.NotNull(handlers.ListResourcesHandler);
-    }
-
-    /// <summary>
-    /// Verifies that excluding resources omits only the resource handlers.
-    /// </summary>
-    [Fact]
-    public void WithoutResources_OmitsResourceHandlersOnly()
-    {
-        var services = CreateServices(handlers => handlers.WithoutResources());
-
-        using var serviceProvider = services.BuildServiceProvider();
-        var handlers = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.Handlers;
-
-        Assert.Null(handlers.ListResourcesHandler);
-        Assert.Null(handlers.ListResourceTemplatesHandler);
-        Assert.Null(handlers.ReadResourceHandler);
-        Assert.NotNull(handlers.ListToolsHandler);
-        Assert.NotNull(handlers.ListPromptsHandler);
-    }
-
-    /// <summary>
     /// Creates the MCP service collection and registers the CrestApps handlers.
     /// </summary>
-    /// <param name="configure">An optional handler configuration delegate.</param>
     /// <param name="configureOptions">An optional delegate that configures the exposure settings.</param>
     /// <returns>The configured service collection.</returns>
     private static ServiceCollection CreateServices(
-        Action<CrestAppsMcpHandlerBuilder> configure = null,
         Action<ServerToolOptions> configureOptions = null)
     {
         var services = new ServiceCollection();
@@ -425,7 +367,7 @@ public sealed class McpServerBuilderExtensionsTests
             services.Configure(configureOptions);
         }
 
-        builder.WithCrestAppsHandlers(configure);
+        builder.WithCrestAppsHandlers();
 
         return services;
     }

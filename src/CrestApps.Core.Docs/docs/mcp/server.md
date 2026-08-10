@@ -321,28 +321,6 @@ Because `McpServerOptions` is backed by site settings, an operator can choose wh
 
 Both code-registered tools (from `AddCoreAITool<T>()`, see [Custom Tools](../core/tools.md)) and stored tool instances (from any registered [tool instance source](../core/tool-instances.md), such as the documentation search sources) participate in the same allow-list.
 
-### Selecting which capabilities to expose
-
-`WithCrestAppsHandlers()` accepts an optional configuration delegate so a host can choose which capabilities (tools, prompts, resources) are wired in. With no delegate, every capability is registered.
-
-```csharp
-// Read-only knowledge-base server: prompts + resources, no tools
-_ = builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithCrestAppsHandlers(handlers => handlers.WithoutTools());
-```
-
-The `CrestAppsMcpHandlerBuilder` exposes:
-
-| Method | Effect |
-|--------|--------|
-| `WithoutTools()` | Does not register the tool list/call handlers, so the server exposes no tools. |
-| `WithoutPrompts()` | Does not register the prompt handlers. |
-| `WithoutResources()` | Does not register the resource handlers. |
-
-Capability registration (which handlers exist) is chosen in code, while tool exposure (which tools those handlers surface) is chosen by the `McpServerOptions` allow-list.
-
-
 ## Server Metadata
 
 ### IMcpServerMetadataProvider

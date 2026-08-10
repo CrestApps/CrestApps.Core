@@ -22,62 +22,81 @@ public static class McpServerBuilderExtensions
     /// This wires the CrestApps tool registry (<see cref="AIToolDefinitionOptions"/>),
     /// <see cref="IMcpServerPromptService"/>, and <see cref="IMcpServerResourceService"/>
     /// into the MCP protocol so both Orchard Core and standalone MVC hosts share the same handler logic.
+    /// Which tools and tool instances are actually listed and callable is controlled by the
+    /// <see cref="McpServerOptions"/> site settings allow-list.
     /// </summary>
     /// <param name="builder">The builder.</param>
     public static IMcpServerBuilder WithCrestAppsHandlers(this IMcpServerBuilder builder)
     {
-        return builder.WithCrestAppsHandlers(configure: null);
-    }
-
-    /// <summary>
-    /// Registers the CrestApps MCP server handlers, letting the caller choose which capabilities
-    /// (tools, prompts, and resources) are registered. When <paramref name="configure"/> is
-    /// <see langword="null"/> every capability is registered. Which tools and tool instances are actually
-    /// listed and callable is controlled by the <see cref="McpServerOptions"/> site settings allow-list.
-    /// </summary>
-    /// <param name="builder">The builder.</param>
-    /// <param name="configure">A delegate that configures the registered capabilities.</param>
-    public static IMcpServerBuilder WithCrestAppsHandlers(
-        this IMcpServerBuilder builder,
-        Action<CrestAppsMcpHandlerBuilder> configure)
-    {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var handlerBuilder = new CrestAppsMcpHandlerBuilder();
-        configure?.Invoke(handlerBuilder);
+        return builder
+            .WithListToolsHandler(async (request, cancellationToken) =>
+            {
+                var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
+                var exposeAll = serverOptions.ExposeAllTools;
+                var allowList = BuildAllowList(serverOptions.Tools);
+                var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
+                ILogger logger = null;
+                var tools = new List<Tool>();
+                var seenNames = new HashSet<string>(StringComparer.Ordinal);
 
-        return builder.WithCrestAppsHandlers(handlerBuilder);
-    }
-
-    private static IMcpServerBuilder WithCrestAppsHandlers(
-        this IMcpServerBuilder builder,
-        CrestAppsMcpHandlerBuilder handlerBuilder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        if (handlerBuilder.IncludeTools)
-        {
-            builder
-                .WithListToolsHandler(async (request, cancellationToken) =>
+                foreach (var (name, definition) in toolDefinitions.Tools)
                 {
-                    var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
-                    var exposeAll = serverOptions.ExposeAllTools;
-                    var allowList = BuildAllowList(serverOptions.Tools);
-                    var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
-                    ILogger logger = null;
-                    var tools = new List<Tool>();
-                    var seenNames = new HashSet<string>(StringComparer.Ordinal);
-
-                    foreach (var (name, definition) in toolDefinitions.Tools)
+                    if (definition.Hidden || !IsAllowed(exposeAll, allowList, name, definition.Name))
                     {
-                        if (definition.Hidden || !IsAllowed(exposeAll, allowList, name, definition.Name))
+                        continue;
+                    }
+
+                    try
+                    {
+                        if (request.Services.GetKeyedService<AITool>(name) is AIFunction aiFunction && seenNames.Add(aiFunction.Name))
+                        {
+                            tools.Add(new Tool
+                            {
+                                Name = aiFunction.Name,
+                                Description = aiFunction.Description,
+                                InputSchema = aiFunction.JsonSchema,
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger ??= request.Services.GetRequiredService<ILogger<IMcpServerPromptService>>();
+                        logger.LogError(ex, "Error creating tool instance for '{ToolName}'.", name);
+                    }
+                }
+
+                var instanceCatalog = request.Services.GetService<INamedCatalog<AIToolInstance>>();
+
+                if (instanceCatalog is not null)
+                {
+                    var instances = await instanceCatalog.GetAllAsync(cancellationToken);
+
+                    foreach (var instance in instances)
+                    {
+                        if (string.IsNullOrEmpty(instance.Source))
+                        {
+                            continue;
+                        }
+
+                        var functionName = instance.GetFunctionName();
+
+                        if (!IsAllowed(exposeAll, allowList, functionName, instance.Name))
+                        {
+                            continue;
+                        }
+
+                        var source = request.Services.GetKeyedService<IAIToolInstanceSource>(instance.Source);
+
+                        if (source is null)
                         {
                             continue;
                         }
 
                         try
                         {
-                            if (request.Services.GetKeyedService<AITool>(name) is AIFunction aiFunction && seenNames.Add(aiFunction.Name))
+                            if (source.CreateTool(instance) is AIFunction aiFunction && seenNames.Add(aiFunction.Name))
                             {
                                 tools.Add(new Tool
                                 {
@@ -90,157 +109,98 @@ public static class McpServerBuilderExtensions
                         catch (Exception ex)
                         {
                             logger ??= request.Services.GetRequiredService<ILogger<IMcpServerPromptService>>();
-                            logger.LogError(ex, "Error creating tool instance for '{ToolName}'.", name);
+                            logger.LogError(ex, "Error creating tool for instance '{InstanceName}'.", instance.Name);
                         }
                     }
+                }
 
-                    var instanceCatalog = request.Services.GetService<INamedCatalog<AIToolInstance>>();
+                return new ListToolsResult { Tools = tools };
+            })
+            .WithCallToolHandler(async (request, cancellationToken) =>
+            {
+                var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
+                var exposeAll = serverOptions.ExposeAllTools;
+                var allowList = BuildAllowList(serverOptions.Tools);
+                var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
 
-                    if (instanceCatalog is not null)
+                var logger = request.Services.GetService<ILogger<IMcpServerPromptService>>();
+                var codeTool = ResolveAllowedCodeTool(request.Services, toolDefinitions, exposeAll, allowList, request.Params.Name, logger);
+
+                if (codeTool is not null)
+                {
+                    var result = await codeTool.InvokeAsync(BuildArguments(request), cancellationToken);
+
+                    return new CallToolResult
                     {
-                        var instances = await instanceCatalog.GetAllAsync(cancellationToken);
+                        Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
+                    };
+                }
 
-                        foreach (var instance in instances)
+                var instanceCatalog = request.Services.GetService<INamedCatalog<AIToolInstance>>();
+
+                if (instanceCatalog is not null)
+                {
+                    var instance = await ResolveInstanceAsync(instanceCatalog, request.Params.Name, cancellationToken);
+
+                    if (instance is not null &&
+                        !string.IsNullOrEmpty(instance.Source) &&
+                        IsAllowed(exposeAll, allowList, instance.GetFunctionName(), instance.Name))
+                    {
+                        var source = request.Services.GetKeyedService<IAIToolInstanceSource>(instance.Source);
+
+                        if (source is not null && source.CreateTool(instance) is AIFunction instanceFunction)
                         {
-                            if (string.IsNullOrEmpty(instance.Source))
-                            {
-                                continue;
-                            }
+                            var result = await instanceFunction.InvokeAsync(BuildArguments(request), cancellationToken);
 
-                            var functionName = instance.GetFunctionName();
-
-                            if (!IsAllowed(exposeAll, allowList, functionName, instance.Name))
+                            return new CallToolResult
                             {
-                                continue;
-                            }
-
-                            var source = request.Services.GetKeyedService<IAIToolInstanceSource>(instance.Source);
-
-                            if (source is null)
-                            {
-                                continue;
-                            }
-
-                            try
-                            {
-                                if (source.CreateTool(instance) is AIFunction aiFunction && seenNames.Add(aiFunction.Name))
-                                {
-                                    tools.Add(new Tool
-                                    {
-                                        Name = aiFunction.Name,
-                                        Description = aiFunction.Description,
-                                        InputSchema = aiFunction.JsonSchema,
-                                    });
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                logger ??= request.Services.GetRequiredService<ILogger<IMcpServerPromptService>>();
-                                logger.LogError(ex, "Error creating tool for instance '{InstanceName}'.", instance.Name);
-                            }
+                                Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
+                            };
                         }
                     }
+                }
 
-                    return new ListToolsResult { Tools = tools };
-                })
-                .WithCallToolHandler(async (request, cancellationToken) =>
+                throw new McpException($"Tool '{request.Params.Name}' not found.");
+            })
+            .WithListPromptsHandler(async (request, cancellationToken) =>
+            {
+                var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
+
+                return new ListPromptsResult
                 {
-                    var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
-                    var exposeAll = serverOptions.ExposeAllTools;
-                    var allowList = BuildAllowList(serverOptions.Tools);
-                    var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
+                    Prompts = await promptService.ListAsync(),
+                };
+            })
+            .WithGetPromptHandler(async (request, cancellationToken) =>
+            {
+                var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
 
-                    var logger = request.Services.GetService<ILogger<IMcpServerPromptService>>();
-                    var codeTool = ResolveAllowedCodeTool(request.Services, toolDefinitions, exposeAll, allowList, request.Params.Name, logger);
+                return await promptService.GetAsync(request, cancellationToken);
+            })
+            .WithListResourcesHandler(async (request, cancellationToken) =>
+            {
+                var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                    if (codeTool is not null)
-                    {
-                        var result = await codeTool.InvokeAsync(BuildArguments(request), cancellationToken);
-
-                        return new CallToolResult
-                        {
-                            Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
-                        };
-                    }
-
-                    var instanceCatalog = request.Services.GetService<INamedCatalog<AIToolInstance>>();
-
-                    if (instanceCatalog is not null)
-                    {
-                        var instance = await ResolveInstanceAsync(instanceCatalog, request.Params.Name, cancellationToken);
-
-                        if (instance is not null &&
-                            !string.IsNullOrEmpty(instance.Source) &&
-                            IsAllowed(exposeAll, allowList, instance.GetFunctionName(), instance.Name))
-                        {
-                            var source = request.Services.GetKeyedService<IAIToolInstanceSource>(instance.Source);
-
-                            if (source is not null && source.CreateTool(instance) is AIFunction instanceFunction)
-                            {
-                                var result = await instanceFunction.InvokeAsync(BuildArguments(request), cancellationToken);
-
-                                return new CallToolResult
-                                {
-                                    Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
-                                };
-                            }
-                        }
-                    }
-
-                    throw new McpException($"Tool '{request.Params.Name}' not found.");
-                });
-        }
-
-        if (handlerBuilder.IncludePrompts)
-        {
-            builder
-                .WithListPromptsHandler(async (request, cancellationToken) =>
+                return new ListResourcesResult
                 {
-                    var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
+                    Resources = await resourceService.ListAsync(),
+                };
+            })
+            .WithListResourceTemplatesHandler(async (request, cancellationToken) =>
+            {
+                var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                    return new ListPromptsResult
-                    {
-                        Prompts = await promptService.ListAsync(),
-                    };
-                })
-                .WithGetPromptHandler(async (request, cancellationToken) =>
+                return new ListResourceTemplatesResult
                 {
-                    var promptService = request.Services.GetRequiredService<IMcpServerPromptService>();
+                    ResourceTemplates = await resourceService.ListTemplatesAsync(),
+                };
+            })
+            .WithReadResourceHandler(async (request, cancellationToken) =>
+            {
+                var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
 
-                    return await promptService.GetAsync(request, cancellationToken);
-                });
-        }
-
-        if (handlerBuilder.IncludeResources)
-        {
-            builder
-                .WithListResourcesHandler(async (request, cancellationToken) =>
-                {
-                    var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
-
-                    return new ListResourcesResult
-                    {
-                        Resources = await resourceService.ListAsync(),
-                    };
-                })
-                .WithListResourceTemplatesHandler(async (request, cancellationToken) =>
-                {
-                    var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
-
-                    return new ListResourceTemplatesResult
-                    {
-                        ResourceTemplates = await resourceService.ListTemplatesAsync(),
-                    };
-                })
-                .WithReadResourceHandler(async (request, cancellationToken) =>
-                {
-                    var resourceService = request.Services.GetRequiredService<IMcpServerResourceService>();
-
-                    return await resourceService.ReadAsync(request, cancellationToken);
-                });
-        }
-
-        return builder;
+                return await resourceService.ReadAsync(request, cancellationToken);
+            });
     }
 
     private static HashSet<string> BuildAllowList(IEnumerable<string> names)

@@ -1,6 +1,4 @@
-using System.Linq;
 using CrestApps.Core.AI.Completions;
-using CrestApps.Core.AI.Mcp.Documentation;
 using CrestApps.Core.AI.Mcp.Functions;
 using CrestApps.Core.AI.Mcp.Handlers;
 using CrestApps.Core.AI.Mcp.Models;
