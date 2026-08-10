@@ -22,8 +22,10 @@ public static class McpServerBuilderExtensions
     /// This wires the CrestApps tool registry (<see cref="AIToolDefinitionOptions"/>),
     /// <see cref="IMcpServerPromptService"/>, and <see cref="IMcpServerResourceService"/>
     /// into the MCP protocol so both Orchard Core and standalone MVC hosts share the same handler logic.
-    /// Which tools and tool instances are actually listed and callable is controlled by the
-    /// <see cref="McpServerOptions"/> site settings allow-list.
+    /// Only selectable tools (those that are neither system tools nor hidden) are ever exposed, so
+    /// system tools that the orchestrator auto-includes are never listed or callable over MCP.
+    /// Which of those selectable tools and tool instances are actually listed and callable is further
+    /// controlled by the <see cref="McpServerOptions"/> site settings allow-list.
     /// </summary>
     /// <param name="builder">The builder.</param>
     public static IMcpServerBuilder WithCrestAppsHandlers(this IMcpServerBuilder builder)
@@ -43,7 +45,7 @@ public static class McpServerBuilderExtensions
 
                 foreach (var (name, definition) in toolDefinitions.Tools)
                 {
-                    if (definition.Hidden || !IsAllowed(exposeAll, allowList, name, definition.Name))
+                    if (!definition.IsSelectable() || !IsAllowed(exposeAll, allowList, name, definition.Name))
                     {
                         continue;
                     }
@@ -248,7 +250,7 @@ public static class McpServerBuilderExtensions
         ILogger logger)
     {
         if (toolDefinitions.Tools.TryGetValue(protocolName, out var direct) &&
-            !direct.Hidden &&
+            direct.IsSelectable() &&
             IsAllowed(exposeAll, allowList, protocolName, direct.Name) &&
             TryCreateFunction(services, protocolName, logger) is { } directFunction &&
             string.Equals(directFunction.Name, protocolName, StringComparison.Ordinal))
@@ -258,7 +260,7 @@ public static class McpServerBuilderExtensions
 
         foreach (var (name, definition) in toolDefinitions.Tools)
         {
-            if (definition.Hidden || !IsAllowed(exposeAll, allowList, name, definition.Name))
+            if (!definition.IsSelectable() || !IsAllowed(exposeAll, allowList, name, definition.Name))
             {
                 continue;
             }
