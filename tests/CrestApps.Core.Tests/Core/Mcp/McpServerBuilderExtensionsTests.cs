@@ -2,31 +2,32 @@ using System.Text.Json;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Services;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Moq;
+using ServerToolOptions = CrestApps.Core.AI.Mcp.Models.McpServerOptions;
 
 namespace CrestApps.Core.Tests.Core.Mcp;
 
 public sealed class McpServerBuilderExtensionsTests
 {
     /// <summary>
-    /// Verifies that visible local tools retain registration order, precede SDK tools, and hidden tools are omitted.
+    /// Verifies that with the default settings (nothing allowed and <c>ExposeAllTools</c> off) no tools
+    /// are listed, even when tools are registered, so an MCP server exposes nothing until explicitly told to.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_ReturnsVisibleLocalToolsFirstAndOmitsHiddenTools()
+    public async Task ListToolsHandler_DefaultDeny_ReturnsEmpty()
     {
-        var services = CreateServices(
-            CreateSdkTool("sdk-first"),
-            CreateSdkTool("sdk-second"));
+        var services = CreateServices();
 
-        AddLocalTool(services, "local-first-key", new TestAIFunction("local-first"));
-        AddLocalTool(services, "hidden-key", new TestAIFunction("hidden"), hidden: true);
-        AddLocalTool(services, "local-second-key", new TestAIFunction("local-second"));
+        AddLocalTool(services, "search-key", new TestAIFunction("search"));
+        AddLocalTool(services, "create-key", new TestAIFunction("create"));
 
         using var serviceProvider = services.BuildServiceProvider();
 
@@ -34,18 +35,76 @@ public sealed class McpServerBuilderExtensionsTests
             serviceProvider,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(
-            ["local-first", "local-second", "sdk-first", "sdk-second"],
-            result.Tools.Select(tool => tool.Name));
+        Assert.Empty(result.Tools);
     }
 
     /// <summary>
-    /// Verifies that keyed local tool creation failures are logged and skipped.
+    /// Verifies that enabling <c>ExposeAllTools</c> lists every non-hidden tool while hidden tools are omitted.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_ExposeAllTools_ReturnsVisibleToolsAndOmitsHidden()
+    {
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"));
+        AddLocalTool(services, "hidden-key", new TestAIFunction("hidden"), hidden: true);
+        AddLocalTool(services, "create-key", new TestAIFunction("create"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["search", "create"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that the allow-list exposes only the tools whose registration key is listed.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_AllowList_ExposesOnlyNamedTools()
+    {
+        var services = CreateServices(configureOptions: options => options.Tools = ["search-key"]);
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"));
+        AddLocalTool(services, "create-key", new TestAIFunction("create"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["search"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that allow-list matching is case-insensitive.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_AllowList_MatchesNameCaseInsensitively()
+    {
+        var services = CreateServices(configureOptions: options => options.Tools = ["SEARCH-KEY"]);
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["search"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that keyed tool creation failures are logged and skipped instead of failing the whole list.
     /// </summary>
     [Fact]
     public async Task ListToolsHandler_LogsAndSkipsKeyedServiceCreationFailures()
     {
-        var services = CreateServices();
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
         var logger = new Mock<ILogger<IMcpServerPromptService>>();
         var failure = new InvalidOperationException("Tool creation failed.");
 
@@ -77,15 +136,22 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
-    /// Verifies that duplicate protocol names produced by distinct local registrations remain in the result.
+    /// Verifies that a configured tool instance is exposed when its name is on the allow-list.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_PreservesDuplicateNamesProducedByLocalTools()
+    public async Task ListToolsHandler_AllowList_ExposesNamedToolInstance()
     {
-        var services = CreateServices(CreateSdkTool("sdk"));
+        var instance = new AIToolInstance
+        {
+            ItemId = "instance-1",
+            Source = "docs-source",
+            Name = "crestapps-docs",
+        };
 
-        AddLocalTool(services, "first-key", new TestAIFunction("duplicate"));
-        AddLocalTool(services, "second-key", new TestAIFunction("duplicate"));
+        var services = CreateServices(configureOptions: options => options.Tools = ["crestapps-docs"]);
+
+        AddToolInstances(services, instance);
+        AddToolInstanceSource(services, "docs-source");
 
         using var serviceProvider = services.BuildServiceProvider();
 
@@ -93,19 +159,26 @@ public sealed class McpServerBuilderExtensionsTests
             serviceProvider,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["duplicate", "duplicate", "sdk"], result.Tools.Select(tool => tool.Name));
+        Assert.Equal(["crestapps-docs"], result.Tools.Select(tool => tool.Name));
     }
 
     /// <summary>
-    /// Verifies that SDK tools are appended in service enumeration order.
+    /// Verifies that configured tool instances are exposed when <c>ExposeAllTools</c> is enabled.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_AppendsSdkToolsInEnumerationOrder()
+    public async Task ListToolsHandler_ExposeAll_IncludesToolInstances()
     {
-        var services = CreateServices(
-            CreateSdkTool("sdk-third"),
-            CreateSdkTool("sdk-first"),
-            CreateSdkTool("sdk-second"));
+        var instance = new AIToolInstance
+        {
+            ItemId = "instance-1",
+            Source = "docs-source",
+            Name = "crestapps-docs",
+        };
+
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
+
+        AddToolInstances(services, instance);
+        AddToolInstanceSource(services, "docs-source");
 
         using var serviceProvider = services.BuildServiceProvider();
 
@@ -113,192 +186,215 @@ public sealed class McpServerBuilderExtensionsTests
             serviceProvider,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(
-            ["sdk-third", "sdk-first", "sdk-second"],
-            result.Tools.Select(tool => tool.Name));
+        Assert.Contains(result.Tools, tool => tool.Name == "crestapps-docs");
     }
 
     /// <summary>
-    /// Verifies that a local tool takes precedence over an SDK tool with the same exact name.
+    /// Verifies that configured tool instances are not exposed by default.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_SkipsSdkToolsThatDuplicateLocalNames()
+    public async Task ListToolsHandler_DefaultDeny_OmitsToolInstances()
     {
-        var duplicateSdkTool = CreateSdkTool("duplicate", "SDK duplicate");
-        var services = CreateServices(duplicateSdkTool, CreateSdkTool("sdk"));
-        var localDescription = "Local duplicate";
+        var instance = new AIToolInstance
+        {
+            ItemId = "instance-1",
+            Source = "docs-source",
+            Name = "crestapps-docs",
+        };
 
-        AddLocalTool(
-            services,
-            "local-key",
-            new TestAIFunction("duplicate", localDescription));
-
-        using var serviceProvider = services.BuildServiceProvider();
-
-        var result = await InvokeListToolsHandlerAsync(
-            serviceProvider,
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(["duplicate", "sdk"], result.Tools.Select(tool => tool.Name));
-        Assert.Equal(localDescription, result.Tools[0].Description);
-        Assert.DoesNotContain(result.Tools, tool => ReferenceEquals(tool, duplicateSdkTool.ProtocolTool));
-    }
-
-    /// <summary>
-    /// Verifies that later SDK tools with duplicate names are skipped while the first instance is retained.
-    /// </summary>
-    [Fact]
-    public async Task ListToolsHandler_SkipsDuplicateNamesWithinSdkTools()
-    {
-        var first = CreateSdkTool("duplicate", "first");
-        var second = CreateSdkTool("duplicate", "second");
-        var unique = CreateSdkTool("unique");
-        var services = CreateServices(first, second, unique);
-
-        using var serviceProvider = services.BuildServiceProvider();
-
-        var result = await InvokeListToolsHandlerAsync(
-            serviceProvider,
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(["duplicate", "unique"], result.Tools.Select(tool => tool.Name));
-        Assert.Same(first.ProtocolTool, result.Tools[0]);
-        Assert.DoesNotContain(result.Tools, tool => ReferenceEquals(tool, second.ProtocolTool));
-    }
-
-    /// <summary>
-    /// Verifies that duplicate matching uses ordinal case-sensitive equality.
-    /// </summary>
-    [Fact]
-    public async Task ListToolsHandler_TreatsToolNamesAsOrdinalCaseSensitive()
-    {
-        var services = CreateServices(
-            CreateSdkTool("casetool"),
-            CreateSdkTool("CaseTool"));
-
-        AddLocalTool(services, "local-key", new TestAIFunction("CaseTool"));
-
-        using var serviceProvider = services.BuildServiceProvider();
-
-        var result = await InvokeListToolsHandlerAsync(
-            serviceProvider,
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(["CaseTool", "casetool"], result.Tools.Select(tool => tool.Name));
-    }
-
-    /// <summary>
-    /// Verifies that a service provider returning a null SDK tool enumerable produces an empty result.
-    /// </summary>
-    [Fact]
-    public async Task ListToolsHandler_AllowsNullSdkToolEnumerable()
-    {
         var services = CreateServices();
 
+        AddToolInstances(services, instance);
+        AddToolInstanceSource(services, "docs-source");
+
         using var serviceProvider = services.BuildServiceProvider();
-        var requestServices = new NullSdkEnumerableServiceProvider(serviceProvider);
 
         var result = await InvokeListToolsHandlerAsync(
             serviceProvider,
-            requestServices,
-            TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Tools);
     }
 
     /// <summary>
-    /// Verifies that the default DI empty SDK tool enumerable leaves local tools unchanged.
+    /// Verifies that a tool not on the allow-list cannot be invoked through the call handler.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_AllowsDefaultEmptySdkToolEnumerable()
+    public async Task CallToolHandler_DefaultDeny_RejectsTool()
     {
         var services = CreateServices();
 
-        AddLocalTool(services, "local-key", new TestAIFunction("local"));
+        AddLocalTool(services, "search", new TestAIFunction("search"));
 
         using var serviceProvider = services.BuildServiceProvider();
-        var sdkTools = serviceProvider.GetRequiredService<IEnumerable<McpServerTool>>();
 
-        Assert.Empty(sdkTools);
-
-        var result = await InvokeListToolsHandlerAsync(
-            serviceProvider,
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(["local"], result.Tools.Select(tool => tool.Name));
+        await Assert.ThrowsAsync<McpException>(async () =>
+            await InvokeCallToolHandlerAsync(
+                serviceProvider,
+                "search",
+                TestContext.Current.CancellationToken));
     }
 
     /// <summary>
-    /// Verifies that local metadata values and SDK protocol tool instances retain their identity.
+    /// Verifies that an allow-listed tool can be invoked through the call handler.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_PreservesToolSchemaDescriptionAndSdkProtocolIdentity()
+    public async Task CallToolHandler_InvokesAllowedTool()
     {
-        var schema = JsonSerializer.Deserialize<JsonElement>(
-        """
+        var services = CreateServices(configureOptions: options => options.Tools = ["search"]);
+
+        AddLocalTool(services, "search", new TestAIFunction("search"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "search",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+    }
+
+    /// <summary>
+    /// Verifies that a tool advertised by its function name can be invoked even when the function name
+    /// differs from the registration key it is keyed under, mirroring how the list handler publishes the
+    /// function name rather than the key.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_InvokesTool_WhenFunctionNameDiffersFromKey()
+    {
+        var services = CreateServices(configureOptions: options => options.Tools = ["search-key"]);
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "search",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+    }
+    [Fact]
+    public async Task CallToolHandler_ExposeAll_InvokesTool()
+    {
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
+
+        AddLocalTool(services, "search", new TestAIFunction("search"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "search",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+    }
+
+    /// <summary>
+    /// Verifies that an allow-listed tool instance can be invoked through the call handler by its name.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_InvokesAllowedToolInstance()
+    {
+        var instance = new AIToolInstance
         {
-          "type": "object",
-          "properties": {
-            "value": {
-              "type": "integer"
-            }
-          }
-        }
-        """);
-        var description = new string("Local description".ToCharArray());
-        var localTool = new TestAIFunction("local", description, schema);
-        var sdkTool = CreateSdkTool("sdk");
-        var services = CreateServices(sdkTool);
+            ItemId = "instance-1",
+            Source = "docs-source",
+            Name = "crestapps-docs",
+        };
 
-        AddLocalTool(services, "local-key", localTool);
+        var services = CreateServices(configureOptions: options => options.Tools = ["crestapps-docs"]);
+
+        AddToolInstances(services, instance);
+        AddToolInstanceSource(services, "docs-source");
 
         using var serviceProvider = services.BuildServiceProvider();
 
-        var result = await InvokeListToolsHandlerAsync(
+        var result = await InvokeCallToolHandlerAsync(
             serviceProvider,
-            cancellationToken: TestContext.Current.CancellationToken);
+            "crestapps-docs",
+            TestContext.Current.CancellationToken);
 
-        Assert.Same(description, result.Tools[0].Description);
-        Assert.Equal(localTool.JsonSchema, result.Tools[0].InputSchema);
-        Assert.Same(sdkTool.ProtocolTool, result.Tools[1]);
+        Assert.NotNull(result);
     }
 
     /// <summary>
-    /// Verifies the current synchronous list handler behavior when passed an already-canceled token.
+    /// Verifies that a tool instance not on the allow-list cannot be invoked through the call handler.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_DoesNotObserveCancellation()
+    public async Task CallToolHandler_DefaultDeny_RejectsToolInstance()
     {
-        var services = CreateServices(CreateSdkTool("sdk"));
+        var instance = new AIToolInstance
+        {
+            ItemId = "instance-1",
+            Source = "docs-source",
+            Name = "crestapps-docs",
+        };
 
-        AddLocalTool(services, "local-key", new TestAIFunction("local"));
+        var services = CreateServices();
+
+        AddToolInstances(services, instance);
+        AddToolInstanceSource(services, "docs-source");
 
         using var serviceProvider = services.BuildServiceProvider();
-        using var cancellationTokenSource = new CancellationTokenSource();
-        cancellationTokenSource.Cancel();
 
-        var result = await InvokeListToolsHandlerAsync(
-            serviceProvider,
-            cancellationToken: cancellationTokenSource.Token);
-
-        Assert.Equal(["local", "sdk"], result.Tools.Select(tool => tool.Name));
+        await Assert.ThrowsAsync<McpException>(async () =>
+            await InvokeCallToolHandlerAsync(
+                serviceProvider,
+                "crestapps-docs",
+                TestContext.Current.CancellationToken));
     }
 
     /// <summary>
     /// Creates the MCP service collection and registers the CrestApps handlers.
     /// </summary>
-    /// <param name="sdkTools">The SDK tools to register in enumeration order.</param>
+    /// <param name="configureOptions">An optional delegate that configures the exposure settings.</param>
     /// <returns>The configured service collection.</returns>
-    private static ServiceCollection CreateServices(params McpServerTool[] sdkTools)
+    private static ServiceCollection CreateServices(
+        Action<ServerToolOptions> configureOptions = null)
     {
         var services = new ServiceCollection();
         var builder = services.AddMcpServer();
 
         services.AddOptions<AIToolDefinitionOptions>();
-        builder.WithTools(sdkTools);
+        services.AddOptions<ServerToolOptions>();
+
+        if (configureOptions is not null)
+        {
+            services.Configure(configureOptions);
+        }
+
         builder.WithCrestAppsHandlers();
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers a fake tool instance catalog returning the supplied instances.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="instances">The instances to return.</param>
+    private static void AddToolInstances(IServiceCollection services, params AIToolInstance[] instances)
+    {
+        var catalog = new Mock<INamedCatalog<AIToolInstance>>();
+        catalog
+            .Setup(value => value.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(instances);
+
+        services.AddSingleton(catalog.Object);
+    }
+
+    /// <summary>
+    /// Registers a keyed tool instance source that produces a function named after the instance.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="sourceName">The registered source name.</param>
+    private static void AddToolInstanceSource(IServiceCollection services, string sourceName)
+    {
+        services.AddKeyedSingleton<IAIToolInstanceSource>(sourceName, (_, _) => new TestToolInstanceSource());
     }
 
     /// <summary>
@@ -377,48 +473,52 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
-    /// Creates an SDK MCP tool with the supplied protocol metadata.
+    /// Invokes the registered CrestApps call-tool handler.
     /// </summary>
-    /// <param name="name">The tool name.</param>
-    /// <param name="description">The optional description.</param>
-    /// <returns>The SDK MCP tool.</returns>
-    private static McpServerTool CreateSdkTool(string name, string description = null)
+    /// <param name="serviceProvider">The provider containing the registered handler.</param>
+    /// <param name="toolName">The name of the tool to invoke.</param>
+    /// <param name="cancellationToken">The cancellation token passed to the handler.</param>
+    /// <returns>The call-tool result.</returns>
+    private static async ValueTask<CallToolResult> InvokeCallToolHandlerAsync(
+        IServiceProvider serviceProvider,
+        string toolName,
+        CancellationToken cancellationToken = default)
     {
-        return McpServerTool.Create(
-            (Func<string>)(static () => string.Empty),
-            new McpServerToolCreateOptions
+        var options = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value;
+        var handler = options.Handlers.CallToolHandler;
+        var server = new Mock<McpServer>();
+
+        Assert.NotNull(handler);
+        server.SetupGet(instance => instance.Services).Returns(serviceProvider);
+
+        var request = new RequestContext<CallToolRequestParams>(
+            server.Object,
+            new JsonRpcRequest
             {
-                Name = name,
-                Description = description,
-            });
+                Method = RequestMethods.ToolsCall,
+                Id = new RequestId("1"),
+            },
+            new CallToolRequestParams
+            {
+                Name = toolName,
+            })
+        {
+            Services = serviceProvider,
+        };
+
+        return await handler(request, cancellationToken);
     }
 
-    private sealed class NullSdkEnumerableServiceProvider : IServiceProvider
+    private sealed class TestToolInstanceSource : IAIToolInstanceSource
     {
-        private readonly IServiceProvider _serviceProvider;
-
         /// <summary>
-        /// Initializes a provider that masks the SDK tool enumerable.
+        /// Creates a function whose name mirrors the instance name so tests can assert on it.
         /// </summary>
-        /// <param name="serviceProvider">The underlying service provider.</param>
-        public NullSdkEnumerableServiceProvider(IServiceProvider serviceProvider)
+        /// <param name="instance">The configured instance.</param>
+        /// <returns>The produced function.</returns>
+        public AITool CreateTool(AIToolInstance instance)
         {
-            _serviceProvider = serviceProvider;
-        }
-
-        /// <summary>
-        /// Resolves a service, returning null for the SDK tool enumerable.
-        /// </summary>
-        /// <param name="serviceType">The service type.</param>
-        /// <returns>The resolved service.</returns>
-        public object GetService(Type serviceType)
-        {
-            if (serviceType == typeof(IEnumerable<McpServerTool>))
-            {
-                return null;
-            }
-
-            return _serviceProvider.GetService(serviceType);
+            return new TestAIFunction(instance.Name);
         }
     }
 
