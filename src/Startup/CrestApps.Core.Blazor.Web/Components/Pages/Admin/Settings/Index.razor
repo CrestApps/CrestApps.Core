@@ -12,13 +12,16 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.AI.Security
+@using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models
 @using CrestApps.Core.Blazor.Web.Models
 @using CrestApps.Core.Blazor.Web.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Services
 @using Microsoft.AspNetCore.DataProtection
+@using Microsoft.Extensions.Options
 
 @inject SiteSettingsStore SiteSettings
 @inject IAIDeploymentManager DeploymentManager
@@ -28,6 +31,8 @@
 @inject ClaudeClientService ClaudeClientService
 @inject SiteSettingsChangedNotifier SettingsChangedNotifier
 @inject ToastNotificationService ToastNotifications
+@inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
+@inject ISourceCatalog<AIToolInstance> ToolInstanceCatalog
 
 <PageTitle>AI Settings - Blazor AI Integration Sample</PageTitle>
 
@@ -728,17 +733,75 @@ else
                         <hr />
                         <p class="text-muted mb-2">
                             Choose which tools and configured tool instances are exposed to MCP clients. Nothing is
-                            exposed by default; list the tools to allow, or expose everything.
+                            exposed by default; select the tools to allow, or expose everything.
                         </p>
                         <div class="form-check form-switch mb-3">
                             <InputCheckbox id="mcpExposeAll" @bind-Value="_model.McpServerExposeAllTools" class="form-check-input" />
-                            <label for="mcpExposeAll" class="form-check-label">Expose all non-hidden tools and tool instances</label>
+                            <label for="mcpExposeAll" class="form-check-label">Expose all tools and tool instances</label>
                         </div>
-                        <div class="mb-3">
-                            <label for="mcpExposedTools" class="form-label">Exposed tools</label>
-                            <InputTextArea id="mcpExposedTools" @bind-Value="_model.McpServerExposedTools" class="form-control" rows="4" placeholder="One tool or tool instance name per line" />
-                            <div class="form-text">One name per line (or comma-separated). Ignored when all tools are exposed.</div>
-                        </div>
+                        @if (!_model.McpServerExposeAllTools)
+                        {
+                            <div class="mb-3">
+                                <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-tools"></i> Exposed tools</h6>
+                                @if (_model.McpServerAvailableTools.Count > 0 || _model.McpServerAvailableToolInstances.Count > 0)
+                                {
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <p class="text-muted mb-0 small">Select the tools and configured tool instances MCP clients can discover and invoke.</p>
+                                        <div class="btn-group btn-group-sm ms-3">
+                                            <button type="button" class="btn btn-outline-primary" @onclick="SelectAllMcpServerTools"><i class="bi bi-check-all"></i> Select all</button>
+                                            <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllMcpServerTools"><i class="bi bi-x-lg"></i> Deselect all</button>
+                                        </div>
+                                    </div>
+                                }
+                                @if (_model.McpServerAvailableTools.Count == 0)
+                                {
+                                    <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No AI tools are registered.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var group in _model.McpServerAvailableTools.GroupBy(tool => tool.Category).OrderBy(group => group.Key))
+                                    {
+                                        <h6 class="text-secondary mt-3 mb-2"><i class="bi bi-folder"></i> @group.Key</h6>
+                                        @foreach (var tool in group)
+                                        {
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" checked="@tool.IsSelected" @onchange="e => ToggleMcpServerTool(tool.Name, (bool)e.Value)" id="mcp_tool_@tool.Name" />
+                                                <label class="form-check-label" for="mcp_tool_@tool.Name">
+                                                    <strong>@tool.Title</strong>
+                                                    @if (!string.IsNullOrEmpty(tool.Description))
+                                                    {
+                                                        <br /><small class="text-muted">@tool.Description</small>
+                                                    }
+                                                </label>
+                                            </div>
+                                        }
+                                    }
+                                }
+
+                                <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> Exposed tool instances</h6>
+                                @if (_model.McpServerAvailableToolInstances.Count == 0)
+                                {
+                                    <div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var instance in _model.McpServerAvailableToolInstances)
+                                    {
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" checked="@instance.IsSelected" @onchange="e => ToggleMcpServerToolInstance(instance.ItemId, (bool)e.Value)" id="mcp_toolinstance_@instance.ItemId" />
+                                            <label class="form-check-label" for="mcp_toolinstance_@instance.ItemId">
+                                                <strong>@instance.Name</strong>
+                                                <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                                @if (!string.IsNullOrEmpty(instance.Description))
+                                                {
+                                                    <br /><small class="text-muted">@instance.Description</small>
+                                                }
+                                            </label>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -886,9 +949,7 @@ else
             McpServerApiKey = mcpServerSettings.ApiKey,
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
             McpServerExposeAllTools = mcpServerSettings.ExposeAllTools,
-            McpServerExposedTools = mcpServerSettings.Tools is null
-                ? string.Empty
-                : string.Join(Environment.NewLine, mcpServerSettings.Tools),
+            McpServerSelectedToolNames = mcpServerSettings.Tools?.ToArray() ?? [],
 
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
@@ -960,7 +1021,40 @@ else
             .Select(p => new KeyValuePair<string, string>(p.ItemId, p.DisplayText ?? p.Name))
             .ToList();
 
+        await PopulateMcpServerToolsAsync();
         await PopulateClaudeModelsAsync();
+    }
+
+    private async Task PopulateMcpServerToolsAsync()
+    {
+        var selectedNames = new HashSet<string>(_model.McpServerSelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+
+        _model.McpServerAvailableTools = ToolOptionsAccessor.Value.Tools
+            .Where(tool => !tool.Value.Hidden)
+            .Select(tool => new McpServerToolSelectionItem
+            {
+                Name = tool.Key,
+                Title = tool.Value.Title ?? tool.Key,
+                Description = tool.Value.Description,
+                Category = tool.Value.Category ?? "Miscellaneous",
+                IsSelected = selectedNames.Contains(tool.Key) || selectedNames.Contains(tool.Value.Name),
+            })
+            .OrderBy(tool => tool.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _model.McpServerAvailableToolInstances = (await ToolInstanceCatalog.GetAllAsync())
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Name))
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(instance => new McpServerToolInstanceSelectionItem
+            {
+                ItemId = instance.ItemId,
+                Name = instance.Name,
+                Description = instance.Description,
+                Source = instance.Source,
+                IsSelected = selectedNames.Contains(instance.Name),
+            })
+            .ToList();
     }
 
     private void OnCopilotAuthTypeChanged(ChangeEventArgs e)
@@ -982,6 +1076,65 @@ else
         {
             _model.McpServerAuthenticationType = value;
         }
+    }
+
+    private void ToggleMcpServerTool(string name, bool value)
+    {
+        var tool = _model.McpServerAvailableTools.FirstOrDefault(item => item.Name == name);
+
+        if (tool is not null)
+        {
+            tool.IsSelected = value;
+        }
+    }
+
+    private void ToggleMcpServerToolInstance(string itemId, bool value)
+    {
+        var instance = _model.McpServerAvailableToolInstances.FirstOrDefault(item => item.ItemId == itemId);
+
+        if (instance is not null)
+        {
+            instance.IsSelected = value;
+        }
+    }
+
+    private void SelectAllMcpServerTools()
+    {
+        foreach (var tool in _model.McpServerAvailableTools)
+        {
+            tool.IsSelected = true;
+        }
+
+        foreach (var instance in _model.McpServerAvailableToolInstances)
+        {
+            instance.IsSelected = true;
+        }
+    }
+
+    private void DeselectAllMcpServerTools()
+    {
+        foreach (var tool in _model.McpServerAvailableTools)
+        {
+            tool.IsSelected = false;
+        }
+
+        foreach (var instance in _model.McpServerAvailableToolInstances)
+        {
+            instance.IsSelected = false;
+        }
+    }
+
+    private string[] GetSelectedMcpServerToolNames()
+    {
+        return _model.McpServerAvailableTools
+            .Where(tool => tool.IsSelected)
+            .Select(tool => tool.Name)
+            .Concat(_model.McpServerAvailableToolInstances
+                .Where(instance => instance.IsSelected)
+                .Select(instance => instance.Name))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private void OnAnthropicAuthTypeChanged(ChangeEventArgs e)
@@ -1030,6 +1183,7 @@ else
     private async Task HandleSaveAsync()
     {
         _errors.Clear();
+        _model.McpServerSelectedToolNames = GetSelectedMcpServerToolNames();
 
         if (_model.MaximumIterationsPerRequest < 1)
         {
@@ -1202,12 +1356,9 @@ else
             ApiKey = _model.McpServerApiKey?.Trim(),
             RequireAccessPermission = _model.McpServerRequireAccessPermission,
             ExposeAllTools = _model.McpServerExposeAllTools,
-            Tools = string.IsNullOrWhiteSpace(_model.McpServerExposedTools)
+            Tools = _model.McpServerExposeAllTools
                 ? []
-                : _model.McpServerExposedTools
-                    .Split(['\r', '\n', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
+                : _model.McpServerSelectedToolNames.ToList(),
         });
 
         SiteSettings.Set(new MemoryMetadata

@@ -53,7 +53,11 @@ public sealed class SettingsViewModel
 
     public bool McpServerExposeAllTools { get; set; }
 
-    public string McpServerExposedTools { get; set; }
+    public string[] McpServerSelectedToolNames { get; set; } = [];
+
+    public List<McpServerToolSelectionItem> McpServerAvailableTools { get; set; } = [];
+
+    public List<McpServerToolInstanceSelectionItem> McpServerAvailableToolInstances { get; set; } = [];
 
     // Default deployment settings.
     public string DefaultChatDeploymentName { get; set; }
@@ -164,4 +168,30 @@ public sealed class SettingsViewModel
     public List<KeyValuePair<string, string>> AdminWidgetProfiles { get; set; } = [];
 
     public List<KeyValuePair<string, string>> AnthropicAvailableModels { get; set; } = [];
+}
+
+public sealed class McpServerToolSelectionItem
+{
+    public string Name { get; set; }
+
+    public string Title { get; set; }
+
+    public string Description { get; set; }
+
+    public string Category { get; set; }
+
+    public bool IsSelected { get; set; }
+}
+
+public sealed class McpServerToolInstanceSelectionItem
+{
+    public string ItemId { get; set; }
+
+    public string Name { get; set; }
+
+    public string Description { get; set; }
+
+    public string Source { get; set; }
+
+    public bool IsSelected { get; set; }
 }

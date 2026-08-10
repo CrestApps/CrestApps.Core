@@ -307,7 +307,7 @@ services.Configure<McpServerOptions>(options =>
     // Expose specific tools and tool instances by name.
     options.Tools = ["crestapps-docs", "weather"];
 
-    // Or expose every non-hidden tool and tool instance.
+    // Or expose every tool and tool instance.
     // When set to true, the Tools allow-list above is ignored.
     options.ExposeAllTools = true;
 });
@@ -316,9 +316,9 @@ services.Configure<McpServerOptions>(options =>
 | Property | Effect |
 |----------|--------|
 | `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive. |
-| `ExposeAllTools` | When `true`, every non-hidden tool and tool instance is exposed and the allow-list is ignored. |
+| `ExposeAllTools` | When `true`, every tool and tool instance is exposed and the allow-list is ignored. |
 
-Because `McpServerOptions` is backed by site settings, an operator can choose which tools to expose from the admin **Settings → MCP server** page without redeploying. The allow-list is enforced by **both** the list and call handlers, so a tool that is not exposed can neither be discovered nor invoked. `.Hidden()` tools are always excluded, even when `ExposeAllTools` is `true`.
+Because `McpServerOptions` is backed by site settings, an operator can choose which tools to expose from the admin **Settings → MCP server** page without redeploying. The allow-list is enforced by **both** the list and call handlers, so a tool that is not exposed can neither be discovered nor invoked.
 
 Both code-registered tools (from `AddCoreAITool<T>()`, see [Custom Tools](../core/tools.md)) and stored tool instances (from any registered [tool instance source](../core/tool-instances.md), such as the [documentation search sources](#exposing-a-documentation-knowledge-base)) participate in the same allow-list.
 
