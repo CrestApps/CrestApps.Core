@@ -25,6 +25,11 @@ public static class DocumentationToolConstants
     public const string AlgoliaSourceName = "algolia-documentation";
 
     /// <summary>
+    /// The data-protection purpose used to protect and unprotect stored Algolia DocSearch credentials.
+    /// </summary>
+    public const string AlgoliaDataProtectionPurpose = "CrestApps.Core.AI.Tooling.AlgoliaDocumentation";
+
+    /// <summary>
     /// The category applied to the documentation search sources so they are grouped as knowledge-base tools.
     /// </summary>
     public const string Category = "Knowledgebase";

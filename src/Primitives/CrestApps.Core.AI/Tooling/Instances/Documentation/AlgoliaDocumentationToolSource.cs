@@ -1,4 +1,6 @@
+using CrestApps.Core;
 using CrestApps.Core.AI.Tooling;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -38,7 +40,7 @@ public sealed class AlgoliaDocumentationToolSource : IAIToolInstanceSource
                     ? functionName
                     : instance.Name,
                 ApplicationId = settings.ApplicationId,
-                ApiKey = settings.ApiKey,
+                ApiKey = UnprotectApiKey(settings.ApiKey, instance, services),
                 IndexName = settings.IndexName,
                 MaxResults = settings.MaxResults,
             };
@@ -50,5 +52,31 @@ public sealed class AlgoliaDocumentationToolSource : IAIToolInstanceSource
 
             return new AlgoliaDocumentationSource(site, options, httpClientFactory, logger);
         });
+    }
+
+    private static string UnprotectApiKey(string apiKey, AIToolInstance instance, IServiceProvider services)
+    {
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            return apiKey;
+        }
+
+        var protector = services.GetService<IDataProtectionProvider>()
+            ?.CreateProtector(DocumentationToolConstants.AlgoliaDataProtectionPurpose);
+
+        if (protector is null)
+        {
+            return apiKey;
+        }
+
+        var logger = services.GetService<ILoggerFactory>()?.CreateLogger<AlgoliaDocumentationToolSource>()
+            ?? NullLogger<AlgoliaDocumentationToolSource>.Instance;
+
+        return DataProtectionHelper.Unprotect(
+            protector,
+            apiKey,
+            logger,
+            "Failed to unprotect Algolia documentation API key for tool instance '{ToolInstanceId}'.",
+            instance.ItemId);
     }
 }

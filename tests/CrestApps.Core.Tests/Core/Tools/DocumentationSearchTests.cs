@@ -1,5 +1,9 @@
-using CrestApps.Core.AI.Tooling.Instances.Documentation;
+using System.Net;
+using System.Text;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -85,6 +89,52 @@ public sealed class DocumentationSearchTests
         var tool = source.CreateTool(instance);
 
         Assert.IsType<DocumentationSearchToolFunction>(tool);
+    }
+
+    /// <summary>
+    /// Verifies that the Algolia source unprotects the stored API key before issuing a search request.
+    /// </summary>
+    [Fact]
+    public async Task AlgoliaSource_InvokeAsync_UnprotectsStoredApiKey()
+    {
+        var dataProtectionProvider = new EphemeralDataProtectionProvider();
+        var protector = dataProtectionProvider.CreateProtector(DocumentationToolConstants.AlgoliaDataProtectionPurpose);
+        var httpClientFactory = new CapturingHttpClientFactory();
+        var instance = new AIToolInstance
+        {
+            ItemId = "instance-4",
+            Source = DocumentationToolConstants.AlgoliaSourceName,
+            Name = "algolia",
+            CreatedUtc = DateTime.UnixEpoch,
+        };
+
+        instance.Put(new AlgoliaDocumentationToolSettings
+        {
+            ApplicationId = "APP123",
+            ApiKey = protector.Protect("search-key"),
+            IndexName = "docs-index",
+        });
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IDataProtectionProvider>(dataProtectionProvider);
+        services.AddSingleton<IDocumentationSourceMaterializer, DefaultDocumentationSourceMaterializer>();
+        services.AddSingleton<IHttpClientFactory>(httpClientFactory);
+
+        using var provider = services.BuildServiceProvider();
+
+        var source = new AlgoliaDocumentationToolSource();
+        var function = Assert.IsType<DocumentationSearchToolFunction>(source.CreateTool(instance));
+        var arguments = new AIFunctionArguments
+        {
+            Services = provider,
+        };
+        arguments["query"] = "start";
+
+        var result = await function.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+
+        Assert.Contains("Getting started", result?.ToString());
+        Assert.Equal("search-key", httpClientFactory.ApiKey);
     }
 
     /// <summary>
@@ -216,6 +266,56 @@ public sealed class DocumentationSearchTests
         public Task<IReadOnlyList<DocumentationSearchResult>> SearchAsync(DocumentationSearchRequest request, CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<DocumentationSearchResult>>(_results);
+        }
+    }
+
+    private sealed class CapturingHttpClientFactory : IHttpClientFactory
+    {
+        private const string _responsePayload =
+            """
+            {
+              "hits": [
+                {
+                  "url": "https://docs.example.com/start",
+                  "content": "Start here.",
+                  "hierarchy": {
+                    "lvl0": "Getting started"
+                  }
+                }
+              ]
+            }
+            """;
+
+        public string ApiKey { get; private set; }
+
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient(new CapturingHandler(this), disposeHandler: true);
+        }
+
+        private sealed class CapturingHandler : HttpMessageHandler
+        {
+            private readonly CapturingHttpClientFactory _factory;
+
+            public CapturingHandler(CapturingHttpClientFactory factory)
+            {
+                _factory = factory;
+            }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                if (request.Headers.TryGetValues("X-Algolia-API-Key", out var values))
+                {
+                    _factory.ApiKey = values.SingleOrDefault();
+                }
+
+                var response = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(_responsePayload, Encoding.UTF8, "application/json"),
+                };
+
+                return Task.FromResult(response);
+            }
         }
     }
 }

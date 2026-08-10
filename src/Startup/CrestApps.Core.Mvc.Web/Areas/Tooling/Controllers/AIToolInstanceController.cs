@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Tooling.Instances.Documentation;
@@ -86,7 +87,7 @@ public sealed class AIToolInstanceController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(AIToolInstanceViewModel model)
     {
-        await ValidateAsync(model, false);
+        await ValidateAsync(model, false, null);
 
         if (!ModelState.IsValid)
         {
@@ -142,7 +143,7 @@ public sealed class AIToolInstanceController : Controller
 
         model.Source = instance.Source;
 
-        await ValidateAsync(model, true);
+        await ValidateAsync(model, true, instance);
 
         if (!ModelState.IsValid)
         {
@@ -190,7 +191,7 @@ public sealed class AIToolInstanceController : Controller
             .ToList();
     }
 
-    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing)
+    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing, AIToolInstance existingInstance)
     {
         if (string.IsNullOrWhiteSpace(model.Source))
         {
@@ -231,7 +232,7 @@ public sealed class AIToolInstanceController : Controller
 
         if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
         {
-            ValidateAlgolia(model);
+            ValidateAlgolia(model, isEditing, existingInstance);
 
             return;
         }
@@ -362,14 +363,18 @@ public sealed class AIToolInstanceController : Controller
         ValidateAbsoluteUrl(model.SearchIndexUrl, nameof(model.SearchIndexUrl), "Search index URL", required: false);
     }
 
-    private void ValidateAlgolia(AIToolInstanceViewModel model)
+    private void ValidateAlgolia(AIToolInstanceViewModel model, bool isEditing, AIToolInstance existingInstance)
     {
+        model.HasAlgoliaApiKey = isEditing &&
+            existingInstance?.TryGet<AlgoliaDocumentationToolSettings>(out var settings) == true &&
+            !string.IsNullOrEmpty(settings.ApiKey);
+
         if (string.IsNullOrWhiteSpace(model.AlgoliaApplicationId))
         {
             ModelState.AddModelError(nameof(model.AlgoliaApplicationId), "Application ID is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(model.AlgoliaApiKey))
+        if (!model.HasAlgoliaApiKey && string.IsNullOrWhiteSpace(model.AlgoliaApiKey))
         {
             ModelState.AddModelError(nameof(model.AlgoliaApiKey), "Search-only API key is required.");
         }
@@ -435,10 +440,13 @@ public sealed class AIToolInstanceController : Controller
 
         if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
         {
+            var algoliaProtector = _dataProtectionProvider.CreateProtector(DocumentationToolConstants.AlgoliaDataProtectionPurpose);
+            var existingAlgoliaSettings = instance.GetOrCreate<AlgoliaDocumentationToolSettings>();
+
             instance.Put(new AlgoliaDocumentationToolSettings
             {
                 ApplicationId = model.AlgoliaApplicationId?.Trim(),
-                ApiKey = model.AlgoliaApiKey?.Trim(),
+                ApiKey = ProtectOrReuseProtected(model.AlgoliaApiKey?.Trim(), existingAlgoliaSettings.ApiKey, algoliaProtector),
                 IndexName = model.AlgoliaIndexName?.Trim(),
                 MaxResults = model.AlgoliaMaxResults,
             });
@@ -494,6 +502,30 @@ public sealed class AIToolInstanceController : Controller
         return string.IsNullOrWhiteSpace(newValue) ? existingValue : protector.Protect(newValue);
     }
 
+    private static string ProtectOrReuseProtected(string newValue, string existingValue, IDataProtector protector)
+    {
+        if (!string.IsNullOrWhiteSpace(newValue))
+        {
+            return protector.Protect(newValue);
+        }
+
+        if (string.IsNullOrWhiteSpace(existingValue))
+        {
+            return existingValue;
+        }
+
+        try
+        {
+            protector.Unprotect(existingValue);
+
+            return existingValue;
+        }
+        catch (CryptographicException)
+        {
+            return protector.Protect(existingValue);
+        }
+    }
+
     private static AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
     {
         var model = new AIToolInstanceViewModel
@@ -546,7 +578,7 @@ public sealed class AIToolInstanceController : Controller
         if (instance.TryGet<AlgoliaDocumentationToolSettings>(out var algoliaSettings))
         {
             model.AlgoliaApplicationId = algoliaSettings.ApplicationId;
-            model.AlgoliaApiKey = algoliaSettings.ApiKey;
+            model.HasAlgoliaApiKey = !string.IsNullOrEmpty(algoliaSettings.ApiKey);
             model.AlgoliaIndexName = algoliaSettings.IndexName;
             model.AlgoliaMaxResults = algoliaSettings.MaxResults;
         }
