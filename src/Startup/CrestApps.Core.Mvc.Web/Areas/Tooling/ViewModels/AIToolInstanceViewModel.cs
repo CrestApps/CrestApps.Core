@@ -186,10 +186,14 @@ public sealed class AIToolInstanceViewModel
     public string AlgoliaApplicationId { get; set; }
 
     /// <summary>
-    /// Gets or sets the Algolia search-only API key for the Algolia DocSearch source. This is a public,
-    /// client-safe key and is stored without additional protection.
+    /// Gets or sets the Algolia search-only API key for the Algolia DocSearch source.
     /// </summary>
     public string AlgoliaApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a protected Algolia search-only API key is already stored.
+    /// </summary>
+    public bool HasAlgoliaApiKey { get; set; }
 
     /// <summary>
     /// Gets or sets the Algolia index name to query for the Algolia DocSearch source.

@@ -245,9 +245,13 @@
                 </div>
                 <div class="mb-3">
                     <label asp-for="AlgoliaApiKey" class="form-label">Search-only API key <span class="text-danger">*</span></label>
-                    <input asp-for="AlgoliaApiKey" class="form-control" />
+                    <input asp-for="AlgoliaApiKey" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasAlgoliaApiKey)
+                    {
+                        <div class="form-text">Leave blank to keep the existing API key.</div>
+                    }
                     <span asp-validation-for="AlgoliaApiKey" class="text-danger"></span>
-                    <div class="form-text">Use the public, search-only key. It is safe to expose to clients and is stored without additional protection.</div>
+                    <div class="form-text">Use the search-only key. The value is protected before it is stored.</div>
                 </div>
                 <div class="mb-3">
                     <label asp-for="AlgoliaIndexName" class="form-label">Index name <span class="text-danger">*</span></label>
