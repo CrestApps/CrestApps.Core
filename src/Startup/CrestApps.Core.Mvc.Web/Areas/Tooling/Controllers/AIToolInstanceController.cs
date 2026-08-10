@@ -447,7 +447,7 @@ public sealed class AIToolInstanceController : Controller
         }
 
         var protector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
-        var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();
+        var existing = instance.GetOrCreate<HttpApiRequestToolSettings>();
 
         var settings = new HttpApiRequestToolSettings
         {

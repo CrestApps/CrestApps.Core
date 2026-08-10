@@ -23,9 +23,7 @@ public sealed class AlgoliaDocumentationToolSource : IAIToolInstanceSource
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        var settings = instance.TryGet<AlgoliaDocumentationToolSettings>(out var stored)
-            ? stored
-            : new AlgoliaDocumentationToolSettings();
+        var settings = instance.GetOrCreate<AlgoliaDocumentationToolSettings>();
 
         var functionName = instance.GetFunctionName();
         var description = string.IsNullOrWhiteSpace(instance.Description)

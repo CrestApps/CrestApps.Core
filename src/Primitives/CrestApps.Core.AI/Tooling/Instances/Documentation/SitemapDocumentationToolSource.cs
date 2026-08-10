@@ -23,9 +23,7 @@ public sealed class SitemapDocumentationToolSource : IAIToolInstanceSource
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        var settings = instance.TryGet<SitemapDocumentationToolSettings>(out var stored)
-            ? stored
-            : new SitemapDocumentationToolSettings();
+        var settings = instance.GetOrCreate<SitemapDocumentationToolSettings>();
 
         var functionName = instance.GetFunctionName();
         var description = string.IsNullOrWhiteSpace(instance.Description)

@@ -24,9 +24,7 @@ public sealed class SearchIndexDocumentationToolSource : IAIToolInstanceSource
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        var settings = instance.TryGet<SearchIndexDocumentationToolSettings>(out var stored)
-            ? stored
-            : new SearchIndexDocumentationToolSettings();
+        var settings = instance.GetOrCreate<SearchIndexDocumentationToolSettings>();
 
         var functionName = instance.GetFunctionName();
         var description = string.IsNullOrWhiteSpace(instance.Description)
