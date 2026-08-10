@@ -1,10 +1,10 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// A built-in <see cref="IDocumentationSource"/> that searches a documentation site through the
@@ -14,6 +14,8 @@ namespace CrestApps.Core.AI.Mcp.Documentation;
 /// </summary>
 public sealed class AlgoliaDocumentationSource : IDocumentationSource
 {
+    private static readonly JsonSerializerOptions _serializerOptions = new(JsonSerializerDefaults.Web);
+
     private readonly AlgoliaDocSearchSite _site;
     private readonly DocumentationSearchOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -100,14 +102,14 @@ public sealed class AlgoliaDocumentationSource : IDocumentationSource
 
     private async Task<IReadOnlyList<AlgoliaHit>> QueryAsync(string query, int maxResults, CancellationToken cancellationToken)
     {
-        var client = _httpClientFactory.CreateClient(McpConstants.DocumentationHttpClientName);
+        var client = _httpClientFactory.CreateClient(DocumentationToolConstants.HttpClientName);
 
         var requestUri = $"https://{_site.ApplicationId}-dsn.algolia.net/1/indexes/{Uri.EscapeDataString(_site.IndexName)}/query";
         var parameters = $"query={Uri.EscapeDataString(query)}&hitsPerPage={maxResults}";
 
         using var message = new HttpRequestMessage(HttpMethod.Post, requestUri)
         {
-            Content = JsonContent.Create(new AlgoliaQueryRequest { Params = parameters }),
+            Content = JsonContent.Create(new AlgoliaQueryRequest { Params = parameters }, options: _serializerOptions),
         };
 
         message.Headers.TryAddWithoutValidation("X-Algolia-Application-Id", _site.ApplicationId);
@@ -118,7 +120,7 @@ public sealed class AlgoliaDocumentationSource : IDocumentationSource
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<AlgoliaQueryResponse>(cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<AlgoliaQueryResponse>(_serializerOptions, cancellationToken);
 
         return payload?.Hits ?? [];
     }
@@ -141,49 +143,37 @@ public sealed class AlgoliaDocumentationSource : IDocumentationSource
 
     private sealed class AlgoliaQueryRequest
     {
-        [JsonPropertyName("params")]
         public string Params { get; set; }
     }
 
     private sealed class AlgoliaQueryResponse
     {
-        [JsonPropertyName("hits")]
         public IReadOnlyList<AlgoliaHit> Hits { get; set; }
     }
 
     private sealed class AlgoliaHit
     {
-        [JsonPropertyName("url")]
         public string Url { get; set; }
 
-        [JsonPropertyName("content")]
         public string Content { get; set; }
 
-        [JsonPropertyName("hierarchy")]
         public AlgoliaHierarchy Hierarchy { get; set; }
     }
 
     private sealed class AlgoliaHierarchy
     {
-        [JsonPropertyName("lvl0")]
         public string Lvl0 { get; set; }
 
-        [JsonPropertyName("lvl1")]
         public string Lvl1 { get; set; }
 
-        [JsonPropertyName("lvl2")]
         public string Lvl2 { get; set; }
 
-        [JsonPropertyName("lvl3")]
         public string Lvl3 { get; set; }
 
-        [JsonPropertyName("lvl4")]
         public string Lvl4 { get; set; }
 
-        [JsonPropertyName("lvl5")]
         public string Lvl5 { get; set; }
 
-        [JsonPropertyName("lvl6")]
         public string Lvl6 { get; set; }
     }
 }

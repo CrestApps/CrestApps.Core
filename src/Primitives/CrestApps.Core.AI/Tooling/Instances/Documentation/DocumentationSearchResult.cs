@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// Represents a single relevant document returned by an <see cref="IDocumentationSource"/>.

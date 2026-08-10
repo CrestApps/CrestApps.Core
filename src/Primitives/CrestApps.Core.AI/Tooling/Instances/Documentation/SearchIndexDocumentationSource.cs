@@ -1,9 +1,9 @@
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// A built-in <see cref="IDocumentationSource"/> that indexes a documentation site by downloading a
@@ -13,6 +13,8 @@ namespace CrestApps.Core.AI.Mcp.Documentation;
 /// </summary>
 public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
 {
+    private static readonly JsonSerializerOptions _serializerOptions = new(JsonSerializerDefaults.Web);
+
     private readonly DocumentationSearchIndexSite _site;
     private readonly DocumentationSearchOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -50,8 +52,8 @@ public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
 
         try
         {
-            var client = _httpClientFactory.CreateClient(McpConstants.DocumentationHttpClientName);
-            var index = await client.GetFromJsonAsync<SearchIndexDocument>(indexUrl, cancellationToken);
+            var client = _httpClientFactory.CreateClient(DocumentationToolConstants.HttpClientName);
+            var index = await client.GetFromJsonAsync<SearchIndexDocument>(indexUrl, _serializerOptions, cancellationToken);
 
             if (index?.Docs is null || index.Docs.Count == 0)
             {
@@ -102,19 +104,15 @@ public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
 
     private sealed class SearchIndexDocument
     {
-        [JsonPropertyName("docs")]
         public IReadOnlyList<SearchIndexEntry> Docs { get; set; }
     }
 
     private sealed class SearchIndexEntry
     {
-        [JsonPropertyName("location")]
         public string Location { get; set; }
 
-        [JsonPropertyName("title")]
         public string Title { get; set; }
 
-        [JsonPropertyName("text")]
         public string Text { get; set; }
     }
 }

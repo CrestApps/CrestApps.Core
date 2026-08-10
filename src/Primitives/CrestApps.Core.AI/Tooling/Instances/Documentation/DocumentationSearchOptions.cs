@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// Runtime limits that control how a built-in documentation search source crawls and ranks a single

@@ -13,7 +13,7 @@ using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Elasticsearch;
 using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
-using CrestApps.Core.AI.Mcp.Documentation;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Mcp.Ftp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Sftp;

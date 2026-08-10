@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// The default <see cref="IDocumentationSourceMaterializer"/>. It keeps one cached

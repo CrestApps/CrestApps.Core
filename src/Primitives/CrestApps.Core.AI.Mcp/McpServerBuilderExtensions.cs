@@ -35,7 +35,7 @@ public static class McpServerBuilderExtensions
             {
                 var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
                 var exposeAll = serverOptions.ExposeAllTools;
-                var allowList = BuildAllowList(serverOptions.Tools);
+                var allowList = exposeAll ? null : BuildAllowList(serverOptions.Tools);
                 var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
                 ILogger logger = null;
                 var tools = new List<Tool>();
@@ -120,7 +120,7 @@ public static class McpServerBuilderExtensions
             {
                 var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
                 var exposeAll = serverOptions.ExposeAllTools;
-                var allowList = BuildAllowList(serverOptions.Tools);
+                var allowList = exposeAll ? null : BuildAllowList(serverOptions.Tools);
                 var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
 
                 var logger = request.Services.GetService<ILogger<IMcpServerPromptService>>();

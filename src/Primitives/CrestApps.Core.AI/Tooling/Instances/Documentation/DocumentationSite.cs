@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// Describes a public documentation site that the built-in documentation search crawler can scan.

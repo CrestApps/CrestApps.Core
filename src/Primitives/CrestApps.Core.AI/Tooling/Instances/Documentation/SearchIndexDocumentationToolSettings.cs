@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// The user-provided settings for a prebuilt search index documentation search tool instance. The

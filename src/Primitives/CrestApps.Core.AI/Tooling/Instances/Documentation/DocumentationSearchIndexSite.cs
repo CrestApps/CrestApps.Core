@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// Describes a documentation site that publishes a prebuilt search index as JSON (for example a MkDocs

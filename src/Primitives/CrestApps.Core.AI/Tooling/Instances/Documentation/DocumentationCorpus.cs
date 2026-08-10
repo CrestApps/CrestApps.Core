@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// An in-memory, keyword-searchable collection of documentation entries. Sources that materialize a

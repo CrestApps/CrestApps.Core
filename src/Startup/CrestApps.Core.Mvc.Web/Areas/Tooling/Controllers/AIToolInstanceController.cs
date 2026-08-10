@@ -1,6 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI;
-using CrestApps.Core.AI.Mcp.Documentation;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;

@@ -5,15 +5,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
-/// The built-in <see cref="IAIToolInstanceSource"/> that lets users configure documentation search over a
-/// single site that publishes a prebuilt JSON search index (for example a MkDocs Material
-/// <c>search_index.json</c>). Each configured <see cref="AIToolInstance"/> binds one site; the AI model
-/// only supplies the search query.
+/// The built-in <see cref="IAIToolInstanceSource"/> that lets users configure documentation search through
+/// the hosted Algolia DocSearch query API (the search used by many Docusaurus sites). Each configured
+/// <see cref="AIToolInstance"/> binds one Algolia index; the AI model only supplies the search query.
 /// </summary>
-public sealed class SearchIndexDocumentationToolSource : IAIToolInstanceSource
+public sealed class AlgoliaDocumentationToolSource : IAIToolInstanceSource
 {
     /// <summary>
     /// Creates the <see cref="DocumentationSearchToolFunction"/> bound to the supplied instance's settings.
@@ -24,9 +23,9 @@ public sealed class SearchIndexDocumentationToolSource : IAIToolInstanceSource
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        var settings = instance.TryGet<SearchIndexDocumentationToolSettings>(out var stored)
+        var settings = instance.TryGet<AlgoliaDocumentationToolSettings>(out var stored)
             ? stored
-            : new SearchIndexDocumentationToolSettings();
+            : new AlgoliaDocumentationToolSettings();
 
         var functionName = instance.GetFunctionName();
         var description = string.IsNullOrWhiteSpace(instance.Description)
@@ -35,23 +34,23 @@ public sealed class SearchIndexDocumentationToolSource : IAIToolInstanceSource
 
         return new DocumentationSearchToolFunction(functionName, description, instance, services =>
         {
-            var site = new DocumentationSearchIndexSite
+            var site = new AlgoliaDocSearchSite
             {
                 Name = string.IsNullOrWhiteSpace(instance.Name)
                     ? functionName
                     : instance.Name,
-                BaseUrl = settings.BaseUrl,
-                IndexUrl = settings.IndexUrl,
+                ApplicationId = settings.ApplicationId,
+                ApiKey = settings.ApiKey,
+                IndexName = settings.IndexName,
                 MaxResults = settings.MaxResults,
             };
 
             var options = services.GetService<IOptions<DocumentationSearchOptions>>()?.Value ?? new DocumentationSearchOptions();
             var httpClientFactory = services.GetRequiredService<IHttpClientFactory>();
-            var timeProvider = services.GetService<TimeProvider>() ?? TimeProvider.System;
-            var logger = services.GetService<ILoggerFactory>()?.CreateLogger<SearchIndexDocumentationSource>()
-                ?? NullLogger<SearchIndexDocumentationSource>.Instance;
+            var logger = services.GetService<ILoggerFactory>()?.CreateLogger<AlgoliaDocumentationSource>()
+                ?? NullLogger<AlgoliaDocumentationSource>.Instance;
 
-            return new SearchIndexDocumentationSource(site, options, httpClientFactory, timeProvider, logger);
+            return new AlgoliaDocumentationSource(site, options, httpClientFactory, logger);
         });
     }
 }

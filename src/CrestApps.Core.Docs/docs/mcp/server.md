@@ -308,6 +308,7 @@ services.Configure<McpServerOptions>(options =>
     options.Tools = ["crestapps-docs", "weather"];
 
     // Or expose every non-hidden tool and tool instance.
+    // When set to true, the Tools allow-list above is ignored.
     options.ExposeAllTools = true;
 });
 ```
@@ -319,7 +320,84 @@ services.Configure<McpServerOptions>(options =>
 
 Because `McpServerOptions` is backed by site settings, an operator can choose which tools to expose from the admin **Settings → MCP server** page without redeploying. The allow-list is enforced by **both** the list and call handlers, so a tool that is not exposed can neither be discovered nor invoked. `.Hidden()` tools are always excluded, even when `ExposeAllTools` is `true`.
 
-Both code-registered tools (from `AddCoreAITool<T>()`, see [Custom Tools](../core/tools.md)) and stored tool instances (from any registered [tool instance source](../core/tool-instances.md), such as the documentation search sources) participate in the same allow-list.
+Both code-registered tools (from `AddCoreAITool<T>()`, see [Custom Tools](../core/tools.md)) and stored tool instances (from any registered [tool instance source](../core/tool-instances.md), such as the [documentation search sources](#exposing-a-documentation-knowledge-base)) participate in the same allow-list.
+
+## Exposing a documentation knowledge base
+
+A common reason to run an MCP server is to answer questions from product or framework documentation that lives on a public site (such as a Docusaurus or MkDocs site). Instead of indexing that content into a vector store, the built-in documentation search [tool instance sources](../core/tool-instances.md) let an operator declare a documentation site as a **tool instance** and scan it on demand.
+
+These sources are ordinary tool instance sources registered on the tool instances builder, so they are usable with or without the MCP server. Each configured instance binds one site and surfaces as its own callable function, so a host can offer "search the CrestApps docs" and "search the Orchard Core docs" as two distinct tools. Instances are persisted and managed through the standard tool instance store and UI, and are exposed to MCP clients through the [allow-list](#tool-exposure) above — nothing is exposed until you opt in.
+
+### Registering the sources
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+        .AddToolInstances(toolInstances => toolInstances
+            .AddDocumentationSearchSources()
+            .AddYesSqlStores()
+        )
+        .AddMcpServer(mcpServer => mcpServer
+            .AddYesSqlStores()
+        )
+    )
+    .AddYesSqlDataStore(configuration => configuration
+        .UseSqLite("Data Source=app.db;Cache=Shared")
+    )
+);
+```
+
+`AddDocumentationSearchSources()` registers all three built-in sources. To register only the ones you need, call the individual `AddSitemapDocumentationSource()`, `AddSearchIndexDocumentationSource()`, and `AddAlgoliaDocumentationSource()` methods instead. Once the sources are registered, operators create configured instances (each bound to one site) through the tool instances UI or store, and each instance becomes a callable function the AI model can invoke.
+
+### Search strategies
+
+A documentation site can be indexed in different ways depending on what the generator publishes. Each strategy is its own source with its own settings model, so you pick the one that matches the site.
+
+| Source | Registration | Best for | How it works |
+|--------|--------------|----------|--------------|
+| Sitemap crawl | `AddSitemapDocumentationSource()` | Any site that publishes `sitemap.xml` (Docusaurus, MkDocs, and most static sites). | Crawls pages, strips HTML, and ranks locally with keyword scoring. |
+| Search index | `AddSearchIndexDocumentationSource()` | MkDocs Material and other sites that publish a fetchable `search_index.json`. | Downloads the prebuilt index once and ranks its entries locally. |
+| Algolia DocSearch | `AddAlgoliaDocumentationSource()` | Docusaurus sites (and others) wired to hosted Algolia DocSearch. | Forwards the query to Algolia, which performs the ranking. |
+
+The registered source names are defined by `DocumentationToolConstants` (`sitemap-documentation`, `search-index-documentation`, `algolia-documentation`), and all three carry the `Knowledgebase` category.
+
+Each strategy binds a settings model:
+
+- **`SitemapDocumentationToolSettings`** — `BaseUrl` (site root, for example `https://core.crestapps.com`), optional `SitemapUrl` (defaults to `{BaseUrl}/sitemap.xml`), optional `MaxResults`, and optional `MaxPages`.
+- **`SearchIndexDocumentationToolSettings`** — `BaseUrl` (used to resolve relative locations and the default index URL), optional `IndexUrl` (defaults to `{BaseUrl}/search/search_index.json`), and optional `MaxResults`. This targets the MkDocs Material `search_index.json` schema (`{ "docs": [ { "location", "title", "text" } ] }`).
+- **`AlgoliaDocumentationToolSettings`** — `ApplicationId`, `ApiKey` (Algolia **search-only** key, never a write key), `IndexName`, and optional `MaxResults`.
+
+### Example: a public Docusaurus site
+
+A public Docusaurus site that requires no authentication — such as [core.crestapps.com](https://core.crestapps.com) — only needs the sitemap crawl source. Docusaurus publishes a standard `sitemap.xml` at the site root, so the crawler discovers `{BaseUrl}/sitemap.xml` automatically.
+
+1. Register the sitemap source (or all sources) as shown above.
+2. Create a tool instance from the **Documentation search (sitemap)** source with a **Name** (for example `crestapps-docs`, the name you expose to MCP clients), a clear **Description**, and a **Base URL** of `https://core.crestapps.com`.
+3. Expose the instance through the MCP server by adding its name to the allow-list:
+
+```csharp
+services.Configure<McpServerOptions>(options =>
+{
+    options.Tools = ["crestapps-docs"];
+});
+```
+
+Because the site is public, no headers, API keys, or credentials are involved — the crawler issues plain anonymous `GET` requests. The first search crawls the site and caches the corpus; later searches reuse the cache.
+
+### Corpus caching
+
+The runtime documentation source (the crawled corpus or downloaded index) is built lazily and cached by a singleton `IDocumentationSourceMaterializer`, keyed by the instance identifier. The cache is rebuilt only when the instance changes, so an edit to a site's settings is picked up on the next search while an unchanged instance reuses its corpus across calls.
+
+### Adding a new documentation source
+
+To support a documentation site that none of the built-in strategies cover, implement a new [tool instance source](../core/tool-instances.md):
+
+1. Create a settings model for the user-provided configuration.
+2. Implement `IAIToolInstanceSource.CreateTool(AIToolInstance)` to read the settings and return a `DocumentationSearchToolFunction` (or your own `AIFunction`) bound to a concrete `IDocumentationSource`.
+3. Register the source on the tool instances builder with `AddSource<TSource>(name, configure)`.
+
+Operators then create instances of your new source exactly like the built-in ones, and expose them through the same MCP allow-list.
 
 ## Server Metadata
 

@@ -1,9 +1,9 @@
-using CrestApps.Core.AI.Mcp.Documentation;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CrestApps.Core.Tests.Core.Mcp;
+namespace CrestApps.Core.Tests.Core.Tools;
 
 public sealed class DocumentationSearchTests
 {

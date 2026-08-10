@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// Well-known identifiers for the built-in documentation search tool instance sources. Each source is
@@ -28,4 +28,9 @@ public static class DocumentationToolConstants
     /// The category applied to the documentation search sources so they are grouped as knowledge-base tools.
     /// </summary>
     public const string Category = "Knowledgebase";
+
+    /// <summary>
+    /// The name of the named <see cref="System.Net.Http.HttpClient"/> used by the documentation search crawlers.
+    /// </summary>
+    public const string HttpClientName = "CrestApps.Documentation";
 }

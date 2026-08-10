@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// A built-in <see cref="IDocumentationSource"/> that indexes a public documentation site by reading
@@ -53,7 +53,7 @@ public sealed partial class SitemapDocumentationSource : CachingDocumentationSou
 
     private async Task<IReadOnlyList<DocumentationCorpus.Entry>> CrawlAsync(CancellationToken cancellationToken)
     {
-        var client = _httpClientFactory.CreateClient(McpConstants.DocumentationHttpClientName);
+        var client = _httpClientFactory.CreateClient(DocumentationToolConstants.HttpClientName);
         var urls = await GetSitemapUrlsAsync(client, cancellationToken);
 
         if (urls.Count == 0)

@@ -1,10 +1,9 @@
-using CrestApps.Core.AI;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
 
-namespace CrestApps.Core.AI.Mcp.Documentation;
+namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 
 /// <summary>
 /// Convenience registration for the built-in documentation search tool instance sources. Each source is a
@@ -123,7 +122,6 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
     {
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<IDocumentationSourceMaterializer, DefaultDocumentationSourceMaterializer>();
-        builder.Services.AddHttpClient(McpConstants.DocumentationHttpClientName)
-            .AddStandardResilienceHandler();
+        builder.Services.AddHttpClient(DocumentationToolConstants.HttpClientName);
     }
 }
