@@ -21,9 +21,7 @@ public sealed class HttpApiRequestToolInstanceSource : IAIToolInstanceSource
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        var settings = instance.TryGet<HttpApiRequestToolSettings>(out var stored)
-            ? stored
-            : new HttpApiRequestToolSettings();
+        var settings = instance.GetOrCreate<HttpApiRequestToolSettings>();
 
         var functionName = instance.GetFunctionName();
         var description = string.IsNullOrWhiteSpace(instance.Description)

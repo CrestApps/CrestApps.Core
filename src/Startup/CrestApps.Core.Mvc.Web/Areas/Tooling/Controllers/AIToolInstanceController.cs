@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
@@ -85,7 +87,7 @@ public sealed class AIToolInstanceController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(AIToolInstanceViewModel model)
     {
-        await ValidateAsync(model, false);
+        await ValidateAsync(model, false, null);
 
         if (!ModelState.IsValid)
         {
@@ -141,7 +143,7 @@ public sealed class AIToolInstanceController : Controller
 
         model.Source = instance.Source;
 
-        await ValidateAsync(model, true);
+        await ValidateAsync(model, true, instance);
 
         if (!ModelState.IsValid)
         {
@@ -189,7 +191,7 @@ public sealed class AIToolInstanceController : Controller
             .ToList();
     }
 
-    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing)
+    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing, AIToolInstance existingInstance)
     {
         if (string.IsNullOrWhiteSpace(model.Source))
         {
@@ -212,6 +214,27 @@ public sealed class AIToolInstanceController : Controller
         if (string.IsNullOrWhiteSpace(model.Description))
         {
             ModelState.AddModelError(nameof(model.Description), "A description is required so the AI model can tell instances apart.");
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSitemap(model);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSearchIndex(model);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAlgolia(model, isEditing, existingInstance);
+
+            return;
         }
 
         if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
@@ -328,6 +351,58 @@ public sealed class AIToolInstanceController : Controller
         }
     }
 
+    private void ValidateSitemap(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.SitemapBaseUrl, nameof(model.SitemapBaseUrl), "Base URL", required: true);
+        ValidateAbsoluteUrl(model.SitemapUrl, nameof(model.SitemapUrl), "Sitemap URL", required: false);
+    }
+
+    private void ValidateSearchIndex(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.SearchIndexBaseUrl, nameof(model.SearchIndexBaseUrl), "Base URL", required: true);
+        ValidateAbsoluteUrl(model.SearchIndexUrl, nameof(model.SearchIndexUrl), "Search index URL", required: false);
+    }
+
+    private void ValidateAlgolia(AIToolInstanceViewModel model, bool isEditing, AIToolInstance existingInstance)
+    {
+        model.HasAlgoliaApiKey = isEditing &&
+            existingInstance?.TryGet<AlgoliaDocumentationToolSettings>(out var settings) == true &&
+            !string.IsNullOrEmpty(settings.ApiKey);
+
+        if (string.IsNullOrWhiteSpace(model.AlgoliaApplicationId))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaApplicationId), "Application ID is required.");
+        }
+
+        if (!model.HasAlgoliaApiKey && string.IsNullOrWhiteSpace(model.AlgoliaApiKey))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaApiKey), "Search-only API key is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.AlgoliaIndexName))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaIndexName), "Index name is required.");
+        }
+    }
+
+    private void ValidateAbsoluteUrl(string value, string key, string label, bool required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (required)
+            {
+                ModelState.AddModelError(key, $"{label} is required.");
+            }
+
+            return;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out _))
+        {
+            ModelState.AddModelError(key, $"{label} must be a valid absolute URL.");
+        }
+    }
+
     private void Apply(AIToolInstanceViewModel model, AIToolInstance instance, bool isNew)
     {
         if (isNew)
@@ -338,8 +413,49 @@ public sealed class AIToolInstanceController : Controller
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SitemapDocumentationToolSettings
+            {
+                BaseUrl = model.SitemapBaseUrl?.Trim(),
+                SitemapUrl = string.IsNullOrWhiteSpace(model.SitemapUrl) ? null : model.SitemapUrl.Trim(),
+                MaxResults = model.SitemapMaxResults,
+                MaxPages = model.SitemapMaxPages,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SearchIndexDocumentationToolSettings
+            {
+                BaseUrl = model.SearchIndexBaseUrl?.Trim(),
+                IndexUrl = string.IsNullOrWhiteSpace(model.SearchIndexUrl) ? null : model.SearchIndexUrl.Trim(),
+                MaxResults = model.SearchIndexMaxResults,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            var algoliaProtector = _dataProtectionProvider.CreateProtector(DocumentationToolConstants.AlgoliaDataProtectionPurpose);
+            var existingAlgoliaSettings = instance.GetOrCreate<AlgoliaDocumentationToolSettings>();
+
+            instance.Put(new AlgoliaDocumentationToolSettings
+            {
+                ApplicationId = model.AlgoliaApplicationId?.Trim(),
+                ApiKey = ProtectOrReuseProtected(model.AlgoliaApiKey?.Trim(), existingAlgoliaSettings.ApiKey, algoliaProtector),
+                IndexName = model.AlgoliaIndexName?.Trim(),
+                MaxResults = model.AlgoliaMaxResults,
+            });
+
+            return;
+        }
+
         var protector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
-        var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();
+        var existing = instance.GetOrCreate<HttpApiRequestToolSettings>();
 
         var settings = new HttpApiRequestToolSettings
         {
@@ -386,6 +502,30 @@ public sealed class AIToolInstanceController : Controller
         return string.IsNullOrWhiteSpace(newValue) ? existingValue : protector.Protect(newValue);
     }
 
+    private static string ProtectOrReuseProtected(string newValue, string existingValue, IDataProtector protector)
+    {
+        if (!string.IsNullOrWhiteSpace(newValue))
+        {
+            return protector.Protect(newValue);
+        }
+
+        if (string.IsNullOrWhiteSpace(existingValue))
+        {
+            return existingValue;
+        }
+
+        try
+        {
+            protector.Unprotect(existingValue);
+
+            return existingValue;
+        }
+        catch (CryptographicException)
+        {
+            return protector.Protect(existingValue);
+        }
+    }
+
     private static AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
     {
         var model = new AIToolInstanceViewModel
@@ -418,6 +558,29 @@ public sealed class AIToolInstanceController : Controller
             model.DefaultHeaders = settings.DefaultHeaders is { Count: > 0 }
                 ? JsonSerializer.Serialize(settings.DefaultHeaders, _indentedJsonOptions)
                 : "{}";
+        }
+
+        if (instance.TryGet<SitemapDocumentationToolSettings>(out var sitemapSettings))
+        {
+            model.SitemapBaseUrl = sitemapSettings.BaseUrl;
+            model.SitemapUrl = sitemapSettings.SitemapUrl;
+            model.SitemapMaxResults = sitemapSettings.MaxResults;
+            model.SitemapMaxPages = sitemapSettings.MaxPages;
+        }
+
+        if (instance.TryGet<SearchIndexDocumentationToolSettings>(out var searchIndexSettings))
+        {
+            model.SearchIndexBaseUrl = searchIndexSettings.BaseUrl;
+            model.SearchIndexUrl = searchIndexSettings.IndexUrl;
+            model.SearchIndexMaxResults = searchIndexSettings.MaxResults;
+        }
+
+        if (instance.TryGet<AlgoliaDocumentationToolSettings>(out var algoliaSettings))
+        {
+            model.AlgoliaApplicationId = algoliaSettings.ApplicationId;
+            model.HasAlgoliaApiKey = !string.IsNullOrEmpty(algoliaSettings.ApiKey);
+            model.AlgoliaIndexName = algoliaSettings.IndexName;
+            model.AlgoliaMaxResults = algoliaSettings.MaxResults;
         }
 
         return model;

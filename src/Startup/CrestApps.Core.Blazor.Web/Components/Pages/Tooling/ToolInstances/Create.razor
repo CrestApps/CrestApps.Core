@@ -5,6 +5,7 @@
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.AI.Tooling.Instances
+@using CrestApps.Core.AI.Tooling.Instances.Documentation
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
@@ -203,6 +204,87 @@
         </div>
         }
 
+        @if (string.Equals(_model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (sitemap crawl)</h5>
+
+            <div class="mb-3">
+                <label class="form-label">Base URL <span class="text-danger">*</span></label>
+                <InputText @bind-Value="_model.SitemapBaseUrl" class="form-control" placeholder="https://core.crestapps.com" />
+                <div class="form-text">The root URL of the documentation site to crawl.</div>
+                <ValidationMessage For="() => _model.SitemapBaseUrl" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Sitemap URL</label>
+                <InputText @bind-Value="_model.SitemapUrl" class="form-control" placeholder="https://core.crestapps.com/sitemap.xml" />
+                <div class="form-text">Optional. When empty, <code>/sitemap.xml</code> is appended to the base URL.</div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Max results</label>
+                    <InputNumber @bind-Value="_model.SitemapMaxResults" class="form-control" min="1" max="50" placeholder="Default" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Max pages to index</label>
+                    <InputNumber @bind-Value="_model.SitemapMaxPages" class="form-control" min="1" max="5000" placeholder="Default" />
+                </div>
+            </div>
+        }
+
+        @if (string.Equals(_model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (prebuilt search index)</h5>
+
+            <div class="mb-3">
+                <label class="form-label">Base URL <span class="text-danger">*</span></label>
+                <InputText @bind-Value="_model.SearchIndexBaseUrl" class="form-control" placeholder="https://www.mkdocs.org" />
+                <div class="form-text">The root URL of the documentation site. Used to resolve relative entry locations.</div>
+                <ValidationMessage For="() => _model.SearchIndexBaseUrl" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Search index URL</label>
+                <InputText @bind-Value="_model.SearchIndexUrl" class="form-control" placeholder="https://www.mkdocs.org/search/search_index.json" />
+                <div class="form-text">Optional. When empty, <code>/search/search_index.json</code> is appended to the base URL.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Max results</label>
+                <InputNumber @bind-Value="_model.SearchIndexMaxResults" class="form-control" min="1" max="50" placeholder="Default" />
+            </div>
+        }
+
+        @if (string.Equals(_model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (Algolia DocSearch)</h5>
+
+            <div class="mb-3">
+                <label class="form-label">Application ID <span class="text-danger">*</span></label>
+                <InputText @bind-Value="_model.AlgoliaApplicationId" class="form-control" placeholder="BH4D9OD16A" />
+                <ValidationMessage For="() => _model.AlgoliaApplicationId" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Search-only API key <span class="text-danger">*</span></label>
+                <InputText @bind-Value="_model.AlgoliaApiKey" class="form-control" />
+                <div class="form-text">Use the public, search-only key. It is safe to expose to clients and is stored without additional protection.</div>
+                <ValidationMessage For="() => _model.AlgoliaApiKey" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Index name <span class="text-danger">*</span></label>
+                <InputText @bind-Value="_model.AlgoliaIndexName" class="form-control" placeholder="docs" />
+                <ValidationMessage For="() => _model.AlgoliaIndexName" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Max results</label>
+                <InputNumber @bind-Value="_model.AlgoliaMaxResults" class="form-control" min="1" max="50" placeholder="Default" />
+            </div>
+        }
+
         <div class="mt-4">
             <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create</button>
             <a href="/tooling/instances" class="btn btn-secondary">Cancel</a>
@@ -270,6 +352,42 @@
         if (string.IsNullOrWhiteSpace(model.Description))
         {
             _errors.Add("A description is required so the AI model can tell instances apart.");
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAbsoluteUrl(model.SitemapBaseUrl, "Base URL", required: true);
+            ValidateAbsoluteUrl(model.SitemapUrl, "Sitemap URL", required: false);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAbsoluteUrl(model.SearchIndexBaseUrl, "Base URL", required: true);
+            ValidateAbsoluteUrl(model.SearchIndexUrl, "Search index URL", required: false);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(model.AlgoliaApplicationId))
+            {
+                _errors.Add("Application ID is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.AlgoliaApiKey))
+            {
+                _errors.Add("Search-only API key is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.AlgoliaIndexName))
+            {
+                _errors.Add("Index name is required.");
+            }
+
+            return;
         }
 
         if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
@@ -381,11 +499,67 @@
             string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
+    private void ValidateAbsoluteUrl(string value, string label, bool required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (required)
+            {
+                _errors.Add($"{label} is required.");
+            }
+
+            return;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out _))
+        {
+            _errors.Add($"{label} must be a valid absolute URL.");
+        }
+    }
+
     private void Apply(AIToolInstanceViewModel model, AIToolInstance instance)
     {
         instance.Name = model.Name.Trim();
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = TimeProvider.GetUtcNow().UtcDateTime;
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SitemapDocumentationToolSettings
+            {
+                BaseUrl = model.SitemapBaseUrl?.Trim(),
+                SitemapUrl = string.IsNullOrWhiteSpace(model.SitemapUrl) ? null : model.SitemapUrl.Trim(),
+                MaxResults = model.SitemapMaxResults,
+                MaxPages = model.SitemapMaxPages,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SearchIndexDocumentationToolSettings
+            {
+                BaseUrl = model.SearchIndexBaseUrl?.Trim(),
+                IndexUrl = string.IsNullOrWhiteSpace(model.SearchIndexUrl) ? null : model.SearchIndexUrl.Trim(),
+                MaxResults = model.SearchIndexMaxResults,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new AlgoliaDocumentationToolSettings
+            {
+                ApplicationId = model.AlgoliaApplicationId?.Trim(),
+                ApiKey = model.AlgoliaApiKey?.Trim(),
+                IndexName = model.AlgoliaIndexName?.Trim(),
+                MaxResults = model.AlgoliaMaxResults,
+            });
+
+            return;
+        }
 
         var protector = DataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
         var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();

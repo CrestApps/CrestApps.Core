@@ -142,4 +142,66 @@ public sealed class AIToolInstanceViewModel
     /// Gets or sets an optional per-request timeout in seconds.
     /// </summary>
     public int? TimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// Gets or sets the base URL of the documentation site for the sitemap crawling source.
+    /// </summary>
+    public string SitemapBaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets an explicit sitemap URL for the sitemap crawling source. When empty, the crawler
+    /// resolves the sitemap from the base URL by appending <c>/sitemap.xml</c>.
+    /// </summary>
+    public string SitemapUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum number of results the sitemap source returns for a single search.
+    /// </summary>
+    public int? SitemapMaxResults { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum number of pages the sitemap crawler indexes for the site.
+    /// </summary>
+    public int? SitemapMaxPages { get; set; }
+
+    /// <summary>
+    /// Gets or sets the base URL of the documentation site for the prebuilt search index source.
+    /// </summary>
+    public string SearchIndexBaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets an explicit URL to the search index JSON for the prebuilt search index source. When
+    /// empty, the source resolves it from the base URL by appending <c>/search/search_index.json</c>.
+    /// </summary>
+    public string SearchIndexUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum number of results the prebuilt search index source returns for a single search.
+    /// </summary>
+    public int? SearchIndexMaxResults { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Algolia application identifier for the Algolia DocSearch source.
+    /// </summary>
+    public string AlgoliaApplicationId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Algolia search-only API key for the Algolia DocSearch source.
+    /// </summary>
+    public string AlgoliaApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a protected Algolia search-only API key is already stored.
+    /// </summary>
+    public bool HasAlgoliaApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Algolia index name to query for the Algolia DocSearch source.
+    /// </summary>
+    public string AlgoliaIndexName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum number of results the Algolia DocSearch source returns for a single search.
+    /// </summary>
+    public int? AlgoliaMaxResults { get; set; }
 }

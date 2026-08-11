@@ -187,6 +187,84 @@
             </div>
             </div>
 
+            <div class="source-fields" data-source="sitemap-documentation">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (sitemap crawl)</h5>
+                <div class="mb-3">
+                    <label asp-for="SitemapBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
+                    <input asp-for="SitemapBaseUrl" class="form-control" placeholder="https://core.crestapps.com" />
+                    <span asp-validation-for="SitemapBaseUrl" class="text-danger"></span>
+                    <div class="form-text">The root URL of the documentation site to crawl.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SitemapUrl" class="form-label">Sitemap URL</label>
+                    <input asp-for="SitemapUrl" class="form-control" placeholder="https://core.crestapps.com/sitemap.xml" />
+                    <span asp-validation-for="SitemapUrl" class="text-danger"></span>
+                    <div class="form-text">Optional. When empty, <code>/sitemap.xml</code> is appended to the base URL.</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="SitemapMaxResults" class="form-label">Max results</label>
+                        <input asp-for="SitemapMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                        <span asp-validation-for="SitemapMaxResults" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="SitemapMaxPages" class="form-label">Max pages to index</label>
+                        <input asp-for="SitemapMaxPages" class="form-control" type="number" min="1" max="5000" placeholder="Default" />
+                        <span asp-validation-for="SitemapMaxPages" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="source-fields" data-source="search-index-documentation">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (prebuilt search index)</h5>
+                <div class="mb-3">
+                    <label asp-for="SearchIndexBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
+                    <input asp-for="SearchIndexBaseUrl" class="form-control" placeholder="https://www.mkdocs.org" />
+                    <span asp-validation-for="SearchIndexBaseUrl" class="text-danger"></span>
+                    <div class="form-text">The root URL of the documentation site. Used to resolve relative entry locations.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SearchIndexUrl" class="form-label">Search index URL</label>
+                    <input asp-for="SearchIndexUrl" class="form-control" placeholder="https://www.mkdocs.org/search/search_index.json" />
+                    <span asp-validation-for="SearchIndexUrl" class="text-danger"></span>
+                    <div class="form-text">Optional. When empty, <code>/search/search_index.json</code> is appended to the base URL.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SearchIndexMaxResults" class="form-label">Max results</label>
+                    <input asp-for="SearchIndexMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                    <span asp-validation-for="SearchIndexMaxResults" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="source-fields" data-source="algolia-documentation">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (Algolia DocSearch)</h5>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaApplicationId" class="form-label">Application ID <span class="text-danger">*</span></label>
+                    <input asp-for="AlgoliaApplicationId" class="form-control" placeholder="BH4D9OD16A" />
+                    <span asp-validation-for="AlgoliaApplicationId" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaApiKey" class="form-label">Search-only API key <span class="text-danger">*</span></label>
+                    <input asp-for="AlgoliaApiKey" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasAlgoliaApiKey)
+                    {
+                        <div class="form-text">Leave blank to keep the existing API key.</div>
+                    }
+                    <span asp-validation-for="AlgoliaApiKey" class="text-danger"></span>
+                    <div class="form-text">Use the search-only key. The value is protected before it is stored.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaIndexName" class="form-label">Index name <span class="text-danger">*</span></label>
+                    <input asp-for="AlgoliaIndexName" class="form-control" placeholder="docs" />
+                    <span asp-validation-for="AlgoliaIndexName" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaMaxResults" class="form-label">Max results</label>
+                    <input asp-for="AlgoliaMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                    <span asp-validation-for="AlgoliaMaxResults" class="text-danger"></span>
+                </div>
+            </div>
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
                 <a asp-action="Index" class="btn btn-secondary">Cancel</a>
