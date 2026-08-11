@@ -8,6 +8,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Security;
@@ -173,6 +174,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (AIHubErrorMessageHelper.IsInvalidChatModelSettingsFailure(ex))
         {
             return GetInvalidChatModelSettingsMessage();
+        }
+
+        var providerDetail = AIProviderErrorHelper.TryExtractProviderMessage(ex);
+
+        if (!string.IsNullOrWhiteSpace(providerDetail))
+        {
+            return $"The AI model rejected the request: {providerDetail}";
         }
 
         return "An error occurred processing your message.";

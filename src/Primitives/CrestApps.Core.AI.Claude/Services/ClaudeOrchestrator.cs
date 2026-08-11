@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -132,7 +133,12 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex, "ClaudeOrchestrator: Unexpected error during Anthropic session.");
-                errorResponse = CreateTextResponse("An unexpected error occurred while communicating with Anthropic. Please try again.");
+                var providerDetail = AIProviderErrorHelper.TryExtractProviderMessage(ex);
+
+                errorResponse = string.IsNullOrWhiteSpace(providerDetail)
+                    ? CreateTextResponse("An unexpected error occurred while communicating with Anthropic. Please try again.")
+                    : CreateTextResponse($"Anthropic returned an error: {providerDetail}");
+
                 break;
             }
 

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 
 namespace CrestApps.Core.AI.Resilience;
 
@@ -8,6 +9,7 @@ namespace CrestApps.Core.AI.Resilience;
 public static class AIProviderErrorHelper
 {
     private const string ClientResultExceptionName = "ClientResultException";
+    private const string RequestFailedExceptionName = "RequestFailedException";
 
     private static readonly string[] _rateLimitIndicators = ["ratelimitreached", "rate limit", "too many requests"];
 
@@ -57,7 +59,8 @@ public static class AIProviderErrorHelper
         }
 
         var type = ex.GetType();
-        if (!string.Equals(type.Name, ClientResultExceptionName, StringComparison.Ordinal))
+        if (!string.Equals(type.Name, ClientResultExceptionName, StringComparison.Ordinal)
+             && !string.Equals(type.Name, RequestFailedExceptionName, StringComparison.Ordinal))
         {
             return null;
         }
@@ -73,6 +76,70 @@ public static class AIProviderErrorHelper
         catch (Exception)
         {
             return null;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts the most specific human-readable error message from any AI provider exception.
+    /// Works for OpenAI (<c>ClientResultException</c>), Azure (<c>RequestFailedException</c>),
+    /// and any other provider that surfaces errors via <see cref="Exception.Message"/>.
+    /// </summary>
+    /// <param name="ex">The exception to inspect.</param>
+    /// <returns>The extracted message, or <see langword="null"/> when none can be determined.</returns>
+    public static string TryExtractProviderMessage(Exception ex)
+    {
+        if (ex is null)
+        {
+            return null;
+        }
+
+        foreach (var currentException in EnumerateExceptions(ex))
+        {
+            if (!string.Equals(currentException.GetType().Name, ClientResultExceptionName, StringComparison.Ordinal) && !string.Equals(currentException.GetType().Name, RequestFailedExceptionName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // Prefer the structured error.message from the JSON body when present.
+            var jsonBodyIndex = currentException.Message?.LastIndexOf('{') ?? -1;
+
+            if (jsonBodyIndex >= 0)
+            {
+                try
+                {
+                    using var logs = JsonDocument.Parse(currentException.Message.Substring(jsonBodyIndex));
+
+                    var errorBody = logs.RootElement;
+
+                    // OpenAI / Azure OpenAI / Anthropic: {"error":{"message":"..."}}
+                    if (errorBody.TryGetProperty("error", out var errorNode) && errorNode.TryGetProperty("message", out var errorMessage))
+                    {
+                        return errorMessage.GetString();
+                    }
+
+                    // Azure AI Inference / generic: {"message":"..."}
+                    if (errorBody.TryGetProperty("message", out var directMessage))
+                    {
+                        return directMessage.GetString();
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Not valid JSON — fall through to raw message.
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(currentException.Message))
+            {
+                var rawMessage = currentException.Message.TrimEnd();
+                var lastNewLineIndex = rawMessage.LastIndexOfAny(['\n', '\r']);
+                var lastLine = lastNewLineIndex >= 0 ? rawMessage.Substring(lastNewLineIndex + 1).Trim() : rawMessage.Trim();
+                var firstPeriodIndex = lastLine.IndexOf('.');
+
+                return firstPeriodIndex >= 0 ? lastLine.Substring(0, firstPeriodIndex + 1) : lastLine;
+            }
         }
 
         return null;

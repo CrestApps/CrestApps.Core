@@ -30,6 +30,14 @@ internal static class AIHubErrorMessageHelper
                             ? S["Rate limit reached. Please wait and try again later."]
                             : S["Rate limit reached. {0}", retryAfterMessage];
         }
+        else if (clientStatusCode == (int)HttpStatusCode.BadRequest)
+        {
+            var providerDetail = AIProviderErrorHelper.TryExtractProviderMessage(ex);
+
+            return string.IsNullOrWhiteSpace(providerDetail)
+                ? S["Invalid request. Please verify your connection settings."]
+                : S["The AI model rejected the request: {0}", providerDetail];
+        }
 
         if (ex is HttpRequestException httpEx)
         {
