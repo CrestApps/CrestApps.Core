@@ -27,17 +27,18 @@ continues to evolve. The unversioned `docs/` folder is the **Latest** version an
 tracks `main`. Each released version is frozen under `versioned_docs/` and
 `versioned_sidebars/`, with the list of published versions in `versions.json`.
 
-Versions are proposed automatically on qualifying `vX.Y.0` tag pushes by the
+Versions are proposed automatically on stable `vX.Y.Z` tag pushes by the
 `create_docs_version_pr.yml` GitHub Actions workflow, which opens a pull request
 that snapshots the current docs as `X.Y` (for example, `v1.0.0` produces the `1.0`
-version, served under `/docs/1.0/`). Patch tags and prerelease tags are logged and
-skipped successfully. The workflow can also be run manually with a `vX.Y.0`,
-`X.Y.0`, or `X.Y` input; manual runs snapshot the matching `vX.Y.0` tag. If branch
-protection requires PR checks, configure a `DOCS_VERSION_PR_TOKEN` repository
-secret backed by a GitHub App token or fine-grained personal access token with
-contents and pull-request write access so the generated branch and PR can trigger
-the normal validation workflows; otherwise the workflow falls back to
-`GITHUB_TOKEN`.
+version, served under `/docs/1.0/`). Patch tags create the `X.Y` docs version only
+when that version does not already exist; otherwise they are logged and skipped
+successfully. Prerelease tags are also skipped successfully. The workflow can be
+run manually with a `vX.Y.Z`, `X.Y.0`, or `X.Y` input; two-part `X.Y` inputs
+snapshot the matching `vX.Y.0` tag. If branch protection requires PR checks,
+configure a `DOCS_VERSION_PR_TOKEN` repository secret backed by a GitHub App token
+or fine-grained personal access token with contents and pull-request write access
+so the generated branch and PR can trigger the normal validation workflows;
+otherwise the workflow falls back to `GITHUB_TOKEN`.
 To cut a version manually:
 
 ```bash
