@@ -36,8 +36,12 @@ jobs:
             RELEASE="${GITHUB_REF_NAME}"
           fi
 
-          if [[ "${RELEASE}" =~ ^v?([0-9]+)\.([0-9]+)\.0$ || "${RELEASE}" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+          if [[ "${RELEASE}" =~ ^v?([0-9]+)\.([0-9]+)\.0$ ]]; then
             DOC_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+            SOURCE_REF="refs/tags/v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.0"
+          elif [[ "${RELEASE}" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+            DOC_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+            SOURCE_REF="refs/tags/v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.0"
           else
             echo "::error::Release '${RELEASE}' is not a major/minor release. Use vX.Y.0, X.Y.0, or X.Y."
             exit 1
@@ -48,12 +52,13 @@ jobs:
           {
             echo "doc_version=${DOC_VERSION}"
             echo "branch_name=${BRANCH_NAME}"
+            echo "source_ref=${SOURCE_REF}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout release source
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+          ref: ${{ steps.resolve.outputs.source_ref }}
           fetch-depth: 0
           token: ${{ env.DOCS_VERSION_PR_TOKEN }}
 
