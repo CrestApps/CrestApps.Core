@@ -3,11 +3,11 @@ name: Create Documentation Version PR
 on:
   push:
     tags:
-      - 'v*.*.0'
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       release:
-        description: 'Release tag or docs version to snapshot (for example v1.1.0, 1.1.0, or 1.1). Patch releases are not supported.'
+        description: 'Release tag or docs version to snapshot (for example v1.1.0, 1.1.0, or 1.1). Patch and prerelease values are skipped.'
         required: true
         type: string
 
@@ -36,26 +36,43 @@ jobs:
             RELEASE="${GITHUB_REF_NAME}"
           fi
 
-          if [[ "${RELEASE}" =~ ^v?([0-9]+)\.([0-9]+)\.0$ ]]; then
+          SHOULD_CREATE=false
+          SKIP_REASON=
+
+          if [[ "${RELEASE}" == *-* ]]; then
+            SKIP_REASON="Skipping docs version PR for prerelease '${RELEASE}'."
+          elif [[ "${RELEASE}" =~ ^v?([0-9]+)\.([0-9]+)\.0$ ]]; then
             DOC_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
             SOURCE_REF="refs/tags/v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.0"
+            SHOULD_CREATE=true
           elif [[ "${RELEASE}" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
             DOC_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
             SOURCE_REF="refs/tags/v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.0"
+            SHOULD_CREATE=true
+          elif [[ "${RELEASE}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            SKIP_REASON="Skipping docs version PR for patch release '${RELEASE}'. Docs versions are created only for vX.Y.0 releases."
           else
-            echo "::error::Release '${RELEASE}' is not a major/minor release. Use vX.Y.0, X.Y.0, or X.Y."
-            exit 1
+            SKIP_REASON="Skipping docs version PR for unsupported release input '${RELEASE}'. Use vX.Y.0, X.Y.0, or X.Y."
           fi
 
-          BRANCH_NAME="docs/version-${DOC_VERSION}"
+          if [[ "${SHOULD_CREATE}" == "true" ]]; then
+            BRANCH_NAME="docs/version-${DOC_VERSION}"
+          fi
 
           {
+            echo "should_create=${SHOULD_CREATE}"
             echo "doc_version=${DOC_VERSION}"
             echo "branch_name=${BRANCH_NAME}"
             echo "source_ref=${SOURCE_REF}"
+            echo "skip_reason=${SKIP_REASON}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Report skipped docs version
+        if: steps.resolve.outputs.should_create != 'true'
+        run: echo "${{ steps.resolve.outputs.skip_reason }}"
+
       - name: Checkout release source
+        if: steps.resolve.outputs.should_create == 'true'
         uses: actions/checkout@v6
         with:
           ref: ${{ steps.resolve.outputs.source_ref }}
@@ -63,6 +80,7 @@ jobs:
           token: ${{ env.DOCS_VERSION_PR_TOKEN }}
 
       - name: Setup Node.js
+        if: steps.resolve.outputs.should_create == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -70,10 +88,12 @@ jobs:
           cache-dependency-path: src/CrestApps.Core.Docs/package-lock.json
 
       - name: Install dependencies
+        if: steps.resolve.outputs.should_create == 'true'
         working-directory: src/CrestApps.Core.Docs
         run: npm ci
 
       - name: Create versioned docs snapshot
+        if: steps.resolve.outputs.should_create == 'true'
         id: snapshot
         working-directory: src/CrestApps.Core.Docs
         shell: bash
