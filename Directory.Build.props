@@ -45,7 +45,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <VersionPrefix>1.1.0</VersionPrefix>
+    <VersionPrefix>1.2.0</VersionPrefix>
     <!-- VersionSuffixBase is the label passed in from the command line (e.g. "preview").
          VersionSuffix is assembled here so the build number is always appended when provided.
          Passing /p:VersionSuffix=... on the command line would create a global MSBuild property
