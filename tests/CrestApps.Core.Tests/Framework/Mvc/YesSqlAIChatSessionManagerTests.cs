@@ -214,7 +214,11 @@ public sealed class YesSqlAIChatSessionManagerTests
             .Setup(sessionQuery => sessionQuery.FirstOrDefaultAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((AIChatSession)null!);
         sessionStore
-            .Setup(session => session.SaveAsync(It.IsAny<AIChatSession>(), It.IsAny<bool>(), It.IsAny<string>()))
+            .Setup(session => session.SaveAsync(
+                It.IsAny<AIChatSession>(),
+                It.IsAny<bool>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var sessionManager = new YesSqlAIChatSessionManager(
@@ -234,7 +238,11 @@ public sealed class YesSqlAIChatSessionManagerTests
         await sessionManager.SaveAsync(chatSession, TestContext.Current.CancellationToken);
 
         Assert.Equal(now, chatSession.LastActivityUtc);
-        sessionStore.Verify(session => session.SaveAsync(chatSession, false, "AI"), Times.Once);
+        sessionStore.Verify(session => session.SaveAsync(
+            chatSession,
+            false,
+            "AI",
+            CancellationToken.None), Times.Once);
         sessionStore.Verify(session => session.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
