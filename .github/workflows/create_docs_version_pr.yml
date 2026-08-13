@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: 'Release tag or docs version to snapshot (for example v1.1.0, 1.1.2, 1.1.0, or 1.1). Prerelease values are skipped.'
+        description: 'Release tag or docs version to snapshot (for example v1.1.0, 1.1.2, 1.1.0, v1.1, or 1.1). Prerelease values are skipped.'
         required: true
         type: string
 
@@ -45,12 +45,12 @@ jobs:
             DOC_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
             SOURCE_REF="refs/tags/v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
             SHOULD_EVALUATE=true
-          elif [[ "${RELEASE}" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+          elif [[ "${RELEASE}" =~ ^v?([0-9]+)\.([0-9]+)$ ]]; then
             DOC_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
             SOURCE_REF="refs/tags/v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.0"
             SHOULD_EVALUATE=true
           else
-            SKIP_REASON="Skipping docs version PR for unsupported release input '${RELEASE}'. Use vX.Y.Z, X.Y.0, or X.Y."
+            SKIP_REASON="Skipping docs version PR for unsupported release input '${RELEASE}'. Use vX.Y.Z, X.Y.0, vX.Y, or X.Y."
           fi
 
           if [[ "${SHOULD_EVALUATE}" == "true" ]]; then
