@@ -1,0 +1,128 @@
+name: Create Documentation Version PR
+
+on:
+  push:
+    tags:
+      - 'v*.*.0'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release tag or docs version to snapshot (for example v1.1.0, 1.1.0, or 1.1). Patch releases are not supported.'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: docs-version-${{ github.event_name == 'workflow_dispatch' && inputs.release || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  create-version-pr:
+    runs-on: ubuntu-latest
+    env:
+      DOCS_VERSION_PR_TOKEN: ${{ secrets.DOCS_VERSION_PR_TOKEN || github.token }}
+      GH_TOKEN: ${{ secrets.DOCS_VERSION_PR_TOKEN || github.token }}
+    steps:
+      - name: Resolve docs version
+        id: resolve
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            RELEASE="${{ inputs.release }}"
+          else
+            RELEASE="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ "${RELEASE}" =~ ^v?([0-9]+)\.([0-9]+)\.0$ || "${RELEASE}" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+            DOC_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          else
+            echo "::error::Release '${RELEASE}' is not a major/minor release. Use vX.Y.0, X.Y.0, or X.Y."
+            exit 1
+          fi
+
+          BRANCH_NAME="docs/version-${DOC_VERSION}"
+
+          {
+            echo "doc_version=${DOC_VERSION}"
+            echo "branch_name=${BRANCH_NAME}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+          fetch-depth: 0
+          token: ${{ env.DOCS_VERSION_PR_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/CrestApps.Core.Docs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/CrestApps.Core.Docs
+        run: npm ci
+
+      - name: Create versioned docs snapshot
+        id: snapshot
+        working-directory: src/CrestApps.Core.Docs
+        shell: bash
+        run: |
+          DOC_VERSION="${{ steps.resolve.outputs.doc_version }}"
+
+          if [[ -f versions.json ]] && grep -q "\"${DOC_VERSION}\"" versions.json; then
+            echo "Docs version ${DOC_VERSION} already exists; no PR is needed."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          npx docusaurus docs:version "${DOC_VERSION}"
+          npm run build
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit versioned docs
+        if: steps.snapshot.outputs.created == 'true'
+        shell: bash
+        run: |
+          DOC_VERSION="${{ steps.resolve.outputs.doc_version }}"
+          BRANCH_NAME="${{ steps.resolve.outputs.branch_name }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${BRANCH_NAME}"
+          git add \
+            src/CrestApps.Core.Docs/versioned_docs \
+            src/CrestApps.Core.Docs/versioned_sidebars \
+            src/CrestApps.Core.Docs/versions.json
+
+          if git diff --cached --quiet; then
+            echo "No versioned docs changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Add docs version ${DOC_VERSION}"
+          git push --force-with-lease origin "${BRANCH_NAME}"
+
+      - name: Open pull request
+        if: steps.snapshot.outputs.created == 'true'
+        shell: bash
+        run: |
+          DOC_VERSION="${{ steps.resolve.outputs.doc_version }}"
+          BRANCH_NAME="${{ steps.resolve.outputs.branch_name }}"
+          EXISTING_PR="$(gh pr list --base main --head "${BRANCH_NAME}" --state open --json number --jq '.[0].number // ""')"
+
+          if [[ -n "${EXISTING_PR}" ]]; then
+            echo "Pull request #${EXISTING_PR} already exists for ${BRANCH_NAME}."
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head "${BRANCH_NAME}" \
+            --title "Add docs version ${DOC_VERSION}" \
+            --body "Snapshots the current documentation as version ${DOC_VERSION}. Merging this PR publishes the versioned docs through the normal main-branch Pages deployment."
