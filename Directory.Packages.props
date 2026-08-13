@@ -27,7 +27,7 @@
     <PackageVersion Include="OllamaSharp" Version="5.4.30" />
     <PackageVersion Include="PdfPig" Version="0.1.15" />
     <PackageVersion Include="PDFsharp-MigraDoc" Version="6.2.4" />
-    <PackageVersion Include="SSH.NET" Version="2025.1.0" />
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="YesSql.Abstractions" Version="6.0.0" />
     <PackageVersion Include="YesSql.Core" Version="6.0.0" />
     <PackageVersion Include="YesSql.Provider.Sqlite" Version="6.0.0" />
