@@ -1,0 +1,103 @@
+{
+  "docsSidebar": [
+    "intro",
+    "getting-started",
+    {
+      "type": "category",
+      "label": "Core",
+      "collapsed": false,
+      "items": [
+        "core/index",
+        "core/core-services",
+        "core/architecture",
+        "core/getting-started-aspnet",
+        "core/interfaces",
+        "core/extensible-entity",
+        "core/ai-profiles",
+        "core/mvc-example"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Features",
+      "collapsed": false,
+      "items": [
+        {
+          "type": "category",
+          "label": "Agent-to-Agent Protocol (A2A)",
+          "items": [
+            "a2a/index",
+            "a2a/client",
+            "a2a/host"
+          ]
+        },
+        "core/agents",
+        "core/ai-core",
+        "core/ai-documents",
+        "core/ai-memory",
+        "core/ai-templates",
+        "core/chat",
+        "core/context-builders",
+        {
+          "type": "category",
+          "label": "Orchestrators",
+          "items": [
+            "orchestration/index",
+            "orchestration/default-orchestrator",
+            "orchestration/copilot",
+            "orchestration/claude"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Data Sources",
+          "items": [
+            "data-sources/index",
+            "data-sources/azure-ai",
+            "data-sources/elasticsearch",
+            "data-sources/postgresql"
+          ]
+        },
+        "core/data-storage",
+        "core/document-processing",
+        {
+          "type": "category",
+          "label": "Model Context Protocol (MCP)",
+          "items": [
+            "mcp/index",
+            "mcp/client",
+            "mcp/resource-types",
+            "mcp/server"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "AI Clients",
+          "items": [
+            "providers/index",
+            "providers/azure-ai-inference",
+            "providers/azure-openai",
+            "providers/ollama",
+            "providers/openai"
+          ]
+        },
+        "core/response-handlers",
+        "core/signalr",
+        "core/tools",
+        "core/tool-instances",
+        "core/use-cases"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Changelog",
+      "items": [
+        "changelog/index",
+        "changelog/1.2.0",
+        "changelog/1.1.0",
+        "changelog/1.0.0"
+      ]
+    },
+    "glossary"
+  ]
+}
