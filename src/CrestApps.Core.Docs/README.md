@@ -33,7 +33,7 @@ that snapshots the current docs as `X.Y` (for example, `v1.0.0` produces the `1.
 version, served under `/docs/1.0/`). Patch tags create the `X.Y` docs version only
 when that version does not already exist; otherwise they are logged and skipped
 successfully. Prerelease tags are also skipped successfully. The workflow can be
-run manually with a `vX.Y.Z`, `X.Y.0`, or `X.Y` input; two-part `X.Y` inputs
+run manually with a `vX.Y.Z`, `X.Y.0`, `vX.Y`, or `X.Y` input; two-part inputs
 snapshot the matching `vX.Y.0` tag. If branch protection requires PR checks,
 configure a `DOCS_VERSION_PR_TOKEN` repository secret backed by a GitHub App token
 or fine-grained personal access token with contents and pull-request write access
