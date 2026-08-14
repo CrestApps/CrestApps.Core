@@ -6,6 +6,13 @@ namespace CrestApps.Core.Blazor.Web.Tools;
 public sealed class SendEmailTool : AIFunction
 {
     public const string TheName = "sendEmail";
+
+    private static readonly Action<ILogger, string, string, string, Exception> _sendEmailToolInvoked =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Information,
+            new EventId(1001, nameof(SendEmailToolInvoked)),
+            "Blazor sendEmail tool invoked. To: {To}; Subject: {Subject}; Message: {Message}");
+
     private static readonly JsonElement _jsonSchema = JsonSerializer.Deserialize<JsonElement>("""
     {
       "type": "object",
@@ -49,7 +56,7 @@ public sealed class SendEmailTool : AIFunction
         var logger = arguments.Services.GetRequiredService<ILogger<SendEmailTool>>();
         if (logger.IsEnabled(LogLevel.Information))
         {
-            logger.LogInformation("Blazor sendEmail tool invoked. To: {To}; Subject: {Subject}; Message: {Message}", TryGetOptionalString(arguments, "to"), subject, message);
+            SendEmailToolInvoked(logger, TryGetOptionalString(arguments, "to"), subject, message);
         }
 
         return ValueTask.FromResult<object>(JsonSerializer.Serialize(new { success = true, subject, }));
@@ -65,5 +72,10 @@ public sealed class SendEmailTool : AIFunction
         value = TryGetOptionalString(arguments, key);
 
         return !string.IsNullOrWhiteSpace(value);
+    }
+
+    private static void SendEmailToolInvoked(ILogger logger, string to, string subject, string message)
+    {
+        _sendEmailToolInvoked(logger, to, subject, message, null);
     }
 }
