@@ -30,7 +30,10 @@ public sealed class A2AClientFactory
     public A2A.A2AClient Create(string agentUrl = null)
     {
         var server = GetSelectedServer();
-        var url = agentUrl ?? server.Endpoint.TrimEnd('/') + "/a2a";
+        var url = string.IsNullOrWhiteSpace(agentUrl)
+            ? server.Endpoint.TrimEnd('/') + "/a2a"
+            : agentUrl;
+
         var httpClient = _httpClientFactory.CreateClient();
         ApplyAuthentication(httpClient, server);
 

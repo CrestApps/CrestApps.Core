@@ -3,16 +3,59 @@ using A2A;
 using CrestApps.Core.Mvc.Samples.A2AClient.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SampleA2AClientFactory = CrestApps.Core.Mvc.Samples.A2AClient.Services.A2AClientFactory;
 
 namespace CrestApps.Core.Mvc.Samples.A2AClient.Pages;
 
 public sealed class AgentsModel : PageModel
 {
-    private readonly A2AClientFactory _clientFactory;
+    private static readonly Action<ILogger, Exception> _authenticationFailed =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1001, nameof(AuthenticationFailed)),
+            "Authentication failed when communicating with the A2A agent.");
+
+    private static readonly Action<ILogger, Exception> _accessDenied =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1002, nameof(AccessDenied)),
+            "Access denied when communicating with the A2A agent.");
+
+    private static readonly Action<ILogger, string, Exception> _failedToCommunicate =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1003, nameof(FailedToCommunicate)),
+            "Failed to communicate with the A2A agent at '{AgentUrl}'.");
+
+    private static readonly Action<ILogger, Exception> _failedToLoadAgentCards =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(1004, nameof(FailedToLoadAgentCards)),
+            "Failed to load agent cards.");
+
+    private static readonly Action<ILogger, Exception> _streamingAuthenticationFailed =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1005, "StreamingAuthenticationFailed"),
+            "Authentication failed during streaming.");
+
+    private static readonly Action<ILogger, Exception> _streamingAccessDenied =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1006, "StreamingAccessDenied"),
+            "Access denied during streaming.");
+
+    private static readonly Action<ILogger, Exception> _streamingError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(1007, "StreamingError"),
+            "Error during A2A streaming.");
+
+    private readonly SampleA2AClientFactory _clientFactory;
     private readonly ILogger<AgentsModel> _logger;
 
     public AgentsModel(
-        A2AClientFactory clientFactory,
+        SampleA2AClientFactory clientFactory,
         ILogger<AgentsModel> logger)
     {
         _clientFactory = clientFactory;
@@ -48,12 +91,12 @@ public sealed class AgentsModel : PageModel
         {
             var client = _clientFactory.Create(agentUrl);
 
-            var agentMessage = new AgentMessage
+            var agentMessage = new Message
             {
-                Role = MessageRole.User,
+                Role = Role.User,
                 MessageId = Guid.NewGuid().ToString(),
                 ContextId = Guid.NewGuid().ToString(),
-                Parts = [new TextPart { Text = message }],
+                Parts = [Part.FromText(message)],
             };
 
             if (!string.IsNullOrWhiteSpace(agentName))
@@ -64,17 +107,17 @@ public sealed class AgentsModel : PageModel
                 };
             }
 
-            var sendParams = new MessageSendParams
+            var sendRequest = new SendMessageRequest
             {
                 Message = agentMessage,
             };
 
             if (stream)
             {
-                return new StreamingA2AResult(client, sendParams, HttpContext.RequestServices.GetRequiredService<ILogger<StreamingA2AResult>>());
+                return new StreamingA2AResult(client, sendRequest, HttpContext.RequestServices.GetRequiredService<ILogger<StreamingA2AResult>>());
             }
 
-            var response = await client.SendMessageAsync(sendParams, cancellationToken);
+            var response = await client.SendMessageAsync(sendRequest, cancellationToken);
 
             var responseText = ExtractTextFromResponse(response);
 
@@ -82,7 +125,7 @@ public sealed class AgentsModel : PageModel
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
-            _logger.LogWarning(ex, "Authentication failed when communicating with the A2A agent.");
+            AuthenticationFailed(_logger, ex);
 
             return new JsonResult(new
             {
@@ -92,7 +135,7 @@ public sealed class AgentsModel : PageModel
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
-            _logger.LogWarning(ex, "Access denied when communicating with the A2A agent.");
+            AccessDenied(_logger, ex);
 
             return new JsonResult(new
             {
@@ -109,30 +152,31 @@ public sealed class AgentsModel : PageModel
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to communicate with the A2A agent at '{AgentUrl}'.", agentUrl);
+            FailedToCommunicate(_logger, agentUrl, ex);
 
             return new JsonResult(new { error = $"An error occurred while communicating with the agent: {ex.Message}" });
         }
     }
 
-    private static string ExtractTextFromResponse(A2AResponse response)
+    private static string ExtractTextFromResponse(SendMessageResponse response)
     {
-        if (response is AgentMessage message)
+        if (response.Message is { } message)
         {
-            var texts = message.Parts?.OfType<TextPart>().Select(p => p.Text);
+            var texts = message.Parts.Select(p => p.Text).OfType<string>();
 
-            if (texts?.Any() == true)
+            if (texts.Any())
             {
                 return string.Join(string.Empty, texts);
             }
         }
-        else if (response is AgentTask task)
+        else if (response.Task is { } task)
         {
             if (task.Artifacts?.Count > 0)
             {
                 var artifactTexts = task.Artifacts
-                    .SelectMany(a => a.Parts?.OfType<TextPart>() ?? [])
-                    .Select(p => p.Text);
+                    .SelectMany(a => a.Parts ?? [])
+                    .Select(p => p.Text)
+                    .OfType<string>();
 
                 var combined = string.Join(string.Empty, artifactTexts);
 
@@ -144,7 +188,9 @@ public sealed class AgentsModel : PageModel
 
             if (task.Status.Message?.Parts is not null)
             {
-                var statusTexts = task.Status.Message.Parts.OfType<TextPart>().Select(p => p.Text);
+                var statusTexts = task.Status.Message.Parts
+                    .Select(p => p.Text)
+                    .OfType<string>();
 
                 var combined = string.Join(string.Empty, statusTexts);
 
@@ -172,9 +218,29 @@ public sealed class AgentsModel : PageModel
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load agent cards.");
+            FailedToLoadAgentCards(_logger, ex);
             ErrorMessage = $"An error occurred while loading agent cards from '{selectedServer.DisplayName}': {ex.Message}";
         }
+    }
+
+    private static void AuthenticationFailed(ILogger logger, Exception exception)
+    {
+        _authenticationFailed(logger, exception);
+    }
+
+    private static void AccessDenied(ILogger logger, Exception exception)
+    {
+        _accessDenied(logger, exception);
+    }
+
+    private static void FailedToCommunicate(ILogger logger, string agentUrl, Exception exception)
+    {
+        _failedToCommunicate(logger, agentUrl, exception);
+    }
+
+    private static void FailedToLoadAgentCards(ILogger logger, Exception exception)
+    {
+        _failedToLoadAgentCards(logger, exception);
     }
 
     /// <summary>
@@ -184,16 +250,16 @@ public sealed class AgentsModel : PageModel
     private sealed class StreamingA2AResult : IActionResult
     {
         private readonly A2A.A2AClient _client;
-        private readonly MessageSendParams _sendParams;
+        private readonly SendMessageRequest _sendRequest;
         private readonly ILogger<StreamingA2AResult> _logger;
 
         public StreamingA2AResult(
             A2A.A2AClient client,
-            MessageSendParams sendParams,
+            SendMessageRequest sendRequest,
             ILogger<StreamingA2AResult> logger)
         {
             _client = client;
-            _sendParams = sendParams;
+            _sendRequest = sendRequest;
             _logger = logger;
         }
 
@@ -208,27 +274,26 @@ public sealed class AgentsModel : PageModel
 
             try
             {
-                await foreach (var sseItem in _client.SendMessageStreamingAsync(_sendParams, cancellationToken))
+                await foreach (var streamEvent in _client.SendStreamingMessageAsync(_sendRequest, cancellationToken))
                 {
-                    var a2aEvent = sseItem.Data;
                     string chunk = null;
 
-                    if (a2aEvent is TaskArtifactUpdateEvent artifactUpdate)
+                    if (streamEvent.ArtifactUpdate is { } artifactUpdate)
                     {
                         chunk = string.Join(string.Empty,
-                        artifactUpdate.Artifact?.Parts?.OfType<TextPart>().Select(p => p.Text) ?? []);
+                            artifactUpdate.Artifact.Parts.Select(p => p.Text).OfType<string>());
                     }
-                    else if (a2aEvent is TaskStatusUpdateEvent statusUpdate)
+                    else if (streamEvent.StatusUpdate is { } statusUpdate)
                     {
-                        if (statusUpdate.Final)
+                        if (IsTerminalState(statusUpdate.Status.State))
                         {
                             // If the task failed, send the error message.
 
                             if (statusUpdate.Status.State == TaskState.Failed)
                             {
                                 var errorText = statusUpdate.Status.Message?.Parts
-                                ?.OfType<TextPart>()
-                                    .Select(p => p.Text)
+                                    ?.Select(p => p.Text)
+                                    .OfType<string>()
                                     .FirstOrDefault() ?? "Agent task failed.";
 
                                 await httpResponse.WriteAsync($"data: [ERROR]{errorText}\n\n", cancellationToken);
@@ -256,17 +321,17 @@ public sealed class AgentsModel : PageModel
             }
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
-                _logger.LogWarning(ex, "Authentication failed during streaming.");
+                StreamingAuthenticationFailed(_logger, ex);
                 await WriteErrorAsync(httpResponse, "Authentication failed (401 Unauthorized).");
             }
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
-                _logger.LogWarning(ex, "Access denied during streaming.");
+                StreamingAccessDenied(_logger, ex);
                 await WriteErrorAsync(httpResponse, "Access denied (403 Forbidden).");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during A2A streaming.");
+                StreamingError(_logger, ex);
                 await WriteErrorAsync(httpResponse, ex.Message);
             }
         }
@@ -282,6 +347,31 @@ public sealed class AgentsModel : PageModel
             {
                 // Response may already be completed.
             }
+        }
+
+        private static bool IsTerminalState(TaskState state)
+        {
+            return state is TaskState.Completed
+                or TaskState.Failed
+                or TaskState.Canceled
+                or TaskState.InputRequired
+                or TaskState.Rejected
+                or TaskState.AuthRequired;
+        }
+
+        private static void StreamingAuthenticationFailed(ILogger logger, Exception exception)
+        {
+            _streamingAuthenticationFailed(logger, exception);
+        }
+
+        private static void StreamingAccessDenied(ILogger logger, Exception exception)
+        {
+            _streamingAccessDenied(logger, exception);
+        }
+
+        private static void StreamingError(ILogger logger, Exception exception)
+        {
+            _streamingError(logger, exception);
         }
     }
 }
