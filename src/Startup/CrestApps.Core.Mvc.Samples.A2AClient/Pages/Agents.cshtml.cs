@@ -165,6 +165,15 @@ public sealed class AgentsModel : PageModel
                 error = CreateNonJsonResponseErrorMessage()
             });
         }
+        catch (HttpRequestException ex)
+        {
+            FailedToCommunicate(_logger, agentUrl, ex);
+
+            return new JsonResult(new
+            {
+                error = CreateConnectionErrorMessage(selectedServer.DisplayName, agentUrl, ex)
+            });
+        }
         catch (Exception ex)
         {
             FailedToCommunicate(_logger, agentUrl, ex);
@@ -260,6 +269,14 @@ public sealed class AgentsModel : PageModel
             FailedToLoadAgentCards(_logger, ex);
             ErrorMessage = CreateNonJsonResponseErrorMessage();
         }
+        catch (HttpRequestException ex)
+        {
+            FailedToLoadAgentCards(_logger, ex);
+            ErrorMessage = CreateConnectionErrorMessage(
+                selectedServer.DisplayName,
+                selectedServer.Endpoint.TrimEnd('/') + "/.well-known/agent-card.json",
+                ex);
+        }
         catch (Exception ex)
         {
             FailedToLoadAgentCards(_logger, ex);
@@ -286,6 +303,15 @@ public sealed class AgentsModel : PageModel
         return "The A2A host returned content that was not a valid A2A JSON response. " +
             "This usually means the request reached an HTML login, access denied, or error page. " +
             "Check the host authentication settings and the configured A2A endpoint URL.";
+    }
+
+    private static string CreateConnectionErrorMessage(string serverName, string endpoint, HttpRequestException exception)
+    {
+        var rootMessage = exception.GetBaseException().Message;
+
+        return $"Could not connect to '{serverName}' at '{endpoint}'. {rootMessage} " +
+            "For local sample hosts, make sure the configured endpoint uses the HTTPS URL from the target project's launchSettings.json " +
+            "and that the ASP.NET Core development certificate is trusted.";
     }
 
     private static void AuthenticationFailed(ILogger logger, Exception exception)
