@@ -1,6 +1,7 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
+using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
@@ -92,6 +93,32 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 {
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Account/AccessDenied";
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (IsA2AProtocolRequest(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (IsA2AProtocolRequest(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+
+        return Task.CompletedTask;
+    };
 });
 
 builder.Services.AddAuthorizationBuilder()
@@ -160,6 +187,9 @@ builder.Services
         )
      )
  );
+
+builder.Services.Configure<A2AHostOptions>(
+     builder.Configuration.GetSection(nameof(A2AHostOptions)));
 
 // =============================================================================
 // 4. MCP AND CUSTOM TOOLS
@@ -280,3 +310,8 @@ app.MapControllerRoute(name: "areas", pattern: "{area:exists}/{controller=Home}/
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
 
 await app.RunAsync();
+
+static bool IsA2AProtocolRequest(HttpRequest request)
+{
+    return request.Path.StartsWithSegments("/a2a");
+}

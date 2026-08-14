@@ -129,8 +129,7 @@ public sealed class AgentsModel : PageModel
 
             return new JsonResult(new
             {
-                error = "Authentication failed (401 Unauthorized). " +
-                            "The A2A host requires authentication. Check the agent card's security schemes for details."
+                error = CreateAuthenticationErrorMessage()
             });
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
@@ -150,12 +149,38 @@ public sealed class AgentsModel : PageModel
                 error = $"The selected server '{selectedServer.DisplayName}' did not expose an A2A host at '{selectedServer.Endpoint.TrimEnd('/')}/a2a'."
             });
         }
+        catch (HttpRequestException ex) when (IsRedirectStatusCode(ex.StatusCode))
+        {
+            return new JsonResult(new
+            {
+                error = CreateRedirectErrorMessage()
+            });
+        }
+        catch (JsonException ex)
+        {
+            FailedToCommunicate(_logger, agentUrl, ex);
+
+            return new JsonResult(new
+            {
+                error = CreateNonJsonResponseErrorMessage()
+            });
+        }
         catch (Exception ex)
         {
             FailedToCommunicate(_logger, agentUrl, ex);
 
             return new JsonResult(new { error = $"An error occurred while communicating with the agent: {ex.Message}" });
         }
+    }
+
+    private static bool IsRedirectStatusCode(System.Net.HttpStatusCode? statusCode)
+    {
+        return statusCode is
+            System.Net.HttpStatusCode.Moved or
+            System.Net.HttpStatusCode.Redirect or
+            System.Net.HttpStatusCode.RedirectMethod or
+            System.Net.HttpStatusCode.TemporaryRedirect or
+            System.Net.HttpStatusCode.PermanentRedirect;
     }
 
     private static string ExtractTextFromResponse(SendMessageResponse response)
@@ -212,15 +237,55 @@ public sealed class AgentsModel : PageModel
         {
             AgentCards = await _clientFactory.GetAgentCardsAsync(cancellationToken);
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            AuthenticationFailed(_logger, ex);
+            ErrorMessage = CreateAuthenticationErrorMessage();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            AccessDenied(_logger, ex);
+            ErrorMessage = "Access denied (403 Forbidden). You do not have permission to access this A2A host.";
+        }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             ErrorMessage = $"The selected server '{selectedServer.DisplayName}' did not expose an A2A host at '{selectedServer.Endpoint.TrimEnd('/')}/.well-known/agent-card.json'.";
+        }
+        catch (HttpRequestException ex) when (IsRedirectStatusCode(ex.StatusCode))
+        {
+            ErrorMessage = CreateRedirectErrorMessage();
+        }
+        catch (JsonException ex)
+        {
+            FailedToLoadAgentCards(_logger, ex);
+            ErrorMessage = CreateNonJsonResponseErrorMessage();
         }
         catch (Exception ex)
         {
             FailedToLoadAgentCards(_logger, ex);
             ErrorMessage = $"An error occurred while loading agent cards from '{selectedServer.DisplayName}': {ex.Message}";
         }
+    }
+
+    private static string CreateAuthenticationErrorMessage()
+    {
+        return "Authentication failed (401 Unauthorized). The A2A host requires authentication. " +
+            "Configure the host for API key authentication and add the API key to this sample, " +
+            "or set A2A host authentication to None for local testing.";
+    }
+
+    private static string CreateRedirectErrorMessage()
+    {
+        return "The A2A host redirected the protocol request instead of returning an A2A JSON response. " +
+            "This usually means the host requires an interactive login. Configure the host for API key authentication " +
+            "and add the API key to the sample client server settings, or disable A2A host authentication for local testing.";
+    }
+
+    private static string CreateNonJsonResponseErrorMessage()
+    {
+        return "The A2A host returned content that was not a valid A2A JSON response. " +
+            "This usually means the request reached an HTML login, access denied, or error page. " +
+            "Check the host authentication settings and the configured A2A endpoint URL.";
     }
 
     private static void AuthenticationFailed(ILogger logger, Exception exception)
@@ -322,12 +387,22 @@ public sealed class AgentsModel : PageModel
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 StreamingAuthenticationFailed(_logger, ex);
-                await WriteErrorAsync(httpResponse, "Authentication failed (401 Unauthorized).");
+                await WriteErrorAsync(httpResponse, CreateAuthenticationErrorMessage());
             }
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 StreamingAccessDenied(_logger, ex);
                 await WriteErrorAsync(httpResponse, "Access denied (403 Forbidden).");
+            }
+            catch (HttpRequestException ex) when (IsRedirectStatusCode(ex.StatusCode))
+            {
+                StreamingAuthenticationFailed(_logger, ex);
+                await WriteErrorAsync(httpResponse, CreateRedirectErrorMessage());
+            }
+            catch (JsonException ex)
+            {
+                StreamingError(_logger, ex);
+                await WriteErrorAsync(httpResponse, CreateNonJsonResponseErrorMessage());
             }
             catch (Exception ex)
             {

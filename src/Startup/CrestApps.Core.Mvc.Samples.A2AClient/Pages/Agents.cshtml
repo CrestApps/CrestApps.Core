@@ -51,18 +51,20 @@
                             <small class="text-muted d-block mb-2">Version: @card.Version</small>
                         }
 
-                        @if (hasSkills)
-                        {
-                            <div class="mb-3">
-                                <strong class="d-block mb-1">Skills:</strong>
-                                @foreach (var skill in card.Skills)
-                                {
-                                    <span class="badge bg-info me-1">@(skill.Name ?? skill.Id)</span>
-                                }
-                            </div>
-                        }
-
                         <div class="agent-form" data-agent-url="@agentUrl" data-agent-name="@card.Name" data-result-target="#@resultId">
+                            @if (hasSkills)
+                            {
+                                <div class="mb-2">
+                                    <label class="form-label small mb-0">Target agent</label>
+                                    <select class="form-select form-select-sm agent-skill">
+                                        @foreach (var skill in card.Skills)
+                                        {
+                                            <option value="@skill.Id">@(skill.Name ?? skill.Id)</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+
                             <div class="mb-2">
                                 <label class="form-label small mb-0">Message <span class="text-danger">*</span></label>
                                 <textarea class="form-control form-control-sm agent-message" rows="3" placeholder="Type a message to send to this agent…" required></textarea>
@@ -98,7 +100,8 @@ else if (string.IsNullOrWhiteSpace(Model.ErrorMessage))
             btn.addEventListener('click', function () {
                 var form = btn.closest('.agent-form');
                 var agentUrl = form.dataset.agentUrl || '';
-                var agentName = form.dataset.agentName || '';
+                var skillSelect = form.querySelector('.agent-skill');
+                var agentName = skillSelect && skillSelect.value ? skillSelect.value : (form.dataset.agentName || '');
                 var resultDiv = document.querySelector(form.dataset.resultTarget);
                 var messageInput = form.querySelector('.agent-message');
                 var streamCheck = form.querySelector('.agent-stream-check');
