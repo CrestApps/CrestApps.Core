@@ -9,6 +9,18 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
 {
     private const string ProtectorPurpose = "CrestApps.Core.Blazor.Web.CopilotSettings";
 
+    private static readonly Action<ILogger, Exception> _failedToUnprotectClientSecret =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1001, nameof(FailedToUnprotectClientSecret)),
+            "Failed to unprotect Copilot client secret.");
+
+    private static readonly Action<ILogger, Exception> _failedToUnprotectApiKey =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1002, nameof(FailedToUnprotectApiKey)),
+            "Failed to unprotect Copilot API key.");
+
     private readonly SiteSettingsStore _siteSettings;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger<SampleCopilotOptionsConfiguration> _logger;
@@ -69,7 +81,7 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to unprotect Copilot client secret.");
+                FailedToUnprotectClientSecret(logger, ex);
             }
         }
 
@@ -81,8 +93,18 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to unprotect Copilot API key.");
+                FailedToUnprotectApiKey(logger, ex);
             }
         }
+    }
+
+    private static void FailedToUnprotectClientSecret(ILogger logger, Exception exception)
+    {
+        _failedToUnprotectClientSecret(logger, exception);
+    }
+
+    private static void FailedToUnprotectApiKey(ILogger logger, Exception exception)
+    {
+        _failedToUnprotectApiKey(logger, exception);
     }
 }

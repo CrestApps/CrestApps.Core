@@ -80,8 +80,8 @@ var mvcWeb = builder.AddProject<Projects.CrestApps_Core_Mvc_Web>("MvcWeb")
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__MvcApp__MCP__Server__AuthenticationType", "None");
-        options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__AuthenticationType", "None");
-        options.EnvironmentVariables.Add("CrestApps__MvcApp__A2A__Host__ExposeAgentsAsSkill", "true");
+        options.EnvironmentVariables.Add("A2AHostOptions__AuthenticationType", "None");
+        options.EnvironmentVariables.Add("A2AHostOptions__ExposeAgentsAsSkill", "true");
         options.EnvironmentVariables.Add("CrestApps__PostgreSQL__ConnectionString", postgres.Resource.ConnectionStringExpression);
 
         // Prevent VS-injected startup hooks (BrowserRefresh, DeltaApplier, BrowserLink)
@@ -102,8 +102,8 @@ var blazorWeb = builder.AddProject<Projects.CrestApps_Core_Blazor_Web>("BlazorWe
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__Endpoint", "http://localhost:11434");
         options.EnvironmentVariables.Add("CrestApps__AI__Providers__Ollama__Connections__Default__ChatDeploymentName", ollamaModelName);
         options.EnvironmentVariables.Add("CrestApps__BlazorApp__MCP__Server__AuthenticationType", "None");
-        options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__AuthenticationType", "None");
-        options.EnvironmentVariables.Add("CrestApps__BlazorApp__A2A__Host__ExposeAgentsAsSkill", "true");
+        options.EnvironmentVariables.Add("A2AHostOptions__AuthenticationType", "None");
+        options.EnvironmentVariables.Add("A2AHostOptions__ExposeAgentsAsSkill", "true");
         options.EnvironmentVariables.Add("CrestApps__PostgreSQL__ConnectionString", postgres.Resource.ConnectionStringExpression);
 
         // Prevent VS-injected startup hooks (BrowserRefresh, DeltaApplier, BrowserLink)

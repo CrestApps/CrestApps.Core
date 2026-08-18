@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
@@ -111,7 +112,7 @@ internal sealed class FindToolsForTaskFunction : AIFunction
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to search for tools.");
+            A2ALog.FailedToSearchForTools(logger, ex);
 
             return "An error occurred while searching for tools.";
         }

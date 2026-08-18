@@ -1,4 +1,5 @@
 using A2A;
+using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
@@ -75,7 +76,7 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to fetch agent card from A2A host '{Endpoint}' for connection '{ConnectionId}'.", connection.Endpoint, connectionId);
+            A2ALog.FailedToFetchAgentCardFromHost(_logger, connection.Endpoint, connectionId, ex);
 
             return null;
         }

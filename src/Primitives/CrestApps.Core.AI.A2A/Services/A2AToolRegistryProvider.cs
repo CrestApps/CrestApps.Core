@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
@@ -89,7 +90,7 @@ internal sealed class A2AToolRegistryProvider : IToolRegistryProvider
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to load agent card for A2A connection '{ConnectionId}'.", connectionId);
+                A2ALog.FailedToLoadAgentCardForConnection(_logger, connectionId, ex);
             }
         }
 

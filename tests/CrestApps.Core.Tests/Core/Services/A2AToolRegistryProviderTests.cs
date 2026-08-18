@@ -203,7 +203,13 @@ public sealed class A2AToolRegistryProviderTests
             {
                 Name = "No Skills",
                 Description = "No skills",
-                Url = "https://example.com",
+                SupportedInterfaces =
+                [
+                    new AgentInterface
+                    {
+                        Url = "https://example.com",
+                    },
+                ],
                 Version = "1.0",
                 Skills = null,
             });
@@ -349,7 +355,13 @@ public sealed class A2AToolRegistryProviderTests
         {
             Name = "Agent",
             Description = description,
-            Url = "https://example.com",
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = "https://example.com",
+                },
+            ],
             Version = "1.0",
             Skills = [.. skills],
         };

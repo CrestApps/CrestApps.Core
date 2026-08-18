@@ -26,6 +26,12 @@ internal static class A2AHostExtensions
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    private static readonly Action<ILogger, string, Exception> _failedToExecuteAgent =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1001, nameof(FailedToExecuteAgent)),
+            "Failed to execute agent '{AgentName}'.");
+
     public static IServiceCollection AddA2AHost(this IServiceCollection services)
     {
         services.AddScoped<IAuthorizationHandler, A2AHostAuthorizationHandler>();
@@ -42,7 +48,15 @@ internal static class A2AHostExtensions
                 policy.AddRequirements(new A2AHostAuthorizationRequirement());
             });
 
-        services.AddSingleton<ITaskManager>(CreateTaskManager);
+        services.AddSingleton<IAgentHandler, BlazorA2AAgentHandler>();
+        services.AddSingleton<ChannelEventNotifier>();
+        services.AddSingleton<ITaskStore, InMemoryTaskStore>();
+        services.AddSingleton<IA2ARequestHandler>(services =>
+            new A2AServer(
+                services.GetRequiredService<IAgentHandler>(),
+                services.GetRequiredService<ITaskStore>(),
+                services.GetRequiredService<ChannelEventNotifier>(),
+                services.GetRequiredService<ILogger<A2AServer>>()));
 
         return services;
     }
@@ -58,45 +72,11 @@ internal static class A2AHostExtensions
     {
         endpoints.MapGet("/.well-known/agent-card.json", HandleWellKnownEndpointAsync);
 
-        var taskManager = endpoints.ServiceProvider.GetRequiredService<ITaskManager>();
-        endpoints.MapA2A(taskManager, "a2a")
+        var requestHandler = endpoints.ServiceProvider.GetRequiredService<IA2ARequestHandler>();
+        endpoints.MapA2A(requestHandler, "a2a")
             .RequireAuthorization(A2AHostPolicyName);
 
         return endpoints;
-    }
-
-    private static ITaskManager CreateTaskManager(IServiceProvider serviceProvider)
-    {
-        var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
-        var taskManager = new TaskManager();
-
-        taskManager.OnAgentCardQuery = async (agentUrl, cancellationToken) =>
-        {
-            var services = httpContextAccessor.HttpContext!.RequestServices;
-            var options = services.GetRequiredService<IOptionsMonitor<A2AHostOptions>>().CurrentValue;
-            var profileManager = services.GetRequiredService<IAIProfileManager>();
-            var profiles = await profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
-
-            if (options.ExposeAgentsAsSkill)
-            {
-                return BuildSkillModeCard(agentUrl, profiles);
-            }
-
-            var agentName = httpContextAccessor.HttpContext?.Request.Query["agent"].FirstOrDefault();
-            var targetProfile = ResolveAgentProfile(profiles, agentName);
-
-            return targetProfile is not null
-                            ? BuildAgentCard(targetProfile, agentUrl)
-                            : BuildSkillModeCard(agentUrl, profiles);
-        };
-
-        taskManager.OnTaskCreated = (agentTask, cancellationToken) =>
-            ProcessAgentTaskAsync(taskManager, httpContextAccessor, agentTask, cancellationToken);
-
-        taskManager.OnTaskUpdated = (agentTask, cancellationToken) =>
-            ProcessAgentTaskAsync(taskManager, httpContextAccessor, agentTask, cancellationToken);
-
-        return taskManager;
     }
 
     private static async Task HandleWellKnownEndpointAsync(HttpContext context)
@@ -133,53 +113,44 @@ internal static class A2AHostExtensions
         }
     }
 
-    private static async Task ProcessAgentTaskAsync(
-        TaskManager taskManager,
+    private static async Task ProcessAgentRequestAsync(
+        TaskUpdater updater,
         IHttpContextAccessor httpContextAccessor,
-        AgentTask agentTask,
+        RequestContext requestContext,
+        AgentEventQueue eventQueue,
         CancellationToken cancellationToken)
     {
         var services = httpContextAccessor.HttpContext?.RequestServices;
 
         if (services is null)
         {
-            await taskManager.UpdateStatusAsync(
-                agentTask.Id,
-                TaskState.Failed,
-                CreateAgentMessage(agentTask.ContextId, "Request services are not available."),
-                final: true,
+            await updater.FailAsync(
+                CreateAgentMessage(requestContext.ContextId, "Request services are not available."),
                 cancellationToken: cancellationToken);
 
             return;
         }
 
-        var logger = services.GetRequiredService<ILogger<TaskManager>>();
+        var logger = services.GetRequiredService<ILogger<A2AServer>>();
 
-        var lastMessage = agentTask.History?.LastOrDefault();
-        var prompt = lastMessage?.Parts?.OfType<TextPart>().FirstOrDefault()?.Text;
+        var prompt = requestContext.UserText;
 
         if (string.IsNullOrWhiteSpace(prompt))
         {
-            await taskManager.UpdateStatusAsync(
-                agentTask.Id,
-                TaskState.Failed,
-                CreateAgentMessage(agentTask.ContextId, "No text message was provided."),
-                final: true,
+            await updater.FailAsync(
+                CreateAgentMessage(requestContext.ContextId, "No text message was provided."),
                 cancellationToken: cancellationToken);
 
             return;
         }
 
         var targetProfile = await ResolveTargetProfileAsync(
-            services, httpContextAccessor, lastMessage);
+            services, httpContextAccessor, requestContext.Message);
 
         if (targetProfile is null)
         {
-            await taskManager.UpdateStatusAsync(
-                agentTask.Id,
-                TaskState.Failed,
-                CreateAgentMessage(agentTask.ContextId, "No agents are available to process this request."),
-                final: true,
+            await updater.FailAsync(
+                CreateAgentMessage(requestContext.ContextId, "No agents are available to process this request."),
                 cancellationToken: cancellationToken);
 
             return;
@@ -187,10 +158,12 @@ internal static class A2AHostExtensions
 
         try
         {
-            await taskManager.UpdateStatusAsync(
-                agentTask.Id,
-                TaskState.Working,
-                cancellationToken: cancellationToken);
+            if (!requestContext.IsContinuation)
+            {
+                await updater.SubmitAsync(cancellationToken: cancellationToken);
+            }
+
+            await updater.StartWorkAsync(cancellationToken: cancellationToken);
 
             var completionService = services.GetRequiredService<IAICompletionService>();
             var contextBuilder = services.GetRequiredService<IAICompletionContextBuilder>();
@@ -208,6 +181,8 @@ internal static class A2AHostExtensions
             };
 
             var responseText = new System.Text.StringBuilder();
+            var artifactId = Guid.NewGuid().ToString("N");
+            var appendArtifact = false;
 
             await foreach (var update in completionService.CompleteStreamingAsync(
                 deployment, messages, context, cancellationToken))
@@ -218,13 +193,14 @@ internal static class A2AHostExtensions
                 {
                     responseText.Append(chunk);
 
-                    await taskManager.ReturnArtifactAsync(
-                        agentTask.Id,
-                        new Artifact
-                        {
-                            Parts = [new TextPart { Text = chunk }],
-                        },
-                        cancellationToken);
+                    await updater.AddArtifactAsync(
+                        [Part.FromText(chunk)],
+                        artifactId: artifactId,
+                        append: appendArtifact,
+                        lastChunk: false,
+                        cancellationToken: cancellationToken);
+
+                    appendArtifact = true;
                 }
             }
 
@@ -232,30 +208,38 @@ internal static class A2AHostExtensions
                 ? responseText.ToString()
                 : "The agent did not produce a response.";
 
-            await taskManager.UpdateStatusAsync(
-                agentTask.Id,
-                TaskState.Completed,
-                CreateAgentMessage(agentTask.ContextId, finalText),
-                final: true,
+            if (appendArtifact)
+            {
+                await eventQueue.EnqueueArtifactUpdateAsync(
+                    new TaskArtifactUpdateEvent
+                    {
+                        TaskId = updater.TaskId,
+                        ContextId = updater.ContextId,
+                        Artifact = new Artifact
+                        {
+                            ArtifactId = artifactId,
+                            Parts = [],
+                        },
+                        Append = true,
+                        LastChunk = true,
+                    },
+                    cancellationToken);
+            }
+
+            await updater.CompleteAsync(
+                CreateAgentMessage(requestContext.ContextId, finalText),
                 cancellationToken: cancellationToken);
         }
         catch (OperationCanceledException)
         {
-            await taskManager.UpdateStatusAsync(
-                agentTask.Id,
-                TaskState.Canceled,
-                final: true,
-                cancellationToken: CancellationToken.None);
+            await updater.CancelAsync(cancellationToken: CancellationToken.None);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to execute agent '{AgentName}'.", targetProfile.Name);
+            FailedToExecuteAgent(logger, targetProfile.Name, ex);
 
-            await taskManager.UpdateStatusAsync(
-                agentTask.Id,
-                TaskState.Failed,
-                CreateAgentMessage(agentTask.ContextId, $"An error occurred while executing agent '{targetProfile.Name}'."),
-                final: true,
+            await updater.FailAsync(
+                CreateAgentMessage(requestContext.ContextId, $"An error occurred while executing agent '{targetProfile.Name}'."),
                 cancellationToken: CancellationToken.None);
         }
     }
@@ -263,7 +247,7 @@ internal static class A2AHostExtensions
     private static async Task<AIProfile> ResolveTargetProfileAsync(
         IServiceProvider services,
         IHttpContextAccessor httpContextAccessor,
-        AgentMessage lastMessage)
+        Message message)
     {
         var options = services.GetRequiredService<IOptionsMonitor<A2AHostOptions>>().CurrentValue;
         var profileManager = services.GetRequiredService<IAIProfileManager>();
@@ -283,7 +267,7 @@ internal static class A2AHostExtensions
         }
 
         if (targetProfile is null &&
-            lastMessage?.Metadata?.TryGetValue("agentName", out var agentNameElement) == true)
+            message?.Metadata?.TryGetValue("agentName", out var agentNameElement) == true)
         {
             var metaAgentName = agentNameElement.GetString();
 
@@ -319,10 +303,18 @@ internal static class A2AHostExtensions
         {
             Name = "CrestApps Blazor A2A Host",
             Description = "Exposes AI Agent profiles via the Agent-to-Agent protocol.",
-            Url = agentUrl,
             Version = "1.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                },
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
             Capabilities = new AgentCapabilities
             {
                 Streaming = true,
@@ -337,14 +329,32 @@ internal static class A2AHostExtensions
         {
             Name = profile.DisplayText ?? profile.Name,
             Description = profile.Description ?? $"AI Agent: {profile.DisplayText ?? profile.Name}",
-            Url = agentUrl,
             Version = "1.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                },
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
             Capabilities = new AgentCapabilities
             {
                 Streaming = true,
             },
+            Skills =
+            [
+                new AgentSkill
+                {
+                    Id = profile.Name,
+                    Name = profile.DisplayText ?? profile.Name,
+                    Description = profile.Description,
+                    Tags = ["agent"],
+                },
+            ],
         };
     }
 
@@ -355,29 +365,51 @@ internal static class A2AHostExtensions
             case A2AHostAuthenticationType.ApiKey:
                 card.SecuritySchemes = new Dictionary<string, SecurityScheme>
                 {
-                    ["apiKey"] = new ApiKeySecurityScheme(
-                        name: "Authorization",
-                        keyLocation: "header",
-                        description: "API key authentication. Send as 'Bearer {key}' or 'ApiKey {key}' in the Authorization header."),
+                    ["apiKey"] = new SecurityScheme
+                    {
+                        ApiKeySecurityScheme = new ApiKeySecurityScheme
+                        {
+                            Name = "Authorization",
+                            Location = "header",
+                            Description = "API key authentication. Send as 'Bearer {key}' or 'ApiKey {key}' in the Authorization header.",
+                        },
+                    },
                 };
 
-                card.Security =
+                card.SecurityRequirements =
                 [
-                    new Dictionary<string, string[]> { ["apiKey"] = [] },
+                    new SecurityRequirement
+                    {
+                        Schemes = new Dictionary<string, StringList>
+                        {
+                            ["apiKey"] = new(),
+                        },
+                    },
                 ];
                 break;
 
             case A2AHostAuthenticationType.OpenId:
                 card.SecuritySchemes = new Dictionary<string, SecurityScheme>
                 {
-                    ["openId"] = new OpenIdConnectSecurityScheme(
-                        openIdConnectUrl: new Uri($"{baseUrl}/.well-known/openid-configuration"),
-                        description: "OpenID Connect authentication."),
+                    ["openId"] = new SecurityScheme
+                    {
+                        OpenIdConnectSecurityScheme = new OpenIdConnectSecurityScheme
+                        {
+                            OpenIdConnectUrl = $"{baseUrl}/.well-known/openid-configuration",
+                            Description = "OpenID Connect authentication.",
+                        },
+                    },
                 };
 
-                card.Security =
+                card.SecurityRequirements =
                 [
-                    new Dictionary<string, string[]> { ["openId"] = [] },
+                    new SecurityRequirement
+                    {
+                        Schemes = new Dictionary<string, StringList>
+                        {
+                            ["openId"] = new(),
+                        },
+                    },
                 ];
                 break;
         }
@@ -394,14 +426,55 @@ internal static class A2AHostExtensions
             string.Equals(p.Name, agentName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static AgentMessage CreateAgentMessage(string contextId, string text)
+    private static Message CreateAgentMessage(string contextId, string text)
     {
-        return new AgentMessage
+        return new Message
         {
-            Role = MessageRole.Agent,
+            Role = Role.Agent,
             MessageId = Guid.NewGuid().ToString(),
             ContextId = contextId,
-            Parts = [new TextPart { Text = text }],
+            Parts = [Part.FromText(text)],
         };
+    }
+
+    private static void FailedToExecuteAgent(ILogger logger, string agentName, Exception exception)
+    {
+        _failedToExecuteAgent(logger, agentName, exception);
+    }
+
+    private sealed class BlazorA2AAgentHandler : IAgentHandler
+    {
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BlazorA2AAgentHandler"/> class.
+        /// </summary>
+        /// <param name="httpContextAccessor">The current HTTP context accessor.</param>
+        public BlazorA2AAgentHandler(IHttpContextAccessor httpContextAccessor)
+        {
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        /// <summary>
+        /// Executes the A2A agent request.
+        /// </summary>
+        /// <param name="context">The A2A request context.</param>
+        /// <param name="eventQueue">The A2A event queue.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        public Task ExecuteAsync(
+            RequestContext context,
+            AgentEventQueue eventQueue,
+            CancellationToken cancellationToken)
+        {
+            var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
+
+            return ProcessAgentRequestAsync(
+                updater,
+                _httpContextAccessor,
+                context,
+                eventQueue,
+                cancellationToken);
+        }
     }
 }
