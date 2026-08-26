@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.Services;
 using ModelContextProtocol;
@@ -91,7 +92,7 @@ public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
             return new GetPromptResult
             {
                 Description = entry.Prompt.Description,
-                Messages = [],
+                Messages = BuildMessages(entry, request.Params.Arguments),
             };
         }
 
@@ -116,5 +117,62 @@ public sealed class DefaultMcpServerPromptService : IMcpServerPromptService
         }
 
         throw new McpException($"Prompt '{request.Params.Name}' not found.");
+    }
+
+    private static List<PromptMessage> BuildMessages(McpPrompt entry, IDictionary<string, JsonElement> arguments)
+    {
+        if (entry.Messages is not { Count: > 0 })
+        {
+            // Preserve backward compatibility for prompts authored before message bodies were supported.
+            return [];
+        }
+
+        var messages = new List<PromptMessage>(entry.Messages.Count);
+
+        foreach (var message in entry.Messages)
+        {
+            messages.Add(new PromptMessage
+            {
+                Role = ParseRole(message.Role),
+                Content = new TextContentBlock
+                {
+                    Text = Substitute(message.Content, arguments),
+                },
+            });
+        }
+
+        return messages;
+    }
+
+    private static Role ParseRole(string role)
+    {
+        // MCP prompt messages only support the user and assistant roles; default to user for anything else.
+        return string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase)
+            ? Role.Assistant
+            : Role.User;
+    }
+
+    private static string Substitute(string text, IDictionary<string, JsonElement> arguments)
+    {
+        if (string.IsNullOrEmpty(text) || arguments is not { Count: > 0 })
+        {
+            return text ?? string.Empty;
+        }
+
+        // Simple {{argName}} placeholder substitution. Placeholders without a matching
+        // argument are left untouched.
+        foreach (var argument in arguments)
+        {
+            text = text.Replace("{{" + argument.Key + "}}", ArgumentToString(argument.Value), StringComparison.Ordinal);
+        }
+
+        return text;
+    }
+
+    private static string ArgumentToString(JsonElement value)
+    {
+        return value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : value.ToString();
     }
 }

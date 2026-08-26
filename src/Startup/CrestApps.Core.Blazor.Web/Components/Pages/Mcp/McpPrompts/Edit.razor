@@ -59,6 +59,13 @@ else
                 <div class="form-text">Example: <code>[{{ "name": "topic", "description": "Topic to expand", "required": true }}]</code></div>
             </div>
 
+            <div class="mb-3">
+                <label class="form-label">Messages (JSON array)</label>
+                <InputTextArea @bind-Value="_model.Messages" class="form-control" rows="8" />
+                <div class="form-text">Each message has a <code>role</code> (<code>user</code> or <code>assistant</code>) and <code>content</code>. Use <code>{{{{argName}}}}</code> to reference arguments.</div>
+                <div class="form-text">Example: <code>[{{ "role": "user", "content": "Summarize {{{{topic}}}}" }}]</code></div>
+            </div>
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
                 <a href="/mcp/prompts" class="btn btn-secondary">Cancel</a>
@@ -69,6 +76,12 @@ else
 
 @code {
     private static readonly JsonSerializerOptions _indentedJsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions _messageJsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
 
     [Parameter]
     public string Id { get; set; }
@@ -97,6 +110,9 @@ else
             Arguments = prompt.Prompt?.Arguments is { Count: > 0 }
                 ? JsonSerializer.Serialize(prompt.Prompt.Arguments, _indentedJsonOptions)
                 : "[]",
+            Messages = prompt.Messages is { Count: > 0 }
+                ? JsonSerializer.Serialize(prompt.Messages, _messageJsonOptions)
+                : "[]",
         };
     }
 
@@ -115,13 +131,14 @@ else
         // Preserve the original name since it is readonly after creation.
         _model.Name = prompt.Name;
         var arguments = ParseArguments(_model);
+        var messages = ParseMessages(_model);
 
         if (_errors.Count > 0)
         {
             return;
         }
 
-        Apply(_model, prompt, arguments);
+        Apply(_model, prompt, arguments, messages);
         await Catalog.UpdateAsync(prompt);
         await StoreCommitter.CommitAsync();
         Navigation.NavigateTo("/mcp/prompts");
@@ -156,7 +173,40 @@ else
         }
     }
 
-    private static void Apply(McpPromptViewModel model, McpPrompt prompt, List<PromptArgument> arguments)
+    private List<McpPromptMessage> ParseMessages(McpPromptViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.Messages))
+        {
+            return [];
+        }
+
+        try
+        {
+            var messages = JsonSerializer.Deserialize<List<McpPromptMessage>>(model.Messages, _messageJsonOptions) ?? [];
+
+            for (var i = 0; i < messages.Count; i++)
+            {
+                if (!IsValidRole(messages[i].Role))
+                {
+                    _errors.Add($"Message {i + 1} must have a role of 'user' or 'assistant'.");
+                }
+            }
+
+            return messages.Where(m => !string.IsNullOrWhiteSpace(m.Content)).ToList();
+        }
+        catch (JsonException)
+        {
+            _errors.Add("Messages must be valid JSON.");
+
+            return [];
+        }
+    }
+
+    private static bool IsValidRole(string role)
+        => string.Equals(role, "user", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase);
+
+    private static void Apply(McpPromptViewModel model, McpPrompt prompt, List<PromptArgument> arguments, List<McpPromptMessage> messages)
     {
         var name = model.Name.Trim();
         prompt.Name = name;
@@ -167,5 +217,6 @@ else
             Description = model.Description?.Trim(),
             Arguments = arguments,
         };
+        prompt.Messages = messages;
     }
 }
