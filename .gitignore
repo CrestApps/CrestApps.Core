@@ -480,5 +480,3 @@ src/docs/node_modules/
 src/docs/build/
 src/docs/.docusaurus/
 src/docs/.cache-loader/
-
-src/Startup/CrestApps.Core.Mvc.Web/appsettings.json
