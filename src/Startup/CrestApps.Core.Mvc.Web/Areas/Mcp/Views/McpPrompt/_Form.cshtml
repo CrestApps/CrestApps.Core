@@ -43,6 +43,13 @@
             <span asp-validation-for="Arguments" class="text-danger"></span>
             <div class="form-text">Example: <code>[{ "name": "topic", "description": "Topic to expand", "required": true }]</code></div>
         </div>
+        <div class="mb-3">
+            <label asp-for="Messages" class="form-label">Messages (JSON array)</label>
+            <textarea asp-for="Messages" class="form-control" rows="8"></textarea>
+            <span asp-validation-for="Messages" class="text-danger"></span>
+            <div class="form-text">Each message has a <code>role</code> (<code>user</code> or <code>assistant</code>) and <code>content</code>. Use <code>{{argName}}</code> to reference arguments.</div>
+            <div class="form-text">Example: <code>[{ "role": "user", "content": "Summarize {{topic}}" }]</code></div>
+        </div>
         <div class="mt-4">
             <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
             <a asp-action="Index" class="btn btn-secondary">Cancel</a>
