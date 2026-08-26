@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Services;
 using CrestApps.Core.Services;
@@ -48,6 +49,79 @@ public sealed class DefaultMcpServerPromptServiceTests
         var prompts = await service.ListAsync();
 
         Assert.Equal(["prompt", "Prompt"], prompts.Select(prompt => prompt.Name));
+    }
+
+    [Fact]
+    public async Task GetAsync_CatalogPrompt_ReturnsMessagesWithArgumentSubstitutionAndRoles()
+    {
+        var prompt = CreateCatalogPrompt("catalog");
+        prompt.Messages =
+        [
+            new McpPromptMessage { Role = "user", Content = "Summarize {{topic}}" },
+            new McpPromptMessage { Role = "Assistant", Content = "Sure, about {{topic}}." },
+        ];
+
+        var service = CreateService([prompt], [], []);
+
+        var result = await service.GetAsync(CreateRequest("catalog", new Dictionary<string, JsonElement>
+        {
+            ["topic"] = JsonSerializer.SerializeToElement("cats"),
+        }), TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, result.Messages.Count);
+
+        Assert.Equal(Role.User, result.Messages[0].Role);
+        Assert.Equal("Summarize cats", Assert.IsType<TextContentBlock>(result.Messages[0].Content).Text);
+
+        Assert.Equal(Role.Assistant, result.Messages[1].Role);
+        Assert.Equal("Sure, about cats.", Assert.IsType<TextContentBlock>(result.Messages[1].Content).Text);
+    }
+
+    [Fact]
+    public async Task GetAsync_CatalogPrompt_LeavesUnmatchedPlaceholdersAndDefaultsUnknownRoleToUser()
+    {
+        var prompt = CreateCatalogPrompt("catalog");
+        prompt.Messages =
+        [
+            new McpPromptMessage { Role = "system", Content = "Hello {{missing}}" },
+        ];
+
+        var service = CreateService([prompt], [], []);
+
+        var result = await service.GetAsync(CreateRequest("catalog", arguments: null), TestContext.Current.CancellationToken);
+
+        var message = Assert.Single(result.Messages);
+        Assert.Equal(Role.User, message.Role);
+        Assert.Equal("Hello {{missing}}", Assert.IsType<TextContentBlock>(message.Content).Text);
+    }
+
+    [Fact]
+    public async Task GetAsync_CatalogPrompt_WithoutMessages_ReturnsEmptyMessages()
+    {
+        var prompt = CreateCatalogPrompt("catalog");
+        prompt.Messages = [];
+
+        var service = CreateService([prompt], [], []);
+
+        var result = await service.GetAsync(CreateRequest("catalog", arguments: null), TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Messages);
+    }
+
+    private static RequestContext<GetPromptRequestParams> CreateRequest(
+        string name,
+        IDictionary<string, JsonElement> arguments)
+    {
+        var server = new Mock<McpServer>().Object;
+
+        return new RequestContext<GetPromptRequestParams>(
+            server,
+            new JsonRpcRequest { Method = "prompts/get" },
+            new GetPromptRequestParams
+            {
+                Name = name,
+                Arguments = arguments,
+            });
     }
 
     private static DefaultMcpServerPromptService CreateService(
