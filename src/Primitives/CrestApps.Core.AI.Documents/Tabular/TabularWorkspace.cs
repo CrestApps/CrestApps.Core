@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using SQLitePCL;
 
 namespace CrestApps.Core.AI.Documents.Tabular;
 
@@ -20,6 +21,12 @@ internal sealed class TabularWorkspace : IDisposable
 {
     private const string MetadataTableName = "_workspace_meta";
     private const int ImportProgressIntervalRows = 250;
+
+    // SQLite SQLITE_DBCONFIG_DQS_* op codes. Used to re-enable the legacy double-quoted string
+    // literal fallback (for both DML and DDL statements) that Microsoft.Data.Sqlite disables by
+    // default.
+    private const int SqliteDbConfigDqsDml = 1013;
+    private const int SqliteDbConfigDqsDdl = 1014;
 
     private static readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -616,6 +623,7 @@ internal sealed class TabularWorkspace : IDisposable
 
         var connection = new SqliteConnection(connectionString);
         connection.Open();
+        EnableDoubleQuotedStringLiterals(connection);
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -631,6 +639,17 @@ internal sealed class TabularWorkspace : IDisposable
         EnsureMetadataTable(connection);
 
         return connection;
+    }
+
+    private static void EnableDoubleQuotedStringLiterals(SqliteConnection connection)
+    {
+        // Microsoft.Data.Sqlite disables SQLite's legacy double-quoted string literal fallback by
+        // default, so a value written with double quotes (for example "abc") is parsed as an
+        // identifier and fails with "no such column". Language models frequently emit double-quoted
+        // string literals, so the tolerant behavior is re-enabled for this sandboxed workspace so
+        // model-authored queries succeed instead of erroring on a purely syntactic quoting choice.
+        raw.sqlite3_db_config(connection.Handle, SqliteDbConfigDqsDml, 1, out _);
+        raw.sqlite3_db_config(connection.Handle, SqliteDbConfigDqsDdl, 1, out _);
     }
 
     private static void EnsureMetadataTable(SqliteConnection connection)

@@ -93,6 +93,25 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task QueryAsync_AllowsDoubleQuotedStringLiterals()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        // Models frequently quote string values with double quotes. Without the tolerant fallback
+        // SQLite treats "North" as an identifier and fails with "no such column"; the workspace
+        // re-enables the fallback so the value is parsed as a string literal instead.
+        var result = await workspace.QueryAsync(
+            "SELECT region, amount FROM sales WHERE region = \"North\" ORDER BY CAST(amount AS INTEGER)",
+            100,
+            cancellationToken);
+
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal("North", result.Rows[0][0]);
+    }
+
+    [Fact]
     public async Task QueryAsync_TruncatesToRowLimit()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
