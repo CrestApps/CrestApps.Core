@@ -418,7 +418,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             c.FrequencyPenalty = 0;
             c.PresencePenalty = 0;
             c.TopP = 1;
-            c.Temperature = 0;
+            c.Temperature = null;
             c.MaxTokens = 64;
             c.DataSourceId = null;
             c.DisableTools = true;

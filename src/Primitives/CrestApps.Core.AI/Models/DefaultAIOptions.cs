@@ -8,7 +8,7 @@ public sealed class DefaultAIOptions
     /// <summary>
     /// Gets or sets the temperature.
     /// </summary>
-    public float? Temperature { get; set; } = 0;
+    public float? Temperature { get; set; }
 
     /// <summary>
     /// Gets or sets the max Output Tokens.
