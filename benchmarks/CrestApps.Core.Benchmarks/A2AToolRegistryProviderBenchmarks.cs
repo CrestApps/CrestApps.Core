@@ -79,7 +79,13 @@ public class A2AToolRegistryProviderBenchmarks
             {
                 Name = $"Agent {connectionIndex}",
                 Description = $"Benchmark agent {connectionIndex}.",
-                Url = $"https://agent-{connectionIndex}.example",
+                SupportedInterfaces =
+                [
+                    new AgentInterface
+                    {
+                        Url = $"https://agent-{connectionIndex}.example",
+                    },
+                ],
                 Version = "1.0",
                 Skills = skills,
             }));

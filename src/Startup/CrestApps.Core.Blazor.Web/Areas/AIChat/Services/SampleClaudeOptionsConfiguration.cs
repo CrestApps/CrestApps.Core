@@ -9,6 +9,12 @@ internal sealed class SampleClaudeOptionsConfiguration : IConfigureOptions<Claud
 {
     private const string ProtectorPurpose = "CrestApps.Core.Blazor.Web.ClaudeSettings";
 
+    private static readonly Action<ILogger, Exception> _failedToUnprotectApiKey =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1001, nameof(FailedToUnprotectApiKey)),
+            "Failed to unprotect Anthropic API key.");
+
     private readonly SiteSettingsStore _siteSettings;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger<SampleClaudeOptionsConfiguration> _logger;
@@ -70,7 +76,12 @@ internal sealed class SampleClaudeOptionsConfiguration : IConfigureOptions<Claud
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to unprotect Anthropic API key.");
+            FailedToUnprotectApiKey(logger, ex);
         }
+    }
+
+    private static void FailedToUnprotectApiKey(ILogger logger, Exception exception)
+    {
+        _failedToUnprotectApiKey(logger, exception);
     }
 }

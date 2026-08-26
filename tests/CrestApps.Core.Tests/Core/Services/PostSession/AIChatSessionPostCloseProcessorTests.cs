@@ -1,3 +1,4 @@
+using CrestApps.Core;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Clients;
@@ -94,6 +95,68 @@ public sealed class AIChatSessionPostCloseProcessorTests
         Assert.True(queued);
         Assert.False(session.IsPostSessionTasksProcessed);
         Assert.Equal(PostSessionProcessingStatus.Pending, session.PostSessionProcessingStatus);
+    }
+
+    [Fact]
+    public void NeedsProcessing_WhenTerminallyFailedAtAttemptCap_ReturnsFalse()
+    {
+        var processor = CreateProcessor(DateTime.UtcNow);
+
+        var profile = CreateTaskProfile();
+
+        // Analytics is enabled but was never recorded for this session. Without the
+        // terminal guard NeedsProcessing would keep reporting outstanding analytics work
+        // forever, causing the close cycle to re-mark and re-log the session every pass.
+        profile.Put(new AnalyticsMetadata
+        {
+            EnableSessionMetrics = true,
+        });
+
+        var session = new AIChatSession
+        {
+            SessionId = "session-terminal",
+            PostSessionProcessingStatus = PostSessionProcessingStatus.Failed,
+            PostSessionProcessingAttempts = processor.MaxPostCloseAttempts,
+            IsAnalyticsRecorded = false,
+            IsConversionGoalsEvaluated = false,
+            PostSessionResults =
+            {
+                ["summary"] = new PostSessionResult
+                {
+                    Name = "summary",
+                    Status = PostSessionTaskResultStatus.Failed,
+                    Attempts = processor.MaxPostCloseAttempts,
+                    ProcessedAtUtc = new DateTime(2026, 5, 21, 15, 5, 47, DateTimeKind.Utc),
+                },
+            },
+        };
+
+        Assert.False(processor.NeedsProcessing(profile, session));
+    }
+
+    [Fact]
+    public void NeedsProcessing_WhenFailedButAttemptBudgetRemains_ReturnsTrue()
+    {
+        var processor = CreateProcessor(DateTime.UtcNow);
+
+        var profile = CreateTaskProfile();
+        var session = new AIChatSession
+        {
+            SessionId = "session-legacy",
+            PostSessionProcessingStatus = PostSessionProcessingStatus.Failed,
+            PostSessionProcessingAttempts = 0,
+            PostSessionResults =
+            {
+                ["summary"] = new PostSessionResult
+                {
+                    Name = "summary",
+                    Status = PostSessionTaskResultStatus.Failed,
+                    Attempts = 3,
+                },
+            },
+        };
+
+        Assert.True(processor.NeedsProcessing(profile, session));
     }
 
     [Fact]

@@ -5,6 +5,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient(A2AClientFactory.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AllowAutoRedirect = false,
+    });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<A2AClientFactory>();
 builder.Services.AddSingleton(sp => new SampleServerSelectionService(

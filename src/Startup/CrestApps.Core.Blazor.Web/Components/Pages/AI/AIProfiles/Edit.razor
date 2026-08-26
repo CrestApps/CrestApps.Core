@@ -1214,7 +1214,7 @@ else if (_model != null)
 
         if (_pendingFiles.Count > 0)
         {
-            using var formFiles = await BrowserFileFormFileCollection.CreateAsync(_pendingFiles);
+            using var formFiles = await BrowserFileFormFiles.CreateAsync(_pendingFiles);
 
             if (formFiles.Files.Count > 0)
             {
