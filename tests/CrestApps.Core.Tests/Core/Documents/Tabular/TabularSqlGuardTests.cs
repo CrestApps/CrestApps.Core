@@ -33,6 +33,25 @@ public class TabularSqlGuardTests
         Assert.Throws<TabularSqlException>(() => TabularSqlGuard.EnsureReadOnlyQuery(sql));
     }
 
+    [Fact]
+    public void EnsureReadOnlyQuery_AllowsSemicolonInsideStringLiteral()
+    {
+        // A semicolon inside a quoted value is part of one statement, not statement batching.
+        var normalized = TabularSqlGuard.EnsureReadOnlyQuery("SELECT * FROM sales WHERE note = 'a;b;c'");
+
+        Assert.Contains("'a;b;c'", normalized);
+    }
+
+    [Theory]
+    [InlineData("-- pick everything\nSELECT * FROM sales")]
+    [InlineData("/* leading comment */ SELECT * FROM sales")]
+    public void EnsureReadOnlyQuery_AllowsLeadingComment(string sql)
+    {
+        var normalized = TabularSqlGuard.EnsureReadOnlyQuery(sql);
+
+        Assert.StartsWith("SELECT", normalized, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("SELECT * FROM sales; ATTACH DATABASE 'x' AS y")]
     [InlineData("ATTACH DATABASE 'x' AS y")]

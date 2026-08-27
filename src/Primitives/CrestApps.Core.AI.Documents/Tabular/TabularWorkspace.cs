@@ -114,7 +114,18 @@ internal sealed class TabularWorkspace : IDisposable
                 LoadMetadataFromDatabase();
             }
 
-            await SynchronizeTablesAsync(documents, artifactLoader, workspaceImporter, cancellationToken);
+            // Building tables writes to the database, so open a write window for the duration of the
+            // synchronization and close it again afterward.
+            SetWritable(_connection, true);
+
+            try
+            {
+                await SynchronizeTablesAsync(documents, artifactLoader, workspaceImporter, cancellationToken);
+            }
+            finally
+            {
+                SetWritable(_connection, false);
+            }
 
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -248,33 +259,44 @@ internal sealed class TabularWorkspace : IDisposable
         {
             EnsureLoaded();
 
-            var affected = 0;
-
-            using var transaction = _connection.BeginTransaction();
+            // Manipulation statements write, so open a write window for the batch and close it again
+            // once the transaction has committed or rolled back.
+            SetWritable(_connection, true);
 
             try
             {
-                foreach (var statement in statements)
-                {
-                    using var command = _connection.CreateCommand();
-                    command.Transaction = transaction;
-                    command.CommandText = statement;
-                    command.CommandTimeout = _options.CommandTimeoutSeconds;
+                var affected = 0;
 
-                    affected += await command.ExecuteNonQueryAsync(cancellationToken);
+                using var transaction = _connection.BeginTransaction();
+
+                try
+                {
+                    foreach (var statement in statements)
+                    {
+                        using var command = _connection.CreateCommand();
+                        command.Transaction = transaction;
+                        command.CommandText = statement;
+                        command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                        affected += await command.ExecuteNonQueryAsync(cancellationToken);
+                    }
+
+                    await transaction.CommitAsync(cancellationToken);
+                    Interlocked.Increment(ref _mutationVersion);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+
+                    throw;
                 }
 
-                await transaction.CommitAsync(cancellationToken);
-                Interlocked.Increment(ref _mutationVersion);
+                return new TabularCommandResult(affected, statements.Count);
             }
-            catch
+            finally
             {
-                await transaction.RollbackAsync(cancellationToken);
-
-                throw;
+                SetWritable(_connection, false);
             }
-
-            return new TabularCommandResult(affected, statements.Count);
         }
         finally
         {
@@ -526,6 +548,28 @@ internal sealed class TabularWorkspace : IDisposable
         }
     }
 
+    /// <summary>
+    /// Toggles SQLite's connection-level <c>query_only</c> flag. The workspace keeps the connection
+    /// read-only by default so the database engine itself rejects any write, and only the table-build
+    /// and manipulation paths open a narrow write window. This is defense in depth beyond the SQL text
+    /// validation in <see cref="TabularSqlGuard"/>: a write that slipped past the parser on a read path
+    /// still cannot modify data, because the engine refuses it. Every workspace operation runs under
+    /// <see cref="_gate"/>, so this flag is never observed by a concurrent operation.
+    /// </summary>
+    /// <param name="connection">The connection to toggle.</param>
+    /// <param name="writable">When <see langword="true"/>, writes are allowed; otherwise they are blocked.</param>
+    private static void SetWritable(SqliteConnection connection, bool writable)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = writable ? "PRAGMA query_only = OFF" : "PRAGMA query_only = ON";
+        command.ExecuteNonQuery();
+    }
+
     private async Task SynchronizeTablesAsync(
         IReadOnlyList<TabularDocumentRef> documents,
         Func<TabularDocumentRef, CancellationToken, Task<TabularDocumentArtifact>> artifactLoader,
@@ -691,6 +735,10 @@ internal sealed class TabularWorkspace : IDisposable
         walCommand.ExecuteNonQuery();
 
         EnsureMetadataTable(connection);
+
+        // Keep the connection read-only by default. Writes are only enabled inside the narrow windows
+        // opened by the table-build and manipulation paths, so a write can never run on a read path.
+        SetWritable(connection, false);
 
         return connection;
     }

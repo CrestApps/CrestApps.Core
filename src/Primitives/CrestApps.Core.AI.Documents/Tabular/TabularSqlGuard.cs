@@ -23,7 +23,28 @@ internal static partial class TabularSqlGuard
     /// <returns>The normalized single-statement SQL.</returns>
     public static string EnsureReadOnlyQuery(string sql)
     {
-        var statement = Normalize(sql);
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            throw new TabularSqlException("No SQL statement was provided.");
+        }
+
+        // Split using the quote- and comment-aware scanner so a semicolon inside a string literal or a
+        // comment is not mistaken for statement batching, and require exactly one statement.
+        var statements = SplitStatements(sql);
+
+        if (statements.Count == 0)
+        {
+            throw new TabularSqlException("No SQL statement was provided.");
+        }
+
+        if (statements.Count > 1)
+        {
+            throw new TabularSqlException("Only a single SQL statement is allowed per call.");
+        }
+
+        var statement = statements[0];
+
+        EnsureNoForbiddenKeyword(statement);
 
         if (!StartsWithAny(statement, _readOnlyPrefixes))
         {
