@@ -18,6 +18,7 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
 {
     private const string SecurityPreambleTemplateId = "security-preamble";
     private const string InputDelimiterTemplateId = "input-delimiter-instructions";
+    private const string ChatInteractionInputDelimiterTemplateId = "input-delimiter-boundaries";
     private const string UserInputBeginDelimiter = "<|user_input_begin|>";
     private const string UserInputEndDelimiter = "<|user_input_end|>";
     private static readonly string _systemMessageSeparator = string.Concat(Environment.NewLine, Environment.NewLine);
@@ -56,7 +57,11 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
     /// After the context is fully built, prepends the security preamble to the system message
     /// so it appears as the authoritative first instruction to the model, and wraps the user
     /// message with boundary delimiters to establish clear input boundaries.
-    /// Security is only applied to AI Profile-based chats; Chat Interactions are excluded.
+    /// The security preamble (and the injection blocking wired elsewhere) applies to AI Profile-based
+    /// chats only, because those can be exposed externally. Chat Interactions give the operator full
+    /// control (system prompt, model, tools), so they are not hardened against their own user; they
+    /// still receive input delimiters when enabled, because clear boundaries keep the model from
+    /// confusing the user's message with system, tool, or agent content.
     /// </summary>
     /// <param name="context">The built context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -67,10 +72,11 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
             return;
         }
 
-        // Only apply security to AI Profile-based chats.
-        // Chat Interactions give the user full control (system prompt, model, MCP)
-        // so the security layer is not applicable.
-        if (context.Resource is not AIProfile)
+        var isProfile = context.Resource is AIProfile;
+        var isChatInteraction = context.Resource is ChatInteraction;
+
+        // Only AI Profiles and Chat Interactions participate; any other resource type is left untouched.
+        if (!isProfile && !isChatInteraction)
         {
             return;
         }
@@ -78,8 +84,9 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
         // Security guards are governed globally by the site-level options.
         var siteOptions = _options.Value;
 
-        // Prepend the security preamble to the system message.
-        if (siteOptions.EnableSecurityPreamble)
+        // Prepend the security preamble to the system message. This is a defense measure, so it is
+        // limited to AI Profiles, which can be exposed to external users.
+        if (isProfile && siteOptions.EnableSecurityPreamble)
         {
             var preamble = await _templateService.RenderAsync(SecurityPreambleTemplateId, cancellationToken: cancellationToken);
 
@@ -108,8 +115,13 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
             }
         }
 
-        // Wrap user message with delimiters to establish clear input boundaries.
-        if (siteOptions.EnableInputDelimiters && !string.IsNullOrEmpty(context.OrchestrationContext.UserMessage))
+        // Wrap the user message with delimiters to establish clear input boundaries. AI Profiles use
+        // the hardened untrusted-input instruction; Chat Interactions use a boundary-only instruction
+        // governed by their own toggle, because for them delimiters are a clarity aid, not a defense.
+        var applyDelimiters = (isProfile && siteOptions.EnableInputDelimiters) ||
+            (isChatInteraction && siteOptions.EnableChatInteractionInputDelimiters);
+
+        if (applyDelimiters && !string.IsNullOrEmpty(context.OrchestrationContext.UserMessage))
         {
             // Sanitize user input by removing any injected delimiter tokens.
             var sanitizedMessage = context.OrchestrationContext.UserMessage
@@ -118,9 +130,13 @@ internal sealed class SecurityPromptOrchestrationHandler : IOrchestrationContext
 
             context.OrchestrationContext.UserMessage = $"{UserInputBeginDelimiter}\n{sanitizedMessage}\n{UserInputEndDelimiter}";
 
+            var delimiterTemplateId = isProfile
+                ? InputDelimiterTemplateId
+                : ChatInteractionInputDelimiterTemplateId;
+
             // Render the delimiter instruction template so the model knows how to interpret them.
             var delimiterInstruction = await _templateService.RenderAsync(
-                InputDelimiterTemplateId,
+                delimiterTemplateId,
                 new Dictionary<string, object>
                 {
                     ["begin_delimiter"] = UserInputBeginDelimiter,

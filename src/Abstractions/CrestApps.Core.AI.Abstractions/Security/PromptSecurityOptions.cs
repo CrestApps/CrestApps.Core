@@ -34,6 +34,15 @@ public sealed class PromptSecurityOptions
     public bool EnableInputDelimiters { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether user messages in Chat Interactions are wrapped with
+    /// boundary delimiters. Chat Interactions do not receive the security preamble or injection
+    /// blocking (the operator controls the prompt, model, and tools), but clear input boundaries still
+    /// help the model avoid confusing the user's message with system, tool, or agent content — which
+    /// matters most when many agents and tools are involved.
+    /// </summary>
+    public bool EnableChatInteractionInputDelimiters { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether security audit logging is enabled.
     /// </summary>
     public bool EnableAuditLogging { get; set; } = true;
