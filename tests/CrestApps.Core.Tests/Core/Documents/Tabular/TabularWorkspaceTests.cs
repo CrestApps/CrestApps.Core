@@ -149,19 +149,19 @@ public class TabularWorkspaceTests
         var tables = await workspace.EnsureReadyAsync(
             Documents(),
             (_, _) => throw new Xunit.Sdk.XunitException("Artifact loader should not run when direct importer succeeds."),
-            (document, connection, tableNameAllocator, _) =>
+            (document, connection, tableName, token) =>
             {
-                var tableName = tableNameAllocator(null, true);
+                var resolvedTableName = tableName(null, true);
                 var columns = TabularWorkspaceSqliteHelpers.BuildColumns(["region", "amount"]);
-                TabularWorkspaceSqliteHelpers.CreateTable(connection, tableName, columns);
+                TabularWorkspaceSqliteHelpers.CreateTable(connection, resolvedTableName, columns);
 
                 using var command = connection.CreateCommand();
-                command.CommandText = $"INSERT INTO {TabularWorkspaceSqliteHelpers.QuoteIdentifier(tableName)} (\"region\", \"amount\") VALUES ('North', '100'), ('South', '200')";
+                command.CommandText = $"INSERT INTO {TabularWorkspaceSqliteHelpers.QuoteIdentifier(resolvedTableName)} (\"region\", \"amount\") VALUES ('North', '100'), ('South', '200')";
                 command.ExecuteNonQuery();
 
                 IReadOnlyList<TabularWorkspaceImportResult> results =
                 [
-                    new TabularWorkspaceImportResult(tableName, null, columns, 2, 1, 1),
+                    new TabularWorkspaceImportResult(resolvedTableName, null, columns, 2, 1, 1),
                 ];
 
                 return Task.FromResult(results);
@@ -210,11 +210,11 @@ public class TabularWorkspaceTests
 
         var tables = await workspace.EnsureReadyAsync(
             documents,
-            (_, _) => Task.FromResult(artifact),
+            (document, token) => Task.FromResult(artifact),
             null,
             cancellationToken);
 
-        // Test 5 — the workspace exposes one table per worksheet and preserves the worksheet names.
+        // The workspace exposes one table per worksheet and preserves the worksheet names.
         Assert.Equal(2, tables.Count);
         Assert.Equal(
             ["Client Breakdown", "Overall Projections"],
@@ -224,7 +224,7 @@ public class TabularWorkspaceTests
         var projectionsTable = tables.Single(t => t.WorksheetName == "Overall Projections");
         Assert.NotEqual(clientTable.TableName, projectionsTable.TableName);
 
-        // Test 4 — each worksheet keeps its own data; nothing is merged across worksheets.
+        // Each worksheet keeps its own data; nothing is merged across worksheets.
         var clientRows = await workspace.QueryAsync(
             $"SELECT * FROM \"{clientTable.TableName}\"",
             100,

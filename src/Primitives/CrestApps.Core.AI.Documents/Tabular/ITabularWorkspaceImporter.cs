@@ -17,7 +17,7 @@ public interface ITabularWorkspaceImporter
     /// <param name="fileName">The original file name.</param>
     /// <param name="contentType">The source content type.</param>
     /// <param name="connection">The SQLite connection that owns the workspace.</param>
-    /// <param name="tableNameAllocator">Allocates a unique table name for each imported worksheet.</param>
+    /// <param name="tableName">Allocates a unique table name for each imported worksheet.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>
     /// The import results, one per created table, or <see langword="null"/> when the importer cannot
@@ -28,6 +28,6 @@ public interface ITabularWorkspaceImporter
         string fileName,
         string contentType,
         SqliteConnection connection,
-        TabularTableNameAllocator tableNameAllocator,
+        TabularTableNameAllocator tableName,
         CancellationToken cancellationToken = default);
 }

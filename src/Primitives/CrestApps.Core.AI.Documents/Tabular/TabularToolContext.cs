@@ -124,12 +124,12 @@ internal sealed class TabularToolContext
     public async Task<IReadOnlyList<TabularWorkspaceImportResult>> ImportToWorkspaceAsync(
         TabularDocumentRef document,
         SqliteConnection connection,
-        TabularTableNameAllocator tableNameAllocator,
+        TabularTableNameAllocator tableName,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(tableNameAllocator);
+        ArgumentNullException.ThrowIfNull(tableName);
 
         var storedDocument = await _documentStore.FindByIdAsync(document.DocumentId, cancellationToken);
 
@@ -141,7 +141,7 @@ internal sealed class TabularToolContext
         return await _artifactFactory.ImportToWorkspaceAsync(
             storedDocument,
             connection,
-            tableNameAllocator,
+            tableName,
             cancellationToken);
     }
 

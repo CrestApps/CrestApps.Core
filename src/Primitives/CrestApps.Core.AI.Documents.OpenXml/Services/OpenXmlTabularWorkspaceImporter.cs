@@ -31,7 +31,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
     /// <param name="fileName">The source file name.</param>
     /// <param name="contentType">The source content type.</param>
     /// <param name="connection">The SQLite workspace connection.</param>
-    /// <param name="tableNameAllocator">Allocates a unique table name for each imported worksheet.</param>
+    /// <param name="tableName">Allocates a unique table name for each imported worksheet.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The import results, one per created table.</returns>
     public Task<IReadOnlyList<TabularWorkspaceImportResult>> ImportAsync(
@@ -39,12 +39,12 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         string fileName,
         string contentType,
         SqliteConnection connection,
-        TabularTableNameAllocator tableNameAllocator,
+        TabularTableNameAllocator tableName,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(tableNameAllocator);
+        ArgumentNullException.ThrowIfNull(tableName);
 
         if (source.CanSeek)
         {
@@ -59,7 +59,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
 
         if (workbookPart == null)
         {
-            var placeholderName = tableNameAllocator(null, true);
+            var placeholderName = tableName(null, true);
             TabularWorkspaceSqliteHelpers.CreateEmptyPlaceholderTable(connection, placeholderName);
             results.Add(new TabularWorkspaceImportResult(
                 placeholderName,
@@ -88,7 +88,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         // storage types, so the leading rows are buffered and written once the table exists.
         void CreateTableAndFlushSampleRows()
         {
-            currentTableName = tableNameAllocator(worksheetName, singleWorksheet);
+            currentTableName = tableName(worksheetName, singleWorksheet);
             columns = TabularWorkspaceSqliteHelpers.BuildColumns(header, sampleRows);
             TabularWorkspaceSqliteHelpers.CreateTable(connection, currentTableName, columns);
             transaction = connection.BeginTransaction();
@@ -179,7 +179,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
 
             if (results.Count == 0)
             {
-                var placeholderName = tableNameAllocator(null, true);
+                var placeholderName = tableName(null, true);
                 TabularWorkspaceSqliteHelpers.CreateEmptyPlaceholderTable(connection, placeholderName);
                 results.Add(new TabularWorkspaceImportResult(
                     placeholderName,

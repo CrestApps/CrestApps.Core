@@ -65,32 +65,31 @@ internal static class OpenXmlTabularWorksheetReader
             onWorksheetStart(worksheetName);
             var sheetRowCount = 0;
 
-            using (var stream = worksheetPart.GetStream(FileMode.Open, FileAccess.Read))
-            using (var reader = XmlReader.Create(stream, _xmlReaderSettings))
+            using var stream = worksheetPart.GetStream(FileMode.Open, FileAccess.Read);
+            using var reader = XmlReader.Create(stream, _xmlReaderSettings);
+
+            while (!reader.EOF)
             {
-                while (!reader.EOF)
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (reader.NodeType != XmlNodeType.Element ||
+                    !string.Equals(reader.LocalName, "row", StringComparison.Ordinal))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    reader.Read();
 
-                    if (reader.NodeType != XmlNodeType.Element ||
-                        !string.Equals(reader.LocalName, "row", StringComparison.Ordinal))
-                    {
-                        reader.Read();
-
-                        continue;
-                    }
-
-                    var row = ReadRow(reader, sharedStrings, expectedColumnCount, out var hasValue);
-
-                    if (!hasValue)
-                    {
-                        continue;
-                    }
-
-                    expectedColumnCount = Math.Max(expectedColumnCount, row.Count);
-                    onRow(row);
-                    sheetRowCount++;
+                    continue;
                 }
+
+                var row = ReadRow(reader, sharedStrings, expectedColumnCount, out var hasValue);
+
+                if (!hasValue)
+                {
+                    continue;
+                }
+
+                expectedColumnCount = Math.Max(expectedColumnCount, row.Count);
+                onRow(row);
+                sheetRowCount++;
             }
 
             onWorksheetEnd();
@@ -156,11 +155,16 @@ internal static class OpenXmlTabularWorksheetReader
         var rowDepth = reader.Depth;
         reader.Read();
 
-        while (!reader.EOF &&
-            !(reader.NodeType == XmlNodeType.EndElement &&
-                reader.Depth == rowDepth &&
-                string.Equals(reader.LocalName, "row", StringComparison.Ordinal)))
+        while (true)
         {
+            if (reader.EOF ||
+                (reader.NodeType == XmlNodeType.EndElement &&
+                    reader.Depth == rowDepth &&
+                    string.Equals(reader.LocalName, "row", StringComparison.Ordinal)))
+            {
+                break;
+            }
+
             if (reader.NodeType != XmlNodeType.Element ||
                 !string.Equals(reader.LocalName, "c", StringComparison.Ordinal))
             {

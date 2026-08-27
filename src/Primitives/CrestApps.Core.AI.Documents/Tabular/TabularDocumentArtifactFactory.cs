@@ -97,12 +97,12 @@ internal sealed class TabularDocumentArtifactFactory
     public async Task<IReadOnlyList<TabularWorkspaceImportResult>> ImportToWorkspaceAsync(
         AIDocument document,
         SqliteConnection connection,
-        TabularTableNameAllocator tableNameAllocator,
+        TabularTableNameAllocator tableName,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(tableNameAllocator);
+        ArgumentNullException.ThrowIfNull(tableName);
 
         if (string.IsNullOrWhiteSpace(document.StoredFilePath))
         {
@@ -139,7 +139,7 @@ internal sealed class TabularDocumentArtifactFactory
             document.FileName,
             document.ContentType,
             connection,
-            tableNameAllocator,
+            tableName,
             cancellationToken);
 
         if (_logger.IsEnabled(LogLevel.Debug) && result != null)

@@ -82,11 +82,15 @@ public class OpenXmlTabularDocumentArtifactBuilderCapacityBenchmarks
             : new List<List<string>>(initialRowCapacity);
         var headerAssigned = false;
 
+        static void OnWorksheetEnd()
+        {
+        }
+
         OpenXmlTabularWorksheetReader.ReadWorksheets(
             workbookPart,
             "benchmark.xlsx",
             NullLogger.Instance,
-            _ =>
+            name =>
             {
                 headerAssigned = false;
             },
@@ -94,7 +98,7 @@ public class OpenXmlTabularDocumentArtifactBuilderCapacityBenchmarks
             {
                 if (!headerAssigned)
                 {
-                    header ??= row;
+                    header = row;
                     headerAssigned = true;
 
                     return;
@@ -102,7 +106,7 @@ public class OpenXmlTabularDocumentArtifactBuilderCapacityBenchmarks
 
                 rows.Add(row);
             },
-            () => { },
+            OnWorksheetEnd,
             CancellationToken.None);
 
         return header == null

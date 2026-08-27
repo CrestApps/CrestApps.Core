@@ -156,7 +156,7 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             TestContext.Current.CancellationToken);
 
-        // Test 1 — both worksheets are discovered independently and in workbook order.
+        // Both worksheets are discovered independently and in workbook order.
         Assert.Equal(
             ["Client Breakdown", "Overall Projections"],
             artifact.Worksheets.Select(worksheet => worksheet.Name));
@@ -164,21 +164,21 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
         var clientBreakdown = artifact.Worksheets[0];
         var overallProjections = artifact.Worksheets[1];
 
-        // Test 2 — the first worksheet uses its real header row, not a data row.
+        // The first worksheet uses its real header row, not a data row.
         Assert.Equal(["Site", "Campaign", "Total Revenue"], clientBreakdown.Header);
         Assert.Collection(
             clientBreakdown.Rows,
             row => Assert.Equal(["Henderson", "Spring", "100"], row));
 
-        // Test 3 — the second worksheet skips its blank leading row and uses the real header row,
-        // never the numeric data row.
+        // The second worksheet skips its blank leading row and uses the real header row, never the
+        // numeric data row.
         Assert.Equal(["Site Location", "Q1", "Q2", "Total"], overallProjections.Header);
         Assert.DoesNotContain("1420000", overallProjections.Header);
         Assert.Collection(
             overallProjections.Rows,
             row => Assert.Equal(["Henderson", "1063541.42", "1422826.53", "1420000"], row));
 
-        // Test 4 — data from one worksheet is not merged into the other.
+        // Data from one worksheet is not merged into the other.
         Assert.DoesNotContain(
             clientBreakdown.Rows,
             row => row.Contains("1420000"));
@@ -295,7 +295,7 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
             "test.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             connection,
-            (_, _) => "data",
+            (worksheetName, singleWorksheet) => "data",
             TestContext.Current.CancellationToken);
 
         return (connection, Assert.Single(results));

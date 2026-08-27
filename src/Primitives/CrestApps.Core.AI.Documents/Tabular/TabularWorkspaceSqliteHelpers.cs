@@ -148,12 +148,7 @@ public static class TabularWorkspaceSqliteHelpers
     // CREATE TABLE statement. Only the inferred storage types are allowed through.
     private static string ResolveStorageType(string declaredType)
     {
-        return declaredType switch
-        {
-            "INTEGER" => "INTEGER",
-            "REAL" => "REAL",
-            _ => "TEXT",
-        };
+        return declaredType is "INTEGER" or "REAL" ? declaredType : "TEXT";
     }
 
     private static string[] InferDeclaredTypes(int columnCount, IEnumerable<IReadOnlyList<string>> sampleRows)
