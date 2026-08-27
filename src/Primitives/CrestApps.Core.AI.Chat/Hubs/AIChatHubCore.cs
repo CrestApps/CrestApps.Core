@@ -707,6 +707,25 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             try
             {
+                // Authorize the caller against the target session's profile before dispatching.
+                // Notification action handlers mutate the session by id (e.g. end/close, reroute),
+                // so without this check any caller able to reach the hub could act on an arbitrary
+                // session id. This mirrors the per-profile authorization the other hub methods use.
+                var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+                var profileManager = services.GetRequiredService<IAIProfileManager>();
+
+                var chatSession = await sessionManager.FindAsync(sessionId);
+                if (chatSession is null)
+                {
+                    return;
+                }
+
+                var profile = await profileManager.FindByIdAsync(chatSession.ProfileId);
+                if (profile is null || !await AuthorizeProfileAsync(services, profile))
+                {
+                    return;
+                }
+
                 var handler = services.GetKeyedService<IChatNotificationActionHandler>(actionName);
                 if (handler is null)
                 {
