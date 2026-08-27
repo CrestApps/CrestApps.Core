@@ -25,7 +25,7 @@ public sealed class QueryTabularDataTool : AIFunction
       "properties": {
         "sql": {
           "type": "string",
-          "description": "A single read-only SQL query (SELECT or WITH ... SELECT) in SQLite dialect, referencing the tables returned by list_tabular_data."
+          "description": "A single read-only SQL query (SELECT or WITH ... SELECT) in SQLite dialect, referencing the tables returned by list_tabular_data. Use single quotes for string values (for example WHERE name = 'abc'); double quotes are only for column or table names."
         },
         "max_rows": {
           "type": "integer",

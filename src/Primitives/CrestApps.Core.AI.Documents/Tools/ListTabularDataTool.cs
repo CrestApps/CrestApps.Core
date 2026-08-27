@@ -84,7 +84,7 @@ public sealed class ListTabularDataTool : AIFunction
         builder.Append("This conversation has ");
         builder.Append(tables.Count);
         builder.AppendLine(tables.Count == 1 ? " tabular table you can query with SQL (SQLite dialect)." : " tabular tables you can query with SQL (SQLite dialect).");
-        builder.AppendLine("All values are stored as TEXT; CAST when you need numeric or date operations.");
+        builder.AppendLine("Each column lists its SQLite storage type; CAST when you need date operations.");
         builder.AppendLine();
 
         foreach (var table in tables)
@@ -97,6 +97,13 @@ public sealed class ListTabularDataTool : AIFunction
             {
                 builder.Append(" (from \"");
                 builder.Append(table.SourceFileName);
+
+                if (!string.IsNullOrEmpty(table.WorksheetName))
+                {
+                    builder.Append("\", worksheet \"");
+                    builder.Append(table.WorksheetName);
+                }
+
                 builder.Append("\")");
             }
 
@@ -132,9 +139,9 @@ public sealed class ListTabularDataTool : AIFunction
         if (string.IsNullOrWhiteSpace(column.SourceName) ||
             string.Equals(column.Name, column.SourceName, StringComparison.OrdinalIgnoreCase))
         {
-            return column.Name;
+            return $"{column.Name} {column.DeclaredType}";
         }
 
-        return $"{column.Name} (source header: {column.SourceName})";
+        return $"{column.Name} {column.DeclaredType} (source header: {column.SourceName})";
     }
 }

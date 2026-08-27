@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Tabular;
+using Microsoft.Data.Sqlite;
 
 namespace CrestApps.Core.Tests.Core.Documents.Tabular;
 
@@ -22,6 +23,145 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task EnsureReadyAsync_InfersColumnStorageTypes()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
+        Assert.Equal("TEXT", columns.Single(c => c.Name == "region").DeclaredType);
+        Assert.Equal("INTEGER", columns.Single(c => c.Name == "amount").DeclaredType);
+    }
+
+    [Fact]
+    public async Task QueryAsync_NumericColumn_OrdersNumerically()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        var result = await workspace.QueryAsync("SELECT amount FROM sales ORDER BY amount DESC", 100, cancellationToken);
+
+        Assert.Equal([200L, 100L, 50L], result.Rows.Select(row => row[0]));
+    }
+
+    [Fact]
+    public async Task QueryAsync_NumericColumn_ComparesNumerically()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        var result = await workspace.QueryAsync("SELECT COUNT(*) FROM sales WHERE amount > 100", 100, cancellationToken);
+
+        Assert.Equal(1L, Assert.Single(result.Rows)[0]);
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_LeadingZeroValues_RemainText()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "code,label\n007,north\n0098,south";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
+        Assert.Equal("TEXT", columns.Single(c => c.Name == "code").DeclaredType);
+
+        var result = await workspace.QueryAsync("SELECT code FROM sales ORDER BY label", 100, cancellationToken);
+        Assert.Equal("007", result.Rows[0][0]);
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_ColumnWithNonNumericValue_RemainsText()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "rate,label\n35.1,north\n#DIV/0!,south";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
+        Assert.Equal("TEXT", columns.Single(c => c.Name == "rate").DeclaredType);
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_BlankNumericCell_StoresNull()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "region,amount\nNorth,100\nSouth,\nEast,50";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
+        Assert.Equal("INTEGER", columns.Single(c => c.Name == "amount").DeclaredType);
+
+        var result = await workspace.QueryAsync("SELECT COUNT(*) FROM sales WHERE amount IS NULL", 100, cancellationToken);
+        Assert.Equal(1L, Assert.Single(result.Rows)[0]);
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_DecimalColumn_UsesRealStorageType()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "region,amount\nNorth,1878165.335\nSouth,97534.0224";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
+        Assert.Equal("REAL", columns.Single(c => c.Name == "amount").DeclaredType);
+
+        var result = await workspace.QueryAsync("SELECT region FROM sales ORDER BY amount DESC", 100, cancellationToken);
+        Assert.Equal("North", result.Rows[0][0]);
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_SubtotalRows_AreFlaggedAndExcludableFromAggregates()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "region,amount\nNorth,100\nSouth,200\nTotal,300";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
+        Assert.Contains(columns, c => c.Name == "is_subtotal");
+
+        var flagged = await workspace.QueryAsync("SELECT COUNT(*) FROM sales WHERE is_subtotal = 1", 100, cancellationToken);
+        Assert.Equal(1L, Assert.Single(flagged.Rows)[0]);
+
+        // The Total rollup row (300) must not inflate the sum of the two real rows (100 + 200).
+        var sum = await workspace.QueryAsync("SELECT SUM(amount) FROM sales WHERE is_subtotal = 0", 100, cancellationToken);
+        Assert.Equal(300L, Assert.Single(sum.Rows)[0]);
+    }
+
+    /// <summary>
+    /// The declared type cannot be quoted like an identifier, so it is emitted verbatim into the
+    /// CREATE TABLE statement. Only the inferred storage types may reach the statement.
+    /// </summary>
+    [Fact]
+    public void CreateTable_UnrecognizedDeclaredType_FallsBackToText()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        TabularWorkspaceSqliteHelpers.CreateTable(
+            connection,
+            "sales",
+            [new TabularColumnInfo("amount", "TEXT); DROP TABLE \"sales\";--")]);
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT type FROM pragma_table_info('sales') WHERE name = 'amount'";
+
+        Assert.Equal("TEXT", command.ExecuteScalar());
+    }
+
+    [Fact]
     public async Task EnsureReadyAsync_DirectImporter_BypassesArtifactLoader()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -29,16 +169,22 @@ public class TabularWorkspaceTests
         var tables = await workspace.EnsureReadyAsync(
             Documents(),
             (_, _) => throw new Xunit.Sdk.XunitException("Artifact loader should not run when direct importer succeeds."),
-            (document, connection, tableName, _) =>
+            (document, connection, tableName, token) =>
             {
+                var resolvedTableName = tableName(null, true);
                 var columns = TabularWorkspaceSqliteHelpers.BuildColumns(["region", "amount"]);
-                TabularWorkspaceSqliteHelpers.CreateTable(connection, tableName, columns);
+                TabularWorkspaceSqliteHelpers.CreateTable(connection, resolvedTableName, columns);
 
                 using var command = connection.CreateCommand();
-                command.CommandText = $"INSERT INTO {TabularWorkspaceSqliteHelpers.QuoteIdentifier(tableName)} (\"region\", \"amount\") VALUES ('North', '100'), ('South', '200')";
+                command.CommandText = $"INSERT INTO {TabularWorkspaceSqliteHelpers.QuoteIdentifier(resolvedTableName)} (\"region\", \"amount\") VALUES ('North', '100'), ('South', '200')";
                 command.ExecuteNonQuery();
 
-                return Task.FromResult(new TabularWorkspaceImportResult(columns, 2, 1, 1));
+                IReadOnlyList<TabularWorkspaceImportResult> results =
+                [
+                    new TabularWorkspaceImportResult(resolvedTableName, null, columns, 2, 1, 1),
+                ];
+
+                return Task.FromResult(results);
             },
             cancellationToken);
 
@@ -49,6 +195,70 @@ public class TabularWorkspaceTests
         Assert.Equal(2, result.Rows.Count);
         Assert.Equal("North", result.Rows[0][0]);
         Assert.Equal("100", result.Rows[0][1]);
+    }
+
+    /// <summary>
+    /// Verifies that a multi-worksheet artifact produces one independent table per worksheet, that the
+    /// worksheet names are preserved in the table metadata, and that worksheet data is not merged.
+    /// </summary>
+    [Fact]
+    public async Task EnsureReadyAsync_MultiWorksheetArtifact_CreatesIndependentTablesWithWorksheetMetadata()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+
+        var artifact = new TabularDocumentArtifact
+        {
+            Worksheets =
+            [
+                new TabularWorksheet
+                {
+                    Name = "Client Breakdown",
+                    Header = ["Site", "Total Revenue"],
+                    Rows = [["Henderson", "100"]],
+                },
+                new TabularWorksheet
+                {
+                    Name = "Overall Projections",
+                    Header = ["Site Location", "Total"],
+                    Rows = [["Henderson", "1420000"]],
+                },
+            ],
+        };
+
+        IReadOnlyList<TabularDocumentRef> documents = [new TabularDocumentRef("doc1", "revenue.xlsx")];
+
+        var tables = await workspace.EnsureReadyAsync(
+            documents,
+            (document, token) => Task.FromResult(artifact),
+            null,
+            cancellationToken);
+
+        // The workspace exposes one table per worksheet and preserves the worksheet names.
+        Assert.Equal(2, tables.Count);
+        Assert.Equal(
+            ["Client Breakdown", "Overall Projections"],
+            tables.OrderBy(t => t.WorksheetName, StringComparer.Ordinal).Select(t => t.WorksheetName));
+
+        var clientTable = tables.Single(t => t.WorksheetName == "Client Breakdown");
+        var projectionsTable = tables.Single(t => t.WorksheetName == "Overall Projections");
+        Assert.NotEqual(clientTable.TableName, projectionsTable.TableName);
+
+        // Each worksheet keeps its own data; nothing is merged across worksheets.
+        var clientRows = await workspace.QueryAsync(
+            $"SELECT * FROM \"{clientTable.TableName}\"",
+            100,
+            cancellationToken);
+        Assert.Single(clientRows.Rows);
+        Assert.Equal("Henderson", clientRows.Rows[0][0]);
+        Assert.Equal(100L, clientRows.Rows[0][1]);
+
+        var projectionRows = await workspace.QueryAsync(
+            $"SELECT * FROM \"{projectionsTable.TableName}\"",
+            100,
+            cancellationToken);
+        Assert.Single(projectionRows.Rows);
+        Assert.Equal(1420000L, projectionRows.Rows[0][1]);
     }
 
     [Fact]
@@ -93,6 +303,25 @@ public class TabularWorkspaceTests
     }
 
     [Fact]
+    public async Task QueryAsync_AllowsDoubleQuotedStringLiterals()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        // Models frequently quote string values with double quotes. Without the tolerant fallback
+        // SQLite treats "North" as an identifier and fails with "no such column"; the workspace
+        // re-enables the fallback so the value is parsed as a string literal instead.
+        var result = await workspace.QueryAsync(
+            "SELECT region, amount FROM sales WHERE region = \"North\" ORDER BY CAST(amount AS INTEGER)",
+            100,
+            cancellationToken);
+
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal("North", result.Rows[0][0]);
+    }
+
+    [Fact]
     public async Task QueryAsync_TruncatesToRowLimit()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -127,7 +356,7 @@ public class TabularWorkspaceTests
         Assert.Equal(1, command.AffectedRows);
 
         var result = await workspace.QueryAsync("SELECT amount FROM sales WHERE region = 'South'", 100, cancellationToken);
-        Assert.Equal("300", Assert.Single(result.Rows)[0]);
+        Assert.Equal(300L, Assert.Single(result.Rows)[0]);
     }
 
     [Fact]
@@ -163,7 +392,7 @@ public class TabularWorkspaceTests
         Assert.Contains(Assert.Single(tables).Columns, c => c.Name == "country");
 
         var result = await workspace.QueryAsync("SELECT amount FROM sales WHERE region = 'South'", 100, cancellationToken);
-        Assert.Equal("300", Assert.Single(result.Rows)[0]);
+        Assert.Equal(300L, Assert.Single(result.Rows)[0]);
     }
 
     [Fact]
@@ -180,7 +409,7 @@ public class TabularWorkspaceTests
                 cancellationToken));
 
         var result = await workspace.QueryAsync("SELECT amount FROM sales WHERE region = 'South'", 100, cancellationToken);
-        Assert.Equal("200", Assert.Single(result.Rows)[0]);
+        Assert.Equal(200L, Assert.Single(result.Rows)[0]);
     }
 
     [Fact]

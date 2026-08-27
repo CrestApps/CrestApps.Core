@@ -52,6 +52,8 @@ For text-heavy files such as Markdown, text, Word, PDF, HTML, JSON, or XML, Cres
 
 CSV and Excel uploads are handled as structured data instead of plain text. That means the AI can filter, update, reshape, and export rows without asking the model to copy large tables into the prompt.
 
+Multi-sheet Excel workbooks are supported: each worksheet is loaded as its own queryable table, and column value types — numbers (including currency and thousands-separated amounts) and dates — are detected from the row data rather than the spreadsheet cell format, so the AI can aggregate, sort, and filter accurately.
+
 This is the recommended path for tasks such as:
 
 - filling blank cells

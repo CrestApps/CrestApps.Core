@@ -54,46 +54,64 @@ public sealed class OpenXmlTabularDocumentArtifactBuilder : ITabularDocumentArti
             return Task.FromResult(new TabularDocumentArtifact());
         }
 
-        List<string> header = null;
-        var rows = new List<List<string>>();
-        OpenXmlTabularWorksheetReader.ReadNonEmptyRows(
+        List<TabularWorksheet> worksheets = [];
+        TabularWorksheet current = null;
+
+        OpenXmlTabularWorksheetReader.ReadWorksheets(
             workbookPart,
             fileName,
             _logger,
-            (row, firstNonEmptyRowInWorksheet) =>
+            name =>
             {
-                if (header == null)
+                current = new TabularWorksheet
                 {
-                    header = row;
+                    Name = name,
+                };
+            },
+            row =>
+            {
+                // Every non-empty row is buffered; the header is chosen once the worksheet ends so title
+                // rows above it can be skipped.
+                current.Rows.Add(row);
+            },
+            () =>
+            {
+                // A worksheet with no non-empty rows is not surfaced as a table. Otherwise the header row
+                // is located (skipping any title rows above it) and widened to cover populated cells that
+                // have no header, so the reported schema matches the imported table.
+                if (current.Rows.Count > 0)
+                {
+                    var headerIndex = TabularWorksheetShaper.DetectHeaderRowIndex(current.Rows);
+                    var header = current.Rows[headerIndex];
+                    var dataRows = current.Rows.GetRange(headerIndex + 1, current.Rows.Count - headerIndex - 1);
 
-                    return;
+                    current.Header = TabularWorksheetShaper.ExpandHeader(header, dataRows);
+                    current.Rows = dataRows;
+                    worksheets.Add(current);
                 }
 
-                if (!firstNonEmptyRowInWorksheet)
-                {
-                    rows.Add(row);
-                }
+                current = null;
             },
             cancellationToken);
 
-        if (header == null)
+        if (worksheets.Count == 0)
         {
             return Task.FromResult(new TabularDocumentArtifact());
         }
 
         var artifact = new TabularDocumentArtifact
         {
-            Header = header,
-            Rows = rows,
+            Worksheets = worksheets,
+            Header = worksheets[0].Header,
+            Rows = worksheets[0].Rows,
         };
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "OpenXml tabular builder created artifact for '{FileName}' with {ColumnCount} column(s) and {RowCount} row(s) in {ElapsedMilliseconds} ms.",
+                "OpenXml tabular builder created artifact for '{FileName}' with {WorksheetCount} worksheet(s) in {ElapsedMilliseconds} ms.",
                 fileName,
-                artifact.Header.Count,
-                artifact.Rows.Count,
+                worksheets.Count,
                 stopwatch.ElapsedMilliseconds);
         }
 
