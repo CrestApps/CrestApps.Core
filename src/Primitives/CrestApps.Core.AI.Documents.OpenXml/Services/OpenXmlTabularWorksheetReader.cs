@@ -34,19 +34,8 @@ internal static class OpenXmlTabularWorksheetReader
         return cache;
     }
 
-    /// <summary>
-    /// Enumerates the worksheets of a workbook in workbook order, invoking callbacks that delimit each
-    /// worksheet and deliver its non-empty rows. Worksheets are resolved through the workbook's
-    /// <c>&lt;sheets&gt;</c> declaration so their names and order are preserved, rather than iterating
-    /// <see cref="WorkbookPart.WorksheetParts"/> whose order is undefined.
-    /// </summary>
-    /// <param name="workbookPart">The workbook part to read.</param>
-    /// <param name="fileName">The source file name, used for logging.</param>
-    /// <param name="logger">The logger.</param>
-    /// <param name="onWorksheetStart">Invoked with the worksheet name before any of its rows are read.</param>
-    /// <param name="onRow">Invoked once for each non-empty row, in source order.</param>
-    /// <param name="onWorksheetEnd">Invoked after the last row of a worksheet has been read.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
+    // Worksheets are resolved through the workbook's <sheets> declaration, not WorksheetParts, so
+    // names and workbook order are preserved.
     public static void ReadWorksheets(
         WorkbookPart workbookPart,
         string fileName,
