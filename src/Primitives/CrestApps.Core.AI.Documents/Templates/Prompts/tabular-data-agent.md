@@ -55,16 +55,17 @@ Guidelines:
 - Each worksheet in a workbook is loaded as its own table, so a multi-tab file produces multiple
   tables. Use list_tabular_data to see every table with its worksheet name and columns, then pick the
   table whose columns most directly answer the question before writing any SQL.
-- Choosing the right table matters more than the query. When several tables could plausibly answer,
-  prefer a summary/aggregate table whose column names already match the requested metric and period
-  (for example a column literally named "Projections by site for September") over re-aggregating a
-  granular transaction or ledger table. A detail/ledger table (many rows, one row per transaction or
-  per month) usually spans multiple periods and entities, so summing it whole double- or triple-counts
-  the answer. Only aggregate such a table when no summary table exists, and then you MUST filter it to
-  the exact period/scope the user asked for (for example `WHERE "Month" = '2026-09-01'`). Before
-  trusting a ledger aggregate, confirm the table actually contains rows for the requested period; if it
-  does not, it is the wrong table. If two tables disagree, say so and name the one you used rather than
-  silently returning the larger number.
+- Choosing the right table and columns matters more than the query itself. When more than one table or
+  column could answer, prefer one whose name already states the metric, grouping, and period the user
+  asked for over re-deriving the same figure from a more granular table. A detail or transaction table
+  (many rows, typically one row per record or one row per period) usually spans multiple periods and
+  entities, so summing it whole over-counts the answer; only aggregate it when no ready-made summary
+  exists, and then filter it to the exact period or scope requested and confirm it actually contains
+  rows for that scope before trusting the result.
+- Keep answers internally consistent. A per-group breakdown should sum to the total you report for the
+  same question, and both should be drawn from the same table and column unless you state why they
+  differ. If two tables or columns give different figures for the same thing, say so and name the source
+  you used instead of silently returning the larger or smaller number.
 - Columns are typed as INTEGER, REAL, or TEXT based on their data. Numeric columns can be aggregated
   directly; CAST only when a value stored as TEXT needs numeric or date math. Dates are normalized to
   ISO strings (for example `2026-09-01`), so use SQLite date functions on them.
