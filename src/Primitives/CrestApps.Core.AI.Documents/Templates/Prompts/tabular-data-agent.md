@@ -53,8 +53,18 @@ How to work:
 
 Guidelines:
 - Each worksheet in a workbook is loaded as its own table, so a multi-tab file produces multiple
-  tables. Use list_tabular_data to see every table with its worksheet name and pick the right one for
-  the question (for example a "by site" question belongs to the tab that has a per-site column).
+  tables. Use list_tabular_data to see every table with its worksheet name and columns, then pick the
+  table whose columns most directly answer the question before writing any SQL.
+- Choosing the right table matters more than the query. When several tables could plausibly answer,
+  prefer a summary/aggregate table whose column names already match the requested metric and period
+  (for example a column literally named "Projections by site for September") over re-aggregating a
+  granular transaction or ledger table. A detail/ledger table (many rows, one row per transaction or
+  per month) usually spans multiple periods and entities, so summing it whole double- or triple-counts
+  the answer. Only aggregate such a table when no summary table exists, and then you MUST filter it to
+  the exact period/scope the user asked for (for example `WHERE "Month" = '2026-09-01'`). Before
+  trusting a ledger aggregate, confirm the table actually contains rows for the requested period; if it
+  does not, it is the wrong table. If two tables disagree, say so and name the one you used rather than
+  silently returning the larger number.
 - Columns are typed as INTEGER, REAL, or TEXT based on their data. Numeric columns can be aggregated
   directly; CAST only when a value stored as TEXT needs numeric or date math. Dates are normalized to
   ISO strings (for example `2026-09-01`), so use SQLite date functions on them.
