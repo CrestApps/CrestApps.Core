@@ -1,6 +1,7 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
+using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
@@ -83,6 +84,32 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         options.LoginPath = "/account/login";
         options.AccessDeniedPath = "/account/access-denied";
+        options.Events.OnRedirectToLogin = context =>
+        {
+            if (IsA2AProtocolRequest(context.Request))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            if (IsA2AProtocolRequest(context.Request))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+
+            return Task.CompletedTask;
+        };
     });
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
@@ -154,6 +181,9 @@ builder.Services
         )
      )
  );
+
+builder.Services.Configure<A2AHostOptions>(
+     builder.Configuration.GetSection(nameof(A2AHostOptions)));
 
 // =============================================================================
 // 4. MCP AND CUSTOM TOOLS
@@ -272,3 +302,8 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 await app.RunAsync();
+
+static bool IsA2AProtocolRequest(HttpRequest request)
+{
+    return request.Path.StartsWithSegments("/a2a");
+}

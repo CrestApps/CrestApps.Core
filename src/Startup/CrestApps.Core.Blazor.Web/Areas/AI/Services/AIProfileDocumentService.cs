@@ -16,6 +16,24 @@ namespace CrestApps.Core.Blazor.Web.Areas.AI.Services;
 /// </summary>
 public sealed class AIProfileDocumentService
 {
+    private static readonly Action<ILogger, string, string, Exception> _failedToProcessFile =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            new EventId(1001, nameof(FailedToProcessFile)),
+            "Failed to process file '{FileName}': {Error}");
+
+    private static readonly Action<ILogger, string, Exception> _errorProcessingUploadedFile =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1002, nameof(ErrorProcessingUploadedFile)),
+            "Error processing uploaded file '{FileName}'.");
+
+    private static readonly Action<ILogger, string, Exception> _errorRemovingDocument =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1003, nameof(ErrorRemovingDocument)),
+            "Error removing document '{DocumentId}'.");
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AIProfileDocumentService> _logger;
 
@@ -72,7 +90,7 @@ public sealed class AIProfileDocumentService
 
                 if (!result.Success)
                 {
-                    _logger.LogWarning("Failed to process file '{FileName}': {Error}", file.FileName, result.Error);
+                    FailedToProcessFile(_logger, file.FileName, result.Error);
                     continue;
                 }
 
@@ -105,7 +123,7 @@ public sealed class AIProfileDocumentService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing uploaded file '{FileName}'.", file.FileName);
+                ErrorProcessingUploadedFile(_logger, file.FileName, ex);
             }
         }
     }
@@ -178,7 +196,7 @@ public sealed class AIProfileDocumentService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error removing document '{DocumentId}'.", documentId);
+                ErrorRemovingDocument(_logger, documentId, ex);
             }
         }
 
@@ -269,5 +287,20 @@ public sealed class AIProfileDocumentService
         }
 
         return null;
+    }
+
+    private static void FailedToProcessFile(ILogger logger, string fileName, string error)
+    {
+        _failedToProcessFile(logger, fileName, error, null);
+    }
+
+    private static void ErrorProcessingUploadedFile(ILogger logger, string fileName, Exception exception)
+    {
+        _errorProcessingUploadedFile(logger, fileName, exception);
+    }
+
+    private static void ErrorRemovingDocument(ILogger logger, string documentId, Exception exception)
+    {
+        _errorRemovingDocument(logger, documentId, exception);
     }
 }

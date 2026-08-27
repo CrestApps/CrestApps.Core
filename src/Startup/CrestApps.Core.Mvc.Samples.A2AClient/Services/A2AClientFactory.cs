@@ -7,6 +7,8 @@ namespace CrestApps.Core.Mvc.Samples.A2AClient.Services;
 
 public sealed class A2AClientFactory
 {
+    public const string HttpClientName = "A2AProtocolClient";
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -30,8 +32,11 @@ public sealed class A2AClientFactory
     public A2A.A2AClient Create(string agentUrl = null)
     {
         var server = GetSelectedServer();
-        var url = agentUrl ?? server.Endpoint.TrimEnd('/') + "/a2a";
-        var httpClient = _httpClientFactory.CreateClient();
+        var url = string.IsNullOrWhiteSpace(agentUrl)
+            ? server.Endpoint.TrimEnd('/') + "/a2a"
+            : agentUrl;
+
+        var httpClient = _httpClientFactory.CreateClient(HttpClientName);
         ApplyAuthentication(httpClient, server);
 
         return new A2A.A2AClient(new Uri(url), httpClient);
@@ -40,7 +45,7 @@ public sealed class A2AClientFactory
     public async Task<List<AgentCard>> GetAgentCardsAsync(CancellationToken cancellationToken)
     {
         var server = GetSelectedServer();
-        var httpClient = _httpClientFactory.CreateClient();
+        var httpClient = _httpClientFactory.CreateClient(HttpClientName);
         ApplyAuthentication(httpClient, server);
 
         var cardUrl = $"{server.Endpoint.TrimEnd('/')}/.well-known/agent-card.json";

@@ -150,7 +150,14 @@ public sealed class AIChatSessionCloseCycleService
 
                 if (session.PostSessionProcessingAttempts >= postCloseProcessor.MaxPostCloseAttempts)
                 {
-                    workItems.Add(new SessionWorkItem(profile.ItemId, session.SessionId, SessionWorkType.MarkFailed));
+                    // The attempt budget is exhausted. Terminally fail the session, but
+                    // transition it only once: a session that is no longer pending has
+                    // already been finalized (or completed) and must not be re-queued and
+                    // re-logged on every subsequent cycle.
+                    if (session.PostSessionProcessingStatus == PostSessionProcessingStatus.Pending)
+                    {
+                        workItems.Add(new SessionWorkItem(profile.ItemId, session.SessionId, SessionWorkType.MarkFailed));
+                    }
 
                     continue;
                 }
@@ -211,14 +218,21 @@ public sealed class AIChatSessionCloseCycleService
                 break;
 
             case SessionWorkType.MarkFailed:
-                chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.Failed;
-                await sessionStore.SaveAsync(chatSession, cancellationToken);
-                result.FailedCount = 1;
+                // Only finalize a session that is still pending. Guarding here keeps the
+                // transition idempotent, so an already-failed (or completed) session is
+                // never re-saved or re-logged if it is ever re-queued.
+                if (chatSession.PostSessionProcessingStatus == PostSessionProcessingStatus.Pending)
+                {
+                    chatSession.PostSessionProcessingStatus = PostSessionProcessingStatus.Failed;
+                    await sessionStore.SaveAsync(chatSession, cancellationToken);
+                    result.FailedCount = 1;
 
-                _logger.LogWarning(
-                    "Post-session processing for session '{SessionId}' failed after {MaxAttempts} attempts.",
-                    chatSession.SessionId,
-                    postCloseProcessor.MaxPostCloseAttempts);
+                    _logger.LogWarning(
+                        "Post-session processing for session '{SessionId}' failed after {MaxAttempts} attempts.",
+                        chatSession.SessionId,
+                        postCloseProcessor.MaxPostCloseAttempts);
+                }
+
                 break;
         }
 

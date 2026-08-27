@@ -14,4 +14,6 @@ public sealed class McpPromptViewModel
     public string Description { get; set; }
 
     public string Arguments { get; set; } = "[]";
+
+    public string Messages { get; set; } = "[]";
 }

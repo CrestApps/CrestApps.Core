@@ -40,6 +40,12 @@ public sealed class McpPrompt : CatalogItem, INameAwareModel, IModifiedUtcAwareM
     public Prompt Prompt { get; set; }
 
     /// <summary>
+    /// Gets or sets the messages that make up the body of this prompt.
+    /// These are returned to the client when the prompt is requested.
+    /// </summary>
+    public List<McpPromptMessage> Messages { get; set; } = [];
+
+    /// <summary>
     /// Creates a deep copy of this prompt entry.
     /// </summary>
     public McpPrompt Clone()
@@ -54,6 +60,15 @@ public sealed class McpPrompt : CatalogItem, INameAwareModel, IModifiedUtcAwareM
             OwnerId = OwnerId,
             Properties = Properties,
         };
+
+        if (Messages != null)
+        {
+            clone.Messages = Messages.Select(message => new McpPromptMessage
+            {
+                Role = message.Role,
+                Content = message.Content,
+            }).ToList();
+        }
 
         if (Prompt != null)
         {

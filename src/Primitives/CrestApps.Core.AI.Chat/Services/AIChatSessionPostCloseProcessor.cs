@@ -59,6 +59,18 @@ public sealed class AIChatSessionPostCloseProcessor
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(chatSession);
 
+        // A session that has already exhausted its post-close attempt budget and been
+        // marked terminally failed must never be reprocessed. Without this guard the
+        // close cycle keeps rediscovering such sessions on every pass (for example
+        // because analytics or conversion goals were never recorded), re-marking them
+        // failed and re-logging the failure indefinitely - even months after the
+        // session was processed.
+        if (chatSession.PostSessionProcessingStatus == PostSessionProcessingStatus.Failed
+            && chatSession.PostSessionProcessingAttempts >= MaxPostCloseAttempts)
+        {
+            return false;
+        }
+
         var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
         var tasksComplete = ArePostSessionTasksComplete(postSessionSettings, chatSession, MaxPostCloseAttempts);
         chatSession.IsPostSessionTasksProcessed = tasksComplete;
