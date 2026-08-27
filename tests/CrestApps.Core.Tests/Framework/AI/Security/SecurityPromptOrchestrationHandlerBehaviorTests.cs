@@ -358,6 +358,127 @@ public sealed class SecurityPromptOrchestrationHandlerBehaviorTests
     }
 
     /// <summary>
+    /// Verifies a Chat Interaction receives boundary delimiters (user message wrapped and the
+    /// boundary instruction appended) but never the security preamble.
+    /// </summary>
+    [Fact]
+    public async Task BuiltAsync_ChatInteraction_AppliesBoundaryDelimitersWithoutPreamble()
+    {
+        const string boundaryInstruction = "boundary instruction";
+        const string userMessage = "show revenue by site";
+        var templateService = new Mock<ITemplateService>(MockBehavior.Strict);
+        templateService
+            .Setup(service => service.RenderAsync(
+                "input-delimiter-boundaries",
+                It.IsAny<IDictionary<string, object>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(boundaryInstruction);
+        var handler = new SecurityPromptOrchestrationHandler(
+            templateService.Object,
+            Options.Create(new PromptSecurityOptions
+            {
+                EnableSecurityPreamble = true,
+                EnableInputDelimiters = false,
+                EnableChatInteractionInputDelimiters = true,
+            }),
+            NullLogger<SecurityPromptOrchestrationHandler>.Instance);
+        var orchestrationContext = CreateOrchestrationContext("existing system message");
+        orchestrationContext.UserMessage = userMessage;
+
+        await handler.BuiltAsync(
+            new OrchestrationContextBuiltContext(new ChatInteraction(), orchestrationContext),
+            TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("<|user_input_begin|>", orchestrationContext.UserMessage);
+        Assert.EndsWith("<|user_input_end|>", orchestrationContext.UserMessage);
+        Assert.Contains(userMessage, orchestrationContext.UserMessage);
+        Assert.Contains(boundaryInstruction, orchestrationContext.SystemMessageBuilder.ToString());
+
+        // The strict mock has no preamble setup, so the test only passes if the preamble was never rendered.
+        templateService.Verify(
+            service => service.RenderAsync(
+                SecurityPreambleTemplateId,
+                It.IsAny<IDictionary<string, object>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
+    /// Verifies a Chat Interaction with delimiters disabled is left completely unchanged.
+    /// </summary>
+    [Fact]
+    public async Task BuiltAsync_ChatInteraction_DelimitersDisabled_LeavesContextUnchanged()
+    {
+        const string userMessage = "hello";
+        var templateService = new Mock<ITemplateService>(MockBehavior.Strict);
+        var handler = new SecurityPromptOrchestrationHandler(
+            templateService.Object,
+            Options.Create(new PromptSecurityOptions
+            {
+                EnableSecurityPreamble = true,
+                EnableChatInteractionInputDelimiters = false,
+            }),
+            NullLogger<SecurityPromptOrchestrationHandler>.Instance);
+        var orchestrationContext = CreateOrchestrationContext("existing");
+        orchestrationContext.UserMessage = userMessage;
+
+        await handler.BuiltAsync(
+            new OrchestrationContextBuiltContext(new ChatInteraction(), orchestrationContext),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(userMessage, orchestrationContext.UserMessage);
+        Assert.Equal("existing", orchestrationContext.SystemMessageBuilder.ToString());
+    }
+
+    /// <summary>
+    /// Verifies an AI Profile still uses the hardened delimiter instruction and never the boundary-only
+    /// Chat Interaction instruction.
+    /// </summary>
+    [Fact]
+    public async Task BuiltAsync_Profile_UsesHardenedDelimiterTemplate()
+    {
+        var templateService = new Mock<ITemplateService>(MockBehavior.Strict);
+        templateService
+            .Setup(service => service.RenderAsync(
+                SecurityPreambleTemplateId,
+                It.IsAny<IDictionary<string, object>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("preamble");
+        templateService
+            .Setup(service => service.RenderAsync(
+                "input-delimiter-instructions",
+                It.IsAny<IDictionary<string, object>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("hardened instruction");
+        var handler = new SecurityPromptOrchestrationHandler(
+            templateService.Object,
+            Options.Create(new PromptSecurityOptions
+            {
+                EnableSecurityPreamble = true,
+                EnableInputDelimiters = true,
+                EnableChatInteractionInputDelimiters = true,
+            }),
+            NullLogger<SecurityPromptOrchestrationHandler>.Instance);
+        var orchestrationContext = CreateOrchestrationContext();
+        orchestrationContext.UserMessage = "hi";
+
+        await handler.BuiltAsync(
+            new OrchestrationContextBuiltContext(new AIProfile(), orchestrationContext),
+            TestContext.Current.CancellationToken);
+
+        var systemMessage = orchestrationContext.SystemMessageBuilder.ToString();
+        Assert.Contains("preamble", systemMessage);
+        Assert.Contains("hardened instruction", systemMessage);
+
+        templateService.Verify(
+            service => service.RenderAsync(
+                "input-delimiter-boundaries",
+                It.IsAny<IDictionary<string, object>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
     /// Creates the exact legacy expected output for a rendered preamble and existing message.
     /// </summary>
     /// <param name="preamble">The rendered preamble.</param>
