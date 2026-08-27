@@ -185,7 +185,7 @@ public static class TabularWorkspaceSqliteHelpers
                     continue;
                 }
 
-                if (!TryClassifyNumeric(value.Trim(), out var valueIsInteger))
+                if (!TryNormalizeNumeric(value, out _, out var valueIsInteger))
                 {
                     isText[columnIndex] = true;
 
@@ -210,25 +210,112 @@ public static class TabularWorkspaceSqliteHelpers
         return declaredTypes;
     }
 
-    private static bool TryClassifyNumeric(string value, out bool isInteger)
+    /// <summary>
+    /// Returns the value to store for a cell, normalizing numeric-looking text (currency symbols,
+    /// thousands separators, and accounting-style parenthesized negatives) into a plain number string
+    /// when the column is numeric. Values that do not parse and cells in <c>TEXT</c> columns are left
+    /// unchanged, so nothing is lost and the import never fails on an unexpected cell.
+    /// </summary>
+    /// <param name="declaredType">The column's declared SQLite storage type.</param>
+    /// <param name="value">The raw cell value.</param>
+    /// <returns>The value to bind, normalized when appropriate.</returns>
+    public static string NormalizeCellValue(string declaredType, string value)
     {
+        if (value is null ||
+            (!string.Equals(declaredType, "INTEGER", StringComparison.Ordinal) &&
+             !string.Equals(declaredType, "REAL", StringComparison.Ordinal)))
+        {
+            return value;
+        }
+
+        return TryNormalizeNumeric(value, out var normalized, out _)
+            ? normalized
+            : value;
+    }
+
+    /// <summary>
+    /// Attempts to interpret a cell value as a number, recognizing plain integers and decimals,
+    /// scientific notation, a leading sign, a leading currency symbol, thousands separators, and
+    /// accounting-style parenthesized negatives. Percentages and leading-zero identifiers (for example
+    /// zip codes) are intentionally treated as non-numeric so they keep their original text.
+    /// </summary>
+    /// <param name="value">The raw cell value.</param>
+    /// <param name="normalized">The plain number string to store, when parsing succeeds.</param>
+    /// <param name="isInteger">Whether the value is a whole number with no fraction or exponent.</param>
+    /// <returns><see langword="true"/> when the value parses as a number.</returns>
+    public static bool TryNormalizeNumeric(string value, out string normalized, out bool isInteger)
+    {
+        normalized = null;
         isInteger = false;
 
-        // A leading zero followed by another digit marks an identifier such as a zip code or account
-        // number. Storing those numerically would drop the zero and change the value.
-        if (value.Length > 1 && value[0] == '0' && char.IsAsciiDigit(value[1]))
+        if (string.IsNullOrWhiteSpace(value))
         {
             return false;
         }
 
-        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
-        {
-            isInteger = true;
+        var trimmed = value.Trim();
 
-            return true;
+        // A percentage carries an ambiguous scale (12% could mean 12 or 0.12), so it is kept as text.
+        if (trimmed.Contains('%', StringComparison.Ordinal))
+        {
+            return false;
         }
 
-        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
+        var negative = false;
+
+        // Accounting-style negatives such as (1,234.00).
+        if (trimmed.Length >= 2 && trimmed[0] == '(' && trimmed[^1] == ')')
+        {
+            negative = true;
+            trimmed = trimmed[1..^1].Trim();
+        }
+
+        // Strip currency symbols, spaces, and thousands separators, leaving digits, sign, decimal
+        // point, and exponent for the numeric parser to validate.
+        var builder = new StringBuilder(trimmed.Length);
+
+        foreach (var c in trimmed)
+        {
+            if (c is '$' or '€' or '£' or '¥' or ',' || char.IsWhiteSpace(c))
+            {
+                continue;
+            }
+
+            builder.Append(c);
+        }
+
+        var cleaned = builder.ToString();
+
+        if (cleaned.Length == 0)
+        {
+            return false;
+        }
+
+        // A leading zero followed by another digit marks an identifier such as a zip code or account
+        // number. Storing those numerically would drop the zero and change the value.
+        var signless = cleaned.TrimStart('+', '-');
+        var integerPart = signless.Split('.', 'e', 'E')[0];
+
+        if (integerPart.Length > 1 && integerPart[0] == '0')
+        {
+            return false;
+        }
+
+        if (!double.TryParse(cleaned, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+        {
+            return false;
+        }
+
+        // A parenthesized value that also carries an explicit sign is contradictory, so reject it.
+        if (negative && (cleaned[0] == '-' || cleaned[0] == '+'))
+        {
+            return false;
+        }
+
+        normalized = negative ? "-" + cleaned : cleaned;
+        isInteger = long.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
+
+        return true;
     }
 
     private static bool IsCompactHeaderCode(string value)

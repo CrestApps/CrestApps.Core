@@ -107,6 +107,59 @@ public sealed class OpenXmlTabularWorkspaceImporterTests
     }
 
     /// <summary>
+    /// Problem: numbers are often stored as text in a spreadsheet (currency, thousands separators,
+    /// accounting negatives). These must be recognized as numeric and normalized so aggregates are
+    /// correct, based on the row data rather than the cell's format.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_NumbersStoredAsText_AreTypedNumericAndAggregateCorrectly()
+    {
+        using var stream = BuildWorkbook(new SheetSpec("Money",
+        [
+            ["Site", "Currency", "Thousands", "Accounting"],
+            ["Henderson", "$1,000.50", "2,500", "(100)"],
+            ["Milford", "$2,000.50", "1,500", "(400)"],
+        ]));
+
+        using var connection = OpenConnection();
+        var result = Assert.Single(await ImportAsync(stream, "money.xlsx", connection));
+
+        Assert.Equal("REAL", ColumnType(connection, result.TableName, "Currency"));
+        Assert.Equal("INTEGER", ColumnType(connection, result.TableName, "Thousands"));
+        Assert.Equal("INTEGER", ColumnType(connection, result.TableName, "Accounting"));
+
+        Assert.Equal(3001.0, Scalar(connection, $"SELECT SUM(Currency) FROM {Quote(result.TableName)}"));
+        Assert.Equal(4000L, Scalar(connection, $"SELECT SUM(Thousands) FROM {Quote(result.TableName)}"));
+        Assert.Equal(-500L, Scalar(connection, $"SELECT SUM(Accounting) FROM {Quote(result.TableName)}"));
+    }
+
+    /// <summary>
+    /// Problem: what happens when a value cannot be parsed to the column's type. The import must not
+    /// fail; the bad cell is kept as text in the otherwise-numeric column and aggregates still work.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_NumericColumnWithOneBadRow_ImportsWithoutFailing()
+    {
+        var rows = new List<string[]> { new[] { "Site", "Revenue" } };
+        for (var i = 0; i < 50; i++)
+        {
+            rows.Add([$"Site{i}", i == 49 ? "N/A" : "100"]);
+        }
+
+        using var stream = BuildWorkbook(new SheetSpec("Data", rows.ToArray()));
+        using var connection = OpenConnection();
+
+        var result = Assert.Single(await ImportAsync(stream, "data.xlsx", connection));
+
+        // The column is still typed numeric from the majority of rows.
+        Assert.Equal("INTEGER", ColumnType(connection, result.TableName, "Revenue"));
+        // Every row is imported, including the bad one.
+        Assert.Equal(50L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(result.TableName)}"));
+        // The 49 numeric rows sum correctly; the "N/A" cell contributes 0 rather than breaking the sum.
+        Assert.Equal(4900L, Convert.ToInt64(Scalar(connection, $"SELECT SUM(Revenue) FROM {Quote(result.TableName)}")));
+    }
+
+    /// <summary>
     /// Problem: embedded subtotal/total rows were imported as data and double-counted by aggregates.
     /// They must be flagged in an is_subtotal column so they can be excluded, while still being kept.
     /// </summary>

@@ -926,7 +926,7 @@ internal sealed class TabularWorkspace : IDisposable
 
                     command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(dataColumns[columnIndex].DeclaredType, value)
                         ? DBNull.Value
-                        : value;
+                        : TabularWorkspaceSqliteHelpers.NormalizeCellValue(dataColumns[columnIndex].DeclaredType, value);
                 }
 
                 if (hasSubtotalColumn)
