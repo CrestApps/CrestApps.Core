@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CrestApps.Core.AI.Documents.Tabular;
 using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
@@ -23,26 +24,27 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
     }
 
     /// <summary>
-    /// Imports an Open XML spreadsheet into the supplied SQLite workspace table.
+    /// Imports an Open XML spreadsheet into the supplied SQLite workspace, creating one table per
+    /// worksheet.
     /// </summary>
     /// <param name="source">The spreadsheet stream.</param>
     /// <param name="fileName">The source file name.</param>
     /// <param name="contentType">The source content type.</param>
     /// <param name="connection">The SQLite workspace connection.</param>
-    /// <param name="tableName">The destination table name.</param>
+    /// <param name="tableNameAllocator">Allocates a unique table name for each imported worksheet.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The import result.</returns>
-    public Task<TabularWorkspaceImportResult> ImportAsync(
+    /// <returns>The import results, one per created table.</returns>
+    public Task<IReadOnlyList<TabularWorkspaceImportResult>> ImportAsync(
         Stream source,
         string fileName,
         string contentType,
         SqliteConnection connection,
-        string tableName,
+        TabularTableNameAllocator tableNameAllocator,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrEmpty(tableName);
+        ArgumentNullException.ThrowIfNull(tableNameAllocator);
 
         if (source.CanSeek)
         {
@@ -53,80 +55,151 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         using var document = SpreadsheetDocument.Open(source, false);
         var workbookPart = document.WorkbookPart;
 
+        var results = new List<TabularWorkspaceImportResult>();
+
         if (workbookPart == null)
         {
-            TabularWorkspaceSqliteHelpers.CreateEmptyPlaceholderTable(connection, tableName);
-
-            return Task.FromResult(new TabularWorkspaceImportResult(
+            var placeholderName = tableNameAllocator(null, true);
+            TabularWorkspaceSqliteHelpers.CreateEmptyPlaceholderTable(connection, placeholderName);
+            results.Add(new TabularWorkspaceImportResult(
+                placeholderName,
+                null,
                 [new TabularColumnInfo("value", "TEXT")],
                 0,
                 0,
                 1));
+
+            return Task.FromResult<IReadOnlyList<TabularWorkspaceImportResult>>(results);
         }
 
+        var singleWorksheet = (workbookPart.Workbook?.Sheets?.Elements<Sheet>().Count() ?? 0) <= 1;
+
+        string worksheetName = null;
+        string currentTableName = null;
         List<string> header = null;
+        var sampleRows = new List<List<string>>(TabularWorkspaceSqliteHelpers.TypeSampleRowCount);
         IReadOnlyList<TabularColumnInfo> columns = null;
         SqliteCommand insertCommand = null;
         SqliteTransaction transaction = null;
         var rowCount = 0;
         var insertCommandCount = 0;
 
+        // The table cannot be created until enough data rows have been seen to infer the column
+        // storage types, so the leading rows are buffered and written once the table exists.
+        void CreateTableAndFlushSampleRows()
+        {
+            currentTableName = tableNameAllocator(worksheetName, singleWorksheet);
+            columns = TabularWorkspaceSqliteHelpers.BuildColumns(header, sampleRows);
+            TabularWorkspaceSqliteHelpers.CreateTable(connection, currentTableName, columns);
+            transaction = connection.BeginTransaction();
+            insertCommand = CreateInsertCommand(connection, transaction, currentTableName, columns);
+
+            foreach (var sampleRow in sampleRows)
+            {
+                BindInsertParameters(insertCommand, sampleRow, columns);
+                insertCommand.ExecuteNonQuery();
+                rowCount++;
+                insertCommandCount++;
+            }
+
+            sampleRows.Clear();
+        }
+
         try
         {
-            OpenXmlTabularWorksheetReader.ReadNonEmptyRows(
+            OpenXmlTabularWorksheetReader.ReadWorksheets(
                 workbookPart,
                 fileName,
                 _logger,
-                (row, firstNonEmptyRowInWorksheet) =>
+                name =>
+                {
+                    worksheetName = name;
+                    currentTableName = null;
+                    header = null;
+                    sampleRows.Clear();
+                    columns = null;
+                    insertCommand = null;
+                    transaction = null;
+                    rowCount = 0;
+                    insertCommandCount = 0;
+                },
+                row =>
                 {
                     if (header == null)
                     {
                         header = row;
-                        columns = TabularWorkspaceSqliteHelpers.BuildColumns(header);
-                        TabularWorkspaceSqliteHelpers.CreateTable(connection, tableName, columns);
-                        transaction = connection.BeginTransaction();
-                        insertCommand = CreateInsertCommand(connection, transaction, tableName, columns);
 
                         return;
                     }
 
-                    if (firstNonEmptyRowInWorksheet)
+                    if (columns == null)
                     {
+                        sampleRows.Add(row);
+
+                        if (sampleRows.Count >= TabularWorkspaceSqliteHelpers.TypeSampleRowCount)
+                        {
+                            CreateTableAndFlushSampleRows();
+                        }
+
                         return;
                     }
 
-                    BindInsertParameters(insertCommand, row, columns.Count);
+                    BindInsertParameters(insertCommand, row, columns);
                     insertCommand.ExecuteNonQuery();
                     rowCount++;
                     insertCommandCount++;
                 },
+                () =>
+                {
+                    // A worksheet with no non-empty rows contributes no header, so it produces no table.
+                    if (header == null)
+                    {
+                        return;
+                    }
+
+                    if (columns == null)
+                    {
+                        CreateTableAndFlushSampleRows();
+                    }
+
+                    transaction.Commit();
+                    results.Add(new TabularWorkspaceImportResult(
+                        currentTableName,
+                        worksheetName,
+                        columns,
+                        rowCount,
+                        insertCommandCount,
+                        1));
+                    insertCommand?.Dispose();
+                    transaction.Dispose();
+                    insertCommand = null;
+                    transaction = null;
+                },
                 cancellationToken);
 
-            if (header == null)
+            if (results.Count == 0)
             {
-                TabularWorkspaceSqliteHelpers.CreateEmptyPlaceholderTable(connection, tableName);
-
-                return Task.FromResult(new TabularWorkspaceImportResult(
+                var placeholderName = tableNameAllocator(null, true);
+                TabularWorkspaceSqliteHelpers.CreateEmptyPlaceholderTable(connection, placeholderName);
+                results.Add(new TabularWorkspaceImportResult(
+                    placeholderName,
+                    null,
                     [new TabularColumnInfo("value", "TEXT")],
                     0,
                     0,
                     1));
             }
 
-            transaction?.Commit();
-
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(
-                    "OpenXml workspace importer loaded '{FileName}' into table '{TableName}' with {ColumnCount} column(s) and {RowCount} row(s) in {ElapsedMilliseconds} ms.",
+                    "OpenXml workspace importer loaded '{FileName}' into {TableCount} table(s) in {ElapsedMilliseconds} ms.",
                     fileName,
-                    tableName,
-                    columns.Count,
-                    rowCount,
+                    results.Count,
                     stopwatch.ElapsedMilliseconds);
             }
 
-            return Task.FromResult(new TabularWorkspaceImportResult(columns, rowCount, insertCommandCount, 1));
+            return Task.FromResult<IReadOnlyList<TabularWorkspaceImportResult>>(results);
         }
         catch
         {
@@ -172,13 +245,15 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
     private static void BindInsertParameters(
         SqliteCommand command,
         List<string> row,
-        int columnCount)
+        IReadOnlyList<TabularColumnInfo> columns)
     {
-        for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
+        for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
         {
-            command.Parameters[columnIndex].Value = columnIndex < row.Count
-                ? (object)(row[columnIndex] ?? string.Empty)
-                : DBNull.Value;
+            var value = columnIndex < row.Count ? row[columnIndex] : null;
+
+            command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(columns[columnIndex].DeclaredType, value)
+                ? DBNull.Value
+                : value;
         }
     }
 }

@@ -1,7 +1,9 @@
 using CrestApps.Core.AI.Documents.OpenXml.Services;
+using CrestApps.Core.AI.Documents.Tabular;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.Helpers.DocumentReaders;
@@ -139,8 +141,12 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
             artifact.Rows.Select(row => row[0]));
     }
 
+    /// <summary>
+    /// Verifies that a multi-sheet workbook keeps each worksheet as an independent table with its own
+    /// name and header, instead of flattening every sheet into a single table.
+    /// </summary>
     [Fact]
-    public async Task CreateAsync_MultipleWorksheets_SkipsSubsequentWorksheetHeaders()
+    public async Task CreateAsync_MultipleWorksheets_PreservesEachWorksheetIndependently()
     {
         await using var stream = CreateExcelWithMultipleSheets();
 
@@ -150,11 +156,157 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Name", "Amount"], artifact.Header);
+        // Test 1 — both worksheets are discovered independently and in workbook order.
+        Assert.Equal(
+            ["Client Breakdown", "Overall Projections"],
+            artifact.Worksheets.Select(worksheet => worksheet.Name));
+
+        var clientBreakdown = artifact.Worksheets[0];
+        var overallProjections = artifact.Worksheets[1];
+
+        // Test 2 — the first worksheet uses its real header row, not a data row.
+        Assert.Equal(["Site", "Campaign", "Total Revenue"], clientBreakdown.Header);
         Assert.Collection(
-            artifact.Rows,
-            row => Assert.Equal(["North", "100"], row),
-            row => Assert.Equal(["South", "200"], row));
+            clientBreakdown.Rows,
+            row => Assert.Equal(["Henderson", "Spring", "100"], row));
+
+        // Test 3 — the second worksheet skips its blank leading row and uses the real header row,
+        // never the numeric data row.
+        Assert.Equal(["Site Location", "Q1", "Q2", "Total"], overallProjections.Header);
+        Assert.DoesNotContain("1420000", overallProjections.Header);
+        Assert.Collection(
+            overallProjections.Rows,
+            row => Assert.Equal(["Henderson", "1063541.42", "1422826.53", "1420000"], row));
+
+        // Test 4 — data from one worksheet is not merged into the other.
+        Assert.DoesNotContain(
+            clientBreakdown.Rows,
+            row => row.Contains("1420000"));
+        Assert.DoesNotContain(
+            overallProjections.Rows,
+            row => row.Contains("Spring"));
+    }
+
+    /// <summary>
+    /// Verifies that the streaming workspace importer (the production path for Excel files) creates one
+    /// SQLite table per worksheet, preserves the worksheet names, and never merges worksheet data.
+    /// </summary>
+    [Fact]
+    public async Task Import_MultipleWorksheets_CreatesOneTablePerWorksheet()
+    {
+        await using var stream = CreateExcelWithMultipleSheets();
+        var importer = new OpenXmlTabularWorkspaceImporter(NullLogger<OpenXmlTabularWorkspaceImporter>.Instance);
+
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        TabularTableNameAllocator allocator = (worksheetName, singleWorksheet) =>
+        {
+            var candidate = singleWorksheet || string.IsNullOrEmpty(worksheetName)
+                ? "revenue"
+                : $"revenue_{worksheetName.Replace(' ', '_')}";
+            var unique = candidate;
+            var suffix = 2;
+
+            while (!usedNames.Add(unique))
+            {
+                unique = $"{candidate}_{suffix}";
+                suffix++;
+            }
+
+            return unique;
+        };
+
+        var results = await importer.ImportAsync(
+            stream,
+            "revenue.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            connection,
+            allocator,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(
+            ["Client Breakdown", "Overall Projections"],
+            results.Select(result => result.WorksheetName));
+
+        var clientResult = results.Single(result => result.WorksheetName == "Client Breakdown");
+        var projectionsResult = results.Single(result => result.WorksheetName == "Overall Projections");
+
+        Assert.Equal(["Site", "Campaign", "Total_Revenue"], clientResult.Columns.Select(column => column.Name));
+        Assert.Equal(["Site_Location", "Q1", "Q2", "Total"], projectionsResult.Columns.Select(column => column.Name));
+
+        var clientCount = ExecuteScalar(connection, $"SELECT COUNT(*) FROM \"{clientResult.TableName}\"");
+        var projectionsCount = ExecuteScalar(connection, $"SELECT COUNT(*) FROM \"{projectionsResult.TableName}\"");
+
+        Assert.Equal(1L, clientCount);
+        Assert.Equal(1L, projectionsCount);
+    }
+
+    /// <summary>
+    /// Verifies that the streaming importer types a numeric column even when the worksheet holds fewer
+    /// rows than the type sample, which is the path where the table is created as the worksheet ends.
+    /// </summary>
+    [Fact]
+    public async Task Import_NumericColumnShorterThanTypeSample_UsesIntegerStorageType()
+    {
+        await using var stream = CreateExcelWithSequentialRows(5);
+
+        var (connection, result) = await ImportSingleWorksheetAsync(stream);
+
+        using (connection)
+        {
+            Assert.Equal("INTEGER", Assert.Single(result.Columns).DeclaredType);
+            Assert.Equal(5L, ExecuteScalar(connection, $"SELECT COUNT(*) FROM \"{result.TableName}\""));
+        }
+    }
+
+    /// <summary>
+    /// Verifies that a worksheet longer than the type sample still types its column correctly and keeps
+    /// every row, covering both the buffered rows and the rows streamed after the table is created.
+    /// </summary>
+    [Fact]
+    public async Task Import_NumericColumnLongerThanTypeSample_OrdersNumerically()
+    {
+        const int rowCount = TabularWorkspaceSqliteHelpers.TypeSampleRowCount + 8;
+        await using var stream = CreateExcelWithSequentialRows(rowCount);
+
+        var (connection, result) = await ImportSingleWorksheetAsync(stream);
+
+        using (connection)
+        {
+            Assert.Equal("INTEGER", Assert.Single(result.Columns).DeclaredType);
+            Assert.Equal(rowCount, ExecuteScalar(connection, $"SELECT COUNT(*) FROM \"{result.TableName}\""));
+            Assert.Equal(
+                rowCount - 1,
+                ExecuteScalar(connection, $"SELECT \"Index\" FROM \"{result.TableName}\" ORDER BY \"Index\" DESC LIMIT 1"));
+        }
+    }
+
+    private static async Task<(SqliteConnection Connection, TabularWorkspaceImportResult Result)> ImportSingleWorksheetAsync(Stream stream)
+    {
+        var importer = new OpenXmlTabularWorkspaceImporter(NullLogger<OpenXmlTabularWorkspaceImporter>.Instance);
+        var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        var results = await importer.ImportAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            connection,
+            (_, _) => "data",
+            TestContext.Current.CancellationToken);
+
+        return (connection, Assert.Single(results));
+    }
+
+    private static long ExecuteScalar(SqliteConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+
+        return Convert.ToInt64(command.ExecuteScalar());
     }
 
     /// <summary>
@@ -402,17 +554,24 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
                 sheets,
                 1,
                 [
-                    ["Name", "Amount"],
-                    ["North", "100"],
-                ]);
+                    ["Site", "Campaign", "Total Revenue"],
+                    ["Henderson", "Spring", "100"],
+                ],
+                "Client Breakdown");
+
+            // The second worksheet has a blank leading row before its real header, mirroring the
+            // failing workbook, and its first data row holds numeric values that must never be
+            // promoted to column headers.
             AppendSheet(
                 workbookPart,
                 sheets,
                 2,
                 [
-                    ["Name", "Amount"],
-                    ["South", "200"],
-                ]);
+                    ["Site Location", "Q1", "Q2", "Total"],
+                    ["Henderson", "1063541.42", "1422826.53", "1420000"],
+                ],
+                "Overall Projections",
+                firstRowIndex: 2);
         }
 
         stream.Position = 0;
@@ -424,23 +583,36 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
         WorkbookPart workbookPart,
         Sheets sheets,
         uint sheetId,
-        string[][] rows)
+        string[][] rows,
+        string name = null,
+        uint firstRowIndex = 1)
     {
         var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
         var sheetData = new SheetData();
 
+        // Emit explicit empty self-closing rows before the first data row (for example <row r="1"/>)
+        // so tests can reproduce workbooks that place a blank row above the real header.
+        for (uint emptyRowIndex = 1; emptyRowIndex < firstRowIndex; emptyRowIndex++)
+        {
+            sheetData.AppendChild(new Row
+            {
+                RowIndex = emptyRowIndex,
+            });
+        }
+
         for (var rowIndex = 0; rowIndex < rows.Length; rowIndex++)
         {
+            var excelRowIndex = (uint)rowIndex + firstRowIndex;
             var row = new Row
             {
-                RowIndex = (uint)rowIndex + 1,
+                RowIndex = excelRowIndex,
             };
 
             for (var columnIndex = 0; columnIndex < rows[rowIndex].Length; columnIndex++)
             {
                 row.AppendChild(new Cell
                 {
-                    CellReference = $"{(char)('A' + columnIndex)}{rowIndex + 1}",
+                    CellReference = $"{(char)('A' + columnIndex)}{excelRowIndex}",
                     DataType = CellValues.InlineString,
                     InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(rows[rowIndex][columnIndex])),
                 });
@@ -454,7 +626,7 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
         {
             Id = workbookPart.GetIdOfPart(worksheetPart),
             SheetId = sheetId,
-            Name = $"Sheet{sheetId}",
+            Name = name ?? $"Sheet{sheetId}",
         });
     }
 }

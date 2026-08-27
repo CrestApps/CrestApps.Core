@@ -34,61 +34,102 @@ internal static class OpenXmlTabularWorksheetReader
         return cache;
     }
 
-    public static void ReadNonEmptyRows(
+    /// <summary>
+    /// Enumerates the worksheets of a workbook in workbook order, invoking callbacks that delimit each
+    /// worksheet and deliver its non-empty rows. Worksheets are resolved through the workbook's
+    /// <c>&lt;sheets&gt;</c> declaration so their names and order are preserved, rather than iterating
+    /// <see cref="WorkbookPart.WorksheetParts"/> whose order is undefined.
+    /// </summary>
+    /// <param name="workbookPart">The workbook part to read.</param>
+    /// <param name="fileName">The source file name, used for logging.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="onWorksheetStart">Invoked with the worksheet name before any of its rows are read.</param>
+    /// <param name="onRow">Invoked once for each non-empty row, in source order.</param>
+    /// <param name="onWorksheetEnd">Invoked after the last row of a worksheet has been read.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public static void ReadWorksheets(
         WorkbookPart workbookPart,
         string fileName,
         ILogger logger,
-        Action<List<string>, bool> rowHandler,
+        Action<string> onWorksheetStart,
+        Action<List<string>> onRow,
+        Action onWorksheetEnd,
         CancellationToken cancellationToken)
     {
         var sharedStrings = CreateSharedStringCache(workbookPart);
         var expectedColumnCount = 16;
 
-        foreach (var worksheetPart in workbookPart.WorksheetParts)
+        void ReadWorksheet(WorksheetPart worksheetPart, string worksheetName)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            var firstNonEmptyRowInWorksheet = true;
+            onWorksheetStart(worksheetName);
             var sheetRowCount = 0;
 
-            using var stream = worksheetPart.GetStream(FileMode.Open, FileAccess.Read);
-            using var reader = XmlReader.Create(stream, _xmlReaderSettings);
-
-            while (!reader.EOF)
+            using (var stream = worksheetPart.GetStream(FileMode.Open, FileAccess.Read))
+            using (var reader = XmlReader.Create(stream, _xmlReaderSettings))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if (reader.NodeType != XmlNodeType.Element ||
-                    !string.Equals(reader.LocalName, "row", StringComparison.Ordinal))
+                while (!reader.EOF)
                 {
-                    reader.Read();
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                    continue;
+                    if (reader.NodeType != XmlNodeType.Element ||
+                        !string.Equals(reader.LocalName, "row", StringComparison.Ordinal))
+                    {
+                        reader.Read();
+
+                        continue;
+                    }
+
+                    var row = ReadRow(reader, sharedStrings, expectedColumnCount, out var hasValue);
+
+                    if (!hasValue)
+                    {
+                        continue;
+                    }
+
+                    expectedColumnCount = Math.Max(expectedColumnCount, row.Count);
+                    onRow(row);
+                    sheetRowCount++;
                 }
-
-                using var rowReader = reader.ReadSubtree();
-                var row = ReadRow(rowReader, sharedStrings, expectedColumnCount, out var hasValue);
-                reader.Skip();
-
-                if (!hasValue)
-                {
-                    continue;
-                }
-
-                expectedColumnCount = Math.Max(expectedColumnCount, row.Count);
-                rowHandler(row, firstNonEmptyRowInWorksheet);
-                firstNonEmptyRowInWorksheet = false;
-                sheetRowCount++;
             }
+
+            onWorksheetEnd();
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug(
-                    "OpenXml tabular builder read {RowCount} non-empty row(s) from worksheet '{WorksheetUri}' for '{FileName}'.",
+                    "OpenXml tabular reader read {RowCount} non-empty row(s) from worksheet '{WorksheetName}' for '{FileName}'.",
                     sheetRowCount,
-                    worksheetPart.Uri,
+                    worksheetName ?? worksheetPart.Uri?.ToString(),
                     fileName);
             }
+        }
+
+        var sheets = workbookPart.Workbook?.Sheets?.Elements<Sheet>().ToList();
+
+        if (sheets is { Count: > 0 })
+        {
+            foreach (var sheet in sheets)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (sheet.Id?.Value is not string relationshipId ||
+                    workbookPart.GetPartById(relationshipId) is not WorksheetPart worksheetPart)
+                {
+                    continue;
+                }
+
+                ReadWorksheet(worksheetPart, sheet.Name?.Value);
+            }
+
+            return;
+        }
+
+        // Fallback for malformed workbooks that omit the <sheets> declaration: enumerate the parts
+        // directly. Worksheet names are unavailable in this path.
+        foreach (var worksheetPart in workbookPart.WorksheetParts)
+        {
+            ReadWorksheet(worksheetPart, null);
         }
     }
 
@@ -101,16 +142,30 @@ internal static class OpenXmlTabularWorksheetReader
         hasValue = false;
         var values = new List<string>(expectedColumnCount);
 
-        if (!reader.Read() || reader.IsEmptyElement)
+        // The reader is positioned on the <row> start element. A self-closing row such as
+        // <row r="1"/> carries no cells, so it is skipped without descending into it. Reading cells
+        // inline (rather than via ReadSubtree + Skip) keeps the reader correctly positioned so a blank
+        // leading row never causes the following header row to be swallowed.
+        if (reader.IsEmptyElement)
         {
+            reader.Read();
+
             return values;
         }
 
-        while (reader.Read())
+        var rowDepth = reader.Depth;
+        reader.Read();
+
+        while (!reader.EOF &&
+            !(reader.NodeType == XmlNodeType.EndElement &&
+                reader.Depth == rowDepth &&
+                string.Equals(reader.LocalName, "row", StringComparison.Ordinal)))
         {
             if (reader.NodeType != XmlNodeType.Element ||
                 !string.Equals(reader.LocalName, "c", StringComparison.Ordinal))
             {
+                reader.Read();
+
                 continue;
             }
 
@@ -127,7 +182,11 @@ internal static class OpenXmlTabularWorksheetReader
 
             values.Add(value);
             hasValue |= !string.IsNullOrEmpty(value);
+            reader.Read();
         }
+
+        // Advance past the closing </row> element so the outer loop resumes on the next row.
+        reader.Read();
 
         TrimTrailingEmptyValues(values);
 

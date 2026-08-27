@@ -21,6 +21,12 @@ public sealed class TabularTableInfo
     public string SourceFileName { get; set; }
 
     /// <summary>
+    /// Gets or sets the source worksheet name for multi-sheet workbooks. This is <see langword="null"/>
+    /// for single-sheet sources such as CSV or TSV files that have no worksheet concept.
+    /// </summary>
+    public string WorksheetName { get; set; }
+
+    /// <summary>
     /// Gets or sets the number of rows currently in the table.
     /// </summary>
     public long RowCount { get; set; }

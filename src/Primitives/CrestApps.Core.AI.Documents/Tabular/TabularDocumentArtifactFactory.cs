@@ -94,15 +94,15 @@ internal sealed class TabularDocumentArtifactFactory
         return artifact;
     }
 
-    public async Task<TabularWorkspaceImportResult> ImportToWorkspaceAsync(
+    public async Task<IReadOnlyList<TabularWorkspaceImportResult>> ImportToWorkspaceAsync(
         AIDocument document,
         SqliteConnection connection,
-        string tableName,
+        TabularTableNameAllocator tableNameAllocator,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrEmpty(tableName);
+        ArgumentNullException.ThrowIfNull(tableNameAllocator);
 
         if (string.IsNullOrWhiteSpace(document.StoredFilePath))
         {
@@ -139,16 +139,15 @@ internal sealed class TabularDocumentArtifactFactory
             document.FileName,
             document.ContentType,
             connection,
-            tableName,
+            tableNameAllocator,
             cancellationToken);
 
         if (_logger.IsEnabled(LogLevel.Debug) && result != null)
         {
             _logger.LogDebug(
-                "Imported tabular workspace data for '{FileName}' with {ColumnCount} column(s) and {RowCount} row(s) in {ElapsedMilliseconds} ms.",
+                "Imported tabular workspace data for '{FileName}' into {TableCount} table(s) in {ElapsedMilliseconds} ms.",
                 document.FileName,
-                result.Columns.Count,
-                result.RowCount,
+                result.Count,
                 stopwatch.ElapsedMilliseconds);
         }
 
