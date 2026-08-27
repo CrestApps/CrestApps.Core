@@ -56,7 +56,6 @@ public sealed class OpenXmlTabularDocumentArtifactBuilder : ITabularDocumentArti
 
         List<TabularWorksheet> worksheets = [];
         TabularWorksheet current = null;
-        var headerAssigned = false;
 
         OpenXmlTabularWorksheetReader.ReadWorksheets(
             workbookPart,
@@ -68,26 +67,26 @@ public sealed class OpenXmlTabularDocumentArtifactBuilder : ITabularDocumentArti
                 {
                     Name = name,
                 };
-                headerAssigned = false;
             },
             row =>
             {
-                if (!headerAssigned)
-                {
-                    current.Header = row;
-                    headerAssigned = true;
-
-                    return;
-                }
-
+                // Every non-empty row is buffered; the header is chosen once the worksheet ends so title
+                // rows above it can be skipped.
                 current.Rows.Add(row);
             },
             () =>
             {
-                // A worksheet with no non-empty rows contributes no header, so it is not surfaced as a
-                // table. Every worksheet that has at least one row keeps its own header and data.
-                if (headerAssigned)
+                // A worksheet with no non-empty rows is not surfaced as a table. Otherwise the header row
+                // is located (skipping any title rows above it) and widened to cover populated cells that
+                // have no header, so the reported schema matches the imported table.
+                if (current.Rows.Count > 0)
                 {
+                    var headerIndex = TabularWorksheetShaper.DetectHeaderRowIndex(current.Rows);
+                    var header = current.Rows[headerIndex];
+                    var dataRows = current.Rows.GetRange(headerIndex + 1, current.Rows.Count - headerIndex - 1);
+
+                    current.Header = TabularWorksheetShaper.ExpandHeader(header, dataRows);
+                    current.Rows = dataRows;
                     worksheets.Add(current);
                 }
 

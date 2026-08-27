@@ -845,7 +845,16 @@ internal sealed class TabularWorkspace : IDisposable
             return [new TabularColumnInfo("value", "TEXT")];
         }
 
-        var columns = TabularWorkspaceSqliteHelpers.BuildColumns(header, rows);
+        // Widen the header so populated cells that have no header still become columns, then flag any
+        // embedded subtotal/total rows so aggregate queries can exclude them. This mirrors the streaming
+        // Open XML importer so delimited (CSV/TSV) sources are shaped the same way.
+        var expandedHeader = TabularWorksheetShaper.ExpandHeader(header, rows);
+        var dataColumns = TabularWorkspaceSqliteHelpers.BuildColumns(expandedHeader, rows);
+        var hasSubtotalColumn = rows.Any(TabularWorksheetShaper.IsSubtotalRow);
+        IReadOnlyList<TabularColumnInfo> columns = hasSubtotalColumn
+            ? [.. dataColumns, new TabularColumnInfo(TabularWorksheetShaper.SubtotalColumnName, "INTEGER")]
+            : dataColumns;
+
         TabularWorkspaceSqliteHelpers.CreateTable(connection, tableName, columns);
 
         if (rows.Count == 0)
@@ -853,7 +862,7 @@ internal sealed class TabularWorkspace : IDisposable
             return columns;
         }
 
-        InsertRows(connection, tableName, columns, rows, out _, cancellationToken);
+        InsertRows(connection, tableName, columns, dataColumns, hasSubtotalColumn, rows, out _, cancellationToken);
 
         return columns;
     }
@@ -862,6 +871,8 @@ internal sealed class TabularWorkspace : IDisposable
         SqliteConnection connection,
         string tableName,
         IReadOnlyList<TabularColumnInfo> columns,
+        IReadOnlyList<TabularColumnInfo> dataColumns,
+        bool hasSubtotalColumn,
         List<List<string>> rows,
         out int rowsPerBatch,
         CancellationToken cancellationToken)
@@ -909,13 +920,18 @@ internal sealed class TabularWorkspace : IDisposable
 
                 var row = rows[rowIndex];
 
-                for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
+                for (var columnIndex = 0; columnIndex < dataColumns.Count; columnIndex++)
                 {
                     var value = columnIndex < row.Count ? row[columnIndex] : null;
 
-                    command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(columns[columnIndex].DeclaredType, value)
+                    command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(dataColumns[columnIndex].DeclaredType, value)
                         ? DBNull.Value
                         : value;
+                }
+
+                if (hasSubtotalColumn)
+                {
+                    command.Parameters[dataColumns.Count].Value = TabularWorksheetShaper.IsSubtotalRow(row) ? 1L : 0L;
                 }
 
                 command.ExecuteNonQuery();

@@ -72,37 +72,64 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
             return Task.FromResult<IReadOnlyList<TabularWorkspaceImportResult>>(results);
         }
 
-        var singleWorksheet = (workbookPart.Workbook?.Sheets?.Elements<Sheet>().Count() ?? 0) <= 1;
+        // Only visible worksheets are imported (hidden lookup/scratch sheets are skipped by the reader),
+        // so table naming is based on the count of visible sheets.
+        var visibleSheetCount = workbookPart.Workbook?.Sheets?.Elements<Sheet>()
+            .Count(sheet => sheet.State?.Value is not SheetStateValues state || state == SheetStateValues.Visible) ?? 0;
+        var singleWorksheet = visibleSheetCount <= 1;
+
+        // Rows are buffered until enough have been seen to both locate the header row (skipping any title
+        // rows above it) and infer column storage types. HeaderScanRows covers the header search window
+        // and TypeSampleRowCount the type sample taken from the data rows beneath it.
+        var profileRowCount = TabularWorksheetShaper.HeaderScanRows + TabularWorkspaceSqliteHelpers.TypeSampleRowCount;
 
         string worksheetName = null;
         string currentTableName = null;
-        List<string> header = null;
-        var sampleRows = new List<List<string>>(TabularWorkspaceSqliteHelpers.TypeSampleRowCount);
-        IReadOnlyList<TabularColumnInfo> columns = null;
+        var leadingRows = new List<List<string>>(profileRowCount);
+        IReadOnlyList<TabularColumnInfo> dataColumns = null;
+        IReadOnlyList<TabularColumnInfo> allColumns = null;
+        var hasSubtotalColumn = false;
+        var finalized = false;
         SqliteCommand insertCommand = null;
         SqliteTransaction transaction = null;
         var rowCount = 0;
         var insertCommandCount = 0;
 
-        // The table cannot be created until enough data rows have been seen to infer the column
-        // storage types, so the leading rows are buffered and written once the table exists.
-        void CreateTableAndFlushSampleRows()
+        void InsertDataRow(List<string> row)
         {
-            currentTableName = tableName(worksheetName, singleWorksheet);
-            columns = TabularWorkspaceSqliteHelpers.BuildColumns(header, sampleRows);
-            TabularWorkspaceSqliteHelpers.CreateTable(connection, currentTableName, columns);
-            transaction = connection.BeginTransaction();
-            insertCommand = CreateInsertCommand(connection, transaction, currentTableName, columns);
+            BindDataRow(insertCommand, row, dataColumns, hasSubtotalColumn);
+            insertCommand.ExecuteNonQuery();
+            rowCount++;
+            insertCommandCount++;
+        }
 
-            foreach (var sampleRow in sampleRows)
+        // The table cannot be created until the header row has been located and enough data rows sampled
+        // to infer column types, so the leading rows are buffered and written once the table exists.
+        void FinalizeTable()
+        {
+            var headerIndex = TabularWorksheetShaper.DetectHeaderRowIndex(leadingRows);
+            var header = leadingRows[headerIndex];
+            var dataRows = leadingRows.GetRange(headerIndex + 1, leadingRows.Count - headerIndex - 1);
+            var expandedHeader = TabularWorksheetShaper.ExpandHeader(header, dataRows);
+
+            dataColumns = TabularWorkspaceSqliteHelpers.BuildColumns(expandedHeader, dataRows);
+            hasSubtotalColumn = dataRows.Any(TabularWorksheetShaper.IsSubtotalRow);
+            allColumns = hasSubtotalColumn
+                ? [.. dataColumns, new TabularColumnInfo(TabularWorksheetShaper.SubtotalColumnName, "INTEGER")]
+                : dataColumns;
+
+            currentTableName = tableName(worksheetName, singleWorksheet);
+            TabularWorkspaceSqliteHelpers.CreateTable(connection, currentTableName, allColumns);
+            transaction = connection.BeginTransaction();
+            insertCommand = CreateInsertCommand(connection, transaction, currentTableName, allColumns);
+            finalized = true;
+
+            foreach (var dataRow in dataRows)
             {
-                BindInsertParameters(insertCommand, sampleRow, columns);
-                insertCommand.ExecuteNonQuery();
-                rowCount++;
-                insertCommandCount++;
+                InsertDataRow(dataRow);
             }
 
-            sampleRows.Clear();
+            leadingRows.Clear();
         }
 
         try
@@ -115,9 +142,11 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                 {
                     worksheetName = name;
                     currentTableName = null;
-                    header = null;
-                    sampleRows.Clear();
-                    columns = null;
+                    leadingRows.Clear();
+                    dataColumns = null;
+                    allColumns = null;
+                    hasSubtotalColumn = false;
+                    finalized = false;
                     insertCommand = null;
                     transaction = null;
                     rowCount = 0;
@@ -125,48 +154,38 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                 },
                 row =>
                 {
-                    if (header == null)
+                    if (!finalized)
                     {
-                        header = row;
+                        leadingRows.Add(row);
 
-                        return;
-                    }
-
-                    if (columns == null)
-                    {
-                        sampleRows.Add(row);
-
-                        if (sampleRows.Count >= TabularWorkspaceSqliteHelpers.TypeSampleRowCount)
+                        if (leadingRows.Count >= profileRowCount)
                         {
-                            CreateTableAndFlushSampleRows();
+                            FinalizeTable();
                         }
 
                         return;
                     }
 
-                    BindInsertParameters(insertCommand, row, columns);
-                    insertCommand.ExecuteNonQuery();
-                    rowCount++;
-                    insertCommandCount++;
+                    InsertDataRow(row);
                 },
                 () =>
                 {
-                    // A worksheet with no non-empty rows contributes no header, so it produces no table.
-                    if (header == null)
+                    // A worksheet with no non-empty rows produces no table.
+                    if (!finalized)
                     {
-                        return;
-                    }
+                        if (leadingRows.Count == 0)
+                        {
+                            return;
+                        }
 
-                    if (columns == null)
-                    {
-                        CreateTableAndFlushSampleRows();
+                        FinalizeTable();
                     }
 
                     transaction.Commit();
                     results.Add(new TabularWorkspaceImportResult(
                         currentTableName,
                         worksheetName,
-                        columns,
+                        allColumns,
                         rowCount,
                         insertCommandCount,
                         1));
@@ -242,18 +261,24 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         return command;
     }
 
-    private static void BindInsertParameters(
+    private static void BindDataRow(
         SqliteCommand command,
         List<string> row,
-        IReadOnlyList<TabularColumnInfo> columns)
+        IReadOnlyList<TabularColumnInfo> dataColumns,
+        bool hasSubtotalColumn)
     {
-        for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
+        for (var columnIndex = 0; columnIndex < dataColumns.Count; columnIndex++)
         {
             var value = columnIndex < row.Count ? row[columnIndex] : null;
 
-            command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(columns[columnIndex].DeclaredType, value)
+            command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(dataColumns[columnIndex].DeclaredType, value)
                 ? DBNull.Value
                 : value;
+        }
+
+        if (hasSubtotalColumn)
+        {
+            command.Parameters[dataColumns.Count].Value = TabularWorksheetShaper.IsSubtotalRow(row) ? 1L : 0L;
         }
     }
 }

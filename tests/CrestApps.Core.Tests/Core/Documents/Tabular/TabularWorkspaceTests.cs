@@ -120,6 +120,26 @@ public class TabularWorkspaceTests
         Assert.Equal("North", result.Rows[0][0]);
     }
 
+    [Fact]
+    public async Task EnsureReadyAsync_SubtotalRows_AreFlaggedAndExcludableFromAggregates()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "region,amount\nNorth,100\nSouth,200\nTotal,300";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
+        Assert.Contains(columns, c => c.Name == "is_subtotal");
+
+        var flagged = await workspace.QueryAsync("SELECT COUNT(*) FROM sales WHERE is_subtotal = 1", 100, cancellationToken);
+        Assert.Equal(1L, Assert.Single(flagged.Rows)[0]);
+
+        // The Total rollup row (300) must not inflate the sum of the two real rows (100 + 200).
+        var sum = await workspace.QueryAsync("SELECT SUM(amount) FROM sales WHERE is_subtotal = 0", 100, cancellationToken);
+        Assert.Equal(300L, Assert.Single(sum.Rows)[0]);
+    }
+
     /// <summary>
     /// The declared type cannot be quoted like an identifier, so it is emitted verbatim into the
     /// CREATE TABLE statement. Only the inferred storage types may reach the statement.

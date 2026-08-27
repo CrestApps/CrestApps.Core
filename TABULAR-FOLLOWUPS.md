@@ -1,9 +1,10 @@
 # Tabular workspace — known follow-ups
 
-Notes left after the multi-worksheet / column-typing work. Nothing here is a regression; these are
-things observed while testing that workbook against the live agent.
+Notes left after the multi-worksheet / column-typing work and the follow-up header-detection /
+subtotal / unlabeled-column pass. Nothing here is a regression; these are things observed while
+testing real workbooks against the live agent.
 
-## 1. The model wastes a tool call on `PRAGMA table_info` every time
+## 1. The model wastes a tool call on `PRAGMA table_info` every time — STILL OPEN
 
 **What happens.** Ask the tabular agent to describe a table and it reliably tries:
 
@@ -36,35 +37,36 @@ before finishing the answer.
 
 The second option is the smaller change and removes the wasted call outright.
 
-## 2. Embedded subtotal rows are indistinguishable from data
+## 2. Embedded subtotal rows — RESOLVED (with one edge)
 
-Sheets exported from Excel often carry inline rollup rows. In the revenue workbook, `Client
-Breakdown` has 7 of them (`True Blue Total`, `Henderson Total`, … `RDI Total`) with a blank `Site`,
-and `Overall Projections` has a `Totals:` row.
+Rows that look like inline rollups (a total-style label such as `Totals:` or `Waco Total` alongside
+at least one numeric value) are now flagged. When any are detected in a table, an `is_subtotal`
+column is added (`1` = rollup, `0` = data). `TabularWorksheetShaper.IsSubtotalRow` holds the
+heuristic, and the agent prompt instructs the model to add `WHERE is_subtotal = 0` to aggregates.
+Rows are kept, not dropped, so a heuristic misfire never loses data.
 
-They import as ordinary rows, so a naive aggregate double- or triple-counts:
+**Edge left:** detection runs over the profile buffer (the first `HeaderScanRows + TypeSampleRowCount`
+rows of each worksheet). A subtotal that appears only *after* that window in a table that had none
+before it will not add/flag the column. The interspersed per-group totals in the test workbooks fall
+inside the window; a lone grand-total far down a long sheet could be missed. A full-sheet second pass
+would close this if it proves to matter.
 
-```
-SELECT SUM(Total_Revenue) FROM "..._Client_Breakdown"   -> 20,880,998
-Actual total                                            ->  6,960,333
-```
+## 3. Populated columns with no header — RESOLVED
 
-The model has so far spotted them unprompted and excluded them, so this is a latent trap rather than
-an active bug. Detecting them reliably needs a heuristic over data shape (blank key column plus a
-label ending in "Total", or a value equal to the sum of preceding rows), which is a design decision
-that was deliberately kept out of the typing change.
+Cells that extend past the last header are no longer dropped. `TabularWorksheetShaper.ExpandHeader`
+widens the header to the widest sampled data row and `BuildColumns` names the extra columns
+`column_N`, so their data is imported and queryable. (Column width is still measured from the row
+sample, not the sheet `<dimension>`, which over-declares `A1:Y86` in these workbooks; a row wider than
+every sampled row could still be truncated.)
 
-## 3. Populated columns with no header are dropped
+## 4. Header not on the first row — RESOLVED
 
-Column count comes from the header row, so cells past the last header are discarded. In `Client
-Breakdown` that silently loses 44 populated cells in column K — sub-queue labels ("Imaging", "Food
-and Nutrition") and a per-campaign commentary column.
+`TabularWorksheetShaper.DetectHeaderRowIndex` scans the first rows of each worksheet and picks the row
+with the most textual labels, skipping title/banner rows above it (for example the date-band title
+row on `Projections - By Client`). The blank-leading-row case was already handled by the reader.
 
-This also makes some rows unidentifiable: `Milford / Eli Lilly` appears twice and is only
-distinguishable by that dropped column, where the two rows read "Eli Lilly Affordability" and
-"Eli Lilly Direct".
+## 5. Dates and hidden sheets — RESOLVED
 
-The obvious fix — size the table from the worksheet `<dimension>` — does not work: this workbook
-declares `A1:Y86` while real data ends at K, so it would create 14 empty columns. Sizing from a row
-sample is also inconsistent, since a wider row further down the sheet would still be truncated.
-Needs its own design.
+Excel date serials on date/time-formatted cells are converted to ISO strings during read
+(`OpenXmlTabularWorksheetReader.TryConvertExcelDate`). Hidden and very-hidden worksheets are skipped
+by default rather than imported as opaque extra tables.

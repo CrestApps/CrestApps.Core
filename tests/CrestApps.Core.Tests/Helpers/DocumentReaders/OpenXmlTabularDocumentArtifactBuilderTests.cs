@@ -327,6 +327,122 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
                 cancellationTokenSource.Token));
     }
 
+    [Fact]
+    public async Task CreateAsync_TitleRowAboveHeader_UsesRealHeader()
+    {
+        await using var stream = CreateWorkbook((workbookPart, sheets) => AppendSheet(
+            workbookPart,
+            sheets,
+            1,
+            [
+                ["Revenue Report 2026", "", ""],
+                ["Region", "Quarter", "Amount"],
+                ["West", "Q3", "100"],
+                ["East", "Q4", "200"],
+            ],
+            "Report"));
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Region", "Quarter", "Amount"], artifact.Header);
+        Assert.Collection(
+            artifact.Rows,
+            row => Assert.Equal(["West", "Q3", "100"], row),
+            row => Assert.Equal(["East", "Q4", "200"], row));
+    }
+
+    [Fact]
+    public async Task CreateAsync_PopulatedColumnWithoutHeader_IsRetainedWithPaddedHeader()
+    {
+        await using var stream = CreateWorkbook((workbookPart, sheets) => AppendSheet(
+            workbookPart,
+            sheets,
+            1,
+            [
+                ["Site", "Campaign", "Revenue"],
+                ["True Blue", "BayCare", "71822", "Imaging"],
+                ["True Blue", "CARE", "9137", "Food and Nutrition"],
+            ],
+            "Breakdown"));
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(4, artifact.Header.Count);
+        Assert.Equal(["Site", "Campaign", "Revenue", ""], artifact.Header);
+        Assert.Equal(["True Blue", "BayCare", "71822", "Imaging"], artifact.Rows[0]);
+    }
+
+    [Fact]
+    public async Task CreateAsync_HiddenWorksheet_IsSkipped()
+    {
+        await using var stream = CreateWorkbook((workbookPart, sheets) =>
+        {
+            AppendSheet(
+                workbookPart,
+                sheets,
+                1,
+                [["Site", "Revenue"], ["Henderson", "100"]],
+                "Visible");
+
+            AppendSheet(
+                workbookPart,
+                sheets,
+                2,
+                [["Code", "Description"], ["A", "Internal"]],
+                "HiddenLookup",
+                state: SheetStateValues.Hidden);
+        });
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Single(artifact.Worksheets);
+        Assert.Equal("Visible", artifact.Worksheets[0].Name);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DateFormattedCell_ConvertedToIsoString()
+    {
+        await using var stream = CreateExcelWithDateColumn("Date", 45658);
+
+        var artifact = await _builder.CreateAsync(
+            stream,
+            "test.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Date"], artifact.Header);
+        Assert.Equal("2025-01-01", artifact.Rows[0][0]);
+    }
+
+    private static MemoryStream CreateWorkbook(Action<WorkbookPart, Sheets> build)
+    {
+        var stream = new MemoryStream();
+
+        using (var doc = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
+        {
+            var workbookPart = doc.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            build(workbookPart, sheets);
+        }
+
+        stream.Position = 0;
+
+        return stream;
+    }
+
     private static MemoryStream CreateExcelWithSharedStrings(string[][] rows)
     {
         var stream = new MemoryStream();
@@ -585,7 +701,8 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
         uint sheetId,
         string[][] rows,
         string name = null,
-        uint firstRowIndex = 1)
+        uint firstRowIndex = 1,
+        SheetStateValues? state = null)
     {
         var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
         var sheetData = new SheetData();
@@ -622,11 +739,76 @@ public sealed class OpenXmlTabularDocumentArtifactBuilderTests
         }
 
         worksheetPart.Worksheet = new Worksheet(sheetData);
-        sheets.AppendChild(new Sheet
+        var sheet = new Sheet
         {
             Id = workbookPart.GetIdOfPart(worksheetPart),
             SheetId = sheetId,
             Name = name ?? $"Sheet{sheetId}",
-        });
+        };
+
+        if (state is not null)
+        {
+            sheet.State = state;
+        }
+
+        sheets.AppendChild(sheet);
+    }
+
+    // Builds a single-sheet workbook whose second column is a numeric cell rendered with a built-in
+    // date format, so the reader must convert the serial to an ISO date string.
+    private static MemoryStream CreateExcelWithDateColumn(string header, double dateSerial)
+    {
+        var stream = new MemoryStream();
+
+        using (var doc = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
+        {
+            var workbookPart = doc.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+
+            var stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
+            stylesPart.Stylesheet = new Stylesheet(
+                new CellFormats(
+                    new CellFormat(),
+                    new CellFormat
+                    {
+                        NumberFormatId = 14,
+                        ApplyNumberFormat = true,
+                    }));
+            stylesPart.Stylesheet.Save();
+
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            var sheetData = new SheetData();
+
+            var headerRow = new Row { RowIndex = 1 };
+            headerRow.AppendChild(new Cell
+            {
+                CellReference = "A1",
+                DataType = CellValues.InlineString,
+                InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(header)),
+            });
+            sheetData.AppendChild(headerRow);
+
+            var dataRow = new Row { RowIndex = 2 };
+            dataRow.AppendChild(new Cell
+            {
+                CellReference = "A2",
+                StyleIndex = 1,
+                CellValue = new CellValue(dateSerial.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            });
+            sheetData.AppendChild(dataRow);
+
+            worksheetPart.Worksheet = new Worksheet(sheetData);
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.AppendChild(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(worksheetPart),
+                SheetId = 1,
+                Name = "Dates",
+            });
+        }
+
+        stream.Position = 0;
+
+        return stream;
     }
 }

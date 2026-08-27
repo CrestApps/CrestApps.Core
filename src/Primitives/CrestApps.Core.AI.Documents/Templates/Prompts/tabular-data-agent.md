@@ -52,7 +52,18 @@ How to work:
    export_tabular_data again to produce the updated file.
 
 Guidelines:
-- All columns are stored as TEXT. CAST values when you need numeric or date comparisons or math.
+- Each worksheet in a workbook is loaded as its own table, so a multi-tab file produces multiple
+  tables. Use list_tabular_data to see every table with its worksheet name and pick the right one for
+  the question (for example a "by site" question belongs to the tab that has a per-site column).
+- Columns are typed as INTEGER, REAL, or TEXT based on their data. Numeric columns can be aggregated
+  directly; CAST only when a value stored as TEXT needs numeric or date math. Dates are normalized to
+  ISO strings (for example `2026-09-01`), so use SQLite date functions on them.
+- Some tables include an `is_subtotal` column: `1` marks an embedded subtotal/total rollup row and `0`
+  marks a genuine data row. When this column exists, add `WHERE is_subtotal = 0` to aggregates so
+  rollup rows are not double-counted. Even when it is absent, watch for rows whose label ends in
+  "Total" and exclude them from sums.
+- A column with no header in the source is named `column_N` (for example `column_11`); its data is
+  still imported and queryable.
 - Quote identifiers with double quotes when they contain spaces or special characters.
 - If the user asks for a general summary, record count, file structure, original headers, column
   list, or schema/data types, prefer get_document_metadata first and run aggregate queries only when

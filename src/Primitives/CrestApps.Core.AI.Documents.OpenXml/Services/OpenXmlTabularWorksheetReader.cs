@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Xml;
 using DocumentFormat.OpenXml.Packaging;
@@ -8,6 +9,11 @@ namespace CrestApps.Core.AI.Documents.OpenXml.Services;
 
 internal static class OpenXmlTabularWorksheetReader
 {
+    // The lowest and highest OLE Automation date serials Excel can represent (1900-01-01 through
+    // 9999-12-31). Serials outside this range are treated as plain numbers rather than dates.
+    private const double MinExcelDateSerial = 1d;
+    private const double MaxExcelDateSerial = 2958465d;
+
     private static readonly XmlReaderSettings _xmlReaderSettings = new()
     {
         IgnoreComments = true,
@@ -46,6 +52,7 @@ internal static class OpenXmlTabularWorksheetReader
         CancellationToken cancellationToken)
     {
         var sharedStrings = CreateSharedStringCache(workbookPart);
+        var dateStyles = BuildDateStyleTable(workbookPart);
         var expectedColumnCount = 16;
 
         void ReadWorksheet(WorksheetPart worksheetPart, string worksheetName)
@@ -69,7 +76,7 @@ internal static class OpenXmlTabularWorksheetReader
                     continue;
                 }
 
-                var row = ReadRow(reader, sharedStrings, expectedColumnCount, out var hasValue);
+                var row = ReadRow(reader, sharedStrings, dateStyles, expectedColumnCount, out var hasValue);
 
                 if (!hasValue)
                 {
@@ -101,6 +108,13 @@ internal static class OpenXmlTabularWorksheetReader
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                // Hidden and very-hidden sheets are typically lookup/scratch tables the author chose not
+                // to show, so they are skipped by default rather than imported as opaque extra tables.
+                if (sheet.State?.Value is SheetStateValues state && state != SheetStateValues.Visible)
+                {
+                    continue;
+                }
+
                 if (sheet.Id?.Value is not string relationshipId ||
                     workbookPart.GetPartById(relationshipId) is not WorksheetPart worksheetPart)
                 {
@@ -124,6 +138,7 @@ internal static class OpenXmlTabularWorksheetReader
     private static List<string> ReadRow(
         XmlReader reader,
         string[] sharedStrings,
+        bool[] dateStyles,
         int expectedColumnCount,
         out bool hasValue)
     {
@@ -171,7 +186,8 @@ internal static class OpenXmlTabularWorksheetReader
                 values.Add(string.Empty);
             }
 
-            var value = GetCellValue(reader, reader.GetAttribute("t"), sharedStrings);
+            var isDateStyle = IsDateStyledCell(reader.GetAttribute("s"), dateStyles);
+            var value = GetCellValue(reader, reader.GetAttribute("t"), isDateStyle, sharedStrings);
 
             values.Add(value);
             hasValue |= !string.IsNullOrEmpty(value);
@@ -241,6 +257,7 @@ internal static class OpenXmlTabularWorksheetReader
     private static string GetCellValue(
         XmlReader reader,
         string cellType,
+        bool isDateStyle,
         string[] sharedStrings)
     {
         if (reader.IsEmptyElement)
@@ -341,6 +358,158 @@ internal static class OpenXmlTabularWorksheetReader
                 : "FALSE";
         }
 
+        // A numeric cell (no explicit type, or an explicit "n") carrying a date/time number format is an
+        // Excel date serial. Converting it to an ISO string keeps date questions answerable instead of
+        // leaving an opaque integer like 46266 in the data.
+        if ((cellType is null || string.Equals(cellType, "n", StringComparison.Ordinal)) &&
+            isDateStyle &&
+            TryConvertExcelDate(value, out var isoDate))
+        {
+            return isoDate;
+        }
+
         return value;
+    }
+
+    private static bool IsDateStyledCell(string styleAttribute, bool[] dateStyles)
+    {
+        if (dateStyles is null ||
+            string.IsNullOrEmpty(styleAttribute) ||
+            !int.TryParse(styleAttribute, NumberStyles.Integer, CultureInfo.InvariantCulture, out var styleIndex))
+        {
+            return false;
+        }
+
+        return (uint)styleIndex < (uint)dateStyles.Length && dateStyles[styleIndex];
+    }
+
+    private static bool TryConvertExcelDate(string value, out string isoDate)
+    {
+        isoDate = null;
+
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var serial) ||
+            serial < MinExcelDateSerial ||
+            serial > MaxExcelDateSerial)
+        {
+            return false;
+        }
+
+        try
+        {
+            var date = DateTime.FromOADate(serial);
+            isoDate = date.TimeOfDay == TimeSpan.Zero
+                ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    // Builds a lookup keyed by cell-format (style) index indicating whether that style renders its value
+    // as a date/time. Both the built-in date format ids and workbook-specific custom formats are honored.
+    private static bool[] BuildDateStyleTable(WorkbookPart workbookPart)
+    {
+        var stylesheet = workbookPart.WorkbookStylesPart?.Stylesheet;
+        var cellFormats = stylesheet?.CellFormats;
+
+        if (cellFormats is null)
+        {
+            return null;
+        }
+
+        var customDateFormats = new Dictionary<uint, bool>();
+
+        if (stylesheet.NumberingFormats is not null)
+        {
+            foreach (var numberingFormat in stylesheet.NumberingFormats.Elements<NumberingFormat>())
+            {
+                if (numberingFormat.NumberFormatId?.Value is uint formatId &&
+                    numberingFormat.FormatCode?.Value is string formatCode)
+                {
+                    customDateFormats[formatId] = IsDateFormatCode(formatCode);
+                }
+            }
+        }
+
+        var formats = cellFormats.Elements<CellFormat>().ToList();
+        var table = new bool[formats.Count];
+
+        for (var i = 0; i < formats.Count; i++)
+        {
+            var formatId = formats[i].NumberFormatId?.Value ?? 0;
+
+            table[i] = IsBuiltInDateFormat(formatId) ||
+                (customDateFormats.TryGetValue(formatId, out var isDate) && isDate);
+        }
+
+        return table;
+    }
+
+    private static bool IsBuiltInDateFormat(uint numberFormatId)
+    {
+        // Built-in Excel date/time format ids: 14-22 (dates and times) and 45-47 (elapsed times).
+        return numberFormatId is (>= 14 and <= 22) or (>= 45 and <= 47);
+    }
+
+    private static bool IsDateFormatCode(string formatCode)
+    {
+        if (string.IsNullOrEmpty(formatCode))
+        {
+            return false;
+        }
+
+        // Number formats never contain date/time placeholder letters, so the presence of any y/m/d/h/s
+        // token (outside quoted literals, escapes, and [bracketed] sections) marks a date or time format.
+        var inLiteral = false;
+        var inBracket = false;
+
+        for (var i = 0; i < formatCode.Length; i++)
+        {
+            var c = formatCode[i];
+
+            if (inLiteral)
+            {
+                if (c == '"')
+                {
+                    inLiteral = false;
+                }
+
+                continue;
+            }
+
+            if (inBracket)
+            {
+                if (c == ']')
+                {
+                    inBracket = false;
+                }
+
+                continue;
+            }
+
+            switch (c)
+            {
+                case '"':
+                    inLiteral = true;
+
+                    break;
+                case '[':
+                    inBracket = true;
+
+                    break;
+                case '\\':
+                    i++;
+
+                    break;
+                case 'y' or 'Y' or 'm' or 'M' or 'd' or 'D' or 'h' or 'H' or 's' or 'S':
+                    return true;
+            }
+        }
+
+        return false;
     }
 }
