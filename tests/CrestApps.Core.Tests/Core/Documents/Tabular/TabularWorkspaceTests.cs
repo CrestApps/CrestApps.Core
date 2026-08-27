@@ -1,3 +1,4 @@
+using System.Reflection;
 using CrestApps.Core.AI.Documents.Tabular;
 using Microsoft.Data.Sqlite;
 
@@ -576,6 +577,55 @@ public class TabularWorkspaceTests
         // After disposal the database is gone; querying throws.
         await Assert.ThrowsAnyAsync<Exception>(
             () => workspace.QueryAsync("SELECT * FROM sales", 100, cancellationToken));
+    }
+
+    /// <summary>
+    /// Defense in depth: the workspace connection is kept read-only at the SQLite engine level outside
+    /// its narrow write windows, so a write that ever reached a read path is refused by the engine even
+    /// if it slipped past the SQL text guard. The sanctioned manipulation path still succeeds.
+    /// </summary>
+    [Fact]
+    public async Task Connection_IsReadOnlyByDefault_AndOnlyWritableInsideCommandWindow()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        await workspace.EnsureReadyAsync(Documents(), Loader(Csv), cancellationToken);
+
+        var connection = GetConnection(workspace);
+
+        // A direct write on the shared connection is refused because it is in query_only mode.
+        using (var write = connection.CreateCommand())
+        {
+            write.CommandText = "DELETE FROM sales";
+            var exception = Assert.Throws<SqliteException>(() => write.ExecuteNonQuery());
+            Assert.Contains("readonly", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Reads still work on the same connection.
+        using (var read = connection.CreateCommand())
+        {
+            read.CommandText = "SELECT COUNT(*) FROM sales";
+            Assert.Equal(3L, Convert.ToInt64(read.ExecuteScalar()));
+        }
+
+        // The sanctioned manipulation tool opens a write window and succeeds.
+        await workspace.ExecuteAsync("UPDATE sales SET amount = '999' WHERE region = 'North'", cancellationToken);
+        var updated = await workspace.QueryAsync("SELECT amount FROM sales WHERE region = 'North' LIMIT 1", 10, cancellationToken);
+        Assert.Equal(999L, Convert.ToInt64(updated.Rows[0][0]));
+
+        // Once the window closed, the connection is read-only again.
+        using (var write = connection.CreateCommand())
+        {
+            write.CommandText = "DELETE FROM sales";
+            Assert.Throws<SqliteException>(() => write.ExecuteNonQuery());
+        }
+    }
+
+    private static SqliteConnection GetConnection(TabularWorkspace workspace)
+    {
+        var field = typeof(TabularWorkspace).GetField("_connection", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        return (SqliteConnection)field!.GetValue(workspace)!;
     }
 
     private static TabularWorkspace CreateWorkspace(TabularWorkspaceOptions options = null)
