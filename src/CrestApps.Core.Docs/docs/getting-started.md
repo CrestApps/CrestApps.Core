@@ -149,7 +149,13 @@ dotnet run --project .\src\Startup\CrestApps.Core.Aspire.AppHost\CrestApps.Core.
 
 This requires a running container runtime such as [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
+:::info First run downloads a model
+On the first run, the Aspire host pulls the default `deepseek-v2:16b` model. Depending on your internet speed this can take a while, and the model takes several gigabytes of disk space. The download only happens once — the model is cached in a persistent volume for later runs. To use a smaller or different model, change the model name in the Aspire host's `Program.cs`.
+:::
+
 ### Option B — Point at your own Ollama instance
+
+The sample hosts already register the Ollama provider, so running them against your own Ollama only requires pulling the model and pointing a connection at it.
 
 1. Pull the model you want to use, then confirm it is available:
 
@@ -161,16 +167,7 @@ This requires a running container runtime such as [Docker Desktop](https://www.d
    curl http://localhost:11434/api/tags
    ```
 
-2. Register the Ollama provider:
-
-   ```csharp
-   builder.Services.AddCrestAppsCore(crestApps => crestApps
-       .AddAISuite(ai => ai
-           .AddOllama()
-           .AddChatInteractions()));
-   ```
-
-3. Configure the connection and a deployment whose `ModelName` **exactly matches** the pulled model name (including any tag, e.g. `llama3.2:latest`):
+2. Configure the connection and a deployment whose `ModelName` **exactly matches** the pulled model name (including any tag, e.g. `llama3.2:latest`):
 
    ```json
    {
@@ -197,6 +194,15 @@ This requires a running container runtime such as [Docker Desktop](https://www.d
    ```
 
 Ollama does not require an API key — the connection only needs an `Endpoint`. See the [Ollama provider guide](providers/ollama.md) for model management, Docker setup, and capability details.
+
+If you are wiring CrestApps.Core into **your own** project rather than running the sample hosts, register the provider the same way as the OpenAI example above, swapping `.AddOpenAI()` for `.AddOllama()`:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOllama()
+        .AddChatInteractions()));
+```
 
 :::warning Getting a `404 (Not Found)` from Ollama?
 This almost always means the requested model has not been pulled. Run `ollama pull <model>` and confirm the name appears in `curl http://localhost:11434/api/tags` — it must match the deployment's **Model name** exactly.
