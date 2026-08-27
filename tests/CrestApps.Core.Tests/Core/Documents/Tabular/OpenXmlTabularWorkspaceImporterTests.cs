@@ -200,6 +200,27 @@ public sealed class OpenXmlTabularWorkspaceImporterTests
     }
 
     /// <summary>
+    /// A date serial that carries a time-of-day fraction is converted to a full ISO date-time string,
+    /// not just a date, so timestamped data keeps its time component.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_DateSerialWithTimeComponent_StoredAsIsoDateTime()
+    {
+        // 45658.75 = 2025-01-01 18:00:00.
+        using var stream = BuildWorkbook(new SheetSpec("Events",
+        [
+            ["Event", "Occurred"],
+            ["Start", "45658.75"],
+        ],
+        dateColumns: [1]));
+
+        using var connection = OpenConnection();
+        var result = Assert.Single(await ImportAsync(stream, "events.xlsx", connection));
+
+        Assert.Equal("2025-01-01 18:00:00", Scalar(connection, $"SELECT Occurred FROM {Quote(result.TableName)} LIMIT 1"));
+    }
+
+    /// <summary>
     /// Problem: hidden lookup/scratch sheets were imported as opaque extra tables. They must be skipped
     /// by default so only visible worksheets become tables.
     /// </summary>
