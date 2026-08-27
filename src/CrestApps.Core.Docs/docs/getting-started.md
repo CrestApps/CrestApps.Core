@@ -167,7 +167,9 @@ The sample hosts already register the Ollama provider, so running them against y
    curl http://localhost:11434/api/tags
    ```
 
-2. Configure the connection and a deployment whose `ModelName` **exactly matches** the pulled model name (including any tag, e.g. `llama3.2:latest`):
+2. Create an Ollama connection and a chat deployment. In the sample hosts you can add both from the admin UI on the **AI Connections** and **AI Deployments** screens, the same way you would for any provider. Whichever route you use, the deployment's **Model name** must **exactly match** the pulled model name (including any tag, e.g. `llama3.2:latest`).
+
+   You can also provide them through configuration instead of the UI:
 
    ```json
    {
