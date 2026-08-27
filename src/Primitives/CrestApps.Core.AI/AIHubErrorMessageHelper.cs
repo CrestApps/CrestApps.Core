@@ -42,7 +42,7 @@ internal static class AIHubErrorMessageHelper
                     HttpStatusCode.BadRequest
                         => S["Invalid request. Please verify your connection settings."],
                     HttpStatusCode.NotFound
-                        => S["The provider endpoint could not be found. Please verify the API URL."],
+                        => S["The provider could not find the requested model or endpoint. Verify the deployment's model name exists on the provider and that the connection endpoint URL is correct."],
                     HttpStatusCode.TooManyRequests
                         => S["Rate limit reached. Please wait and try again later."],
                     >= HttpStatusCode.InternalServerError
@@ -72,6 +72,17 @@ internal static class AIHubErrorMessageHelper
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Determines whether the failure is a provider "not found" (HTTP 404) response, which typically
+    /// means the configured model/deployment name or the connection endpoint could not be found
+    /// (for example, an Ollama model that has not been pulled).
+    /// </summary>
+    /// <param name="ex">The ex.</param>
+    public static bool IsModelOrEndpointNotFoundFailure(Exception ex)
+    {
+        return AIProviderErrorHelper.IsNotFoundException(ex);
     }
 
     private static string ExtractRetryAfterMessage(string message)

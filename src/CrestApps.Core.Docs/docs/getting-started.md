@@ -135,6 +135,73 @@ Use `ConnectionName` when a deployment should point at a shared entry from `Cres
 
 Create an AI profile that uses your chat deployment, then use Chat Interactions to test it end to end.
 
+## Run locally with Ollama (no API key)
+
+[Ollama](https://ollama.ai/) is the fastest way to try CrestApps.Core without a cloud provider or API key. The one requirement that trips people up: **Ollama only serves models that have already been pulled onto the machine.** If the deployment's `ModelName` does not match a locally pulled model, the provider returns `404 (Not Found)` and the chat fails.
+
+### Option A — Let the Aspire host do it for you (recommended)
+
+The included Aspire host starts an Ollama container, **pulls a model automatically**, and pre-wires the connection and deployment for both sample hosts, so there is nothing to configure by hand:
+
+```bash
+dotnet run --project .\src\Startup\CrestApps.Core.Aspire.AppHost\CrestApps.Core.Aspire.AppHost.csproj
+```
+
+This requires a running container runtime such as [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+### Option B — Point at your own Ollama instance
+
+1. Pull the model you want to use, then confirm it is available:
+
+   ```bash
+   ollama pull llama3.2
+   ```
+
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+2. Register the Ollama provider:
+
+   ```csharp
+   builder.Services.AddCrestAppsCore(crestApps => crestApps
+       .AddAISuite(ai => ai
+           .AddOllama()
+           .AddChatInteractions()));
+   ```
+
+3. Configure the connection and a deployment whose `ModelName` **exactly matches** the pulled model name (including any tag, e.g. `llama3.2:latest`):
+
+   ```json
+   {
+     "CrestApps": {
+       "AI": {
+         "Connections": [
+           {
+             "Name": "ollama-local",
+             "ClientName": "Ollama",
+             "Endpoint": "http://localhost:11434"
+           }
+         ],
+         "Deployments": [
+           {
+             "Name": "llama3.2",
+             "ConnectionName": "ollama-local",
+             "ModelName": "llama3.2",
+             "Type": "Chat"
+           }
+         ]
+       }
+     }
+   }
+   ```
+
+Ollama does not require an API key — the connection only needs an `Endpoint`. See the [Ollama provider guide](providers/ollama.md) for model management, Docker setup, and capability details.
+
+:::warning Getting a `404 (Not Found)` from Ollama?
+This almost always means the requested model has not been pulled. Run `ollama pull <model>` and confirm the name appears in `curl http://localhost:11434/api/tags` — it must match the deployment's **Model name** exactly.
+:::
+
 ## Complete Hello World example
 
 Here is a minimal, self-contained `Program.cs` that sends a chat completion request using CrestApps.Core with OpenAI:

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Threading.Channels;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
@@ -71,6 +72,53 @@ public sealed class AIChatHubCoreTests
         var message = hub.GetFriendlyErrorMessageForTest(new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile."));
 
         Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in the AI Profile or the global AI settings.", message);
+    }
+
+    [Fact]
+    public void GetFriendlyErrorMessage_WithProviderNotFound_ReturnsModelOrEndpointGuidance()
+    {
+        var hub = new TestAIChatHub(new ServiceCollection().BuildServiceProvider());
+
+        var notFound = new HttpRequestException(
+            "Response status code does not indicate success: 404 (Not Found).",
+            inner: null,
+            statusCode: HttpStatusCode.NotFound);
+
+        var message = hub.GetFriendlyErrorMessageForTest(notFound);
+
+        Assert.Equal("The AI provider could not find the requested model or endpoint (404). Verify that the deployment's model name exists on the provider and that the connection endpoint is correct. If you are using Ollama, make sure the model has been pulled first.", message);
+    }
+
+    [Fact]
+    public void GetFriendlyErrorMessage_WithWrappedProviderNotFound_ReturnsModelOrEndpointGuidance()
+    {
+        var hub = new TestAIChatHub(new ServiceCollection().BuildServiceProvider());
+
+        var notFound = new InvalidOperationException(
+            "Streaming failed.",
+            new HttpRequestException(
+                "Response status code does not indicate success: 404 (Not Found).",
+                inner: null,
+                statusCode: HttpStatusCode.NotFound));
+
+        var message = hub.GetFriendlyErrorMessageForTest(notFound);
+
+        Assert.Equal("The AI provider could not find the requested model or endpoint (404). Verify that the deployment's model name exists on the provider and that the connection endpoint is correct. If you are using Ollama, make sure the model has been pulled first.", message);
+    }
+
+    [Fact]
+    public void GetFriendlyErrorMessage_WithNonNotFoundHttpError_ReturnsGenericMessage()
+    {
+        var hub = new TestAIChatHub(new ServiceCollection().BuildServiceProvider());
+
+        var serverError = new HttpRequestException(
+            "Response status code does not indicate success: 500 (Internal Server Error).",
+            inner: null,
+            statusCode: HttpStatusCode.InternalServerError);
+
+        var message = hub.GetFriendlyErrorMessageForTest(serverError);
+
+        Assert.Equal("An error occurred processing your message.", message);
     }
 
     /// <summary>
